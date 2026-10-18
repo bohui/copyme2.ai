@@ -56,7 +56,6 @@ export default function Draft() {
     try {
       const page = await api!.privateDraftPage(projectId, saved.snapshot_id, {
         cursor: saved.next_cursor,
-        legacy: saved.legacy,
       });
       if (current.current !== saved || page.snapshot_id !== saved.snapshot_id)
         return;

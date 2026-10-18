@@ -8,6 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from apps.api.agent_storage import UserStorage
+from memoir_checkpoint_fixture import checkpoint
 from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback
 import scripts.issue14_subscription_runner as module
 
@@ -48,6 +49,7 @@ class Storage(UserStorage):
         self.sources = []
         self.drafts = []
         self.extracted = 0
+        self.pages = []
 
     def memory_events(self, project):
         assert project == self.plan['project_id']
@@ -62,20 +64,28 @@ class Storage(UserStorage):
         assert (project, language) == (self.plan['project_id'], self.plan['language'])
         ordinal = len(self.sources)
         self.session.events.append(('readback', self.plan['case_id'], ordinal))
-        draft = {'status': 'ready', 'covered_round': ordinal, 'milestone': ordinal,
-            'revision': ordinal // 5, 'updating': False, 'error': None,
-            'proposal_pending': False, 'preview': {'locale': language, 'text': self.sources[0]['text']},
-            'milestones': [{'milestone': n, 'covered_round': n, 'state': 'completed',
-                            'manuscript_revision': n // 5} for n in range(5, ordinal + 1, 5)],
-            'progress': {'extraction': {'extracted_through': ordinal, 'pending_inputs': 0}},
-            'sections': [{'id': 'chapter__first', 'chapter_id': 'chapter', 'fingerprint': 'a' * 64,
-                          'revision': 1, 'content': self.sources[0]['text'], 'event_ids': ['saved-event'],
-                          'source_refs': [{'source_id': self.sources[0]['id'], 'version': 1,
-                                           'quote': self.sources[0]['text']}]}]}
+        saved = checkpoint(project, language, ordinal, self.sources[0]['text'],
+            self.sources[0]['id'], owner=self.user_id)
+        draft, self.pages = saved['draft'], saved['pages']
         if self.session.draft_hook:
             self.session.draft_hook(draft)
         self.drafts.append(draft)
         return draft
+
+    def lifetime_rpc(self, name, **parameters):
+        assert parameters['p_project_id'] == self.plan['project_id']
+        if name == 'read_lifetime_project_identity':
+            return checkpoint(self.plan['project_id'], self.plan['language'], 5,
+                'text', owner=self.user_id)['identity']
+        assert name == 'read_lifetime_private_draft_page'
+        assert parameters['p_snapshot_id'] == self.drafts[-1]['snapshot_id']
+        assert parameters['p_limit'] == 8
+        assert parameters['p_after'] is None
+        page = deepcopy(self.pages[0])
+        if self.session.page_hook:
+            self.session.page_hook(page)
+        return page
+
 
 
 class Session:
@@ -95,6 +105,7 @@ class Session:
         self.events, self.calls, self.active = [], [], None
         self.read_hook = self.draft_hook = self.turn_hook = self.close_hook = None
         self.finish_hook = None
+        self.page_hook = None
         self.closed = False
         self.close_started = asyncio.Event()
         self.turn_delay = 0
@@ -244,7 +255,7 @@ def test_two_exact_original_fifteen_turn_cases_settle_serially(controlled, monke
     for case in result['cases']:
         assert case['status'] == 'completed'
         assert [checkpoint['milestone'] for checkpoint in case['checkpoints']] == [5, 10, 15]
-        assert case['checkpoints'][0]['draft']['sections'][0]['event_ids'] == ['saved-event']
+        assert case['checkpoints'][0]['pages'][0]['records'][0]['event_id'] == 'saved-event'
         assert all(record['background_settled'] for record in case['rounds'])
         assert len(case['workflow_ids']) == 15
     for index, event in enumerate(session.events):
@@ -252,8 +263,8 @@ def test_two_exact_original_fifteen_turn_cases_settle_serially(controlled, monke
             assert session.events[index - 1][0] == 'finish' or event[2] == 1
         if event[0] == 'finish':
             assert session.events[index - 1] == ('pending', *event[1:])
-    session.storages[CASE_IDS[0]].drafts[0]['sections'][0]['content'] = 'later mutation'
-    assert result['cases'][0]['checkpoints'][0]['draft']['sections'][0]['content'] != 'later mutation'
+    session.storages[CASE_IDS[0]].drafts[0]['preview']['text'] = 'later mutation'
+    assert result['cases'][0]['checkpoints'][0]['pages'][0]['records'][0]['preview']['text'] != 'later mutation'
 
 
 def test_unverified_session_rejected_before_attributes_or_storage():
@@ -706,19 +717,18 @@ def test_canonical_readback_failures_retain_only_fixed_comparison_reason(control
 CHECKPOINT_REJECTIONS = [
     ('draft_shape', (), []), ('draft_status', ('status',), 'SECRET_STATUS'),
     ('updating', ('updating',), True), ('error', ('error',), 'SECRET_ERROR'),
-    ('proposal_pending', ('proposal_pending',), True), ('covered_round', ('covered_round',), 4),
-    ('milestone', ('milestone',), 4), ('revision', ('revision',), True),
+    ('identity', ('owner_id',), 'SECRET_OWNER'), ('identity', ('conversation_id',), str(uuid4())),
+    ('identity', ('project_id',), 'SECRET_PROJECT'), ('identity', ('locale',), 'SECRET_LOCALE'),
+    ('approval_required', ('approval_required',), True), ('coverage_round', ('coverage_round',), 4),
+    ('snapshot_state', ('snapshot_state',), 'proposed'), ('retrieval_complete', ('retrieval_complete',), False),
+    ('snapshot_id', ('snapshot_id',), 'SECRET_SNAPSHOT'), ('root_digest', ('root_digest',), 'SECRET_DIGEST'),
+    ('frozen_revisions', ('source_revision',), 4), ('frozen_revisions', ('event_revision',), True),
+    ('revision', ('revision',), True),
     ('progress_shape', ('progress',), []), ('extraction_shape', ('progress', 'extraction'), []),
     ('extracted_through', ('progress', 'extraction', 'extracted_through'), 4),
     ('pending_inputs', ('progress', 'extraction', 'pending_inputs'), 1),
     ('preview_shape', ('preview',), []), ('preview_locale', ('preview', 'locale'), 'SECRET_LOCALE'),
     ('preview_text_type', ('preview', 'text'), []), ('preview_text_empty', ('preview', 'text'), ' '),
-    ('milestones_shape', ('milestones',), None), ('milestone_count', ('milestones',), []),
-    ('milestone_shape', ('milestones', 0), 'SECRET_MILESTONE'),
-    ('milestone_status', ('milestones', 0, 'state'), 'SECRET_STATUS'),
-    ('milestone_ordinal', ('milestones', 0, 'milestone'), 4),
-    ('milestone_covered_round', ('milestones', 0, 'covered_round'), 4),
-    ('sections_shape', ('sections',), None), ('sections_empty', ('sections',), []),
 ]
 
 
@@ -738,6 +748,66 @@ def test_saved_checkpoint_failures_retain_only_fixed_comparison_reason(controlle
     assert result['status'] == 'incomplete' and result['output'] is None
     assert result['failure_stage'] == 'checkpoint_readback'
     assert 'SECRET' not in str(result)
+
+
+@pytest.mark.parametrize('predicate,path,replacement', [
+    ('page_scope', ('owner_id',), 'SECRET_OWNER'),
+    ('page_scope', ('conversation_id',), str(uuid4())),
+    ('page_scope', ('project_id',), 'SECRET_PROJECT'),
+    ('page_scope', ('snapshot_id',), str(uuid4())),
+    ('page_scope', ('root_digest',), 'b' * 64),
+    ('page_scope', ('policy_epoch',), True),
+    ('page_scope', ('preference_revision',), True),
+    ('page_scope', ('source_revision',), 4),
+    ('page_scope', ('event_revision',), 4),
+    ('page_scope', ('locale',), 'zh-CN'),
+    ('page_scope', ('snapshot_state',), 'proposed'),
+    ('page_scope', ('approval_required',), True),
+    ('page_scope', ('snapshot_complete',), False),
+    ('page_cursor', ('complete',), False),
+    ('page_cursor', ('next_cursor',), 'SECRET_CURSOR'),
+    ('records_shape', ('records',), []),
+    ('records_shape', ('records',), [{}] * 9),
+    ('record_shape', ('records', 0), 'SECRET_RECORD'),
+    ('record_approval', ('records', 0, 'approval_required'), True),
+    ('record_approval', ('records', 0, 'original_withheld'), True),
+    ('record_event', ('records', 0, 'event_revision'), True),
+    ('record_preview', ('records', 0, 'preview', 'text'), 'SECRET_PREVIEW'),
+    ('record_sources', ('records', 0, 'source_refs', 0, 'source_id'), 'SECRET_SOURCE'),
+    ('record_sources', ('records', 0, 'source_refs', 0, 'version'), True),
+])
+def test_canonical_page_failures_stop_at_five_with_fixed_diagnostics(controlled, predicate, path, replacement):
+    session = controlled()
+    session.page_hook = lambda page: page.update(_replace_readback(page, path, replacement))
+    result = execute(session)
+    record = result['cases'][0]['rounds'][-1]
+    assert record['checkpoint_readback_diagnostic']['predicate'] == predicate
+    assert record['round'] == 5 and len(session.calls) == 5
+    assert result['stop_reason'] == 'checkpoint_incomplete'
+    assert result['output'] is None and result['cases'][0]['checkpoints'] == []
+    assert 'SECRET' not in str(result)
+
+
+@pytest.mark.parametrize('repeat', [True, False])
+def test_checkpoint_pagination_rejects_repeated_cursors_and_enforces_page_cap(controlled, monkeypatch, repeat):
+    import scripts.memoir_checkpoint_readback as checkpoints
+    session = controlled()
+    storage = session.storages[CASE_IDS[0]]
+    original = storage.lifetime_rpc
+    pages = []
+    def rpc(name, **parameters):
+        if name != 'read_lifetime_private_draft_page':
+            return original(name, **parameters)
+        pages.append(parameters['p_after'])
+        return {**deepcopy(storage.pages[0]), 'complete': False,
+                'next_cursor': 'repeated' if repeat else str(uuid4())}
+    storage.lifetime_rpc = rpc
+    monkeypatch.setattr(checkpoints, 'MAX_PAGES', 3)
+    result = execute(session)
+    record = result['cases'][0]['rounds'][-1]
+    assert record['checkpoint_readback_diagnostic']['predicate'] == ('page_cursor' if repeat else 'page_bound')
+    assert len(pages) == (2 if repeat else 3)
+    assert result['stop_reason'] == 'checkpoint_incomplete' and result['output'] is None
 
 
 @pytest.mark.parametrize('boundary,function_name', [('runtime', '_runtime_readback'),
@@ -880,7 +950,7 @@ def test_round_readback_mismatch_blocks_later_turns(controlled, mutation):
 
 @pytest.mark.parametrize('mutation', [
     lambda d: d.update(status='stale'), lambda d: d.update(updating=True),
-    lambda d: d.update(proposal_pending=True), lambda d: d.update(covered_round=4),
+    lambda d: d.update(approval_required=True), lambda d: d.update(coverage_round=4),
     lambda d: d['progress']['extraction'].update(pending_inputs=1),
 ])
 def test_pending_checkpoint_stops_at_five(controlled, mutation):
@@ -907,10 +977,10 @@ def test_partial_saved_checkpoints_survive_content_free_failure(controlled):
 
 def test_structurally_invalid_saved_readback_prevents_second_case(controlled):
     session = controlled()
-    def alter_same_fingerprint(draft):
-        if draft['milestone'] == 10:
-            draft['sections'][0]['content'] = 'Inconsistent saved text'
-    session.draft_hook = alter_same_fingerprint
+    def alter_same_dependencies(draft):
+        if draft['coverage_round'] == 10:
+            draft['preview']['text'] = 'Inconsistent saved text'
+    session.draft_hook = alter_same_dependencies
     result = execute(session)
     assert result['status'] == 'incomplete' and result['output'] is None
     assert result['cases'][0]['status'] == 'incomplete'

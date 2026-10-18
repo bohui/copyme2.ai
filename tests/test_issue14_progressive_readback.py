@@ -4,6 +4,8 @@ from copy import deepcopy
 
 import pytest
 
+from memoir_checkpoint_fixture import checkpoint
+
 from scripts.issue14_progressive_readback import ProgressiveReadback, ReadbackError
 
 
@@ -29,20 +31,10 @@ def outcome(b):
             'canonical_state': {'project_id': args['project_id'], 'completed_rounds': ordinal, 'sources': deepcopy(sources),
                                 'processing': {'extracted_through': ordinal, 'pending_inputs': 0}}})
         if ordinal % 5 == 0:
-            checkpoints.append({'milestone': ordinal, 'draft': {
-                'status': 'ready', 'covered_round': ordinal, 'milestone': ordinal,
-                'revision': ordinal // 5, 'updating': False, 'error': None,
-                'proposal_pending': False,
-                'preview': {'locale': args['language'], 'text': args['rounds'][0]},
-                'milestones': [{'milestone': n, 'covered_round': n, 'state': 'completed',
-                                'manuscript_revision': n // 5} for n in range(5, ordinal + 1, 5)],
-                'progress': {'extraction': {'extracted_through': ordinal, 'pending_inputs': 0}},
-                'sections': [{'id': 'chapter__first', 'chapter_id': 'chapter',
-                    'fingerprint': 'a' * 64, 'revision': 1, 'content': args['rounds'][0],
-                    'source_refs': [{'source_id': 'original-1', 'version': 1,
-                                     'quote': args['rounds'][0]}]}]}})
+            checkpoints.append(checkpoint(args['project_id'], args['language'], ordinal,
+                args['rounds'][0]))
     return {**{k: args[k] for k in ('case_id', 'project_id')}, 'status': 'completed',
-            'evidence_mode': 'mock_only', 'rounds': records, 'checkpoints': checkpoints}
+            'evidence_mode': 'mock_only', 'rounds': records, 'checkpoints': checkpoints, 'canonical_identity': checkpoints[0]['identity']}
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
@@ -64,8 +56,8 @@ def test_original_inputs_correlations_and_saved_checkpoint_projection(locale):
     assert len(evidence['source_mapping']) == 15
     assert evidence['source_mapping'][0]['dataset_source_id'] == 's1'
     assert evidence['source_mapping'][0]['application_source_id'] == 'original-1'
-    result['checkpoints'][0]['draft']['sections'][0]['content'] = 'changed later'
-    assert evidence['saved_checkpoints'][0]['sections'][0]['content'] != 'changed later'
+    result['checkpoints'][0]['pages'][0]['records'][0]['preview']['text'] = 'changed later'
+    assert evidence['saved_checkpoints'][0]['records'][0]['preview']['text'] != 'changed later'
 
 
 @pytest.mark.parametrize('case_id', ['unknown', 'bilingual.chapters.transitions', 'chapters.transitions.en-GB'])
@@ -132,16 +124,16 @@ def test_subscription_label_does_not_grant_live_or_durable_acceptance():
     lambda r: r['checkpoints'].pop(),
     lambda r: r['checkpoints'][0].update(milestone=10),
     lambda r: r['checkpoints'][0]['draft'].update(status='stale'),
-    lambda r: r['checkpoints'][0]['draft'].update(covered_round=4),
+    lambda r: r['checkpoints'][0]['draft'].update(coverage_round=4),
     lambda r: r['checkpoints'][0]['draft'].update(revision=True),
     lambda r: r['checkpoints'][0]['draft'].update(updating=True),
-    lambda r: r['checkpoints'][0]['draft'].update(proposal_pending=True),
+    lambda r: r['checkpoints'][0]['draft'].update(approval_required=True),
     lambda r: r['checkpoints'][0]['draft']['progress']['extraction'].update(pending_inputs=1),
-    lambda r: r['checkpoints'][0]['draft'].update(sections=[]),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(source_id='original-15'),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(quote='invented'),
-    lambda r: r['checkpoints'][1]['draft']['sections'][0].update(content='rewritten same fingerprint'),
-    lambda r: r['checkpoints'][1]['draft']['sections'][0].update(revision=2),
+    lambda r: r['checkpoints'][0]['pages'][0].update(records=[]),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(source_id='original-15'),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(quote='invented'),
+    lambda r: r['checkpoints'][1]['pages'][0]['records'][0]['preview'].update(text='rewritten same dependencies'),
+    lambda r: r['checkpoints'][1]['pages'][0]['records'][0].update(event_revision=0),
 ])
 def test_missing_stale_mismatched_or_rewritten_readbacks_are_unavailable(mutation):
     b = bridge()
@@ -178,16 +170,16 @@ def test_malformed_outcome_stays_unavailable(bad):
     lambda r: r['checkpoints'][0]['draft'].update(preview=None),
     lambda r: r['checkpoints'][0]['draft']['preview'].update(locale='zh-CN'),
     lambda r: r['checkpoints'][0]['draft']['preview'].update(text=''),
-    lambda r: r['checkpoints'][0]['draft']['milestones'][0].update(state='pending'),
-    lambda r: r['checkpoints'][1]['draft']['milestones'][0].update(manuscript_revision=2),
-    lambda r: r['checkpoints'][1]['draft']['sections'].append(deepcopy(r['checkpoints'][1]['draft']['sections'][0])),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(source_id=[]),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(version=True),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(char_start=0),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(char_start=True, char_end=2),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(char_start=2, char_end=1),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(char_start=0, char_end=999999),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(char_start=0, char_end=1),
+    lambda r: r['checkpoints'][0]['draft'].update(snapshot_state='proposed'),
+    lambda r: r['checkpoints'][1]['draft'].update(source_revision=1),
+    lambda r: r['checkpoints'][1]['pages'][0]['records'].append(deepcopy(r['checkpoints'][1]['pages'][0]['records'][0])),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(source_id=[]),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(version=True),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(char_start=0),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(char_start=True, char_end=2),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(char_start=2, char_end=1),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(char_start=0, char_end=999999),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(char_start=0, char_end=1),
 ])
 def test_additional_inconsistent_saved_readback_shapes(mutation):
     b = bridge()
@@ -202,42 +194,40 @@ def test_actual_span_only_string_versions_and_unchanged_manuscript_revision():
     for checkpoint in result['checkpoints']:
         draft = checkpoint['draft']
         draft['revision'] = 1
-        for milestone in draft['milestones']:
-            milestone['manuscript_revision'] = 1
-        draft['sections'][0]['source_refs'] = [{'source_id': 'original-1', 'version': '1',
+        checkpoint['pages'][0]['records'][0]['source_refs'] = [{'source_id': 'original-1', 'version': '1',
             'char_start': 0, 'char_end': len(b.driver_inputs()['rounds'][0])}]
     assert b.capture(result)['saved_checkpoints'][-1]['revision'] == 1
 
 
-@pytest.mark.parametrize('changed', ['section', 'preview'])
+@pytest.mark.parametrize('changed', ['record', 'preview'])
 def test_same_manuscript_revision_requires_identical_saved_snapshot(changed):
     b = bridge()
     result = outcome(b)
-    for checkpoint in result['checkpoints']:
-        checkpoint['draft']['revision'] = 1
-        for row in checkpoint['draft']['milestones']:
-            row['manuscript_revision'] = 1
-    draft = result['checkpoints'][1]['draft']
-    if changed == 'section':
-        draft['sections'][0].update(content='Different saved section', fingerprint='b' * 64, revision=2)
+    for saved in result['checkpoints']:
+        saved['draft']['revision'] = 1
+    saved = result['checkpoints'][1]
+    if changed == 'record':
+        saved['pages'][0]['records'][0]['event_revision'] = 2
     else:
-        draft['preview']['text'] = 'Different saved preview'
+        saved['draft']['preview']['text'] = 'Different saved preview'
     assert b.observation(result)['output'] is None
 
 
 @pytest.mark.parametrize('revision', [1, 2])
-def test_changed_fingerprint_requires_new_section_revision(revision):
+def test_changed_passage_requires_changed_canonical_event(revision):
     b = bridge()
     result = outcome(b)
-    for checkpoint in result['checkpoints'][1:]:
-        checkpoint['draft']['sections'][0].update(content='Changed saved text', fingerprint='b' * 64, revision=revision)
+    for saved in result['checkpoints'][1:]:
+        record = saved['pages'][0]['records'][0]
+        record['preview']['text'] = 'Changed saved text'
+        record['event_revision'] = revision
     assert (b.observation(result)['output'] is not None) is (revision == 2)
 
 
-def test_same_fingerprint_preserves_unprojected_section_fields_too():
+def test_partition_cannot_switch_to_an_unrelated_event():
     b = bridge()
     result = outcome(b)
-    result['checkpoints'][1]['draft']['sections'][0]['event_ids'] = ['different-event']
+    result['checkpoints'][1]['pages'][0]['records'][0]['event_id'] = 'different-event'
     assert b.observation(result)['output'] is None
 
 
@@ -258,7 +248,7 @@ def test_existing_driver_hook_abi_with_controlled_storage_no_dispatch(monkeypatc
     state = {'round': 0}
     class Storage(UserStorage):
         def __init__(self):
-            pass
+            self.user_id = sample['canonical_identity']['owner_id']
         def memory_events(self, project_id):
             assert project_id == b.driver_inputs()['project_id']
             return deepcopy(sample['rounds'][state['round']-1]['canonical_state']) if state['round'] else {
@@ -266,6 +256,12 @@ def test_existing_driver_hook_abi_with_controlled_storage_no_dispatch(monkeypatc
         def saved_memoir_draft(self, project_id, language):
             assert language == 'en-AU'
             return deepcopy(sample['checkpoints'][state['round']//5-1]['draft'])
+        def lifetime_rpc(self, name, **parameters):
+            if name == 'read_lifetime_project_identity':
+                return deepcopy(sample['canonical_identity'])
+            assert name == 'read_lifetime_private_draft_page'
+            assert parameters['p_limit'] == 8 and parameters['p_after'] is None
+            return deepcopy(sample['checkpoints'][state['round']//5-1]['pages'][0])
     class Runtime:
         async def turn(self, storage, text, **kwargs):
             state['round'] += 1
@@ -285,7 +281,7 @@ def test_existing_driver_hook_abi_with_controlled_storage_no_dispatch(monkeypatc
         return reader(None)
     def head(storage, project_id, *, language=None):
         draft=storage.saved_memoir_draft(project_id,language)
-        return {**draft,'coverage_round':draft['covered_round']}
+        return draft
     monkeypatch.setattr(canonical,'canonical_turn',delivery)
     monkeypatch.setattr(canonical,'canonical_read',read)
     monkeypatch.setattr(canonical,'draft_head',head)

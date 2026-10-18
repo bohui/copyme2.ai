@@ -78,6 +78,53 @@ def execute(session, **kwargs):
         evidence_mode='subscription_fifty').run(**kwargs))
 
 
+def test_real_storage_canonical_checkpoints_read_every_bounded_page(campaign):
+    from apps.api.agent_storage import UserStorage
+    from memoir_checkpoint_fixture import checkpoint
+
+    session = campaign()
+    reads = []
+    def configure(storage):
+        current = {}
+        def rpc(name, **parameters):
+            assert parameters['p_project_id'] == storage.plan['project_id']
+            if name == 'read_lifetime_private_draft_head':
+                ordinal = len(storage.sources)
+                saved = checkpoint(storage.plan['project_id'], storage.plan['language'], ordinal,
+                    storage.sources[0]['text'], storage.sources[0]['id'], owner=storage.user_id)
+                record = saved['pages'][0]['records'][0]
+                records = [{**deepcopy(record), 'id': f'partition-{index}'} for index in range(9)]
+                current.update(checkpoint(storage.plan['project_id'], storage.plan['language'], ordinal,
+                    storage.sources[0]['text'], storage.sources[0]['id'], owner=storage.user_id, records=records))
+                return deepcopy(current['draft'])
+            if name == 'read_lifetime_project_identity':
+                saved = checkpoint(storage.plan['project_id'], storage.plan['language'], 5, 'text', owner=storage.user_id)
+                return {key: saved['draft'][key] for key in ('owner_id', 'conversation_id', 'project_id')}
+            if name == 'read_lifetime_private_draft_page':
+                assert parameters['p_limit'] == 8
+                assert parameters['p_snapshot_id'] == current['draft']['snapshot_id']
+                page = 0 if parameters['p_after'] is None else 1
+                if page:
+                    assert parameters['p_after'] == current['pages'][0]['next_cursor']
+                reads.append((storage.plan['case_id'], len(storage.sources), page))
+                return deepcopy(current['pages'][page])
+            if name == 'read_lifetime_skill_progress':
+                return {}
+            raise AssertionError(name)
+        storage.lifetime_rpc = rpc
+        storage.saved_memoir_draft = UserStorage.saved_memoir_draft.__get__(storage)
+    for storage in session.storages.values():
+        configure(storage)
+    result = execute(session)
+    assert result['status'] == 'completed'
+    assert len(reads) == 100
+    for case in result['cases']:
+        for saved in case['checkpoints']:
+            assert len(saved['pages']) == 2
+            assert sum(len(page['records']) for page in saved['pages']) == 9
+            assert saved['readback_protocol'] == 'lifetime_private_draft_pages'
+
+
 def test_campaign_executes_exact_five_case_order_250_originals_50_saved_checkpoints(campaign):
     session = campaign()
     result = execute(session)
@@ -111,7 +158,7 @@ def test_fifty_session_requires_explicit_runner_profile(campaign):
 def test_every_fifty_checkpoint_is_required_and_partial_evidence_survives(campaign, milestone):
     session = campaign()
     def draft(value):
-        if value['milestone'] == milestone:
+        if value['coverage_round'] == milestone:
             value['status'] = 'pending'
     session.draft_hook = draft
     result = execute(session)

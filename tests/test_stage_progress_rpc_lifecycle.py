@@ -37,15 +37,6 @@ def stages(sql, project):
     return rpc(sql, 'read_lifetime_stage_readiness', literal(project))['stages']
 
 
-def legacy_writers(sql):
-    root = Path(__file__).resolve().parents[1]
-    old = (root / 'supabase/migrations/202610080001_memory_event_noop.sql').read_text()
-    old = old[old.index('create or replace function'):old.index('revoke all on function')]
-    sql(old.replace('public.apply_user_memory_events(', 'public.apply_user_memory_events_before_photos('))
-    old_correction = (root / 'supabase/migrations/202610040001_shared_memory_events.sql').read_text()
-    old_correction = old_correction[old_correction.index('create or replace function public.correct_user_memory_event('):]
-    sql(old_correction[:old_correction.index('revoke all on function')])
-    sql("alter table public.user_memory_event_source alter column stage_progress_role set default 'legacy';")
 
 
 def test_workspace_correction_moves_all_saved_direct_narration(sql):
@@ -149,61 +140,3 @@ def test_edit_requires_new_version_attribution_and_withdrawal_removes_it(sql):
     assert stages(sql, project)['childhood'] == readiness(4)
     rpc(sql, 'change_user_narrator_source', f"{literal(project)},'{first['id']}',2,'withdraw',null")
     assert all(value == readiness(0) for value in stages(sql, project).values())
-
-
-@pytest.mark.parametrize('short_cue', [False, True])
-def test_upgrade_restores_provable_stage_and_primary_attribution_without_rewriting_evidence(sql, short_cue):
-    root = Path(__file__).resolve().parents[1]
-    migration = (root / 'supabase/migrations/202610150003_canonical_stage_readiness.sql').read_text()
-    # Simulate rows produced by the actual pre-upgrade persistence body.
-    legacy_writers(sql)
-    try:
-        project = resolve(sql)['project_id']
-        source = save_stage_source(sql, project, '忆' * 300)
-        event = persist(sql, project, source, cue=reference(source, 0, 4) if short_cue else None)
-        rpc(sql, 'set_lifetime_event_correction', f"{literal(project)},'{event['id']}',"
-            f"{event['revision']},'{{\"life_stage\":\"midlife\"}}','Actually this was in midlife.'")
-        before = sql('select record from public.user_memory_event_revision order by revision;').stdout
-        sql(migration)
-        assert sql('select record from public.user_memory_event_revision order by revision;').stdout == before
-        view = stages(sql, project)
-        assert view['childhood'] == readiness(0)
-        # At its first model revision, the longer quote occurs in no contextual
-        # role, so the immutable union proves it was primary narration.
-        assert view['midlife'] == readiness(300)
-        sql(migration)
-        assert stages(sql, project) == view
-    finally:
-        sql(migration)
-
-
-def test_legacy_union_records_cannot_distinguish_primary_from_background(sql):
-    root = Path(__file__).resolve().parents[1]
-    migration = (root / 'supabase/migrations/202610150003_canonical_stage_readiness.sql').read_text()
-    legacy_writers(sql)
-    try:
-        project = resolve(sql)['project_id']
-        source = save_stage_source(sql, project, '忆' * 300)
-        full, cue = reference(source), reference(source, 0, 4)
-        common = {'kind':'event', 'title':'Indistinguishable old records', 'life_stage':'childhood',
-                  'stage_evidence':[cue], 'temporal':{'expression':'unknown', 'precision':'unknown', 'basis':[full]}}
-        proposals = [{**common, 'source_refs':[ref]} for ref in [full,cue]]
-        rpc(sql, 'apply_user_memory_events', f"{literal(project)},"
-            f"{literal([{'id':source['id'],'version':1}])}::jsonb,{literal(proposals)}::jsonb")
-        records = json.loads(sql("select jsonb_agg(record - array['id','change_sequence']) "
-                                 "from public.user_memory_event_revision;").stdout)
-        # One proposal has 300 primary words; the other has four, with the
-        # longer quote only a temporal dependency. Their saved records match.
-        assert len(records) == 2 and records[0] == records[1]
-        event_id = sql('select id from public.user_memory_event order by id limit 1;').stdout.strip()
-        later = save_stage_source(sql, project, '学' * 10)
-        enrichment = {**common, 'existing_id':event_id, 'expected_revision':1,
-                      'source_refs':[reference(later)], 'temporal':{'expression':'unknown','precision':'unknown'}}
-        rpc(sql, 'apply_user_memory_events', f"{literal(project)},"
-            f"{literal([{'id':later['id'],'version':1}])}::jsonb,{literal([enrichment])}::jsonb")
-        sql(migration)
-        # A later revision no longer lists the long quote as temporal context,
-        # but its accumulated link does not become proof of primary ownership.
-        assert stages(sql, project)['childhood'] == readiness(14)
-    finally:
-        sql(migration)

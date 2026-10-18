@@ -9,12 +9,14 @@ saved reply; failed replies do not consume it. Once exhausted, the interview
 shows package selection and resumes only after a verified paid entitlement.
 Customer-facing copy does not show the free-round allowance.
 
-The development database starts with a consolidated schema baseline and uses
-incremental migrations for later changes. Run `make migrate` to apply pending
-changes through Supabase's tracked migration history.
-For a disposable development database after changing the schema baseline, use
-`supabase db reset --db-url "$SUPABASE_DB_URL" --yes`; this recreates the
-schema and applies the baseline and subsequent migrations.
+The development database is defined by one fresh-install migration,
+`supabase/migrations/202610180001_initial_schema.sql`. It creates only the current
+schema, with no upgrade backfills or legacy import paths. After pulling this
+baseline replacement, reset your disposable database yourself with
+`supabase db reset --db-url "$SUPABASE_DB_URL" --yes`. Existing migration history
+is intentionally unsupported. `make migrate` still uses Supabase migration
+tracking for fresh databases and future migrations. See
+[the database design](docs/Database_Design.md) for retained tables and indexes.
 
 ## Product URLs
 
@@ -325,7 +327,7 @@ API, clears local object and per-user Codex files, truncates the application
 tables, and deletes every Supabase Auth user. It requires `SUPABASE_DB_URL`,
 `SUPABASE_URL`, and the server-only `SUPABASE_SECRET_KEY` (or
 `SUPABASE_SERVICE_ROLE_KEY`). Schemas, migration history, and Storage bucket
-definitions are preserved. `public.place_photo_searches` is preserved, including
+definitions are preserved. `public.place_photo_search` is preserved, including
 its search keys, public photo results and update times. A preflight rejects
 foreign-key/partition dependencies that would pull this table into `CASCADE` or
 Auth deletion, before stopping services or clearing Storage/files. Per-run
@@ -665,7 +667,7 @@ photos, grouped-place fallbacks and every streamed page. Wikimedia originals,
 thumbnails and file redirects share one identity; content fingerprints also
 merge resized or rehosted copies and closely matching scenes.
 
-Public photo research is persisted globally in Supabase `place_photo_searches`,
+Public photo research is persisted globally in Supabase `place_photo_search`,
 keyed by search-policy version, normalized location and period. Any project requesting that key reuses
 the full saved result set, including after a worker restart. Progressive batches
 are saved independently of the browser; cursors remain bound to the project and
@@ -676,7 +678,7 @@ rights and attribution remain required; fallback photos carry explicit labels
 and preserve their actual dates or date uncertainty. Only the
 trusted photo worker writes the cache with its server-side Supabase credential;
 no memoir text, user ID, project ID, cookies or credentials enter its rows.
-Apply migration `202610020003_place_photo_searches.sql` and configure
+Apply the database baseline and configure
 `SUPABASE_URL`/`SUPABASE_SECRET_KEY` on the photo worker. Saved historical results
 do not expire with the in-memory 15-minute cursor cache. Current references are
 checked against the recent capture window when restored. Completed empty searches

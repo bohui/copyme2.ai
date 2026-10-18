@@ -5,6 +5,7 @@ import json
 import pytest
 
 from scripts import memoir_fifty_coverage as coverage
+from memoir_checkpoint_fixture import checkpoint
 
 PROJECT = 'synthetic-project'
 
@@ -143,15 +144,13 @@ def test_duplicate_rounds_are_rejected():
 
 def test_saved_private_checkpoint_never_proves_formal_composition():
     data = observed(50)
-    data['saved_draft'] = {'status': 'ready', 'revision': 10, 'covered_round': 50,
-        'updating': False, 'error': None, 'proposal_pending': False,
-        'sections': [{'id': 'saved-section', 'content': 'Saved prose'}]}
+    data['saved_draft'] = checkpoint(PROJECT, 'en-AU', 50, 'Saved prose', source_id='source-one')
     result = coverage.round_skill_coverage(**data)
     composer = result['skills']['memoir-composer']
     assert composer['status'] == 'observed'
     assert composer['scope'] == 'saved_private_checkpoint'
     assert composer['legacy_action_verified'] is False
-    data['saved_draft']['covered_round'] = 45
+    data['saved_draft']['draft']['coverage_round'] = 45
     assert coverage.round_skill_coverage(**data)['skills']['memoir-composer']['status'] == 'unavailable'
 
 

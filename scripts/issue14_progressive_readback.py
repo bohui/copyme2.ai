@@ -13,6 +13,10 @@ from pathlib import Path
 import re
 from uuid import UUID, uuid5
 
+from scripts.memoir_checkpoint_readback import (
+    CheckpointReadbackError, checkpoint_binding, checkpoint_records,
+)
+
 
 DATASET_SHA256 = 'bea8a31f8d4ab0539e2f1c99e08978acbcb4d60ffc25bf36579f04c8a27392c7'
 DATASET_PATH = Path(__file__).resolve().parents[1] / 'tests/evaluation/issue6_semantic_datasets.json'
@@ -115,8 +119,9 @@ class _ConfiguredReadback:
         """Return a detached structural projection or raise ReadbackError.
 
         Only these checks are claimed: original input coverage, correlation,
-        ready saved checkpoint shapes, reference resolution and same-fingerprint
-        section preservation. No provider/cohort/word-limit/semantic acceptance.
+        ready frozen snapshots, complete bounded pages, reference resolution and
+        preservation of records with unchanged event/source dependencies.
+        No provider/cohort/word-limit/semantic acceptance.
         """
         result = _object(outcome)
         case_id, locale = self._case['case_id'], self._case['language']
@@ -158,56 +163,51 @@ class _ConfiguredReadback:
                              'trace_id': correlation['trace_id']})
         checkpoints = _list(result.get('checkpoints'))
         _require(len(checkpoints) == len(self._checkpoints))
-        saved, previous = [], {}
-        last_revision = 0
-        last_snapshot = None
+        identity = _object(result.get('canonical_identity'))
+        try:
+            binding = checkpoint_binding(identity, identity.get('owner_id'), self._project_id, locale)
+        except CheckpointReadbackError:
+            _require(False)
+        saved, previous, snapshots = [], {}, {}
+        last_revision, last_records = 0, None
         for checkpoint, ordinal in zip(checkpoints, self._checkpoints):
             _integer(_object(checkpoint).get('milestone'), ordinal)
-            draft = _object(checkpoint.get('draft'))
-            _require(draft.get('status') == 'ready' and draft.get('updating') is False
-                     and draft.get('error') is None and draft.get('proposal_pending') is False)
-            _integer(draft.get('covered_round'), ordinal)
-            _integer(draft.get('milestone'), ordinal)
-            revision = _integer(draft.get('revision'))
-            _require(revision > 0 and revision >= last_revision)
-            preview = _object(draft.get('preview'))
-            _require(preview.get('locale') == locale and type(preview.get('text')) is str and preview['text'].strip())
-            snapshot = {'preview': preview, 'sections': _list(draft.get('sections'))}
+            _require(checkpoint.get('identity') == binding)
+            try:
+                records = checkpoint_records(checkpoint, binding, ordinal, states[ordinal])
+            except CheckpointReadbackError:
+                _require(False)
+            draft = checkpoint['draft']
+            revision = draft['revision']
+            _require(revision >= last_revision)
+            authority = (draft['policy_epoch'], checkpoint['pages'][0]['preference_revision'])
+            projections = []
+            for record in records:
+                projection = {key: record[key] for key in ('id', 'event_id', 'event_revision')}
+                projection['preview'] = {key: record['preview'][key] for key in ('locale', 'text')}
+                projection['source_refs'] = _references(record['source_refs'], states[ordinal])
+                prior_entry = previous.get(record['id'])
+                if prior_entry:
+                    prior_authority, prior = prior_entry
+                    _require(prior['event_id'] == projection['event_id'])
+                    _require(projection['event_revision'] >= prior['event_revision'])
+                    if (authority == prior_authority and prior['event_revision'] == projection['event_revision']
+                            and prior['source_refs'] == projection['source_refs']):
+                        _require(prior == projection)
+                previous[record['id']] = (authority, deepcopy(projection))
+                projections.append(projection)
             if revision == last_revision:
-                _require(snapshot == last_snapshot)
-            last_revision, last_snapshot = revision, deepcopy(snapshot)
-            extraction = _object(_object(draft.get('progress')).get('extraction'))
-            _integer(extraction.get('extracted_through'), ordinal)
-            _integer(extraction.get('pending_inputs'), 0)
-            milestones = _list(draft.get('milestones'))
-            _require(len(milestones) == ordinal // 5)
-            for row, old in zip(milestones, range(5, ordinal + 1, 5)):
-                _integer(_object(row).get('milestone'), old)
-                _integer(row.get('covered_round'), old)
-                _require(row.get('state') == 'completed')
-                _integer(row.get('manuscript_revision'), revision if old == ordinal else saved[old // 5 - 1]['revision'])
-            sections, ids = [], set()
-            for section in _list(draft.get('sections')):
-                section = _object(section)
-                section_id = _identifier(section.get('id'))
-                _require(section_id not in ids)
-                ids.add(section_id)
-                _require(type(section.get('content')) is str and section['content'].strip())
-                _require(type(section.get('fingerprint')) is str and re.fullmatch('[0-9a-f]{64}', section['fingerprint']))
-                _require(_integer(section.get('revision')) > 0)
-                projection = {k: section[k] for k in ('id', 'content', 'fingerprint', 'revision')}
-                projection['chapter_id'] = _identifier(section.get('chapter_id'))
-                projection['source_refs'] = _references(section.get('source_refs'), states[ordinal])
-                _require(projection['source_refs'])
-                prior = previous.get(section_id)
-                if prior and prior['fingerprint'] == projection['fingerprint']:
-                    _require(prior == section)
-                elif prior:
-                    _require(projection['revision'] > prior['revision'])
-                previous[section_id] = deepcopy(section)
-                sections.append(projection)
-            _require(sections)
-            saved.append({'milestone': ordinal, 'covered_round': ordinal, 'revision': revision, 'sections': sections})
+                _require(projections == last_records)
+            last_revision, last_records = revision, deepcopy(projections)
+            frozen = {key: draft[key] for key in (
+                'root_digest', 'source_revision', 'event_revision', 'policy_epoch')}
+            frozen['preference_revision'] = authority[1]
+            frozen['records'] = projections
+            if draft['snapshot_id'] in snapshots:
+                _require(snapshots[draft['snapshot_id']] == frozen)
+            snapshots[draft['snapshot_id']] = deepcopy(frozen)
+            saved.append({'milestone': ordinal, 'coverage_round': ordinal, 'revision': revision,
+                'snapshot_id': draft['snapshot_id'], 'root_digest': draft['root_digest'], 'records': projections})
         return deepcopy({'schema_version': self._schema_version,
             'status': 'structural_readback_complete', 'case_id': case_id, 'language': locale,
             'run_id': self._run_id, 'project_id': self._project_id, 'source_revision': self._revision,

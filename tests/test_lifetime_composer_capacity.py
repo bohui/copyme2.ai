@@ -461,7 +461,7 @@ def test_pg_protected_section_survives_preference_snapshot_and_exposes_only_safe
     service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{first['token']}',0,{literal(original)}")
     service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{first['token']}'")
     if protection=='section':sql('update public.user_lifetime_memoir_section set approved=true;')
-    else:sql('update public.user_memoir_manuscript set human_locked=true;')
+    else:sql('update public.user_memoir_edition set human_locked=true;')
     before=sql('select bundle::text from public.user_lifetime_memoir_section;').stdout.strip()
     if privacy_changed:
         sql(f"insert into public.user_profile(user_id,profile) values('{OWNER}','{{\"memory_preferences\":{{\"excluded_topics\":[\"childhood\"]}}}}') on conflict(user_id) do update set profile=excluded.profile;")
@@ -481,18 +481,9 @@ def test_pg_protected_section_survives_preference_snapshot_and_exposes_only_safe
     assert head['original_withheld'] is privacy_changed
     if privacy_changed:assert head['preview'] is None
     else:assert head['preview']==original['preview']
-    assert sql(f"select revision from public.user_memoir_manuscript where user_id='{OWNER}';").stdout.strip()=='1'
+    assert sql(f"select revision from public.user_memoir_edition where user_id='{OWNER}';").stdout.strip()=='1'
 
 
-def test_pg_legacy_protected_manuscript_requires_explicit_migration(sql):
-    identity,source,lane,first=seeded_composer(sql);project=identity['project_id']
-    service(sql,'yield_lifetime_memoir_lane',f"'{lane}','{first['token']}'")
-    sql(f"insert into public.user_memoir_manuscript(user_id,project_id,locale,revision,human_locked,bundle) values('{OWNER}',{literal(project)},'en-AU',4,true,'{{\"preview\":{{\"text\":\"Protected original prose\"}}}}');")
-    assert service(sql,'claim_memoir_lane',f"'{lane}',900") is None
-    head=rpc(sql,'read_lifetime_private_draft_head',literal(project))
-    assert head['error']=='LIFETIME_LEGACY_MANUSCRIPT_MIGRATION_REQUIRED'
-    assert head['retrieval_complete'] is False and head['preview'] is None
-    assert sql(f"select bundle->'preview'->>'text' from public.user_memoir_manuscript where user_id='{OWNER}';").stdout.strip()=='Protected original prose'
 
 
 def test_pg_timeline_candidates_keep_old_active_interview_identity_bounded(sql):

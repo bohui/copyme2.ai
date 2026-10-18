@@ -147,7 +147,7 @@ class UserStorage:
         return self.request('POST', '/rest/v1/rpc/upsert_user_place_journey', json=payload).json()
 
     def story_entitlement(self):
-        rows = self.request('GET', '/rest/v1/story_entitlements', params={
+        rows = self.request('GET', '/rest/v1/story_entitlement', params={
             'select': 'status,plan_key,family_tree,timeline,expanded_details,stripe_price_id',
             'user_id': f'eq.{self.user_id}',
             'limit': '1',
@@ -344,18 +344,8 @@ class UserStorage:
                             json={'p_project_id': project_id}).json()
 
     def saved_memoir_draft(self, project_id, language=None):
-        from .recall import private_draft_cadence
-        locale = language or self.profile().get('preferred_language') or 'en-AU'
-        view = self.request('POST', '/rest/v1/rpc/read_user_memoir_draft', json={
-            'p_project_id': project_id, 'p_locale': locale, 'p_cadence': private_draft_cadence(),
-        }).json()
-        if view['revision'] == 0:
-            from .legacy_memoir import import_saved_cache
-            if import_saved_cache(self, project_id, locale):
-                return self.request('POST', '/rest/v1/rpc/read_user_memoir_draft', json={
-                    'p_project_id': project_id, 'p_locale': locale, 'p_cadence': private_draft_cadence(),
-                }).json()
-        return view
+        from .lifetime_memory_read_api import draft_head
+        return draft_head(self, project_id, language=language)
 
     def retry_memoir_lane(self, project_id, skill):
         return self.request('POST', '/rest/v1/rpc/retry_user_memoir_lane', json={

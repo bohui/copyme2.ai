@@ -28,7 +28,7 @@ def recovery(monkeypatch):
             source_sequence=UNSAFE, event_sequence=3, policy_epoch=1)],
         'user_memory': [], 'user_narrator_source': [], 'user_completed_round': [],
         'user_recall_usage': [dict(user_id=OWNER, rounds_completed=4)],
-        'story_entitlements': [],
+        'story_entitlement': [],
     }
     calls = []
     failure = {}

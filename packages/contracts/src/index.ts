@@ -275,8 +275,7 @@ export const KnownTurnEventSchema = z.discriminatedUnion("type", [
 ]);
 export type KnownTurnEvent = z.infer<typeof KnownTurnEventSchema>;
 export type TurnEvent =
-  | KnownTurnEvent
-  | { type: "unknown"; event_type: string };
+  KnownTurnEvent | { type: "unknown"; event_type: string };
 const knownTypes = new Set([
   "started",
   "heartbeat",
@@ -435,7 +434,6 @@ export const PrivateDraftSchema = z
     next_cursor: z.uuid().nullish(),
     page_complete: z.boolean().nullish(),
     retrieval_complete: z.boolean().optional(),
-    legacy: z.boolean().optional(),
     coverage_scope: z.string().optional(),
     coverage_round: SafeIntegerSchema.nullish(),
     first_record: PrivateDraftRecordSchema.nullish(),
@@ -456,7 +454,6 @@ export const PrivateDraftPageSchema = z
     records: z.array(PrivateDraftRecordSchema).max(8),
     complete: z.boolean(),
     next_cursor: z.uuid().nullable(),
-    legacy: z.boolean().optional(),
     publication_approved: z.literal(false).optional(),
   })
   .passthrough();

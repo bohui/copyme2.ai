@@ -28,7 +28,7 @@ def test_shadow_plan_never_becomes_the_real_interview_strategy_or_a_preference(s
     assert state['mode']=='shadow' and state['plan'] is None
     assert rpc(sql,'read_lifetime_prepared_questions',f"'{identity['conversation_id']}'")==[], 'Shadow candidates must not reach the legacy foreground indirectly'
     assert sql('select shadow from public.user_lifetime_interview_strategy;').stdout.strip()=='t'
-    assert sql('select count(*) from public.user_conversation_phase_archive;').stdout.strip()=='0'
+    assert sql("select count(*) from pg_tables where schemaname='public' and tablename='user_conversation_phase_archive';").stdout.strip()=='0'
     assert sql("select count(*) from public.user_memoir_lane where skill='composer';").stdout.strip()=='0'
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='0'
 
@@ -41,7 +41,7 @@ def test_automatic_internal_shape_is_persisted_without_a_user_mode_or_compositio
     plan=InterviewStrategyPlan.model_validate(state['plan'])
     assert plan.strategy=='shape' and plan.plan_revision==1
     assert plan.based_on_sequence==accepted['source']['sequence']
-    assert sql('select count(*) from public.user_conversation_phase_archive;').stdout.strip()=='0'
+    assert sql("select count(*) from pg_tables where schemaname='public' and tablename='user_conversation_phase_archive';").stdout.strip()=='0'
     # A later session and a finished worker reload the same durable plan.
     service(sql,'complete_lifetime_memoir_lane',f"'{lane_id}','{page['token']}'")
     assert rpc(sql,'read_lifetime_strategy_context',f"'{identity['conversation_id']}'")['plan']==state['plan']
