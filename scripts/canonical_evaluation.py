@@ -13,6 +13,7 @@ from apps.api.recall import private_draft_cadence
 from scripts.task_runtime import dispatch_memoir_lanes_once
 from scripts.canonical_turn import canonical_turn, canonical_read
 from apps.api.lifetime_memory_read_api import draft_head
+from scripts.memoir_checkpoint_readback import read_checkpoint
 
 
 class CanonicalEvaluationDriver:
@@ -51,6 +52,7 @@ class CanonicalEvaluationDriver:
             raise ValueError('Each evaluation case requires a fresh synthetic project')
         cadence = private_draft_cadence()
         records, checkpoints, workflow_ids = [], [], set()
+        binding = {'owner_id': self.storage.user_id, 'project_id': project_id, 'language': language}
         for ordinal, text in enumerate(rounds, 1):
             correlation = before_round(case_id, ordinal) if before_round else None
             record = {'round': ordinal, 'status': 'started', 'background_settled': False}
@@ -101,7 +103,10 @@ class CanonicalEvaluationDriver:
                                 raise RuntimeError('Canary draft did not settle without redelivery')
                             await asyncio.sleep(.05)
                             continue
-                        checkpoints.append({'milestone': ordinal, 'draft': draft})
+                        checkpoint = await read_checkpoint(self.storage, binding, ordinal,
+                            [record['accepted_source_id'] for record in records], asyncio.to_thread)
+                        binding = checkpoint['identity']
+                        checkpoints.append(checkpoint)
                     break
             records[-1]['background_settled'] = True
             records[-1]['status'] = 'completed'
@@ -111,4 +116,5 @@ class CanonicalEvaluationDriver:
                                 'checkpoints': checkpoints})
         return {'case_id': case_id, 'project_id': project_id, 'status': 'completed',
                 'evidence_mode': evidence_mode, 'rounds': records,
-                'checkpoints': checkpoints, 'workflow_ids': sorted(workflow_ids)}
+                'checkpoints': checkpoints, 'workflow_ids': sorted(workflow_ids),
+                'canonical_identity': binding}

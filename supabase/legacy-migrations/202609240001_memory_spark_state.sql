@@ -1,3 +1,0 @@
--- Retired. Memory Spark's product journey now uses the RLS-protected
--- user_profile and user_memory tables. Existing installations are cleaned up
--- by 202609250001_remove_memory_spark_state.sql.

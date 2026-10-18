@@ -40,11 +40,11 @@ def draft_head(storage, project_id, *, language=None):
         raise HTTPException(422, 'Unsupported draft language')
     parameters = {'p_project_id': project_id, **({'p_locale': language} if language else {})}
     head = storage.lifetime_rpc('read_lifetime_private_draft_head', **parameters)
+    if head is None:
+        canonical_only()
     if language is not None and head.get('locale') != language:
         raise HTTPException(409, 'This language edition is not available for the canonical draft',
             headers={'X-Error-Code': 'LIFETIME_EDITION_UNAVAILABLE'})
-    if head.get('error') == 'LIFETIME_LEGACY_MANUSCRIPT_MIGRATION_REQUIRED':
-        return storage.lifetime_rpc('read_lifetime_legacy_draft_head', **parameters)
     from .two_lane_memory import two_lanes_enabled
     from .turn_progress import thinking_steps_enabled
     if two_lanes_enabled():
@@ -68,11 +68,9 @@ def retry_draft(storage, project_id, language=None):
             headers={'X-Error-Code': 'LIFETIME_DRAFT_RETRY_CONFLICT'}) from None
 
 
-def draft_page(storage, project_id, snapshot_id, cursor=None, limit=8, *, legacy=False, section_id=None):
+def draft_page(storage, project_id, snapshot_id, cursor=None, limit=8):
     parameters = {'p_project_id': project_id, 'p_snapshot_id': str(snapshot_id),
                   'p_after': str(cursor) if cursor else None, 'p_limit': limit}
-    if legacy:
-        return storage.lifetime_rpc('read_lifetime_legacy_draft_page', **parameters, p_section_id=section_id)
     return storage.lifetime_rpc('read_lifetime_private_draft_page', **parameters)
 
 

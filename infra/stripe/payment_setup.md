@@ -61,7 +61,7 @@ The two targets pass the explicitly supplied key through the process environment
 
 ## 1. Apply the Supabase schema
 
-Payment state is stored separately from the user-editable memoir profile in `public.story_entitlements`. Apply the consolidated migration once to each Supabase database:
+Payment state is stored separately from the user-editable memoir profile in `public.story_entitlement`. Apply the consolidated migration once to each Supabase database:
 
 ```bash
 make migrate
@@ -143,7 +143,7 @@ Subscribe to these events:
 
 Copy the endpoint’s signing secret, which begins with `whsec_`, into `STRIPE_WEBHOOK_SECRET` on the API service. The endpoint must receive the unmodified request body because signature verification is performed against the raw payload.
 
-The handler ignores unrelated event types, verifies the Stripe signature, validates the plan metadata, validates the amount and currency, and then records the entitlement in `story_entitlements`. A success redirect by itself does not unlock the full memoir.
+The handler ignores unrelated event types, verifies the Stripe signature, validates the plan metadata, validates the amount and currency, and then records the entitlement in `story_entitlement`. A success redirect by itself does not unlock the full memoir.
 
 ### Why a webhook is still required for one-time products
 

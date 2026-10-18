@@ -123,7 +123,7 @@ class MemoirLaneBroker:
         for receipt in receipts:
             scope = await self.rpc('read_memoir_receipt_scope', p_receipt_id=receipt)
             if scope and scope['change_kind'] in {'revocation', 'delete'}:
-                from .legacy_memoir import prune_saved_cache
+                from .draft_cache import prune_saved_cache
                 await asyncio.to_thread(prune_saved_cache, scope['user_id'], scope['project_id'],
                     preserve_lifetime_pages=bool(scope.get('conversation_id')))
             if scope and scope.get('conversation_id'):

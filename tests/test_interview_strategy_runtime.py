@@ -235,7 +235,7 @@ def test_rollback_uses_collector_schema_without_restoring_user_modes(sql,tmp_pat
         assert response.status_code==200,response.text
     assert len(calls)==1
     assert sql('select count(*) from public.user_lifetime_strategy_outcome;').stdout.strip()=='0'
-    assert sql('select count(*) from public.user_conversation_phase_archive;').stdout.strip()=='0'
+    assert sql("select to_regclass('public.user_conversation_phase_archive') is null;").stdout.strip()=='t'
 
 
 @pytest.mark.parametrize('background',['blocked','failed'])

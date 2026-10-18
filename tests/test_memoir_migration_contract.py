@@ -33,26 +33,16 @@ def test_integrated_app_registers_workspace_and_formal_authority_routes():
     assert len(ids) == len(set(ids))
 
 
-def test_private_round_migration_supplies_the_storage_contract_used_by_agent_storage():
-    sql = (ROOT / 'supabase/migrations/202610020002_private_draft_rounds.sql').read_text()
-
-    for fragment in (
-        'add column if not exists project_id text',
-        'add column if not exists client_turn_id uuid',
-        'create table public.user_completed_round',
-        'create table public.user_private_draft_outbox',
-        'create function public.private_draft_event_snapshot',
-        'p_project_id text default null',
-        'p_client_turn_id uuid default null',
-        'p_user_response boolean default true',
-    ):
+def test_baseline_supplies_the_private_round_storage_contract():
+    sql = (ROOT / 'supabase/migrations/202610180001_initial_schema.sql').read_text().lower()
+    for fragment in ('project_id text', 'client_turn_id uuid',
+                     'create table public.user_completed_round',
+                     'create table public.user_private_draft_outbox',
+                     'create function public.private_draft_event_snapshot'):
         assert fragment in sql
 
 
-def test_response_stage_migration_supplies_ordering_and_life_stage_rpc_contract():
-    sql = (ROOT / 'supabase/migrations/202610020004_response_stage_index.sql').read_text()
-
-    assert 'add column life_stage_order smallint generated always as' in sql
-    assert 'create index user_memory_stage_sources' in sql
-    assert 'p_life_stage text default \'unplaced\'' in sql
-    assert 'drop function public.commit_user_agent_turn(uuid,text,text,text[],bigint,text,uuid,boolean);' in sql
+def test_baseline_supplies_generated_stage_order_and_ordered_sources():
+    sql = (ROOT / 'supabase/migrations/202610180001_initial_schema.sql').read_text().lower()
+    assert 'life_stage_order smallint generated always as' in sql
+    assert '(user_id, project_id, life_stage_order, created_at, id)' in sql

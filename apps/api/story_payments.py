@@ -188,7 +188,7 @@ class LocalStoryEntitlementStore:
 class SupabaseStoryEntitlementStore:
     """Service-key adapter for the server-only entitlement table."""
 
-    table = "story_entitlements"
+    table = "story_entitlement"
 
     def __init__(self, url: str, service_key: str, *, client: httpx.Client | None = None):
         self.url = url.rstrip("/")

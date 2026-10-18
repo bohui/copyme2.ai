@@ -128,6 +128,36 @@ def test_strict_readonly_network_scope(method, url, allowed, auth):
     assert decision == {'allowed': allowed, 'synthetic_auth': auth}
 
 
+@pytest.mark.skipif(shutil.which('node') is None, reason='Existing Node is required for embedded policy checks')
+def test_canonical_page_policy_matches_actual_browser_javascript():
+    origin, project = 'http://127.0.0.1:31234', 'owned-project'
+    snapshot = '00000000-0000-4000-8000-000000000001'
+    path = '/api/v1/memoir/story/private-draft/page'
+    query = f'project_id={project}&snapshot_id={snapshot}'
+    cases = [(query, True), (query + '&limit=8', True), (query + '&cursor=' + snapshot, True),
+        (query + '&limit=9', False), (query + '&limit=0', False), (query + '&limit=true', False),
+        (query + '&cursor=invalid', False), (query + '&snapshot_id=' + snapshot, False),
+        (query + '&legacy=true', False), (query + '&language=en-AU', False),
+        ('project_id=foreign&snapshot_id=' + snapshot, False),
+        ('project_id=' + project, False), ('snapshot_id=' + snapshot, False),
+        ('project_id=' + project + '&snapshot_id=invalid', False)]
+    urls = [(origin + path + '?' + query, allowed) for query, allowed in cases]
+    for url, allowed in urls:
+        assert runner.request_policy('GET', url, frontend_origin=origin, project_id=project) == {
+            'allowed': allowed, 'synthetic_auth': allowed}
+    config = {'frontend_origin': origin, 'public_asset_urls': [], 'api_paths': runner._api_paths(project),
+        'max_requests': len(urls), 'interview_path': '/memoir/interview/' + project, 'project_id': project}
+    script = 'const c = ' + json.dumps(config) + '; const report = {}; let attempts = 0, sent = false;\n'
+    script += 'const allowedAssets =' + runner.BROWSER_SCRIPT.split(
+        'const allowedAssets =', 1)[1].split('async function quiet', 1)[0]
+    script += ('\nprocess.stdout.write(JSON.stringify(' + json.dumps([url for url, _ in urls]) +
+        '.map(url => decision({url:()=>url, method:()=>"GET"}))));')
+    result = subprocess.run([shutil.which('node'), '-e', script], check=True,
+        capture_output=True, text=True, timeout=10)
+    assert [(value['ok'], value.get('api', False)) for value in json.loads(result.stdout)] == [
+        (allowed, allowed) for _, allowed in urls]
+
+
 _STATIC_PATH_CASES = [
     ('/_next/static/chunks/app/%5B%5B...path%5D%5D/page.js', True),
     ('/_next/static/chunks/main-app.js', True),

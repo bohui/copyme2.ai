@@ -221,9 +221,35 @@ def publication_guest_address(snapshot, name, port):
     return str(address)
 
 
+def bootstrap_supabase(sql, *, apply_schema=True):
+    """Model the Supabase-owned schemas before applying the fresh app baseline."""
+    sql("""
+      create role anon;
+      create role authenticated;
+      create role service_role bypassrls;
+      create schema auth;
+      create table auth.users(id uuid primary key, is_anonymous boolean not null default false,
+        raw_user_meta_data jsonb not null default '{}'::jsonb);
+      create function auth.uid() returns uuid language sql stable as
+        $$select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid$$;
+      grant usage on schema auth to authenticated;
+      create schema storage;
+      create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint);
+      create table storage.objects(bucket_id text, name text, owner_id text, metadata jsonb default '{}'::jsonb);
+      create function storage.foldername(text) returns text[] language sql as
+        $$select string_to_array($1, '/')$$;
+      alter default privileges in schema public grant all on tables to anon,authenticated,service_role;
+      alter default privileges in schema public grant all on functions to anon,authenticated,service_role;
+    """)
+    if apply_schema:
+        baseline = Path(__file__).resolve().parents[1] / 'supabase/migrations/202610180001_initial_schema.sql'
+        sql(baseline.read_text())
+    sql(f"insert into auth.users(id) values ('{OWNER}'), ('{OTHER}');")
+
+
 @pytest.fixture(scope='module')
 def database(*, deadline=None, cancellation=None, allocation=None, on_allocation=None,
-             legacy_schema=True, postgres_image='postgres:18.3', tcp=False, publication_tcp=False,
+             apply_schema=True, postgres_image='postgres:18.3', tcp=False, publication_tcp=False,
              publication_endpoint=None, directory_root=None):
     # An opt-in guest startup gate must never wait without a task deadline.
     if publication_tcp and deadline is None:
@@ -355,26 +381,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
         sql.env = environment
         sql.publication_dsn = publication_dsn
         try:
-            sql('''
-                create role anon;
-                create role authenticated;
-                create schema auth;
-                create table auth.users(id uuid primary key);
-                create function auth.uid() returns uuid language sql stable as
-                  $$select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid$$;
-                grant usage on schema auth to authenticated;
-                create schema storage;
-                create table storage.buckets(id text primary key, name text, public boolean, file_size_limit bigint);
-                create table storage.objects(bucket_id text, name text);
-                create function storage.foldername(text) returns text[] language sql as
-                  $$select string_to_array($1, '/')$$;
-            ''')
-            if legacy_schema:
-                root = Path(__file__).resolve().parents[1] / 'supabase' / 'legacy-migrations'
-                for name in ('202609230001_user_agent_storage.sql', '202609230002_agent_sessions.sql',
-                             '202609250002_agent_turn_leases.sql', '202609250004_fenced_agent_turn_commit.sql'):
-                    sql((root / name).read_text())
-            sql(f"insert into auth.users values ('{OWNER}'), ('{OTHER}');")
+            bootstrap_supabase(sql, apply_schema=apply_schema)
             yield sql
         finally:
             try:

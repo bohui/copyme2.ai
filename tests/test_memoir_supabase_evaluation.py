@@ -109,10 +109,15 @@ class Remote:
                         'current_source_revision':ordinal,'current_event_revision':ordinal,'retrieval_complete':bool(ordinal),
                         'updating':False,'revision':max(1,ordinal//5),'error':None}
                     if self.transient_draft_error_reads:
-                        self.transient_draft_error_reads-=1;result.update(status='pending',error='LIFETIME_COMPOSITION_PENDING')
+                        self.transient_draft_error_reads-=1
+                        result.update(status='pending',error='LIFETIME_COMPOSITION_PENDING',updating=True,
+                            progress={'composition':{'state':'pending','pending':True}})
                     if self.draft_failed:result.update(snapshot_state='proposed',approval_required=True)
                     if self.composition_retry_required and ordinal >= 5:
                         result.update(status='pending',error='MEMOIR_UNAVAILABLE')
+                        result['progress']={'composition':{'state':'retry_required','pending':False}}
+                    if self.extraction_retry_required:
+                        result['progress']={'extraction':{'state':'retry_required','pending':False}}
                 else:
                     result={**common,'snapshot_complete':True,'complete':True,'next_cursor':None,
                         'records':[{'id':'partition-'+str(ordinal),'event_id':'controlled-event','event_revision':1,
@@ -164,31 +169,6 @@ class Remote:
                     result['processing']['pending_inputs'] = 1
                 if self.extraction_retry_required and result['completed_rounds']:
                     result['processing']['pending_inputs'] = 1
-            elif path == '/rest/v1/rpc/read_user_memoir_draft':
-                storage = self.storages[payload['p_project_id']]
-                result = storage.saved_memoir_draft(payload['p_project_id'], payload['p_locale'])
-                if self.transient_draft_error_reads:
-                    self.transient_draft_error_reads -= 1
-                    result.update(status='collecting', covered_round=0, milestone=0,
-                                  revision=0, updating=True, error='MEMOIR_UNAVAILABLE',
-                                  preview=None, sections=[], milestones=[])
-                    result['progress']['composition'] = {
-                        'state': 'pending', 'pending': True,
-                        'error': 'MEMOIR_UNAVAILABLE', 'covered_round': 0,
-                        'target_milestone': 5,
-                    }
-                if self.extraction_retry_required:
-                    result['updating'] = False
-                    result['error'] = 'MEMOIR_UNAVAILABLE'
-                    result['progress']['extraction'] = {
-                        'state': 'retry_required', 'pending': False,
-                        'error': 'MEMOIR_UNAVAILABLE', 'extracted_through': 0,
-                    }
-                if self.draft_failed:
-                    result['status'] = 'failed'
-                if self.composition_retry_required:
-                    result['progress']['composition'] = {'state':'retry_required','error':None,'pending':False}
-
             elif path=='/api/v1/memoir/projects' and request.method=='POST':
                 project=payload['restore_project_id'];assert project==PROJECTS[case_id]
                 self.restored.add(project);result={'id':project,'owner_id':owner,'requires_supabase_auth':True}
@@ -807,17 +787,14 @@ def test_account_repr_hides_all_credentials_and_tokens():
 def test_existing_migration_contracts_define_actual_canonical_rpc_fields():
     from pathlib import Path
     root=Path(module.ROOT)
-    identity=(root/'supabase/migrations/202610120013_lifetime_read_publication.sql').read_text()
-    reply=(root/'supabase/migrations/202610120010_lifetime_commit.sql').read_text()
-    draft=(root/'supabase/migrations/202610120016_lifetime_composer_lanes.sql').read_text()
-    events=(root/'supabase/migrations/202610040001_shared_memory_events.sql').read_text()
-    assert 'read_lifetime_project_identity(p_project_id text)' in identity and "'owner_id',user_id" in identity
-    assert 'read_lifetime_reply(p_conversation_id uuid,p_client_turn_id uuid)' in reply
-    for key in ('conversation_saved','accepted_source_id','client_turn_id','context_rebuild_required'):assert "'"+key+"'" in reply
-    assert 'read_lifetime_private_draft_head(p_project_id text,p_locale text)' in draft
-    assert 'read_lifetime_private_draft_page(p_project_id text,p_snapshot_id uuid,p_after text default null,p_limit integer default 8)' in draft
-    for key in ('coverage_round','snapshot_id','root_digest','owner_id','conversation_id','records','complete','source_refs'):assert "'"+key+"'" in draft
-    for key in ('completed_rounds','sources','extracted_through','pending_inputs'):assert "'"+key+"'" in events
+    baseline=(root/'supabase/migrations/202610180001_initial_schema.sql').read_text().lower()
+    for name in ('read_lifetime_project_identity', 'read_lifetime_reply',
+                 'read_lifetime_private_draft_head', 'read_lifetime_private_draft_page'):
+        assert 'create function public.'+name+'(' in baseline
+    for key in ('conversation_saved','accepted_source_id','client_turn_id','context_rebuild_required',
+                'coverage_round','snapshot_id','root_digest','owner_id','conversation_id','records',
+                'complete','source_refs','completed_rounds','sources','extracted_through','pending_inputs'):
+        assert "'"+key+"'" in baseline
 
 
 @pytest.mark.parametrize('changed', [

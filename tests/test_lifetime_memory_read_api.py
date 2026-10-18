@@ -12,6 +12,28 @@ from apps.api.lifetime_memory_reads import ReadFence
 from test_lifetime_memory_reads import FENCE
 
 
+def test_saved_draft_uses_the_canonical_edition_rpc(monkeypatch):
+    from apps.api.agent_storage import UserStorage
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '0')
+    calls = []
+    head = {'status': 'pending', 'locale': 'en-AU'}
+    def rpc(name, **parameters):
+        calls.append((name, parameters))
+        return head
+    storage = SimpleNamespace(lifetime_rpc=rpc)
+    assert UserStorage.saved_memoir_draft(storage, 'project', 'en-AU') == head
+    assert calls == [('read_lifetime_private_draft_head', {'p_project_id': 'project', 'p_locale': 'en-AU'})]
+
+
+def test_missing_canonical_draft_identity_returns_not_found():
+    from fastapi import HTTPException
+    from apps.api.lifetime_memory_read_api import draft_head
+    storage = SimpleNamespace(lifetime_rpc=lambda *args, **kwargs: None)
+    with pytest.raises(HTTPException) as error:
+        draft_head(storage, 'unmapped')
+    assert error.value.status_code == 404
+
+
 @pytest.fixture
 def mapped(monkeypatch, tmp_path):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')

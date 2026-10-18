@@ -53,14 +53,16 @@ def test_historical_mapping_is_explicit_and_never_mutates_original_ids(sql, proj
     assert sql('select count(*) from public.user_lifetime_conversation;').stdout.strip() == '0'
 
 
-def test_unowned_arbitrary_project_and_guest_fail_without_creation(sql):
+def test_unowned_projects_fail_and_anonymous_accounts_get_their_own_identity(sql):
     first = resolve(sql)
     assert resolve(sql, first['project_id'], OTHER, check=False).returncode != 0
     assert resolve(sql, 'invented', OTHER, check=False).returncode != 0
     assert resolve(sql, 'invented', OWNER, check=False).returncode != 0
     sql(f"update auth.users set is_anonymous=true where id='{OTHER}';")
-    assert resolve(sql, owner=OTHER, check=False).returncode != 0
-    assert sql('select count(*) from public.user_lifetime_conversation;').stdout.strip() == '1'
+    guest = resolve(sql, owner=OTHER)
+    assert guest['outcome'] == 'resolved' and guest['owner_id'] == OTHER
+    assert guest['project_id'] != first['project_id']
+    assert sql('select count(*) from public.user_lifetime_conversation;').stdout.strip() == '2'
 
 
 def test_identity_rls_and_direct_write_protection(sql):

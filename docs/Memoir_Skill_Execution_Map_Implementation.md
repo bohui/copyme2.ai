@@ -30,7 +30,7 @@ The dedicated game button sends a metadata-only authenticated action. The existi
 
 ## Progress is evidence, not eligibility
 
-[Migration 005](../supabase/migrations/202610170005_background_skills.sql) stores bounded operation metadata separately from canonical facts and public caches. Browser roles cannot write applied-skill receipts. Actual canonical commits publish saved transitions transactionally; model/optional-service observation cannot authorize facts or replace publication fences.
+[The database baseline](../supabase/migrations/202610180001_initial_schema.sql) stores bounded operation metadata separately from canonical facts and public caches. Browser roles cannot write applied-skill receipts. Actual canonical commits publish saved transitions transactionally; model/optional-service observation cannot authorize facts or replace publication fences.
 
 - `queued` means an actual pending canonical obligation, not a running model.
 - `running` records admitted transport/service work. Downstream provider timing remains opaque.

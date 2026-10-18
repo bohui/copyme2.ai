@@ -370,9 +370,7 @@ export function createMemoirApi(options: ApiClientOptions) {
     privateDraftPage: (
       projectId: string,
       snapshotId: string,
-      options: z.infer<typeof C.ReadPageOptionsSchema> & {
-        legacy?: boolean;
-      } = {},
+      options: z.infer<typeof C.ReadPageOptionsSchema> = {},
       request?: RequestOptions,
     ) =>
       json(
@@ -381,7 +379,6 @@ export function createMemoirApi(options: ApiClientOptions) {
             project_id: C.ProjectIdSchema.parse(projectId),
             snapshot_id: z.uuid().parse(snapshotId),
             ...C.ReadPageOptionsSchema.parse(options),
-            legacy: options.legacy ? "true" : undefined,
           }),
         C.PrivateDraftPageSchema,
         "GET",

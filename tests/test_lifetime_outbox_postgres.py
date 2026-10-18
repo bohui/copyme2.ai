@@ -33,7 +33,6 @@ def setup(sql):
 def save_reply(sql,source,fence):
     from test_interview_work_plan_postgres import plan
     value=plan(mode='extract',name=None)
-    value['phase_update']={'expected_revision':fence['phase_revision'],'phase':'comfort'}
     return rpc(sql,'commit_lifetime_turn',f"{literal(fence)}::jsonb,'{source['client_turn_id']}',{literal(value)}::jsonb,'[]','Tell me more.','[]','thread','lifetime-v1','fixture-model'")
 
 

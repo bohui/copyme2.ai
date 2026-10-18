@@ -8,11 +8,6 @@ from test_guest_conversation_transfer import attachment_database
 
 @pytest.fixture(scope='module')
 def private_database(attachment_database):
-    root=Path(__file__).resolve().parents[1]
-    attachment_database((root/'supabase/legacy-migrations/202609300003_recall_usage.sql').read_text())
-    attachment_database((root/'supabase/migrations/202610020002_private_draft_rounds.sql').read_text())
-    attachment_database((root/'supabase/migrations/202610020004_response_stage_index.sql').read_text())
-    attachment_database((root/'supabase/migrations/202610120001_locale_independent_private_rounds.sql').read_text())
     return attachment_database
 
 

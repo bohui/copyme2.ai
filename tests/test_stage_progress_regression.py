@@ -77,20 +77,6 @@ def read_for_owner(sql, project, owner):
     return rpc(sql, 'read_lifetime_stage_readiness', literal(project), owner=owner)['stages']
 
 
-def test_existing_replies_gain_progress_on_upgrade_without_evidence_rewrites(sql):
-    from pathlib import Path
-    root = Path(__file__).resolve().parents[1]
-    old = (root / 'supabase/migrations/202610120019_lifetime_read_api.sql').read_text()
-    definition = old.split('create function public.read_lifetime_stage_readiness', 1)[1].split('end $$;', 1)[0]
-    sql('create or replace function public.read_lifetime_stage_readiness' + definition + 'end $$;')
-    project = resolve(sql)['project_id']
-    source = save_stage_source(sql, project, '忆' * 300)
-    link_stage(sql, project, source, 'midlife')
-    assert read(sql, project)['midlife'] == readiness(0)
-    before = sql('select row_to_json(m) from public.user_memory m;').stdout
-    sql((root / 'supabase/migrations/202610150003_canonical_stage_readiness.sql').read_text())
-    assert read(sql, project)['midlife'] == readiness(300)
-    assert sql('select row_to_json(m) from public.user_memory m;').stdout == before
 
 
 def test_legacy_totals_survive_and_canonical_replies_are_not_double_counted(sql):

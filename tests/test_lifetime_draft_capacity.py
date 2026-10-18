@@ -115,6 +115,8 @@ def test_broker_bounds_each_drain_and_resumes_after_failure_before_ack(tmp_path,
 def test_governed_collection_and_preview_never_start_full_history_reads(tmp_path,monkeypatch):
     from types import SimpleNamespace
     from apps.api.private_drafts import synchronize
+    from apps.api.lifetime_memory_read_api import unsupported_collection_job
+    from fastapi import HTTPException
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path/'jobs.sqlite'))
     def forbidden(*args,**kwargs):raise AssertionError('unbounded read attempted')
@@ -132,7 +134,10 @@ def test_governed_collection_and_preview_never_start_full_history_reads(tmp_path
         lifetime_rpc=lifetime_rpc,private_draft_rounds=forbidden,
         memories=forbidden,all_memories=forbidden,composition_memories=forbidden)
     assert synchronize(storage,'project')==head
-    assert calls==['read_lifetime_private_draft_head']
+    with pytest.raises(HTTPException) as error:unsupported_collection_job(storage,'project')
+    assert error.value.status_code==409
+    assert error.value.headers['X-Error-Code']=='LIFETIME_COLLECTION_JOB_UNSUPPORTED'
+    assert calls==['read_lifetime_private_draft_head','read_lifetime_project_identity']
 
 
 def test_page_policy_settings_do_not_grant_composition_or_increment_rounds(tmp_path):
@@ -229,7 +234,7 @@ def test_database_chunk_boundaries_frozen_highwater_cursor_scope_and_policy(sql)
     assert replacement['snapshot_id']!=first['snapshot_id'] and original not in json.dumps(replacement)
 
 
-def test_database_governed_legacy_entrypoints_fail_closed_without_changing_historical_mapping(sql):
+def test_database_dispatches_canonical_pages_and_leaves_unmapped_history_unavailable(sql):
     identity,event=seed_draft(sql)
     current=json.loads(sql(f"select public.private_draft_event_snapshot('{event}');").stdout.strip())
     assert current['protocol']=='lifetime_draft_pages'
@@ -237,16 +242,16 @@ def test_database_governed_legacy_entrypoints_fail_closed_without_changing_histo
     assert head['error']=='LIFETIME_COMPOSITION_PENDING'
     assert rpc(sql,'read_lifetime_private_draft_head',literal('arbitrary-project'))['error']=='LIFETIME_PROJECT_REQUIRED'
     assert rpc(sql,'read_lifetime_private_draft_head',literal(identity['project_id']),owner=OTHER) is None
-    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,pending) values('{OWNER}',{literal(identity['project_id'])},'timeline',true) returning id;").stdout.splitlines()[0]
+    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,pending) values('{OWNER}',{literal(identity['project_id'])},'timeline',true) on conflict(user_id,project_id,skill) do update set pending=true returning id;").stdout.splitlines()[0]
     claim=json.loads(sql(f"select public.claim_memoir_lane('{lane}');").stdout.strip())
     assert claim['protocol']=='lifetime_composer_pages'
     assert len(claim['source']['text'])<=2304 and 'context_sources' not in claim
     assert claim['previous'] is None and claim['complete'] is False
-    # A historical account stays on the old adapter without being mapped.
+    # Unmapped receipts have no fallback adapter or worker dispatch.
     legacy=rpc(sql,'accept_user_narrator_source',f"'historical','{uuid4()}','Existing legacy account'",owner=OTHER)
     old_event=sql(f"insert into public.user_private_draft_outbox(user_id,project_id,change_kind) values('{OTHER}','historical','accepted') returning id;").stdout.splitlines()[0]
-    old=json.loads(sql(f"select public.private_draft_event_snapshot('{old_event}');").stdout.strip())
-    assert 'protocol' not in old and 'memories' in old and old['rounds']==[]
+    old=json.loads(sql(f"select coalesce(public.private_draft_event_snapshot('{old_event}'),'null'::jsonb);").stdout.strip())
+    assert old is None
     assert sql(f"select count(*) from public.user_lifetime_conversation where user_id='{OTHER}';").stdout.strip()=='0'
 
 
@@ -294,7 +299,7 @@ def test_database_active_dispatch_restarts_without_early_ack_or_commercial_mutat
     asyncio.run(run())
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='300'
     assert sql('select count(*) from public.user_recall_usage;').stdout.strip()=='0'
-    assert sql('select count(*) from public.user_memoir_manuscript;').stdout.strip()=='0'
+    assert sql('select count(*) from public.user_memoir_edition;').stdout.strip()=='0'
     assert sql('select max(target_milestone) from public.user_memoir_lane;').stdout.strip()=='300'
 
 

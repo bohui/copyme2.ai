@@ -432,13 +432,11 @@ def build_router(
     @router.get('/private-draft/page')
     async def private_draft_page(project_id: str, snapshot_id: UUID,
                                  cursor: UUID | None = None, limit: int = Query(default=8, ge=1, le=8),
-                                 legacy: bool = False, section_id: str | None = Query(default=None, max_length=128),
                                  authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
         try:
             return await asyncio.to_thread(read_mapped, storage, project_id,
-                lambda fence: draft_page(storage, project_id, snapshot_id, cursor, limit,
-                                          legacy=legacy, section_id=section_id), canonical_only)
+                lambda fence: draft_page(storage, project_id, snapshot_id, cursor, limit), canonical_only)
         finally:
             await asyncio.to_thread(_close, storage)
 
