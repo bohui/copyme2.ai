@@ -19,11 +19,13 @@ from apps.api.prompt_composition import composition_receipt
 def selected_prompts(name: str | None, registry: dict[str, str]) -> dict[str, str]:
     if not name:
         return registry
-    full_name = name if name in registry else next(
-        (registered for registered, path in registry.items()
-         if Path(path).stem == name), "")
-    if full_name not in registry:
+    matches = [name] if name in registry else [registered for registered, path in registry.items()
+                                              if Path(path).stem == name]
+    if len(matches) > 1:
+        raise ValueError(f'Ambiguous prompt short name; use its full Langfuse name: {name}')
+    if not matches:
         raise ValueError(f"Unknown managed prompt: {name}")
+    full_name = matches[0]
     return {full_name: registry[full_name]}
 
 

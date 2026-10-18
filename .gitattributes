@@ -1,5 +1,5 @@
 # Versioned prompt fragments retain boundary whitespace to preserve model input.
-apps/api/prompts/collector-guidance.md whitespace=-blank-at-eof
-apps/api/prompts/lane-canonical-context.md whitespace=-blank-at-eol
-apps/api/prompts/organiser-job-prefix.md whitespace=-blank-at-eol
-apps/api/prompts/organiser-job-suffix.md whitespace=-blank-at-eol
+skills/memoir-interviewer/prompts/guidance.md whitespace=-blank-at-eof
+apps/api/prompts/shared/bounded-context/policy.md whitespace=-blank-at-eol
+skills/memoir-composer/prompts/outline/shared/prefix.md whitespace=-blank-at-eol
+skills/memoir-composer/prompts/outline/shared/suffix.md whitespace=-blank-at-eol

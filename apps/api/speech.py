@@ -4,23 +4,21 @@ from __future__ import annotations
 
 import os
 import re
-from pathlib import Path
 from typing import Any
 
 import httpx
-from .prompt_artifact import load_prompt_artifact
+from .prompt_artifact import load_prompt_artifact, prompt_path
 
 
-_PROMPTS = Path(__file__).with_name("prompts")
 _SPEECH_CHARACTERS = {
     "zh-cn": {
         "voice": "coral",
         "speed": 1.1,
-        "instructions": load_prompt_artifact(_PROMPTS / "speech-zh-CN.md"),
+        "instructions": load_prompt_artifact(prompt_path('memoir/speech/zh-CN')),
     },
     "en-au": {
         "voice": "marin",
-        "instructions": load_prompt_artifact(_PROMPTS / "speech-en-AU.md"),
+        "instructions": load_prompt_artifact(prompt_path('memoir/speech/en-AU')),
     },
 }
 
@@ -32,7 +30,7 @@ def speech_character(language: str | None, *, voice: str | None = None,
     locale = {"zh": "zh-cn", "en": "en-au"}.get(locale, locale)
     suffix = re.sub(r"[^A-Z0-9]", "_", locale.upper())
     default = _SPEECH_CHARACTERS.get(locale, {
-        "voice": "marin", "instructions": load_prompt_artifact(_PROMPTS / "speech-default.md"),
+        "voice": "marin", "instructions": load_prompt_artifact(prompt_path('memoir/speech/default')),
     })
     return {
         "voice": (voice or "").strip() or os.getenv(f"MEMORY_SPARK_TTS_VOICE_{suffix}", "").strip() or default["voice"],

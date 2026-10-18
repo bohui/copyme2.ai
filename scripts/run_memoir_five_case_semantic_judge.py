@@ -326,7 +326,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             "message": str(error)[:500],
             "provisional_examples": len(calibration_examples),
         }
-    instructions = template + load_prompt_artifact(ROOT / 'apps/api/prompts/five-case-judge-guard.md')
+    instructions = template + load_prompt_artifact(ROOT / 'tests/evaluation/prompts/five-case-judge/guard.md')
     judge = OpenAICompatibleJudge(
         base_url=base_url,
         model=model,

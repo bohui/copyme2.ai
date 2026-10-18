@@ -179,7 +179,7 @@ async def compose(provider, locale):
     async def real_model(request):
         bounded = BoundedLaneInput.model_validate(json.loads(request.content)['bounded_lane'])
         instructions, schema = lane_contract(bounded.phase, locale, batch=True)
-        instructions += load_prompt_artifact(ROOT / 'apps/api/prompts/eval-independent-events.md')
+        instructions += load_prompt_artifact(ROOT / 'tests/evaluation/prompts/live-skills/independent-events.md')
         phase_id = f'composer-{locale}-{current["coverage_round"]}-{bounded.phase}-{len(phases)+1}'
         phases.append({'round':current['coverage_round'],'phase':bounded.phase})
         value, _ = await provider.call(phase_id, 'memoir-composer', instructions, json.loads(bounded.packet), schema)
@@ -216,7 +216,7 @@ async def native_search(provider, skill):
         from apps.api.historical_news import validate_evidence
         from apps.api.historical_news_provider import decode_discovery, GatewayHistoricalProvider
         query = 'Sydney, Australia 2000–2000 civic culture sport public events'
-        instructions = skill_prompt(skill) + load_prompt_artifact(ROOT / 'apps/api/prompts/eval-native-search.md')
+        instructions = skill_prompt(skill) + load_prompt_artifact(ROOT / 'tests/evaluation/prompts/live-skills/native-search.md')
         _, response = await provider.call('historical-native-search', skill, instructions, {'public_query': query}, search=True)
         discovery = decode_discovery(response)
         hypothesis = {'start': 2000, 'end': 2000, 'place': 'Sydney, Australia', 'country': 'Australia'}

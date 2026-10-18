@@ -4,6 +4,14 @@ import hashlib
 import json
 from pathlib import Path
 
+from .prompt_catalog import PROMPT_PATHS
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def prompt_path(name: str) -> Path:
+    return ROOT / PROMPT_PATHS[name]
+
 
 def load_prompt_artifact(path: Path) -> str:
     prompt = path.read_text(encoding="utf-8")

@@ -15,7 +15,7 @@ from .lifetime_memory_contracts import ContextBudget, IdentityEnvelope
 from .lifetime_memory_context import ContextSource, TailCoverage, InputLimitExceeded, serialize_packet
 from .lifetime_memory_service import LifetimeMemoryService,MaintenancePending
 from .lifetime_memory_transport import GovernedResult
-from .prompt_artifact import load_prompt_artifact
+from .prompt_artifact import load_prompt_artifact, prompt_path
 
 
 class MappingRequired(RuntimeError):
@@ -297,7 +297,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             service=LifetimeMemoryService(storage.lifetime_rpc,budget=packet_budget)
             from .collector_prompt import COMPACT_COLLECTOR_PROMPT
             from .codex_runtime import conversation_language_instruction
-            privacy_guard = load_prompt_artifact(Path(__file__).with_name('prompts') / 'lifetime-privacy-guard.md')
+            privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
             instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
             if context.get('strategy_selector'):
                 instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS

@@ -11,7 +11,7 @@ import os
 import logging
 from pydantic import ValidationError
 from .lifetime_memory_contracts import ContextBudget
-from .memory_events import ExtractionResult, extraction_instructions, extraction_schema, validate_extraction
+from .memory_events import ExtractionResult, validate_extraction
 
 PROTOCOL = 'lifetime_composer_pages'
 SOURCE_WINDOW = 2304
@@ -24,14 +24,6 @@ def lane_model_budget():
         input_budget=int(os.getenv('MEMOIR_LANE_INPUT_BUDGET','65536')),
         output_headroom=int(os.getenv('MEMOIR_LANE_OUTPUT_HEADROOM','16384')),
         framing_headroom=2048)
-
-
-def check_model_packet(packet, instructions, schema):
-    budget=lane_model_budget()
-    serialized=json.dumps({'instructions':instructions,'schema':schema,'packet':packet},ensure_ascii=False)
-    if not budget.accepts(serialized):
-        raise ValueError('bounded canonical lane model budget exceeded')
-    return budget.count(serialized)
 
 
 def extraction_issue(error):
@@ -118,7 +110,7 @@ def extraction_events(raw,page,original=None):
 
 
 async def _summarize(page,worker):
-    from .lifetime_memory_summary import summary_contract,summary_packet,summary_rejection_reason,validate_summary
+    from .lifetime_memory_summary import summary_packet,summary_rejection_reason,validate_summary
     state=page['memory_summary']
     if state['work_mode']=='reply_only' or page['source'] is None:
         return copy.deepcopy(state['prior'])
@@ -126,8 +118,7 @@ async def _summarize(page,worker):
     if not getattr(worker,'worker_url',None) or not getattr(worker,'worker_secret',None):
         raise CanonicalActivationUnavailable()
     from .lifetime_memory_lane_engine import build_bounded_lane_input,send_bounded_lane_request
-    instructions,schema=summary_contract();packet=summary_packet(page)
-    check_model_packet(packet,instructions,schema)
+    packet=summary_packet(page)
     for attempt in range(3):
         bounded=build_bounded_lane_input(page,phase='summarize',packet=packet,budget=lane_model_budget())
         response=await send_bounded_lane_request(worker_url=worker.worker_url,worker_secret=worker.worker_secret,
@@ -158,12 +149,6 @@ async def _extract(page,worker):
         'window_contract':EXTRACTION_WINDOW_CONTRACT}
     if page.get('attribution_context'):
         packet['interview_context'] = page['attribution_context']
-    instructions,schema=extraction_instructions(),extraction_schema()
-    if page.get('two_lane'):
-        from .two_lane_memory import extraction_contract
-        instructions,schema=extraction_contract(strategy=bool((page.get('two_lane') or {}).get('strategy_mode')),
-            attribution=bool(page.get('attribution_context')))
-    check_model_packet(packet,instructions,schema)
     from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
     for attempt in range(3):
         bounded=build_bounded_lane_input(page,phase='extract',packet=packet,budget=lane_model_budget())

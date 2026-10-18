@@ -10,14 +10,14 @@ ROOT = Path(__file__).resolve().parents[2]
 COMPONENTS = {
     'author_timeline': 'skills/memoir-author-timeline/SKILL.md',
     'timeline_contract': 'skills/memoir-author-timeline/references/contract.md',
-    'timeline_grounding': 'apps/api/prompts/timeline-grounding.md',
-    'collector_guidance': 'apps/api/prompts/collector-guidance.md',
-    'strategy_selection': 'apps/api/prompts/strategy-selection.md',
+    'timeline_grounding': 'skills/memoir-author-timeline/prompts/shared/grounding.md',
+    'collector_guidance': 'skills/memoir-interviewer/prompts/guidance.md',
+    'strategy_selection': 'skills/memoir-interviewer/prompts/strategy/selection.md',
     'narrative_enrichment': 'skills/memoir-composer/references/narrative-enrichment.md',
     'editorial_review': 'skills/memoir-composer/references/editorial-review.prompt.md',
-    'lane_context': 'apps/api/prompts/lane-canonical-context.md',
-    'organiser_prefix': 'apps/api/prompts/organiser-job-prefix.md',
-    'organiser_suffix': 'apps/api/prompts/organiser-job-suffix.md',
+    'lane_context': 'apps/api/prompts/shared/bounded-context/policy.md',
+    'organiser_prefix': 'skills/memoir-composer/prompts/outline/shared/prefix.md',
+    'organiser_suffix': 'skills/memoir-composer/prompts/outline/shared/suffix.md',
 }
 REFERENCE = re.compile(r'\{\{prompt:([^{}]+)\}\}')
 

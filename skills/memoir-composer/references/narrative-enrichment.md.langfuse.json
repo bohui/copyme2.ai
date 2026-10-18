@@ -1,5 +1,5 @@
 {
-  "name": "memoir/skills/memoir-composer/narrative-enrichment",
+  "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
   "schema_version": 1,
   "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
   "type": "text",

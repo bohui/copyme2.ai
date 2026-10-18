@@ -97,7 +97,7 @@ def admit_lane(fence, phase):
                 or not fence.profile_context.get('targets')):
             raise SkillUnavailable('manual_or_no_targets')
     else:
-        if fence.skill != 'composer' or phase not in {'prepare','draft','review','index'}:
+        if fence.skill != 'composer' or phase not in {'prepare','draft','review'}:
             raise SkillUnavailable('phase_required')
         name = 'memoir-composer'
     return admit(name, SKILLS[name].trigger)

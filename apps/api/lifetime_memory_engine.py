@@ -17,7 +17,7 @@ from uuid import UUID, uuid4
 
 from pydantic import Field, StrictBool, model_validator
 
-from .prompt_artifact import load_prompt_artifact
+from .prompt_artifact import load_prompt_artifact, prompt_path
 from .codex_agent import CodexConnection, CodexTurnIncomplete, provider_config
 from .codex_worker_files import write_config
 from .lifetime_memory_continuity import governed_collector_schema, validate_governed_collector_result
@@ -34,7 +34,7 @@ from .lifetime_memory_publication import ProviderPublication
 # Native outputSchema also constrains commentary. Forcing a preamble required
 # extra schema-shaped messages and slowed final replies in the issue 53 probes.
 # Stream the acknowledgement from this single final document instead.
-GOVERNED_TURN_PROMPT = load_prompt_artifact(Path(__file__).with_name("prompts") / "governed-turn.md")
+GOVERNED_TURN_PROMPT = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-turn'))
 # The installed pooled and dedicated low aliases route to the same byte-BPE
 # model. No wildcard or arbitrary operator-defined alias is admitted.
 SUPPORTED_BYTE_BOUND_MODELS = frozenset({'gpt-5.6-luna-pooled', 'gpt-5.6-luna-memoir-low', 'synthetic-byte-bpe'})
@@ -325,12 +325,12 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     output_schema = governed_collector_schema(interview_context)
     prompt=GOVERNED_TURN_PROMPT
     if repair_reason is not None:
-        prompt+=(load_prompt_artifact(Path(__file__).with_name('prompts') / 'governed-repair-prefix.md')
-            +repair_reason+load_prompt_artifact(Path(__file__).with_name('prompts') / 'governed-repair-suffix.md'))
+        prompt+=(load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/prefix'))
+            +repair_reason+load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/suffix')))
     if acknowledgement is not None:
         # A fresh-home repair must preserve the acknowledgement already shown.
         output_schema['properties']['acknowledgement']['enum'] = [acknowledgement]
-        prompt+=load_prompt_artifact(Path(__file__).with_name('prompts') / 'governed-acknowledgement.md')+json.dumps(acknowledgement,ensure_ascii=False)+'.'
+        prompt+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/acknowledgement'))+json.dumps(acknowledgement,ensure_ascii=False)+'.'
     if (governed.budget.count(governed.packet) + governed_request_overhead(
             interview_context, governed.budget, output_schema=output_schema,prompt=prompt) > governed.budget.input_budget):
         raise CollectorResponseUnavailable('The acknowledged reply exceeds the request budget')

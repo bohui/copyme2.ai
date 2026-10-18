@@ -889,7 +889,7 @@ async def run_composer_checkpoint(runtime: CodexRuntime, storage: CaseStorage, c
     started = time.monotonic()
     provider_calls_before = len(getattr(getattr(runtime, "fixture_worker", None), "calls", []))
     worker_requests_before = int(getattr(runtime, "observed_worker_requests", 0))
-    request, index_request = build_composer_request(storage, case, round_number, action)
+    request, _ = build_composer_request(storage, case, round_number, action)
     checkpoint: dict[str, Any] = {}
 
     async def progress(_phase: str) -> None:
@@ -897,7 +897,7 @@ async def run_composer_checkpoint(runtime: CodexRuntime, storage: CaseStorage, c
 
     try:
         result = await asyncio.wait_for(
-            compose_candidate(request, runtime, storage, storage.project_id, normalize_conversation_language(case.get("locale")), checkpoint=checkpoint, progress=progress, index_request=index_request),
+            compose_candidate(request, runtime, storage, storage.project_id, normalize_conversation_language(case.get("locale")), checkpoint=checkpoint, progress=progress),
             timeout=max(1.0, float(timeout)),
         )
         ready = result.get("status") == "ready"

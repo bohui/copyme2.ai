@@ -358,31 +358,22 @@ controlled backend measurements with a simulated model.
 
 ### Versioned prompt artifacts
 
-Memoir's Langfuse project owns the prompt versions. Names describe their purpose,
-such as `memoir/interview/collector`, `memoir/memory/timeline`, and
-`memoir/composer/draft-canonical`; issue numbers and release dates stay in version metadata,
-not names. The former `memoir/issue6/20261008-v1/prompts/*` prompts are preserved
-as version 1 of their stable names. The old Issue 6 datasets still exist as
-historical snapshots. The current evaluation datasets are
-`memoir/evaluation/event-grounding`, `temporal-placement`,
-`chapter-continuity`, and `bilingual-consistency` under that folder.
-The [prompt structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md)
-records the retired workflows and remaining prompt consumers.
-The [individual prompt inventory](docs/Langfuse_Prompt_Usage.md) distinguishes
-runtime, conditional runtime, evaluation, packaged skill and compatibility use.
+Memoir's Langfuse project owns prompt versions. Each skill owns its model
+instructions under `memoir/skills/<skill>/...`, including composer phases and
+shared editorial policy. Repository sources live under that skill's directory.
+Common bounded-worker instructions use `memoir/shared/...`; judge/probe and
+synthesis instructions use `memoir/evaluation/...` and `memoir/speech/...`.
+Issue numbers and release dates stay in metadata and numeric version history.
+The [structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md) explains
+the execution paths, and the [individual inventory](docs/Langfuse_Prompt_Usage.md)
+lists all 69 retained runtime, conditional, shared and evaluation sources.
 
-`memoir/memory/*` holds memory operations and extraction instructions.
-`memoir/skills/*` holds the skill instructions and model-facing references.
-Developer-only contracts stay in the repository and are not Langfuse prompts.
-The obsolete marker/workspace prompt builders, their fallback prompts, the
-uncalled organiser task, the noncanonical composer draft, and the old Issue 6
-publisher and legacy collector comparison modes have been removed. The HTTP
-first-response profiler is retained. Collector configuration now
-accepts `compact-v1` and `two-lane-v1`; the default is `compact-v1`.
-The duplicate `memoir/runtime/*` imports were
-removed from Langfuse, along with the unused
-`memoir/composer/organiser-job/branch/*` imports. None was registered for export
-or read by the application.
+Guide-only entries and the obsolete composer model index were removed from
+Langfuse. Integration guides, schemas and validators remain repository resources.
+Canonical composition consumes host-owned events. Its retired full-source preview
+fallback and uncalled private-draft executor were removed. The HTTP first-response
+and canonical controlled profilers remain available. Collector configuration
+accepts `compact-v1` and `two-lane-v1`, defaulting to `compact-v1`.
 
 The API reads checked-in prompt files. Shared instructions have one source;
 task templates reference them through `apps/api/prompt_composition.py`. Runtime
@@ -401,12 +392,12 @@ different local credential-file location.
 ```sh
 python3 -m pip install -e '.[evaluation]'
 make prompt-export                         # All managed prompts, current Langfuse versions.
-make prompt-export PROMPT_NAME=collector-compact
+make prompt-export PROMPT_NAME=collector
 make prompt-check
 make prompt-eval                           # Read-only preflight for timeline/event-grounding.
 ```
 
-Use `PROMPT_NAME=memoir/composer/draft-canonical` for another single artifact. Review and
+Use `PROMPT_NAME=memoir/skills/memoir-composer/draft` for another single artifact. Review and
 commit its prompt file and receipt together; a Langfuse edit reaches the app only
 after that Git change is deployed. To preflight another prompt/dataset pair, set
 `PROMPT_EVAL_NAME` and `PROMPT_EVAL_DATASET`. `PROMPT_EVAL_VERSION` can select a

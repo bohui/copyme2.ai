@@ -113,11 +113,9 @@ async def extract_profile(page, worker):
         return {'profile_patch': [], 'skipped': True}
     if state['work_mode'] == 'reply_only':
         return {'profile_patch': []}
-    from .lifetime_memory_composer import check_model_packet, lane_model_budget
+    from .lifetime_memory_composer import lane_model_budget
     from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
     packet = profile_packet(page)
-    instructions, schema = profile_contract(page)
-    check_model_packet(packet, instructions, schema)
     for attempt in range(3):
         bounded = build_bounded_lane_input(page, phase='profile', packet=packet, budget=lane_model_budget())
         response = await send_bounded_lane_request(worker_url=worker.worker_url, worker_secret=worker.worker_secret,

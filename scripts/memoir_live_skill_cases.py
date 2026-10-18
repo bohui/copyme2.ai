@@ -5,7 +5,7 @@ Deterministic skills are probed for instruction adherence, not rerouted in produ
 """
 from copy import deepcopy
 from pathlib import Path
-from apps.api.prompt_artifact import load_prompt_artifact
+from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
 
 from apps.api.background_profile import PROFILE_FIELDS, profile_contract, profile_packet, validate_profile
 from apps.api.family_context import extract_family_tree_context
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def eval_fragment(name):
-    return load_prompt_artifact(ROOT / 'apps/api/prompts' / f'eval-{name}.md')
+    return load_prompt_artifact(prompt_path(f'memoir/evaluation/live-skills/{name}'))
 
 
 def object_schema(properties):

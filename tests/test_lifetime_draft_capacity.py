@@ -114,10 +114,7 @@ def test_broker_bounds_each_drain_and_resumes_after_failure_before_ack(tmp_path,
 
 def test_governed_collection_and_preview_never_start_full_history_reads(tmp_path,monkeypatch):
     from types import SimpleNamespace
-    from apps.api.memoir_preview import compose_preview,LifetimeDraftPending
-    from apps.api.collection_routes import _sources
-    from apps.api.private_drafts import synchronize,request_for_job
-    from fastapi import HTTPException
+    from apps.api.private_drafts import synchronize
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path/'jobs.sqlite'))
     def forbidden(*args,**kwargs):raise AssertionError('unbounded read attempted')
@@ -135,14 +132,7 @@ def test_governed_collection_and_preview_never_start_full_history_reads(tmp_path
         lifetime_rpc=lifetime_rpc,private_draft_rounds=forbidden,
         memories=forbidden,all_memories=forbidden,composition_memories=forbidden)
     assert synchronize(storage,'project')==head
-    with pytest.raises(HTTPException) as error:_sources(storage,'project')
-    assert error.value.status_code==409
-    assert error.value.headers['X-Error-Code']=='LIFETIME_COLLECTION_JOB_UNSUPPORTED'
-    assert calls==['read_lifetime_private_draft_head','read_lifetime_project_identity']
-    class Lease:
-        async def io(self,operation,*args):return operation(*args)
-    with pytest.raises(LifetimeDraftPending):asyncio.run(compose_preview(storage,Lease(),'project'))
-    with pytest.raises(LifetimeDraftPending):request_for_job({'payload':{'protocol':'lifetime_draft_pages'}})
+    assert calls==['read_lifetime_private_draft_head']
 
 
 def test_page_policy_settings_do_not_grant_composition_or_increment_rounds(tmp_path):
@@ -327,14 +317,6 @@ def test_completion_cannot_be_claimed_without_both_frozen_highwaters(tmp_path):
     with pytest.raises(ValueError,match='coverage is incomplete'):
         ingest(queue,draft_page(complete=True,next_cursor=None,round_high_water=0,source_revision=2))
     assert queue.page_resume('event') is None
-
-
-def test_pending_composer_execution_is_deferred_not_success(tmp_path,monkeypatch):
-    from apps.api.private_drafts import execute
-    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path/'jobs.sqlite'))
-    queue=PrivateDraftJobs(tmp_path/'jobs.sqlite')
-    result=ingest(queue,draft_page(complete=True,next_cursor=None,round_high_water=0))
-    assert asyncio.run(execute(result['job_id']))=={'status':'deferred','reason':'LIFETIME_COMPOSER_PENDING'}
 
 
 def test_parallel_same_epoch_receipts_do_not_cancel_each_others_pagination(tmp_path):

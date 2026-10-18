@@ -20,7 +20,7 @@ from .collector_configuration import collector_configuration
 from .issue14_execution_admission import (
     check_issue14_dispatch, validate_optional_issue14_admission,
 )
-from .prompt_artifact import load_prompt_artifact
+from .prompt_artifact import load_prompt_artifact, prompt_path
 from .memoir_tasks import MemorySource
 from .trajectory_evaluation import (
     TrajectoryRecorder,
@@ -77,9 +77,8 @@ def _worker_error_payload(response: httpx.Response) -> Mapping[str, Any] | None:
     return payload if isinstance(payload, Mapping) else None
 
 
-_PROMPTS = Path(__file__).with_name("prompts")
 CONVERSATION_LANGUAGE_INSTRUCTIONS = {
-    locale: load_prompt_artifact(_PROMPTS / f"conversation-language-{locale}.md")
+    locale: load_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/language/{locale}'))
     for locale in ("en-AU", "zh-CN")
 }
 

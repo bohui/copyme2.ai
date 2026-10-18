@@ -7,7 +7,7 @@ import pytest
 from apps.api import prompt_composition as composition
 from apps.api.memory_events import extraction_instructions
 from apps.api.memoir_preview import composer_instructions
-from apps.api.prompt_artifact import load_prompt_artifact
+from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
 from scripts.evaluate_langfuse_prompt import experiment_task
 from scripts.prompt_registry import ROOT, prompt_registry
 
@@ -43,8 +43,7 @@ def test_one_editorial_component_reaches_drafting_review_and_evaluation(monkeypa
     for phase in ('draft', 'review'):
         instructions = composer_instructions(phase)
         assert instructions.count(changed) == 1
-        name = 'composer-draft-canonical.md' if phase == 'draft' else 'composer-review.md'
-        path = ROOT / 'apps/api/prompts' / name
+        path = prompt_path(f'memoir/skills/memoir-composer/{phase}')
         prompt = SimpleNamespace(prompt=load_prompt_artifact(path))
         calls = []
         client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
@@ -60,7 +59,7 @@ def test_one_editorial_component_reaches_drafting_review_and_evaluation(monkeypa
 
 
 def test_unknown_or_nested_prompt_components_fail_closed(monkeypatch, tmp_path):
-    path = ROOT / 'apps/api/prompts/composer-review.md'
+    path = ROOT / 'skills/memoir-composer/prompts/review.md'
     with pytest.raises(ValueError, match='Unknown prompt component'):
         composition.render_prompt_artifact(path, content='{{prompt:missing}}')
     with pytest.raises(ValueError, match='malformed reference'):

@@ -17,7 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .memory_events import EvidenceRef
 from .stage_readiness import LIFE_STAGES
-from .prompt_artifact import load_prompt_artifact
+from .prompt_artifact import load_prompt_artifact, prompt_path
 
 
 HISTORICAL_ACKNOWLEDGEMENTS = {
@@ -122,7 +122,7 @@ def collector_schema(context=None):
 
 
 def collector_instructions(context):
-    prefix = load_prompt_artifact(Path(__file__).with_name('prompts') / 'collector-contract.md')
+    prefix = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/collector-plan'))
     return prefix + json.dumps(context, ensure_ascii=False, separators=(',', ':'))
 
 def _questions(value):

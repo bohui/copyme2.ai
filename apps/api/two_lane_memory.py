@@ -8,7 +8,7 @@ from contextlib import AsyncExitStack, asynccontextmanager
 import os
 
 from pydantic import BaseModel, ConfigDict, Field
-from .prompt_artifact import load_prompt_artifact
+from .prompt_artifact import load_prompt_artifact, prompt_path
 from .lifetime_memory_continuity import _Places
 
 
@@ -16,7 +16,7 @@ def two_lanes_enabled():
     return os.getenv('MEMOIR_TWO_LANES', '').lower() in {'1', 'true', 'yes'}
 
 
-CONVERSATION_INSTRUCTIONS = load_prompt_artifact(Path(__file__).with_name("prompts") / "two-lane-conversation.md")
+CONVERSATION_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/background-memory'))
 
 
 class PreparedQuestion(BaseModel):
@@ -49,14 +49,14 @@ def extraction_contract(*, strategy=False, attribution=False):
         'Return schema-bound JSON matching the supplied combined schema to the private worker.',
     )
     instructions=timeline_instructions+'\n'+place_skill+load_prompt_artifact(
-        Path(__file__).with_name('prompts') / 'two-lane-extraction-extension.md')
+        prompt_path('memoir/skills/memoir-author-timeline/derived-hints'))
     if strategy:
         from .interview_strategy import StrategyProposal
         proposal=StrategyProposal.model_json_schema()
         schema.setdefault('$defs',{}).update(proposal.get('$defs',{}))
         schema['properties']['strategy_proposal']={k:v for k,v in proposal.items() if k!='$defs'}
         schema['required'].append('strategy_proposal')
-        instructions+=load_prompt_artifact(Path(__file__).with_name('prompts') / 'two-lane-strategy-extension.md')
+        instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/strategy/proposal'))
     if attribution:
         from .conversation_attribution import attribution_schema, INSTRUCTIONS
         instructions += INSTRUCTIONS
