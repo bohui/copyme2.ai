@@ -11,7 +11,7 @@ def test_foreground_contract_is_bounded_and_does_not_request_background_places(l
     if strategy:
         context.update(strategy_selector=True, active_strategy=strategy)
     instructions = governed_collector_instructions(context)
-    assert len(instructions) < 7500
+    assert len(instructions) < 8500
     assert 'Return place_journeys' not in instructions
     assert 'continuity_updates' in instructions
     assert 'source_id' in instructions and 'source_version' in instructions

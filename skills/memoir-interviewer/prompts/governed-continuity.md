@@ -6,6 +6,7 @@ Cite only the CURRENT active narrator source_id and source_version. text and quo
 must be the same exact original-language quotation, at most 500 characters.
 Preserve speaker attribution and uncertainty: asserted or inferred; inferred
 requires nonempty uncertainty. Do not paraphrase or translate a quotation.
+For 我叫小林, text=quote="我叫小林"; the extracted name 小林 alone is not that quote.
 For a unique quote, use null for BOTH char_start and char_end; the application
 finds the Unicode span. For repeated text, choose a longer unique quote or supply
 exact zero-based Unicode offsets with exclusive end. Do not count unique quotes.

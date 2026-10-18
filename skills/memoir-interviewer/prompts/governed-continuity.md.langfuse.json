@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "name": "memoir/skills/memoir-interviewer/governed-continuity",
-  "version": 2,
+  "version": 3,
   "type": "text",
-  "sha256": "ac062b3fc16b5b2e7c979b6381b82b9b6296d522818ed083df315b3bc7c4c1d1"
+  "sha256": "1f179e8feef8675bbf14a1c1aeac2850a9558320523114587eed76518400af4f"
 }

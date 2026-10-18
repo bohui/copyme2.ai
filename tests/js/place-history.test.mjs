@@ -125,7 +125,7 @@ test('renderer keeps detailed title and parent map coordinates without a footer'
  const fs = await import('node:fs');
  const vm = await import('node:vm');
  const source=readMemoirClientSource();
- const context=vm.createContext({mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets:new Map(), profile:()=>({memory_places:[city,suburb]}), escapeHtml:String, translate:k=>k, translateWith:(k,v)=>`${k} ${v.place || ''}`, currentUiLocale:()=> 'en-AU'});
+ const context=vm.createContext({mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets:new Map(), unavailablePlaceMaps:new Set(), placeMapRenderKey:()=> 'map', profile:()=>({memory_places:[city,suburb]}), escapeHtml:String, translate:k=>k, translateWith:(k,v)=>`${k} ${v.place || ''}`, currentUiLocale:()=> 'en-AU'});
  for (const name of ['placeMapTarget','placeJourneyMarkup']) vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
  const markup=context.placeJourneyMarkup(suburb);
  assert.match(markup,/<h2>大石庙镇<\/h2>/);

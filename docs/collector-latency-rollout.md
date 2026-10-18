@@ -8,15 +8,106 @@ The canonical controlled profiler uses a simulated model; use the HTTP profiler
 for provider-inclusive timings. The historical `collector` and `conversation`
 commands below are no longer supported.
 
+## Lane A max-effort rollback — 19 October 2026
+
+At the user's request, the local collector selects
+`MEMORY_SPARK_COLLECTOR_MODEL=gpt-5.6-luna-pooled` with
+`MEMORY_SPARK_COLLECTOR_REASONING_EFFORT=max`, superseding the high-effort
+selection below. The Memoir consumer can access this existing route. Read-only
+inspection of the active gateway key confirms the same `gpt-5.6-luna` model and
+enforced `max`; the dedicated high route would continue enforcing `high` even
+with a different requested effort. No gateway policy change is needed.
+
+The existing `two-lane-v1` selector and prompt artifacts are retained to isolate
+the effort change. Background extraction and composition continue using their
+independent low route. The checkpoint worker uses the pooled collector alias
+for checkpoint indexing, which the existing model allowlist already supports.
+The API, private worker and checkpoint worker were recreated; their running
+collector configuration reads back pooled/max/two-lane-v1. API, web, private
+worker and photo-worker health checks returned HTTP 200 after alias refresh.
+
+Canonical execution, per-turn effort selection and Lane A prompt checks pass:
+**83 passed**. A pre-change run of the broader configuration and canonical
+execution suites recorded **73 passed, 42 failed**; the older configuration
+tests include calls to removed `_home` APIs. These failures preceded this
+configuration change. No live model generation or question-quality comparison
+was run, so improved question quality is not established by this rollback.
+
+## Lane A recall-quality follow-up — 18 October 2026
+
+That follow-up selected `gpt-5.6-luna-memoir-high` with collector effort `high`.
+The sibling gateway has an independent collector key enforcing the same Luna
+model and high effort; the background key continues to enforce low. Local API,
+private worker and background checkpoint worker settings were read back after reload. Collector
+defaults in `.env.example` remain opt-in.
+
+The collector's reviewed byte-bound allowlist now includes the verified high
+alias. Migration `202610180002_collector_high_checkpoint.sql` admits the same
+exact alias for canonical checkpoints. It changes only that function's model
+list and preserves security, grants and evidence/lease checks. Disposable SQL
+tests cover checkpoint publication, retained originals, stale claims, unsupported
+models and service-only access. The migration was applied through tracked
+Supabase migration history and those function grants were read back unchanged.
+The background worker receives the collector settings for checkpoint indexing;
+its extraction/profile/summary/composer calls keep their independent low route.
+
+The reported reply was a second Lane A attempt: the first returned continuity
+text different from its quoted evidence. That correctly failed validation and
+caused another full generation. The retry asked about family reports of birth
+or early childhood, although the packet already contained the birth year/month.
+The compact guidance had lost the explicit supplied-fact reuse rule and did not
+clearly require an accessible recall cue.
+
+Langfuse guidance v3 restores supplied-fact reuse and asks for one contextual,
+open memory cue without inventing childhood residence or sensory details.
+Governed-continuity v3 adds an exact text/quote example. Both were published as
+new Langfuse versions, fetched back, exported with receipts and remotely checked.
+Compiled Lane A instructions are 7,340–8,265 characters across supported modes.
+
+Two isolated gateway Responses replays used the same narrator evidence, privacy
+pins and output schema. Both passed the production output validator and codex-lb
+logs independently confirmed effective `high`:
+
+| Prompt | First complete acknowledgement | Complete result | Question direction |
+| --- | --- | --- | --- |
+| Previous guidance v2 | 4.349s | 5.478s | Asked whether family described the birth. |
+| Recall guidance v3 | 5.130s | 6.172s | 提到承德，您脑海里最先浮现的是什么画面？ |
+
+These measure the isolated gateway replay, excluding application/SQL preparation
+and browser paint. One sample per prompt cannot establish a general quality or
+latency effect. High effort alone did not fix this example; the revised prompt
+produced the intended recall cue. No matched low/high quality evaluation was run.
+Trace IDs: previous prompt `858f0c053ab7a40335f018835b4c1691`; recall prompt
+`f9a930b93b0d441149be3afa829493bb`.
+
+The separate Chengde photo-search diagnostic returned zero items and
+`UNAVAILABLE`: Flickr `robots_denied`, Google/SerpAPI `source_unavailable`, and
+Library of Congress `http_403`. The Google discovery step found leads, but
+original-page verification did not yield accepted photos. This photo path has
+model web search disabled and does not use the data-only extraction runtime.
+The upstream photo-source failures remain unresolved.
+
+Verification: 381 prompt, grounding, continuity, lane and photo regression tests;
+seven focused disposable SQL checks; all 70 Langfuse artifact checks; gateway
+`make agent-ci` and seven model-route tests passed. Gateway/API/web-proxy/private-worker/
+photo-worker health checks returned 200 after Mocker service aliases were refreshed.
+A wider SQL run exposed four pre-existing failures: story-game foreign-key index
+coverage, reset-table inventory, and stale profile/strategy fixtures. All four
+were reproduced with the follow-up migration excluded in a baseline-only control.
+
+To roll back effort alone, select `gpt-5.6-luna-memoir-low` with `low`, reload
+API and private worker, and refresh Mocker aliases. Keep the verified v3 recall
+and quotation guidance.
+
 ## Local Lane A update — 18 October 2026
 
-At the user's request, the local API and private worker now select
+The initial local trial selected
 `MEMORY_SPARK_COLLECTOR_MODEL=gpt-5.6-luna-memoir-low` and
 `MEMORY_SPARK_COLLECTOR_REASONING_EFFORT=low`. The existing `two-lane-v1`
-selector remains enabled. Other lanes' model/effort settings are unchanged.
-These are local operator overrides, not new repository-wide defaults.
+selector remained enabled. The recall-quality follow-up above supersedes this
+trial's local effort selection. These were local operator overrides.
 
-The foreground contract is now 6,546–7,471 characters, depending on language
+That trial's foreground contract was 6,546–7,471 characters, depending on language
 and strategy, instead of the earlier 13–21k. It requests one immediate question,
 does not request background place extraction in either two-lane path, and keeps
 current-source citation, attribution, uncertainty and privacy rules. General

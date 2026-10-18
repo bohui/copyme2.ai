@@ -242,8 +242,9 @@ def bootstrap_supabase(sql, *, apply_schema=True):
       alter default privileges in schema public grant all on functions to anon,authenticated,service_role;
     """)
     if apply_schema:
-        baseline = Path(__file__).resolve().parents[1] / 'supabase/migrations/202610180001_initial_schema.sql'
-        sql(baseline.read_text())
+        migrations = Path(__file__).resolve().parents[1] / 'supabase/migrations'
+        for migration in sorted(migrations.glob('*.sql')):
+            sql(migration.read_text())
     sql(f"insert into auth.users(id) values ('{OWNER}'), ('{OTHER}');")
 
 

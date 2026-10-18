@@ -35,9 +35,10 @@ from .lifetime_memory_publication import ProviderPublication
 # extra schema-shaped messages and slowed final replies in the issue 53 probes.
 # Stream the acknowledgement from this single final document instead.
 GOVERNED_TURN_PROMPT = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-turn'))
-# The installed pooled and dedicated low aliases route to the same byte-BPE
+# The installed pooled and dedicated collector aliases route to the same byte-BPE
 # model. No wildcard or arbitrary operator-defined alias is admitted.
-SUPPORTED_BYTE_BOUND_MODELS = frozenset({'gpt-5.6-luna-pooled', 'gpt-5.6-luna-memoir-low', 'synthetic-byte-bpe'})
+SUPPORTED_BYTE_BOUND_MODELS = frozenset({'gpt-5.6-luna-pooled', 'gpt-5.6-luna-memoir-low',
+    'gpt-5.6-luna-memoir-high', 'synthetic-byte-bpe'})
 SUPPORTED_PROMPT_VERSIONS = frozenset({'lifetime-v1'})
 
 
