@@ -13820,7 +13820,7 @@ CREATE TRIGGER tombstone_original_recordings BEFORE DELETE ON auth.users FOR EAC
 -- Server-owned feature configuration
 
 insert into public.lifetime_two_lane_rollout(singleton,enabled,strategy_enabled,strategy_shadow)
-  values (true,false,false,true);
+  values (true,true,true,true);
 insert into public.original_recording_rollout(singleton,enabled) values (true,false);
 insert into public.lifetime_profile_cadence(singleton,initial_rounds,interval_rounds)
   values (true,array[1,5],10);
