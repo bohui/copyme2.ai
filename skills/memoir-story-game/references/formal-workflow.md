@@ -12,10 +12,9 @@ editions have their own revision, immutable contents and completion receipt.
 
 ## Actual interfaces
 
-The formal authority SQL is included in the current baseline migration,
-`supabase/migrations/202610180001_initial_schema.sql`. The separate game adapter
-is included in `202610180001_initial_schema.sql`; see the current runtime contract
-for its routes and verification boundaries.
+The formal authority and game adapter SQL are included in the consolidated
+baseline, `supabase/migrations/202610180001_initial_schema.sql`. See the current
+runtime contract for the adapter's routes and verification boundaries.
 
 Authenticated endpoints registered by `apps/api/agent_routes.py`:
 

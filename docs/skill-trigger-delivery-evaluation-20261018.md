@@ -170,3 +170,24 @@ and all 70 pinned prompts. All eight implemented groups pass again (79 assertion
 across nine groups, including family-tree's negative admission checks). Family-tree
 remains categorically unavailable. All nine experiment items and scores were read
 back successfully; this run dispatched no live model calls.
+
+## Judge prompt update and reset preparation
+
+After those experiments, all four `memoir/evaluation/` judge prompts were updated
+in Langfuse to v2: `five-case-judge`, `five-case-judge/guard`,
+`trajectory-judge/system` and `trajectory-judge/rubric`. Trigger gating and verified
+delivery are assessed separately, with actual saved-state, provider/source and
+browser witnesses required for delivery claims. Unobserved categories receive no
+numeric score. Calibration remains pending human review; no historical experiment
+is relabeled as having used these new prompts. All 70 managed artifacts matched
+their exact remote versions. The game runtime contract is v3.
+
+The Supabase migrations are consolidated into `202610180001_initial_schema.sql`.
+Two disposable databases confirmed equivalent catalogs for the original chain
+and merged baseline, including all 362 functions, 111 relations and their access
+controls. The Supabase CLI fresh/repeat push and disposable reset/reapply passed.
+Both complete browser game flows also passed against the consolidated schema.
+Broader checks retain nine legacy execution-contract fixture failures and three
+canonical background-lane retry failures; the full evaluation is not all green.
+See `docs/five-case-full-e2e-20261018.md` for the preserved 49-reply campaign state
+and reset handoff. The configured database was not reset.

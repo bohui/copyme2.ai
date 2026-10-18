@@ -6,6 +6,14 @@ and an author-approved private game visible and playable in the UI.
 
 ## Current campaign
 
+The campaign is incomplete and held before the user's database reset. Its first
+case has 49 submitted originals and 49 saved replies, with 48 settled rounds and
+nine completed checkpoints. Round 49 did not settle before its background deadline;
+the other four cases have not started. Automatic continuation and the evaluation
+worker are stopped. Receipts remain in the external evidence directory below.
+A reset invalidates the old database bindings; evaluation afterward needs a fresh
+campaign rather than resubmission into this run's ledger.
+
 - Run: `dcd5bac0-992f-46fa-89fb-4fc05c319bb9`.
 - Evidence: `/Users/bohuihan/memoir-test-results/dcd5bac0-992f-46fa-89fb-4fc05c319bb9`.
 - Frozen conversation source: `c1d7103caafdbc9d8d976f136b31939803027f3a` in the
@@ -19,7 +27,7 @@ and an author-approved private game visible and playable in the UI.
 
 | Requirement | Required authoritative evidence | State |
 | --- | --- | --- |
-| 250 Lane A turns | Exactly 50 distinct original turns per owner; nonempty saved replies; owner-scoped database recovery | Running |
+| 250 Lane A turns | Exactly 50 distinct original turns per owner; nonempty saved replies; owner-scoped database recovery | Incomplete; held before user-managed reset |
 | Location skill | Grounded named places saved against the accepted originals and displayed in each workspace | Pending |
 | Photo skill | Real source-backed discovery/cache receipts and rendered images for selected places; unsupported periods remain explicit | Pending |
 | News skill | Verified public sources saved by the after-delivery runner and visible as attributed context | Pending |
@@ -121,3 +129,37 @@ messages, matches rendered saved-reply IDs against the authenticated history
 projection, and reports withheld replies explicitly. It does not restore stale
 replies from raw storage or count the opening greeting as a saved turn. Evidence
 that all 50 replies were originally saved remains a separate campaign requirement.
+
+## Evaluation prompts and consolidated reset baseline
+
+The four evaluation prompts in Langfuse are now v2: `five-case-judge`, its
+`guard`, and `trajectory-judge/system` and `trajectory-judge/rubric`, all under
+`memoir/evaluation/`. They distinguish correct trigger gating from verified
+positive delivery, require observed provider/source/browser evidence, and retain
+explicit consent and publication requirements. The judge rubric identifier is
+`memoir-judge-rubric/2`. All 70 pinned prompt artifacts matched remote readbacks.
+The game runtime contract is now v3 and references the consolidated migration.
+Earlier experiment receipts retain their original prompt versions. No new
+semantic judge acceptance or human calibration is claimed.
+
+The only current migration is `supabase/migrations/202610180001_initial_schema.sql`.
+It incorporates the former 002/003/004 migrations and folds their final function
+definitions into the baseline. The historical migration names above describe
+previous applications, not additional files to apply after reset. No owner is
+enrolled in the scoped strategy cohort by the baseline.
+
+Separate disposable PostgreSQL clusters produced identical catalogs for the
+original four-file chain and consolidated baseline: 362 functions, 111 relations,
+columns, constraints, indexes, triggers, RLS policies, permissions/default grants
+and storage buckets. Supabase CLI fresh push, repeat push and reset/reapply passed
+on a disposable database. The configured database was not reset.
+
+The retained verification runs report 118 passed / nine legacy fixture failures,
+and 33 passed / three canonical background-lane retry failures. The passing checks
+include both full browser flows, game/formal SQL, scoped strategy, prompt artifacts
+and composition, CLI migration tracking and canonical command guards. The nine
+legacy failures omit execution/publication contracts already required before this
+change. The three canonical scenarios return `retry_required`; they remain failures.
+These checks establish migration equivalence and the observed controlled paths,
+not full live evaluation acceptance. Receipts are under `var/story-game-checks/`
+and `var/diagnostics/migration-rebaseline/`.

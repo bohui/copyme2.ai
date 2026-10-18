@@ -932,5 +932,150 @@
       "result": "Uninspected historical claim",
       "receipt": "var/skill-evaluation/skills-20261018T060706Z/historical-source-reinspection-2mb.json"
     }
+  },
+  "reset_baseline_preparation": {
+    "recorded_at": "2026-10-18T07:41:07.058441+00:00",
+    "prompt_publication": {
+      "updated": [
+        {
+          "target": "tests/evaluation/memoir_five_case_judge_prompt.md",
+          "schema_version": 1,
+          "name": "memoir/evaluation/five-case-judge",
+          "version": 2,
+          "type": "text",
+          "sha256": "9ca0213f4b44be0432ab633c02979edd5acd13f77f132cfc938832e42570a4db"
+        },
+        {
+          "target": "tests/evaluation/prompts/five-case-judge/guard.md",
+          "schema_version": 1,
+          "name": "memoir/evaluation/five-case-judge/guard",
+          "version": 2,
+          "type": "text",
+          "sha256": "5beb9825df0498e8479923848b50bc7d51244c89c779c8fa9411fa5bb50629fe"
+        },
+        {
+          "target": "apps/api/prompts/evaluation/trajectory-judge/system.md",
+          "schema_version": 1,
+          "name": "memoir/evaluation/trajectory-judge/system",
+          "version": 2,
+          "type": "text",
+          "sha256": "06a13cf8837a84f8e45c4fa15fc14310504c85edc9dcb634df51e9bd2bb81c3a"
+        },
+        {
+          "target": "apps/api/prompts/evaluation/trajectory-judge/rubric.md",
+          "schema_version": 1,
+          "name": "memoir/evaluation/trajectory-judge/rubric",
+          "version": 2,
+          "type": "text",
+          "sha256": "d8e9d743de1ad91da9ea6dce088d509c1edba6b5323f4fb9e8c4e29e98c9a0c3"
+        },
+        {
+          "target": "skills/memoir-story-game/references/runtime-contract.md",
+          "schema_version": 1,
+          "name": "memoir/skills/memoir-story-game/runtime-contract",
+          "version": 3,
+          "type": "text",
+          "sha256": "b2d8ae34f3fbc579094db920b6540f96d2217e9932daa32caefd9dc4b33dac6f"
+        }
+      ],
+      "all_managed_prompts_verified": 70
+    },
+    "judge_rubric_version": "memoir-judge-rubric/2",
+    "human_calibration_status": "requires-human-review",
+    "new_semantic_judge_acceptance": false,
+    "migration": {
+      "path": "supabase/migrations/202610180001_initial_schema.sql",
+      "migration_files": 1,
+      "sha256": "170402cbd812efdf2cebd9736941625ae706da551c5be75ef42ac6410f919ca3",
+      "former_migrations": [
+        "202610180001_initial_schema.sql",
+        "202610180002_private_story_game.sql",
+        "202610180003_story_game_delivery_fixes.sql",
+        "202610180004_scoped_interview_strategy_rollout.sql"
+      ],
+      "final_definitions_folded": 17,
+      "catalog_equivalence": {
+        "status": "passed",
+        "evidence": "two separate disposable native PostgreSQL clusters",
+        "categories_compared": [
+          "buckets",
+          "columns",
+          "indexes",
+          "schemas",
+          "policies",
+          "triggers",
+          "functions",
+          "relations",
+          "constraints",
+          "cohort_owners",
+          "default_privileges"
+        ],
+        "differences": [],
+        "function_count": 362,
+        "relation_count": 111,
+        "consolidated_migration_sha256": "170402cbd812efdf2cebd9736941625ae706da551c5be75ef42ac6410f919ca3",
+        "configured_database_touched": false
+      },
+      "supabase_cli_fresh_push_repeat_push_and_disposable_reset": "passed",
+      "configured_database_reset_by_agent": false,
+      "scoped_strategy_owners_seeded": 0
+    },
+    "verification": {
+      "checks": [
+        {
+          "name": "consolidated-baseline-and-evaluation-prompts",
+          "passed": 118,
+          "failed": 9,
+          "failed_tests": [
+            "tests/test_trajectory_evaluation.py::test_worker_turn_adds_evaluation_envelope_only_when_requested",
+            "tests/test_trajectory_evaluation.py::test_runtime_returns_trajectory_only_for_an_evaluation_turn[None-legacy-test-route]",
+            "tests/test_trajectory_evaluation.py::test_runtime_returns_trajectory_only_for_an_evaluation_turn[memoir-luna-low-memoir-luna-low]",
+            "tests/test_langfuse_evaluation_cli.py::test_task_exception_preserves_completed_siblings_and_failed_case[False-1]",
+            "tests/test_langfuse_evaluation_cli.py::test_task_exception_preserves_completed_siblings_and_failed_case[True-1]",
+            "tests/test_langfuse_evaluation_cli.py::test_task_exception_preserves_completed_siblings_and_failed_case[False-2]",
+            "tests/test_langfuse_evaluation_cli.py::test_successful_synthetic_cli_keeps_existing_output_contract",
+            "tests/test_langfuse_evaluation_cli.py::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[baseline]",
+            "tests/test_langfuse_evaluation_cli.py::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[candidate]"
+          ],
+          "exit_code": 1,
+          "receipt": "var/story-game-checks/consolidated-baseline-and-evaluation-prompts.json",
+          "log": "var/story-game-checks/consolidated-baseline-and-evaluation-prompts.log",
+          "native_allocation_cleanup_verified": true
+        },
+        {
+          "name": "consolidated-supabase-canonical-and-browser",
+          "passed": 33,
+          "failed": 3,
+          "failed_tests": [
+            "tests/test_canonical_evaluation.py::test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_temporal[3-3]",
+            "tests/test_canonical_evaluation.py::test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_temporal[5-5]",
+            "tests/test_canonical_evaluation.py::test_authenticated_rounds_extract_original_evidence_and_save_checkpoint_via_temporal[5-20]"
+          ],
+          "exit_code": 1,
+          "receipt": "var/story-game-checks/consolidated-supabase-canonical-and-browser.json",
+          "log": "var/story-game-checks/consolidated-supabase-canonical-and-browser.log",
+          "native_allocation_cleanup_verified": true
+        }
+      ],
+      "english_desktop_and_chinese_phone_browser_flows": "passed",
+      "legacy_failure_disposition": "Nine fixtures omit canonical publication/execution contracts required in the pre-change HEAD; retained as failures.",
+      "canonical_failure_disposition": "Three controlled canonical scenarios stop with background lane retry_required; unresolved and retained as failures.",
+      "catalog_equivalence_receipt": "var/diagnostics/migration-rebaseline/catalog-equivalence.json",
+      "full_evaluation_status": "incomplete"
+    },
+    "live_campaign": {
+      "run_id": "dcd5bac0-992f-46fa-89fb-4fc05c319bb9",
+      "first_case_originals_submitted": 49,
+      "first_case_replies_saved": 49,
+      "first_case_settled_rounds": 48,
+      "first_case_completed_checkpoints": 9,
+      "other_cases_started": 0,
+      "status": "incomplete_before_user_managed_reset",
+      "continuation_stopped": true,
+      "evaluation_worker_stopped": true,
+      "receipts_preserved_outside_database": true,
+      "evidence_directory": "/Users/bohuihan/memoir-test-results/dcd5bac0-992f-46fa-89fb-4fc05c319bb9",
+      "after_reset_requires_fresh_campaign": true
+    }
   }
 }
