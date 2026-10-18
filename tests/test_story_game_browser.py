@@ -39,7 +39,7 @@ def test_author_reviews_publishes_plays_recovers_and_revokes(sql, tmp_path, monk
             raise HTTPException(401, 'Sign in required')
         return PostgresRest(sql, OWNER).storage()
 
-    async def provider(packet):
+    async def provider(packet, *, token):
         calls.append(packet['game_id'])
         return proposal_from_packet(packet), dict(status='completed', response_id='resp-controlled-game', model='controlled')
 
@@ -127,6 +127,17 @@ def test_author_reviews_publishes_plays_recovers_and_revokes(sql, tmp_path, monk
                 page.keyboard.up('ArrowRight')
                 page.locator('[data-game-interact]').click()
                 expect(page.locator('.game-dialogue')).to_contain_text('My father repaired bicycles')
+                for key, direction in [('Enter', 1), ('Space', -1)]:
+                    page.locator('[data-game-interact]').click()
+                    start = float(player.get_attribute('data-game-position'))
+                    page.locator(f'[data-game-move="{direction}"]').focus()
+                    page.keyboard.down(key)
+                    try:
+                        page.wait_for_function("([start,direction]) => (Number(document.querySelector('[data-story-game-player]').dataset.gamePosition)-start)*direction>12",
+                            arg=[start, direction], timeout=1500)
+                    finally:
+                        page.keyboard.up(key)
+                    expect(page.locator('.game-dialogue')).to_be_hidden()
                 stage.focus()
                 page.keyboard.down('ArrowRight')
                 page.wait_for_function("first=>document.querySelector('[data-story-game-player]').dataset.gameScene!==first", arg=first_scene)
@@ -177,3 +188,86 @@ def test_author_reviews_publishes_plays_recovers_and_revokes(sql, tmp_path, monk
                 assert any(method == 'POST' and path.endswith('/publish') for method, path in requests)
             finally:
                 context.close(); browser.close()
+
+
+@pytest.mark.parametrize('direction', ['back', 'forward'])
+def test_navigation_closes_game_and_aborts_requests_before_slow_or_failed_recovery(direction):
+    from uuid import uuid4
+
+    base = os.environ['MEMOIR_BROWSER_URL']
+    project_id, unavailable = 'game-navigation-a', 'game-navigation-b'
+    profile = dict(preferred_language='en-AU', name='Test Author', birth_year=1960)
+    history = StoryHistoryFixture(OWNER, project_id, 'fixture-only')
+    history.save(dict(project_id=project_id, client_turn_id=str(uuid4()), conversation_text='An invented garden memory.'),
+        'A saved garden reply.')
+    game = json.loads((Path(__file__).parents[1] / 'skills/memoir-story-game/tests/fixtures/candidate.json').read_text())['game']
+    held, recovery = [], []
+    holding = False
+
+    with sync_playwright() as pw:
+        browser = pw.chromium.launch(headless=True)
+        context = browser.new_context(reduced_motion='reduce')
+        context.add_cookies([{'name': 'copyme2_ui_locale', 'value': 'en-AU', 'url': base},
+                             {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
+        user = dict(id=OWNER, is_anonymous=False)
+        install_supabase_fixture(context, 'window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:'
+            + json.dumps(dict(access_token='fixture-only', user=user)) + '}}),getUser:async()=>({data:{user:'
+            + json.dumps(user) + '}}),onAuthStateChange:()=>({})}})};')
+        context.add_init_script("""window.gameRequestSignals=[];const originalFetch=window.fetch;
+            window.fetch=(url,options={})=>{if(String(url).includes('/story-game')&&options.signal)
+                window.gameRequestSignals.push(options.signal);return originalFetch(url,options)};""")
+        context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(base + '/') else route.abort())
+
+        def api(route):
+            if history.serve(route): return
+            path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
+            if path == '/projects/' + unavailable:
+                recovery.append(route)
+                return
+            if path.endswith('/story-game') and holding:
+                held.append(route)
+                return
+            data = {}
+            if path == '/agent/config': data = dict(supabase_url='https://auth.test', supabase_publishable_key='public', auth_mode='supabase')
+            elif path in ('/agent/profile', '/user/profile'): data = profile
+            elif path == '/projects/' + project_id: data = dict(id=project_id, revision=1, mode='self', profile=profile)
+            elif path.endswith('/journey'): data = {'active_session': None}
+            elif path == '/story/state': data = {'recall_status': dict(rounds_completed=1, free_rounds=20, payment_required=False, paid=True)}
+            elif path == '/story/readiness': data = dict(pending=False, profile=profile, current_mode=dict(project_id=project_id, mode='shape'))
+            elif path == '/agent/place-journey': data = {'place_journey': None}
+            elif path.endswith('/story-game'): data = dict(eligibility=dict(available=True, reasons=[]),
+                formal={'edition': {'status': 'completed'}}, adaptation=dict(game_id=game['package_id'], status='published'))
+            elif '/story-game/' in path: data = dict(game_id=game['package_id'], status='published', game=game)
+            route.fulfill(json=data)
+
+        context.route('**/api/v1/memoir/**', api)
+        page = context.new_page()
+        try:
+            page.goto(base + '/memoir/interview/' + project_id)
+            opener = page.locator('[data-story-game]').first
+            expect(opener).to_be_visible(timeout=30000)
+            if direction == 'back':
+                page.evaluate("([a,b])=>{history.replaceState({},'',b);history.pushState({},'',a)}",
+                    ['/memoir/interview/' + project_id, '/memoir/interview/' + unavailable])
+            else:
+                page.evaluate("b=>history.pushState({},'',b)", '/memoir/interview/' + unavailable)
+                page.go_back()
+            opener.click()
+            expect(page.locator('[data-story-game-player]')).to_be_visible()
+            holding = True
+            count = page.evaluate('window.gameRequestSignals.length')
+            with page.expect_request('**/api/v1/memoir/agent/projects/' + project_id + '/story-game'):
+                page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
+            page.wait_for_function('count=>window.gameRequestSignals.length>count', arg=count)
+            with page.expect_request('**/api/v1/memoir/projects/' + unavailable):
+                getattr(page, 'go_' + direction)()
+                expect(page.locator('.story-game-modal')).to_have_count(0, timeout=1500)
+                assert page.evaluate('window.gameRequestSignals.every(signal=>signal.aborted)')
+            expect(page.locator('#app .loading')).to_be_visible()
+            assert recovery and held
+            recovery[0].fulfill(status=503, json={'detail': 'Recovery unavailable'})
+            held[0].fulfill(json=dict(eligibility={'available': True}, adaptation={'status': 'published'}))
+            page.wait_for_load_state('networkidle')
+            expect(page.locator('.story-game-modal')).to_have_count(0)
+        finally:
+            context.close(); browser.close()

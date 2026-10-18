@@ -82,3 +82,63 @@ def test_langfuse_readback_requires_every_item_and_score(count, scored, cursor, 
     client = SimpleNamespace(api=SimpleNamespace(experiments=SimpleNamespace(
         list_items=lambda **kwargs: response)))
     assert readback(client, 'experiment', 9, datetime.now(timezone.utc))['status'] == expected
+
+
+@pytest.mark.parametrize('execute', [False, True])
+@pytest.mark.parametrize('phase,case', [
+    ('triggers', 'memoir-place-photo-research-native-discovery'),
+    ('deliveries', 'memoir-place-photo-research-triggers'),
+])
+def test_case_from_another_phase_is_rejected_before_service_allocation(tmp_path, monkeypatch, capsys, execute, phase, case):
+    import sys
+    import scripts.run_memoir_skill_evaluation as evaluation
+
+    rows = next(rows for name, rows in datasets().items() if name.endswith('triggers'))
+    allocated = []
+    client = SimpleNamespace(api=SimpleNamespace(projects=SimpleNamespace(get=lambda:
+        SimpleNamespace(data=[SimpleNamespace(id='cmut9t75w00071z02n8bdv7it')]))))
+    monkeypatch.setattr(evaluation, 'prompt_client', lambda *args: allocated.append('langfuse') or client)
+    monkeypatch.setattr('scripts.export_langfuse_prompts.export_prompts', lambda *args, **kwargs: [])
+    monkeypatch.setattr(evaluation, 'publish_datasets', lambda *args: (
+        {'memoir/evaluation/v2/skill-triggers': SimpleNamespace(items=[
+            SimpleNamespace(input=row['input']) for row in rows])}, datetime.now(timezone.utc)))
+    monkeypatch.setattr(evaluation, 'TracedProvider', lambda *args, **kwargs: SimpleNamespace())
+    env = tmp_path / 'empty.env'
+    env.write_text('')
+    monkeypatch.setattr(sys, 'argv', ['run_memoir_skill_evaluation.py', '--phase', phase,
+        '--case', case, '--env-file', str(env),
+        '--output-root', str(tmp_path / 'results'), *(['--execute'] if execute else [])])
+    try:
+        status = evaluation.main()
+    except SystemExit as error:
+        status = error.code
+    assert status == 2, 'A phase selecting zero cases must not report success'
+    assert allocated == []
+    assert not (tmp_path / 'results').exists()
+    assert 'phase' in capsys.readouterr().err.lower()
+
+
+def test_an_empty_experiment_cannot_report_passed(tmp_path, monkeypatch):
+    import json
+    import sys
+    import scripts.run_memoir_skill_evaluation as evaluation
+
+    name = 'memoir/evaluation/v2/skill-triggers'
+    monkeypatch.setattr(evaluation, 'datasets', lambda: {name: []})
+    client = SimpleNamespace(api=SimpleNamespace(projects=SimpleNamespace(get=lambda:
+        SimpleNamespace(data=[SimpleNamespace(id='cmut9t75w00071z02n8bdv7it')]))))
+    monkeypatch.setattr(evaluation, 'prompt_client', lambda *args: client)
+    monkeypatch.setattr('scripts.export_langfuse_prompts.export_prompts', lambda *args, **kwargs: [])
+    monkeypatch.setattr(evaluation, 'publish_datasets', lambda *args:
+        ({name: SimpleNamespace(items=[])}, datetime.now(timezone.utc)))
+    monkeypatch.setattr(evaluation, 'TracedProvider', lambda *args, **kwargs: SimpleNamespace())
+    env = tmp_path / 'empty.env'
+    env.write_text('')
+    output = tmp_path / 'results'
+    monkeypatch.setattr(sys, 'argv', ['run_memoir_skill_evaluation.py', '--execute', '--phase', 'triggers',
+        '--env-file', str(env), '--output-root', str(output)])
+    assert evaluation.main() == 1
+    receipt, = output.glob('*/receipt.json')
+    result = json.loads(receipt.read_text())
+    assert result['status'] == 'incomplete'
+    assert result['results'] == result['experiments'] == []

@@ -83,6 +83,15 @@ def test_game_routes_require_auth_and_do_not_accept_browser_authority(monkeypatc
 
 @pytest.mark.parametrize('bad', ['duplicate_json', 'missing_receipt', 'incomplete', 'credential'])
 def test_provider_reply_must_be_one_completed_schema_document(monkeypatch, bad):
+    from contextlib import asynccontextmanager
+    from apps.api.story_game_runtime import GamePublication
+
+    @asynccontextmanager
+    async def controlled_admission(self, fence):
+        yield
+
+    monkeypatch.setattr(GamePublication, 'guard', controlled_admission)
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', 'controlled-admission')
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL', 'https://gateway.test/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY', 'private-game-test-key')
     monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL', 'configured-model')
@@ -99,4 +108,5 @@ def test_provider_reply_must_be_one_completed_schema_document(monkeypatch, bad):
         assert 'p_expected_digest' not in sent
         return httpx.Response(200, json=response)
     monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=httpx.MockTransport(transport), **kwargs))
-    with pytest.raises(ValueError): asyncio.run(propose_game({'chapters': []}))
+    with pytest.raises(ValueError):
+        asyncio.run(propose_game(dict(game_id=GAME, authority={}, chapters=[]), token=TOKEN))

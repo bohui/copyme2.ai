@@ -198,3 +198,112 @@ def test_actual_http_send_holds_revocation_until_the_response_finishes(sql, read
         assert again[0]['status'] == 409
         assert b'My father' not in b''.join(m.get('body', b'') for m in again)
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('change', ['consent', 'source'])
+def test_revocation_before_provider_body_send_transmits_no_manuscript(sql, ready, monkeypatch, change):
+    import asyncio
+    import httpx
+    from apps.api.story_game_runtime import generate_story_game
+    from test_background_profile_workflow import Broker
+
+    project, edition, _ = ready
+    game = begin_game(sql, project)
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
+    monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL', 'https://gateway.test/v1')
+    monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL', 'controlled-game-model')
+    monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY', 'controlled-game-key')
+
+    async def scenario():
+        before_send, release = asyncio.Event(), asyncio.Event()
+        transmitted = bytearray()
+
+        class Transport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request):
+                before_send.set()
+                await release.wait()
+                async for chunk in request.stream:
+                    transmitted.extend(chunk)
+                packet = json.loads(json.loads(transmitted)['input'])
+                return httpx.Response(200, json=dict(id='resp-controlled', model='controlled', status='completed',
+                    output=[dict(type='message', content=[dict(type='output_text', text=json.dumps(proposal_from_packet(packet)))])]))
+
+        client_type = httpx.AsyncClient
+        monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=Transport(), **kwargs))
+        pending = asyncio.create_task(generate_story_game(Broker(sql), game['game_id']))
+        try:
+            await asyncio.wait_for(before_send.wait(), 2)
+            if change == 'consent':
+                await asyncio.to_thread(consent, sql, project, edition, 2, 'revoke')
+            else:
+                source = sql('select id from public.user_narrator_source order by sequence limit 1;').stdout.strip()
+                await asyncio.to_thread(rpc, sql, 'change_user_narrator_source',
+                    f"{literal(project)},'{source}',1,'withdraw',null")
+            release.set()
+            with pytest.raises(Exception):
+                await pending
+            assert transmitted == b'', 'Revoked manuscript crossed the provider transport boundary'
+        finally:
+            release.set()
+            pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('revoke_during_send', [False, True])
+def test_provider_body_holds_authority_only_until_transmission_finishes(sql, ready, monkeypatch, revoke_during_send):
+    import asyncio
+    import httpx
+    from apps.api.story_game_runtime import generate_story_game
+    from test_background_profile_workflow import Broker
+
+    project, edition, _ = ready
+    game = begin_game(sql, project)
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
+    monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL', 'https://gateway.test/v1')
+    monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL', 'controlled-game-model')
+    monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY', 'controlled-game-key')
+
+    async def scenario():
+        transmitted = bytearray()
+        revocation = None
+
+        class Transport(httpx.AsyncBaseTransport):
+            async def handle_async_request(self, request):
+                nonlocal revocation
+                async for chunk in request.stream:
+                    transmitted.extend(chunk)
+                    if revoke_during_send:
+                        revocation = asyncio.create_task(asyncio.to_thread(consent, sql, project, edition, 2, 'revoke'))
+                        async with asyncio.timeout(1):
+                            while True:
+                                blocked = await asyncio.to_thread(sql, "select exists(select 1 from pg_stat_activity "
+                                    "where wait_event_type='Lock' and query like '%set_story_game_consent%');")
+                                if blocked.stdout.strip() == 't': break
+                                await asyncio.sleep(.01)
+                        assert not revocation.done(), 'Revocation must wait for the active body send'
+                # A provider may now take minutes. Authority locks must already be released.
+                if revocation is not None:
+                    await asyncio.wait_for(revocation, 1)
+                assert len(transmitted) == int(request.headers['Content-Length'])
+                packet = json.loads(json.loads(transmitted)['input'])
+                assert 'token' not in packet
+                return httpx.Response(200, json=dict(id='resp-controlled', model='controlled', status='completed',
+                    output=[dict(type='message', content=[dict(type='output_text', text=json.dumps(proposal_from_packet(packet)))])]))
+
+        client_type = httpx.AsyncClient
+        monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=Transport(), **kwargs))
+        try:
+            if revoke_during_send:
+                with pytest.raises(httpx.HTTPStatusError):
+                    await generate_story_game(Broker(sql), game['game_id'])
+            else:
+                result = await generate_story_game(Broker(sql), game['game_id'])
+                assert result['status'] == 'review_required'
+            assert transmitted
+        finally:
+            if revocation is not None:
+                await asyncio.gather(revocation, return_exceptions=True)
+
+    asyncio.run(scenario())

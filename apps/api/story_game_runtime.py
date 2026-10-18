@@ -1,5 +1,6 @@
 """Bounded game proposals; PostgreSQL owns evidence, consent, review and publication."""
 import asyncio
+from contextlib import asynccontextmanager
 import json
 import os
 from urllib.parse import urlsplit
@@ -9,6 +10,7 @@ import httpx
 from pydantic import BaseModel, Field
 
 from .memoir_story_game import load_story_game_skill
+from .lifetime_memory_lane_engine import LaneRequestBody, _settle
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
 
@@ -27,7 +29,55 @@ class GameProposal(BaseModel):
     scenes: list[SceneProposal] = Field(min_length=2, max_length=2)
 
 
-async def propose_game(packet):
+class GameFence(BaseModel):
+    model_config = {'extra': 'forbid'}
+    game_id: UUID
+    token: UUID
+    authority: dict
+
+
+class GamePublication:
+    def __init__(self, dsn):
+        if not dsn:
+            raise ValueError('game_publication_unavailable')
+        self.dsn = dsn
+
+    @asynccontextmanager
+    async def guard(self, fence):
+        from psycopg import AsyncConnection, Error
+
+        snapshot = GameFence.model_validate(fence)
+        connection = None
+        try:
+            async with asyncio.timeout(5):
+                connection = await AsyncConnection.connect(self.dsn, connect_timeout=2)
+                await connection.execute('set local role service_role')
+                await connection.execute("set local lock_timeout='2s'")
+                started = asyncio.get_running_loop().time()
+                cursor = await connection.execute('select authority, extract(epoch from lease_until-clock_timestamp()) '
+                    'from public.lock_story_game(%s,%s,true)', (snapshot.game_id, snapshot.token))
+                authority, remaining = await cursor.fetchone()
+                if authority != snapshot.authority:
+                    raise ValueError('game_authority_changed')
+                deadline = started + float(remaining)
+            allowance = min(2, deadline - asyncio.get_running_loop().time() - .1)
+            if allowance <= 0:
+                raise ValueError('game_lease_expiring')
+            async with asyncio.timeout(allowance):
+                yield
+        except Error as error:
+            raise ValueError('game_admission_unavailable') from error
+        finally:
+            if connection is not None:
+                await _settle(asyncio.create_task(connection.close()))
+
+
+class GameRequestBody(LaneRequestBody):
+    """Keep edition, consent, source and job locks through actual body send."""
+    fence_type = GameFence
+
+
+async def propose_game(packet, *, token):
     base = os.getenv('MEMORY_SPARK_LLM_BASE_URL', '').rstrip('/')
     model = os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL', '')
     key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
@@ -41,15 +91,23 @@ async def propose_game(packet):
         store=False, max_output_tokens=2500, reasoning={'effort': 'low'},
         text={'format': {'type': 'json_schema', 'name': 'memoir_game_proposal', 'strict': True,
                          'schema': GameProposal.model_json_schema()}})
-    async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=120) as client:
-        async with client.stream('POST', base + '/responses', json=body,
-                                 headers={'Authorization': 'Bearer ' + key}) as response:
-            response.raise_for_status()
-            raw = bytearray()
-            async for chunk in response.aiter_bytes():
-                raw.extend(chunk)
-                if len(raw) > 512000:
-                    raise ValueError('game_response_limit')
+    content = json.dumps(body, ensure_ascii=False).encode('utf-8')
+    request = GameRequestBody(content,
+        publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
+        fence=dict(game_id=packet['game_id'], token=token, authority=packet['authority']))
+    try:
+        async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=120) as client:
+            async with client.stream('POST', base + '/responses', content=request,
+                                     headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
+                                              'Content-Length': str(len(content))}) as response:
+                response.raise_for_status()
+                raw = bytearray()
+                async for chunk in response.aiter_bytes():
+                    raw.extend(chunk)
+                    if len(raw) > 512000:
+                        raise ValueError('game_response_limit')
+    finally:
+        await request.aclose()
     if key.encode() in raw:
         raise ValueError('unsafe_game_response')
     result = json.loads(raw)
@@ -70,7 +128,7 @@ async def generate_story_game(broker, game_id, *, provider=None):
     try:
         async with asyncio.timeout(135):
             packet = await broker.rpc('read_story_game_input', p_game_id=game_id, p_token=token)
-            proposal, receipt = await (provider or propose_game)(packet)
+            proposal, receipt = await provider(packet) if provider else await propose_game(packet, token=token)
             proposal = GameProposal.model_validate(proposal).model_dump(mode='json')
             return await broker.rpc('stage_story_game', p_game_id=game_id, p_token=token,
                                     p_proposal=proposal, p_model_receipt=receipt)

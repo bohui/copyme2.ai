@@ -93,7 +93,11 @@ export function mountStoryGame(root, game, t) {
       dialogue = null; line.hidden = true; direction = Number(button.dataset.gameMove);
     });
     for (const event of ["pointerup", "pointercancel", "lostpointercapture", "blur"]) on(button, event, () => { direction = 0; });
-    on(button, "keydown", event => { if (["Enter", " "].includes(event.key)) { event.preventDefault(); direction = Number(button.dataset.gameMove); } });
+    on(button, "keydown", event => {
+      if (["Enter", " "].includes(event.key)) {
+        event.preventDefault(); dialogue = null; line.hidden = true; direction = Number(button.dataset.gameMove);
+      }
+    });
     on(button, "keyup", () => { direction = 0; });
   }
   on(root.querySelector("[data-game-interact]"), "click", () => talk());
@@ -253,6 +257,8 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     dialog.querySelector("[data-close-game]").addEventListener("click", close);
     dialog.addEventListener("cancel", event => { event.preventDefault(); close(); });
     document.addEventListener("visibilitychange", view.visibility);
+    window.addEventListener("popstate", close, {signal: view.controller.signal});
+    window.addEventListener("pagehide", close, {signal: view.controller.signal});
     document.body.append(dialog); dialog.showModal(); draw();
     const active = view;
     await action(refresh);

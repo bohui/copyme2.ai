@@ -879,8 +879,9 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
         return isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,1024}", value) and key not in value
     if not valid_receipt(data.get("id")):
         fail("llm_search_invalid_response")
-    calls = [item for item in data["output"] if isinstance(item, dict)
-             and item.get("type") == "web_search_call" and item.get("status") == "completed"
+    search_calls = [item for item in data["output"] if isinstance(item, dict)
+                    and item.get("type") == "web_search_call"]
+    calls = [item for item in search_calls if item.get("status") == "completed"
              and valid_receipt(item.get("id"))]
     if not calls:
         fail("llm_search_no_search_evidence")
@@ -897,7 +898,8 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
         action = call.get("action")
         returned = action.get("sources", []) if isinstance(action, dict) else []
         returned = returned if isinstance(returned, list) else []
-        for source in returned + (annotations if call is calls[0] else []):
+        # Message citations identify a call only when exactly one search ran.
+        for source in returned + (annotations if len(search_calls) == 1 else []):
             if not isinstance(source, dict):
                 continue
             url = source.get("url")

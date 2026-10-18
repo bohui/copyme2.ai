@@ -261,6 +261,9 @@ def main():
     args = parser.parse_args()
     definitions = {name: rows for name, rows in datasets().items()
                    if args.phase == 'all' or name.endswith(args.phase)}
+    phase_cases = {row['input']['case_id'] for rows in definitions.values() for row in rows}
+    if args.case and not set(args.case) <= phase_cases:
+        parser.error('Selected case does not belong to the requested phase')
     if not args.execute:
         print(json.dumps({name: dict(items=len(rows), content_sha256=digest(rows))
                           for name, rows in definitions.items()}, indent=2))
@@ -363,7 +366,8 @@ def main():
                 experiment['readback'] = readback(client, experiment['experiment_id'],
                     experiment['expected_items'], started_at)
     statuses = {r['status'] for r in receipt['results']}
-    receipt['status'] = ('failed' if 'failed' in statuses else 'incomplete' if 'unavailable' in statuses
+    receipt['status'] = ('failed' if 'failed' in statuses else 'incomplete' if not receipt['results']
+        or not receipt['experiments'] or 'unavailable' in statuses
         or any(e['readback']['status'] != 'verified' for e in receipt['experiments']) else 'passed')
     receipt['completed_at'] = datetime.now(timezone.utc).isoformat()
     save(directory / 'receipt.json', receipt)
