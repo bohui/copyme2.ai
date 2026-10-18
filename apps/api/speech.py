@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 from .prompt_artifact import load_prompt_artifact, prompt_path
+from .llm_tracing import mark_llm_trace_error, trace_llm_call, update_llm_trace
 
 
 _SPEECH_CHARACTERS = {
@@ -95,27 +96,44 @@ class OpenAISpeechService:
                 if key == "language":
                     normalized = normalized.replace("_", "-").split("-", 1)[0].lower()
                 data[key] = normalized
-        try:
-            response = self._client.post(
-                "/audio/transcriptions",
-                files={"file": (filename, audio, mime_type)},
-                data=data,
+        with trace_llm_call(
+            "speech.transcription",
+            data["model"],
+            input_summary={"kind": "audio", "bytes": len(audio), "mime_type": mime_type},
+            metadata={"provider": self.provider, "endpoint": "audio.transcriptions"},
+        ) as trace:
+            try:
+                response = self._client.post(
+                    "/audio/transcriptions",
+                    files={"file": (filename, audio, mime_type)},
+                    data=data,
+                )
+            except httpx.HTTPError as exc:
+                mark_llm_trace_error(trace, "speech.transcription", exc)
+                raise SpeechProviderError("Speech transcription could not reach the provider") from exc
+            if response.status_code >= 400:
+                error = SpeechProviderError("Speech transcription failed", retryable=response.status_code >= 500)
+                update_llm_trace(trace, metadata={"http_status": response.status_code})
+                mark_llm_trace_error(trace, "speech.transcription", error)
+                raise error
+            try:
+                body = response.json()
+            except ValueError as exc:
+                mark_llm_trace_error(trace, "speech.transcription", exc)
+                raise SpeechProviderError("Speech transcription returned invalid data", retryable=False) from exc
+            result = {
+                "text": str(body.get("text") or "").strip(),
+                "language": body.get("language"),
+                "segments": body.get("segments") or [],
+                "model": data["model"],
+                "provider": self.provider,
+            }
+            update_llm_trace(
+                trace,
+                output={"kind": "transcript", "characters": len(result["text"]), "segments": len(result["segments"])},
+                metadata={"http_status": response.status_code},
             )
-        except httpx.HTTPError as exc:
-            raise SpeechProviderError("Speech transcription could not reach the provider") from exc
-        if response.status_code >= 400:
-            raise SpeechProviderError("Speech transcription failed", retryable=response.status_code >= 500)
-        try:
-            body = response.json()
-        except ValueError as exc:
-            raise SpeechProviderError("Speech transcription returned invalid data", retryable=False) from exc
-        return {
-            "text": str(body.get("text") or "").strip(),
-            "language": body.get("language"),
-            "segments": body.get("segments") or [],
-            "model": data["model"],
-            "provider": self.provider,
-        }
+            return result
 
     def synthesize(self, text: str, **options: Any) -> dict[str, Any]:
         model = str(options.get("model") or self.tts_model)
@@ -128,19 +146,40 @@ class OpenAISpeechService:
             "speed": float(options.get("speed") or character["speed"]),
             "response_format": str(options.get("output_format") or "mp3"),
         }
-        try:
-            response = self._client.post("/audio/speech", json=payload)
-        except httpx.HTTPError as exc:
-            raise SpeechProviderError("Speech synthesis could not reach the provider") from exc
-        if response.status_code >= 400:
-            raise SpeechProviderError("Speech synthesis failed", retryable=response.status_code >= 500)
-        return {
-            "content": response.content,
-            "mime_type": _audio_mime_type(payload["response_format"]),
-            "model": model,
-            "voice": payload["voice"],
-            "provider": self.provider,
-        }
+        with trace_llm_call(
+            "speech.synthesis",
+            model,
+            input_summary={"kind": "text", "characters": len(text)},
+            metadata={
+                "provider": self.provider,
+                "endpoint": "audio.speech",
+                "voice": payload["voice"],
+                "response_format": payload["response_format"],
+            },
+        ) as trace:
+            try:
+                response = self._client.post("/audio/speech", json=payload)
+            except httpx.HTTPError as exc:
+                mark_llm_trace_error(trace, "speech.synthesis", exc)
+                raise SpeechProviderError("Speech synthesis could not reach the provider") from exc
+            if response.status_code >= 400:
+                error = SpeechProviderError("Speech synthesis failed", retryable=response.status_code >= 500)
+                update_llm_trace(trace, metadata={"http_status": response.status_code})
+                mark_llm_trace_error(trace, "speech.synthesis", error)
+                raise error
+            result = {
+                "content": response.content,
+                "mime_type": _audio_mime_type(payload["response_format"]),
+                "model": model,
+                "voice": payload["voice"],
+                "provider": self.provider,
+            }
+            update_llm_trace(
+                trace,
+                output={"kind": "audio", "bytes": len(response.content)},
+                metadata={"http_status": response.status_code},
+            )
+            return result
 
 
 def _audio_mime_type(output_format: str) -> str:

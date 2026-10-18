@@ -25,6 +25,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from uuid import uuid4
 
 import httpx
+from .llm_tracing import mark_llm_trace_error, trace_llm_call, update_llm_trace
 
 
 TRAJECTORY_SCHEMA_VERSION = "memoir-trajectory/1"
@@ -1527,31 +1528,55 @@ class OpenAICompatibleJudge:
         }
         if self.reasoning_effort:
             body["reasoning_effort"] = self.reasoning_effort
-        try:
-            async with httpx.AsyncClient(timeout=self.timeout) as client:
-                response = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=body)
-                response.raise_for_status()
-                payload = response.json()
-        except Exception as error:
-            self.last_call = {
-                "status": "error",
-                "error_type": type(error).__name__,
-                "http_status": getattr(getattr(error, "response", None), "status_code", None),
-                "elapsed_ms": round((time.monotonic() - started) * 1000, 1),
+        with trace_llm_call(
+            "evaluation.judge",
+            self.model,
+            input_summary={
+                "kind": "trajectory_judge",
+                "fields": sorted(str(key) for key in judge_input.keys()),
+                "ordered_steps": len(judge_input.get("ordered_steps", [])),
+            },
+            metadata={"provider": self.name, "endpoint": "chat.completions"},
+        ) as trace:
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(f"{self.base_url}/chat/completions", headers=headers, json=body)
+                    response.raise_for_status()
+                    payload = response.json()
+            except Exception as error:
+                mark_llm_trace_error(trace, "evaluation.judge", error)
+                self.last_call = {
+                    "status": "error",
+                    "error_type": type(error).__name__,
+                    "http_status": getattr(getattr(error, "response", None), "status_code", None),
+                    "elapsed_ms": round((time.monotonic() - started) * 1000, 1),
+                }
+                raise
+            usage = payload.get("usage") if isinstance(payload, Mapping) and isinstance(payload.get("usage"), Mapping) else None
+            usage_details = {
+                str(key): int(value)
+                for key, value in (usage or {}).items()
+                if isinstance(value, int) and not isinstance(value, bool)
             }
-            raise
-        usage = payload.get("usage") if isinstance(payload, Mapping) and isinstance(payload.get("usage"), Mapping) else None
-        self.last_call = {
-            "status": "response",
-            "http_status": response.status_code,
-            "elapsed_ms": round((time.monotonic() - started) * 1000, 1),
-            "usage": redact_payload(usage) if usage is not None else None,
-        }
-        content = payload["choices"][0]["message"]["content"]
-        parsed = json.loads(content) if isinstance(content, str) else content
-        if not isinstance(parsed, Mapping):
-            raise ValueError("Judge response must be a JSON object")
-        return {"judge": self.name, **parsed}
+            self.last_call = {
+                "status": "response",
+                "http_status": response.status_code,
+                "elapsed_ms": round((time.monotonic() - started) * 1000, 1),
+                "usage": redact_payload(usage) if usage is not None else None,
+            }
+            content = payload["choices"][0]["message"]["content"]
+            parsed = json.loads(content) if isinstance(content, str) else content
+            if not isinstance(parsed, Mapping):
+                error = ValueError("Judge response must be a JSON object")
+                mark_llm_trace_error(trace, "evaluation.judge", error)
+                raise error
+            update_llm_trace(
+                trace,
+                output={"kind": "judge_result", "status": parsed.get("status"), "fields": sorted(parsed.keys())},
+                metadata={"http_status": response.status_code},
+                usage_details=usage_details or None,
+            )
+            return {"judge": self.name, **parsed}
 
 
 HttpJsonJudge = OpenAICompatibleJudge
