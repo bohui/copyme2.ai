@@ -391,6 +391,7 @@ export function createPlaceWorkspace({
       let viewer = null;
       let arrivalComplete = false;
       let mapLayerReady = false;
+      let mapLayerFailed = false;
       let finalViewStarted = false;
       try {
         viewer = new cesium.Viewer(container, {
@@ -453,7 +454,7 @@ export function createPlaceWorkspace({
         mapPhotoAlbums.attach(viewer, cesium, pins);
 
         const showFinalRoadMap = () => {
-          if (!arrivalComplete || !mapLayerReady || finalViewStarted || !container.isConnected || viewer.isDestroyed()) return;
+          if (!arrivalComplete || !mapLayerReady || mapLayerFailed || finalViewStarted || !container.isConnected || viewer.isDestroyed()) return;
           finalViewStarted = true;
           // The flight already arrives looking straight down. Switch projection
           // without Cesium's world-scale unfolding animation pulling us away.
@@ -492,6 +493,23 @@ export function createPlaceWorkspace({
         container.parentElement.querySelector(".place-journey-fallback")?.setAttribute("aria-hidden", "true");
 
         const provider = state.supabase?.geo_provider || "google";
+        let mapLayer;
+        const showImageryFallback = () => {
+          if (mapLayerFailed || !container.isConnected || viewer.isDestroyed()) return;
+          mapLayerFailed = true;
+          mapLayerReady = false;
+          if (mapLayer) viewer.imageryLayers.remove(mapLayer);
+          viewer.camera.cancelFlight();
+          viewer.scene.morphTo3D(0);
+          viewer.camera.setView({
+            destination: cesium.Cartesian3.fromDegrees(0, 18, startHeight),
+            orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
+          });
+          container.closest(".place-journey-scene")?.classList.remove("is-cesium-live", "is-cesium-map");
+          container.parentElement.querySelector(".place-journey-fallback")?.removeAttribute("aria-hidden");
+          viewer.scene.requestRender();
+          console.warn("Place map imagery unavailable; using the globe and hierarchy fallback.");
+        };
         let imagery;
         if (provider === "google") {
           const key = state.supabase?.google_maps_browser_api_key;
@@ -511,10 +529,22 @@ export function createPlaceWorkspace({
         } else return;
         Promise.resolve(imagery).then((layer) => {
           if (!container.isConnected || viewer.isDestroyed()) return;
-          viewer.imageryLayers.addImageryProvider(layer);
-          mapLayerReady = true;
-          showFinalRoadMap();
-        }).catch((error) => console.warn("Place map imagery unavailable; using the globe surface.", error));
+          layer.errorEvent.addEventListener(showImageryFallback);
+          const requestImage = layer.requestImage.bind(layer);
+          layer.requestImage = (...args) => {
+            const request = requestImage(...args);
+            // Undefined means Cesium throttled the request; preserve its retry contract.
+            if (!request) return request;
+            return Promise.resolve(request).then(image => {
+              if (image && !mapLayerFailed && container.isConnected && !viewer.isDestroyed()) {
+                mapLayerReady = true;
+                showFinalRoadMap();
+              }
+              return image;
+            });
+          };
+          mapLayer = viewer.imageryLayers.addImageryProvider(layer);
+        }).catch(showImageryFallback);
       } catch (error) {
         if (viewer && !viewer.isDestroyed()) viewer.destroy();
         if (cesiumPlaceJourneyViewer === viewer) cesiumPlaceJourneyViewer = null;

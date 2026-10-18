@@ -7,6 +7,10 @@ from apps.api import place_geocoding as geo
 
 CITY = {"place": "承德", "hierarchy": ["Earth", "中国", "河北", "承德"], "granularity": "city", "latitude": 40.97, "longitude": 117.93}
 SUBURB = {"place": "大石庙镇", "hierarchy": [*CITY['hierarchy'], "大石庙镇"], "granularity": "suburb"}
+GEOAPIFY_TOWN = {'name': '大石庙镇', 'lat': 40.921285, 'lon': 117.961817, 'result_type': 'suburb',
+                'suburb': '大石庙镇', 'city': '承德市', 'state': '河北省', 'country': '中国',
+                'rank': {'match_type': 'full_match', 'confidence': 1.0}}
+TOWN_QUERY = '大石庙镇, 承德, 河北, 中国'
 
 
 @pytest.fixture(autouse=True)
@@ -20,13 +24,83 @@ def isolate_geocoding(monkeypatch):
     clear_cache()
 
 
+@pytest.mark.parametrize('overrides', [
+    {'rank': {'match_type': 'full_match', 'confidence': 0.2}},
+    {'rank': {'match_type': 'full_match', 'confidence': 1.0, 'confidence_city_level': 0.3}},
+    {'rank': {'match_type': 'full_match'}},
+    {'rank': {'match_type': 'full_match', 'confidence': True}},
+    {'rank': {'match_type': 'full_match', 'confidence': 1.1}},
+    {'rank': {'match_type': 'full_match', 'confidence': '1.0'}},
+    {'state': '江苏省'},
+    {'state': ''},
+    {'suburb': ''},
+    {'city': '南京市'},
+    {'country': 'Australia'},
+    {'name': '另一镇', 'suburb': '另一镇'},
+    {'result_type': 'building'},
+])
+def test_geoapify_rejects_low_confidence_or_conflicting_full_matches(monkeypatch, overrides):
+    from apps.api.place_groups import resolve_place_groups
+    record = {**GEOAPIFY_TOWN, 'lat': 32.06, 'lon': 118.79, **overrides}
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER', 'geoapify')
+    monkeypatch.setenv('GEOAPIFY_API_KEY', 'synthetic-key')
+    monkeypatch.setattr(httpx, 'get', lambda url, **kwargs: httpx.Response(200,
+        json={'results': [record]}, request=httpx.Request('GET', url)))
+    grouped = resolve_place_groups([CITY, SUBURB])['places'][1]
+    assert grouped['pin'] is None, 'An untrusted provider match must not create a READY pin'
+    assert grouped['city']['place'] == CITY['place'], 'Keep the supplied containing city'
+    target = geo.resolve_place_map(SUBURB, [CITY])
+    assert target['fallback'] is True
+    assert target['target']['place'] == CITY['place']
+
+
+@pytest.mark.parametrize('query,record', [
+    (TOWN_QUERY, {**GEOAPIFY_TOWN, 'rank': {'match_type': 'full_match', 'confidence': 0.95}}),
+    ('chatswood, new south wales, australia', {
+        'name': 'Chatswood', 'suburb': 'Chatswood', 'city': 'Sydney', 'state': 'New South Wales',
+        'country': 'Australia', 'result_type': 'suburb', 'lat': -33.795, 'lon': 151.183,
+        'rank': {'match_type': 'full_match', 'confidence': 1.0, 'confidence_city_level': 1.0}}),
+    ('中国', {'name': '中国', 'country': '中国', 'result_type': 'country', 'lat': 35.0, 'lon': 104.0,
+            'rank': {'match_type': 'full_match', 'confidence': 1.0, 'confidence_city_level': 0.0}}),
+])
+def test_geoapify_accepts_confident_results_matching_the_supplied_hierarchy(monkeypatch, query, record):
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER', 'geoapify')
+    monkeypatch.setenv('GEOAPIFY_API_KEY', 'synthetic-key')
+    monkeypatch.setattr(httpx, 'get', lambda url, **kwargs: httpx.Response(200,
+        json={'results': [record]}, request=httpx.Request('GET', url)))
+    assert geo.search_place(query) == {'latitude': record['lat'], 'longitude': record['lon'],
+                                      'attribution': 'Geoapify / OpenStreetMap'}
+
+
+@pytest.mark.parametrize('query', ['大石庙镇, 河北, 承德, 中国', '中国', '河北, 中国', '承德, 河北, 中国'])
+def test_geoapify_cannot_relabel_a_child_result_as_a_different_target(monkeypatch, query):
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER', 'geoapify')
+    monkeypatch.setenv('GEOAPIFY_API_KEY', 'synthetic-key')
+    monkeypatch.setattr(httpx, 'get', lambda url, **kwargs: httpx.Response(200,
+        json={'results': [GEOAPIFY_TOWN]}, request=httpx.Request('GET', url)))
+    assert geo.search_place(query) is None
+
+
+@pytest.mark.parametrize('query,overrides', [
+    ('承德, 河北, 中国', {'result_type': 'city', 'name': '承德', 'city': '南京市'}),
+    ('河北, 中国', {'result_type': 'state', 'name': '河北', 'state': '江苏省'}),
+    ('中国', {'result_type': 'country', 'name': '中国', 'country': 'Australia'}),
+])
+def test_geoapify_name_cannot_override_contradictory_administrative_fields(monkeypatch, query, overrides):
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER', 'geoapify')
+    monkeypatch.setenv('GEOAPIFY_API_KEY', 'synthetic-key')
+    monkeypatch.setattr(httpx, 'get', lambda url, **kwargs: httpx.Response(200,
+        json={'results': [{**GEOAPIFY_TOWN, **overrides}]}, request=httpx.Request('GET', url)))
+    assert geo.search_place(query) is None
+
+
 def test_search_place_uses_geoapify_geocoding(monkeypatch):
     calls = []
 
     def get(url, **kwargs):
         calls.append((url, kwargs))
         return httpx.Response(200, json={
-            "results": [{"lat": 40.921285, "lon": 117.961817}],
+            "results": [GEOAPIFY_TOWN],
         }, request=httpx.Request("GET", url))
 
     monkeypatch.setenv("MEMOIR_GEO_PROVIDER", "geoapify")
@@ -78,7 +152,8 @@ def test_switching_provider_keeps_query_caches_separate(monkeypatch):
         calls.append(url)
         body = {'status': 'OK', 'results': [{'geometry': {'location': {'lat': 40.9, 'lng': 117.9}}}]}
         if 'geoapify' in url:
-            body = {'results': [{'lat': 40.8, 'lon': 117.8}]}
+            body = {'results': [{'lat': 40.8, 'lon': 117.8, 'name': 'Chengde', 'city': 'Chengde',
+                'result_type': 'city', 'rank': {'match_type': 'full_match', 'confidence': 1.0}}]}
         return httpx.Response(200, json=body, request=httpx.Request('GET', url))
     monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY', 'google-key')
     monkeypatch.setenv('GEOAPIFY_API_KEY', 'geoapify-key')
@@ -154,9 +229,9 @@ def test_geoapify_partial_matches_are_not_independent_group_pins(monkeypatch, ma
     monkeypatch.setenv('MEMOIR_GEO_PROVIDER', 'geoapify')
     monkeypatch.setenv('GEOAPIFY_API_KEY', 'geoapify-key')
     monkeypatch.setattr(httpx, 'get', lambda url, **kwargs: httpx.Response(200, json={'results': [{
-        'lat': 40.92, 'lon': 117.96, 'city': '承德市', 'state': '河北省', 'country': '中国',
-        'rank': {'match_type': match_type}}]}, request=httpx.Request('GET', url)))
-    assert geo.search_place_details('partial query')['partial_match'] is partial
+        **GEOAPIFY_TOWN, 'rank': {'match_type': match_type, 'confidence': 1.0}}]}, request=httpx.Request('GET', url)))
+    assert geo.search_place_details(TOWN_QUERY)['partial_match'] is partial
+    assert (geo.search_place(TOWN_QUERY) is None) is partial
     pin = resolve_place_groups([SUBURB])['places'][0]['pin']
     assert (pin is None) is partial
 
@@ -246,17 +321,16 @@ def test_grouping_metadata_shares_map_cache_and_preserves_partial_match(monkeypa
     calls = []
     def get(url, **kwargs):
         calls.append(kwargs['params']['text'])
-        return httpx.Response(200, json={'results': [{
-            'lat': 40.92, 'lon': 117.96, 'rank': {'match_type': 'inner_part'},
-            'city': '承德市', 'state': '河北省', 'country': '中国'}]}, request=httpx.Request('GET', url))
+        return httpx.Response(200, json={'results': [{**GEOAPIFY_TOWN,
+            'rank': {'match_type': 'inner_part', 'confidence': 1.0}}]}, request=httpx.Request('GET', url))
     monkeypatch.setenv('MEMOIR_GEO_PROVIDER', 'geoapify')
     monkeypatch.setenv('GEOAPIFY_API_KEY', 'server-key')
     monkeypatch.setattr(httpx, 'get', get)
     geo.search_place.cache_clear()
-    assert geo.search_place('cached grouping query')['latitude'] == 40.92
-    details = geo.search_place_details('cached grouping query')
+    assert geo.search_place(TOWN_QUERY) is None
+    details = geo.search_place_details(TOWN_QUERY)
     assert details['city'] == '承德市'
     assert details['partial_match'] is True
     assert details['region'] == '河北省'
-    assert calls == ['cached grouping query']
+    assert calls == [TOWN_QUERY]
     geo.search_place.cache_clear()

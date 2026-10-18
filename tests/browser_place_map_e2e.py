@@ -12,9 +12,13 @@ def main():
     parser.add_argument("--base-url", default="http://127.0.0.1:3012")
     parser.add_argument("--preview-origin", help="Load the isolated source server at this local browser origin (for restricted map keys)")
     parser.add_argument("--provider", choices=("google", "geoapify"), default="google")
+    parser.add_argument("--tile-status", type=int, choices=(200, 403, 429), default=200,
+                        help="Synthetic Geoapify tile HTTP status for testing the failure fallback")
     parser.add_argument("--config-url", "--google-config-url", dest="config_url", help="Optional local agent/config URL with the selected browser map key; otherwise use test imagery")
     parser.add_argument("--with-gallery", action="store_true")
     args = parser.parse_args()
+    if args.tile_status != 200 and (args.provider != "geoapify" or args.config_url):
+        parser.error("Failed tiles require --provider geoapify without a live --config-url")
     errors = []
     warnings = []
     provider_errors = []
@@ -99,7 +103,7 @@ def main():
                 }
             });
         })();""")
-        if not browser_key:
+        if not browser_key and args.tile_status == 200:
             def cesium_script(route):
                 response = route.fetch()
                 route.fulfill(response=response, body=response.text() + """
@@ -113,6 +117,10 @@ def main():
                     };
                 """)
             page.route("**/Build/Cesium/Cesium.js", cesium_script)
+        if args.tile_status != 200:
+            page.route("https://maps.geoapify.com/v1/tile/**", lambda route: route.fulfill(
+                status=args.tile_status, headers={"Access-Control-Allow-Origin": "*"},
+                json={"error": "Synthetic rejected tile"}))
 
         def config(route):
             route.fulfill(json={"auth_mode": "test", "geo_provider": args.provider,
@@ -142,6 +150,21 @@ def main():
         expect(page.get_by_role("textbox", name="Your message")).to_be_visible(timeout=20000)
         expect(page.locator(".message-streaming")).to_have_count(0, timeout=20000)
         page.get_by_role("textbox", name="Your message").fill("I grew up in Kaifeng and remember the river.")
+        if args.tile_status != 200:
+            with page.expect_console_message(lambda message: "Place map imagery unavailable;" in message.text):
+                page.get_by_role("button", name="Send message").click()
+            expect(page.locator(".place-journey-fallback")).to_be_visible()
+            expect(page.locator(".place-journey-scene.is-cesium-map")).to_have_count(0)
+            expect(page.locator(".place-journey-scene.is-cesium-live")).to_have_count(0)
+            assert page.locator(".place-journey-fallback").get_attribute("aria-hidden") is None
+            assert page.evaluate("window.__mapViewer.imageryLayers.length") == 0
+            assert page.evaluate("window.__mapViewer.scene.mode === Cesium.SceneMode.SCENE3D")
+            assert provider_requests and provider_errors, "The test must exercise a real Cesium tile error"
+            assert not errors, errors
+            print(json.dumps({"provider": args.provider, "tile_status": args.tile_status,
+                              "fallback": True, "failed_requests": len(provider_requests)}))
+            browser.close()
+            return
         page.get_by_role("button", name="Send message").click()
         expect(page.locator(".place-journey-scene.is-cesium-live")).to_be_visible(timeout=30000)
         page.screenshot(path=str(output / "map-arrival.png"), full_page=True)

@@ -1,0 +1,145 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import {readMemoirClientSource} from './helpers/memoir-source.mjs';
+
+const init = readMemoirClientSource().match(/function initCesiumPlaceJourney\(\)[^]*?\n\}/)[0];
+const tick = () => new Promise(resolve => setImmediate(resolve));
+
+class Event {
+  listeners = new Set();
+  addEventListener(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  raiseEvent(value) { for (const listener of [...this.listeners]) listener(value); }
+}
+
+async function harness(provider = 'geoapify', {throttled = false} = {}) {
+  let resolveImage, rejectImage;
+  const image = new Promise((resolve, reject) => { resolveImage = resolve; rejectImage = reject; });
+  const classes = new Set();
+  const attributes = new Map();
+  const fallback = {setAttribute: (key, value) => attributes.set(key, value), removeAttribute: key => attributes.delete(key)};
+  const sceneElement = {classList: {add: name => classes.add(name), remove: (...names) => names.forEach(name => classes.delete(name))}};
+  const journey = {place: '承德', granularity: 'city', latitude: 40.97, longitude: 117.93};
+  const container = {isConnected: true, dataset: {cesiumLatitude: '40.97', cesiumLongitude: '117.93', cesiumPlace: '承德'},
+    closest: () => sceneElement, parentElement: {querySelector: () => fallback}};
+  let viewer, imagery;
+  class Provider {
+    errorEvent = new Event();
+    requestImage() { return throttled ? undefined : image; }
+    constructor() { imagery = this; }
+  }
+  const cesium = {
+    UrlTemplateImageryProvider: Provider,
+    Google2DImageryProvider: {fromUrl: async () => new Provider()},
+    Credit: class {}, WebMercatorProjection: class {}, Cartesian2: class {},
+    Cartesian3: {fromDegrees: (longitude, latitude, height) => ({longitude, latitude, height})},
+    Color: {fromCssColorString: value => value}, LabelStyle: {}, ScreenSpaceEventType: {}, EasingFunction: {},
+    Viewer: class {
+      constructor() {
+        viewer = this;
+        this.destroyed = false;
+        this.scene = {mode: 3, globe: {ellipsoid: {maximumRadius: 6378137}}, skyAtmosphere: {}, requestRender() {},
+          morphTo2D: () => { this.scene.mode = 2; }, morphTo3D: () => { this.scene.mode = 3; }};
+        this.entities = {add() {}};
+        this.screenSpaceEventHandler = {setInputAction() {}};
+        this.camera = {frustum: {fovy: 1, aspectRatio: 1}, setView() {}, cancelFlight() {},
+          flyTo: options => { this.completeFlight = options.complete; }};
+        this.imageryLayers = {
+          layer: null,
+          addImageryProvider(value) { return this.layer = {imageryProvider: value}; },
+          remove(value) { if (this.layer === value) this.layer = null; },
+        };
+      }
+      resize() {}
+      isDestroyed() { return this.destroyed; }
+      destroy() { this.destroyed = true; }
+    },
+  };
+  const context = vm.createContext({
+    $: () => container, resolvePlaceMap() {}, placeWorkspaceSelection: () => journey,
+    placeMapTarget: value => value, placeMapViewHeight: () => 40000,
+    loadCesium: async () => cesium, state: {supabase: {geo_provider: provider,
+      geoapify_browser_api_key: 'synthetic-key', google_maps_browser_api_key: 'synthetic-key'}},
+    window: {matchMedia: () => ({matches: true})}, currentUiLocale: () => 'en-AU',
+    mapPhotoAlbums: {sync() {}, attach() {}}, cesiumPlaceJourneyViewer: null, console: {warn() {}},
+  });
+  vm.runInContext(init, context);
+  context.initCesiumPlaceJourney();
+  await tick();
+  return {viewer, imagery, container, classes, attributes, resolveImage, rejectImage};
+}
+
+test('throttled tile requests preserve Cesium retry behavior', async () => {
+  const h = await harness('geoapify', {throttled: true});
+  h.viewer.completeFlight();
+  assert.equal(h.imagery.requestImage(0, 0, 0), undefined);
+  assert.equal(h.classes.has('is-cesium-map'), false);
+});
+
+test('late tiles from a detached map cannot enter the final view', async () => {
+  const h = await harness();
+  const pending = h.imagery.requestImage(0, 0, 0);
+  h.container.isConnected = false;
+  h.resolveImage({width: 256, height: 256});
+  await pending;
+  h.viewer.completeFlight();
+  assert.equal(h.classes.has('is-cesium-map'), false);
+});
+
+test('a late successful tile cannot revive a failed map', async () => {
+  const h = await harness();
+  const pending = h.imagery.requestImage(0, 0, 0);
+  h.imagery.errorEvent.raiseEvent({message: '403 forbidden'});
+  h.resolveImage({width: 256, height: 256});
+  await pending;
+  h.viewer.completeFlight();
+  assert.equal(h.classes.has('is-cesium-map'), false);
+  assert.equal(h.attributes.has('aria-hidden'), false);
+});
+
+for (const provider of ['google', 'geoapify']) {
+  test(`${provider}: final map waits for a successful tile`, async () => {
+    const h = await harness(provider);
+    h.viewer.completeFlight();
+    assert.equal(h.classes.has('is-cesium-map'), false, 'An initialized provider is not a loaded tile');
+    const pending = h.imagery.requestImage(0, 0, 0);
+    assert.equal(h.classes.has('is-cesium-map'), false);
+    h.resolveImage({width: 256, height: 256});
+    await pending;
+    await tick();
+    assert.equal(h.classes.has('is-cesium-map'), true);
+    assert.equal(h.viewer.scene.mode, 2);
+  });
+
+  test(`${provider}: asynchronous tile failure restores the visible fallback`, async () => {
+    const h = await harness(provider);
+    h.viewer.completeFlight();
+    const pending = h.imagery.requestImage(0, 0, 0);
+    const failed = assert.rejects(pending, /403/);
+    h.rejectImage(new Error('403 forbidden'));
+    await failed;
+    h.imagery.errorEvent.raiseEvent({message: '403 forbidden', retry: false});
+    await tick();
+    assert.equal(h.classes.has('is-cesium-map'), false, 'A failed tile cannot leave a blank 2D map');
+    assert.equal(h.attributes.has('aria-hidden'), false, 'The fallback must be visible to assistive technology');
+    assert.equal(h.classes.has('is-cesium-live'), false);
+    assert.equal(h.viewer.imageryLayers.layer, null);
+  });
+
+  test(`${provider}: a tile error after arrival removes the failed map`, async () => {
+    const h = await harness(provider);
+    const pending = h.imagery.requestImage(0, 0, 0);
+    h.resolveImage({width: 256, height: 256});
+    await pending;
+    h.viewer.completeFlight();
+    await tick();
+    assert.equal(h.classes.has('is-cesium-map'), true);
+    h.imagery.errorEvent.raiseEvent({message: '429 quota exhausted', retry: false});
+    assert.equal(h.classes.has('is-cesium-map'), false);
+    assert.equal(h.viewer.scene.mode, 3);
+    assert.equal(h.attributes.has('aria-hidden'), false);
+  });
+}
