@@ -1,4 +1,4 @@
-"""Check the real Cesium camera, map handoff, resizing, and rerender lifecycle."""
+"""Check real Cesium lifecycle with synthetic app data and optional live tiles."""
 import argparse
 import json
 import re
@@ -11,12 +11,18 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default="http://127.0.0.1:3012")
     parser.add_argument("--preview-origin", help="Load the isolated source server at this local browser origin (for restricted map keys)")
-    parser.add_argument("--google-config-url", help="Optional local agent/config URL with a browser map key; otherwise use test imagery")
+    parser.add_argument("--provider", choices=("google", "geoapify"), default="google")
+    parser.add_argument("--tile-status", type=int, choices=(200, 403, 429), default=200,
+                        help="Synthetic Geoapify tile HTTP status for testing the failure fallback")
+    parser.add_argument("--config-url", "--google-config-url", dest="config_url", help="Optional local agent/config URL with the selected browser map key; otherwise use test imagery")
     parser.add_argument("--with-gallery", action="store_true")
     args = parser.parse_args()
+    if args.tile_status != 200 and (args.provider != "geoapify" or args.config_url):
+        parser.error("Failed tiles require --provider geoapify without a live --config-url")
     errors = []
     warnings = []
-    google_errors = []
+    provider_errors = []
+    provider_requests = []
     map_types = []
     output = Path("output/playwright")
     output.mkdir(parents=True, exist_ok=True)
@@ -27,6 +33,7 @@ def main():
         "place": "Kaifeng",
         "hierarchy": ["Earth", "China", "Henan", "Kaifeng"],
         "granularity": "city",
+        "life_stage": "childhood",
         "latitude": 34.7971,
         "longitude": 114.3076,
         "duration_ms": 2800,
@@ -34,20 +41,39 @@ def main():
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         page = browser.new_page(viewport={"width": 1440, "height": 960}, device_scale_factor=1)
+        project = {"id": "provider-map-fixture", "mode": "self", "profile": {}, "workspace_unlocked": False}
+        def fixture_api(route):
+            path = route.request.url.split("/api/v1/memoir", 1)[-1].split("?", 1)[0]
+            data = {}
+            if path == "/projects" or path == f"/projects/{project['id']}":
+                if route.request.method == "PATCH":
+                    project["profile"].update((route.request.post_data_json or {}).get("profile", {}))
+                data = project
+            elif path.endswith("/journey"):
+                data = {"active_session": None}
+            elif path.endswith("/conversations"):
+                data = {"items": []}
+            return route.fulfill(json=data)
         origin = args.preview_origin or args.base_url
         if args.preview_origin:
             # Keep all app traffic on the isolated source server. Only the
             # browser URL uses the origin already allowed by the map key.
             page.route(f"{origin}/**", lambda route: route.fulfill(response=route.fetch(
                 url=route.request.url.replace(origin, args.base_url, 1))))
+        page.route("**/api/v1/memoir/**", fixture_api)
         page.on("pageerror", lambda error: errors.append(str(error)))
         page.on("console", lambda message: warnings.append(message.text) if message.type in {"warning", "error"} else None)
-        page.on("response", lambda response: google_errors.append(response.text()) if response.status >= 400 and "tile.googleapis.com" in response.url else None)
+        provider_host = "tile.googleapis.com" if args.provider == "google" else "maps.geoapify.com"
+        page.on("response", lambda response: provider_errors.append(response.text()) if response.status >= 400 and provider_host in response.url else None)
+        page.on("request", lambda request: provider_requests.append(request.url) if provider_host in request.url else None)
         page.on("request", lambda request: map_types.append(request.post_data_json.get("mapType")) if "createSession" in request.url else None)
-        google_key = None
-        if args.google_config_url:
-            google_key = page.request.get(args.google_config_url).json().get("google_maps_browser_api_key")
-            assert google_key, "No browser map key returned by the chosen config endpoint"
+        browser_key = None
+        key_field = "google_maps_browser_api_key" if args.provider == "google" else "geoapify_browser_api_key"
+        if args.config_url:
+            config = page.request.get(args.config_url).json()
+            assert config.get("geo_provider", "google") == args.provider, "Config provider differs from --provider"
+            browser_key = config.get(key_field)
+            assert browser_key, "No browser map key returned by the chosen config endpoint"
         page.add_init_script("""(() => {
             let cesium;
             Object.defineProperty(window, 'Cesium', {
@@ -77,19 +103,28 @@ def main():
                 }
             });
         })();""")
-        if not google_key:
+        if not browser_key and args.tile_status == 200:
             def cesium_script(route):
                 response = route.fetch()
                 route.fulfill(response=response, body=response.text() + """
+                    Cesium.UrlTemplateImageryProvider = function(options) {
+                        window.__mapOptions = options;
+                        return new Cesium.GridImageryProvider();
+                    };
                     Cesium.Google2DImageryProvider.fromUrl = async options => {
                         window.__mapOptions = options;
                         return new Cesium.GridImageryProvider();
                     };
                 """)
             page.route("**/Build/Cesium/Cesium.js", cesium_script)
+        if args.tile_status != 200:
+            page.route("https://maps.geoapify.com/v1/tile/**", lambda route: route.fulfill(
+                status=args.tile_status, headers={"Access-Control-Allow-Origin": "*"},
+                json={"error": "Synthetic rejected tile"}))
 
         def config(route):
-            route.fulfill(json={"auth_mode": "test", "google_maps_browser_api_key": google_key or "test-browser-key"})
+            route.fulfill(json={"auth_mode": "test", "geo_provider": args.provider,
+                                key_field: browser_key or "test-browser-key"})
 
         page.route("**/api/v1/memoir/agent/config", config)
         page.route("**/api/v1/memoir/story/state", lambda route: route.fulfill(content_type="application/json", body='{"family_features_enabled":false}'))
@@ -115,13 +150,28 @@ def main():
         expect(page.get_by_role("textbox", name="Your message")).to_be_visible(timeout=20000)
         expect(page.locator(".message-streaming")).to_have_count(0, timeout=20000)
         page.get_by_role("textbox", name="Your message").fill("I grew up in Kaifeng and remember the river.")
+        if args.tile_status != 200:
+            with page.expect_console_message(lambda message: "Place map imagery unavailable;" in message.text):
+                page.get_by_role("button", name="Send message").click()
+            expect(page.locator(".place-journey-fallback")).to_be_visible()
+            expect(page.locator(".place-journey-scene.is-cesium-map")).to_have_count(0)
+            expect(page.locator(".place-journey-scene.is-cesium-live")).to_have_count(0)
+            assert page.locator(".place-journey-fallback").get_attribute("aria-hidden") is None
+            assert page.evaluate("window.__mapViewer.imageryLayers.length") == 0
+            assert page.evaluate("window.__mapViewer.scene.mode === Cesium.SceneMode.SCENE3D")
+            assert provider_requests and provider_errors, "The test must exercise a real Cesium tile error"
+            assert not errors, errors
+            print(json.dumps({"provider": args.provider, "tile_status": args.tile_status,
+                              "fallback": True, "failed_requests": len(provider_requests)}))
+            browser.close()
+            return
         page.get_by_role("button", name="Send message").click()
         expect(page.locator(".place-journey-scene.is-cesium-live")).to_be_visible(timeout=30000)
         page.screenshot(path=str(output / "map-arrival.png"), full_page=True)
         try:
             expect(page.locator(".place-journey-scene.is-cesium-map")).to_be_visible(timeout=30000)
         except AssertionError:
-            print(re.sub(r"([?&](?:key|session)=)[^&\s\"\\]+", r"\1<redacted>", json.dumps({"errors": errors, "warnings": warnings, "google_errors": google_errors})))
+            print(re.sub(r"([?&](?:apiKey|key|session)=)[^&\s\"\\]+", r"\1<redacted>", json.dumps({"errors": errors, "warnings": warnings, "provider_errors": provider_errors})))
             raise
         page.wait_for_function("window.__mapViewer.scene.globe.tilesLoaded")
         page.locator(".place-journey-scene").screenshot(path=str(output / "map-final.png"))
@@ -139,6 +189,7 @@ def main():
                 globeFits: Math.asin(start.radius / (start.height + start.radius)) < halfFov,
                 globePitch: start.pitch,
                 canvas: {width: c.clientWidth, height: c.clientHeight},
+                mapUrl: window.__mapOptions?.url,
                 roadmap: window.__mapOptions?.mapType,
             };
         }""")
@@ -147,12 +198,20 @@ def main():
         assert abs(result["globePitch"] + 1.5707963267948966) < 0.001, result
         assert abs(result["longitude"] - journey["longitude"]) < 0.001, result
         assert abs(result["latitude"] - journey["latitude"]) < 0.001, result
-        if not google_key:
-            assert result["roadmap"] == "roadmap", result
+        if not browser_key:
+            if args.provider == "google":
+                assert result["roadmap"] == "roadmap", result
+                assert not result.get("mapUrl"), result
+            else:
+                assert result["mapUrl"].startswith("https://maps.geoapify.com/v1/tile/"), result
+                assert not result.get("roadmap"), result
+            assert not provider_requests, "Synthetic imagery must not contact live tile providers"
         else:
-            assert map_types == ["roadmap"], map_types
-            assert not google_errors, google_errors
-            result["roadmap"] = map_types[0]
+            assert not provider_errors, provider_errors
+            assert provider_requests, result
+            if args.provider == "google":
+                assert map_types == ["roadmap"], map_types
+            result["mapRequests"] = len(provider_requests)
         for width, height in [(823, 780), (1440, 900), (390, 844)]:
             page.set_viewport_size({"width": width, "height": height})
             page.wait_for_function("""() => {
@@ -189,7 +248,7 @@ def main():
         assert page.evaluate("Cesium.Cartesian3.equals(window.__previousCamera, window.__mapViewer.camera.position)"), "Rerender moved the camera"
         page.screenshot(path=str(output / "map-workspace-final.png"), full_page=True)
         assert not errors, errors
-        print(json.dumps({"passed": result, "live_google": bool(google_key)}))
+        print(json.dumps({"passed": result, "provider": args.provider, "live_tiles": bool(browser_key)}))
         browser.close()
 
 

@@ -6,7 +6,7 @@ import unicodedata
 
 import httpx
 
-from .place_geocoding import GoogleMapsUnavailable, search_place_details
+from .place_geocoding import GeocodingUnavailable, search_place_details
 from .place_identity import geographic_label
 
 MAX_LOOKUPS = 8
@@ -54,7 +54,7 @@ def resolve_place_groups(places, *, allow_provider=True):
             lookups += 1
             try:
                 details = search_place_details(', '.join(reversed(_path(place))))
-            except (GoogleMapsUnavailable, httpx.HTTPError, ValueError, TypeError):
+            except (GeocodingUnavailable, httpx.HTTPError, ValueError, TypeError):
                 provider_available = False
         if details:
             if details.get('city'):
@@ -64,7 +64,7 @@ def resolve_place_groups(places, *, allow_provider=True):
                     city = resolved_city
             if not details.get('partial_match'):
                 pin = {**deepcopy(place), 'latitude': details['latitude'], 'longitude': details['longitude'],
-                       'accuracy': 'public-map', 'attribution': details.get('attribution', 'Google Maps')}
+                       'accuracy': 'public-map', 'attribution': details.get('attribution', 'Public map')}
             else:
                 pin = None
         city = city or deepcopy(place)

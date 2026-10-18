@@ -1,4 +1,4 @@
-"""Resolve public place centres with Google Geocoding; parents never overwrite the named place."""
+"""Resolve public place centres; parents never overwrite the named place."""
 from __future__ import annotations
 
 from functools import lru_cache
@@ -11,52 +11,122 @@ from .place_identity import geographic_label, place_path
 
 _lock = Lock()
 GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json"
+GEOAPIFY_GEOCODING_URL = "https://api.geoapify.com/v1/geocode/search"
+GEOAPIFY_MIN_CONFIDENCE = 0.95
 
 
-class GoogleMapsUnavailable(RuntimeError):
-    """The Google provider is unavailable or not configured."""
+class GeocodingUnavailable(RuntimeError):
+    """The selected geocoding provider is unavailable or not configured."""
+
+
+def geo_provider() -> str:
+    return os.environ.get("MEMOIR_GEO_PROVIDER", "google").strip().lower() or "google"
+
+
+def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
+    confidences = [rank.get('confidence')]
+    if record.get('city') and 'confidence_city_level' in rank:
+        confidences.append(rank['confidence_city_level'])
+    for confidence in confidences:
+        if (not isinstance(confidence, (int, float)) or isinstance(confidence, bool)
+                or not math.isfinite(confidence) or not GEOAPIFY_MIN_CONFIDENCE <= confidence <= 1):
+            return False
+    levels = {'country': ('country', 'country_code'), 'state': ('state', 'state_code', 'region'),
+              'county': ('county',), 'city': ('city', 'municipality', 'town', 'village'),
+              'district': ('district',), 'suburb': ('suburb',), 'locality': ('locality',)}
+    target_fields = levels.get(record.get('result_type'))
+    labels = [geographic_label(label) for label in query.split(',') if label.strip()]
+    if not target_fields or not labels:
+        return False
+    if len(labels) > 1 and labels[-1] not in {
+            geographic_label(record.get('country', '')), geographic_label(record.get('country_code', ''))}:
+        return False
+    if labels[0] not in {geographic_label(record.get(field, '')) for field in target_fields}:
+        return False
+    # Match every supplied parent, in order, so a same-name place cannot jump regions.
+    parents = iter(geographic_label(record.get(field, ''))
+                   for fields in levels.values() for field in fields)
+    return all(any(parent == label for parent in parents) for label in reversed(labels[1:]))
 
 
 @lru_cache(maxsize=1024)
-def _geocode_record(query: str):
-    api_key = os.environ.get("GOOGLE_MAPS_GEOCODING_API_KEY", "").strip()
+def _geocode_record(provider: str, query: str):
+    if provider == "google":
+        api_key = os.environ.get("GOOGLE_MAPS_GEOCODING_API_KEY", "").strip()
+        url = os.environ.get("GOOGLE_MAPS_GEOCODING_URL", GOOGLE_GEOCODING_URL)
+        params = {"address": query, "key": api_key}
+    elif provider == "geoapify":
+        api_key = os.environ.get("GEOAPIFY_API_KEY", "").strip()
+        url = os.environ.get("GEOAPIFY_GEOCODING_URL", GEOAPIFY_GEOCODING_URL)
+        params = {"text": query, "format": "json", "limit": 1, "apiKey": api_key,
+                  "bias": "countrycode:none"}
+    else:
+        raise GeocodingUnavailable("MEMOIR_GEO_PROVIDER must be google or geoapify")
     if not api_key:
-        raise GoogleMapsUnavailable("Google Maps geocoding API key is not configured")
+        raise GeocodingUnavailable(f"{provider} geocoding API key is not configured")
 
-    # Serialize and cache this low-volume provider boundary. The key stays server-side;
-    # the browser receives only its separately restricted Map Tiles key.
+    # Cache by provider as well as query so a flag change cannot reuse the other provider.
+    # Geocoding credentials stay server-side; the browser gets a separate tile key.
     with _lock:
         response = httpx.get(
-            os.environ.get("GOOGLE_MAPS_GEOCODING_URL", GOOGLE_GEOCODING_URL),
-            params={"address": query, "key": api_key},
-            headers={"Accept": "application/json"}, timeout=5,
+            url, params=params, headers={"Accept": "application/json"}, timeout=5,
         )
         response.raise_for_status()
         body = response.json()
     if not isinstance(body, dict):
-        raise ValueError("Google Geocoding returned an invalid response")
-    provider_status = body.get("status")
-    if provider_status == "ZERO_RESULTS":
-        return None
-    if provider_status != "OK":
-        raise GoogleMapsUnavailable(f"Google Geocoding returned {provider_status or 'no status'}")
+        raise ValueError("Geocoding returned an invalid response")
+    if provider == "google":
+        provider_status = body.get("status")
+        if provider_status == "ZERO_RESULTS":
+            return None
+        if provider_status != "OK":
+            raise GeocodingUnavailable(f"Google Geocoding returned {provider_status or 'no status'}")
     results = body.get("results")
     if not isinstance(results, list) or not results or not isinstance(results[0], dict):
         return None
+    record = results[0]
     try:
-        location = results[0]["geometry"]["location"]
-        latitude, longitude = float(location["lat"]), float(location["lng"])
+        location = record["geometry"]["location"] if provider == "google" else record
+        lat, lon = location["lat"], location["lng" if provider == "google" else "lon"]
+        if isinstance(lat, bool) or isinstance(lon, bool):
+            return None
+        latitude, longitude = float(lat), float(lon)
         if not (math.isfinite(latitude) and math.isfinite(longitude) and -90 <= latitude <= 90 and -180 <= longitude <= 180):
             return None
     except (KeyError, TypeError, ValueError):
         return None
-    return {**results[0], 'latitude': latitude, 'longitude': longitude}
+    if provider == "google":
+        components = {kind: part.get('long_name', '') for part in record.get('address_components', [])
+                      for kind in part.get('types', [])}
+        city = components.get('locality', '')
+        prefecture = components.get('administrative_area_level_2', '')
+        if prefecture.endswith('市'):
+            city = prefecture
+        region, country = components.get('administrative_area_level_1', ''), components.get('country', '')
+        partial_match = bool(record.get('partial_match'))
+        attribution = 'Google Maps'
+    else:
+        city = (record.get('city') or record.get('municipality') or record.get('town')
+                or record.get('village') or record.get('locality') or '')
+        region, country = record.get('state') or record.get('region') or '', record.get('country') or ''
+        rank = record.get('rank') or {}
+        if not isinstance(rank, dict):
+            raise ValueError("Geoapify geocoding returned invalid match metadata")
+        if not _geoapify_matches_query(record, rank, query):
+            return None
+        partial_match = rank.get('match_type') != 'full_match'
+        attribution = 'Geoapify / OpenStreetMap'
+    return {'latitude': latitude, 'longitude': longitude, 'city': city, 'region': region,
+            'country': country, 'partial_match': partial_match, 'attribution': attribution}
 
 
 def search_place(query: str):
-    record = _geocode_record(query)
+    provider = geo_provider()
+    record = _geocode_record(provider, query)
+    if record and provider == 'geoapify' and record['partial_match']:
+        return None
     return {'latitude': record['latitude'], 'longitude': record['longitude'],
-            'attribution': 'Google Maps'} if record else None
+            'attribution': record['attribution']} if record else None
 
 
 search_place.cache_clear = _geocode_record.cache_clear
@@ -64,19 +134,8 @@ search_place.cache_clear = _geocode_record.cache_clear
 
 def search_place_details(query: str):
     """Public administrative membership; partial results are not precise pins."""
-    record = _geocode_record(query)
-    if not record:
-        return None
-    components = {kind: part.get('long_name', '') for part in record.get('address_components', [])
-                  for kind in part.get('types', [])}
-    city = components.get('locality', '')
-    prefecture = components.get('administrative_area_level_2', '')
-    if prefecture.endswith('市'):
-        city = prefecture
-    return {'latitude': record['latitude'], 'longitude': record['longitude'],
-            'city': city, 'region': components.get('administrative_area_level_1', ''),
-            'country': components.get('country', ''),
-            'partial_match': bool(record.get('partial_match')), 'attribution': 'Google Maps'}
+    record = _geocode_record(geo_provider(), query)
+    return dict(record) if record else None
 
 
 def resolve_place_map(journey: dict, saved_places: list) -> dict:
@@ -96,7 +155,7 @@ def resolve_place_map(journey: dict, saved_places: list) -> dict:
             continue
         try:
             coordinates = search_place(", ".join(reversed(target_path)))
-        except (GoogleMapsUnavailable, httpx.HTTPError, ValueError, TypeError):
+        except (GeocodingUnavailable, httpx.HTTPError, ValueError, TypeError):
             unavailable = True
             continue
         if coordinates:

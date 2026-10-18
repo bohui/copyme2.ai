@@ -141,6 +141,9 @@ def test_free_form_opening_prefix_on_public_turn_is_not_an_assistant_only_action
 
 
 def test_agent_config_exposes_public_connection_settings(monkeypatch):
+    monkeypatch.delenv('MEMOIR_GEO_PROVIDER', raising=False)
+    monkeypatch.delenv('GOOGLE_MAPS_BROWSER_API_KEY', raising=False)
+    monkeypatch.delenv('GEOAPIFY_BROWSER_API_KEY', raising=False)
     monkeypatch.setenv('SUPABASE_URL', 'https://example.supabase.co')
     monkeypatch.setenv('SUPABASE_PUBLISHABLE_KEY', 'public-key')
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '0')
@@ -155,7 +158,9 @@ def test_agent_config_exposes_public_connection_settings(monkeypatch):
         'auth_mode': 'supabase',
         'supabase_url': 'https://example.supabase.co',
         'supabase_publishable_key': 'public-key',
+        'geo_provider': 'google',
         'google_maps_browser_api_key': None,
+        'geoapify_browser_api_key': None,
         'show_thinking_steps': False,
         'show_draft_updates': False,
         'free_recall_rounds':20,
@@ -179,14 +184,20 @@ def test_agent_config_draft_updates_are_independent_of_thinking_steps(monkeypatc
     response = TestClient(create_app(MemoryStore())).get('/v1/agent/config')
     assert response.json()['show_draft_updates'] is enabled
 
-def test_agent_config_exposes_only_the_browser_maps_key(monkeypatch):
-    monkeypatch.setenv('GOOGLE_MAPS_BROWSER_API_KEY', 'browser-key')
-    monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY', 'server-key')
+@pytest.mark.parametrize('provider', ['google', 'geoapify', 'invalid'])
+def test_agent_config_exposes_only_the_selected_browser_maps_key(monkeypatch, provider):
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER', provider)
+    monkeypatch.setenv('GEOAPIFY_BROWSER_API_KEY', 'geoapify-browser-key')
+    monkeypatch.setenv('GOOGLE_MAPS_BROWSER_API_KEY', 'google-browser-key')
+    monkeypatch.setenv('GEOAPIFY_API_KEY', 'geoapify-server-key')
+    monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY', 'google-server-key')
     response = TestClient(create_app(MemoryStore())).get('/v1/agent/config')
 
     assert response.status_code == 200
     body = response.json()
-    assert body['google_maps_browser_api_key'] == 'browser-key'
+    assert body['geo_provider'] == provider
+    assert body['geoapify_browser_api_key'] == ('geoapify-browser-key' if provider == 'geoapify' else None)
+    assert body['google_maps_browser_api_key'] == ('google-browser-key' if provider == 'google' else None)
     assert 'server-key' not in json.dumps(body)
 
 def test_agent_turn_requires_a_supabase_bearer_token(monkeypatch):

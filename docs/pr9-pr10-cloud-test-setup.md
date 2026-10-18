@@ -239,7 +239,7 @@ or repository defaults.
 | `MEMORY_SPARK_APP_REVISION` | Exact reviewed code identity in evaluator metadata |
 | `MEMORY_SPARK_FREE_RECALL_ROUNDS`, `MEMORY_SPARK_PRIVATE_DRAFT_CADENCE`, `MEMORY_SPARK_PRIVATE_DRAFTS_ENABLED`, `MEMORY_SPARK_MEMOIR_RUN_SECONDS`, `MEMORY_SPARK_MEMOIR_PREPARATION_CONCURRENCY`, `MEMORY_SPARK_OUTBOX_POLL_SECONDS` | Approved product cadence/concurrency/deadline settings |
 | `OPENAI_BASE_URL`, `MEMORY_SPARK_STT_MODEL`, `MEMORY_SPARK_TTS_MODEL`, `MEMORY_SPARK_REALTIME_MODEL`, `MEMORY_SPARK_REALTIME_VOICE` | Optional voice integration |
-| `MEMORY_SPARK_PHOTO_WEB_SEARCH`, `GOOGLE_MAPS_GEOCODING_URL`, `GOOGLE_CSE_URL`, `GOOGLE_CSE_ID` | Optional real photo research/geocoding configuration |
+| `MEMORY_SPARK_PHOTO_WEB_SEARCH`, `MEMOIR_GEO_PROVIDER`, `GOOGLE_MAPS_GEOCODING_URL`, `GEOAPIFY_GEOCODING_URL`, `GOOGLE_CSE_URL`, `GOOGLE_CSE_ID` | Optional real photo research/geocoding configuration |
 | `MEMORY_SPARK_PUBLIC_URL`, `MEMORY_SPARK_PRINT_COUNTRIES`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`, `STRIPE_PRICE_ELECTRONIC`, `STRIPE_PRICE_PRINTED`, `STRIPE_PRICE_FAMILY`, `STRIPE_PRICE_ADDITIONAL_BOOK` | Optional isolated billing/output configuration |
 
 | Secret/key name | Purpose / when needed |
@@ -252,7 +252,7 @@ or repository defaults.
 | `SUPABASE_DB_URL` | Credential-bearing URI only if isolated synthetic database administration requires it; not needed by native fixtures |
 | `OPENAI_API_KEY` | Optional real voice integration |
 | `MEMORY_SPARK_LANGFUSE_PUBLIC_KEY`, `MEMORY_SPARK_LANGFUSE_SECRET_KEY` | Tracing project authentication |
-| `FLICKR_API_KEY`, `GOOGLE_CSE_API_KEY`, `GOOGLE_MAPS_GEOCODING_API_KEY`, `GOOGLE_MAPS_BROWSER_API_KEY` | Optional real photo research/maps; browser key requires appropriate restrictions |
+| `FLICKR_API_KEY`, `GOOGLE_CSE_API_KEY`, `GOOGLE_MAPS_GEOCODING_API_KEY`, `GOOGLE_MAPS_BROWSER_API_KEY`, `GEOAPIFY_API_KEY`, `GEOAPIFY_BROWSER_API_KEY` | Optional real photo research/maps; browser key requires appropriate origin restrictions |
 | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Optional isolated billing integration; not needed for controlled billing tests |
 
 Langfuse supports SDK aliases `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`,
