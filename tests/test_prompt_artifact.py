@@ -7,7 +7,7 @@ import pytest
 from apps.api.prompt_artifact import load_prompt_artifact
 from scripts.export_langfuse_prompt import sync_prompt
 from scripts.export_langfuse_prompts import BROWSER_MODULE, browser_module, export_prompts
-from scripts.prompt_registry import ROOT
+from scripts.prompt_registry import ROOT, prompt_registry
 from scripts.evaluate_langfuse_prompt import dataset_input_text, dataset_version, experiment_task
 
 
@@ -113,6 +113,17 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
 
 def test_browser_import_is_generated_from_pinned_prompt_bytes():
     assert (ROOT / BROWSER_MODULE).read_text(encoding="utf-8") == browser_module(ROOT)
+
+
+def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():
+    registry = prompt_registry()
+    assert registry["memoir/skills/memoir-family-tree"] == "skills/memoir-family-tree/SKILL.md"
+    assert registry["memoir/skills/memoir-place-journey"] == "skills/memoir-place-journey/SKILL.md"
+    assert "memoir/memory/family-tree" not in registry
+    assert "skills/memoir-family-tree/references/contract.md" not in registry.values()
+    assert "skills/memoir-place-groups/references/contract.md" not in registry.values()
+    assert "skills/memoir-place-journey/references/contract.md" not in registry.values()
+    assert "skills/memoir-composer/references/sources.md" not in registry.values()
 
 
 def test_prompt_experiment_uses_exact_prompt_and_dataset_input():

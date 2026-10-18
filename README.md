@@ -343,16 +343,21 @@ High-level Codex activity and early private-draft previews are hidden from story
 Memoir's Langfuse project owns the prompt versions. Names describe their purpose,
 such as `memoir/interview/collector`, `memoir/memory/timeline`, and
 `memoir/composer/draft`; issue numbers and release dates stay in version metadata,
-not names. The previous `memoir/issue6/20261008-v1/...` prompts and datasets
-remain as historical snapshots. The current evaluation datasets are
+not names. The former `memoir/issue6/20261008-v1/prompts/*` prompts are preserved
+as version 1 of their stable names. The old Issue 6 datasets still exist as
+historical snapshots. The current evaluation datasets are
 `memoir/evaluation/event-grounding`, `temporal-placement`,
 `chapter-continuity`, and `bilingual-consistency` under that folder.
+The [prompt structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md)
+describes the next deduplication and migration.
 
-`memoir/memory/*` holds the current memory instructions, including a few
-`SKILL.md` files that supply memory behavior. `memoir/skills/*` holds distinct
-skill files and references. The earlier `memoir/runtime/*` imports are duplicate
-snapshots: none is registered for export or read by the application. They remain
-visible in Langfuse only as legacy entries.
+`memoir/memory/*` holds memory operations and extraction instructions.
+`memoir/skills/*` holds the skill instructions and model-facing references.
+Developer-only contracts stay in the repository and are not Langfuse prompts.
+The duplicate `memoir/runtime/*` imports were
+removed from Langfuse, along with the unused
+`memoir/composer/organiser-job/branch/*` imports. None was registered for export
+or read by the application.
 
 The API reads checked-in prompt files. Each managed file has a `.langfuse.json`
 receipt with its exact numeric version and SHA-256. A changed pinned file fails

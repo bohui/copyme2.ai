@@ -6,12 +6,29 @@ ROOT = Path(__file__).resolve().parents[1]
 
 SPECIAL = {
     "memoir/interview/journalist": "Mira_Memoir_Journalist_System_Prompt_v1.0.md",
-    "memoir/memory/place-journey": "skills/memoir-place-journey/SKILL.md",
-    "memoir/memory/family-tree": "skills/memoir-family-tree/SKILL.md",
-    "memoir/memory/author-timeline-marker": "skills/memoir-author-timeline/references/legacy-marker.md",
-    "memoir/memory/context": "skills/memoir-memory-context/SKILL.md",
-    "memoir/story-game/skill": "skills/memoir-story-game/SKILL.md",
+    "memoir/skills/memoir-author-timeline/legacy-marker": "skills/memoir-author-timeline/references/legacy-marker.md",
     "memoir/evaluation/five-case-judge": "tests/evaluation/memoir_five_case_judge_prompt.md",
+}
+
+# A reference enters Langfuse only when an application or skill workflow reads
+# it as model instructions. Other references remain ordinary repository docs.
+MODEL_FACING_REFERENCES = {
+    "skills/historical-news-research/references/contract.md",
+    "skills/memoir-author-timeline/references/contract.md",
+    "skills/memoir-author-timeline/references/legacy-marker.md",
+    "skills/memoir-composer/references/editorial-and-length.md",
+    "skills/memoir-composer/references/editorial-review.prompt.md",
+    "skills/memoir-composer/references/narrative-enrichment.md",
+    "skills/memoir-composer/references/runtime-contract.md",
+    "skills/memoir-composer/references/workflows.md",
+    "skills/memoir-place-journey/references/two-lane.md",
+    "skills/memoir-story-game/references/acceptance.md",
+    "skills/memoir-story-game/references/formal-workflow.md",
+    "skills/memoir-story-game/references/privacy-and-grounding.md",
+    "skills/memoir-story-game/references/runtime-contract.md",
+    "skills/place-photo-research/references/llm-web-search.md",
+    "skills/place-photo-research/references/record-format.md",
+    "skills/place-photo-research/references/source-strategy.md",
 }
 
 PROMPT_NAMES = {
@@ -109,8 +126,13 @@ def prompt_registry(root: Path = ROOT) -> dict[str, str]:
             result[f"memoir/skills/{path.parent.name}"] = relative
     for path in sorted((root / "skills").glob("*/references/*.md")):
         relative = str(path.relative_to(root))
-        if relative not in registered_paths and not path.parent.parent.name.startswith("deprecated-"):
+        if relative not in registered_paths and relative in MODEL_FACING_REFERENCES:
             result[f"memoir/skills/{path.parent.parent.name}/{path.stem}"] = relative
+    missing_references = MODEL_FACING_REFERENCES - {
+        str(path.relative_to(root)) for path in (root / "skills").glob("*/references/*.md")
+    }
+    if missing_references:
+        raise ValueError(f"Registered skill references are missing: {sorted(missing_references)}")
     if len(result) != len(set(result.values())):
         raise ValueError("Two Langfuse prompt names target the same artifact")
     if any(not (root / path).is_file() for path in result.values()):
