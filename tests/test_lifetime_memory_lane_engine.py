@@ -212,7 +212,7 @@ def test_each_page_attempt_has_new_home(tmp_path):
     assert Connection.instances[0].home!=Connection.instances[1].home
 
 
-def test_lane_b_deduplicates_only_the_model_view_and_keeps_complete_fenced_privacy(tmp_path):
+def test_lane_b_sends_the_complete_validated_packet_and_counts_its_privacy_context(tmp_path):
     current=page()
     current['two_lane']={'task_version':'two-lane-v1','execution_generation':1,
         'phase_revision':0,'work_mode':'extract','strategy_mode':'active'}
@@ -223,23 +223,23 @@ def test_lane_b_deduplicates_only_the_model_view_and_keeps_complete_fenced_priva
     run(tmp_path,bounded)
     instance=Connection.instances[0]
     sent=json.loads(instance.turns[0][1])
-    assert 'preferences' not in sent['payload']
+    assert sent==canonical
     assert sent['lane_context']==canonical['lane_context']
     assert sent['lane_context']['preferences']['excluded_topics']==['My private address']
     assert sent['lane_context']['preferences']['paused_topics']==['School']
-    assert sent['payload']=={k:v for k,v in canonical['payload'].items() if k!='preferences'}
+    assert sent['payload']['preferences']==current['preferences']
     assert bounded.packet==original and canonical['payload']['preferences']==current['preferences']
     from apps.api.lifetime_memory_lane_engine import lane_contract
     instructions,schema=lane_contract('extract',bounded.fence.locale,two_lane=True,strategy=True,fence=bounded.fence)
     assert lane_request_tokens(bounded)==(BUDGET.count(instructions)+BUDGET.count(instance.turns[0][1])
         +BUDGET.count(serialize_packet(schema))+BUDGET.framing_headroom)
     config=tomllib.loads((instance.home/'config.toml').read_text())
-    assert config['web_search']=='disabled'
-    assert config['features']['view_image'] is False
-    assert config['skills']['include_instructions'] is False
+    assert 'web_search' not in config
+    assert 'view_image' not in config['features']
+    assert 'skills' not in config
 
 
-def test_lane_b_cannot_hide_a_conflicting_policy_by_deduplicating_it(tmp_path):
+def test_lane_b_rejects_conflicting_policy_before_dispatch(tmp_path):
     current=page()
     current['two_lane']={'task_version':'two-lane-v1','execution_generation':1,
         'phase_revision':0,'work_mode':'extract'}
@@ -253,30 +253,18 @@ def test_lane_b_cannot_hide_a_conflicting_policy_by_deduplicating_it(tmp_path):
     assert not Connection.instances and not list(tmp_path.glob('lane-*'))
 
 
-def test_lane_b_data_only_config_keeps_research_and_other_runtimes_unchanged():
-    from apps.api.codex_agent import provider_config
-    data=tomllib.loads(provider_config('http://provider.invalid',BUDGET.model,governed=True,data_only=True))
-    for governed in (False,True):
-        original=tomllib.loads(provider_config('http://provider.invalid',BUDGET.model,governed=governed))
-        assert 'skills' not in original and 'web_search' not in original
-        assert 'view_image' not in original['features']
-    assert data['web_search']=='disabled' and data['skills']['include_instructions'] is False
-    assert data['features']['view_image'] is False
-    assert data['sandbox_mode']=='read-only' and data['approval_policy']=='never'
-    assert data['memories']=={'generate_memories':False,'use_memories':False}
-
-
 @pytest.mark.parametrize('strategy',[False,True])
 @pytest.mark.parametrize('attribution',[False,True])
-def test_lane_b_prompt_is_small_without_removing_shared_grounding(strategy,attribution):
+def test_lane_b_restores_shared_contracts_with_one_consistent_output_schema(strategy,attribution):
     from apps.api.two_lane_memory import extraction_contract
     from apps.api.prompt_artifact import load_prompt_artifact,prompt_path
     instructions,schema=extraction_contract(strategy=strategy,attribution=attribution)
     grounding=load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/shared/grounding'))
-    assert len(instructions)<8000
+    assert 'Shared MemoryEvent service' in instructions
     assert instructions.count(grounding)==1
     assert {'events','place_journeys','prepared_questions'}<=set(schema['required'])
-    assert 'accept_user_narrator_source' not in instructions and 'finish_memoir_timeline' not in instructions
+    assert 'accept_user_narrator_source' in instructions and 'finish_memoir_timeline' in instructions
+    assert 'Return only schema-bound\nJSON `{"events": [...]}` to the private worker.' not in instructions
     for safeguard in ('stage_evidence','uncertainty','person_ids','untrusted','veto','correction'):
         assert safeguard in instructions
 

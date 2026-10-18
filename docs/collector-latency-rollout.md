@@ -8,6 +8,42 @@ The canonical controlled profiler uses a simulated model; use the HTTP profiler
 for provider-inclusive timings. The historical `collector` and `conversation`
 commands below are no longer supported.
 
+## PR #87 prompt optimization rollback — 19 October 2026
+
+The prompt and model-context optimizations from PR #87 are reverted. This
+supersedes the 18 October prompt experiments below. The interviewer guidance is
+byte-for-byte identical to the PR base (`7ef394b`); the other four affected
+artifacts restore the earlier detailed policy with only schema-consistency
+clarifications retained:
+
+- Lane A returns only an immediate candidate when its schema permits one;
+  future question pools and place extraction remain Lane B work.
+- The place extension is requested only when the supplied schema includes it.
+- Two-lane extraction uses the combined schema, new-event null IDs and no person
+  IDs without an authorised registry. The shared timeline/service/grounding
+  components are restored, including the existing events-only schema override.
+
+Lane B again receives the complete validated packet, including both original
+preference locations, with its full byte count included in budget checks. The
+data-only skills/instruction and web/image suppression options are removed.
+The separate governed-runtime isolation flags and explicit per-lane effort
+selection remain. Map recovery/localisation, checkpoint model support and the
+workflow fixture fixes are retained. Lane A's local `max` selection is unchanged.
+
+Langfuse versions were published first, then fetched, exported and checked with
+their receipts: interviewer guidance/collector-plan/governed-continuity v4,
+background-memory v3 and timeline extract-with-hints v4. All 70 managed artifacts
+pass `make prompt-check`. The focused prompt, composition, continuity, schema
+and execution run passes **375 tests**; the disposable PostgreSQL attribution
+and background-profile workflows pass another **50 tests**. Restoration checks failed against the
+shortened prompts before export and passed afterward. No live-model quality
+comparison was run.
+
+The local API, private worker and checkpoint worker were reloaded. Each loads
+the verified restored prompt receipts and full interviewer policy with Lane A
+still pooled/max. API, frontend, private-worker and photo-worker health checks
+returned HTTP 200 after service-alias refresh.
+
 ## Lane A max-effort rollback — 19 October 2026
 
 At the user's request, the local collector selects

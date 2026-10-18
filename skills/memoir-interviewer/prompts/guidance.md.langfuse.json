@@ -1,7 +1,7 @@
 {
-  "schema_version": 1,
   "name": "memoir/skills/memoir-interviewer/guidance",
-  "version": 3,
+  "schema_version": 1,
+  "sha256": "91fdca6c0d36ca690a6f4a713cf169d36b1d9dde775bc657d3bd9df10331fa54",
   "type": "text",
-  "sha256": "e23549a3d1c97a193b390967ac67a8f33f280de9ac86090e15b25720a3b925cd"
+  "version": 4
 }

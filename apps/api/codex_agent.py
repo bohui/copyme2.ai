@@ -285,7 +285,7 @@ class CodexConnection:
                     return '\n'.join(messages)
 
 
-def provider_config(base_url, model, *, governed=False, data_only=False):
+def provider_config(base_url, model, *, governed=False):
     """Generate credential-free config; governed homes cannot create/use memories."""
     return '\n'.join([
         'model_provider = "llm_provider"',
@@ -293,7 +293,6 @@ def provider_config(base_url, model, *, governed=False, data_only=False):
         'model_reasoning_effort = ' + json.dumps(os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max')),
         'approval_policy = "never"',
         'sandbox_mode = "read-only"',
-        *(['web_search = "disabled"'] if data_only else []),
         *(['project_doc_max_bytes = 0'] if governed else []),
         '[model_providers.llm_provider]',
         'name = "Local llm_provider"',
@@ -304,7 +303,6 @@ def provider_config(base_url, model, *, governed=False, data_only=False):
         '[features]',
         'memories = ' + ('false' if governed else 'true'),
         'shell_tool = false',
-        *(['view_image = false'] if data_only else []),
         *([
             'code_mode_host = false',
             'goals = false',
@@ -316,6 +314,5 @@ def provider_config(base_url, model, *, governed=False, data_only=False):
         '[memories]',
         'generate_memories = ' + ('false' if governed else 'true'),
         'use_memories = ' + ('false' if governed else 'true'),
-        *(['[skills]', 'include_instructions = false'] if data_only else []),
         '',
     ])

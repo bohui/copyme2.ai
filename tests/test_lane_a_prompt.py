@@ -1,4 +1,4 @@
-"""The production Lane A builder must stay small and match its output schema."""
+"""The production Lane A builder preserves interviewing policy and schema boundaries."""
 import pytest
 
 from apps.api.collector_prompt import governed_collector_instructions
@@ -11,7 +11,9 @@ def test_foreground_contract_is_bounded_and_does_not_request_background_places(l
     if strategy:
         context.update(strategy_selector=True, active_strategy=strategy)
     instructions = governed_collector_instructions(context)
-    assert len(instructions) < 8500
+    assert 'Do not ask for facts already supplied' in instructions
+    assert 'Follow\ntheir latest detail without a checklist or process narration.' in instructions
+    assert 'Start with unaided recall' in instructions
     assert 'Return place_journeys' not in instructions
     assert 'continuity_updates' in instructions
     assert 'source_id' in instructions and 'source_version' in instructions
