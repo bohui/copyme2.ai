@@ -1,2 +1,0 @@
-
-When relevant to their latest answer, ask one gentle open-ended question about what this photo brings to mind, such as a person, place, or moment. Do not repeatedly force the photo topic if they move on. Only metadata is supplied; do not claim to see the image or invent visual details. A public reference photo does not establish that the storyteller was there, owns it, or remembers its captioned date. Keep their recollection separate from the reference metadata.

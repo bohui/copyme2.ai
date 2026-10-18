@@ -6,7 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from apps.api import agent_routes
-from apps.api.codex_runtime import CodexRuntime, build_workspace_extraction_prompt
+from apps.api.codex_runtime import CodexRuntime
 from apps.api.main import create_app
 from apps.api.store import MemoryStore
 
@@ -46,38 +46,3 @@ def test_project_hints_are_bounded_and_other_projects_are_forbidden():
     with pytest.raises(Exception) as error:
         agent_routes._project_place_hints(store, 'project-synthetic', 'other')
     assert error.value.status_code == 403
-
-
-def test_runtime_keeps_project_hints_in_workspace_context_only(monkeypatch, tmp_path):
-    class Storage:
-        user_id = OWNER
-        def __init__(self): self.profile_data = {'preferred_language': 'zh-CN'}
-        def acquire_agent_turn_lease(self, *args): return True
-        def renew_agent_turn_lease(self, *args): return True
-        def release_agent_turn_lease(self, *args): return True
-        def agent_session(self): return None
-        def memories(self): return []
-        def profile(self): return self.profile_data
-        def save_profile(self, value): self.profile_data = value
-        def place_journey(self): return None
-        def commit_agent_turn(self, *args): return {'content': 'Synthetic exchange.'}
-    storage = Storage()
-    runtime = CodexRuntime(worker_url='http://synthetic-worker', worker_secret='synthetic',
-                           home_root=tmp_path, task_publisher_enabled=False)
-    captured = {}
-    async def worker(**options):
-        assert 'memory_places' not in options['profile']
-        return {'thread_id': 'synthetic', 'reply': 'Synthetic reply.', 'artifacts': []}
-    async def workspace(**options):
-        captured.update(options)
-        raise RuntimeError('Synthetic stop after capturing extraction context')
-    async def enqueue(**options): return None
-    monkeypatch.setattr(runtime, '_worker_turn', worker)
-    monkeypatch.setattr(runtime, '_persist_workspace', workspace)
-    monkeypatch.setattr(runtime, '_enqueue_workspace_intent', enqueue)
-    asyncio.run(runtime.turn(storage, '后来又回到承德。', project_id='project-synthetic',
-                             saved_place_hints=[CITY]))
-    assert captured['profile']['memory_places'] == [CITY]
-    prompt = build_workspace_extraction_prompt('(none)', captured['profile'], language='zh-CN')
-    assert '40.9517' in prompt and '承德市' in prompt
-    assert 'memory_places' not in storage.profile_data

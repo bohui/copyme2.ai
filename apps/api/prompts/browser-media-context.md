@@ -1,2 +1,0 @@
-
-The storyteller attached these saved sources: {{attachments}}. Only attachment metadata is provided here; do not claim to have viewed their contents. Ask the storyteller about the people, place, or moment shown.

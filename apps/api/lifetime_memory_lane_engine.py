@@ -23,6 +23,7 @@ import httpx
 from pydantic import Field, model_validator
 
 from .prompt_artifact import load_prompt_artifact
+from .prompt_composition import render_prompt_artifact
 from .codex_agent import CodexConnection, provider_config
 from .codex_worker_files import write_config
 from .issue14_execution_admission import check_issue14_dispatch, issue14_connection_options
@@ -197,7 +198,7 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
             instructions,schema=extraction_contract(strategy=strategy, attribution=bool(fence and fence.attribution_context))
     else:
         from .memoir_preview import composer_instructions, composer_output_schema
-        instructions, schema = composer_instructions(phase, canonical_page=True), composer_output_schema(phase)
+        instructions, schema = composer_instructions(phase), composer_output_schema(phase)
     if phase == 'extract' and fence is not None:
         from .stage_readiness import LIFE_STAGES
         evidence=schema['$defs']['EvidenceRef']['properties']
@@ -232,7 +233,7 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
         else:
             instructions += load_prompt_artifact(Path(__file__).with_name('prompts') / 'lane-batch-compose.md')
     locale_name = 'zh-CN' if locale == 'zh-CN' else 'en-AU'
-    instructions += load_prompt_artifact(Path(__file__).with_name('prompts') / f'lane-canonical-context-{locale_name}.md')
+    instructions += render_prompt_artifact(Path(__file__).with_name('prompts') / f'lane-canonical-context-{locale_name}.md')
     if fence and fence.attribution_coverage:
         instructions += load_prompt_artifact(Path(__file__).with_name('prompts') / 'lane-place-conflicts.md')
     return instructions, schema
@@ -608,9 +609,11 @@ def _publisher(bounded, publisher):
 
 class LaneRequestBody:
     """Immutable single-use HTTP body, locked through transport consumption."""
+    fence_type = LaneFence
+
     def __init__(self, content, *, publisher, fence, after_send=None):
         self._content = bytes(content)
-        self._fence_json = serialize_packet(LaneFence.model_validate(fence).model_dump(mode='json'))
+        self._fence_json = serialize_packet(self.fence_type.model_validate(fence).model_dump(mode='json'))
         self._publisher = publisher
         self._iterator = None
         self._after_send = after_send

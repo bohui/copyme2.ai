@@ -15,7 +15,7 @@ from .codex_timeout_policy import COMPOSER_TIMEOUT, COMPOSER_DRAFT_TIMEOUT
 from .conversation_text import original_conversation_text
 from .recall import free_recall_rounds
 from .stage_readiness import LIFE_STAGES
-from .prompt_artifact import load_prompt_artifact
+from .prompt_composition import render_prompt_artifact
 
 
 logger = logging.getLogger(__name__)
@@ -154,11 +154,11 @@ def normalize_canonical_event_dispositions(draft):
     return draft
 
 
-def composer_instructions(phase, *, canonical_page=False):
-    name = f"composer-{phase}" + ("-canonical" if canonical_page and phase == "draft" else "")
+def composer_instructions(phase):
+    name = f"composer-{phase}" + ("-canonical" if phase == "draft" else "")
     if phase not in {"prepare", "index", "draft", "review"}:
         raise KeyError(phase)
-    return load_prompt_artifact(Path(__file__).with_name("prompts") / f"{name}.md")
+    return render_prompt_artifact(Path(__file__).with_name("prompts") / f"{name}.md")
 
 def json_reply(text):
     text = text.strip()
@@ -202,56 +202,37 @@ process.stdout.write(JSON.stringify(result));
 async def composer_call(runtime, storage, project_id, language, phase, packet):
     if not runtime.worker_url or not runtime.worker_secret:
         raise RuntimeError('Memoir composer is unavailable')
-    if getattr(runtime, 'lifetime_bounded', False):
-        started = time.monotonic()
-        outcome, worker_elapsed_ms = 'failed', -1
-        try:
-            from .lifetime_memory_composer import check_model_packet
-            check_model_packet(packet, composer_instructions(phase, canonical_page=True), composer_output_schema(phase))
-            from .lifetime_memory_composer import lane_model_budget
-            from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
-            bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=lane_model_budget())
-            worker_started = time.monotonic()
-            try:
-                result = await send_bounded_lane_request(worker_url=runtime.worker_url, worker_secret=runtime.worker_secret,
-                    bounded_lane=bounded, worker_transport=runtime.worker_transport,
-                    publisher=runtime.lane_publisher, timeout=composer_timeout(phase) + 15)
-            finally:
-                worker_elapsed_ms = int((time.monotonic() - worker_started) * 1000)
-            from .lifetime_memory_lane_engine import lane_artifact_digest
-            artifact = json_reply(result['reply'])
-            if phase == 'draft':
-                normalize_new_chapter_revisions(packet['request'], artifact)
-            await runtime.lane_broker.rpc('record_lifetime_lane_output',
-                p_lane_id=runtime.lifetime_page['lane_id'], p_token=runtime.lifetime_page['token'],
-                p_page_number=runtime.lifetime_page['page_number'], p_phase=phase,
-                p_digest=lane_artifact_digest(phase, artifact), p_page_digest=runtime.lifetime_page['page_digest'])
-            outcome = 'completed'
-            return normalize_composer_refs(artifact)
-        finally:
-            logger.info('memoir_preview canonical_page phase=%s page=%d elapsed_ms=%d worker_elapsed_ms=%d outcome=%s',
-                phase, runtime.lifetime_page['page_number'], (time.monotonic() - started) * 1000,
-                worker_elapsed_ms, outcome)
+    if not getattr(runtime, 'lifetime_bounded', False):
+        raise ValueError('A canonical composer lane is required')
     started = time.monotonic()
-    record_worker_request = getattr(runtime, 'record_worker_request', None)
-    if callable(record_worker_request):
-        record_worker_request()
-    options = {'timeout': composer_timeout(phase) + 15}
-    if runtime.worker_transport is not None:
-        options['transport'] = runtime.worker_transport
-    async with httpx.AsyncClient(**options) as client:
-        response = await client.post(f'{runtime.worker_url}/internal/codex/turn',
-            headers={'X-Codex-Worker-Secret': runtime.worker_secret}, json={
-                'user_id': storage.user_id, 'project_id': project_id,
-                'agent_role': 'composer', 'composer_phase': phase,
-                **({'preparation_id': packet['preparation_id']} if phase == 'prepare' else {}),
-                'language': language, 'text': json.dumps(packet, ensure_ascii=False),
-            })
-        # Never log exception messages, URLs, packets, or model responses.
-        logger.info('memoir_preview phase=%s elapsed_ms=%d http_status=%d',
-                    phase, (time.monotonic() - started) * 1000, response.status_code)
-        response.raise_for_status()
-        return normalize_composer_refs(json_reply(response.json()['reply']))
+    outcome, worker_elapsed_ms = 'failed', -1
+    try:
+        from .lifetime_memory_composer import check_model_packet
+        check_model_packet(packet, composer_instructions(phase), composer_output_schema(phase))
+        from .lifetime_memory_composer import lane_model_budget
+        from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
+        bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=lane_model_budget())
+        worker_started = time.monotonic()
+        try:
+            result = await send_bounded_lane_request(worker_url=runtime.worker_url, worker_secret=runtime.worker_secret,
+                bounded_lane=bounded, worker_transport=runtime.worker_transport,
+                publisher=runtime.lane_publisher, timeout=composer_timeout(phase) + 15)
+        finally:
+            worker_elapsed_ms = int((time.monotonic() - worker_started) * 1000)
+        from .lifetime_memory_lane_engine import lane_artifact_digest
+        artifact = json_reply(result['reply'])
+        if phase == 'draft':
+            normalize_new_chapter_revisions(packet['request'], artifact)
+        await runtime.lane_broker.rpc('record_lifetime_lane_output',
+            p_lane_id=runtime.lifetime_page['lane_id'], p_token=runtime.lifetime_page['token'],
+            p_page_number=runtime.lifetime_page['page_number'], p_phase=phase,
+            p_digest=lane_artifact_digest(phase, artifact), p_page_digest=runtime.lifetime_page['page_digest'])
+        outcome = 'completed'
+        return normalize_composer_refs(artifact)
+    finally:
+        logger.info('memoir_preview canonical_page phase=%s page=%d elapsed_ms=%d worker_elapsed_ms=%d outcome=%s',
+            phase, runtime.lifetime_page['page_number'], (time.monotonic() - started) * 1000,
+            worker_elapsed_ms, outcome)
 
 
 def source_snapshot(rows, project_id):

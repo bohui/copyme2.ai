@@ -13,24 +13,7 @@ if str(ROOT) not in sys.path:
 from scripts.export_langfuse_prompt import sync_prompt
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.prompt_registry import prompt_registry
-from apps.api.prompt_artifact import load_prompt_artifact
-
-BROWSER_MODULE = "apps/web/client/memoir/browser-prompts.generated.mjs"
-BROWSER_EXPORTS = {
-    "PROFILE_INTAKE_PROMPT": "browser-profile-intake.md",
-    "FOLLOW_UP_PROMPT": "browser-follow-up.md",
-    "MEMORY_FOLLOW_UP_PROMPT": "browser-memory-follow-up.md",
-    "MEDIA_CONTEXT_PROMPT": "browser-media-context.md",
-    "BROWSER_MESSAGE_PROMPT": "browser-message.md",
-}
-
-
-def browser_module(root: Path) -> str:
-    lines = ["// Generated from pinned Langfuse prompt artifacts. Run make prompt-export."]
-    for symbol, filename in BROWSER_EXPORTS.items():
-        source = root / "apps/api/prompts" / filename
-        lines.append(f"export const {symbol} = {json.dumps(load_prompt_artifact(source), ensure_ascii=False)};")
-    return "\n".join(lines) + "\n"
+from apps.api.prompt_composition import composition_receipt
 
 
 def selected_prompts(name: str | None, registry: dict[str, str]) -> dict[str, str]:
@@ -68,14 +51,8 @@ def export_prompts(client, *, name: str | None = None, check: bool = False,
             version = current.version
         receipts.append(sync_prompt(client, target=target, name=prompt_name,
                                     version=version, root=root, check=check))
-    if not name or any(Path(target).name in BROWSER_EXPORTS.values() for target in selected.values()):
-        generated = browser_module(root)
-        destination = root / BROWSER_MODULE
-        if check:
-            if not destination.is_file() or destination.read_text(encoding="utf-8") != generated:
-                raise ValueError("Browser prompt module differs from pinned artifacts")
-        else:
-            destination.write_text(generated, encoding="utf-8")
+    for receipt in receipts:
+        composition_receipt(root / receipt['target'])
     return receipts
 
 

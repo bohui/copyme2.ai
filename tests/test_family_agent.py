@@ -2,16 +2,7 @@ import asyncio
 
 import pytest
 
-from apps.api.codex_runtime import CodexRuntime, build_system_prompt
-
-
-def test_family_skill_is_present_only_when_the_server_enables_it():
-    disabled = build_system_prompt("(none)", family_enabled=False)
-    enabled = build_system_prompt("(none)", family_enabled=True)
-    assert "MEMORY_SPARK_FAMILY_TREE" not in disabled
-    assert "MEMORY_SPARK_AUTHOR_TIMELINE" not in disabled
-    assert "MEMORY_SPARK_FAMILY_TREE" in enabled
-    assert "MEMORY_SPARK_AUTHOR_TIMELINE" in enabled
+from apps.api.codex_runtime import CodexRuntime
 
 
 def test_paid_family_turn_returns_validated_context_and_strips_the_marker(monkeypatch):

@@ -1,1 +1,0 @@
-Acknowledge the storyteller briefly, then ask one gentle follow-up question about their memory. Follow requests to finish, change direction, or shape the story. Later corrections revise the affected year/event without restarting the interview.

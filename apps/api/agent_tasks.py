@@ -1,13 +1,11 @@
 """Narrow task-publishing contract for the collection and organising agents."""
 import json
 import re
-from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from .memoir_tasks import BookSection, MemoirTask, MemorySource
-from .prompt_artifact import load_prompt_artifact
 
 TASK_START = '[[MEMORY_SPARK_TASKS]]'
 TASK_END = '[[/MEMORY_SPARK_TASKS]]'
@@ -53,19 +51,3 @@ def resolve_task(request: TaskRequest, sources: list[MemorySource]):
         raise ValueError('Task requested an unavailable memory')
     return MemoirTask(kind=request.kind, title=request.title,
                       sources=[by_id[key] for key in request.memory_ids])
-
-
-def collection_task_instructions(sources):
-    directory = Path(__file__).with_name('prompts')
-    instructions = load_prompt_artifact(directory / 'collection-task-base.md')
-    if not sources:
-        return instructions
-    suffix = load_prompt_artifact(directory / 'collection-task-with-sources.md')
-    return instructions + suffix + json.dumps(
-        [{'id': source.id, 'excerpt': source.content[:1000]} for source in sources], ensure_ascii=False)
-
-
-def organiser_prompt(sources, language):
-    template = load_prompt_artifact(Path(__file__).with_name('prompts') / 'organiser-task.md')
-    return template.replace('{{language}}', language).replace(
-        '{{sources}}', json.dumps([source.model_dump() for source in sources], ensure_ascii=False))

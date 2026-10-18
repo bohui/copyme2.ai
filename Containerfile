@@ -37,7 +37,7 @@ COPY apps/__init__.py ./apps/__init__.py
 COPY apps/api ./apps/api
 RUN pip install --no-cache-dir --no-deps --no-build-isolation '.[photo-browser,lifetime-memory]'
 
-COPY README.md Mira_Memoir_Journalist_System_Prompt_v1.0.md ./
+COPY README.md ./
 COPY apps/web/public ./apps/web/public
 COPY skills ./skills
 COPY docs ./docs

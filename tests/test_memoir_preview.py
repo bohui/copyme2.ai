@@ -57,10 +57,17 @@ def test_composer_commentary_is_not_accepted_as_a_candidate():
         memoir_preview.json_reply('Here is the result: {"ready":true}')
 
 
-@pytest.mark.parametrize('canonical_page', [False, True])
-def test_drafting_and_review_use_pinned_prompt_artifacts(monkeypatch, tmp_path, canonical_page):
+def test_composer_requires_a_canonical_lane_before_dispatch():
+    from types import SimpleNamespace
+
+    runtime = SimpleNamespace(worker_url='http://worker.invalid', worker_secret='synthetic')
+    with pytest.raises(ValueError, match='canonical composer lane'):
+        asyncio.run(memoir_preview.composer_call(runtime, None, 'p', 'en-AU', 'draft', {}))
+
+
+def test_drafting_and_review_use_pinned_prompt_artifacts(monkeypatch, tmp_path):
     import shutil
-    before = {phase: memoir_preview.composer_instructions(phase, canonical_page=canonical_page)
+    before = {phase: memoir_preview.composer_instructions(phase)
               for phase in ('prepare', 'index', 'draft', 'review')}
     skill = tmp_path / 'memoir-composer'
     shutil.copytree(memoir_preview.SKILL, skill)
@@ -69,7 +76,7 @@ def test_drafting_and_review_use_pinned_prompt_artifacts(monkeypatch, tmp_path, 
     monkeypatch.setattr(memoir_preview, 'SKILL', skill)
 
     for phase, expected in before.items():
-        assert memoir_preview.composer_instructions(phase, canonical_page=canonical_page) == expected
+        assert memoir_preview.composer_instructions(phase) == expected
         assert policy not in expected
 
 
@@ -179,10 +186,7 @@ def test_composer_wire_schemas_support_chatgpt_strict_output(phase):
 
 
 @pytest.mark.parametrize('phase', ['index', 'draft'])
-def test_composer_transport_accepts_null_offsets_without_changing_domain_refs(phase):
-    import httpx
-    from types import SimpleNamespace
-    from apps.api.codex_runtime import CodexRuntime
+def test_composer_wire_null_offsets_preserve_domain_refs(phase):
     from jsonschema import Draft202012Validator
 
     original = json.loads((memoir_preview.SKILL / 'examples/focused_trial' /
@@ -203,11 +207,7 @@ def test_composer_transport_accepts_null_offsets_without_changing_domain_refs(ph
 
     add_null_offsets(wire_reply)
     Draft202012Validator(memoir_preview.composer_output_schema(phase)).validate(wire_reply)
-    runtime = CodexRuntime(worker_url='http://worker.test', worker_secret='test-only',
-                           worker_transport=httpx.MockTransport(lambda request:
-                               httpx.Response(200, json={'reply': json.dumps(wire_reply)})))
-    result = asyncio.run(memoir_preview.composer_call(runtime, SimpleNamespace(user_id='test-user'),
-                                                   'project', 'zh-CN', phase, {}))
+    result = memoir_preview.normalize_composer_refs(wire_reply)
     assert result == expected  # Preserve real quote offsets and other nullable fields.
 
 
@@ -443,23 +443,6 @@ def test_review_retry_reuses_validated_index_and_draft(monkeypatch):
         assert result['job']['attempts'] == 2
         assert calls == ['index', 'draft', 'review']
     assert storage.completed == 20
-
-
-@pytest.mark.parametrize('phase', ['index', 'draft', 'review'])
-def test_composer_transport_has_separate_bounded_timeout(monkeypatch, phase):
-    import httpx
-    from apps.api.codex_runtime import CodexRuntime
-    observed = []
-    def reply(request):
-        observed.append(request)
-        return httpx.Response(200, json={'reply': '{"periods":[],"events":[]}'})
-    runtime = CodexRuntime(worker_url='http://worker.test', worker_secret='test-only', timeout=1,
-                           worker_transport=httpx.MockTransport(reply))
-    storage, _ = fixture_storage()
-    result = asyncio.run(memoir_preview.composer_call(runtime, storage, 'project', 'zh-CN', phase, {}))
-    assert result == {'periods': [], 'events': []}
-    assert observed[0].extensions['timeout']['read'] == (600 if phase == 'draft' else 240) + 15
-    assert len(memoir_preview.composer_instructions('index')) < 2000
 
 
 def test_shutdown_and_fresh_authenticated_request_resume_review_checkpoint(monkeypatch):

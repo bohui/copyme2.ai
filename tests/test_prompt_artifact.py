@@ -6,7 +6,8 @@ import pytest
 
 from apps.api.prompt_artifact import load_prompt_artifact
 from scripts.export_langfuse_prompt import sync_prompt
-from scripts.export_langfuse_prompts import BROWSER_MODULE, browser_module, export_prompts
+from scripts.export_langfuse_prompts import export_prompts
+from apps.api.prompt_composition import render_prompt_artifact
 from scripts.prompt_registry import ROOT, prompt_registry
 from scripts.evaluate_langfuse_prompt import dataset_input_text, dataset_version, experiment_task
 
@@ -74,11 +75,9 @@ def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
 
 def test_checked_in_compact_prompt_keeps_previous_runtime_text():
     from apps.api.collector_prompt import COMPACT_COLLECTOR_PROMPT
-    from apps.api.codex_runtime import build_conversation_system_prompt
 
     assert COMPACT_COLLECTOR_PROMPT.startswith("Mira collector contract: compact-v1")
-    assert COMPACT_COLLECTOR_PROMPT in build_conversation_system_prompt(
-        "", prompt_version="compact-v1")
+    assert render_prompt_artifact(ROOT / "apps/api/prompts/collector-compact.md") == COMPACT_COLLECTOR_PROMPT
 
 
 def test_current_export_uses_highest_numeric_version_without_production_label(tmp_path, monkeypatch):
@@ -111,8 +110,8 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
     assert client.calls[-1]["version"] == 3
 
 
-def test_browser_import_is_generated_from_pinned_prompt_bytes():
-    assert (ROOT / BROWSER_MODULE).read_text(encoding="utf-8") == browser_module(ROOT)
+def test_unused_browser_instructions_are_not_managed_prompts():
+    assert not any(name.startswith('memoir/interview/browser/') for name in prompt_registry())
 
 
 def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():
@@ -134,7 +133,7 @@ def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Reply"))])
     client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
     prompt = SimpleNamespace(prompt="Pinned instructions", name="memoir/collector", version=7)
-    task = experiment_task(prompt, "model-a", client, target="collector-compact")
+    task = experiment_task(prompt, "model-a", client)
 
     assert task(item=SimpleNamespace(input={"text": "A memory"})) == "Reply"
     assert calls == [{"model": "model-a", "messages": [
@@ -146,6 +145,25 @@ def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
     with pytest.raises(ValueError, match="timezone-aware"):
         dataset_version("2026-10-18T12:00:00")
     assert dataset_version("2026-10-18T12:00:00Z").utcoffset().total_seconds() == 0
-    experiment_task(SimpleNamespace(prompt="Pinned instructions\n"), "model-a", client,
-                    target="journalist")(item=SimpleNamespace(input={"text": "A memory"}))
-    assert calls[-1]["messages"][0]["content"] == "Pinned instructions"
+    experiment_task(SimpleNamespace(prompt="Pinned instructions\n"), "model-a", client)(
+        item=SimpleNamespace(input={"text": "A memory"}))
+    assert calls[-1]["messages"][0]["content"] == "Pinned instructions\n"
+
+
+def test_retired_workflows_cannot_be_exported_again():
+    registry = prompt_registry()
+    assert not any(name.startswith(("memoir/memory/fallback/", "memoir/memory/workspace/",
+                                    "memoir/memory/marker/")) for name in registry)
+    assert not {"memoir/interview/journalist", "memoir/composer/draft",
+                "memoir/composer/organiser-task", "memoir/interview/collector-repair",
+                "memoir/skills/memoir-author-timeline/legacy-marker"} & registry.keys()
+
+
+def test_legacy_collector_setting_is_rejected(monkeypatch):
+    from apps.api.collector_configuration import collector_configuration, CollectorConfigurationError
+
+    monkeypatch.delenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', raising=False)
+    assert collector_configuration('model').prompt_version == 'compact-v1'
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'legacy')
+    with pytest.raises(CollectorConfigurationError):
+        collector_configuration('model')

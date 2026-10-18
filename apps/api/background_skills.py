@@ -21,7 +21,6 @@ class Skill:
 
 
 SKILLS = {item.name: item for item in (
-    Skill('app-auto-localization', None, 'none', 'none', 'deprecated', ()),
     Skill('memoir-author-timeline', 'timeline', 'model', 'accepted_source',
         gates=('canonical_activation','source_policy_fence','A_work_decision'),recovery='durable_lane'),
     Skill('memoir-family-tree', None, 'model', 'relationship_evidence', 'unwired',

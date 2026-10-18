@@ -431,12 +431,6 @@ class OwnedFiftyBrowserAPI:
         from apps.api import agent_routes
         from apps.api.store import MemoryStore
         self._runtime = self._session.runtime
-        source = (Path(__file__).resolve().parents[1] / 'apps/web/client/memoir/client.js').read_text()
-        profile = re.search(r'const PROFILE_INTAKE_PROMPT = `([^`]+)`;', source)
-        ordinary = re.search(r'let instruction = profileIntake\s*\?\s*PROFILE_INTAKE_PROMPT\s*:\s*"([^"\n]+)";', source)
-        if not profile or not ordinary:
-            raise ValueError('Reviewed browser prompt grammar unavailable')
-        self._wrapper_suffixes = (profile[1], ordinary[1])
         self.app.state.store = MemoryStore()
         for case in self._plans:
             def hints(store, project_id, user_id, selected=case):
@@ -465,7 +459,7 @@ class OwnedFiftyBrowserAPI:
             raise ValueError('A fresh exact active original round is required')
         bridge = self._session.bridge_for_case(case)
         text = bridge.driver_inputs()['rounds'][ordinal - 1]
-        allowed = (text, *('The storyteller said: ' + text + '\n' + suffix for suffix in self._wrapper_suffixes))
+        allowed = (text,)
         self._armed = {**self._plans[case], 'ordinal': ordinal, 'text': text, 'allowed_texts': allowed,
             'correlation': bridge.before_round(case, ordinal), 'state': 'armed', 'client_turn_id': None,
             'future': asyncio.get_running_loop().create_future()}

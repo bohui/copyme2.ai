@@ -66,7 +66,7 @@ services:
       MEMORY_SPARK_LLM_REASONING_EFFORT: ${MEMORY_SPARK_LLM_REASONING_EFFORT:-max}
       MEMORY_SPARK_COLLECTOR_MODEL: "${MEMORY_SPARK_COLLECTOR_MODEL:-}"
       MEMORY_SPARK_COLLECTOR_REASONING_EFFORT: "${MEMORY_SPARK_COLLECTOR_REASONING_EFFORT:-}"
-      MEMORY_SPARK_COLLECTOR_PROMPT_VERSION: ${MEMORY_SPARK_COLLECTOR_PROMPT_VERSION:-legacy}
+      MEMORY_SPARK_COLLECTOR_PROMPT_VERSION: ${MEMORY_SPARK_COLLECTOR_PROMPT_VERSION:-compact-v1}
       MEMORY_SPARK_MEMOIR_COMPOSER_MODEL: ${MEMORY_SPARK_MEMOIR_COMPOSER_MODEL:-memoir-luna-low}
       MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT: ${MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT:-low}
       MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT: ${MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT:-low}
@@ -96,7 +96,6 @@ services:
       - ./apps/api:/app/apps/api:ro
       - ./apps/web/public:/app/apps/web/public:ro
       - ./README.md:/app/README.md:ro
-      - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./docs:/app/docs:ro
       - ./skills:/app/skills:ro
       - ./scripts:/app/scripts:ro
@@ -149,7 +148,6 @@ services:
       - ./apps/api:/app/apps/api:ro
       - ./apps/web/public:/app/apps/web/public:ro
       - ./README.md:/app/README.md:ro
-      - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./docs:/app/docs:ro
       - ./skills:/app/skills:ro
       - ./scripts:/app/scripts:ro
@@ -188,7 +186,7 @@ services:
       MEMORY_SPARK_LLM_REASONING_EFFORT: ${MEMORY_SPARK_LLM_REASONING_EFFORT:-max}
       MEMORY_SPARK_COLLECTOR_MODEL: "${MEMORY_SPARK_COLLECTOR_MODEL:-}"
       MEMORY_SPARK_COLLECTOR_REASONING_EFFORT: "${MEMORY_SPARK_COLLECTOR_REASONING_EFFORT:-}"
-      MEMORY_SPARK_COLLECTOR_PROMPT_VERSION: ${MEMORY_SPARK_COLLECTOR_PROMPT_VERSION:-legacy}
+      MEMORY_SPARK_COLLECTOR_PROMPT_VERSION: ${MEMORY_SPARK_COLLECTOR_PROMPT_VERSION:-compact-v1}
       MEMORY_SPARK_MEMOIR_COMPOSER_MODEL: ${MEMORY_SPARK_MEMOIR_COMPOSER_MODEL:-memoir-luna-low}
       MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT: ${MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT:-low}
       MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT: ${MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT:-low}
@@ -199,7 +197,6 @@ services:
       - ./apps/__init__.py:/app/apps/__init__.py:ro
       - ./apps/api:/app/apps/api:ro
       - ./README.md:/app/README.md:ro
-      - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./skills:/app/skills:ro
     read_only: true
     tmpfs:
@@ -259,7 +256,6 @@ services:
       - ./apps/api:/app/apps/api:ro
       - ./apps/web/public:/app/apps/web/public:ro
       - ./README.md:/app/README.md:ro
-      - ./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro
       - ./docs:/app/docs:ro
       - ./scripts:/app/scripts:ro
       - ./skills:/app/skills:ro

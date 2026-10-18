@@ -1,12 +1,9 @@
-"""Cross-stack contracts: canonical event lanes and legacy source-claim routing."""
-import asyncio
+"""Canonical evidence and user-veto contracts."""
 import json
 
 import pytest
 from pydantic import ValidationError
 
-from apps.api.codex_runtime import CodexRuntime, build_workspace_extraction_prompt
-from apps.api.codex_worker_service import WorkerTurnInput
 from apps.api.memory_events import extraction_instructions, validate_extraction
 
 
@@ -102,115 +99,3 @@ def test_canonical_schema_rejects_legacy_private_metadata(field):
     proposal[field] = 'c0'
     with pytest.raises(ValidationError):
         approved('I bought a house in 1980.', [proposal])
-
-
-def test_canonical_and_legacy_skill_contracts_are_separate():
-    canonical = extraction_instructions()
-    legacy = build_workspace_extraction_prompt(
-        '(none)', family_enabled=True, source_text='I bought a house in 1980.'
-    )
-    assert '{"events": [...]}' in canonical
-    assert 'source_claim_id' not in canonical
-    assert 'source_claim_id' in legacy
-    assert '- c0: I bought a house in 1980' in legacy
-
-
-@pytest.mark.parametrize('field', ['source_claim_id', '_source_claim_id'])
-def test_explicit_null_legacy_claim_is_not_absent_metadata(field):
-    from apps.api.codex_runtime import _sanitize_author_timeline_markers
-    item = {'id': 'purchase', 'kind': 'event', 'title': 'Bought a house',
-            'date_expression': '1980', field: None}
-    marker = '[[MEMORY_SPARK_AUTHOR_TIMELINE]]' + json.dumps({'timeline': [item]}) + '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
-    assert _sanitize_author_timeline_markers(marker, 'I bought a house in 1980.') == ''
-
-
-def test_canonical_place_recovery_prompt_retains_place_only_contract():
-    prompt = build_workspace_extraction_prompt(
-        '(none)', canonical_events=True, focus='place_journey',
-        source_text='I moved to Hobart.', family_enabled=True,
-    )
-    assert 'Focused place-journey recovery pass' in prompt
-    assert 'Do not reuse a saved place' in prompt
-    assert 'source_claim_id' not in prompt
-    assert '[[MEMORY_SPARK_AUTHOR_TIMELINE]]' not in prompt
-
-
-def test_worker_input_preserves_both_stack_features():
-    model = WorkerTurnInput(
-        user_id='11111111-1111-4111-8111-111111111111',
-        text='I moved to Hobart.', canonical_events=True,
-        agent_role='author_timeline', extraction_focus='place_journey',
-        composer_phase='prepare', preparation_id='a' * 64,
-    )
-    assert model.canonical_events is True
-    assert model.agent_role == 'author_timeline'
-
-
-@pytest.mark.parametrize('role,canonical,focus', [
-    ('workspace', False, 'author_timeline'),
-    ('workspace', True, 'place_journey'),
-    ('author_timeline', True, None),
-])
-def test_actual_worker_keeps_prompt_and_output_contract_for_each_lane(tmp_path, monkeypatch, role, canonical, focus):
-    from apps.api.codex_worker_service import CodexWorker
-    observed = {}
-
-    class Connection:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, *args):
-            pass
-
-        async def request(self, method, params):
-            assert method == 'thread/start'
-            assert params['ephemeral'] is True
-            observed['instructions'] = params['baseInstructions']
-            return {'thread': {'id': 'isolated-contract'}}
-
-        async def turn(self, thread_id, prompt, **kwargs):
-            observed['turn'] = kwargs
-            assert 'I bought a house in 1980.' in prompt
-            return '{"events": []}' if role == 'author_timeline' else ''
-
-    worker = CodexWorker(home_root=tmp_path)
-    monkeypatch.setattr(worker, '_home', lambda *args: tmp_path)
-    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
-    result = asyncio.run(worker.turn(WorkerTurnInput(
-        user_id='11111111-1111-4111-8111-111111111111',
-        text='I bought a house in 1980.', agent_role=role,
-        canonical_events=canonical, extraction_focus=focus, family_enabled=True,
-    )))
-    assert result['artifacts'] == []
-    if not canonical:
-        assert '- c0: I bought a house in 1980' in observed['instructions']
-        assert 'source_claim_id' in observed['instructions']
-    else:
-        assert 'source_claim_id' not in observed['instructions']
-        assert '[[MEMORY_SPARK_AUTHOR_TIMELINE]]' not in observed['instructions']
-    if role == 'author_timeline':
-        assert observed['turn']['output_schema']['required'] == ['events']
-    elif focus == 'place_journey':
-        assert 'Focused place-journey recovery pass' in observed['instructions']
-
-
-def test_canonical_family_recovery_keeps_bounded_retries_without_legacy_timeline(monkeypatch):
-    runtime = CodexRuntime(worker_url='http://worker', worker_secret='synthetic')
-    calls = []
-
-    async def worker_turn(**kwargs):
-        calls.append(kwargs)
-        return {'reply': ''}
-
-    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
-    asyncio.run(runtime._workspace_extraction(
-        user_id='synthetic', memories=[], profile={}, place_journey=None,
-        family_enabled=True, family_context=None, project_id=None,
-        text='Aunt June remembers carrying me past the bench.',
-        language='en-AU', canonical_events=True,
-    ))
-    assert [call.get('extraction_focus') for call in calls] == [None, 'family_tree', 'family_tree', 'family_tree']
-    assert all(call['canonical_events'] is True for call in calls)

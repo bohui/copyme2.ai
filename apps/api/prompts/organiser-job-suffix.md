@@ -1,0 +1,1 @@
+ reference exactly once across all sections; never add or drop a reference. Keep titles concise: the host-assigned summary IDs, title and section titles together must fit 12000 UTF-8 bytes, including JSON metadata. Up to 100 sections are supported. Do not shorten or replace original source text; it remains in canonical storage. 

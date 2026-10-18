@@ -263,56 +263,6 @@ def validate_collector_result(value, context):
         **({'historical_context': historical_context} if historical_context else {})}
 
 
-async def run_collector_turn(connection, thread_id, prompt, *, interview_context=None, **options):
-    """Correct one invalid proposal before publishing provider completion.
-
-    The API still validates the returned proposal before saving. Correction
-    receives the same evidence, never creates testimony, and cannot replace an
-    acknowledgement already exposed by the first stream.
-    """
-    reply = await connection.turn(thread_id, prompt, **options)
-    if interview_context is None:
-        return reply
-    try:
-        validate_collector_result(reply, interview_context)
-        return reply
-    except (ValueError, TypeError, KeyError) as error:
-        # Our explicit ValueErrors contain fixed contract messages. Schema
-        # errors can include private model output; do not copy those details.
-        reason = str(error) if type(error) is ValueError else 'The proposal does not match the collector schema.'
-
-    acknowledgement = CollectorVisibleStream().feed(reply, final=True)
-    if not historical_acknowledgement_allowed(acknowledgement, interview_context):
-        acknowledgement = ''  # The public stream suppresses this unsafe value.
-    active = [e for e in interview_context.get('events', []) if e.get('status') == 'active']
-    scope = {
-        'event_ids': [e['id'] for e in active],
-        'years': sorted({year for e in active for year in
-            (e.get('temporal', {}).get('year_start'), e.get('temporal', {}).get('year_end')) if year}),
-        'life_stages': sorted({e.get('life_stage') for e in active if e.get('life_stage') in LIFE_STAGES}),
-    }
-    correction = (
-        load_prompt_artifact(Path(__file__).with_name('prompts') / 'collector-repair.md') + reason + '\n'
-        'Allowed canonical question context: ' + json.dumps(scope, ensure_ascii=False) + '\n'
-    )
-    retry_options = {key: value for key, value in options.items() if key != 'on_delta'}
-    if acknowledgement:
-        correction += 'Copy this acknowledgement exactly: ' + json.dumps(acknowledgement, ensure_ascii=False)
-        schema = deepcopy(options.get('output_schema') or collector_schema())
-        schema['properties']['acknowledgement']['enum'] = [acknowledgement]
-        retry_options['output_schema'] = schema
-    repaired = await connection.turn(thread_id, correction, **retry_options)
-    try:
-        result = validate_collector_result(repaired, interview_context)
-        if acknowledgement and result['acknowledgement'] != acknowledgement:
-            raise ValueError('Correction cannot replace the streamed acknowledgement')
-    except (ValueError, TypeError, KeyError):
-        # Match the runtime's controlled retry contract. Raw schema errors may
-        # contain private model output and must not escape through the HTTP API.
-        raise RuntimeError('The interview response could not be validated; please retry the accepted turn') from None
-    return repaired
-
-
 class CollectorVisibleStream:
     """Incrementally expose only the first complete acknowledgement string.
 

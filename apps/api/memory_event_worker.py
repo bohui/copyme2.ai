@@ -13,7 +13,6 @@ import time
 import httpx
 from pydantic import ValidationError
 
-from .memory_events import validate_extraction
 from .recall import private_draft_cadence
 
 
@@ -222,55 +221,10 @@ class MemoryEventWorker:
         renewal = asyncio.create_task(heartbeat())
         try:
             async with asyncio.timeout(run_seconds):
-                if job.get('protocol') == 'lifetime_composer_pages':
-                    from .lifetime_memory_composer import execute_lifetime_lane
-                    return await execute_lifetime_lane(job, self)
-                if job['skill'] == 'composer':
-                    from .canonical_composer import compose_shared_snapshot
-                    bundle = await compose_shared_snapshot(job, self)
-                    result = await self.broker.rpc('finish_memoir_composer', p_lane_id=lane_id, p_token=job['token'],
-                                                  p_expected_revision=job['base_revision'], p_bundle=bundle)
-                    if result['status'] in {'stale', 'rejected'}:
-                        await self.broker.rpc('fail_memoir_lane', p_lane_id=lane_id, p_token=job['token'],
-                                             p_error='MEMOIR_CONFLICT' if result['status'] == 'stale' else 'MEMOIR_REVIEW_FAILED', p_retryable=True)
-                    return result
-                options = {'timeout': min(240, run_seconds)}
-                if self.worker_transport is not None:
-                    options['transport'] = self.worker_transport
-                request = {
-                    'user_id': job['user_id'], 'project_id': job['project_id'], 'family_enabled': False,
-                    'agent_role': 'author_timeline', 'language': job['locale'],
-                    'text': json.dumps({'schema_version': 1, 'sources': job['sources'],
-                        'context_sources': job['context_sources'], 'events': job['events'],
-                        'interview_context': job.get('interview_context', {})}, ensure_ascii=False),
-                }
-                # A provider 400/5xx or a model proposal rejected by the
-                # fenced commit gets a bounded fresh extraction before the
-                # durable lane attempt is consumed. The commit can reject a
-                # proposal after Python validation when PostgreSQL applies
-                # stricter evidence/temporal rules.
-                for extraction_attempt in range(3):
-                    proposed = None
-                    for provider_attempt in range(3):
-                        try:
-                            async with httpx.AsyncClient(**options) as client:
-                                response = await client.post(self.worker_url + '/internal/codex/turn',
-                                    headers={'X-Codex-Worker-Secret': self.worker_secret}, json=request)
-                                response.raise_for_status()
-                                proposed = json.loads(response.json()['reply'])
-                            break
-                        except httpx.HTTPStatusError as failure:
-                            if provider_attempt < 2 and failure.response.status_code in {400, 429, 502, 503, 504}:
-                                continue
-                            raise
-                    events = validate_extraction(proposed, job['context_sources'], job['events'])
-                    try:
-                        return await self.broker.rpc('finish_memoir_timeline', p_lane_id=lane_id,
-                            p_token=job['token'], p_events=events)
-                    except httpx.HTTPStatusError as failure:
-                        if extraction_attempt < 2 and failure.response.status_code == 400:
-                            continue
-                        raise
+                if job.get('protocol') != 'lifetime_composer_pages':
+                    raise ValueError('Unsupported canonical lane page')
+                from .lifetime_memory_composer import execute_lifetime_lane
+                return await execute_lifetime_lane(job, self)
         except asyncio.CancelledError:
             if job.get('protocol') == 'lifetime_composer_pages':
                 from .lifetime_memory_lane_engine import _settle

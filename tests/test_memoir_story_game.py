@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from apps.api import codex_runtime, memoir_story_game
+from apps.api import memoir_story_game
 from apps.api.interview_strategy import InterviewStrategyPlan
 from apps.api.memoir_story_game import StoryGameUnavailable
 from apps.api.trajectory_evaluation import build_skill_manifest
@@ -20,7 +20,7 @@ def strategy_plan(strategy='shape'):
 def test_product_harness_loads_repository_skill_and_manifest_discovers_resources():
     root = Path(__file__).resolve().parents[1]
     assert memoir_story_game.STORY_GAME_SKILL_PATH == root / 'skills/memoir-story-game/SKILL.md'
-    assert codex_runtime.STORY_GAME_SKILL == memoir_story_game.STORY_GAME_SKILL_PATH.read_text().strip()
+    assert memoir_story_game.load_story_game_skill() == memoir_story_game.STORY_GAME_SKILL_PATH.read_text().strip()
     entry = next(item for item in build_skill_manifest(root / 'skills')['skills']
                  if item['name'] == 'memoir-story-game')
     paths = {item['path'] for item in entry['files']}

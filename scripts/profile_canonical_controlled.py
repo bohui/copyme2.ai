@@ -24,8 +24,14 @@ from apps.api.lifetime_memory_engine import SUPPORTED_BYTE_BOUND_MODELS
 from apps.api.turn_stream import turn_events
 from scripts.canonical_turn import canonical_turn, CanonicalTurnFailed
 from scripts.controlled_native_state import ROOT, controlled_database, open_case, snapshot_case
-from scripts.profile_conversation_latency import WorkerStream
 from scripts.controlled_lifecycle import ALLOCATION_ROOT_ENV, sigterm_cancellable
+
+
+class WorkerStream(httpx.AsyncByteStream):
+    def __init__(self, events): self.events = events
+    async def __aiter__(self):
+        async for event in self.events: yield event.encode()
+    async def aclose(self): await self.events.aclose()
 
 
 def digest(value):
@@ -78,7 +84,7 @@ async def _canonical_campaign(rounds, *, timeout, candidate_model):
         raise ValueError('Bounded synthetic inputs and a reviewed canonical model are required')
     if type(timeout) not in (int,float) or not 0<timeout<=60:
         raise ValueError('A finite controlled per-turn timeout is required')
-    variants={'baseline':dict(model='gpt-5.6-luna-pooled',requested_effort='max',requested_prompt_version='legacy'),
+    variants={'baseline':dict(model='gpt-5.6-luna-pooled',requested_effort='max',requested_prompt_version='compact-v1'),
         'candidate':dict(model=candidate_model,requested_effort='low',requested_prompt_version='compact-v1')}
     receipt={'schema_version':'memoir-canonical-controlled-comparison/1','status':'started',
         'evidence_mode':'mock_only','provider_requests_started':0,'variants':variants,'results':[],

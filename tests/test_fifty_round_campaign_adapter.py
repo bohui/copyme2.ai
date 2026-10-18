@@ -353,22 +353,6 @@ def test_locale_absent_evaluation_and_false_family_matches_actual_client(tmp_pat
     asyncio.run(scenario())
 
 
-def test_production_composer_client_uses_same_transport(tmp_path):
-    from types import SimpleNamespace
-    from apps.api.memoir_preview import composer_call
-    async def scenario():
-        a=create(tmp_path,replies=[api().SyntheticWorkerReply({'reply':'{"synthetic":true}'},
-            (api().SyntheticSend('composer-response'),))])
-        a.before_round(a.plan['cases'][0]['case_id'],1); a._round=5
-        runtime=SimpleNamespace(worker_url=api().SYNTHETIC_ORIGIN,worker_secret='synthetic',worker_transport=a)
-        storage=SimpleNamespace(user_id=a.plan['cases'][0]['owner_id'])
-        with a.background_job(round_number=5,job_id='composer-5'):
-            result=await composer_call(runtime,storage,a.plan['cases'][0]['project_id'],'en-AU','draft',{'synthetic':True})
-        assert result=={'synthetic':True}
-        await a.finish()
-    asyncio.run(scenario())
-
-
 def test_run_deadline_fences_driver_before_retry(tmp_path):
     async def scenario():
         a=create(tmp_path,plan(wall_seconds=1,request_seconds=1))

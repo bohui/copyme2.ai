@@ -1,114 +1,150 @@
 # Langfuse prompt structure and usage audit
 
-Status: proposed structure, based on the 18 October 2026 repository and the local
-`memior` Langfuse project. The five `memoir/issue6/20261008-v1/prompts/*` prompt
-names have already been removed after confirming that their text is preserved as
-version 1 of the corresponding stable names. The old Issue 6 datasets still
-exist alongside their copied `memoir/evaluation/*` datasets.
-`scripts/issue6_langfuse_publication.py` is a historical publisher and would
-recreate the old names if deliberately run with `--apply`; routine export and
-evaluation commands use the stable registry instead.
+Status: code and prompt composition refactor on 18 October 2026. The registry
+now manages 80 prompt sources after removing five unused browser prompts and
+adding six shared components. The [individual usage audit](Langfuse_Prompt_Usage.md)
+classifies every name and records its consumer. Registration alone does not
+establish a model invocation or live traffic.
 
-## Naming rule
+## Removed workflows
 
-Use stable names for **authored instruction components**, grouped by the job
-that uses them. Langfuse's numeric versions record revisions. Release dates,
-issue numbers, and another `prompts` path segment do not belong in names.
+The application now executes conversations through `run_lifetime_turn`, with
+canonical collector, lane and job contracts. The following retired code has
+been removed before pruning its prompts:
+
+- Combined journalist/marker prompts, private workspace extraction and focused
+  marker recovery, legacy timeline marker sanitization, and synthetic loop traces.
+  None had an application caller. The canonical source-clause and user-veto
+  parsers are retained because MemoryEvent validation and conversation
+  attribution still import them.
+- The unused collection-task prompt builder and organiser-task prompt builder.
+  The current organiser uses bounded leaf/merge jobs.
+- The uncalled collector retry loop. Canonical governed execution owns retries.
+- Missing-file fallback instructions for the removed marker workflow.
+- The old worker branch for unbounded timeline/composer jobs; the worker now
+  requires the canonical page protocol before dispatch.
+- The noncanonical composer transport and draft selection. Composer calls now
+  require a canonical lane and select the canonical draft instructions.
+- The old direct-collector and conversation comparison profiling modes, one-time
+  Issue 6 publisher/evaluator setup, and completed prompt-name migration script.
+  The streaming adapter still used by the canonical controlled profiler was moved
+  into that profiler. `scripts/profile_first_reply.py first-turn` is retained:
+  it measures the current HTTP conversation path without retired prompt builders.
+- The ignored `deprecated-app-auto-localization` bundle and its stale registry
+  record. A recovery copy is outside the source tree under `var/retired-skills/`.
+  Current application localization remains in the app.
+
+Collector prompt configuration now accepts `compact-v1` (the default) and
+`two-lane-v1`. The unsupported `legacy` value is rejected. Container copies,
+source mounts, exporter aliases and examples no longer refer to the retired
+journalist file.
+
+## Removed prompt names
+
+The 28 names below lost their consumers and were removed from the registry,
+repo artifacts and Memoir Langfuse project. All 29 remote versions were backed
+up first in `var/langfuse-retired-workflows-backup-20261018T002423Z.json`.
+This first cleanup left 79 names. The subsequent code-path audit removed five
+browser templates that never reached the model, then introduced six shared
+components. Remote names now exactly match the 80 retained registry names.
+
+| Retired group | Names below `memoir/` |
+| --- | --- |
+| Full journalist | `interview/journalist` |
+| Collection task markers | `interview/collection-task/base`, `interview/collection-task/with-sources` |
+| Old conversation assembly | `interview/breadth/{default,checkpoint,pending-plural,pending-singular}`, `interview/response-contract`, `interview/photo/{header,guidance}` |
+| Old collector retry | `interview/collector-repair` |
+| Old marker extraction | `memory/profile-intake`, `memory/marker/{location-identity,place-grounding,family-context}` |
+| Old workspace recovery | `memory/workspace/{canonical,extraction,family-focused,family-recovery,place-recovery,timeline-claim,timeline-recovery}` |
+| Fallbacks | `memory/fallback/{author-timeline,family-tree,place-journey}` |
+| Old composer/organiser | `composer/draft`, `composer/organiser-task` |
+| Legacy timeline marker | `skills/memoir-author-timeline/legacy-marker` |
+
+The five earlier `memoir/issue6/20261008-v1/prompts/*` copies were already
+removed after verifying their text is preserved as version 1 of stable names.
+The old Issue 6 datasets still exist alongside their stable copied datasets;
+this prompt cleanup does not remove dataset or experiment history.
+
+## Remaining consumers
+
+Normal application requests read checked-in prompt artifacts and validate their
+numeric Langfuse version receipts. They do not fetch Langfuse text at request
+time. This is a code-path audit; actual frequency needs runtime traces.
+
+| Group | Count | Consumer |
+| --- | ---: | --- |
+| `interview` | 18 | Canonical collector/governed execution, shared guidance, strategy selection and greetings. Browser instruction construction and its generated module are removed. |
+| `memory` | 13 | Canonical timeline/two-lane extraction, shared grounding, summary, attribution, and bounded lane context. |
+| `composer` | 11 | Canonical preparation/draft/review, batch composition, organiser leaf/merge jobs and shared job policy. `index` is an older compatibility/benchmark seam, not a normal canonical phase. |
+| `research` | 1 | Historical discovery provider, when that feature is enabled. |
+| `speech` | 3 | Speech instructions by locale or default voice. |
+| `skills` | 24 | Six runtime components, eight evaluation-only inputs and ten packaged/manual skill guides. Package installation, links and cache hashing do not prove model use; see each row in the individual audit. |
+| `evaluation` | 10 | Live-skill probes and five-case/trajectory judges, only when those evaluation commands run. |
+
+The `skills` and `evaluation` groups have deliberate callers outside an ordinary
+storyteller turn. They remain managed. A disabled production binding, such as
+story-game execution, does not make its active evaluation harness unused.
+The detailed audit finds 51 runtime or conditional/shared runtime sources,
+18 evaluation-only inputs, ten packaged/manual guides and one compatibility
+index. This replaces the earlier, overly broad claim that every registered
+prompt was actively used by the application.
+
+## Shared composition in code
+
+`apps/api/prompt_composition.py` is the common builder used by runtime loaders,
+dataset evaluations, and export validation. Templates refer to a curated set of
+repo components using `{{prompt:component_name}}`; they cannot read arbitrary
+paths. Both templates and components remain independently versioned in Langfuse.
+The checked-in receipts pin all source versions. Evaluation preflight records
+component versions/hashes and the compiled SHA-256.
+
+| Task templates | Shared sources now loaded once from their authority |
+| --- | --- |
+| Timeline and derived timeline | Author-timeline skill, service contract and grounding rules |
+| Default collector and three strategies | Collector behavior guidance |
+| Three strategy variants | Immediate selection/work-hint rules |
+| Canonical draft and review | Narrative-enrichment reference; review also includes the editorial-review reference |
+| Two lane-context locales | Shared evidence/privacy context |
+| Four organiser phase/locale variants | Shared prefix and reference/size policy |
+
+All fourteen compiled task inputs remain byte-for-byte identical to their
+previous inputs. The source refactor removes 57,061 copied characters. Updating
+a component through Langfuse and exporting its new pin now reaches every
+consumer through this builder.
+
+The code audit also found two implementation issues. The browser constructed
+instructions that the backend discarded in favour of original narration; that
+construction and five prompts are removed. The organiser duplicated the lane's
+HTTP body initializer and omitted `_after_send`; it now uses the shared
+initializer while retaining its distinct typed job fence. These changes address
+execution code as well as the storage of prompt text.
+
+The timelines are two schemas in one extraction lane, the strategies are
+variants in one collector, and draft/review are deliberate phases over the same
+canonical events. Their shared policy does not imply another execution of the
+same work. The older `composer/index` compatibility path is explicitly listed
+separately; it must not be presented as current canonical traffic.
+
+## Stable naming proposal
+
+Names describe a job and contain no issue number, release date or extra
+`prompts` segment. Langfuse numeric versions record revisions. Keep datasets at
+`memoir/evaluation/<suite>` and use dataset versions and experiment runs for
+history.
 
 ```text
 memoir/
-  interview/                       collector, conversation, browser fragments
-  memory/                          extraction, profile, workspace task fragments
-  composer/                        preparation, drafting, review task fragments
-  research/                        historical discovery task fragments
-  speech/                          speech instructions by locale
-  skills/<skill>/instructions       each model-facing SKILL.md
-  skills/<skill>/references/<name>  only references actually read by a model
-  evaluation/                      judges and evaluation-only instructions
+  interview/
+  memory/
+  composer/
+  research/
+  speech/
+  skills/<skill>/instructions
+  skills/<skill>/references/<name>
+  evaluation/
 ```
 
-`<skill>` is the skill's stable name without a second `memoir-` prefix. Putting
-the root skill at `instructions` avoids showing a folder and a prompt with the
-same name at the same UI level. For example, the current
-`memoir/skills/memoir-composer` becomes
-`memoir/skills/composer/instructions`, and
-`memoir/skills/memoir-composer/narrative-enrichment` becomes
-`memoir/skills/composer/references/narrative-enrichment`.
-
-Keep datasets at `memoir/evaluation/<suite>` and use Langfuse dataset versions
-and experiment runs for history. The four `memoir/issue6/20261008-v1/*`
-datasets are copied, item-for-item, to that stable folder; retire the old names
-only after confirming their experiment/run history is no longer needed.
-
-## One source for each instruction
-
-A full runtime instruction assembled from a skill, references, and a task
-suffix must not be independently edited as another Langfuse prompt. Export the
-components, then assemble the repo artifact deterministically from a checked-in
-composition manifest. Record every component's Langfuse name, numeric version,
-and SHA-256 plus the assembled SHA-256. The application continues loading the
-assembled repo artifact. Evaluation must resolve the same manifest and record
-the component versions with each experiment; evaluating only a suffix would
-test a different instruction.
-
-The current registry has 107 names in seven groups: interview 32, memory 25,
-composer 11, research 1, speech 3, skills 25, evaluation 10. All 107 have
-distinct complete file bytes, but five runtime files contain substantial exact
-copies of other managed files:
-
-| Current runtime prompt | Embedded managed sources | Runtime use |
-| --- | --- | --- |
-| `memoir/memory/timeline` | author-timeline `SKILL.md` and `references/contract.md`, followed by a task suffix | Canonical MemoryEvent extraction through `memory_events.extraction_instructions()` and the lifetime lane |
-| `memoir/memory/timeline-derived` | Same two author-timeline files, followed by a two-lane variant suffix | Two-lane extraction through `two_lane_memory.py` |
-| `memoir/composer/draft` | Composer `SKILL.md` and three references, followed by a task suffix | Legacy/default composer instruction; no canonical lane call selects it |
-| `memoir/composer/draft-canonical` | Composer narrative-enrichment reference plus canonical intro and shared draft suffix | Current bounded composer draft lane |
-| `memoir/composer/review` | Composer editorial-review and narrative-enrichment references plus review suffix | Composer review lane |
-
-This is a version-skew risk: exporting a new skill version does not rewrite the
-copy embedded in a runtime file. Split each row into its unique task text and
-shared components, then verify the assembled bytes match the current prompt
-before removing the composite Langfuse name. The legacy/default composer
-draft needs a caller audit before retirement; the canonical draft is active.
-
-## What the remaining folders do today
-
-| Folder | Observed loader or role | Decision |
-| --- | --- | --- |
-| `interview` | `codex_runtime.py`, collector and plan modules; browser fragments generate `browser-prompts.generated.mjs` | Keep as runtime instructions. |
-| `memory` | `memory_events.py`, background profile, family/place workspace, lifetime lane | Keep actual task instructions. Remove `fallback/{family-tree,place-journey,author-timeline}` after making their source skill artifacts required at startup. |
-| `composer` | `memoir_preview.composer_instructions()` and bounded lane; organiser job uses separate phase/locale prompts | Keep task-specific text, then derive complete instructions from the manifest. |
-| `research` | `historical_news_provider.py` loads `historical-discovery.md` | Keep; this is the provider task, distinct from the research skill guide. |
-| `speech` | `speech.py` loads locale/default instructions | Keep. |
-| `skills` | Family tree, place journey, memory context, and legacy author marker are loaded by app code; other skills are read by the skill or evaluation harness | Keep model-facing instructions and use `/instructions` and `/references`. The registry now has an explicit model-facing reference allowlist. Developer contracts and provenance stay in Git only. |
-| `evaluation` | Isolated skill cases and judge code load these; they are not ordinary conversation prompts | Keep, with an evaluation label. |
-
-The canonical author-timeline skill and the legacy conversation marker are
-different execution modes. `codex_runtime.py` loads
-`skills/memoir-author-timeline/references/legacy-marker.md` for the paid
-conversation marker, while `memory_events.py` loads the complete canonical
-extraction prompt. Name the marker under `interview/legacy-marker/author-timeline`
-when migrating; it is not a second canonical timeline task.
-
-`memoir-story-game` is loaded for the skill harness but explicitly excluded
-from conversational prompts in `codex_runtime.py`. Keep it labelled as a
-candidate/evaluation skill until that application binding is enabled.
-
-## Migration order
-
-1. Check in an explicit inventory of managed sources and their consuming code
-   path. Stop auto-registering every `references/*.md` file.
-2. Extract the repeated timeline/composer text into uniquely named components.
-   Assert byte-for-byte parity with all currently loaded complete prompts.
-3. Update runtime loading, browser generation where relevant, and the Langfuse
-   experiment command to use the same composition manifest. Fail when a required
-   component or receipt is missing.
-4. Create the new stable Langfuse names, export receipts, and verify every
-   assembled artifact. Back up then remove superseded names. Retain version and
-   migration metadata in the repo; do not put dates or versions in the new path.
-5. Remove fallback prompts and unused legacy draft only after tests show the
-   intended execution paths. Run `make prompt-check`, the affected runtime tests,
-   and an experiment preflight against the assembled prompt and stable dataset.
-
-Until steps 2–5 are complete, the existing 107 registered names and runtime
-files remain the active export contract. A folder rename alone would not fix
-the embedded copies.
+The `/instructions` leaf remains a possible navigation change for skill roots.
+The current refactor preserves existing active names and removes copied policy
+through shared composition. Runtime/evaluation ownership is recorded separately
+from the Langfuse folder used to navigate a source.

@@ -8,7 +8,6 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_container_up_refreshes_web_image_with_internal_api_origin() -> None:
     compose = (ROOT / "compose.yml").read_text(encoding="utf-8")
     api = compose.split("\n  api:\n", 1)[1].split("\n  codex-worker:\n", 1)[0]
-    assert "./Mira_Memoir_Journalist_System_Prompt_v1.0.md:/app/Mira_Memoir_Journalist_System_Prompt_v1.0.md:ro" in api
 
     web = compose.split("\n  web:\n", 1)[1].split("\nvolumes:\n", 1)[0]
     build = web.split("    build:\n", 1)[1].split("    ports:\n", 1)[0]
@@ -46,6 +45,5 @@ def test_local_backend_uses_dependency_images_with_current_source_mounts():
     for service in ('api', 'photo-worker', 'codex-worker', 'worker'):
         section = re.split(r'\n  [a-zA-Z]', compose.split('\n  ' + service + ':\n', 1)[1], maxsplit=1)[0]
         assert '      target: runtime' in section
-        for source in ('apps/__init__.py', 'apps/api', 'skills', 'README.md',
-                       'Mira_Memoir_Journalist_System_Prompt_v1.0.md'):
+        for source in ('apps/__init__.py', 'apps/api', 'skills', 'README.md'):
             assert './' + source + ':/app/' + source + ':ro' in section

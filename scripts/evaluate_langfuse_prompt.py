@@ -15,6 +15,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.prompt_registry import prompt_registry
+from apps.api.prompt_composition import composition_receipt, render_prompt_artifact
 
 
 def dataset_version(value: str) -> datetime:
@@ -34,13 +35,12 @@ def dataset_input_text(value) -> str:
     raise ValueError("Each dataset item needs text or structured JSON input")
 
 
-def experiment_task(prompt, model, client, *, target):
-    system_text = prompt.prompt.rstrip() if target == "journalist" or target.endswith("Mira_Memoir_Journalist_System_Prompt_v1.0.md") else prompt.prompt
+def experiment_task(prompt, model, client, *, instructions=None):
     def task(*, item, **_kwargs):
         input_text = dataset_input_text(item.input)
         response = client.chat.completions.create(
             model=model,
-            messages=[{"role": "system", "content": system_text},
+            messages=[{"role": "system", "content": prompt.prompt if instructions is None else instructions},
                       {"role": "user", "content": input_text}],
             langfuse_prompt=prompt,
         )
@@ -97,6 +97,9 @@ def main() -> int:
     summary = {"artifact": registry[args.name], "prompt": args.name, "prompt_version": args.version,
                "dataset": args.dataset, "dataset_version": snapshot.isoformat(),
                "items": len(items), "model": args.model or "not-selected"}
+    target = ROOT / registry[args.name]
+    instructions = render_prompt_artifact(target, content=prompt.prompt)
+    summary['composition'] = composition_receipt(target, content=prompt.prompt)
     print(json.dumps(summary, sort_keys=True), flush=True)
     if not args.run:
         return 0
@@ -115,7 +118,7 @@ def main() -> int:
             name=f"{args.name}-v{args.version}",
             run_name=f"{args.name}-v{args.version}-{snapshot.isoformat()}",
             description=json.dumps(summary, sort_keys=True),
-            task=experiment_task(prompt, args.model, client, target=registry[args.name]),
+            task=experiment_task(prompt, args.model, client, instructions=instructions),
             max_concurrency=1,
         )
         print(result.format())

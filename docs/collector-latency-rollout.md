@@ -1,5 +1,13 @@
 # Collector latency: opt-in source change (issue #53)
 
+The legacy collector and comparison profiling modes described below were removed
+on 18 October 2026. Current collector prompt settings are `compact-v1` (default)
+and `two-lane-v1`. For current HTTP first-response measurements, run
+`python3 scripts/profile_first_reply.py first-turn --origin http://localhost:3010`.
+The canonical controlled profiler uses a simulated model; use the HTTP profiler
+for provider-inclusive timings. The historical `collector` and `conversation`
+commands below are no longer supported.
+
 ## Status and scope
 
 The [13 October stream-delivery follow-up](verification/issue53-stream-packets-20261013.md)

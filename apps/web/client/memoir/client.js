@@ -24,7 +24,6 @@ import { createConversationScroll, installConversationViewport } from "./convers
 import { createInterviewPhotoState } from "./interview-photo-turns.mjs";
 import englishMessages from "../../messages/en-AU.json";
 import chineseMessages from "../../messages/zh-CN.json";
-import { PROFILE_INTAKE_PROMPT, FOLLOW_UP_PROMPT, MEMORY_FOLLOW_UP_PROMPT, MEDIA_CONTEXT_PROMPT, BROWSER_MESSAGE_PROMPT } from "./browser-prompts.generated.mjs";
 
 const openingMessages = [englishMessages, chineseMessages].map(messages => messages.Memoir.conversation.opening);
 
@@ -3048,7 +3047,6 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     }
     if (!current()) return;
   }
-  const profileIntake = state.profileIntakePending;
   const messageText = text || (attachments.length ? translate("Memoir.story.sharedAttachments") : conversationMessage("voiceAnswer"));
   const firstReply = !profile().conversation_language?.initialized && !state.chat.some((message) => message.role === "user");
   try {
@@ -3074,9 +3072,6 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     if (!current()) return;
     let cues = [];
     let fallback = conversationMessage("fallback");
-    let instruction = profileIntake
-      ? PROFILE_INTAKE_PROMPT
-      : FOLLOW_UP_PROMPT;
     if (session && (session.follow_ups_used || 0) < 3 && (session.turns?.length || 0) < 5) {
       try {
         const turnType = session.turns?.length ? "follow_up" : "initial";
@@ -3099,17 +3094,12 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
         }
         cues = state.session.context_cues || [];
         fallback = memoryFollowUpPrompt(state.session);
-        const memoryInstruction = MEMORY_FOLLOW_UP_PROMPT;
-        instruction = profileIntake ? `${PROFILE_INTAKE_PROMPT}\n${memoryInstruction}` : memoryInstruction;
       } catch {
         if (!current()) return;
         // The open Codex conversation is the primary path; session state is optional.
         state.session = null;
       }
     }
-    const mediaContext = attachments.some(item => item.asset) ? MEDIA_CONTEXT_PROMPT.replace(
-      "{{attachments}}", JSON.stringify(attachments.filter(item => item.asset).map(item => ({ asset_id: item.asset.id, filename: item.file.name, kind: item.kind })))
-    ) : "";
     if (firstReply && !await settleUiLocale()) throw new Error(localizedErrorMessage());
     if (!current()) return;
     const configuredConversationLanguage = conversationLanguage() || currentUiPreference()?.locale;
@@ -3122,8 +3112,7 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
     }
     if (!current()) return;
     const result = await agentTurn(
-      text ? BROWSER_MESSAGE_PROMPT.replace(/\{\{(text|instruction|mediaContext)\}\}/g,
-        (_, key) => ({text, instruction, mediaContext})[key]) : "",
+      text,
       fallback,
       ["memory.save", "memory.search"],
       conversationLanguage() || currentUiPreference()?.locale || detectedFirstReplyLanguage || (firstReply ? currentUiLocale() : undefined),
