@@ -8,6 +8,23 @@ The canonical controlled profiler uses a simulated model; use the HTTP profiler
 for provider-inclusive timings. The historical `collector` and `conversation`
 commands below are no longer supported.
 
+## Prompt publication cleanup — 19 October 2026
+
+At the user's request, 17 canceled optimization/rollback versions were backed
+up locally and deleted individually from Langfuse. The four affected interviewer
+artifacts are pinned to their unchanged original v1; extract-with-hints retains
+its pre-experiment v2. Genuine earlier versions and all application prompt text
+remain unchanged. The older version numbers below describe historical actions.
+
+Prompt content now goes through Git review before publication. The installed
+post-merge hook synchronizes a pulled, current `main`; feature branches cannot
+publish. Identical text reuses the existing version and leaves matching files
+untouched. The hook, manual retry, main/dirty-tree guards, uncertain-create
+recovery and exact receipt readback are covered by 32 focused tests; all 70
+managed artifacts pass their remote prompt checks. No new model calls or prompt
+versions were created during this cleanup. See the README's versioned prompt
+workflow for installation and retry commands.
+
 ## PR #87 complete prompt rollback — 19 October 2026
 
 The user clarified that all prompt changes should be reverted for later manual

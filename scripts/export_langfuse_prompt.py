@@ -45,7 +45,8 @@ def _replace(path: Path, content: str) -> None:
 
 
 def sync_prompt(client, *, target: str, name: str, version: int,
-                root: Path = ROOT, check: bool = False) -> dict:
+                root: Path = ROOT, check: bool = False,
+                expected_content: str | None = None) -> dict:
     if not name or version < 1:
         raise ValueError("A prompt name and positive exact version are required")
     root = root.resolve()
@@ -53,7 +54,9 @@ def sync_prompt(client, *, target: str, name: str, version: int,
     if not path.is_file():
         raise ValueError(f"Missing repository prompt target: {path.relative_to(root)}")
     receipt_path = path.with_name(path.name + ".langfuse.json")
-    if receipt_path.exists():
+    if expected_content is not None and path.read_text(encoding="utf-8") != expected_content:
+        raise ValueError("Repository prompt changed during publication")
+    if receipt_path.exists() and expected_content is None:
         load_prompt_artifact(path)  # Refuse to overwrite a locally edited, pinned prompt.
     prompt = client.get_prompt(name, version=version, type="text",
                                cache_ttl_seconds=0, max_retries=0)
@@ -63,6 +66,8 @@ def sync_prompt(client, *, target: str, name: str, version: int,
             or getattr(prompt, "version", None) != version
             or not isinstance(content, str) or not content.strip()):
         raise ValueError("Langfuse returned a different, fallback or empty prompt version")
+    if expected_content is not None and content != expected_content:
+        raise ValueError("Langfuse prompt differs from the merged main content")
     receipt = {
         "schema_version": 1,
         "name": name,
@@ -76,8 +81,13 @@ def sync_prompt(client, *, target: str, name: str, version: int,
         if json.loads(receipt_path.read_text(encoding="utf-8")) != receipt:
             raise ValueError("Repository prompt receipt differs from the selected Langfuse version")
     else:
-        _replace(path, content)
-        _replace(receipt_path, json.dumps(receipt, indent=2, sort_keys=True) + "\n")
+        if expected_content is not None and path.read_text(encoding="utf-8") != expected_content:
+            raise ValueError("Repository prompt changed during publication")
+        if expected_content is None:
+            _replace(path, content)
+        receipt_text = json.dumps(receipt, indent=2, sort_keys=True) + "\n"
+        if not receipt_path.exists() or receipt_path.read_text(encoding="utf-8") != receipt_text:
+            _replace(receipt_path, receipt_text)
     return {"target": str(path.relative_to(root)), **receipt}
 
 

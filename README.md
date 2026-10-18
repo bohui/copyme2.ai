@@ -360,7 +360,8 @@ controlled backend measurements with a simulated model.
 
 ### Versioned prompt artifacts
 
-Memoir's Langfuse project owns prompt versions. Each skill owns its model
+Merged Git `main` owns prompt content; Memoir's Langfuse project owns published
+versions. Each skill owns its model
 instructions under `memoir/skills/<skill>/...`, including composer phases and
 shared editorial policy. Repository sources live under that skill's directory.
 Common bounded-worker instructions use `memoir/shared/...`; judge/probe and
@@ -377,31 +378,51 @@ fallback and uncalled private-draft executor were removed. The HTTP first-respon
 and canonical controlled profilers remain available. Collector configuration
 accepts `compact-v1` and `two-lane-v1`, defaulting to `compact-v1`.
 
-The API reads checked-in prompt files. Shared instructions have one source;
+Edit and review prompt Markdown in a pull request before creating a Langfuse
+version. Feature branches do not publish or fabricate version receipts. The API
+reads checked-in prompt files. Shared instructions have one source;
 task templates reference them through `apps/api/prompt_composition.py`. Runtime
 and dataset evaluations use this same builder. The browser sends original
 narration, without constructing model instructions. Each managed file has a `.langfuse.json`
-receipt with its exact numeric version and SHA-256. A changed pinned file fails
-runtime validation. `make prompt-export` selects the highest numeric version of
-each registered Langfuse prompt and updates the file and receipt together;
-`make prompt-check` compares the checked-in pins with those exact remote
-versions and validates template composition. Evaluation preflight includes the
-component versions/hashes and compiled SHA-256. Both commands use the existing
+receipt with its exact numeric version and SHA-256. An unpublished draft does not
+pass runtime receipt validation; synchronize merged `main` before running it.
+
+Run `make prompt-sync-install` once per clone. The tracked Git `post-merge` hook
+then synchronizes prompts automatically after a successful merge/fast-forward
+pull on `main`. It quietly skips feature branches and refuses publication unless
+local `main` matches the live `origin/main` tip and has no local edits other than
+generated prompt receipts. It reads committed prompt content, reuses unchanged
+Langfuse versions, and creates a version only when the text changed. Each new
+version records the merged Git commit. Receipt updates remain visible as local
+Git changes for review and commit; the hook does not commit, push or restart apps.
+An already-up-to-date pull does not invoke Git's hook; `make prompt-sync` retries
+a previously failed sync. If Langfuse is unavailable, the pull remains merged and
+the hook reports the failure without inventing receipts.
+
+`make prompt-sync-check` previews publication on current `main` without writing.
+`make prompt-export` remains an explicit recovery command that exports the highest
+numeric Langfuse version. `make prompt-check` compares checked-in pins with their
+exact remote versions and validates template composition. Evaluation preflight includes the
+component versions/hashes and compiled SHA-256. Prompt commands use the existing
 local Memoir project credentials in
 `$(HOME)/llm_provider/.env` by default. Override `PROMPT_CREDENTIAL_FILE` for a
-different local credential-file location.
+different local credential-file location. The hook also honors an exported
+`PROMPT_CREDENTIAL_FILE` environment variable.
 
 ```sh
 python3 -m pip install -e '.[evaluation]'
-make prompt-export                         # All managed prompts, current Langfuse versions.
-make prompt-export PROMPT_NAME=collector
+make prompt-sync-install                   # Once per clone; enables the Git hook.
+git switch main
+git pull --ff-only origin main              # Automatically syncs after incoming main changes.
+make prompt-sync                           # Manual retry; publishes changed merged content only.
+make prompt-sync-check                     # Read-only preview on current main.
 make prompt-check
 make prompt-eval                           # Read-only preflight for timeline/event-grounding.
 ```
 
-Use `PROMPT_NAME=memoir/skills/memoir-composer/draft` for another single artifact. Review and
-commit its prompt file and receipt together; a Langfuse edit reaches the app only
-after that Git change is deployed. To preflight another prompt/dataset pair, set
+For recovery exports/checks, use `PROMPT_NAME=memoir/skills/memoir-composer/draft`
+to select one artifact. Normal content changes go through Git review, then main
+publication and a receipt update. To preflight another prompt/dataset pair, set
 `PROMPT_EVAL_NAME` and `PROMPT_EVAL_DATASET`. `PROMPT_EVAL_VERSION` can select a
 candidate version before export; otherwise the checked-in version is used.
 Use this evaluation command for composed templates: it supplies the complete

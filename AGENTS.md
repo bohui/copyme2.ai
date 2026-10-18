@@ -3,7 +3,9 @@
 Before creating or changing any model prompt, including shared components, read
 the [versioned prompt workflow](README.md#versioned-prompt-artifacts).
 
-Langfuse is the source of truth: publish changes as a new prompt version, then
-export that version to the corresponding repository `.md` and `.langfuse.json`
-receipt. Keep both exports together and verify their pinned version and content
-against Langfuse with the documented prompt check before handoff.
+Review prompt Markdown in Git and merge it to `main` before publishing. Do not
+create Langfuse versions from feature branches. After pulling `main`, the
+installed Git hook runs `make prompt-sync`'s publisher, which creates a version
+only for changed content and refreshes the matching `.langfuse.json` receipt.
+Use `make prompt-sync` to retry and `make prompt-check` to verify published pins.
+Review and commit generated receipt updates; never invent a published version.
