@@ -38,8 +38,8 @@ def _route_contexts(routes):
 _READ_TABLES = frozenset({'user_profile', 'user_memory', 'user_recall_usage',
     'user_completed_round', 'user_place_journey', 'user_family_context',
     'user_memoir_project', 'user_narrator_source', 'story_entitlement'})
-_READ_RPCS = frozenset({'read_user_memory_events', 'read_lifetime_private_draft_head', 'read_user_interview_turn',
-    'read_lifetime_project_identity'})
+_READ_RPCS = frozenset({'read_user_memory_events', 'read_lifetime_private_draft_head', 'read_lifetime_private_draft_page', 'read_user_interview_turn',
+    'read_lifetime_project_identity', 'capture_lifetime_read_fence', 'read_lifetime_skill_progress'})
 _AGENT_READS = frozenset({'/v1/agent/profile', '/v1/agent/place-journey',
     '/v1/agent/family-context', '/v1/agent/turns/{client_turn_id}'})
 _USER_READS = frozenset({'/v1/user/projects', '/v1/user/projects/{project_id}/history',
@@ -47,7 +47,7 @@ _USER_READS = frozenset({'/v1/user/projects', '/v1/user/projects/{project_id}/hi
 _PROJECT_READS = frozenset({'/v1/projects/{project_id}', '/v1/projects/{project_id}/journey',
     *('/v1/projects/{project_id}/' + name for name in ('memories', 'sources', 'chapters', 'people', 'relationships', 'timeline'))})
 _STORY_READS = frozenset({'/v1/story/state', '/v1/story/readiness',
-    '/v1/story/private-draft', '/v1/story/events'})
+    '/v1/story/private-draft', '/v1/story/private-draft/page', '/v1/story/events'})
 
 
 def _assert_session(session):
@@ -244,6 +244,13 @@ class OwnedFiftyBrowserAPI:
                         and data['p_project_id'] == plan['project_id']
                         and type(data['p_client_turn_id']) is str
                         and re.fullmatch(r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}', data['p_client_turn_id']) is not None)
+                elif rpc == 'read_lifetime_private_draft_page':
+                    allowed = (set(data) == {'p_project_id', 'p_snapshot_id', 'p_after', 'p_limit'}
+                        and data['p_project_id'] == plan['project_id']
+                        and type(data['p_snapshot_id']) is str
+                        and re.fullmatch(r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}', data['p_snapshot_id']) is not None
+                        and (data['p_after'] is None or type(data['p_after']) is str and 0 < len(data['p_after']) <= 512)
+                        and type(data['p_limit']) is int and 1 <= data['p_limit'] <= 8)
                 else:
                     allowed = data.get('p_project_id') == plan['project_id']
         for key, value in url.params.multi_items():

@@ -6,6 +6,8 @@ from uuid import UUID, uuid5
 
 import pytest
 
+from memoir_checkpoint_fixture import checkpoint
+
 from scripts import memoir_fifty_readback as module
 from scripts.issue14_progressive_readback import ProgressiveReadback, ReadbackError
 
@@ -39,20 +41,10 @@ def outcome(b):
                                 'sources': deepcopy(sources),
                                 'processing': {'extracted_through': ordinal, 'pending_inputs': 0}}})
         if ordinal in module.CHECKPOINTS:
-            checkpoints.append({'milestone': ordinal, 'draft': {
-                'status': 'ready', 'covered_round': ordinal, 'milestone': ordinal,
-                'revision': ordinal // 5, 'updating': False, 'error': None,
-                'proposal_pending': False,
-                'preview': {'locale': args['language'], 'text': args['rounds'][0]},
-                'milestones': [{'milestone': n, 'covered_round': n, 'state': 'completed',
-                                'manuscript_revision': n // 5} for n in range(5, ordinal + 1, 5)],
-                'progress': {'extraction': {'extracted_through': ordinal, 'pending_inputs': 0}},
-                'sections': [{'id': 'chapter__first', 'chapter_id': 'chapter',
-                    'fingerprint': 'a' * 64, 'revision': 1, 'content': args['rounds'][0],
-                    'source_refs': [{'source_id': 'original-1', 'version': 1,
-                                     'quote': args['rounds'][0]}]}]}})
+            checkpoints.append(checkpoint(args['project_id'], args['language'], ordinal,
+                args['rounds'][0]))
     return {**{k: args[k] for k in ('case_id', 'project_id')}, 'status': 'completed',
-            'evidence_mode': module.EVIDENCE_MODE, 'rounds': records, 'checkpoints': checkpoints}
+            'evidence_mode': module.EVIDENCE_MODE, 'rounds': records, 'checkpoints': checkpoints, 'canonical_identity': checkpoints[0]['identity']}
 
 
 def test_original_five_cases_are_pinned_ordered_and_not_extended_fifteen_inputs():
@@ -131,8 +123,8 @@ def test_complete_original_fifty_inputs_and_ten_saved_checkpoints(case_id):
     assert 'chapter_word_limit' in evidence['unassessed']
     assert b.observation(result)['metadata'] == {
         'memoir_fifty_readback_status': 'structural_readback_complete', 'live_ready': False}
-    result['checkpoints'][0]['draft']['sections'][0]['content'] = 'mutated'
-    assert evidence['saved_checkpoints'][0]['sections'][0]['content'] != 'mutated'
+    result['checkpoints'][0]['pages'][0]['records'][0]['preview']['text'] = 'mutated'
+    assert evidence['saved_checkpoints'][0]['records'][0]['preview']['text'] != 'mutated'
 
 
 @pytest.mark.parametrize('ordinal', [0, 51, True, 1.0, '1'])
@@ -180,21 +172,21 @@ def test_round_correlations_bind_dataset_run_revision_project_case_and_ordinal()
     lambda r: r['checkpoints'].pop(),
     lambda r: r['checkpoints'][9].update(milestone=45),
     lambda r: r['checkpoints'][9]['draft'].update(status='pending'),
-    lambda r: r['checkpoints'][9]['draft'].update(covered_round=49),
+    lambda r: r['checkpoints'][9]['draft'].update(coverage_round=49),
     lambda r: r['checkpoints'][9]['draft'].update(revision=True),
     lambda r: r['checkpoints'][9]['draft'].update(updating=True),
-    lambda r: r['checkpoints'][9]['draft'].update(proposal_pending=True),
+    lambda r: r['checkpoints'][9]['draft'].update(approval_required=True),
     lambda r: r['checkpoints'][9]['draft'].update(error='failed'),
     lambda r: r['checkpoints'][9]['draft']['progress']['extraction'].update(extracted_through=49),
-    lambda r: r['checkpoints'][9]['draft']['milestones'][0].update(manuscript_revision=2),
-    lambda r: r['checkpoints'][9]['draft'].update(sections=[]),
-    lambda r: r['checkpoints'][0]['draft']['sections'][0]['source_refs'][0].update(source_id='original-50'),
-    lambda r: r['checkpoints'][9]['draft']['sections'][0]['source_refs'][0].update(quote='invented'),
-    lambda r: r['checkpoints'][9]['draft']['sections'][0]['source_refs'][0].update(version=True),
-    lambda r: r['checkpoints'][9]['draft']['sections'][0]['source_refs'][0].update(char_start=0, char_end=99999),
-    lambda r: r['checkpoints'][9]['draft']['sections'][0].update(content='rewritten same fingerprint'),
-    lambda r: r['checkpoints'][9]['draft']['sections'][0].update(revision=2),
-    lambda r: r['checkpoints'][9]['draft']['sections'][0].update(event_ids=['changed']),
+    lambda r: r['checkpoints'][9]['pages'][0].update(root_digest='b' * 64),
+    lambda r: r['checkpoints'][9]['pages'][0].update(records=[]),
+    lambda r: r['checkpoints'][0]['pages'][0]['records'][0]['source_refs'][0].update(source_id='original-50'),
+    lambda r: r['checkpoints'][9]['pages'][0]['records'][0]['source_refs'][0].update(quote='invented'),
+    lambda r: r['checkpoints'][9]['pages'][0]['records'][0]['source_refs'][0].update(version=True),
+    lambda r: r['checkpoints'][9]['pages'][0]['records'][0]['source_refs'][0].update(char_start=0, char_end=99999),
+    lambda r: r['checkpoints'][9]['pages'][0]['records'][0]['preview'].update(text='rewritten same dependencies'),
+    lambda r: r['checkpoints'][9]['pages'][0]['records'][0].update(event_revision=0),
+    lambda r: r['checkpoints'][9]['pages'][0]['records'][0].update(event_id='changed'),
 ])
 def test_incomplete_or_inconsistent_fifty_evidence_fails_closed(mutation):
     b = bridge()
@@ -217,9 +209,7 @@ def test_span_references_and_same_saved_revision_remain_valid():
     for checkpoint in result['checkpoints']:
         draft = checkpoint['draft']
         draft['revision'] = 1
-        for row in draft['milestones']:
-            row['manuscript_revision'] = 1
-        draft['sections'][0]['source_refs'] = [{'source_id': 'original-1', 'version': '1',
+        checkpoint['pages'][0]['records'][0]['source_refs'] = [{'source_id': 'original-1', 'version': '1',
             'char_start': 0, 'char_end': len(b.driver_inputs()['rounds'][0])}]
     assert b.capture(result)['saved_checkpoints'][-1]['revision'] == 1
     result['checkpoints'][9]['draft']['preview']['text'] = 'different saved snapshot'
@@ -227,12 +217,35 @@ def test_span_references_and_same_saved_revision_remain_valid():
 
 
 @pytest.mark.parametrize('revision', [1, 2])
-def test_changed_fingerprint_still_requires_increasing_section_revision(revision):
+def test_changed_passage_requires_changed_canonical_event(revision):
     b = bridge()
     result = outcome(b)
-    result['checkpoints'][9]['draft']['sections'][0].update(
-        content='changed text', fingerprint='b' * 64, revision=revision)
+    record = result['checkpoints'][9]['pages'][0]['records'][0]
+    record['preview']['text'] = 'changed text'
+    record['event_revision'] = revision
     assert (b.observation(result)['output'] is not None) is (revision == 2)
+
+
+@pytest.mark.parametrize('changed', ['policy_epoch', 'preference_revision'])
+def test_changed_authority_can_recompose_unchanged_events(changed):
+    b = bridge()
+    result = outcome(b)
+    saved = result['checkpoints'][-1]
+    record = saved['pages'][0]['records'][0]
+    record['preview']['text'] = 'Writing after the approved authority change'
+    if changed == 'policy_epoch':
+        saved['draft'][changed] += 1
+    saved['pages'][0][changed] += 1
+    assert b.capture(result)['saved_checkpoints'][-1]['records'][0]['preview']['text'] == record['preview']['text']
+
+
+def test_a_frozen_snapshot_cannot_be_relabelled_with_new_revisions():
+    b = bridge()
+    result = outcome(b)
+    first, second = result['checkpoints'][:2]
+    second['draft']['snapshot_id'] = first['draft']['snapshot_id']
+    second['pages'][0]['snapshot_id'] = first['draft']['snapshot_id']
+    assert b.observation(result)['output'] is None
 
 
 def test_hash_drift_is_rejected_before_input_release(tmp_path, monkeypatch):

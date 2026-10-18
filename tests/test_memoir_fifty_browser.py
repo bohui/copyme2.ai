@@ -78,6 +78,69 @@ def auth(session, case):
     return {'Authorization': 'Bearer ' + session.case_plans[case]['owner_id']}
 
 
+def test_canonical_head_and_page_use_real_handlers_and_frozen_send_guard(owned, monkeypatch):
+    from contextlib import asynccontextmanager
+    from apps.api import lifetime_memory_reads
+    from memoir_checkpoint_fixture import checkpoint
+    from test_lifetime_memory_reads import FENCE
+
+    session, queries = owned
+    case = session.case_ids[0]
+    plan = session.case_plans[case]
+    saved = checkpoint(plan['project_id'], plan['language'], 5, 'Saved canonical prose', owner=plan['owner_id'])
+    fence = deepcopy(FENCE)
+    fence['identity'].update({key: saved['draft'][key] for key in ('owner_id', 'conversation_id', 'project_id')})
+    guards = []
+    @asynccontextmanager
+    async def guard(original):
+        assert lifetime_memory_reads.ReadFence.model_validate(original) == lifetime_memory_reads.ReadFence.model_validate(fence)
+        guards.append(deepcopy(original))
+        yield
+    monkeypatch.setattr(lifetime_memory_reads, 'ReadPublication', lambda *args, **kwargs: SimpleNamespace(guard=guard))
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '0')
+    def sql(query, **kwargs):
+        queries.append(query)
+        assert f"request.jwt.claim.sub='{plan['owner_id']}'" in query
+        if 'read_lifetime_project_identity' in query:
+            value = fence['identity']
+        elif 'capture_lifetime_read_fence' in query:
+            value = fence
+        elif 'read_lifetime_private_draft_head' in query:
+            value = saved['draft']
+        else:
+            assert 'read_lifetime_private_draft_page' in query
+            assert saved['draft']['snapshot_id'] in query and 'p_limit=>8' in query
+            value = saved['pages'][0]
+        return SimpleNamespace(returncode=0, stdout=json.dumps(value), stderr='')
+    session._entitlement_facades[case].sql = sql
+    api = browser.OwnedFiftyBrowserAPI.build(session)
+    path = '/story/private-draft?project_id=' + plan['project_id']
+    head = request(api, case, 'GET', path, headers=auth(session, case))
+    assert head.status_code == 200 and head.json()['snapshot_id'] == saved['draft']['snapshot_id']
+    page = request(api, case, 'GET', '/story/private-draft/page', headers=auth(session, case), params={
+        'project_id': plan['project_id'], 'snapshot_id': head.json()['snapshot_id'], 'limit': 8})
+    assert page.status_code == 200 and page.json() == saved['pages'][0]
+    assert page.headers['cache-control'] == 'no-store'
+    assert len(guards) == 2
+    assert sum('capture_lifetime_read_fence' in query for query in queries) == 2
+
+
+@pytest.mark.parametrize('changed', [None, {'p_project_id': 'foreign'}, {'p_snapshot_id': 'invalid'},
+    {'p_limit': 0}, {'p_limit': 9}, {'p_limit': True}, {'p_after': 'x' * 513}, {'legacy': True}])
+def test_draft_page_rpc_is_owned_and_bounded_before_sql(owned, changed):
+    session, queries = owned
+    case = session.case_ids[0]
+    plan = session.case_plans[case]
+    api = browser.OwnedFiftyBrowserAPI.build(session)
+    parameters = {'p_project_id': plan['project_id'], 'p_snapshot_id': str(uuid4()), 'p_after': None, 'p_limit': 8}
+    parameters.update(changed or {})
+    response = api._handle_read(case, httpx.Request('POST',
+        'http://synthetic.invalid/rest/v1/rpc/read_lifetime_private_draft_page',
+        headers=auth(session, case), json=parameters))
+    assert response.status_code == (200 if changed is None else 403)
+    assert len(queries) == int(changed is None)
+
+
 def test_readback_uses_real_handlers_distinct_owners_and_closed_fresh_clients(owned, monkeypatch):
     session, queries = owned
     from apps.api import agent_routes, supabase_routes

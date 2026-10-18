@@ -44,7 +44,7 @@ _OPTIONAL = frozenset(('max_requests', 'public_asset_urls', 'allow_browser_turns
 _TERM_GRACE_SECONDS = 3
 _KILL_GRACE_SECONDS = 2
 _READ_PATHS = frozenset(('/agent/config', '/agent/profile', '/agent/place-journey',
-    '/agent/family-context', '/story/state', '/story/readiness', '/story/private-draft',
+    '/agent/family-context', '/story/state', '/story/readiness', '/story/private-draft', '/story/private-draft/page',
     '/story/events', '/user/profile', '/user/projects'))
 
 
@@ -264,10 +264,18 @@ def request_policy(method, url, *, frontend_origin, project_id, public_asset_url
         api = parsed.path in _api_paths(project_id)
         if api:
             query = parse_qs(parsed.query, keep_blank_values=True)
-            if (set(query) - {'project_id', 'language', 'limit', 'cursor'}
+            page = parsed.path.endswith('/story/private-draft/page')
+            if (set(query) - ({'project_id', 'snapshot_id', 'limit', 'cursor'} if page else {'project_id', 'language', 'limit', 'cursor'})
                     or any(len(values) != 1 for values in query.values())
                     or 'project_id' in query and query['project_id'] != [project_id]):
                 return denied
+            if page:
+                uuid = r'[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}'
+                if (query.get('project_id') != [project_id]
+                        or re.fullmatch(uuid, query.get('snapshot_id', [''])[0]) is None
+                        or 'cursor' in query and re.fullmatch(uuid, query['cursor'][0]) is None
+                        or 'limit' in query and re.fullmatch('[1-8]', query['limit'][0]) is None):
+                    return denied
             return {'allowed': True, 'synthetic_auth': True}
         allowed = (parsed.path == f'/memoir/interview/{project_id}'
             or parsed.path.startswith('/_next/static/') or parsed.path.startswith('/static/'))
@@ -375,8 +383,16 @@ function decision(request) {
   if (!["GET", "HEAD"].includes(method)) return {ok:false, reason:"mutation_denied"};
   if (readPaths.has(u.pathname)) {
     const keys = [...u.searchParams.keys()];
-    if (keys.some(k => !["project_id","language","limit","cursor"].includes(k) || u.searchParams.getAll(k).length !== 1)
+    const draftPage = u.pathname.endsWith("/story/private-draft/page");
+    const allowedKeys = draftPage ? ["project_id","snapshot_id","limit","cursor"] : ["project_id","language","limit","cursor"];
+    if (keys.some(k => !allowedKeys.includes(k) || u.searchParams.getAll(k).length !== 1)
         || u.searchParams.has("project_id") && u.searchParams.get("project_id") !== c.project_id) return {ok:false, reason:"project_scope"};
+    if (draftPage) {
+      const uuid = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/;
+      if (u.searchParams.get("project_id") !== c.project_id || !uuid.test(u.searchParams.get("snapshot_id") || "")
+          || u.searchParams.has("cursor") && !uuid.test(u.searchParams.get("cursor"))
+          || u.searchParams.has("limit") && !/^[1-8]$/.test(u.searchParams.get("limit"))) return {ok:false, reason:"page_scope"};
+    }
     return {ok:true, api:true};
   }
   return {ok:u.pathname === c.interview_path || u.pathname.startsWith("/_next/static/") || u.pathname.startsWith("/static/"), api:false, reason:"route_scope"};

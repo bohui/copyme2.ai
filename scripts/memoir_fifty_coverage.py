@@ -141,13 +141,20 @@ def round_skill_coverage(*, project_id, round_number, runtime_result, profile,
         and place_journey['source_sequence'] == round_number) if isinstance(place_journey, dict) else False
     grouped = resolve_place_groups(places, allow_provider=False) if places_valid and places else None
 
-    checkpoint = (isinstance(saved_draft, dict) and saved_draft.get('status') == 'ready'
-        and saved_draft.get('updating') is False and saved_draft.get('error') is None
-        and saved_draft.get('proposal_pending') is False
-        and _positive(saved_draft.get('revision'))
-        and type(saved_draft.get('covered_round')) is int
-        and saved_draft['covered_round'] == round_number
-        and isinstance(saved_draft.get('sections'), list) and bool(saved_draft['sections']))
+    checkpoint = False
+    draft_head = saved_draft.get('draft') if isinstance(saved_draft, dict) else None
+    if isinstance(saved_draft, dict):
+        from scripts.memoir_checkpoint_readback import CheckpointReadbackError, checkpoint_binding, checkpoint_records
+        try:
+            identity = saved_draft.get('identity')
+            identity = identity if isinstance(identity, dict) else {}
+            binding = checkpoint_binding(identity, identity.get('owner_id'), project_id,
+                identity.get('language'))
+            checkpoint_records(saved_draft, binding, round_number,
+                [source['id'] for source in canonical_state.get('sources', [])])
+            checkpoint = True
+        except CheckpointReadbackError:
+            pass
     timeline = _timeline(canonical_state, round_number, runtime_result.get('accepted_source_id'))
     skills = {
         'memoir-memory-context': {
@@ -182,7 +189,7 @@ def round_skill_coverage(*, project_id, round_number, runtime_result, profile,
         'memoir-composer': {
             'status': 'observed' if checkpoint else ('unavailable' if saved_draft is not None else 'not_observed'),
             'scope': 'saved_private_checkpoint', 'saved_checkpoint': checkpoint,
-            'revision': saved_draft.get('revision') if isinstance(saved_draft, dict) else None,
+            'revision': draft_head.get('revision') if isinstance(draft_head, dict) else None,
             'legacy_action_verified': False},
     }
     return {'schema_version': 'memoir-fifty-skill-readback/1', 'project_id': project_id,

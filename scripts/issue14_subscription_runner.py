@@ -20,6 +20,7 @@ from scripts.issue14_progressive_readback import CASE_IDS, ProgressiveReadback
 from scripts.issue14_subscription_transport import SubscriptionStopped
 from scripts.task_runtime import dispatch_memoir_lanes_once
 from scripts.memoir_subscription_profiles import profile_for
+from scripts.memoir_checkpoint_readback import CheckpointReadbackError, PREDICATES, read_checkpoint
 
 
 EVIDENCE_MODE = 'subscription_progressive'
@@ -54,13 +55,7 @@ _READBACK_PREDICATES = {
         'source_id', 'source_text', 'source_project', 'source_language', 'source_kind', 'source_status',
         'source_version', 'source_sequence', 'helper_exception',
     }),
-    'checkpoint': frozenset({
-        'draft_shape', 'draft_status', 'updating', 'error', 'proposal_pending', 'covered_round',
-        'milestone', 'revision', 'progress_shape', 'extraction_shape', 'extracted_through',
-        'pending_inputs', 'preview_shape', 'preview_locale', 'preview_text_type', 'preview_text_empty',
-        'milestones_shape', 'milestone_count', 'milestone_shape', 'milestone_status', 'milestone_ordinal',
-        'milestone_covered_round', 'sections_shape', 'sections_empty', 'helper_exception',
-    }),
+    'checkpoint': PREDICATES,
     'settlement': frozenset({'handle_id', 'outcome_shape', 'outcome_status', 'outcome_pending',
         'outcome_error', 'outcome_retryable', 'outcome_attempt', 'pending_shape', 'pending_lanes', 'helper_exception'}),
     'case': frozenset({'observation_unavailable', 'helper_exception'}),
@@ -112,7 +107,7 @@ def _sanitize_readback_diagnostic(value, boundary):
     safe = {'schema_version': f'memoir-{boundary}-readback-diagnostic/1',
             'boundary': boundary, 'predicate': value['predicate']}
     collection = value.get('collection')
-    if type(collection) is str and collection in {'tasks', 'trace', 'steps', 'task_statuses', 'sources', 'milestones', 'handles'}:
+    if type(collection) is str and collection in {'tasks', 'trace', 'steps', 'task_statuses', 'sources', 'pages', 'records', 'handles'}:
         safe['collection'] = collection
     index = value.get('index')
     if type(index) is int and 0 <= index <= 2**31 - 1:
@@ -374,41 +369,12 @@ def _canonical_state(value, inputs, accepted):
         check(_exact_integer(source.get('sequence'), index), 'source_sequence', **details)
 
 
-def _saved_checkpoint(draft, ordinal, language):
-    # Stop immediately on a pending/failed saved milestone. Full references,
-    # fingerprints and revision consistency are checked by the pure bridge.
-    def check(condition, predicate, **details):
-        _readback_require(condition, 'checkpoint_incomplete', 'checkpoint', predicate, **details)
-    check(type(draft) is dict, 'draft_shape')
-    check(draft.get('status') == 'ready', 'draft_status', status=draft.get('status'))
-    check(draft.get('updating') is False, 'updating')
-    check(draft.get('error') is None, 'error')
-    check(draft.get('proposal_pending') is False, 'proposal_pending')
-    check(_exact_integer(draft.get('covered_round'), ordinal), 'covered_round')
-    check(_exact_integer(draft.get('milestone'), ordinal), 'milestone')
-    check(type(draft.get('revision')) is int and draft['revision'] > 0, 'revision')
-    progress = draft.get('progress')
-    check(type(progress) is dict, 'progress_shape')
-    extraction = progress.get('extraction')
-    check(type(extraction) is dict, 'extraction_shape')
-    check(_exact_integer(extraction.get('extracted_through'), ordinal), 'extracted_through')
-    check(_exact_integer(extraction.get('pending_inputs'), 0), 'pending_inputs')
-    preview = draft.get('preview')
-    check(type(preview) is dict, 'preview_shape')
-    check(preview.get('locale') == language, 'preview_locale')
-    check(type(preview.get('text')) is str, 'preview_text_type')
-    check(preview['text'].strip(), 'preview_text_empty')
-    milestones = draft.get('milestones')
-    check(type(milestones) is list, 'milestones_shape')
-    check(len(milestones) == ordinal // 5, 'milestone_count')
-    for index, (row, milestone) in enumerate(zip(milestones, range(5, ordinal + 1, 5))):
-        details = {'collection': 'milestones', 'index': index}
-        check(type(row) is dict, 'milestone_shape', **details)
-        check(row.get('state') == 'completed', 'milestone_status', status=row.get('state'), **details)
-        check(_exact_integer(row.get('milestone'), milestone), 'milestone_ordinal', **details)
-        check(_exact_integer(row.get('covered_round'), milestone), 'milestone_covered_round', **details)
-    check(type(draft.get('sections')) is list, 'sections_shape')
-    check(draft['sections'], 'sections_empty')
+async def _saved_checkpoint(record, storage, binding, ordinal, accepted):
+    try:
+        return await read_checkpoint(storage, binding, ordinal, accepted, _storage_read)
+    except CheckpointReadbackError as error:
+        _readback_call(record, 'checkpoint', _readback_require, False,
+            'checkpoint_incomplete', 'checkpoint', error.predicate)
 
 
 def _lane_identifier(handle, index):
@@ -551,9 +517,12 @@ class SubscriptionProgressiveRunner:
                         draft = None
                         if ordinal in self._profile.checkpoints:
                             receipt['execution_stage'] = 'checkpoint_readback'
-                            draft = await _storage_read(storage.saved_memoir_draft, inputs['project_id'], inputs['language'])
-                            _readback_call(record, 'checkpoint', _saved_checkpoint, draft, ordinal, inputs['language'])
-                            partial['checkpoints'].append({'milestone': ordinal, 'draft': deepcopy(draft)})
+                            binding = partial.get('canonical_identity') or {
+                                'owner_id': storage.user_id, 'project_id': inputs['project_id'], 'language': inputs['language']}
+                            checkpoint = await _saved_checkpoint(record, storage, binding, ordinal, accepted)
+                            partial['canonical_identity'] = deepcopy(checkpoint['identity'])
+                            partial['checkpoints'].append(deepcopy(checkpoint))
+                            draft = checkpoint
                         if self._profile.name == 'subscription_fifty':
                             from scripts.memoir_fifty_coverage import round_skill_coverage, runtime_family_decision
                             receipt['execution_stage'] = 'skill_readback'
