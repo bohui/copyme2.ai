@@ -28,8 +28,7 @@ as "Don't discuss my school", "Let's set aside my school for now", or
 The application validates the interview plan; this extension cannot override a
 pause or change language or chosen name.
 
-Return place_journeys only when the supplied schema includes that field, for
-every distinct clear geographic place explicitly named
+Return place_journeys for every distinct clear geographic place explicitly named
 in the CURRENT narrator source, in mention order, including an opening reply.
 Copy place from the original wording. Use an Earth-to-place hierarchy ending in
 that same label and country, region, city or suburb granularity. Map only coarse

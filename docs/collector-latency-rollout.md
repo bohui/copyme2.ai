@@ -8,7 +8,32 @@ The canonical controlled profiler uses a simulated model; use the HTTP profiler
 for provider-inclusive timings. The historical `collector` and `conversation`
 commands below are no longer supported.
 
-## PR #87 prompt optimization rollback — 19 October 2026
+## PR #87 complete prompt rollback — 19 October 2026
+
+The user clarified that all prompt changes should be reverted for later manual
+review, including the conflict fixes retained in the selective rollback below.
+All 70 managed prompt source files now match the PR base (`7ef394b`) byte for
+byte. The affected collector/runtime/lane prompt assembly code also matches that
+base. The PR's foreground prompt tests are removed and the original composition
+tests are restored; the separate background-effort tests and non-prompt fixes
+remain.
+
+The exact original text was verified against Langfuse, published as new versions
+where needed, then fetched and exported with matching receipts. Guidance remains
+v4; collector-plan and governed-continuity are v5, background-memory v4, and
+extract-with-hints v5. The version receipts intentionally record the new immutable
+versions even though the prompt content is identical to the earlier baseline.
+Lane A remains on the previously restored local pooled/max route. No live model
+generation or manual prompt-quality review was performed.
+
+All **408** focused prompt, schema, execution, attribution and background-profile
+workflow tests pass, including the disposable PostgreSQL cases. All 70 artifacts
+pass `make prompt-check`. The local API, private worker and
+checkpoint worker were reloaded and their mounted runtime prompts and assembly
+files match the baseline. API, frontend, private-worker and photo-worker health
+checks returned HTTP 200 after alias refresh.
+
+## PR #87 selective prompt rollback (superseded) — 19 October 2026
 
 The prompt and model-context optimizations from PR #87 are reverted. This
 supersedes the 18 October prompt experiments below. The interviewer guidance is

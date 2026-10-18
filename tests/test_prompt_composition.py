@@ -23,18 +23,6 @@ def replace_component(monkeypatch, tmp_path, key, text):
     return path, receipt
 
 
-def test_one_grounding_version_reaches_both_extraction_schemas(monkeypatch, tmp_path):
-    changed = 'Updated shared evidence and privacy policy.\n'
-    path, _ = replace_component(monkeypatch, tmp_path, 'timeline_grounding', changed)
-    for derived in (False, True):
-        instructions = extraction_instructions(derived_hints=derived)
-        assert instructions.count(changed) == 1
-        assert 'Shared MemoryEvent service' in instructions
-    path.write_text('Unexported local edit')
-    with pytest.raises(ValueError, match='Invalid Langfuse prompt artifact'):
-        extraction_instructions()
-
-
 def test_one_timeline_skill_version_reaches_both_extraction_schemas(monkeypatch, tmp_path):
     changed = 'Updated shared timeline policy.\n'
     path, _ = replace_component(monkeypatch, tmp_path, 'author_timeline', changed)

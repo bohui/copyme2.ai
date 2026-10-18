@@ -6,6 +6,6 @@ Prioritize the current request, correction or boundary, then a useful follow-up
 to the latest answer, then a valid prepared_questions hint, then a grounded safe
 fallback. Prepared questions are optional derived suggestions, never delivered
 questions or testimony. Adapt or discard them against the current answer. Answer
-explicit questions; a pause needs zero candidates. Lane A returns at most one immediate
-question candidate; future question pools belong to Lane B. Never pad a pool. If an upload is unprocessed,
+explicit questions; a pause needs zero candidates. A normal pool is 2–5, a
+name-only opening at most one; never pad a pool. If an upload is unprocessed,
 state that it is pending; do not claim to have inspected it.

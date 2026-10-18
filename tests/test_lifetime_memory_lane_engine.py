@@ -212,63 +212,6 @@ def test_each_page_attempt_has_new_home(tmp_path):
     assert Connection.instances[0].home!=Connection.instances[1].home
 
 
-def test_lane_b_sends_the_complete_validated_packet_and_counts_its_privacy_context(tmp_path):
-    current=page()
-    current['two_lane']={'task_version':'two-lane-v1','execution_generation':1,
-        'phase_revision':0,'work_mode':'extract','strategy_mode':'active'}
-    current['preferences'].update(excluded_topics=['My private address'],paused_topics=['School'])
-    bounded=transport(current=current)
-    original=bounded.packet
-    canonical=json.loads(original)
-    run(tmp_path,bounded)
-    instance=Connection.instances[0]
-    sent=json.loads(instance.turns[0][1])
-    assert sent==canonical
-    assert sent['lane_context']==canonical['lane_context']
-    assert sent['lane_context']['preferences']['excluded_topics']==['My private address']
-    assert sent['lane_context']['preferences']['paused_topics']==['School']
-    assert sent['payload']['preferences']==current['preferences']
-    assert bounded.packet==original and canonical['payload']['preferences']==current['preferences']
-    from apps.api.lifetime_memory_lane_engine import lane_contract
-    instructions,schema=lane_contract('extract',bounded.fence.locale,two_lane=True,strategy=True,fence=bounded.fence)
-    assert lane_request_tokens(bounded)==(BUDGET.count(instructions)+BUDGET.count(instance.turns[0][1])
-        +BUDGET.count(serialize_packet(schema))+BUDGET.framing_headroom)
-    config=tomllib.loads((instance.home/'config.toml').read_text())
-    assert 'web_search' not in config
-    assert 'view_image' not in config['features']
-    assert 'skills' not in config
-
-
-def test_lane_b_rejects_conflicting_policy_before_dispatch(tmp_path):
-    current=page()
-    current['two_lane']={'task_version':'two-lane-v1','execution_generation':1,
-        'phase_revision':0,'work_mode':'extract'}
-    current['preferences']['excluded_topics']=['My private address']
-    bounded=transport(current=current)
-    packet=json.loads(bounded.packet)
-    packet['payload']['preferences']['excluded_topics']=[]
-    changed=bounded.model_copy(update={'packet':serialize_packet(packet)})
-    with pytest.raises(ValueError,match='authoritative page evidence'):
-        run(tmp_path,changed)
-    assert not Connection.instances and not list(tmp_path.glob('lane-*'))
-
-
-@pytest.mark.parametrize('strategy',[False,True])
-@pytest.mark.parametrize('attribution',[False,True])
-def test_lane_b_restores_shared_contracts_with_one_consistent_output_schema(strategy,attribution):
-    from apps.api.two_lane_memory import extraction_contract
-    from apps.api.prompt_artifact import load_prompt_artifact,prompt_path
-    instructions,schema=extraction_contract(strategy=strategy,attribution=attribution)
-    grounding=load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/shared/grounding'))
-    assert 'Shared MemoryEvent service' in instructions
-    assert instructions.count(grounding)==1
-    assert {'events','place_journeys','prepared_questions'}<=set(schema['required'])
-    assert 'accept_user_narrator_source' in instructions and 'finish_memoir_timeline' in instructions
-    assert 'Return only schema-bound\nJSON `{"events": [...]}` to the private worker.' not in instructions
-    for safeguard in ('stage_evidence','uncertainty','person_ids','untrusted','veto','correction'):
-        assert safeguard in instructions
-
-
 @pytest.mark.parametrize('phase,role,setting',[
     ('extract','author_timeline','MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT'),
     ('draft','composer','MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT'),
@@ -293,6 +236,7 @@ def test_lane_b_requested_effort_is_low_not_the_global_max(tmp_path,monkeypatch,
     asyncio.run(worker._turn(payload))
     assert len(calls)==1 and calls[0]['effort']=='low'
     assert calls[0]['model']==BUDGET.model
+
 
 
 @pytest.mark.parametrize('change',[{'text':'old source'},{'memories':['old']},{'profile':{'name':'old'}},
