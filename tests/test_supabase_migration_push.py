@@ -13,15 +13,15 @@ from test_agent_commit_postgres import database
 ROOT = Path(__file__).resolve().parents[1]
 
 
-@pytest.mark.parametrize('resume_policy', [False, True], ids=['fresh', 'resume-policy'])
-def test_supabase_cli_pushes_the_tracked_migration_chain(tmp_path, resume_policy):
+def test_supabase_cli_pushes_and_tracks_the_fresh_baseline_once(tmp_path):
     cli = shutil.which('supabase')
     if cli is None:
         pytest.skip('Supabase CLI required to exercise its SQL statement splitter')
-    fixture = database.__wrapped__(legacy_schema=False, deadline=time.monotonic() + 120, tcp=True)
+    fixture = database.__wrapped__(apply_schema=False, deadline=time.monotonic() + 120, tcp=True)
     try:
         sql = next(fixture)
-        sql('create role service_role bypassrls; alter table storage.objects add column owner_id text;')
+        sql('create role supabase_admin; alter schema auth owner to supabase_admin; '
+            'alter schema storage owner to supabase_admin;')
         migrations = tmp_path / 'supabase' / 'migrations'
         migrations.mkdir(parents=True)
         if sql.command[0] == 'container':
@@ -40,19 +40,26 @@ def test_supabase_cli_pushes_the_tracked_migration_chain(tmp_path, resume_policy
             '--yes',
         ]
         paths = sorted((ROOT / 'supabase' / 'migrations').glob('*.sql'))
-        batches = [paths]
-        if resume_policy:
-            # Match a database where everything preceding the failing migration
-            # has already been applied and recorded by the CLI.
-            batches = [[path for path in paths if path.name < '202610120027'],
-                       [path for path in paths if path.name >= '202610120027']]
-        for batch in batches:
-            for path in batch:
-                shutil.copy2(path, migrations / path.name)
+        assert len(paths) == 1
+        for path in paths:
+            shutil.copy2(path, migrations / path.name)
+        for _ in range(2):
             result = subprocess.run(command, capture_output=True, text=True,
                 env={**sql.env, 'PGSSLMODE': 'disable'}, timeout=60)
-            assert result.returncode == 0, result.stdout + result.stderr
+            if result.returncode != 0:
+                pytest.fail('\n'.join(line.rstrip()[:300] for line in
+                    (result.stdout + result.stderr).splitlines()[:25]))
         expected = [path.name.split('_', 1)[0] for path in sorted(migrations.glob('*.sql'))]
+        assert sql('select version from supabase_migrations.schema_migrations order by version;').stdout.splitlines() == expected
+        # Remote resets preserve Supabase-owned Storage bucket metadata.
+        reset = [cli, 'db', 'reset', '--workdir', str(tmp_path), '--db-url',
+                 f'postgresql://postgres@{host}:{port}/postgres?sslmode=disable', '--no-seed', '--yes']
+        result = subprocess.run(reset, capture_output=True, text=True,
+            env={**sql.env, 'PGSSLMODE': 'disable'}, timeout=60)
+        if result.returncode != 0:
+            pytest.fail('\n'.join(line.rstrip()[:300] for line in
+                (result.stdout + result.stderr).splitlines()[:25]))
+        assert sql('select count(*) from storage.buckets;').stdout.strip() == '2'
         assert sql('select version from supabase_migrations.schema_migrations order by version;').stdout.splitlines() == expected
     finally:
         fixture.close()

@@ -322,12 +322,9 @@ def test_empty_matches_are_reusable_but_provider_errors_are_not_persisted(monkey
 
 
 def test_global_database_is_server_writable_and_contains_no_user_story_data(database):
-    database("do $$begin if not exists(select from pg_roles where rolname='service_role') then create role service_role bypassrls; end if; end$$;")
-    migration = Path(__file__).resolve().parents[1] / 'supabase/migrations/202610020003_place_photo_searches.sql'
-    database(migration.read_text())
     record = json.dumps({'items': [{'asset_id': 'public-photo'}], 'complete': True})
-    database("set role service_role; insert into public.place_photo_searches(search_key,place,period,result) values('" + 'a'*64 + "','承德','1983年','" + record + "');")
-    assert 'public-photo' in database('set role service_role; select result from public.place_photo_searches;').stdout
-    assert database(as_user('select * from public.place_photo_searches;'),check=False).returncode != 0
-    assert database(as_user("insert into public.place_photo_searches(search_key,place,period,result) values('" + 'b'*64 + "','x','1980s','{}');"),check=False).returncode != 0
-    assert database('set role anon; select * from public.place_photo_searches;',check=False).returncode != 0
+    database("set role service_role; insert into public.place_photo_search(search_key,place,period,result) values('" + 'a'*64 + "','承德','1983年','" + record + "');")
+    assert 'public-photo' in database('set role service_role; select result from public.place_photo_search;').stdout
+    assert database(as_user('select * from public.place_photo_search;'),check=False).returncode != 0
+    assert database(as_user("insert into public.place_photo_search(search_key,place,period,result) values('" + 'b'*64 + "','x','1980s','{}');"),check=False).returncode != 0
+    assert database('set role anon; select * from public.place_photo_search;',check=False).returncode != 0

@@ -243,7 +243,7 @@ def test_final_conversation_commit_rejects_invalidated_saved_collector(sql,inval
         rpc(sql,'delete_user_interview_photo',f"'project','{photo['id']}'")
     else:
         accept(sql,'Newer.',turn=str(uuid4()))
-    with pytest.raises(AssertionError,match='stale interview publication'):
+    with pytest.raises(AssertionError,match='governed atomic commit required'):
         rpc(sql,'commit_user_agent_turn',f"'{OLD}','thread',{literal('Storyteller: I visited this gate.'+chr(10)+'Memory Spark: '+reply)},'{{}}',null,'project','{TURN}',true")
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='0'
 

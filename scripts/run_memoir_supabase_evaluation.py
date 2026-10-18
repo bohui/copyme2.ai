@@ -478,12 +478,10 @@ def validate_checkpoint(head,pages,binding,ordinal,accepted):
 async def saved_canonical_checkpoint(account,binding,ordinal,accepted):
     head=await account.rpc('read_lifetime_private_draft_head',p_project_id=binding['project_id'],p_locale=binding['language'])
     checkpoint_head_shape(head,binding)
-    if head.get('snapshot_state')=='proposed' or head.get('error')=='LIFETIME_LEGACY_MANUSCRIPT_MIGRATION_REQUIRED':
-        raise EvaluationError('Canonical checkpoint requires human policy/migration review')
+    if head.get('snapshot_state')=='proposed':
+        raise EvaluationError('Canonical checkpoint requires human policy review')
     if head['status']!='ready' or head.get('coverage_round')!=ordinal or head.get('updating'):
-        state=await account.rpc('read_user_memoir_draft',p_project_id=binding['project_id'],
-            p_locale=binding['language'],p_cadence=5)
-        if _checkpoint_error_is_terminal(state):
+        if _checkpoint_error_is_terminal(head):
             raise EvaluationError('Background composition failed; explicit review is required')
         return None
     pages,cursor,seen=[],None,set()
@@ -754,8 +752,8 @@ async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=F
                         case['checkpoints'].append(checkpoint)
                     settlement['waiting_for'] = 'complete'
                     break
-                draft = await account.rpc('read_user_memoir_draft',
-                    p_project_id=project, p_locale=binding['language'], p_cadence=5)
+                draft = await account.rpc('read_lifetime_private_draft_head',
+                    p_project_id=project, p_locale=binding['language'])
                 if _extraction_error_is_terminal(draft):
                     raise EvaluationError('Background extraction failed; explicit review is required')
                 await asyncio.sleep(min(plan['poll_seconds'], max(0, settle_deadline - time.monotonic())))

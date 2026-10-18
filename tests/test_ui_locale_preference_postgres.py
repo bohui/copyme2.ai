@@ -73,22 +73,8 @@ def locale_postgres():
                 env=env, capture_output=True, text=True, timeout=15)
             assert start.returncode == 0, start.stderr + Path(log).read_text()
             started = True
-            sql('''
-                create role anon;
-                create role authenticated;
-                create schema auth;
-                create table auth.users(
-                  id uuid primary key,
-                  raw_user_meta_data jsonb not null default '{}',
-                  is_anonymous boolean not null default false
-                );
-                create function auth.uid() returns uuid language sql stable as
-                  $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
-                grant usage on schema auth to authenticated;
-            ''')
-            # Empty before the implementation, so TDD fails on missing RPCs.
-            for migration in sorted((ROOT / 'supabase/migrations').glob('*ui_locale*.sql')):
-                sql(migration.read_text())
+            from test_agent_commit_postgres import bootstrap_supabase
+            bootstrap_supabase(sql)
             yield sql
         finally:
             if started or (Path(data) / 'postmaster.pid').exists():

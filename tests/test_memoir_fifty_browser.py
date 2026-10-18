@@ -43,9 +43,9 @@ def owned(monkeypatch):
     def sql(query, **kwargs):
         queries.append(query)
         if 'read_lifetime_project_identity' in query:
-            value = None  # Explicit pre-migration cohort; this read never adopts.
-        elif 'read_user_memoir_draft' in query:
-            value = {'revision': 1, 'status': 'ready', 'preview': {'text': 'Saved draft'}}
+            value = None  # Unmapped owner; a read must never adopt a conversation.
+        elif 'read_lifetime_private_draft_head' in query:
+            value = None
         elif 'read_user_memory_events' in query:
             value = {'events': [], 'sources': [], 'completed_rounds': 5}
         elif 'user_memoir_project' in query:
@@ -132,21 +132,14 @@ def test_unknown_authorization_cross_case_project_and_remote_host_are_denied(own
     assert queries == []
 
 
-def test_draft_readback_uses_saved_rpc_and_denies_legacy_fallback(owned, monkeypatch):
+def test_draft_readback_requires_a_canonical_identity(owned):
     session, queries = owned
     api = browser.OwnedFiftyBrowserAPI.build(session)
     case = session.case_ids[0]
     kwargs = {'headers': auth(session, case), 'params': {'project_id': session.case_plans[case]['project_id'], 'language': 'en-AU'}}
     result = request(api, case, 'GET', '/story/private-draft', **kwargs)
-    assert result.status_code == 200 and result.json()['revision'] == 1
-    from apps.api import legacy_memoir
-    monkeypatch.setattr(legacy_memoir, 'import_saved_cache', lambda *a: pytest.fail('No legacy cache read or migration'))
-    original = session._entitlement_facades[case].sql
-    session._entitlement_facades[case].sql = lambda query, **k: SimpleNamespace(returncode=0,
-        stdout='null' if 'read_lifetime_project_identity' in query else '{"revision":0}', stderr='')
-    result = request(api, case, 'GET', '/story/private-draft', **kwargs)
-    assert result.status_code == 409
-    session._entitlement_facades[case].sql = original
+    assert result.status_code == 404
+    assert not any('read_user_memoir_draft' in query for query in queries)
 
 
 def test_closed_and_rebound_session_fail_before_storage(owned):

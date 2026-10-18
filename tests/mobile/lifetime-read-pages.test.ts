@@ -34,7 +34,7 @@ test("native contracts retain partial draft/proposal coverage rather than claimi
   );
   assert.equal(ReadPageOptionsSchema.safeParse({ limit: 9 }).success, false);
 });
-test("native draft/event page requests carry opaque cursors and scoped edition snapshot without changing legacy method arguments", async () => {
+test("native draft/event page requests carry opaque cursors and scoped edition snapshot", async () => {
   const paths: string[] = [];
   const api = createMemoirApi({
     baseUrl: "https://fixture.invalid/api/v1/memoir",
@@ -60,11 +60,14 @@ test("native draft/event page requests carry opaque cursors and scoped edition s
       );
     },
   });
-  await api.privateDraftPage("p", snapshot, { cursor, legacy: true });
+  await api.privateDraftPage("p", snapshot, { cursor });
   const page = await api.eventsPage("p", { cursor, limit: 8 });
   assert.equal(page.complete, false);
   assert.equal(page.events[0].uncertainty, "Name uncertain");
   assert.match(paths[0], new RegExp("snapshot_id=" + snapshot));
-  assert.match(paths[0], /legacy=true/);
+  assert.equal(
+    new URL(paths[0], "https://fixture.invalid").searchParams.has("legacy"),
+    false,
+  );
   assert.match(paths[1], new RegExp("cursor=" + cursor));
 });

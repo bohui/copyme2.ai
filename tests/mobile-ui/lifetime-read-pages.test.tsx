@@ -27,19 +27,17 @@ it.each(["en-AU", "zh-CN"] as const)(
         proposed_preview: { title: "Proposal", text: "Unapproved proposal" },
         publication_approved: false,
       }));
-    const privateDraftPage = jest
-      .fn()
-      .mockResolvedValue({
-        snapshot_id: snapshot,
-        records: [
-          {
-            id: "later",
-            preview: { title: "Later", text: "Later saved words" },
-          },
-        ],
-        complete: true,
-        next_cursor: null,
-      });
+    const privateDraftPage = jest.fn().mockResolvedValue({
+      snapshot_id: snapshot,
+      records: [
+        {
+          id: "later",
+          preview: { title: "Later", text: "Later saved words" },
+        },
+      ],
+      complete: true,
+      next_cursor: null,
+    });
     const m = inject(
       context({
         locale,
@@ -61,7 +59,6 @@ it.each(["en-AU", "zh-CN"] as const)(
     expect(screen.queryByText(m.t("draftPagesPartial"))).toBeNull();
     expect(privateDraftPage).toHaveBeenCalledWith(projectId, snapshot, {
       cursor,
-      legacy: undefined,
     });
     const other = locale === "en-AU" ? "zh-CN" : "en-AU";
     fireEvent.press(
@@ -77,48 +74,40 @@ it.each(["en-AU", "zh-CN"] as const)(
 );
 
 it("keeps ambiguous event claims visible while reaching later events and exact evidence", async () => {
-  const events = jest
-    .fn()
-    .mockResolvedValue({
-      events: [
-        {
-          id: "uncertain",
-          title: "An uncertain name",
-          status: "unresolved",
-          assertion: "inferred",
-          uncertainty: "Could have been Lin or Lim",
-          timing_conflict: true,
-          source_refs: [{ quote: "First exact quote" }],
-          evidence_next_cursor: cursor,
-          details_complete: false,
-        },
-      ],
-      complete: false,
-      next_cursor: cursor,
-    });
-  const eventsPage = jest
-    .fn()
-    .mockResolvedValue({
-      events: [{ id: "later", title: "Later event" }],
-      complete: true,
-      next_cursor: null,
-    });
-  const eventEvidencePage = jest
-    .fn()
-    .mockResolvedValue({
-      source_refs: [{ quote: "Older exact quote" }],
-      complete: true,
-      next_cursor: null,
-    });
-  const eventDetailsPage = jest
-    .fn()
-    .mockResolvedValue({
-      details: [
-        { kind: "temporal_accounts", value: { expression: "Maybe 1958" } },
-      ],
-      complete: true,
-      next_cursor: null,
-    });
+  const events = jest.fn().mockResolvedValue({
+    events: [
+      {
+        id: "uncertain",
+        title: "An uncertain name",
+        status: "unresolved",
+        assertion: "inferred",
+        uncertainty: "Could have been Lin or Lim",
+        timing_conflict: true,
+        source_refs: [{ quote: "First exact quote" }],
+        evidence_next_cursor: cursor,
+        details_complete: false,
+      },
+    ],
+    complete: false,
+    next_cursor: cursor,
+  });
+  const eventsPage = jest.fn().mockResolvedValue({
+    events: [{ id: "later", title: "Later event" }],
+    complete: true,
+    next_cursor: null,
+  });
+  const eventEvidencePage = jest.fn().mockResolvedValue({
+    source_refs: [{ quote: "Older exact quote" }],
+    complete: true,
+    next_cursor: null,
+  });
+  const eventDetailsPage = jest.fn().mockResolvedValue({
+    details: [
+      { kind: "temporal_accounts", value: { expression: "Maybe 1958" } },
+    ],
+    complete: true,
+    next_cursor: null,
+  });
   const m = inject(
     context({
       api: {
@@ -157,14 +146,12 @@ it("discards an old-owner draft page after switching projects", async () => {
     complete: boolean;
     next_cursor: null;
   }>();
-  const privateDraft = jest
-    .fn()
-    .mockImplementation(async (project) => ({
-      preview: { title: "Saved", text: project },
-      snapshot_id: snapshot,
-      next_cursor: cursor,
-      page_complete: false,
-    }));
+  const privateDraft = jest.fn().mockImplementation(async (project) => ({
+    preview: { title: "Saved", text: project },
+    snapshot_id: snapshot,
+    next_cursor: cursor,
+    page_complete: false,
+  }));
   const m = inject(
     context({
       api: {

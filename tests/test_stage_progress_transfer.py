@@ -81,20 +81,6 @@ def test_transferred_progress_rejects_other_owners_and_obeys_edits_and_withdrawa
     assert all(value == readiness(0) for value in rpc(sql, 'read_lifetime_stage_readiness', literal(project), owner=OTHER)['stages'].values())
 
 
-def test_migration_repairs_an_existing_transfer_without_rewriting_memories(sql):
-    project, _ = transferred_project(sql)
-    root = Path(__file__).resolve().parents[1] / 'supabase/migrations'
-    old = (root / '202610150003_canonical_stage_readiness.sql').read_text()
-    definition = old.split('create or replace function public.read_lifetime_stage_readiness', 1)[1].split('end $$;', 1)[0]
-    sql('create or replace function public.read_lifetime_stage_readiness' + definition + 'end $$;')
-    assert rpc(sql, 'read_lifetime_stage_readiness', literal(project), owner=OTHER, check=False).returncode
-    tables = ('user_memory', 'user_narrator_source', 'user_memory_event', 'user_memory_event_source', 'user_lifetime_conversation')
-    before = [sql(f'select to_jsonb(t) from public.{table} t order by to_jsonb(t)::text;').stdout for table in tables]
-    migration = (root / '202610160004_transferred_stage_readiness.sql').read_text()
-    for _ in range(2):
-        sql(migration)
-        assert rpc(sql, 'read_lifetime_stage_readiness', literal(project), owner=OTHER)['stages']['childhood'] == readiness(145)
-    assert [sql(f'select to_jsonb(t) from public.{table} t order by to_jsonb(t)::text;').stdout for table in tables] == before
 
 
 @pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires source frontend')

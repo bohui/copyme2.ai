@@ -310,25 +310,8 @@ def test_missing_middle_position_cannot_complete_a_local_receipt(tmp_path):
     with pytest.raises(ValueError):ingest(queue,page)
 
 
-from test_consolidated_migration_upgrade import consolidated_database,ROOT
 
 
-def test_database_actual_preposition_upgrade_does_not_claim_legacy_history_coverage(consolidated_database):
-    sql=consolidated_database
-    migrations=sorted(ROOT.glob('*.sql'))
-    cut=next(i for i,path in enumerate(migrations) if path.name.startswith('202610120006_'))
-    for path in migrations[:cut]:sql(path.read_text())
-    rpc(sql,'accept_user_narrator_source',f"'historical-project','{uuid4()}','Untouched historical 原文'")
-    # Synthetic operator mapping only. The additive deployment never maps or
-    # inventories pre-existing evidence on an owner's behalf.
-    sql(f"insert into public.user_lifetime_conversation(user_id,project_id) values('{OWNER}','historical-project');")
-    before=sql('select row_to_json(s) from public.user_narrator_source s;').stdout
-    for path in migrations[cut:]:sql(path.read_text())
-    assert sql('select row_to_json(s) from public.user_narrator_source s;').stdout==before
-    assert sql('select count(*) from public.user_lifetime_source_position;').stdout.strip()=='0'
-    event=new_receipt(sql,'historical-project')
-    assert database_page(sql,event,check=False).returncode!=0
-    assert acknowledge(sql,event,check=False).returncode!=0
 
 
 def test_prefix_proof_cannot_disappear_halfway_through_a_local_receipt(tmp_path):

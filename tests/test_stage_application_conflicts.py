@@ -43,26 +43,3 @@ def test_stage_revision_conflicts_are_nonretryable_without_durable_mutation(sql,
     assert 'PT409' in rejected.stderr, rejected.stderr
     assert f'{conflict} revision conflict' in rejected.stderr
     assert durable_snapshot(sql) == before
-
-
-def test_existing_stage_upgrade_restores_conflicts_without_changing_authority_or_data(sql):
-    root = Path(__file__).resolve().parents[1]
-    project = resolve(sql)['project_id']
-    source = save_stage_source(sql, project, 'Synthetic childhood evidence.')
-    link_stage(sql, project, source, 'childhood')
-    # Reproduce an installation that already applied the upstream stage DDL.
-    sql((root / 'supabase/migrations/202610150003_canonical_stage_readiness.sql').read_text())
-    def authority():
-        return json.loads(sql("select row_to_json(a) from (select oid,proowner,proacl,prosecdef,proconfig "
-                              "from pg_proc where oid='public.apply_user_memory_events_before_photos(text,jsonb,jsonb)'::regprocedure) a;").stdout)
-    before, security = durable_snapshot(sql), authority()
-    migration = (root / 'supabase/migrations/202610150006_stage_nonretryable_application_conflicts.sql').read_text()
-    sql(migration)
-    assert authority() == security
-    assert durable_snapshot(sql) == before
-    assert sql("select count(*) from pg_proc where oid='public.apply_user_memory_events_before_photos(text,jsonb,jsonb)'::regprocedure "
-               "and prosrc ~* 'errcode\\s*=\\s*''40001''';").stdout.strip() == '0'
-    definition = sql("select pg_get_functiondef('public.apply_user_memory_events_before_photos(text,jsonb,jsonb)'::regprocedure);").stdout
-    sql(migration)
-    assert authority() == security and durable_snapshot(sql) == before
-    assert sql("select pg_get_functiondef('public.apply_user_memory_events_before_photos(text,jsonb,jsonb)'::regprocedure);").stdout == definition

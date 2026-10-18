@@ -73,22 +73,8 @@ def database():
                 env=env, capture_output=True, text=True, timeout=15)
             assert start.returncode == 0, start.stderr + Path(log).read_text()
             started = True
-            sql("""create role anon; create role authenticated; create schema auth;
-                create table auth.users(id uuid primary key);
-                create function auth.uid() returns uuid language sql stable as
-                $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
-                grant usage on schema auth to authenticated;
-                create schema storage;
-                create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint);
-                create table storage.objects(bucket_id text,name text);
-                create function storage.foldername(text) returns text[] language sql as $$select string_to_array($1,'/')$$;
-                create function storage.allow_any_operation(text[]) returns boolean language sql as $$select true$$;
-            """)
-            root=ROOT/'supabase/legacy-migrations'
-            for name in ('202609230001_user_agent_storage.sql','202609230002_agent_sessions.sql',
-                         '202609250002_agent_turn_leases.sql','202609250004_fenced_agent_turn_commit.sql'):
-                sql((root/name).read_text())
-            sql(f"insert into auth.users values ('{OWNER}'),('{OTHER}');")
+            from test_agent_commit_postgres import bootstrap_supabase
+            bootstrap_supabase(sql)
             yield sql
         finally:
             if started or (Path(data) / 'postmaster.pid').exists():
@@ -197,20 +183,6 @@ def test_ready_evidence_revalidation_requires_current_owned_unchanged_hypothesis
         assert state['clues'] == []
 
 
-@pytest.mark.parametrize('same_basis', [False, True])
-def test_legacy_ready_clue_upgrade_requires_revalidation_without_rediscovery(sql, same_basis):
-    job=begin(sql);assert finish(sql,job)
-    sql("update public.user_historical_news_clue set context_revision=regexp_replace(context_revision,':[^:]+$','');")
-    sql((ROOT/'supabase/migrations/202610150002_historical_news_legacy_fences.sql').read_text())
-    state=rpc(sql,'read_user_historical_news',"'project'")
-    assert state['clues'] == [] and state['needs_revalidation'] is True
-    hypothesis=ready_context()['historical_news']['clues'][0]['relevance']
-    if not same_basis:
-        hypothesis={**hypothesis,'place':'Sydney, Australia','country':'Australia'}
-    snapshot=rpc(sql,'read_user_historical_news_basis',"'project'")['news_snapshot']
-    state=rpc(sql,'revalidate_user_historical_news',f"'project',{literal(hypothesis)}::jsonb,{literal(snapshot)}::jsonb")
-    assert bool(state['clues']) is same_basis
-    assert sql('select count(*) from public.user_historical_news_job;').stdout.strip() == '1'
 
 
 def test_durable_plan_rejects_forged_and_accepts_ready_reference(sql):

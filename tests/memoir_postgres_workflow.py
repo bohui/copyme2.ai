@@ -208,7 +208,7 @@ class PostgresRest:
             if str(UUID(body['p_client_turn_id'])) != body['p_client_turn_id']:
                 raise ValueError('Canonical client turn required')
         path = request.url.path.removeprefix('/rest/v1/')
-        if path == 'story_entitlements':
+        if path == 'story_entitlement':
             # External verified entitlement boundary: this storyteller is free.
             return httpx.Response(200, json=[self.entitlement] if self.entitlement else [])
         if path.startswith('rpc/'):

@@ -14,7 +14,7 @@ export function createPrivateDraft({
   function openSectionRework(partitionId) {
     const saved = state.privateDraft;
     const record = [saved?.first_record, ...(saved?.pages || []), saved?.selected_record].find(item => item?.id === partitionId);
-    if (!record?.preview || record.proposed_preview || saved.legacy || saved.updating || saved.deciding || currentSectionRework()?.busy) return;
+    if (!record?.preview || record.proposed_preview || saved.updating || saved.deciding || currentSectionRework()?.busy) return;
     state.sectionRework = {...captureProjectScope(), locale:saved.locale, partitionId, snapshotId:saved.snapshot_id,
       rootDigest:saved.root_digest, requestId:crypto.randomUUID(), instruction:"", busy:false};
     render();
@@ -22,7 +22,7 @@ export function createPrivateDraft({
   }
 
   function sectionReworkMarkup(record, saved) {
-    if (!saved.snapshot_id || saved.legacy || !record.id || !state.supabase?.accessToken) return "";
+    if (!saved.snapshot_id || !record.id || !state.supabase?.accessToken) return "";
     const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
     const rework = currentSectionRework();
     if (rework?.partitionId === record.id && !rework.queued) {
@@ -91,7 +91,7 @@ export function createPrivateDraft({
     state.privateDraft={...result, pages: sameRoot ? previous.pages || [] : []};
     updateBackgroundComposerProgress(result);
     const rework = currentSectionRework();
-    if (rework && result.snapshot_id && !result.legacy) {
+    if (rework && result.snapshot_id) {
       try {
         const query = new URLSearchParams({project_id:scope.projectId, snapshot_id:result.snapshot_id, partition_id:rework.partitionId});
         const section = await storyApi(`/v1/story/private-draft/section?${query}`);
@@ -255,7 +255,6 @@ export function createPrivateDraft({
     try {
       const query = new URLSearchParams({project_id: state.project.id,
         snapshot_id: saved.snapshot_id, cursor: saved.next_cursor});
-      if (saved.legacy) query.set('legacy', 'true');
       const page = await storyApi(`/v1/story/private-draft/page?${query}`);
       if (!isCurrentProjectScope(scope) || state.privateDraft !== saved || page.snapshot_id !== saved.snapshot_id) return;
       saved.pages = [...(saved.pages || []), ...(page.records || [])];

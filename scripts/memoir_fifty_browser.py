@@ -37,8 +37,8 @@ def _route_contexts(routes):
 
 _READ_TABLES = frozenset({'user_profile', 'user_memory', 'user_recall_usage',
     'user_completed_round', 'user_place_journey', 'user_family_context',
-    'user_memoir_project', 'user_narrator_source', 'story_entitlements'})
-_READ_RPCS = frozenset({'read_user_memory_events', 'read_user_memoir_draft', 'read_user_interview_turn',
+    'user_memoir_project', 'user_narrator_source', 'story_entitlement'})
+_READ_RPCS = frozenset({'read_user_memory_events', 'read_lifetime_private_draft_head', 'read_user_interview_turn',
     'read_lifetime_project_identity'})
 _AGENT_READS = frozenset({'/v1/agent/profile', '/v1/agent/place-journey',
     '/v1/agent/family-context', '/v1/agent/turns/{client_turn_id}'})
@@ -260,11 +260,6 @@ class OwnedFiftyBrowserAPI:
                     or identity.get('owner_id') != plan['owner_id']
                     or identity.get('project_id') != plan['project_id']):
                 return httpx.Response(403, json={'detail': 'Readback identity scope denied'})
-        # UserStorage's production read method migrates legacy caches at revision
-        # zero. Stop before that branch, including any local cache inspection.
-        if path == '/rest/v1/rpc/read_user_memoir_draft' and response.status_code == 200:
-            if response.json().get('revision', 0) == 0:
-                raise HTTPException(409, 'Saved draft not available in this read-only fixture')
         return response
 
     def _handle_turn_storage(self, case, arm, request):

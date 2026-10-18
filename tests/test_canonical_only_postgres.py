@@ -10,10 +10,6 @@ from test_private_rounds_postgres import private_database  # noqa: F401 - import
 
 @pytest.fixture(scope='module')
 def canonical_database(private_database):
-    root = Path(__file__).resolve().parents[1]
-    for path in sorted((root / 'supabase/migrations').glob('*.sql')):
-        if path.name >= '202610040001':
-            private_database(path.read_text())
     return private_database
 
 

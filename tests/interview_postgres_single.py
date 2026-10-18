@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from test_agent_commit_postgres import OWNER, OTHER
+from test_agent_commit_postgres import OWNER, OTHER, bootstrap_supabase
 
 
 def frame_sql(query):
@@ -65,19 +65,5 @@ def single_database():
                 '\n'.join(rows)+'\n' if rows else '', result.stderr)
             if check: assert parsed.returncode==0,parsed.stderr
             return parsed
-        sql('''create role anon; create role authenticated; create schema auth;
-          create table auth.users(id uuid primary key);
-          create function auth.uid() returns uuid language sql stable as
-            $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
-          grant usage on schema auth to authenticated;
-          create schema storage;
-          create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint);
-          create table storage.objects(bucket_id text,name text);
-          create function storage.foldername(text) returns text[] language sql as $$select string_to_array($1,'/')$$;
-        ''')
-        root=Path(__file__).resolve().parents[1]/'supabase/legacy-migrations'
-        for name in ('202609230001_user_agent_storage.sql','202609230002_agent_sessions.sql',
-                     '202609250002_agent_turn_leases.sql','202609250004_fenced_agent_turn_commit.sql'):
-            sql((root/name).read_text())
-        sql(f"insert into auth.users values ('{OWNER}'),('{OTHER}');")
+        bootstrap_supabase(sql)
         yield sql

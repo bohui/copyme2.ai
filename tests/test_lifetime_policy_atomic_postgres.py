@@ -176,28 +176,6 @@ def test_legacy_unmapped_sources_do_not_gain_policy_state_or_profiles(sql):
     assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip() == '0'
 
 
-def test_upgrade_inventory_blocks_completed_raw_and_edited_history_without_replay(sql):
-    identity = resolve(sql)
-    completed = accept(sql, identity, 'Do not mention my school.')['source']
-    sql(f"update public.user_interview_turn set collector='{{}}' where source_id='{completed['id']}';")
-    raw = rpc(sql, 'accept_user_narrator_source', f"{literal(identity['project_id'])},'00000000-0000-4000-8000-000000000702','I remember work.'")
-    rpc(sql, 'change_user_narrator_source', f"{literal(identity['project_id'])},'{raw['id']}',1,'edit','Do not mention my workplace.'")
-    # Reproduce pre-027 provenance, then execute the exact header-only upgrade
-    # statement. It must not infer that completion or old generated text proves
-    # every raw/current source's privacy directives were durably applied.
-    sql('delete from public.user_lifetime_source_policy_receipt; delete from public.user_lifetime_continuity;')
-    migration = (Path(__file__).resolve().parents[1] / 'supabase/migrations/202610120027_lifetime_atomic_policy.sql').read_text()
-    inventory = migration.split('-- Existing identity upgrade boundary.', 1)[1].split('-- End upgrade inventory.', 1)[0]
-    inventory = 'insert into public.user_lifetime_policy_inventory_pending' + inventory.split('insert into public.user_lifetime_policy_inventory_pending', 1)[1]
-    sql(inventory)
-    assert status(sql, identity)['pending'] is True
-    assert policies(sql, identity) == []
-    assert accept(sql, identity, 'Do not mention my school.')['source']['id'] == completed['id']
-    assert status(sql, identity)['pending'] is True and policies(sql, identity) == []
-    captured = rpc(sql, 'capture_lifetime_read_fence', literal(identity['project_id']))
-    denied = rpc(sql, 'lock_lifetime_read_publication', f'{literal(captured)}::jsonb', check=False)
-    assert 'LIFETIME_POLICY_PENDING' in denied.stderr
-    assert sql(as_user('delete from public.user_lifetime_policy_inventory_pending'), check=False).returncode != 0
 
 
 def test_reviewed_legacy_uuid5_control_is_idempotent_without_automatic_retry_replay(sql):
@@ -254,18 +232,3 @@ def test_sql_unicode_line_separators_preserve_the_complete_control_bound(sql, se
     result = accept(sql, identity, text, check=False)
     assert result.returncode != 0 and 'LIFETIME_POLICY_INPUT_LIMIT' in result.stderr
     assert sql('select count(*) from public.user_narrator_source;').stdout.strip() == '0'
-
-
-def test_upgrade_inventory_detects_raw_history_with_a_stale_zero_header(sql):
-    identity = resolve(sql)
-    sql(f"insert into public.user_narrator_source(user_id,project_id,client_turn_id,sequence,text,kind,language) values('{OWNER}',{literal(identity['project_id'])},'{TURN}',1,'An imported original.','narrator_chat','en-AU');")
-    assert sql(f"select source_sequence from public.user_memoir_project where user_id='{OWNER}' and project_id={literal(identity['project_id'])};").stdout.strip() == '0'
-    # Remove only the post-027 marker to model the pre-migration database state.
-    sql('delete from public.user_lifetime_pending_policy;')
-    migration = (Path(__file__).resolve().parents[1] / 'supabase/migrations/202610120027_lifetime_atomic_policy.sql').read_text()
-    inventory = migration.split('-- Existing identity upgrade boundary.', 1)[1].split('-- End upgrade inventory.', 1)[0]
-    inventory = 'insert into public.user_lifetime_policy_inventory_pending' + inventory.split('insert into public.user_lifetime_policy_inventory_pending', 1)[1]
-    sql(inventory)
-    assert status(sql, identity)['pending'] is True
-    assert sql('select count(*) from public.user_lifetime_policy_inventory_pending;').stdout.strip() == '1'
-    assert policies(sql, identity) == []

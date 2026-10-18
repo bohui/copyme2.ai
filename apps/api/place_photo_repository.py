@@ -40,7 +40,7 @@ def search_key(place, period, *, policy=None):
 
 class PhotoRepository:
     def __init__(self, url, secret, *, transport=None):
-        self.url = url.rstrip('/') + '/rest/v1/place_photo_searches'
+        self.url = url.rstrip('/') + '/rest/v1/place_photo_search'
         self.headers = {'apikey': secret, 'Authorization': 'Bearer ' + secret}
         self.transport = transport
 

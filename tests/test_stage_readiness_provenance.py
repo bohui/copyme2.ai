@@ -141,8 +141,8 @@ def test_bounded_large_history_readiness_query_plan(sql, tmp_path, monkeypatch, 
         result = sql(as_user("set statement_timeout='20s'; explain (analyze,buffers,format json) "
             f"select public.read_lifetime_stage_readiness({project});"))
         plans.append(json.loads(result.stdout)[0])
-    definition = (Path(__file__).resolve().parents[1] / 'supabase/migrations/202610150003_canonical_stage_readiness.sql').read_text()
-    query = definition[definition.index('with saved_sources'):definition.index(' into result from counts;')] + ' from counts'
+    definition = sql("select pg_get_functiondef('public.read_lifetime_stage_readiness(text)'::regprocedure);").stdout
+    query = definition[definition.index('with transferred_memories'):definition.index(' into result from counts;')] + ' from counts'
     query = query.replace('p_project_id', project)
     # The original SECURITY DEFINER runs with this fixture owner and explicit
     # auth.uid filters. Inline its aggregation to expose the inner query plan.

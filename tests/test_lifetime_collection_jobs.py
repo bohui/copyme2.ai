@@ -13,24 +13,13 @@ from pathlib import Path
 
 @pytest.fixture(scope='module')
 def event_database(private_database):
-    baseline = (Path(__file__).resolve().parents[1] / 'supabase/migrations/202610010001_initial_schema.sql').read_text()
-    start = baseline.index('create table if not exists public.story_entitlements (')
-    private_database(baseline[start:baseline.index('commit;', start)])
-    for path in sorted((Path(__file__).resolve().parents[1] / 'supabase/migrations').glob('*.sql')):
-        if path.name >= '202610040001_shared_memory_events.sql':
-            private_database(path.read_text())
     return private_database
 
 
 @pytest.fixture
 def sql(event_database):
-    # The shared fixture starts after this older commercial table. Apply its
-    # exact checked-in DDL rather than weakening the production paid gate.
-    baseline = (Path(__file__).resolve().parents[1] / 'supabase/migrations/202610010001_initial_schema.sql').read_text()
-    start = baseline.index('create table if not exists public.story_entitlements (')
-    event_database(baseline[start:baseline.index('commit;', start)])
     event_database('truncate public.user_memoir_project cascade;')
-    event_database('truncate public.user_memory, public.user_agent_turn_lease, public.user_agent_session, public.user_recall_usage, public.story_entitlements cascade;')
+    event_database('truncate public.user_memory, public.user_agent_turn_lease, public.user_agent_session, public.user_recall_usage, public.story_entitlement cascade;')
     event_database('update auth.users set is_anonymous=false;')
     event_database("update public.user_profile set profile='{}';")
     return event_database
@@ -128,7 +117,7 @@ def test_selection_confirmation_is_current_and_owner_scoped(sql):
 
 
 def paid(sql):
-    sql(f"insert into public.story_entitlements(user_id,status,plan_key,book_count,amount_minor,currency,stripe_session_id) values('{OWNER}','paid','synthetic',1,1,'aud','synthetic-paid') on conflict(user_id) do update set status='paid';")
+    sql(f"insert into public.story_entitlement(user_id,status,plan_key,book_count,amount_minor,currency,stripe_session_id) values('{OWNER}','paid','synthetic',1,1,'aud','synthetic-paid') on conflict(user_id) do update set status='paid';")
 
 
 def confirm(sql, project, sources):
@@ -189,7 +178,7 @@ def test_outline_rejects_duplicate_foreign_missing_children_and_late_edit(sql):
 def test_outline_rechecks_paid_entitlement_and_confirmation_on_frozen_page(sql):
     project=resolve(sql)['project_id']; original=source(sql,project);confirm(sql,project,[original]);paid(sql)
     job=create(sql,project,[],'BuildOutline',1);lease=claim(sql,job);frozen=page(sql,job,lease['token'])
-    sql(f"update public.story_entitlements set status='revoked' where user_id='{OWNER}';")
+    sql(f"update public.story_entitlement set status='revoked' where user_id='{OWNER}';")
     assert commit(sql,frozen,outline_result(frozen),check=False).returncode!=0
     paid(sql)
     doc=rpc(sql,'read_lifetime_collection_selection',literal(project))
@@ -373,7 +362,7 @@ def test_selected_result_actual_send_holds_all_authority_and_releases_on_cancel(
         writer=await psycopg.AsyncConnection.connect(dsn,autocommit=True);observer=await psycopg.AsyncConnection.connect(dsn,autocommit=True)
         try:
             if change=='entitlement':
-                mutate=asyncio.create_task(writer.execute("update public.story_entitlements set status='revoked' where user_id=%s",(OWNER,)))
+                mutate=asyncio.create_task(writer.execute("update public.story_entitlement set status='revoked' where user_id=%s",(OWNER,)))
             else:
                 await writer.execute('set role authenticated');await writer.execute("select set_config('request.jwt.claim.sub',%s,false)",(OWNER,))
                 if change=='withdraw':mutate=asyncio.create_task(writer.execute("select public.change_user_narrator_source(%s,%s,1,'withdraw',null)",(project,original['id'])))
@@ -607,7 +596,7 @@ def test_privacy_revocation_purges_derived_titles_atomically_without_starving_ot
     elif revoke=='preference':
         sql(as_user("insert into public.user_profile(user_id,profile) values(auth.uid(),'{\"memory_preferences\":{\"excluded_topics\":[\"school\"]}}') on conflict(user_id) do update set profile=excluded.profile;"))
     elif revoke=='collection':rpc(sql,'set_lifetime_collection',f"{literal(project)},1,{literal(doc['periods'])}::jsonb,false")
-    else:sql(f"update public.story_entitlements set status='revoked' where user_id='{OWNER}';")
+    else:sql(f"update public.story_entitlement set status='revoked' where user_id='{OWNER}';")
     assert sql(f"select state from public.user_lifetime_collection_job where id='{job['id']}';").stdout.strip()=='STALE'
     assert sql(f"select count(*) from public.user_lifetime_collection_job_node where job_id='{job['id']}';").stdout.strip()=='0'
     assert phrase not in sql('select coalesce(jsonb_agg(row_to_json(n)),\'[]\') from public.user_lifetime_collection_job_node n;').stdout
