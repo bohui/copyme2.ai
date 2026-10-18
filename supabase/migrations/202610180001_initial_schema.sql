@@ -10436,11 +10436,11 @@ CREATE FUNCTION public.record_background_service_work(p_user_id uuid, p_project_
     AS $memoir$
 declare source public.user_narrator_source%rowtype;
 begin
- if p_step->>'skill' not in ('memoir-place-groups','place-photo-research','historical-news-research')
+ if p_step->>'skill' not in ('memoir-place-groups','memoir-place-photo-research','memoir-historical-news-research')
    or p_step->>'status' not in ('running','completed','saved','failed','cached')
    or p_step->>'execution' not in ('deterministic','provider','cache')
    or p_step->>'id' !~ '^[a-f0-9]{64}$' then raise exception 'invalid service receipt' using errcode='22023';end if;
- if p_step->>'skill'='historical-news-research' then
+ if p_step->>'skill'='memoir-historical-news-research' then
    select s.* into source from public.user_historical_news_job j join public.user_narrator_source s
      on s.user_id=j.user_id and s.project_id=j.project_id and s.sequence=j.source_sequence
    where j.user_id=p_user_id and j.project_id=p_project_id and j.id=(p_step->>'research_job_id')::uuid and s.status='active';
