@@ -148,6 +148,12 @@ def validate_evidence(proposal, receipt, page, hypothesis):
     url=canonical_url(proposal.get('source_url'))
     if url not in {canonical_url(u) for u in receipt.get('urls',[])} or canonical_url(page.get('url'))!=url:
         raise ValueError('Unobserved historical source')
+    receipt=deepcopy(receipt)
+    origins=receipt.pop('source_tool_calls',None)
+    if origins is not None:
+        if not isinstance(origins,dict) or not isinstance(origins.get(url),str) or not origins[url]:
+            raise ValueError('Unobserved historical source receipt')
+        receipt.update(tool_call_id=origins[url],urls=[url])
     title=_bounded(proposal.get('title'),200)
     excerpt=_bounded(proposal.get('excerpt'),800)
     summary=_bounded(proposal.get('summary'),500)

@@ -4,6 +4,7 @@ import hashlib
 import http.client as http_client
 import json
 import socket
+from datetime import date
 from urllib import request as http
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -91,6 +92,44 @@ def test_skill_discovers_a_source_verified_historical_photo(search_world, tmp_pa
     request, = world['calls']
     assert 'Chengde' in request['input'] and '1980' in request['input'] and '1989' in request['input']
     assert request['tool_choice'] == 'required'
+    assert 'max_tool_calls' not in request
+    assert request['reasoning'] == {'effort': 'low'}
+
+
+def test_gateway_routing_receipts_are_preserved_without_truncation(search_world):
+    helper, world = search_world
+    world['response']['id'] = 'resp_' + 'x' * 500
+    result = helper.llm_search('Chengde', helper.normalize_period('1980s', date.today()))
+    assert result['sources'][0]['response_id'] == world['response']['id']
+
+
+def test_later_search_call_citation_keeps_its_actual_discovery_receipt(search_world, tmp_path, capsys):
+    helper, world = search_world
+    first = world['response']['output'][0]
+    first['action']['sources'] = [{'url': 'https://archive.example/other'}]
+    world['pages']['https://archive.example/other'] = '<title>No photograph here</title>'
+    world['response']['output'] += [
+        dict(type='web_search_call', id='ws_later', status='completed',
+             action={'sources': [{'url': 'https://archive.example/photo'}]}),
+        dict(type='message', content=[dict(type='output_text', annotations=[
+            dict(type='url_citation', url='https://archive.example/photo')])]),
+    ]
+    start_run(helper, tmp_path, capsys)
+    assert helper.main(['discover', '--run', str(tmp_path)]) == 0
+    candidate, = helper.read_json(tmp_path / 'candidates.json')
+    assert [origin['tool_call_id'] for origin in candidate['discovery_origins']] == ['ws_later']
+
+
+@pytest.mark.parametrize('status', ['completed', 'incomplete'])
+def test_multi_call_citation_without_call_provenance_is_not_assigned_to_first_call(search_world, status):
+    helper, world = search_world
+    world['response']['output'] += [
+        dict(type='web_search_call', id='ws_later', status=status, action={}),
+        dict(type='message', content=[dict(type='output_text', annotations=[
+            dict(type='url_citation', url='https://archive.example/unbound')])]),
+    ]
+    result = helper.llm_search('Chengde', helper.normalize_period('1980s', date.today()))
+    assert [source['source_url'] for source in result['sources']] == ['https://archive.example/photo']
 
 
 def test_app_returns_photos_discovered_by_llm_search(search_world):

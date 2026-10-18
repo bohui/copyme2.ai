@@ -251,7 +251,8 @@ class BoundedLaneInput(Contract):
     def validate_transport(self):
         if (self.fence.skill == 'timeline') != (self.phase in {'extract','summarize','profile'}):
             raise ValueError('Bounded lane phase does not match skill')
-        if (self.budget.context_window > 131072 or self.budget.input_budget > 65536
+        maximum_input = 98304 if self.phase in {'prepare', 'draft', 'review'} else 65536
+        if (self.budget.context_window > 131072 or self.budget.input_budget > maximum_input
                 or self.budget.framing_headroom < 2048):
             raise ValueError('Bounded lane budget exceeds the reviewed transport limits')
         if self.budget.model not in SUPPORTED_LANE_MODELS:

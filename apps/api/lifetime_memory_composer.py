@@ -17,11 +17,11 @@ PROTOCOL = 'lifetime_composer_pages'
 SOURCE_WINDOW = 2304
 
 
-def lane_model_budget():
+def lane_model_budget(*, composer=False):
     return ContextBudget(model=os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL',
         os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled')),
         context_window=int(os.getenv('MEMOIR_LANE_CONTEXT_WINDOW','131072')),
-        input_budget=int(os.getenv('MEMOIR_LANE_INPUT_BUDGET','65536')),
+        input_budget=int(os.getenv('MEMOIR_LANE_INPUT_BUDGET','98304' if composer else '65536')),
         output_headroom=int(os.getenv('MEMOIR_LANE_OUTPUT_HEADROOM','16384')),
         framing_headroom=2048)
 

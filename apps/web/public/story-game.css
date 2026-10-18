@@ -1,0 +1,20 @@
+.story-game-modal{width:min(950px,94vw);max-height:92dvh;padding:0;border:1px solid #d6ddd7;border-radius:20px;background:#fbfcf8;color:#263b36;box-shadow:0 30px 120px #142b3c55}
+.story-game-modal::backdrop{background:#102b3488;backdrop-filter:blur(5px)}
+.story-game-modal>header{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:18px 24px;background:#fbfcf8;border-bottom:1px solid #d6ddd7}
+.story-game-modal>header h2{margin:0;font-family:Georgia,serif;font-size:26px}
+.story-game-modal>header button{width:40px;height:40px;border:0;border-radius:50%;font-size:26px;background:#e8efea;color:inherit;cursor:pointer}
+.story-game-body{padding:24px;line-height:1.65}.story-game-body button{min-height:44px;cursor:pointer}.story-game-body button:disabled{cursor:default;opacity:.5}
+.game-permission{display:flex;gap:12px;align-items:flex-start;margin:18px 0;padding:16px;border:1px solid #d6ddd7;border-radius:12px;background:white}
+.game-permission input{margin-top:6px;min-width:20px;min-height:20px;accent-color:#386b57}
+.game-review-scene{margin:18px 0;padding:20px;border-radius:14px;background:#eef2e9}.game-review-scene h4{margin:0 0 12px}.game-review-scene blockquote{margin:0;padding:12px 16px;border-left:3px solid #8ca99b}
+.game-framing{font-size:14px;color:#526b61}.game-stage{height:280px;position:relative;overflow:hidden;border:2px solid #9caf9e;border-radius:16px;background:linear-gradient(#d6e8df 0 68%,#92ad7c 68% 76%,#486a42 76%);touch-action:pan-y;outline-offset:4px}
+.game-stage[data-art="generic-workroom"]{background:linear-gradient(#eddfca 0 68%,#c7a980 68% 76%,#856345 76%)}
+.game-world{height:100%;position:relative;will-change:transform}.game-player{position:absolute;bottom:67px;width:32px;height:60px;border-radius:14px 14px 7px 7px;background:#2b5b6c;z-index:1}
+.game-player:before{content:"";position:absolute;top:-24px;left:4px;width:24px;height:24px;border-radius:50%;background:#d5b894}.game-player:after{content:"";position:absolute;bottom:-12px;left:4px;width:24px;height:16px;border-left:8px solid #243943;border-right:8px solid #243943;box-sizing:border-box}
+.game-npc{position:absolute;bottom:67px;min-width:82px;min-height:82px;border:0;border-radius:24px 24px 6px 6px;background:#8b5f70;color:white;padding:46px 12px 8px;font-size:13px}
+.game-npc:before{content:"";position:absolute;top:10px;left:calc(50% - 12px);width:24px;height:24px;border-radius:50%;background:#d9c2a1}.game-npc:disabled{opacity:.65!important}.game-npc[hidden]{display:none}
+.game-controls{display:flex;justify-content:center;gap:14px;margin:16px 0}.game-controls button{border:1px solid #a3b7a6;border-radius:12px;background:white;color:inherit;font-size:18px;padding:10px 22px;touch-action:none;user-select:none}
+.game-dialogue{padding:20px;border-radius:14px;background:#e9efdf;border-left:4px solid #709478}.game-text-equivalent{margin-top:24px;padding:16px;background:white;border:1px solid #d6ddd7;border-radius:12px}.game-text-equivalent summary{cursor:pointer;font-weight:600;min-height:32px}
+.game-scene-label{font-weight:600}.workspace-game{padding:16px 0}
+@media(max-width:600px){.story-game-body{padding:16px}.story-game-modal>header{padding:16px}.game-stage{height:240px}.game-player,.game-npc{bottom:55px}.game-controls button{padding:10px 18px}}
+@media(prefers-reduced-motion:reduce){.game-world{will-change:auto}}

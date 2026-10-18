@@ -60,11 +60,11 @@ def test_missing_phase_and_missing_skill_file_fail_closed(tmp_path):
             'available': False, 'reason': 'skill_unavailable'}
 
 
-def test_current_shape_still_requires_button_and_unbound_permissions():
+def test_current_shape_still_requires_button_and_authenticated_game_workflow():
     current={'mode':'shape','reply_id':'server-recorded'}
     assert memoir_story_game.story_game_admission(current_mode=current)['reason']=='button_action_required'
     result=memoir_story_game.story_game_admission(current_mode=current,button_action=True)
-    assert result['reason']=='integration_unavailable' and not result['available']
+    assert result['reason']=='authenticated_game_workflow_required' and not result['available']
 
 
 def test_existing_worker_and_task_allowlists_do_not_admit_unbound_game_execution():

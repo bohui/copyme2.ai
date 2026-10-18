@@ -65,6 +65,7 @@ PROMPT_PATHS = {
     'memoir/skills/memoir-place-journey/extraction': 'skills/memoir-place-journey/references/two-lane.md',
     'memoir/skills/memoir-place-journey/instructions': 'skills/memoir-place-journey/SKILL.md',
     'memoir/skills/memoir-story-game/instructions': 'skills/memoir-story-game/SKILL.md',
+    'memoir/skills/memoir-story-game/proposal': 'skills/memoir-story-game/prompts/proposal.md',
     'memoir/skills/memoir-story-game/runtime-contract': 'skills/memoir-story-game/references/runtime-contract.md',
     'memoir/skills/memoir-place-photo-research/instructions': 'skills/memoir-place-photo-research/SKILL.md',
     'memoir/speech/default': 'apps/api/prompts/speech/default.md',

@@ -7,6 +7,7 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
+from pydantic import ValidationError
 
 
 from .codex_runtime import CodexRuntime
@@ -202,7 +203,18 @@ async def composer_call(runtime, storage, project_id, language, phase, packet):
     try:
         from .lifetime_memory_composer import lane_model_budget
         from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
-        bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=lane_model_budget())
+        budget = lane_model_budget(composer=True)
+        try:
+            bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=budget)
+        except ValidationError as error:
+            issues = error.errors(include_input=False)
+            if (phase != 'draft' or packet.get('candidate') is None or len(issues) != 1
+                    or str(issues[0].get('ctx', {}).get('error')) !=
+                    'Bounded lane instructions, packet, schema and framing exceed budget'):
+                raise
+            # Regenerate from unchanged originals when the failed draft fills the context.
+            packet = {key: value for key, value in packet.items() if key not in {'candidate', 'validation', 'review'}}
+            bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=budget)
         worker_started = time.monotonic()
         try:
             result = await send_bounded_lane_request(worker_url=runtime.worker_url, worker_secret=runtime.worker_secret,

@@ -4,6 +4,7 @@ import { createPhotoWorkspace } from "./photo-workspace.mjs";
 import { createPlaceWorkspace, PLACE_JOURNEY_PROJECT_STORAGE_KEY } from "./place-workspace.mjs";
 import { createFamilyWorkspace } from "./family-workspace.mjs";
 import { createPrivateDraft } from "./private-draft.mjs";
+import { createStoryGameDialog } from "./story-game.mjs";
 import { createStoryCheckout, FALLBACK_STORY_PLANS } from "./story-checkout.mjs";
 import { createConversationAudio } from "./conversation-audio.mjs";
 import { createConversationHistory } from "./conversation-history.mjs";
@@ -245,6 +246,8 @@ const {
   applyBackgroundSkillProgress, captureProjectScope, freeRecallFinished, isCurrentProjectScope, memoirApiPath, persistChatHistory, profile,
   render, state, storyApi, updateStreamingAssistantMessage
 });
+
+const storyGameDialog = createStoryGameDialog({state,storyApi,captureProjectScope,isCurrentProjectScope,translate});
 
 const {
   addPerson, applyPersistedFamilyContext, closeFamilyPerson, familyWorkspace, initFamilyVisualizations,
@@ -1764,6 +1767,7 @@ function memoryFollowUpPrompt(session = state.session) {
 }
 
 function render() {
+  storyGameDialog.sync();
   if (!state.project || currentPath() === "/" || currentPath() === MEMOIR_ROUTES.home) {
     conversationScroll.mount(null); disposeCesiumPlaceJourney(); return renderLanding();
   }
@@ -2552,7 +2556,7 @@ function memoirWorkspace() {
   let selected = chapters.findIndex((chapter, index) => memoirChapterKey(chapter, index) === state.selectedMemoirChapter);
   if (selected < 0) selected = 0;
   const chapter = chapters[selected];
-  const draftPreview = privateDraftPreview({ inChapters: true });
+  const draftPreview = privateDraftPreview({ inChapters: true }) + storyGameButton();
   if (!chapter) return `<div class="workspace-scroll"><div class="workspace-intro"><h2>${t("memoir")}</h2></div>${draftPreview || `<div class="workspace-empty"><span>✦</span><p>${t("firstChapterEmpty")}</p></div>`}</div>`;
   state.selectedMemoirChapter = memoirChapterKey(chapter, selected);
   const button = (index, label, disabled = false) => `<button type="button" data-memoir-chapter="${escapeHtml(memoirChapterKey(chapters[index], index))}" ${disabled ? "disabled" : ""}>${label}</button>`;
@@ -2731,8 +2735,13 @@ function recallPackagePrompt() {
   return `${excerpt}<section class="recall-package-prompt" aria-labelledby="recall-package-title"><h2 id="recall-package-title">${t("title")}</h2><p>${t("description")}</p>${state.supabase?.user?.is_anonymous ? `<p class="fine-print">${t("signIn")}</p>` : ""}${pending ? `<p role="status">${escapeHtml(translate("Memoir.storyFlow.paymentConfirming"))}</p>` : ""}<button type="button" class="text-button" data-check-recall-payment ${state.loading ? "disabled" : ""}>${t("checkPayment")}</button>${storyCheckoutForm()}</section>`;
 }
 
+function storyGameButton() {
+  return state.currentInterviewMode?.project_id === state.project?.id && state.currentInterviewMode?.mode === "shape"
+    ? `<div class="workspace-game"><button type="button" class="button button-secondary" data-story-game>${escapeHtml(translate("Memoir.game.button"))}</button></div>` : "";
+}
+
 function chatComposer() {
-  const game = state.currentInterviewMode?.project_id === state.project?.id && state.currentInterviewMode?.mode === "shape" ? `<div class="workspace-game"><button type="button" class="text-button" data-story-game>${escapeHtml(translate("Memoir.game.button"))}</button>${state.storyGameNotice?.projectId === state.project?.id ? `<p role="status">${escapeHtml(translate(`Memoir.game.${state.storyGameNotice.reason}`))}</p>` : ""}</div>` : "";
+  const game = storyGameButton();
   const focusControls = workspaceMemoryFocusMarkup()+game;
   if (state.recallStatus?.payment_required) return "";
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
@@ -2800,18 +2809,7 @@ function renderAgentTrace(trace, mode = "simulated", expanded = false) {
 }
 
 function bindViewActions() {
-  $("[data-story-game]")?.addEventListener("click", async () => {
-    const scope=captureProjectScope();
-    try {
-      const result=await storyApi('/v1/story/game',{method:"POST",body:JSON.stringify({project_id:scope.projectId})});
-      if (!isCurrentProjectScope(scope)) return;
-      state.storyGameNotice={projectId:scope.projectId,reason:["shape_required","current_decision_required","integration_unavailable"].includes(result.reason) ? result.reason : "integration_unavailable"};
-    } catch (_) {
-      if (!isCurrentProjectScope(scope)) return;
-      state.storyGameNotice={projectId:scope.projectId,reason:"integration_unavailable"};
-    }
-    render();
-  });
+  document.querySelectorAll("[data-story-game]").forEach(button => button.addEventListener("click", () => storyGameDialog.open(button)));
   $(".family-workspace")?.addEventListener("error", event => {
     if (event.target.matches("[data-family-portrait]")) event.target.remove();
   }, true);

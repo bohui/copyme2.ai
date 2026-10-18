@@ -44,3 +44,4 @@ docs/mobile/evidence/
 
 .tmp*
 deprecated-*
+.omo/

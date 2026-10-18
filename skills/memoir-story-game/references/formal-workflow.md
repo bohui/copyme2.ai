@@ -12,19 +12,18 @@ editions have their own revision, immutable contents and completion receipt.
 
 ## Actual interfaces
 
-The additive migration is
-`supabase/migrations/202610130002_formal_memoir_authority.sql`. It is authored for
-review and disposable synthetic testing; it has not been applied to existing
-Supabase, production or user data. No installation or service restart occurred.
+The formal authority and game adapter SQL are included in the consolidated
+baseline, `supabase/migrations/202610180001_initial_schema.sql`. See the current
+runtime contract for the adapter's routes and verification boundaries.
 
 Authenticated endpoints registered by `apps/api/agent_routes.py`:
 
 | HTTP endpoint | Purpose |
 | --- | --- |
-| `POST /v1/agent/projects/{project_id}/formal-memoir` | Explicitly authorize a formal run using `expected_phase_revision`, formal `expected_revision` and UUID `request_id`. |
+| `POST /v1/agent/projects/{project_id}/formal-memoir` | Explicitly authorize a formal run using formal `expected_revision` and UUID `request_id`. |
 | `GET /v1/agent/projects/{project_id}/formal-memoir` | Read metadata for the current run and edition. No manuscript/source prose. |
 | `PUT /v1/agent/projects/{project_id}/story-game/consent` | Grant or revoke private adaptation consent using `edition_id`, `expected_digest`, expected consent revision and `action`. |
-| `GET /v1/agent/projects/{project_id}/story-game/eligibility` | Read current completion/consent gates. `available` remains false, even when `authority_eligible` is true. |
+| `GET /v1/agent/projects/{project_id}/story-game/eligibility` | Read current completion/consent/Shape gates; availability requires the game migration and all gates. |
 
 All four use the existing authenticated user storage connection. The database
 resolves ownership from `auth.uid()`; the browser cannot provide an owner, source
@@ -37,13 +36,13 @@ The trusted worker endpoint is
 existing `X-Codex-Worker-Secret`. It processes at most eight chapters per call.
 `apps/api/formal_memoir.py` performs the same bounded operation through the broker.
 The returned run may remain pending; the worker invokes advance again to resume.
-There is no new scheduler, automatic background dispatch, UI control or provider
-binding in this change. No new credential is introduced or populated.
+The private game dialog can explicitly advance the same owned run through
+`POST /v1/agent/projects/{project_id}/formal-memoir/advance`; each call remains bounded.
+There is no automatic formal-composition scheduler or new credential.
 
 ## Persisted authority
 
-`begin_formal_memoir` acquires the owned project authority, requires current Shape
-and ready policy, and freezes the complete intended plan before any output is
+`begin_formal_memoir` acquires the owned project authority, requires ready policy, and freezes the complete intended plan before any output is
 accepted. It requires finished canonical extraction. Every active canonical event
 must be covered; invalid or oversized evidence blocks initiation instead of being
 silently truncated. V1 bounds are 128 chapters, eight exact evidence spans per
@@ -91,16 +90,11 @@ private-publication lock order. Purging, stale-token invalidation and edition
 deactivation stay in the preference transaction; rollback restores them together.
 Status reads also lock identity before reading run and edition metadata.
 
-## Remaining game and delivery work
+## Game adapter
 
-Formal completion and top-level consent are necessary gates. They do not resolve
-per-person permissions, sensitive facts, approved aliases, factual line review,
-author approval of a game digest, game jobs or a playable renderer. The game
-request/candidate schemas remain offline conventions until that adapter exists.
-
-No owner-facing manuscript or game-content delivery route is added. A future read
-path must guard the actual network send against concurrent correction/revocation;
-a successfully completed read RPC is insufficient. The bounded edition reader is
-service-only for a trusted adapter and persistence testing. Direct table access
-is denied to application roles. Game provider dispatch and existing model/worker
-allowlists remain unchanged, including the unverified product Astra model ID.
+The game adapter in [runtime-contract.md](runtime-contract.md) consumes these
+verified editions, validates exact original quotations, collects separate person
+permissions and candidate approval, and guards the actual content delivery send.
+The richer offline request/candidate fixtures remain design aids; their JSON is
+not accepted as runtime authority. Completion and adaptation consent never imply
+permission to publish an unreviewed game.

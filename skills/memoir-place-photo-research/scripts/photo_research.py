@@ -854,7 +854,7 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
               + ". Cite original source pages. Webpage publication and upload dates are not capture dates.")
     body = {"model": model, "input": prompt, "tools": [{"type": "web_search"}],
             "tool_choice": "required", "include": ["web_search_call.action.sources"],
-            "max_tool_calls": 1, "max_output_tokens": 1024, "store": False}
+            "reasoning": {"effort": "low"}, "max_output_tokens": 1024, "store": False}
     req = http_request.Request(base + "/responses", data=json.dumps(body).encode(),
                                headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     try:
@@ -876,11 +876,12 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
     if not isinstance(data, dict) or not isinstance(data.get("output"), list):
         fail("llm_search_invalid_response")
     def valid_receipt(value):
-        return isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,200}", value) and key not in value
+        return isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9_-]{1,1024}", value) and key not in value
     if not valid_receipt(data.get("id")):
         fail("llm_search_invalid_response")
-    calls = [item for item in data["output"] if isinstance(item, dict)
-             and item.get("type") == "web_search_call" and item.get("status") == "completed"
+    search_calls = [item for item in data["output"] if isinstance(item, dict)
+                    and item.get("type") == "web_search_call"]
+    calls = [item for item in search_calls if item.get("status") == "completed"
              and valid_receipt(item.get("id"))]
     if not calls:
         fail("llm_search_no_search_evidence")
@@ -897,7 +898,8 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
         action = call.get("action")
         returned = action.get("sources", []) if isinstance(action, dict) else []
         returned = returned if isinstance(returned, list) else []
-        for source in returned + (annotations if call is calls[0] else []):
+        # Message citations identify a call only when exactly one search ran.
+        for source in returned + (annotations if len(search_calls) == 1 else []):
             if not isinstance(source, dict):
                 continue
             url = source.get("url")
@@ -912,8 +914,8 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
             if any(row["source_url"] == url for row in sources):
                 continue
             sources.append({"provider": "llm_web_search", "source_url": url,
-                            "response_id": str(data.get("id", ""))[:200],
-                            "tool_call_id": str(call["id"])[:200], "observed_at": utcnow()})
+                            "response_id": data["id"],
+                            "tool_call_id": call["id"], "observed_at": utcnow()})
     if not sources:
         fail("llm_search_no_source_evidence")
     return {"provider": "llm_web_search", "status": "success", "sources": sources[:24]}

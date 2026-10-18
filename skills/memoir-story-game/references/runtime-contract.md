@@ -1,163 +1,108 @@
-# Runtime contract
+# Private game runtime contract
 
-## Observed source and authority boundaries
+The production adapter is `apps/api/story_game_routes.py`,
+`apps/api/story_game_runtime.py` and the consolidated reset baseline
+`supabase/migrations/202610180001_initial_schema.sql`. Formal composition and
+consent already live in `202610180001_initial_schema.sql`. Applying a migration
+and deploying these sources are separate from passing disposable tests.
 
-Baseline: `bohui/copyme2.ai` main at
-`67ed64e395c0e5414e2d8cca4e648edc0c0562a9`. Source checkout was independently
-observed on `test/manual1` at `b8c178745093251806de4081645256dc887ed0b6`.
+## Authority and source evidence
 
-| Source | What it establishes |
+Every job binds the owned project, policy epoch, source inventory, preferences,
+execution generation, current delivered Shape reply, immutable formal edition,
+manuscript digest and separate consent revision. `story_game_context` takes the
+same project/profile/lifetime locks as formal composition and verifies current
+full completion plus exact-edition consent. No client-supplied source list,
+completion flag, person ID or candidate JSON is authority.
+
+The provider sees only the claimed edition's original-backed chapter blocks.
+`stage_story_game` resolves the stored chapter and block, requires each quote to
+be an exact, unambiguous substring, and derives original source/version/offsets
+from the verified formal chapter. Factual scene titles and person labels must
+also occur in that quote. Extra fields, unsupported quotes, duplicate person
+labels, HTML and unsupported art keys are rejected. The model cannot approve its
+own output. A completed provider response is a proposal, never a publication.
+
+The initial runtime supports exactly two scenes and two represented people.
+Private server-side person records bind the exact passage to an opaque adaptation
+person ID; they do not claim to be a resolved genealogical family tree. The author
+must confirm that the two source descriptions identify distinct adults and grant
+permission for their exact passages before publication. Unknown ages, minors or
+uncertain identity cannot be approved through this version. Aliasing does not
+anonymize names or relationships inside a source quote; the review shows both.
+
+## Jobs, review and private publication
+
+`begin_story_game` serializes the project and reuses an existing current job.
+Each request UUID replays only its original authority. A new request can replace
+stale work after fresh completion and consent. States are `pending`, `running`,
+`review_required`, `published`, `failed`, `stale`. Claims use a fresh fencing token,
+a 180-second lease and at most three attempts; a busy lease cannot dispatch twice.
+Read, stage, publish and delivery all recheck current authority. A late worker
+cannot stage after a replacement claim or consent/source change.
+
+The host constructs all browser IDs, generic aliases, allowlisted scenery and
+bounded coordinates. The review includes every scene title, alias, quotation,
+protagonist and scenery choice. Publication requires the exact database candidate
+digest and two separate person permission confirmations. The database derives the
+authenticated reviewer and records the candidate, permissions, purpose and private
+audience atomically. Replaying the same approved candidate returns stored state.
+The browser cannot replace reviewed content at publication.
+
+Production digests use SHA-256 of UTF-8 PostgreSQL `jsonb::text`; the offline
+`request.schema.json` / `candidate.schema.json` fixtures use their own sorted,
+compact JSON conventions. The fixture validator remains a design/development aid,
+not the runtime authorization service. `game.schema.json` describes the actual
+browser projection.
+
+## Interfaces
+
+All routes below use the existing authenticated project owner and `no-store`.
+
+| Route under `/v1/agent/projects/{project_id}` | Purpose |
 | --- | --- |
-| `apps/api/conversation_phase.py`, `PhaseState` / `resolve_phase` | Explicit `comfort`, `explore`, `shape`; no `paused` phase. Shape is a narrator choice, independent of completion. |
-| `skills/memoir-composer/SKILL.md`, trigger B | `storytelling_complete` authorizes composition to begin. |
-| `skills/memoir-composer/references/runtime-contract.md`, candidate output | The composition candidate always has `status=draft`, including a generated formal memoir. |
-| `skills/memoir-composer/scripts/lib.mjs`, `plan` / validation | Structural composition gates; the baseline supplied no durable full-composition receipt. |
-| `apps/api/lifetime_memory_contracts.py`, `allowed_use` | Existing uses are `conversation`, `extraction`, `composition`; none silently grants adaptation. |
+| `GET /story-game` | Read completion, consent and adaptation metadata. |
+| `POST /formal-memoir` | Explicitly begin a complete extractive formal edition. |
+| `POST /formal-memoir/advance` | Advance the owner's current run by at most eight chapters. |
+| `PUT /story-game/consent` | Grant/revoke separate consent for the exact edition and digest. |
+| `POST /story-game` | Begin/replay a job and perform one bounded proposal attempt. |
+| `GET /story-game/{game_id}?review=true` | Privately review the vetted candidate and person descriptions. |
+| `POST /story-game/{game_id}/publish` | Approve the exact candidate and specific person permissions. |
+| `GET /story-game/{game_id}` | Deliver the approved browser projection. |
 
-The baseline completion gap is addressed by the separately documented
-[formal workflow](formal-workflow.md): actual RPCs, an additive migration,
-authenticated routes and a provider-free extractive worker. The migration has
-not been applied to an existing service. Game generation, review, commit and
-delivery interfaces below remain **proposed host interfaces**, not existing
-endpoints or feature flags. A missing interface returns `blocked`; it must not be
-filled by a model inventing an authorization field. No root `AGENTS.md` or
-repository `.agents/skills` existed in this baseline. `apps/web/AGENTS.md` was
-read; its Next.js guidance applies when future work changes web code. Local
-`~/.agents/skills/writing-for-agents` informed the package structure.
+All service-only claim/input/stage/fail operations deny authenticated and anonymous
+roles. Direct game-table access is denied to application roles. The old collector
+prompt-construction seam stays closed: only this separate authenticated workflow
+can generate games. Internal strategy plans and the generic worker/task allowlists
+cannot bypass these routes.
 
-## Authority and data boundaries
+## Delivery, invalidation and renderer
 
-`request.schema.json` is a **server-only**, authenticated snapshot. It contains
-the chosen formal manuscript and chapters, immutable original evidence spans,
-server-reviewed lines, permitted people and local asset registry. It also carries:
+`StoryGameResponse` holds the authority transaction through the actual bounded
+HTTP send. Consent/source revocation and delivery serialize on the same locks;
+a successful earlier RPC alone is insufficient. Source/edition/consent changes
+purge candidates and reviews, fence workers and withhold future reads. A changed
+current delivered strategy also rejects access. Read errors return coarse status
+messages without source content. Read requests never return server source IDs,
+source offsets, authority, review receipts or provider metadata to the player.
 
-- Current phase and phase revision, project and actor scope.
-- Completion receipt: composition run ID, manuscript ID/revision/digest, exact
-  chapter ID/revision/digest coverage, original-evidence manifest digest, validation
-  digest, zero pending chapters and zero blocking findings. The host verifies
-  receipt provenance, successful run ownership and durable atomic creation.
-- Separate consent receipt: `purpose=game_adaptation`, chosen manuscript binding,
-  private audience, active status, consent revision and current policy epoch.
-  Existing composition permission cannot create this receipt.
-- Policy, correction and revocation epochs, source manifest and asset registry.
-- Job ID, fencing token and expected game artifact revision.
+The Shape-only dialog requests fresh status on open, every 15 seconds while
+visible, and before remount after visibility change. Failure, access loss, project
+switch, phase exit, close and revocation clear the renderer and abort requests.
+No localStorage, IndexedDB, offline download, public link or game telemetry is
+used. Already delivered bytes cannot be recalled from a person who saved them;
+revocation controls subsequent access and the active application's display.
 
-Hashes are lowercase SHA-256. The local fixture convention hashes canonical JSON
-(UTF-8, sorted keys, compact separators, finite numbers, Unicode unescaped).
-Chapter digests hash exact UTF-8 text; manuscript digests hash its ordered chapter
-descriptors and text. The original-evidence manifest hashes the ordered evidence
-records. These conventions do not assert an existing product hashing format;
-an eventual adapter must translate from its verified canonical representation.
+The renderer accepts only bounded declarative `game` data. Two connected scenes
+have fixed transitions, clamped movement, generic CSS silhouettes and reviewed
+text. It provides keyboard and touch controls, close/Escape, text equivalence and
+no automatic camera animation. Every factual string is rendered as text, never
+HTML. Per-instance abort listeners, animation cancellation and timer cleanup
+prevent old views from writing into a new owner/project. No generated JS, paths,
+URLs, plugins, open-ended NPC chat, likeness or voice cloning is supported.
 
-The host's approved lines contain original evidence spans and a span from the
-chosen chapter, plus a server-resolved editorial review receipt. A model cannot
-add its own line to this authority list. Candidate grounding maps each browser
-text ID to exactly one approved line and requires exact text equality. The local
-validator checks linkage and quote spans; host editorial review establishes
-paraphrase entailment, attribution and the absence of unsupported implications.
-Each dialogue line also binds `npc_person_id` to the specific permitted NPC;
-`person_ids` lists mentioned people and cannot by itself authorize presentation
-by one of them. A line approved for one NPC cannot be reassigned to another.
-
-`candidate.schema.json` remains server-only. It binds the complete request digest,
-line map, NPC-to-canonical-person map, game data and a final author review receipt
-to a candidate digest. The host verifies that reviewer's authority and the exact
-reviewed content. `game.schema.json` is the only browser projection; never return
-the request, candidate, reviewer identity, errors with source text, or debug dumps.
-
-## Required host bindings
-
-| Proposed capability | Obligation |
-| --- | --- |
-| Read current adaptation authority | Authenticate project ownership/authorized helper scope; read PhaseState, immutable manuscript, durable completion, separate consent, current epochs and permitted originals. |
-| Review grounded lines | Resolve original lineage and exact manuscript version; record permitted wording, aliases, editorial entailment, sensitive-person grants and attribution; authenticate review receipts. |
-| Review adaptation | Show all scenes, aliases, art and dialogue; record author approval of the candidate content digest. An editorial review is not author approval. |
-| Claim adaptation job | Derive the logical idempotency key from frozen authority excluding job ownership; serialize the project lane; issue a monotonically fenced lease. |
-| Commit private game | In one transaction recheck all authority, expected artifact revision, active consent and job fence; compare-and-swap; persist immutable output and replay result. |
-| Deliver private game | Authenticate every access and recheck authority before returning only the approved browser projection. Enforce private storage and no-store responses. |
-| Invalidate adaptation | On correction, source/rights change, consent withdrawal, phase exit or manuscript change, fence running jobs, withhold delivery and discard stale candidates under retention policy. |
-
-Completion, exact-edition consent and metadata eligibility are implemented by the
-formal workflow. Adaptation evidence review, game jobs, game persistence and
-delivery remain unimplemented. A passing local
-fixture check is neither a signed receipt nor a database transaction. Do not
-connect a browser or provider to the fixture validator as an authorization service.
-
-## Checked-in harness registration
-
-`apps/api/memoir_story_game.py` loads this repository's `SKILL.md` and exposes
-`story_game_admission` and `build_story_game_prompt`. `apps/api/codex_runtime.py`
-registers those symbols and loads `STORY_GAME_SKILL`, following place-journey's
-repository path convention. Existing `trajectory_evaluation.build_skill_manifest`
-automatically discovers and hashes this directory; no separate catalog is present.
-This registration is exercised by `tests/test_memoir_story_game.py`.
-
-Admission rejects absent/invalid phase authority and Comfort/Explore. Shape-only
-discovery returns `persisted_authority_required`. The authenticated eligibility
-RPC resolves persisted completion and consent but always returns `available=false`
-because game runtime bindings remain absent. Prompt construction raises before any
-provider invocation; completion and consent booleans from chat/profile/browser
-cannot enable it. The skill is never appended to collector/workspace prompts.
-The worker role allowlist and deterministic task kinds remain unchanged, preventing
-a caller from bypassing this blocked seam through a new `story_game` role.
-
-Next integration: adapt verified formal receipts and separately approved evidence
-to the game request contract. Add a bounded worker role/job whose claim and commit
-share the same fences, with a verified Astra model binding; return the browser
-projection through a private endpoint after author review. Add the Shape control
-and fixed renderer only after those gates pass integration tests. Do not accept
-the synthetic request JSON directly from an API client as authority. Repository
-registration needs no `install_skill` or personal Codex installation; none was run.
-
-## Dispatch, races and delivery
-
-Offer and invoke the feature only after the host verifies Shape and completion;
-request separate adaptation consent before generation. Recheck on the server even
-if a hidden/disabled UI control already gates access. Returning to Explore or
-Comfort withholds the feature and fences outstanding work; it does not introduce
-a paused phase. Require fresh author review after invalidation, even on reentry.
-
-The proposed game job lifecycle is `queued → drafting → review_required → validated
-→ committed`, with `blocked`, `cancelled`, `failed` or `superseded` terminal outcomes.
-These are game-job states, not changes to PhaseState. Exact replay returns the
-stored logical outcome. Retry only transient failures, at most twice per task;
-reuse completed work with identical dependencies. Do not retry denied permission,
-missing completion, unsupported facts or failed review as provider errors.
-
-The local `idempotency_key` excludes job ownership but includes manuscript, consent,
-phase, evidence, assets and epochs. The candidate digest includes the job fence via
-the full request digest. Another worker taking ownership therefore invalidates
-late output even when the logical job key is unchanged. Production must enforce
-this atomically; comparing two files merely exercises the invariant.
-
-Consent and privacy checks occur at claim, before any generation, before final
-commit and on every delivery. A revision or policy race rejects the old write;
-never last-write-wins. Revocation blocks existing artifacts as well as new jobs.
-Access loss during play must unmount and clear client memory via a host session
-check/lease and invalidation event. Do not use service-worker caches, public CDNs,
-localStorage, IndexedDB or offline downloads for personalized packages. Already
-delivered bytes cannot be recalled from a user who saved them; promise future
-access invalidation, not retroactive erasure from their device.
-
-## Fixed browser renderer
-
-The game is bounded declarative data: two to eight connected side-scrolling scenes,
-a controllable generic author, two to sixteen aliased NPCs, deterministic reviewed
-dialogue, coordinates and safe asset keys. Opaque IDs are random per release,
-unrelated to database/source IDs, names or hashes of private facts. The validator
-rejects exact overlap with server identifiers; the host must generate IDs itself
-to prevent encoded identifiers that an equality check cannot recognize. The host maps
-asset keys to reviewed, bundled local raster assets; package data cannot choose a
-path or URL. Unknown keys fail closed. No generated JS/HTML, expressions, plugins,
-remote URLs, network scripts, open-ended NPC chat, photo likeness or voice cloning.
-
-Render text as text nodes. Use bounded coordinates and fixed transition actions.
-Keyboard/touch movement, interaction, escape/close, a text-only equivalent and a
-reduced-motion transition are renderer responsibilities. Schema declarations do
-not prove those behaviors work. Further implementation must read the repository's
-current web instructions and test actual lifecycle cleanup.
-
-The user's Astra model preference remains a requirement for future binding, not
-an API identifier. Do not change model allowlists or start provider calls until
-the product verifies support. This skill does not authorize applying migrations,
-installation, restart, new credentials, service purchases, deployment or publication.
+The provider model is the existing verified composer gateway configuration, with
+one strict-schema response, a bounded input/output and a deadline. Display names
+such as Astra are not API bindings. No engine dependency, remote art service or
+new credential is introduced. Acceptance evidence is tracked separately; do not
+infer a live deployment or completed end-to-end evaluation from source files.

@@ -1,0 +1,119 @@
+{
+  "recorded_at": "2026-10-18T09:03:02.825588+00:00",
+  "pull_request": "https://github.com/bohui/copyme2.ai/pull/86",
+  "reviewed_head": "889a3d4067282e0eb02b2410f93d9c2f6ab66af9",
+  "original_coding_session": "https://chatgpt.com/s/cx_6ad486e101708191a279cc1d1867e669",
+  "status": "five_findings_fixed_and_verified",
+  "findings": [
+    {
+      "priority": "P1",
+      "issue": "Game manuscript could cross provider transport after authorization revocation",
+      "fix": "Freeze game/token/authority in a single-use body and retain existing game SQL locks through transport consumption; release before generation",
+      "regression": [
+        "consent and source revocation before send produce zero transmitted bytes",
+        "authorized send stages the real validated candidate",
+        "revocation waits on the actual database lock during send, then finishes before the provider response"
+      ]
+    },
+    {
+      "priority": "P2",
+      "issue": "Multi-call photo message citations could borrow the first search receipt",
+      "fix": "Use each native call source list; message citation fallback requires exactly one observed search call",
+      "regression": [
+        "persisted later-call photo keeps its own discovery receipt",
+        "unbound citations are excluded with completed or incomplete sibling calls"
+      ]
+    },
+    {
+      "priority": "P2",
+      "issue": "A case outside the requested phase could produce a zero-case passed evaluation",
+      "fix": "Reject phase/case mismatches before allocation and mark empty execution incomplete",
+      "regression": [
+        "both phase mismatch directions in plan and execute modes",
+        "zero results/experiments cannot pass"
+      ]
+    },
+    {
+      "priority": "P2",
+      "issue": "Game dialog and requests survived Back/Forward while another interview recovered",
+      "fix": "Close on popstate/pagehide and abort dialog-owned requests/listeners",
+      "regression": [
+        "actual Back and Forward immediately close and abort before held recovery returns",
+        "failed recovery and late stale responses cannot restore the old dialog"
+      ]
+    },
+    {
+      "priority": "P2",
+      "issue": "Keyboard Walk activation could not move after NPC dialogue",
+      "fix": "Clear dialogue on Enter/Space movement just as pointer/arrow movement does",
+      "regression": [
+        "Enter and Space on directional controls in English desktop and Chinese phone flows"
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "pr86-isolated-regressions",
+      "passed": 168,
+      "exit_code": 0,
+      "base_head": "889a3d4067282e0eb02b2410f93d9c2f6ab66af9",
+      "receipt": "var/story-game-checks/pr86-isolated-regressions.json",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "pr86-send-lock-lifetime-and-empty-run",
+      "passed": 3,
+      "exit_code": 0,
+      "base_head": "889a3d4067282e0eb02b2410f93d9c2f6ab66af9",
+      "receipt": "var/story-game-checks/pr86-send-lock-lifetime-and-empty-run.json",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "pr86-citation-and-phase-final",
+      "passed": 141,
+      "exit_code": 0,
+      "base_head": "889a3d4067282e0eb02b2410f93d9c2f6ab66af9",
+      "receipt": "var/story-game-checks/pr86-citation-and-phase-final.json",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "pr86-current-workspace-integration",
+      "passed": 155,
+      "exit_code": 0,
+      "base_head": "889a3d4067282e0eb02b2410f93d9c2f6ab66af9",
+      "receipt": "var/story-game-checks/pr86-current-workspace-integration.json",
+      "native_cleanup_verified": true
+    }
+  ],
+  "check_counts_overlap": true,
+  "red_receipts": [
+    "var/story-game-checks/pr86-fast-regressions-red.json",
+    "var/story-game-checks/pr86-authorization-and-ui-red.json",
+    "var/story-game-checks/pr86-incomplete-call-citation-red.json"
+  ],
+  "superseded_verification": {
+    "receipt": "var/story-game-checks/pr86-five-findings-green.json",
+    "result": "156 passed, 4 failed, 8 setup errors while unrelated collector/prompt sources changed; retained, then rerun against isolated PR head"
+  },
+  "integrated_file_sha256": {
+    "apps/api/story_game_runtime.py": "2ae04395911bdf44a2fb82f1500ae130cd0bac5db1d4d5496f9a1756c6761f1f",
+    "apps/web/client/memoir/story-game.mjs": "4a825628b75f2e034b8d86bd23b8cc8cd04c4bfaf96ad2ecfcac758ae23114e0",
+    "scripts/run_memoir_skill_evaluation.py": "e114450ea139db13408d42e9ea6fee408efb433a9fff133af50afa86da04f940",
+    "skills/memoir-place-photo-research/scripts/photo_research.py": "540fc053c8808cbc87fb46a90ae29688db4904252dd457f4a9bc28678f72d0af",
+    "tests/test_llm_place_photos.py": "94a5c5a13dad718d33e9cf4ae2e2d542355d557bf20281bd7cbebc5166aebac5",
+    "tests/test_memoir_skill_evaluation.py": "fff203019cef68852400bcfd26460abfc1d9da5412822cabaabd0fa2acc47aa9",
+    "tests/test_story_game_browser.py": "15a43db26e596c722cad76d1fcb7872bdb12dfa2fefc4d99cf3cb9767e94939f",
+    "tests/test_story_game_runtime.py": "118e6d5623d27fbef30bffdac12a635a0e36ce53c8c078a22d66e5bddbd1c247",
+    "tests/test_story_game_runtime_postgres.py": "4bb91261daace373ebd6cafb60eced483c74d87f80bb7a4c44ae4b46ab1095ee"
+  },
+  "verification_boundaries": {
+    "database": "disposable native PostgreSQL",
+    "browser": "actual source frontend and headless Chromium",
+    "external_auth_and_models": "controlled",
+    "live_provider_calls": 0,
+    "configured_database_reset": false,
+    "historical_twelve_broader_failures": "not claimed repaired",
+    "live_campaign": "incomplete: 49 saved replies in first case; other four unstarted",
+    "pushed_or_merged_during_verification": false
+  }
+}

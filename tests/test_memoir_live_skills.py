@@ -78,6 +78,25 @@ def test_composer_uses_its_configured_background_route_and_effort(monkeypatch, t
     assert live.receipt['calls'][0]['requested_model'] == 'memoir-luna-low'
 
 
+def test_native_search_uses_supported_gateway_protocol_without_hidden_retries(monkeypatch, tmp_path):
+    live = provider(tmp_path)
+    requests = []
+    def handle(request):
+        requests.append(json.loads(request.content))
+        return httpx.Response(200, json=response(text='Public source lead', output=[
+            {'type': 'web_search_call', 'id': 'search-one', 'status': 'completed'},
+            {'type': 'message', 'content': [{'type': 'output_text', 'text': 'Public source lead'}]}]))
+    use_transport(monkeypatch, handle)
+    asyncio.run(live.call('native', 'memoir-place-photo-research', 'Discovery only', {}, search=True))
+    assert len(requests) == 1
+    assert requests[0]['tools'] == [{'type': 'web_search'}]
+    assert requests[0]['tool_choice'] == 'required'
+    assert requests[0]['include'] == ['web_search_call.action.sources']
+    assert 'max_tool_calls' not in requests[0]
+    assert requests[0]['reasoning'] == {'effort': 'low'}
+    assert requests[0]['input'] == 'Discovery only' and 'instructions' not in requests[0]
+
+
 @pytest.mark.parametrize('payload', [response(status='incomplete'), response(id=None),
     response(text='{"profile_patch":[{"field":"preferred_language","value":"en-AU","source_refs":[]}]}'), response(text='private-test-key'),
     response(id='private-test-key'), response(usage={'unexpected': 'private-test-key'})])
