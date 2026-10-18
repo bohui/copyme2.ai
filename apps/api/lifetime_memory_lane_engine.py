@@ -509,9 +509,17 @@ async def validate_lane_payload(bounded):
     if payload.get('validation')!=validation:
         raise ValueError('Candidate validation differs from the canonical page proof')
 
+def lane_model_packet(bounded_lane: BoundedLaneInput) -> str:
+    """Project only after validation; canonical transport/fence bytes stay intact."""
+    packet = _object(bounded_lane.packet)
+    if bounded_lane.phase == 'extract' and bounded_lane.fence.two_lane is not None:
+        packet['payload'].pop('preferences')
+    return serialize_packet(packet)
+
+
 def lane_request_tokens(bounded_lane: BoundedLaneInput) -> int:
     instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode), fence=bounded_lane.fence)
-    return (bounded_lane.budget.count(instructions) + bounded_lane.budget.count(bounded_lane.packet)
+    return (bounded_lane.budget.count(instructions) + bounded_lane.budget.count(lane_model_packet(bounded_lane))
         + bounded_lane.budget.count(serialize_packet(schema)) + bounded_lane.budget.framing_headroom)
 
 
@@ -711,7 +719,8 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
         f'-epoch-{fence.policy_epoch}-page-{fence.page_number}-{uuid4()}')
     home.mkdir(mode=0o700)
     write_config(home,root,os.getuid() if uid is None else uid,
-        provider_config(base_url,model,governed=True),apply_owner=apply_owner)
+        provider_config(base_url,model,governed=True,
+            data_only=bounded.phase in {'extract','summarize','profile'}),apply_owner=apply_owner)
     async with (connection_factory or CodexConnection)(command,home,
             provider_env={'MEMORY_SPARK_LLM_API_KEY':api_key},timeout=timeout,progress=progress,
             request_admission=request_admission,**issue14_connection_options(issue14_admission)) as connection:
@@ -719,7 +728,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
             start_params={'cwd':str(home),'ephemeral':True,'modelProvider':'llm_provider',
                 'model':model,'approvalPolicy':'never','sandbox':'read-only','baseInstructions':instructions},
             identity={'owner_id':str(fence.user_id),'conversation_id':str(fence.conversation_id)})
-        reply = await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
+        reply = await connection.turn(opened['thread_id'],lane_model_packet(bounded),output_schema=schema,
             **({'effort':effort} if effort else {}))
         _object(reply)  # Semantic/evidence validation and fenced commit remain with the lane owner.
     return {'thread_id':opened['thread_id'],'reply':reply,'artifacts':[]}

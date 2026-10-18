@@ -212,6 +212,101 @@ def test_each_page_attempt_has_new_home(tmp_path):
     assert Connection.instances[0].home!=Connection.instances[1].home
 
 
+def test_lane_b_deduplicates_only_the_model_view_and_keeps_complete_fenced_privacy(tmp_path):
+    current=page()
+    current['two_lane']={'task_version':'two-lane-v1','execution_generation':1,
+        'phase_revision':0,'work_mode':'extract','strategy_mode':'active'}
+    current['preferences'].update(excluded_topics=['My private address'],paused_topics=['School'])
+    bounded=transport(current=current)
+    original=bounded.packet
+    canonical=json.loads(original)
+    run(tmp_path,bounded)
+    instance=Connection.instances[0]
+    sent=json.loads(instance.turns[0][1])
+    assert 'preferences' not in sent['payload']
+    assert sent['lane_context']==canonical['lane_context']
+    assert sent['lane_context']['preferences']['excluded_topics']==['My private address']
+    assert sent['lane_context']['preferences']['paused_topics']==['School']
+    assert sent['payload']=={k:v for k,v in canonical['payload'].items() if k!='preferences'}
+    assert bounded.packet==original and canonical['payload']['preferences']==current['preferences']
+    from apps.api.lifetime_memory_lane_engine import lane_contract
+    instructions,schema=lane_contract('extract',bounded.fence.locale,two_lane=True,strategy=True,fence=bounded.fence)
+    assert lane_request_tokens(bounded)==(BUDGET.count(instructions)+BUDGET.count(instance.turns[0][1])
+        +BUDGET.count(serialize_packet(schema))+BUDGET.framing_headroom)
+    config=tomllib.loads((instance.home/'config.toml').read_text())
+    assert config['web_search']=='disabled'
+    assert config['features']['view_image'] is False
+    assert config['skills']['include_instructions'] is False
+
+
+def test_lane_b_cannot_hide_a_conflicting_policy_by_deduplicating_it(tmp_path):
+    current=page()
+    current['two_lane']={'task_version':'two-lane-v1','execution_generation':1,
+        'phase_revision':0,'work_mode':'extract'}
+    current['preferences']['excluded_topics']=['My private address']
+    bounded=transport(current=current)
+    packet=json.loads(bounded.packet)
+    packet['payload']['preferences']['excluded_topics']=[]
+    changed=bounded.model_copy(update={'packet':serialize_packet(packet)})
+    with pytest.raises(ValueError,match='authoritative page evidence'):
+        run(tmp_path,changed)
+    assert not Connection.instances and not list(tmp_path.glob('lane-*'))
+
+
+def test_lane_b_data_only_config_keeps_research_and_other_runtimes_unchanged():
+    from apps.api.codex_agent import provider_config
+    data=tomllib.loads(provider_config('http://provider.invalid',BUDGET.model,governed=True,data_only=True))
+    for governed in (False,True):
+        original=tomllib.loads(provider_config('http://provider.invalid',BUDGET.model,governed=governed))
+        assert 'skills' not in original and 'web_search' not in original
+        assert 'view_image' not in original['features']
+    assert data['web_search']=='disabled' and data['skills']['include_instructions'] is False
+    assert data['features']['view_image'] is False
+    assert data['sandbox_mode']=='read-only' and data['approval_policy']=='never'
+    assert data['memories']=={'generate_memories':False,'use_memories':False}
+
+
+@pytest.mark.parametrize('strategy',[False,True])
+@pytest.mark.parametrize('attribution',[False,True])
+def test_lane_b_prompt_is_small_without_removing_shared_grounding(strategy,attribution):
+    from apps.api.two_lane_memory import extraction_contract
+    from apps.api.prompt_artifact import load_prompt_artifact,prompt_path
+    instructions,schema=extraction_contract(strategy=strategy,attribution=attribution)
+    grounding=load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/shared/grounding'))
+    assert len(instructions)<8000
+    assert instructions.count(grounding)==1
+    assert {'events','place_journeys','prepared_questions'}<=set(schema['required'])
+    assert 'accept_user_narrator_source' not in instructions and 'finish_memoir_timeline' not in instructions
+    for safeguard in ('stage_evidence','uncertainty','person_ids','untrusted','veto','correction'):
+        assert safeguard in instructions
+
+
+@pytest.mark.parametrize('phase,role,setting',[
+    ('extract','author_timeline','MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT'),
+    ('draft','composer','MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT'),
+])
+@pytest.mark.parametrize('configured',[None,'','low'])
+def test_lane_b_requested_effort_is_low_not_the_global_max(tmp_path,monkeypatch,phase,role,setting,configured):
+    import apps.api.codex_worker_service as worker_module
+    monkeypatch.setenv('MEMORY_SPARK_LLM_REASONING_EFFORT','max')
+    monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
+    if configured is None:monkeypatch.delenv(setting,raising=False)
+    else:monkeypatch.setenv(setting,configured)
+    calls=[]
+    async def fake_lane(**kwargs):
+        calls.append(kwargs)
+        return {'reply':'{}'}
+    monkeypatch.setattr(worker_module,'run_bounded_lane',fake_lane)
+    bounded=transport(phase)
+    worker=CodexWorker(home_root=tmp_path,model=BUDGET.model)
+    payload=WorkerTurnInput(user_id=bounded.fence.user_id,project_id=bounded.fence.project_id,
+        agent_role=role,model=BUDGET.model,bounded_lane=bounded,
+        **({'composer_phase':phase} if role=='composer' else {}))
+    asyncio.run(worker._turn(payload))
+    assert len(calls)==1 and calls[0]['effort']=='low'
+    assert calls[0]['model']==BUDGET.model
+
+
 @pytest.mark.parametrize('change',[{'text':'old source'},{'memories':['old']},{'profile':{'name':'old'}},
     {'thread_id':'old-thread'},{'user_id':str(UUID(int=999))},{'project_id':'other'},
     {'interview_context':{'source':'old'}},{'governed':{}},{'agent_role':'collector'}])

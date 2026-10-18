@@ -1,7 +1,7 @@
 {
-  "name": "memoir/skills/memoir-interviewer/background-memory",
   "schema_version": 1,
-  "sha256": "0f7eabd9480847aefc73c4799e498fd744d50272a8db17284cae16409ac8de91",
+  "name": "memoir/skills/memoir-interviewer/background-memory",
+  "version": 2,
   "type": "text",
-  "version": 1
+  "sha256": "764efa11079dd003e39a6825f13b143913c0b6f23847dd88fc0f9f14344ed2ce"
 }

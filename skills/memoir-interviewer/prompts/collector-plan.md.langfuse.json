@@ -1,7 +1,7 @@
 {
-  "name": "memoir/skills/memoir-interviewer/collector-plan",
   "schema_version": 1,
-  "sha256": "a26fa61fdf25b776ff4aa5e06f7c74b3b57869786a335430419c39bee8367efb",
+  "name": "memoir/skills/memoir-interviewer/collector-plan",
+  "version": 3,
   "type": "text",
-  "version": 1
+  "sha256": "f65807edda7ab96567e110973ade5d64128097dab1fc300959588f3b47223fde"
 }

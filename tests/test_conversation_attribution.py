@@ -55,9 +55,10 @@ class Conversation:
                     output = self.extract(packet)
                 if inspect.isawaitable(output):
                     output = await output
-                if strategy and bounded['phase'] == 'extract':
-                    output = {**output,'strategy_proposal':{'strategy':strategy,
-                        'objective':'clarify_order' if strategy == 'shape' else 'follow_story','focus_event_ids':[]}}
+                if bounded['phase'] == 'extract' and (bounded['fence'].get('two_lane') or {}).get('strategy_mode'):
+                    selected_strategy = strategy or 'explore'
+                    output = {**output,'strategy_proposal':{'strategy':selected_strategy,
+                        'objective':'clarify_order' if selected_strategy == 'shape' else 'follow_story','focus_event_ids':[]}}
             else:
                 if self.fail_immediate:
                     return httpx.Response(503)

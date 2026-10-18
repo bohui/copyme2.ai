@@ -15,7 +15,6 @@ from .lifetime_memory_contracts import ContextBudget, IdentityEnvelope
 from .lifetime_memory_context import ContextSource, TailCoverage, InputLimitExceeded, serialize_packet
 from .lifetime_memory_service import LifetimeMemoryService,MaintenancePending
 from .lifetime_memory_transport import GovernedResult
-from .prompt_artifact import load_prompt_artifact, prompt_path
 
 
 class MappingRequired(RuntimeError):
@@ -113,12 +112,12 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         user_response=True,on_delta=None,on_event=None,workspace_focus=None,evaluation=None,trajectory=None,**unused):
     turn_started=time.monotonic()
     from .collector_configuration import collector_configuration
-    from .interview_strategy import strategy_enabled,strategy_instructions,InterviewStrategyPlan,StrategyMetrics
-    from .two_lane_memory import two_lanes_enabled, CONVERSATION_INSTRUCTIONS
+    from .interview_strategy import strategy_enabled,InterviewStrategyPlan,StrategyMetrics
+    from .two_lane_memory import two_lanes_enabled
     two_lane=two_lanes_enabled()
     from .conversation_locale import detect_reply_locale,explicit_request
-    from .interview_plan import CollectorVisibleStream,collector_instructions,public_interview_fields
-    from .lifetime_memory_continuity import (GOVERNED_CONTINUITY_INSTRUCTIONS,LiteralContinuityInputError,validate_literal_continuity_input,validate_governed_collector_result)
+    from .interview_plan import CollectorVisibleStream,public_interview_fields
+    from .lifetime_memory_continuity import (LiteralContinuityInputError,validate_literal_continuity_input,validate_governed_collector_result)
     from .lifetime_memory_engine import (CollectorResponseUnavailable,GovernedCollectorInput,
         governed_request_overhead,run_governed_collector)
     from .lifetime_memory_outbox import LifetimeMemoryOutbox
@@ -295,16 +294,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             def row(value):return ContextSource(identity=identity,policy_epoch=fence['policy_epoch'],source_id=value['id'],version=value['version'],sequence=value['sequence'],original=value['text'],language=value['language'],kind=value['kind'],conversation_saved=value.get('conversation_saved',False),assistant_reply=value.get('assistant_reply'),reply_policy_epoch=value.get('reply_policy_epoch'))
             coverage=TailCoverage(identity=identity,policy_epoch=fence['policy_epoch'],after_sequence=after,through_sequence=source['sequence']-1,complete=tail['complete'],tombstones=tail['tombstones'])
             service=LifetimeMemoryService(storage.lifetime_rpc,budget=packet_budget)
-            from .collector_prompt import COMPACT_COLLECTOR_PROMPT
-            from .codex_runtime import conversation_language_instruction
-            privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
-            instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
-            if context.get('strategy_selector'):
-                instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS
-                # Places are optional B work, so omit that extension from A.
-                instructions=instructions[:instructions.index('Return place_journeys')]
-            elif two_lane:
-                instructions+=CONVERSATION_INSTRUCTIONS
+            from .collector_prompt import governed_collector_instructions
+            instructions=governed_collector_instructions(context)
             try:
                 packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
                 tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)

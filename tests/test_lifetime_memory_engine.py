@@ -566,6 +566,15 @@ def test_governed_config_excludes_inherited_project_docs():
     assert 'project_doc_max_bytes' not in legacy
 
 
+def test_governed_runtime_does_not_advertise_general_agent_tools():
+    governed = tomllib.loads(provider_config('http://provider.invalid/v1', BUDGET.model, governed=True))
+    legacy = tomllib.loads(provider_config('http://provider.invalid/v1', BUDGET.model))
+    for feature in ('code_mode_host', 'goals', 'multi_agent', 'apps', 'plugins'):
+        assert governed['features'][feature] is False
+        assert feature not in legacy['features']
+    assert governed['features']['skip_host_skill_discovery'] is True
+
+
 def test_worker_rechecks_mutated_payload_before_dispatch(tmp_path, monkeypatch):
     import apps.api.codex_worker_service as worker_module
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')

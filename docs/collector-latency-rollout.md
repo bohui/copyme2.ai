@@ -8,6 +8,94 @@ The canonical controlled profiler uses a simulated model; use the HTTP profiler
 for provider-inclusive timings. The historical `collector` and `conversation`
 commands below are no longer supported.
 
+## Local Lane A update — 18 October 2026
+
+At the user's request, the local API and private worker now select
+`MEMORY_SPARK_COLLECTOR_MODEL=gpt-5.6-luna-memoir-low` and
+`MEMORY_SPARK_COLLECTOR_REASONING_EFFORT=low`. The existing `two-lane-v1`
+selector remains enabled. Other lanes' model/effort settings are unchanged.
+These are local operator overrides, not new repository-wide defaults.
+
+The foreground contract is now 6,546–7,471 characters, depending on language
+and strategy, instead of the earlier 13–21k. It requests one immediate question,
+does not request background place extraction in either two-lane path, and keeps
+current-source citation, attribution, uncertainty and privacy rules. General
+agent tool definitions are disabled in governed runtimes; an isolated native
+request capture confirmed an empty tools list without calling a provider.
+The changed Langfuse prompt exports have verified immutable version receipts.
+
+Exactly three approved synthetic collector turns were run, with no additional
+background model calls. All passed the production output validators:
+
+| Case | First complete acknowledgement | Complete question/result |
+| --- | --- | --- |
+| Chinese name-only, real HTTP/proxy/SQL | 9.164s | reply_complete 10.841s; conversation_saved 11.006s |
+| English story, isolated production collector | 5.304s | 6.196s |
+| Chinese story, isolated production collector | 3.816s | 4.717s |
+
+The HTTP collector stage took about 4.9s; context preparation preceded it by
+about 4.9s. The isolated collector checks do not include API/SQL or browser paint.
+Langfuse confirms `reasoning.effort=low` and the same underlying `gpt-5.6-luna`
+model for all three calls. Input was 5,421–5,837 tokens; reasoning was 175–343
+tokens. The earlier 32.084s trace used max effort and 3,871 reasoning tokens.
+These are unmatched small-sample observations, not a production latency or
+semantic-quality acceptance claim. End-to-end 4–5s remains unmet.
+
+Trace IDs: HTTP `6cf366476c1a3eb624d5db04d621872d`, English
+`921b8da7749976d3d06bbe1e0a9773f3`, Chinese
+`4dbf4c941cdc81fff3f9d1c942b798fa`.
+
+Focused prompt, continuity, schema and engine checks: 265 passed. A broader
+runtime/lane check had 210 passed and 7 failures involving old question-pool
+receipts and strategy fixtures. Legacy Codex suites had 271 passed and 68
+failures, including tests calling removed runtime/worker APIs. These unrelated
+failures were not changed. Compilation, `git diff --check`, and the provider's
+`make agent-ci` passed.
+
+Local rollback: clear the collector model and effort overrides on API and
+private worker, leaving the current valid prompt version and lane flags intact,
+then recreate those services and refresh Mocker service aliases. Historical
+acceptance records below describe earlier experiments, not this local update.
+
+## Local Lane B update — 18 October 2026
+
+Bounded background extraction, summary and profile calls now explicitly request
+their configured `MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT` (default `low`);
+composition uses its independent composer setting (also default `low`). An
+explicit worker-constructor override still takes precedence. The global effort,
+Lane A configuration, model aliases and gateway/key policies are unchanged.
+
+Data-only background runtimes omit the skills catalog and disable web search
+and local-image tools. Research jobs and other runtimes retain their existing
+capabilities. Installed Codex 0.156.1 still advertises `request_user_input`;
+unsupported tool requests remain rejected by the existing connection handler.
+
+The two-lane extraction template is pinned to verified Langfuse version 3. It
+omits agent/service administration prose while retaining the shared grounding
+component verbatim, plus event identity, recurring-period, stage, chronology,
+person-ID and permission rules. Standalone extraction keeps its existing agent
+and service instructions. All four extraction output-schema hashes are unchanged.
+The largest full instruction set fell from 13,436 to 8,768 characters.
+
+The full canonical worker packet and its privacy fence are unchanged. Only after
+validation does the native model view omit the duplicate payload preferences;
+the complete authoritative policy remains in `lane_context.preferences`.
+Budget checks count that actual model view. Replaying the supplied example
+offline reduced its model packet from 6,079 to 4,715 characters (local tokenizer
+estimate: 1,977 to 1,498 text tokens), with all testimony and privacy pins intact.
+
+A no-provider capture through the actual worker branch confirmed requested
+`low`, no skills catalog or web/image tools, unchanged canonical transport, and
+one complete policy copy. No new live-model quality or latency benchmark was run.
+Prompt receipt checking, compilation, whitespace checks and the provider's
+`make agent-ci` passed. Focused, contract and disposable-SQL workflow runs passed
+410 distinct tests, including 50 attribution/profile workflows.
+Those workflow fixtures now supply the strategy proposal required by the current
+combined schema; production validators were not relaxed. A broader shared-event
+SQL suite still has eight legacy-entry-point fixture failures (36 passed).
+The affected local API/background/private-worker services were reloaded, Mocker
+aliases refreshed, and API/private-worker/web-proxy health checks returned 200.
+
 ## Status and scope
 
 The [13 October stream-delivery follow-up](verification/issue53-stream-packets-20261013.md)

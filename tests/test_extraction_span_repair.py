@@ -84,6 +84,10 @@ def test_bounded_extraction_retries_unavailable_person_ids_before_database_commi
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
         worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
     result=asyncio.run(_extract(current,worker))
-    assert len(calls)==2 and calls[0]==calls[1]
+    assert len(calls)==2 and calls[0]['fence']==calls[1]['fence']
+    first=json.loads(calls[0]['packet'])
+    second=json.loads(calls[1]['packet'])
+    assert second['payload'].pop('retry_reason')=='PERSON_SCOPE'
+    assert first==second
     assert 'person_ids' not in result['events'][0]
     assert result['events'][0]['source_refs'][0]['quote']==current['source']['text']
