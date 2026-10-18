@@ -111,16 +111,16 @@ Use an isolated Python environment with repository-declared dependencies:
 
 ```sh
 python -m pip install -e '.[test,evaluation]'
-python -m pip install -r skills/place-photo-research/requirements.txt
+python -m pip install -r skills/memoir-place-photo-research/requirements.txt
 # Needed by this cloud's configured SOCKS proxy, without changing proxy settings:
 python -m pip install 'httpx[socks]>=0.28.1,<1'
 git status --porcelain
 git rev-parse HEAD
 python -m pytest -q tests/test_llm_place_photos.py tests/test_photo_capture_assertions.py
-python -m pytest -q tests/test_llm_place_photos.py tests/test_photo_capture_assertions.py tests/test_place_photo_browser.py tests/test_place_photo_pages.py tests/test_photo_progress.py tests/test_photo_worker.py skills/place-photo-research/tests
+python -m pytest -q tests/test_llm_place_photos.py tests/test_photo_capture_assertions.py tests/test_place_photo_browser.py tests/test_place_photo_pages.py tests/test_photo_progress.py tests/test_photo_worker.py skills/memoir-place-photo-research/tests
 python -m pytest -q
-python -m unittest discover -s skills/place-photo-research/tests -v
-(cd skills/place-photo-research && sha256sum -c SHA256SUMS)
+python -m unittest discover -s skills/memoir-place-photo-research/tests -v
+(cd skills/memoir-place-photo-research && sha256sum -c SHA256SUMS)
 git diff --check
 git status --porcelain
 ```

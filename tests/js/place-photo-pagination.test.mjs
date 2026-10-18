@@ -358,7 +358,7 @@ test('retry updates the original photo trace, preserves Sydney, and saves late c
     : {status:'READY', items:[picture('recovered')], searching:false}, {
       persistChatHistory: () => {saves++;}, updateStreamingAssistantMessage: () => {},
     });
-  const sydney = {id:'photos:sydney',skill:'place-photo-research',status:'completed',detail:'Sydney'};
+  const sydney = {id:'photos:sydney',skill:'memoir-place-photo-research',status:'completed',detail:'Sydney'};
   const message = {role:'assistant',text:'What do you remember?',trace:[sydney]};
   h.state.chat = [message];
   await h.context.loadPlacePictures(h.entry(),'project',{onProgress: step => {

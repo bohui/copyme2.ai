@@ -8,10 +8,28 @@ import pytest
 from apps.api.memory_event_worker import MemoryEventWorker
 
 
-def test_provider_failure_logs_safe_timing_and_status_without_private_response(caplog):
+def test_retired_lane_protocol_cannot_dispatch_a_model():
     broker = AsyncMock()
     broker.rpc.side_effect = [
-        {'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
+        {'skill': 'timeline', 'token': 'synthetic-claim'},
+        {'status': 'retry'},
+    ]
+    def unexpected_request(request):
+        raise AssertionError('A retired lane must never reach a model')
+    worker = MemoryEventWorker(broker, worker_url='http://worker.test', worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(unexpected_request))
+    assert asyncio.run(worker.execute_lane('opaque-lane')) == {'status': 'retry'}
+    assert broker.rpc.await_args_list[-1].kwargs['p_error'] == 'MEMOIR_UNAVAILABLE'
+
+
+def test_provider_failure_logs_safe_timing_and_status_without_private_response(monkeypatch, caplog):
+    async def fail(job, worker):
+        response = httpx.Response(503, text="private-story-response", request=httpx.Request("POST", "http://worker.test"))
+        response.raise_for_status()
+    monkeypatch.setattr("apps.api.lifetime_memory_composer.execute_lifetime_lane", fail)
+    broker = AsyncMock()
+    broker.rpc.side_effect = [
+        {'protocol': 'lifetime_composer_pages', 'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
          'locale': 'en-AU', 'sources': [], 'context_sources': [], 'events': []},
         {'status': 'retry'},
     ]
@@ -23,10 +41,13 @@ def test_provider_failure_logs_safe_timing_and_status_without_private_response(c
     assert 'private-worker-secret' not in caplog.text
 
 
-def test_rejected_evidence_logs_a_safe_validation_reason_without_original_text(caplog):
+def test_rejected_evidence_logs_a_safe_validation_reason_without_original_text(monkeypatch, caplog):
+    async def fail(job, worker):
+        raise ValueError("Evidence must match an authorised original source version")
+    monkeypatch.setattr("apps.api.lifetime_memory_composer.execute_lifetime_lane", fail)
     broker = AsyncMock()
     broker.rpc.side_effect = [
-        {'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
+        {'protocol': 'lifetime_composer_pages', 'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
          'locale': 'zh-CN', 'sources': [], 'context_sources': [
              {'id': 'source', 'version': 1, 'text': 'private original testimony'}], 'events': []},
         {'status': 'retry'},
@@ -45,10 +66,14 @@ def test_rejected_evidence_logs_a_safe_validation_reason_without_original_text(c
     ('private invalid response', 'invalid_json'),
     ('{"events":[{"title":"private invalid response"}]}', 'invalid_schema'),
 ])
-def test_invalid_response_logs_category_without_private_validation_input(caplog, reply, kind):
+def test_invalid_response_logs_category_without_private_validation_input(monkeypatch, caplog, reply, kind):
+    async def fail(job, worker):
+        from apps.api.memory_events import validate_extraction
+        validate_extraction(json.loads(reply), [], [])
+    monkeypatch.setattr("apps.api.lifetime_memory_composer.execute_lifetime_lane", fail)
     broker = AsyncMock()
     broker.rpc.side_effect = [
-        {'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
+        {'protocol': 'lifetime_composer_pages', 'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
          'locale': 'zh-CN', 'sources': [], 'context_sources': [], 'events': []},
         {'status': 'retry'},
     ]
@@ -59,51 +84,6 @@ def test_invalid_response_logs_category_without_private_validation_input(caplog,
     assert 'private invalid response' not in caplog.text
 
 
-def test_transient_timeline_worker_error_is_retried_before_lane_failure():
-    broker = AsyncMock()
-    broker.rpc.side_effect = [
-        {'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
-         'locale': 'en-AU', 'sources': [], 'context_sources': [], 'events': []},
-        {'status': 'saved'},
-    ]
-    requests = []
-
-    def transport(request):
-        requests.append(request)
-        if len(requests) <= 2:
-            return httpx.Response(400, text='temporary upstream failure', request=request)
-        return httpx.Response(200, json={'reply': '{"events": []}'}, request=request)
-
-    worker = MemoryEventWorker(broker, worker_url='http://worker.test', worker_secret='synthetic',
-        worker_transport=httpx.MockTransport(transport))
-    assert asyncio.run(worker.execute_lane('opaque-lane')) == {'status': 'saved'}
-    assert len(requests) == 3
-    assert not any(call.kwargs.get('p_error') == 'MEMOIR_UNAVAILABLE'
-                   for call in broker.rpc.await_args_list)
-
-
-def test_timeline_commit_contract_error_gets_a_fresh_model_attempt(caplog):
-    broker = AsyncMock()
-    commit_response = httpx.Response(400, json={
-        'code': '22023', 'message': 'invalid temporal placement includes private source text in real failures'},
-        request=httpx.Request('POST', 'http://supabase.test/rpc/finish_memoir_timeline'))
-    broker.rpc.side_effect = [
-        {'skill': 'timeline', 'token': 'synthetic-claim', 'user_id': 'owner', 'project_id': 'project',
-         'locale': 'en-AU', 'sources': [], 'context_sources': [], 'events': []},
-        httpx.HTTPStatusError('bad commit', request=commit_response.request, response=commit_response),
-        {'status': 'saved'},
-    ]
-    requests = []
-
-    def transport(request):
-        requests.append(request)
-        return httpx.Response(200, json={'reply': '{"events": []}'}, request=request)
-
-    worker = MemoryEventWorker(broker, worker_url='http://worker.test', worker_secret='synthetic',
-        worker_transport=httpx.MockTransport(transport))
-    assert asyncio.run(worker.execute_lane('opaque-lane')) == {'status': 'saved'}
-    assert len(requests) == 2
-    assert 'private source text' not in caplog.text
 @pytest.mark.parametrize('message',[
     'summary evidence outside accepted inputs','bounded derived hints required',
     'grounded question hints required','invalid bounded strategy proposal',

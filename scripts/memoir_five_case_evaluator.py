@@ -21,7 +21,7 @@ SKILLS = (
     "memoir-family-tree",
     "memoir-author-timeline",
     "memoir-place-groups",
-    "place-photo-research",
+    "memoir-place-photo-research",
     "memoir-composer",
 )
 LIFE_STAGES = (
@@ -33,7 +33,7 @@ LIFE_STAGES = (
     "midlife",
     "later_life",
 )
-UI_SKILLS = {"memoir-place-groups", "place-photo-research"}
+UI_SKILLS = {"memoir-place-groups", "memoir-place-photo-research"}
 
 
 def load_json(path: str | Path) -> Any:
@@ -159,7 +159,7 @@ def expected_round(expected_payload: Mapping[str, Any], case_expected: Mapping[s
         "memoir-place-groups": "required" if places else ("must_not_call" if negative else "not_applicable"),
         "memoir-family-tree": "required" if family_required and family_enabled else ("must_not_call" if negative else "not_applicable"),
         "memoir-author-timeline": "required" if timeline_required and family_enabled else ("must_not_call" if negative else "not_applicable"),
-        "place-photo-research": "required" if photo_action in {"current_day", "historical"} else ("must_not_call" if photo_action == "must_not_call" or negative else "not_applicable"),
+        "memoir-place-photo-research": "required" if photo_action in {"current_day", "historical"} else ("must_not_call" if photo_action == "must_not_call" or negative else "not_applicable"),
         "memoir-composer": "required" if composer_action else ("must_not_call" if negative else "not_applicable"),
     }
     if family_required and not family_enabled:

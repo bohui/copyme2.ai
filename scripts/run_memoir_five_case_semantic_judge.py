@@ -91,7 +91,7 @@ def coverage_keys(trace: Mapping[str, Any]) -> set[str]:
     if expected.get("composer_action"):
         keys.add(f"memoir-composer:{expected['composer_action']}")
     if expected.get("photo_action") and expected.get("photo_action") != "none":
-        keys.add(f"place-photo-research:{expected['photo_action']}")
+        keys.add(f"memoir-place-photo-research:{expected['photo_action']}")
     if str((trace.get("input") or "")).isascii() is False:
         keys.add("language:non-ascii")
     grade = trace.get("grade") if isinstance(trace.get("grade"), Mapping) else {}
@@ -326,7 +326,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
             "message": str(error)[:500],
             "provisional_examples": len(calibration_examples),
         }
-    instructions = template + load_prompt_artifact(ROOT / 'apps/api/prompts/five-case-judge-guard.md')
+    instructions = template + load_prompt_artifact(ROOT / 'tests/evaluation/prompts/five-case-judge/guard.md')
     judge = OpenAICompatibleJudge(
         base_url=base_url,
         model=model,

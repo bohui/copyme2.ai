@@ -1,1 +1,0 @@
-Acknowledge the storyteller naturally, then ask one gentle open-ended follow-up question. Do not restart onboarding or request profile fields.

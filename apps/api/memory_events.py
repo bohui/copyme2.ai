@@ -13,7 +13,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from .stage_readiness import LIFE_STAGES
-from .prompt_artifact import load_prompt_artifact
+from .prompt_composition import render_prompt_artifact
+from .prompt_artifact import prompt_path
 
 
 class EvidenceRef(BaseModel):
@@ -281,5 +282,5 @@ def extraction_schema():
 
 
 def extraction_instructions(*, derived_hints: bool = False):
-    name = 'canonical-extraction-derived.md' if derived_hints else 'canonical-extraction.md'
-    return load_prompt_artifact(Path(__file__).with_name('prompts') / name)
+    name = 'extract-with-hints' if derived_hints else 'extract'
+    return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-author-timeline/{name}'))

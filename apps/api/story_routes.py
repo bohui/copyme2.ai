@@ -26,9 +26,8 @@ from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechSer
 from .conversation_locale import detect_reply_locale
 from .store import MemoryStore, new_id, sha256_json
 from .recall import storage_recall_status
-from .agent_lock import AgentTurnLease, AgentTurnBusyError
-from .memoir_preview import (compose_preview, source_snapshot, snapshot_key, cached_preview,
-                             normalize_conversation_language, PreviewSourceChanged)
+from .agent_lock import AgentTurnLease
+from .codex_runtime import normalize_conversation_language
 from .preview_jobs import PreviewJobs
 from .stage_readiness import stage_readiness
 from .background_profile import PROFILE_FIELDS
@@ -294,7 +293,6 @@ def build_router(
     stripe_client: StripeCheckoutClient | Any | None = None,
     speech_service: Any | None = None,
 ) -> APIRouter:
-    running_previews = {}
 
     @asynccontextmanager
     async def lifespan(app):
@@ -311,10 +309,6 @@ def build_router(
                 broker_task.cancel()
                 await asyncio.gather(broker_task,return_exceptions=True)
                 await broker.client.aclose()
-            tasks = list(running_previews.values())
-            for task in tasks:
-                task.cancel()
-            await asyncio.gather(*tasks, return_exceptions=True)
 
     router = APIRouter(prefix="/v1/story", tags=["Story journey"], lifespan=lifespan)
     payment_store = entitlement_store or build_story_entitlement_store(MemoryStore())
@@ -823,78 +817,6 @@ def build_router(
         finally:
             _close(storage)
 
-    async def preview_snapshot(storage, project_id, language):
-        access = await AgentTurnLease.io(storage_recall_status, storage, None)
-        if not access or access['rounds_completed'] < access.get('sample_rounds', access['free_rounds']):
-            raise HTTPException(409, 'Complete the free recall experience before composing the sample',
-                                headers={'X-Error-Code': 'ROUNDS_REQUIRED'})
-        from .memoir_preview import lifetime_draft_head
-        if await AgentTurnLease.io(lifetime_draft_head,storage,project_id):
-            raise HTTPException(409,'Canonical sample composition is pending bounded source/event assembly',
-                headers={'X-Error-Code':'LIFETIME_COMPOSER_PENDING'})
-        reader = getattr(storage, 'composition_memories', None) or getattr(storage, 'all_memories', storage.memories)
-        rows = await AgentTurnLease.io(reader)
-        profile = await AgentTurnLease.io(storage.profile)
-        language = normalize_conversation_language(language or profile.get('preferred_language'))
-        sources = source_snapshot(rows, project_id)
-        key = snapshot_key(sources, project_id, language)
-        return rows, sources, key, language
-
-    async def run_preview(queue, job, storage):
-        error = None
-        result = None
-        retryable = False
-        try:
-            async def checkpoint(phase, value):
-                await AgentTurnLease.io(queue.checkpoint, job['id'], job['lease_token'], phase, value)
-
-            async with AgentTurnLease(storage) as lease:
-                result = await compose_preview(storage, lease, job['project_id'], language=job['language'],
-                                      prepared=job['payload'], checkpoint=job['checkpoint'],
-                                      save_checkpoint=checkpoint)
-        except asyncio.CancelledError:
-            error, retryable = 'PREVIEW_INTERRUPTED', True
-            raise
-        except AgentTurnBusyError:
-            error, retryable = 'AGENT_TURN_IN_PROGRESS', True
-        except PreviewSourceChanged:
-            error = 'PREVIEW_SOURCE_CHANGED'
-        except Exception as failure:
-            # Exception strings can contain private text, headers or URLs.
-            offline = isinstance(failure, httpx.HTTPStatusError) and failure.response.headers.get('X-Error-Code') == 'COMPOSER_PROVIDER_UNAVAILABLE'
-            error = 'PREVIEW_PROVIDER_UNAVAILABLE' if offline else 'AGENT_TURN_IN_PROGRESS' if isinstance(failure, httpx.HTTPStatusError) and failure.response.status_code == 409 else 'PREVIEW_TIMEOUT' if isinstance(failure, (TimeoutError, httpx.TimeoutException)) or (
-                isinstance(failure, httpx.HTTPStatusError) and failure.response.status_code == 504
-            ) else 'PREVIEW_UNAVAILABLE'
-            retryable = not offline and (isinstance(failure, (TimeoutError, httpx.TransportError)) or (
-                isinstance(failure, httpx.HTTPStatusError) and failure.response.status_code in {409, 429, 502, 503, 504}
-            ))
-            logging.getLogger(__name__).warning('memoir_preview failure_type=%s code=%s', type(failure).__name__, error)
-        finally:
-            try:
-                await AgentTurnLease.io(queue.finish, job['id'], job['lease_token'], error=error, retryable=retryable,
-                                          outcome=result['status'] if result else None)
-            finally:
-                await AgentTurnLease.io(_close, storage)
-
-    async def start_preview(queue, job, storage):
-        claimed = await AgentTurnLease.io(queue.claim, storage.user_id, job['id'])
-        if not claimed:
-            return False
-        task = asyncio.create_task(run_preview(queue, claimed, storage))
-        running_previews[job['id']] = task
-
-        def settled(completed):
-            if running_previews.get(job['id']) is completed:
-                running_previews.pop(job['id'], None)
-            if not completed.cancelled():
-                completed.exception()  # Retrieve failures without logging private exception text.
-
-        task.add_done_callback(settled)
-        return True
-
-    def preview_response(job):
-        state = 'error' if job['status'] == 'FAILED' else 'pending'
-        return {'status': state, 'preview': None, 'job': job, 'retry_after': 3}
 
     def shared_preview_view(saved, project_id, locale):
         locale = normalize_conversation_language(locale or saved.get('locale'))
@@ -938,6 +860,9 @@ def build_router(
                 return shared_preview_view(saved, project_id, language)
             return await AgentTurnLease.io(read_mapped, storage, project_id,
                 read_sample, canonical_only)
+        if not callable(getattr(storage, 'saved_memoir_draft', None)):
+            raise HTTPException(503, 'Canonical sample composition is unavailable',
+                headers={'X-Error-Code': 'LIFETIME_CANONICAL_REQUIRED'})
         profile = await AgentTurnLease.io(storage.profile)
         locale = normalize_conversation_language(language or profile.get('preferred_language'))
         saved = await AgentTurnLease.io(storage.saved_memoir_draft, project_id, locale)
@@ -955,40 +880,23 @@ def build_router(
     @router.post('/preview')
     async def preview(payload: StoryPreviewCreate, authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
-        transferred = False
         try:
-            if isinstance(storage, UserStorage):
-                result = await shared_preview_response(storage, payload.project_id, payload.language, retry=payload.retry)
-                if isinstance(result, Response):
-                    return result
-                return JSONResponse(status_code=202 if result['status']=='pending' else 200, content=result)
-            rows, sources, key, language = await preview_snapshot(storage, payload.project_id, payload.language)
-            existing = cached_preview(rows, key)
-            if existing:
-                return {'status': 'ready', 'preview': existing, 'cached': True}
-            if not sources:
-                return {'status': 'insufficient_context', 'preview': None}
-            queue = await AgentTurnLease.io(PreviewJobs)
-            # POST is an explicit retry of a terminal failure; active work is deduplicated.
-            job = await AgentTurnLease.io(queue.submit, storage.user_id, payload.project_id, key, language,
-                                          {'key': key}, retry=True)
-            transferred = await start_preview(queue, job, storage)
-            job = await AgentTurnLease.io(queue.get, storage.user_id, job['id'])
-            return JSONResponse(status_code=202, content=preview_response(job), headers={'Retry-After': '3'})
+            result = await shared_preview_response(storage, payload.project_id, payload.language, retry=payload.retry)
+            if isinstance(result, Response):
+                return result
+            return JSONResponse(status_code=202 if result['status']=='pending' else 200, content=result)
         except (RuntimeError, ValueError, KeyError, httpx.HTTPError, OSError) as error:
             logging.getLogger(__name__).warning('memoir_preview admission_failure_type=%s', type(error).__name__)
             raise HTTPException(503, 'Your sample could not be prepared yet. Please try again.',
                                 headers={'X-Error-Code': 'PREVIEW_UNAVAILABLE'}) from None
         finally:
-            if not transferred:
-                await AgentTurnLease.io(_close, storage)
+            await AgentTurnLease.io(_close, storage)
 
     @router.get('/preview/{job_id}')
     async def preview_status(job_id: str, authorization: str | None = Header(default=None)):
         storage = await asyncio.to_thread(storage_for, authorization)
-        transferred = False
         try:
-            if isinstance(storage, UserStorage) and job_id.startswith('shared.'):
+            if job_id.startswith('shared.'):
                 parts = job_id.split('.', 2)
                 if len(parts)!=3 or parts[1] not in {'en-AU','zh-CN'}:
                     raise HTTPException(404, 'Preview job not found')
@@ -997,27 +905,14 @@ def build_router(
             job = await AgentTurnLease.io(queue.get, storage.user_id, job_id)
             if not job:
                 raise HTTPException(404, 'Preview job not found')
-            if isinstance(storage, UserStorage):
-                # Old execution jobs remain references to canonical state after
-                # cutover; polling must not resume their duplicate event index.
-                return await shared_preview_response(storage, job['project_id'], job['language'])
-            if job['status'] == 'SUCCEEDED':
-                rows, _, key, _ = await preview_snapshot(storage, job['project_id'], job['language'])
-                saved = cached_preview(rows, key) if key == job['snapshot_key'] else None
-                status = 'insufficient_context' if key == job['snapshot_key'] and job['outcome'] == 'insufficient_context' else 'ready' if saved else 'stale'
-                return {'status': status, 'preview': saved, 'cached': True, 'job': job}
-            # A process restart leaves only an expiring claim and checkpoints.
-            # This fresh authenticated poll resumes it without storing a token.
-            transferred = await start_preview(queue, job, storage)
-            job = await AgentTurnLease.io(queue.get, storage.user_id, job_id)
-            return preview_response(job)
+            # Historical job IDs resolve to the current canonical draft.
+            return await shared_preview_response(storage, job['project_id'], job['language'])
         except (RuntimeError, ValueError, KeyError, httpx.HTTPError, OSError) as error:
             logging.getLogger(__name__).warning('memoir_preview poll_failure_type=%s', type(error).__name__)
             raise HTTPException(503, 'Your sample status is temporarily unavailable',
                                 headers={'X-Error-Code': 'PREVIEW_UNAVAILABLE'}) from None
         finally:
-            if not transferred:
-                await AgentTurnLease.io(_close, storage)
+            await AgentTurnLease.io(_close, storage)
 
     @router.post("/checkout")
     def checkout(

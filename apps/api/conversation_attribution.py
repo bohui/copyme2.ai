@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .memory_events import EvidenceRef
 from .place_journey import validate_place_journey
-from .prompt_artifact import load_prompt_artifact
+from .prompt_artifact import load_prompt_artifact, prompt_path
 
 # Mask quotes across line/sentence boundaries, preserving a completed sentence
 # so a subsequent direct request still belongs to the current narrator.
@@ -130,4 +130,4 @@ def attribution_schema(schema):
     return schema
 
 
-INSTRUCTIONS = load_prompt_artifact(Path(__file__).with_name('prompts') / 'conversation-attribution.md')
+INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/attribution'))

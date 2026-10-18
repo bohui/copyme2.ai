@@ -21,7 +21,7 @@ RESULT = {"reply": "A grounded reply.", "trace": []}
 def test_optional_skill_evidence_does_not_block_a_round(observation):
     grade = evaluate_round(
         {}, CASE, 1, RESULT, execution_mode="live",
-        ui_observations={skill: observation for skill in ("memoir-place-groups", "place-photo-research")},
+        ui_observations={skill: observation for skill in ("memoir-place-groups", "memoir-place-photo-research")},
         composer_observation=observation,
     )
     for skill in SKILLS[1:]:
@@ -103,7 +103,7 @@ def _receipt_grade(skill, contract, receipt, *, entrypoint="evaluate", mode="liv
             case["place_rounds"] = {"1": ["Hobart"]}
             result["trace"].append({"skill": "memoir-place-journey"})
             result["place_journeys"] = [{"place": "Hobart"}]
-        elif skill == "place-photo-research":
+        elif skill == "memoir-place-photo-research":
             case["photo_rounds"] = {"1": "current_day"}
         else:
             case["composer_rounds"] = {"1": "review_only"}
@@ -118,7 +118,7 @@ def _receipt_grade(skill, contract, receipt, *, entrypoint="evaluate", mode="liv
 
 @pytest.mark.parametrize("skill,entrypoint", [
     ("memoir-place-groups", "evaluate"), ("memoir-place-groups", "merge"),
-    ("place-photo-research", "evaluate"), ("place-photo-research", "merge"),
+    ("memoir-place-photo-research", "evaluate"), ("memoir-place-photo-research", "merge"),
     ("memoir-composer", "evaluate"),
 ])
 @pytest.mark.parametrize("contract", ["required", "must_not_call"])
@@ -133,7 +133,7 @@ def test_explicit_nonlive_receipt_status_cannot_certify_live_success(skill, entr
     assert not any(score["name"].startswith(f"skill.{skill}.") for score in scores)
 
 
-@pytest.mark.parametrize("skill", ["memoir-place-groups", "place-photo-research", "memoir-composer"])
+@pytest.mark.parametrize("skill", ["memoir-place-groups", "memoir-place-photo-research", "memoir-composer"])
 @pytest.mark.parametrize("contract", ["required", "must_not_call", "not_applicable"])
 @pytest.mark.parametrize("status", ["not_run", "unknown", "mock_only"])
 def test_explicit_receipt_failures_and_optional_semantics_remain_separate(skill, contract, status):
@@ -146,7 +146,7 @@ def test_explicit_receipt_failures_and_optional_semantics_remain_separate(skill,
         assert grade["skill_grades"][skill]["status"] in {"unavailable", "not_run"}
 
 
-@pytest.mark.parametrize("skill", ["memoir-place-groups", "place-photo-research", "memoir-composer"])
+@pytest.mark.parametrize("skill", ["memoir-place-groups", "memoir-place-photo-research", "memoir-composer"])
 @pytest.mark.parametrize("contract", ["required", "must_not_call"])
 @pytest.mark.parametrize("receipt_status,mode,expected", [("omitted", "live", "pass"), ("pass", "live", "pass"), ("mock_only", "fixture", "mock_only"), ("fail", "live", "fail")])
 def test_valid_legacy_and_terminal_receipt_statuses_keep_their_meaning(skill, contract, receipt_status, mode, expected):

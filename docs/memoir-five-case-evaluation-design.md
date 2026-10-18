@@ -77,7 +77,7 @@ only dataset-declared positive and negative scenarios contribute to rates.
 | `memoir-place-groups` | background grouping for each accepted preview/update/restored history; separate city group and child pins | no model-call substitute; no parent coordinates copied to unresolved child; stale/other-project result rejected |
 | `memoir-family-tree` | paid Family-only explicit people/relationships; canonical IDs on later updates; uncertainty/visibility | unpaid/pending/revoked entitlement never exposes or persists Family data |
 | `memoir-author-timeline` | explicit events/periods; approximate/range/unknown precision; correction via `existing_id` | no invented dates, exact addresses, people IDs, or entries from assistant/public history |
-| `place-photo-research` | current-day default; explicit historical window; source/rights/date labels; bounded search trace | no historical inference from life stage/previous context; no search for ambiguous/unrelated request; no fabricated source/photo/rights |
+| `memoir-place-photo-research` | current-day default; explicit historical window; source/rights/date labels; bounded search trace | no historical inference from life stage/previous context; no search for ambiguous/unrelated request; no fabricated source/photo/rights |
 | `memoir-composer` | private checkpoint gate; 20-round preview gate; progressive update; final consented review-only composition | no full composition from readiness suggestion, payment exhaustion, or unconfirmed silence; no publish/charge |
 
 The profile row applies the current checkpoint contract without rewriting the

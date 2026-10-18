@@ -6,7 +6,8 @@ import pytest
 
 from apps.api.prompt_artifact import load_prompt_artifact
 from scripts.export_langfuse_prompt import sync_prompt
-from scripts.export_langfuse_prompts import BROWSER_MODULE, browser_module, export_prompts
+from scripts.export_langfuse_prompts import export_prompts, selected_prompts
+from apps.api.prompt_composition import render_prompt_artifact
 from scripts.prompt_registry import ROOT, prompt_registry
 from scripts.evaluate_langfuse_prompt import dataset_input_text, dataset_version, experiment_task
 
@@ -23,12 +24,12 @@ class PromptClient:
 
 
 def test_exact_langfuse_version_is_exported_and_verified(tmp_path):
-    path = tmp_path / "apps/api/prompts/collector-compact.md"
+    path = tmp_path / "skills/memoir-interviewer/prompts/collector.md"
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
 
-    receipt = sync_prompt(client, target="collector-compact", name="memoir/collector",
+    receipt = sync_prompt(client, target="collector", name="memoir/collector",
                           version=7, root=tmp_path)
 
     assert client.calls == [("memoir/collector", {
@@ -38,20 +39,20 @@ def test_exact_langfuse_version_is_exported_and_verified(tmp_path):
     assert json.loads(path.with_name(path.name + ".langfuse.json").read_text()) == {
         "schema_version": 1, "name": "memoir/collector", "version": 7,
         "type": "text", "sha256": receipt["sha256"]}
-    sync_prompt(client, target="collector-compact", name="memoir/collector",
+    sync_prompt(client, target="collector", name="memoir/collector",
                 version=7, root=tmp_path, check=True)
 
 
 def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
-    path = tmp_path / "apps/api/prompts/collector-compact.md"
+    path = tmp_path / "skills/memoir-interviewer/prompts/collector.md"
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
-    sync_prompt(client, target="collector-compact", name="memoir/collector",
+    sync_prompt(client, target="collector", name="memoir/collector",
                 version=7, root=tmp_path)
     path.write_text("Local edit", encoding="utf-8")
     with pytest.raises(ValueError, match="Invalid Langfuse prompt artifact"):
-        sync_prompt(client, target="collector-compact", name="memoir/collector",
+        sync_prompt(client, target="collector", name="memoir/collector",
                     version=8, root=tmp_path)
     assert path.read_text(encoding="utf-8") == "Local edit"
 
@@ -67,26 +68,24 @@ def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
     bad_client.get_prompt = lambda name, **kwargs: SimpleNamespace(
         name=name, version=99, prompt="Wrong version", is_fallback=False)
     with pytest.raises(ValueError, match="different"):
-        sync_prompt(bad_client, target="collector-compact", name="memoir/collector",
+        sync_prompt(bad_client, target="collector", name="memoir/collector",
                     version=8, root=tmp_path)
     assert path.read_text(encoding="utf-8") == "Local edit"
 
 
 def test_checked_in_compact_prompt_keeps_previous_runtime_text():
     from apps.api.collector_prompt import COMPACT_COLLECTOR_PROMPT
-    from apps.api.codex_runtime import build_conversation_system_prompt
 
     assert COMPACT_COLLECTOR_PROMPT.startswith("Mira collector contract: compact-v1")
-    assert COMPACT_COLLECTOR_PROMPT in build_conversation_system_prompt(
-        "", prompt_version="compact-v1")
+    assert render_prompt_artifact(ROOT / "skills/memoir-interviewer/prompts/collector.md") == COMPACT_COLLECTOR_PROMPT
 
 
 def test_current_export_uses_highest_numeric_version_without_production_label(tmp_path, monkeypatch):
-    path = tmp_path / "apps/api/prompts/collector-compact.md"
+    path = tmp_path / "skills/memoir-interviewer/prompts/collector.md"
     path.parent.mkdir(parents=True)
     path.write_text("Old", encoding="utf-8")
     monkeypatch.setattr("scripts.export_langfuse_prompts.prompt_registry",
-                        lambda root: {"memoir/interview/collector": str(path.relative_to(root))})
+                        lambda root: {"memoir/skills/memoir-interviewer/collector": str(path.relative_to(root))})
 
     class CurrentClient:
         def __init__(self):
@@ -94,7 +93,7 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
             self.api = SimpleNamespace(prompts=SimpleNamespace(list=self.list))
 
         def list(self, **kwargs):
-            return SimpleNamespace(data=[SimpleNamespace(name="memoir/interview/collector",
+            return SimpleNamespace(data=[SimpleNamespace(name="memoir/skills/memoir-interviewer/collector",
                                                           versions=[1, 3, 2])])
 
         def get_prompt(self, name, **kwargs):
@@ -103,27 +102,51 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
                                    prompt="Current", is_fallback=False)
 
     client = CurrentClient()
-    receipts = export_prompts(client, name="collector-compact", root=tmp_path)
+    receipts = export_prompts(client, name="collector", root=tmp_path)
     assert receipts[0]["version"] == 3
     assert path.read_text(encoding="utf-8") == "Current"
     assert [call["version"] for call in client.calls] == [3, 3]
-    export_prompts(client, name="collector-compact", check=True, root=tmp_path)
+    export_prompts(client, name="collector", check=True, root=tmp_path)
     assert client.calls[-1]["version"] == 3
 
 
-def test_browser_import_is_generated_from_pinned_prompt_bytes():
-    assert (ROOT / BROWSER_MODULE).read_text(encoding="utf-8") == browser_module(ROOT)
+def test_unused_browser_instructions_are_not_managed_prompts():
+    assert not any(name.startswith('memoir/interview/browser/') for name in prompt_registry())
 
 
 def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():
     registry = prompt_registry()
-    assert registry["memoir/skills/memoir-family-tree"] == "skills/memoir-family-tree/SKILL.md"
-    assert registry["memoir/skills/memoir-place-journey"] == "skills/memoir-place-journey/SKILL.md"
+    assert registry["memoir/skills/memoir-family-tree/instructions"] == "skills/memoir-family-tree/SKILL.md"
+    assert registry["memoir/skills/memoir-place-journey/instructions"] == "skills/memoir-place-journey/SKILL.md"
     assert "memoir/memory/family-tree" not in registry
     assert "skills/memoir-family-tree/references/contract.md" not in registry.values()
     assert "skills/memoir-place-groups/references/contract.md" not in registry.values()
     assert "skills/memoir-place-journey/references/contract.md" not in registry.values()
     assert "skills/memoir-composer/references/sources.md" not in registry.values()
+
+
+def test_catalog_has_one_owner_per_source_and_no_unused_receipts():
+    registry = prompt_registry()
+    receipts = set()
+    for directory in ('skills', 'apps/api/prompts', 'tests/evaluation'):
+        receipts.update(path.relative_to(ROOT).as_posix() for path in (ROOT / directory).rglob('*.langfuse.json'))
+    assert receipts == {relative + '.langfuse.json' for relative in registry.values()}
+    for name, relative in registry.items():
+        receipt = json.loads((ROOT / (relative + '.langfuse.json')).read_text())
+        assert receipt['name'] == name
+        if name.startswith('memoir/skills/'):
+            assert relative.startswith('skills/' + name.split('/')[2] + '/')
+        assert not name.startswith(('memoir/composer/', 'memoir/memory/', 'memoir/interview/', 'memoir/research/'))
+    assert 'skills/memoir-composer/SKILL.md' not in registry.values()
+    assert 'skills/memoir-composer/references/workflows.md' not in registry.values()
+
+
+def test_export_rejects_ambiguous_short_names():
+    registry = prompt_registry()
+    with pytest.raises(ValueError, match='Ambiguous prompt short name'):
+        selected_prompts('en-AU', registry)
+    assert selected_prompts('memoir/skills/memoir-composer/prepare', registry) == {
+        'memoir/skills/memoir-composer/prepare': 'skills/memoir-composer/prompts/prepare.md'}
 
 
 def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
@@ -134,7 +157,7 @@ def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Reply"))])
     client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
     prompt = SimpleNamespace(prompt="Pinned instructions", name="memoir/collector", version=7)
-    task = experiment_task(prompt, "model-a", client, target="collector-compact")
+    task = experiment_task(prompt, "model-a", client)
 
     assert task(item=SimpleNamespace(input={"text": "A memory"})) == "Reply"
     assert calls == [{"model": "model-a", "messages": [
@@ -146,6 +169,25 @@ def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
     with pytest.raises(ValueError, match="timezone-aware"):
         dataset_version("2026-10-18T12:00:00")
     assert dataset_version("2026-10-18T12:00:00Z").utcoffset().total_seconds() == 0
-    experiment_task(SimpleNamespace(prompt="Pinned instructions\n"), "model-a", client,
-                    target="journalist")(item=SimpleNamespace(input={"text": "A memory"}))
-    assert calls[-1]["messages"][0]["content"] == "Pinned instructions"
+    experiment_task(SimpleNamespace(prompt="Pinned instructions\n"), "model-a", client)(
+        item=SimpleNamespace(input={"text": "A memory"}))
+    assert calls[-1]["messages"][0]["content"] == "Pinned instructions\n"
+
+
+def test_retired_workflows_cannot_be_exported_again():
+    registry = prompt_registry()
+    assert not any(name.startswith(("memoir/memory/fallback/", "memoir/memory/workspace/",
+                                    "memoir/memory/marker/")) for name in registry)
+    assert not {"memoir/interview/journalist", "memoir/composer/draft",
+                "memoir/composer/organiser-task", "memoir/interview/collector-repair",
+                "memoir/skills/memoir-author-timeline/legacy-marker"} & registry.keys()
+
+
+def test_legacy_collector_setting_is_rejected(monkeypatch):
+    from apps.api.collector_configuration import collector_configuration, CollectorConfigurationError
+
+    monkeypatch.delenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', raising=False)
+    assert collector_configuration('model').prompt_version == 'compact-v1'
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'legacy')
+    with pytest.raises(CollectorConfigurationError):
+        collector_configuration('model')

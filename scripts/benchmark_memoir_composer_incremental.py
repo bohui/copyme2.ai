@@ -114,8 +114,6 @@ async def live_run(runtime: CodexRuntime, request: dict, *, compact: bool) -> di
     # a stable synthetic UUID so the benchmark exercises that same boundary
     # without ever touching a real account.
     storage = SimpleNamespace(user_id=str(UUID("00000000-0000-4000-8000-000000000042")))
-    index_request = incremental_index_request(
-        copy.deepcopy(request), request, request["context"].get("overlap_source_ids", []))
     checkpoint = {}
     progress_events = []
 
@@ -129,7 +127,7 @@ async def live_run(runtime: CodexRuntime, request: dict, *, compact: bool) -> di
     try:
         result = await compose_candidate(
             request, runtime, storage, request["project_id"], "en-AU",
-            checkpoint=checkpoint, progress=progress, index_request=index_request,
+            checkpoint=checkpoint, progress=progress,
         )
         result_status = result.get("status") if isinstance(result, dict) else None
     except Exception as exc:  # Safe class-only receipt; never persist provider text.

@@ -81,7 +81,7 @@ class WorkerTurnInput(BaseModel):
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
     agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer', 'author_timeline'] = 'collector'
     extraction_focus: Literal['family_tree', 'author_timeline', 'place_journey'] | None = None
-    composer_phase: Literal['index', 'prepare', 'draft', 'review'] = 'draft'
+    composer_phase: Literal['prepare', 'draft', 'review'] = 'draft'
     preparation_id: str | None = Field(default=None, pattern='^[a-f0-9]{64}$')
     task_sources: list[MemorySource] = Field(default_factory=list, max_length=1000)
     # Present only for local/CI evaluation. Normal product turns do not carry
@@ -200,7 +200,7 @@ class CodexWorker:
         key = user_id if agent_role == 'collector' else f'{user_id}:{agent_role}'
         return self._locks.setdefault(key, asyncio.Lock())
 
-    def _execution_timeout(self, agent_role: str, composer_phase: str = 'index'):
+    def _execution_timeout(self, agent_role: str, composer_phase: str = 'draft'):
         if agent_role == 'composer':
             return composer_timeout(composer_phase)
         if agent_role == 'workspace':

@@ -51,7 +51,6 @@ def packet_for(current,phase):
     if phase=='extract':return lane_extraction_packet(fence)
     if phase=='prepare':return {'preparation_id':'c'*64,'partition':current['partition'],'sources':[current['source']]}
     request=canonical_lane_request(fence)
-    if phase=='index':return request
     plan=asyncio.run(skill_operation('plan',request))
     if phase=='draft':return {'request':request,'plan':plan}
     candidate={'title':'Synthetic invalid draft'}
@@ -126,7 +125,7 @@ def test_extraction_schema_limits_evidence_and_relations_to_the_claimed_page(sav
         validate.validate([{'kind':'before','event_id':current['events'][0]['id'],'source_refs':[ref]}])
 
 
-@pytest.mark.parametrize('phase',['extract','prepare','index','draft','review'])
+@pytest.mark.parametrize('phase',['extract','prepare','draft','review'])
 def test_configured_background_model_alias_accepts_bounded_lane(phase):
     current=page('timeline' if phase=='extract' else 'composer')
     budget=BUDGET.model_copy(update={'model':'memoir-luna-low'})
@@ -183,7 +182,7 @@ def run(tmp_path,bounded=None,publisher=None,**kwargs):
         connection_factory=Connection,**kwargs))
 
 
-@pytest.mark.parametrize('phase',['extract','index','prepare','draft','review'])
+@pytest.mark.parametrize('phase',['extract','prepare','draft','review'])
 def test_each_lane_phase_is_fresh_bounded_and_fenced(tmp_path,phase):
     bounded=transport(phase);publisher=Publisher()
     result=run(tmp_path,bounded,publisher)
@@ -194,6 +193,12 @@ def test_each_lane_phase_is_fresh_bounded_and_fenced(tmp_path,phase):
     assert 'A narrow original window.' not in instance.requests[0][1]['baseInstructions']
     assert len(publisher.snapshots)==2 and all(s==bounded.fence.model_dump(mode='json') for s in publisher.snapshots)
     assert lane_request_tokens(bounded)<=bounded.budget.input_budget
+    from apps.api.lifetime_memory_lane_engine import lane_contract
+    instructions,schema=lane_contract(phase,bounded.fence.locale,fence=bounded.fence)
+    assert instance.requests[0][1]['baseInstructions']==instructions
+    assert lane_request_tokens(bounded)==(bounded.budget.count(instructions)
+        +bounded.budget.count(bounded.packet)+bounded.budget.count(serialize_packet(schema))
+        +bounded.budget.framing_headroom)
     config=tomllib.loads((instance.home/'config.toml').read_text())
     assert config['memories']=={'generate_memories':False,'use_memories':False}
     assert config['project_doc_max_bytes']==0
@@ -354,7 +359,7 @@ def test_edition_language_remains_separate_from_conversation_language():
     assert 'Write in Simplified Chinese' in instructions
 
 
-@pytest.mark.parametrize('phase',['extract','prepare','index','draft','review'])
+@pytest.mark.parametrize('phase',['extract','prepare','draft','review'])
 def test_payload_from_foreign_page_cannot_borrow_current_fence(phase):
     current=page('timeline' if phase=='extract' else 'composer')
     foreign=deepcopy(current)
@@ -368,7 +373,7 @@ def test_payload_from_foreign_page_cannot_borrow_current_fence(phase):
         build_bounded_lane_input(current,phase=phase,packet=packet_for(foreign,phase),budget=BUDGET)
 
 
-@pytest.mark.parametrize('phase',['extract','prepare','index','draft','review'])
+@pytest.mark.parametrize('phase',['extract','prepare','draft','review'])
 def test_unknown_personal_context_is_not_accepted(phase):
     current=page('timeline' if phase=='extract' else 'composer');payload=packet_for(current,phase)
     payload['unreviewed_context']='A stale profile detail'
@@ -430,12 +435,12 @@ def test_pause_after_build_is_rechecked_at_http_body_admission(monkeypatch):
     asyncio.run(scenario())
 
 
-def test_index_prepared_context_also_requires_registered_artifact():
-    current=page('composer');payload=packet_for(current,'index')
+def test_draft_prepared_context_requires_registered_artifact():
+    current=page('composer');payload=packet_for(current,'draft')
     prepared={'event_id':current['partition']['id'],'context':'Prepared bounded context',
         'source_refs':current['partition']['source_refs']}
-    payload['context']['prepared_partitions']=[prepared]
-    bounded=build_bounded_lane_input(current,phase='index',packet=payload,budget=BUDGET)
+    payload['request']['context']['prepared_partitions']=[prepared]
+    bounded=build_bounded_lane_input(current,phase='draft',packet=payload,budget=BUDGET)
     assert [(ref.phase,ref.digest) for ref in bounded.fence.prior_outputs]==[
         ('prepare',lane_artifact_digest('prepare',prepared))]
 
@@ -680,9 +685,6 @@ def test_default_lane_budget_admits_bounded_repair_with_prepared_context(monkeyp
     from apps.api.memoir_preview import composer_instructions
     from apps.api.lifetime_memory_lane_engine import lane_contract
     current_instructions,_=lane_contract('draft',current['locale'])
-    overhead=len(current_instructions.encode())-len(composer_instructions('draft',canonical_page=True).encode())
-    old_size=(lane_request_tokens(bounded)-len(current_instructions.encode())
-        +len(composer_instructions('draft').encode())+overhead)
-    assert old_size>bounded.budget.input_budget
+    assert len(composer_instructions('draft').encode()) < 10000
     assert bounded.budget.input_budget+bounded.budget.output_headroom+bounded.budget.framing_headroom<=bounded.budget.context_window
     asyncio.run(validate_lane_payload(bounded))

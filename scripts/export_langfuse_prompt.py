@@ -20,8 +20,7 @@ from scripts.langfuse_prompt_client import prompt_client
 
 
 TARGETS = {
-    "journalist": Path("Mira_Memoir_Journalist_System_Prompt_v1.0.md"),
-    "collector-compact": Path("apps/api/prompts/collector-compact.md"),
+    "collector": Path("skills/memoir-interviewer/prompts/collector.md"),
 }
 
 
@@ -29,8 +28,7 @@ def target_path(target: str, root: Path) -> Path:
     relative = TARGETS.get(target, Path(target))
     path = (root / relative).resolve()
     allowed = (root / "skills").resolve(), (root / "apps/api/prompts").resolve(), (root / "tests/evaluation").resolve()
-    if (path != (root / TARGETS["journalist"]).resolve()
-            and (path.suffix != ".md" or not any(path.is_relative_to(directory) for directory in allowed))):
+    if path.suffix != ".md" or not any(path.is_relative_to(directory) for directory in allowed):
         raise ValueError("Prompt target must be a known target or a repository prompt Markdown file")
     return path
 
@@ -86,7 +84,7 @@ def sync_prompt(client, *, target: str, name: str, version: int,
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True,
-                        help="journalist, collector-compact, or an existing prompt .md under skills/, apps/api/prompts/ or tests/evaluation/")
+                        help="collector, or an existing prompt .md under skills/, apps/api/prompts/ or tests/evaluation/")
     parser.add_argument("--name", required=True, help="Langfuse prompt name")
     parser.add_argument("--version", required=True, type=int, help="Exact immutable Langfuse version")
     parser.add_argument("--check", action="store_true", help="Compare with the checked-in artifact without writing")

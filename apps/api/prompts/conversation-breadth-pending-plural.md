@@ -1,1 +1,0 @@
-- Continue with the latest concrete detail for now. A breadth review is due after {{until_review}} more focused turns; when it is due, use a natural pause to check for one important uncovered area rather than staying in a repetitive branch. Do not make a checklist or announce the count.

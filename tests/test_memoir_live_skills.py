@@ -40,7 +40,7 @@ def response(text=None, **kwargs):
 
 
 def test_every_checked_in_skill_has_a_live_case():
-    covered = {c['skill'] for c in cases()} | {'memoir-composer', 'historical-news-research', 'place-photo-research'}
+    covered = {c['skill'] for c in cases()} | {'memoir-composer', 'memoir-historical-news-research', 'memoir-place-photo-research'}
     assert covered == set(manifest()['skills'])
 
 

@@ -1,0 +1,1 @@
+{{prompt:lane_context}}Write in Simplified Chinese; preserve original quoted source language.

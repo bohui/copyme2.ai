@@ -9,7 +9,6 @@ import json
 import os
 from types import SimpleNamespace
 
-import httpx
 import pytest
 
 from apps.api.canonical_composer import compose_shared_snapshot, fingerprint
@@ -25,7 +24,7 @@ from apps.api.memory_events import validate_extraction
     for action in ('replace', 'carry_once', 'carry_always', 'inline_once', 'inline_always',
                    'storyline_once', 'storyline_always', 'unscoped_once', 'unscoped_always')
 ])
-def test_composed_evidence_keeps_the_authorised_occurrence(locale, quote, veto, title, span_kind, legacy_action):
+def test_composed_evidence_keeps_the_authorised_occurrence(monkeypatch, locale, quote, veto, title, span_kind, legacy_action):
     # The same words may refer to distinct events. Only the second occurrence
     # is authorised here; substring search must not point back to the vetoed one.
     prefix = quote + ' ' + veto + ' ' if span_kind != 'absent' else ''
@@ -62,9 +61,7 @@ def test_composed_evidence_keeps_the_authorised_occurrence(locale, quote, veto, 
             assert name == 'save_memoir_checkpoint'
             checkpoint[payload['p_key']] = copy.deepcopy(payload['p_value'])
 
-    def controlled_model(request):
-        payload = json.loads(request.content)
-        phase, packet = payload['composer_phase'], json.loads(payload['text'])
+    async def controlled_model(runtime, storage, project_id, language, phase, packet):
         observed_phases.append(phase)
         if phase == 'prepare':
             partition = packet['partition']
@@ -91,10 +88,12 @@ def test_composed_evidence_keeps_the_authorised_occurrence(locale, quote, veto, 
                             bad_refs[0].update(char_start=0, char_end=len(quote))
                         body['source_refs'] = bad_refs
                         body['blocks'][0]['source_refs'] = bad_refs
-        return httpx.Response(200, json={'reply': json.dumps(result, ensure_ascii=False)})
+        return result
 
+    monkeypatch.setattr('apps.api.canonical_composer.composer_call', controlled_model)
+    monkeypatch.setattr('apps.api.memoir_preview.composer_call', controlled_model)
     worker = SimpleNamespace(broker=Checkpoints(), worker_url='http://controlled-model.invalid',
-        worker_secret='synthetic', worker_transport=httpx.MockTransport(controlled_model))
+        worker_secret='synthetic', worker_transport=None)
     bundle = asyncio.run(compose_shared_snapshot(job, worker))
     assert bundle['status'] == 'ready'
     assert bundle['preview']['text'] == quote

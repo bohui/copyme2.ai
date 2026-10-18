@@ -61,7 +61,7 @@ test('photo research reports real request progress and an unavailable provider f
   await context.loadPlacePictures(entry, 'project', {onProgress: step => events.push(step)});
   assert.equal(calls, 1);
   assert.deepEqual(events.map(step => [step.skill, step.status]),
-    [['place-photo-research', 'running'], ['place-photo-research', 'failed']]);
+    [['memoir-place-photo-research', 'running'], ['memoir-place-photo-research', 'failed']]);
   assert.match(events[0].detail, /承德市 · 1983年4月/);
   assert.match(events[1].detail, /flickr: robots_denied; loc: http_403/);
   assert.doesNotMatch(JSON.stringify(events), /secret/);

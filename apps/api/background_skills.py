@@ -21,7 +21,6 @@ class Skill:
 
 
 SKILLS = {item.name: item for item in (
-    Skill('app-auto-localization', None, 'none', 'none', 'deprecated', ()),
     Skill('memoir-author-timeline', 'timeline', 'model', 'accepted_source',
         gates=('canonical_activation','source_policy_fence','A_work_decision'),recovery='durable_lane'),
     Skill('memoir-family-tree', None, 'model', 'relationship_evidence', 'unwired',
@@ -30,7 +29,7 @@ SKILLS = {item.name: item for item in (
         gates=('owned_project','public_places','request_deduplication'),recovery='request'),
     Skill('memoir-story-game', None, 'model', 'game_button', 'unavailable', ('shape',),
         gates=('current_delivered_A_shape','explicit_button','completion','adaptation_consent','entitlement','evidence','integration_required')),
-    Skill('historical-news-research', 'historical', 'provider', 'delivered_context',
+    Skill('memoir-historical-news-research', 'historical', 'provider', 'delivered_context',
         gates=('rollout_flag','user_settings','public_time_place','reply_delivered','A_lease_released','persisted_claim','source_verification'),recovery='research_claim'),
     Skill('memoir-composer', 'composer', 'model', 'periodic', cadence_owner='private_draft_cadence',
         gates=('SQL_due_milestone','extraction_complete_snapshot','composition_opt_in','canonical_publication'),recovery='durable_lane'),
@@ -38,7 +37,7 @@ SKILLS = {item.name: item for item in (
         gates=('SQL_due_interval','manual_field_exclusions','automatic_profile_enabled','remaining_targets','source_policy_fence'),recovery='durable_lane'),
     Skill('memoir-place-journey', 'timeline', 'embedded', 'place_evidence',
         gates=('same_timeline_pass','source_grounded_geography','canonical_publication'),recovery='durable_lane'),
-    Skill('place-photo-research', 'photos', 'provider', 'place_selection',
+    Skill('memoir-place-photo-research', 'photos', 'provider', 'place_selection',
         gates=('owned_project','public_query','cursor_scope','cache','bounded_photo_capacity','optional_model_flag'),recovery='process_local_job_public_cache'),
 )}
 
@@ -81,7 +80,7 @@ def admit(name, trigger):
     skill = SKILLS[name]
     if skill.status != 'implemented' or skill.trigger != trigger:
         raise SkillUnavailable(skill.status if skill.status != 'implemented' else 'trigger_required')
-    if name == 'historical-news-research' and os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() not in {'1','true','yes'}:
+    if name == 'memoir-historical-news-research' and os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() not in {'1','true','yes'}:
         raise SkillUnavailable('feature_disabled')
     return skill
 
@@ -98,7 +97,7 @@ def admit_lane(fence, phase):
                 or not fence.profile_context.get('targets')):
             raise SkillUnavailable('manual_or_no_targets')
     else:
-        if fence.skill != 'composer' or phase not in {'prepare','draft','review','index'}:
+        if fence.skill != 'composer' or phase not in {'prepare','draft','review'}:
             raise SkillUnavailable('phase_required')
         name = 'memoir-composer'
     return admit(name, SKILLS[name].trigger)
@@ -161,7 +160,7 @@ async def photo_step(owner,project_id,result,*,client_turn_id=None):
     """PhotoPages proves job identity/cache state; transport proves no more."""
     if not result.get('job_id'):
         return result
-    work=ServiceWork('place-photo-research','place_selection',owner,project_id,result['job_id'],client_turn_id=client_turn_id)
+    work=ServiceWork('memoir-place-photo-research','place_selection',owner,project_id,result['job_id'],client_turn_id=client_turn_id)
     cached=bool(result.get('cached'))
     status='running' if result.get('searching') else 'failed' if result.get('status')=='UNAVAILABLE' else 'cached' if cached else 'completed'
     return {**result,'skill_progress':await work.update(status,cached=cached)}
@@ -170,7 +169,7 @@ async def photo_step(owner,project_id,result,*,client_turn_id=None):
 def queue_research(publication,runtime,storage,project_id):
     """The sole after-delivery registration point; no launch while A holds a lease."""
     try:
-        admit('historical-news-research','delivered_context')
+        admit('memoir-historical-news-research','delivered_context')
     except SkillUnavailable:
         return
     from .historical_news import HistoricalResearch

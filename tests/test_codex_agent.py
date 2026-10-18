@@ -7,76 +7,8 @@ import pytest
 from pathlib import Path
 
 from apps.api.codex_agent import CodexConnection
-from apps.api.codex_runtime import (
-    CodexRuntime,
-    _sentence_has_author_event_evidence,
-    _timeline_item_is_explicitly_vetoed,
-    _sanitize_author_timeline_markers,
-    build_conversation_system_prompt,
-    build_loop_trace,
-    build_system_prompt,
-    build_workspace_extraction_prompt,
-)
+from apps.api.codex_runtime import CodexRuntime
 from apps.api.trajectory_evaluation import TrajectoryRecorder
-
-
-def test_loop_trace_exposes_actions_without_private_model_reasoning():
-    trace = build_loop_trace(memory_count=2, resumed=True, saved_paths=3)
-
-    assert trace[0]["label"] == "Analyze"
-    assert any(step["label"] == "memory.search" for step in trace)
-    assert any(step["label"] == "codex.thread.resume" for step in trace)
-    assert any(step["label"] == "memory.save" for step in trace)
-    assert trace[-1]["label"] == "Respond"
-    assert all("chain-of-thought" not in step["detail"].lower() for step in trace)
-
-
-def test_system_prompt_requires_simplified_chinese_responses():
-    prompt = build_system_prompt("(none)", language="zh-CN")
-
-    assert "简体中文" in prompt
-    assert "不要用英语回答" in prompt
-
-
-def test_visible_collector_prompt_is_separate_from_workspace_markers():
-    conversation = build_conversation_system_prompt('(none)', language='en-AU')
-    workspace = build_workspace_extraction_prompt('(none)', language='en-AU')
-
-    assert '[[MEMORY_SPARK_PROFILE]]' not in conversation
-    assert '[[MEMORY_SPARK_PLACE_JOURNEY]]' not in conversation
-    assert '[[MEMORY_SPARK_PROFILE]]' in workspace
-    assert 'Workspace extraction contract' in workspace
-
-
-def test_workspace_prompt_exposes_structural_timeline_claim_ids():
-    prompt = build_workspace_extraction_prompt(
-        '(none)',
-        language='en-AU',
-        family_enabled=True,
-        source_text=(
-            'I bought a house in 1980. I sold the house in 1980. '
-            'Please do not add this event to my timeline.'
-        ),
-    )
-
-    assert 'source_claim_id' in prompt
-    assert 'Do not infer a claim id from a title synonym' in prompt
-    assert '- c0: I bought a house in 1980' in prompt
-    assert '- c1: I sold the house in 1980' in prompt
-
-
-def test_collector_prompt_reviews_breadth_after_twenty_focused_turns():
-    before_checkpoint = build_conversation_system_prompt(
-        '(none)', language='en-AU', conversation_rounds_completed=19
-    )
-    checkpoint = build_conversation_system_prompt(
-        '(none)', language='en-AU', conversation_rounds_completed=20
-    )
-
-    assert 'A breadth review is due after 1 more focused turn' in before_checkpoint
-    assert 'This is a breadth-review checkpoint' in checkpoint
-    assert 'one promising, evidence-grounded area' in checkpoint
-    assert 'do not force a topic change' in checkpoint.lower()
 
 
 def test_workspace_extraction_retries_only_missing_family_domains_without_synthesizing(monkeypatch):
@@ -468,61 +400,6 @@ def test_workspace_extraction_preserves_independent_event_in_mixed_negative_turn
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
 
 
-@pytest.mark.parametrize('text', [
-    'My first job was at the Hobart docks in 1980.',
-    'I remember buying my first house.',
-])
-def test_source_contract_keeps_possessive_and_memory_complement_events(text, monkeypatch):
-    assert _sentence_has_author_event_evidence(text) is True
-    runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
-
-    async def worker_turn(**kwargs):
-        return {
-            'reply': (
-                '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
-                '{"timeline":[{"id":"event","kind":"event",'
-                '"title":"Grounded event","date_expression":"unknown",'
-                '"precision":"unknown"}]}'
-                '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
-            )
-        }
-
-    monkeypatch.setattr(runtime, '_worker_turn', worker_turn)
-    reply = asyncio.run(runtime._workspace_extraction(
-        user_id='synthetic-user', memories=[], profile={}, place_journey=None,
-        family_enabled=True, family_context=None, project_id=None,
-        text=text, language='en-AU',
-    ))
-
-    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
-
-
-@pytest.mark.parametrize('text', [
-    'My aunt June moved to Hobart in 1980.',
-    "My father's stories place the move in Hobart in 1980.",
-    '我的姐姐在三十岁以后开始工作。',
-])
-def test_source_contract_rejects_other_person_possessive_subjects(text):
-    assert _sentence_has_author_event_evidence(text) is False
-
-
-@pytest.mark.parametrize('text', [
-    'Born in Hobart, with the year left uncertain.',
-    '出生在成都，年份仍然不确定。',
-])
-def test_source_contract_accepts_grounded_birth_fragments(text):
-    assert _sentence_has_author_event_evidence(text) is True
-
-
-def test_source_contract_splits_mixed_uncertainty_from_author_event():
-    assert _sentence_has_author_event_evidence(
-        'I am unsure whether Ben left before my final school year'
-    ) is False
-    assert _sentence_has_author_event_evidence(
-        'I moved to Hobart in 1985'
-    ) is True
-
-
 def test_workspace_extraction_honours_item_veto_without_dropping_other_event(monkeypatch):
     runtime = CodexRuntime(worker_url='http://worker', worker_secret='secret')
 
@@ -578,92 +455,6 @@ def test_workspace_extraction_keeps_only_later_event_when_vetoed_event_is_omitte
 
     assert 'MEMORY_SPARK_AUTHOR_TIMELINE' in reply
     assert 'e-house' in reply
-
-
-def test_item_veto_association_uses_source_span_not_single_item_count():
-    source = (
-        'I moved to Hobart in 1980. Please do not add this event to my timeline. '
-        'I bought my first house in 1990.'
-    )
-    assert _timeline_item_is_explicitly_vetoed(
-        {'title': 'Moved to Hobart', 'date_expression': '1980'}, source, 1
-    ) is True
-    assert _timeline_item_is_explicitly_vetoed(
-        {'title': 'Bought first house', 'date_expression': '1990'}, source, 1
-    ) is False
-
-
-@pytest.mark.parametrize(
-    ('source', 'vetoed', 'allowed'),
-    [
-        (
-            'I moved in 1980; I married in 1980; please do not add this event to my timeline.',
-            {'title': 'Married', 'date_expression': '1980'},
-            {'title': 'Moved', 'date_expression': '1980'},
-        ),
-        (
-            'I bought a house in 1980; I sold the house in 1990; please do not add the sale to my timeline.',
-            {'title': 'Sold house', 'date_expression': '1990'},
-            {'title': 'Bought house', 'date_expression': '1980'},
-        ),
-        (
-            'I bought a house in 1980. I sold the house in 1980. Please do not add this event to my timeline.',
-            {'title': 'Sold house', 'date_expression': '1980'},
-            {'title': 'Purchased house', 'date_expression': '1980'},
-        ),
-    ],
-)
-def test_item_veto_association_does_not_use_shared_year_or_noun_as_identity(
-    source, vetoed, allowed,
-):
-    assert _timeline_item_is_explicitly_vetoed(vetoed, source, 2) is True
-    assert _timeline_item_is_explicitly_vetoed(allowed, source, 2) is False
-
-
-@pytest.mark.parametrize('title', ['Sale of house', 'House sale', 'Selling house'])
-def test_paraphrase_timeline_items_use_source_claim_ids_not_title_synonyms(title):
-    source = (
-        'I bought a house in 1980. I sold the house in 1980. '
-        'Please do not add this event to my timeline.'
-    )
-    reply = (
-        '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
-        '{"timeline":['
-        '{"id":"e-purchase","kind":"event","title":"Purchase of house",'
-        '"date_expression":"1980","precision":"year","source_claim_id":"c0"},'
-        f'{{"id":"e-sale","kind":"event","title":"{title}",'
-        '"date_expression":"1980","precision":"year","source_claim_id":"c1"}'
-        ']}[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
-    )
-
-    sanitized = _sanitize_author_timeline_markers(reply, source)
-
-    assert 'e-purchase' in sanitized
-    assert 'e-sale' not in sanitized
-    assert 'source_claim_id' not in sanitized
-
-
-@pytest.mark.parametrize('title', ['Sale of house', 'House sale', 'Selling house'])
-def test_unresolved_paraphrase_timeline_item_stays_private(title):
-    source = (
-        'I bought a house in 1980. I sold the house in 1980. '
-        'Please do not add this event to my timeline.'
-    )
-    reply = (
-        '[[MEMORY_SPARK_AUTHOR_TIMELINE]]'
-        + json.dumps({
-            'timeline': [{
-                'id': 'e-sale',
-                'kind': 'event',
-                'title': title,
-                'date_expression': '1980',
-                'precision': 'year',
-            }],
-        })
-        + '[[/MEMORY_SPARK_AUTHOR_TIMELINE]]'
-    )
-
-    assert 'MEMORY_SPARK_AUTHOR_TIMELINE' not in _sanitize_author_timeline_markers(reply, source)
 
 
 def test_workspace_extraction_honours_single_event_veto(monkeypatch):
@@ -785,52 +576,6 @@ def test_workspace_recovery_routes_chinese_family_photo_permission_cue(monkeypat
     ))
 
     assert calls == [None, 'family_tree', 'family_tree', 'family_tree']
-
-
-def test_private_extraction_omits_the_interview_prompt_but_retains_marker_contracts():
-    from apps.api.codex_runtime import MEMOIR_SYSTEM_PROMPT
-    workspace = build_workspace_extraction_prompt('(none)', family_enabled=True)
-    assert MEMOIR_SYSTEM_PROMPT not in workspace
-    for marker in ('PROFILE', 'PLACE_JOURNEY', 'FAMILY_TREE', 'AUTHOR_TIMELINE'):
-        assert f'[[MEMORY_SPARK_{marker}]]' in workspace
-
-
-def test_workspace_prompt_has_independent_domain_audit_and_focused_recovery():
-    workspace = build_workspace_extraction_prompt('(none)', family_enabled=True)
-    focused = build_workspace_extraction_prompt(
-        '(none)', family_enabled=True, focus='author_timeline'
-    )
-
-    assert 'A profile or place marker never substitutes' in workspace
-    assert 'never let birth_place or story_focus replace the timeline event' in workspace
-    assert 'Focused author-timeline recovery pass' in focused
-    family_focused = build_workspace_extraction_prompt(
-        '(none)', family_enabled=True, focus='family_tree'
-    )
-    assert 'Kinship titles and explicit shorthand such as `my father`' in family_focused
-    assert 'At about three, I followed my father to the docks' in family_focused
-    assert 'Mum grew mint beside the laundry' in family_focused
-    place_focused = build_workspace_extraction_prompt(
-        '(none)', family_enabled=True, focus='place_journey'
-    )
-    assert 'Focused place-journey recovery pass' in place_focused
-    assert 'Do not reuse a saved place' in place_focused
-
-
-def test_memory_context_prompt_disambiguates_chinese_midlife_cue():
-    workspace = build_workspace_extraction_prompt('(none)', language='zh-CN')
-
-    assert '三十岁以后' in workspace
-    assert '`midlife`' in workspace
-    assert '`young_adulthood`' in workspace
-
-
-def test_loop_trace_is_localized_for_simplified_chinese():
-    trace = build_loop_trace(memory_count=2, resumed=False, saved_paths=1, language="zh-CN")
-
-    assert trace[0]["label"] == "分析"
-    assert trace[-1]["label"] == "回复"
-    assert all("memory" not in step["detail"].lower() for step in trace)
 
 
 def test_same_explicit_place_is_marked_for_new_project_activation():

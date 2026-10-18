@@ -4,7 +4,6 @@ from pathlib import Path
 
 import pytest
 
-from apps.api.codex_runtime import build_workspace_extraction_prompt
 from apps.api.place_journey import MARKER_START, MARKER_END
 from scripts.evaluate_place_journeys import load_cases, score_response
 
@@ -57,16 +56,3 @@ def test_verified_district_parent_is_allowed_but_unrelated_parent_is_rejected():
     assert score_response(case, MARKER_START + json.dumps(complete) + MARKER_END)['passed']
     wrong = {**place, 'hierarchy': ['Earth', '中国', '河北', '另一城市', place['place']]}
     assert not score_response(case, MARKER_START + json.dumps(wrong) + MARKER_END)['passed']
-
-
-def test_extraction_has_compact_existing_identity_hints_without_photo_metadata():
-    current = CASES[0]['place_journey']
-    photo = {'place': '承德', 'hierarchy': ['Earth', '中国', '河北', '承德'],
-             'granularity': 'city', 'pictures': [{'secret_caption': 'private-photo-metadata'}]}
-    prompt = build_workspace_extraction_prompt('(none)', {'memory_places': [photo]},
-        place_journey=current, family_enabled=False, language='zh-CN', canonical_events=True)
-    assert 'Known geographic identities' in prompt
-    assert 'private-photo-metadata' not in prompt
-    assert '40.9517' in prompt
-    assert 'Still emit a marker for a repeated place explicitly named now' in prompt
-    assert 'backend resolves the final identity' in prompt

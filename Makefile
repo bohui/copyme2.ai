@@ -40,7 +40,7 @@ MEMORY_SPARK_CODEX_WORKER_TIMEOUT ?= 240
 ENV_FILE ?= .env
 PROMPT_CREDENTIAL_FILE ?= $(HOME)/llm_provider/.env
 PROMPT_NAME ?=
-PROMPT_EVAL_NAME ?= memoir/memory/timeline
+PROMPT_EVAL_NAME ?= memoir/skills/memoir-author-timeline/extract
 PROMPT_EVAL_DATASET ?= memoir/evaluation/event-grounding
 PROMPT_EVAL_VERSION ?=
 PROMPT_EVAL_MODEL ?=
@@ -75,7 +75,7 @@ help: ## Show the Apple Container + Mocker commands.
 		/^## / {hints[++hint_count] = substr($$0, 4)} \
 		END {if (hint_count) printf "\n"; for (i = 1; i <= hint_count; i++) printf "%s\n", hints[i]}' $(MAKEFILE_LIST)
 
-prompt-export: ## Export current Langfuse versions into repo artifacts; optional PROMPT_NAME=collector-compact.
+prompt-export: ## Export current Langfuse versions into repo artifacts; optional PROMPT_NAME=collector.
 	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
 prompt-check: ## Verify repo prompt artifacts against their pinned Langfuse versions.

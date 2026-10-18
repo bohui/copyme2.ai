@@ -9,13 +9,13 @@ import logging
 import os
 import re
 import time
-from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel,ConfigDict,Field
 from .interview_plan import PhotoAssociation,TurnWorkPlan
 from .two_lane_memory import PreparedQuestion
-from .prompt_artifact import load_prompt_artifact
+from .prompt_composition import render_prompt_artifact
+from .prompt_artifact import prompt_path
 
 Strategy=Literal['comfort','explore','shape']
 SelectionReason=Literal['prepared_candidate','adapted_candidate','latest_story','user_redirect','current_correction',
@@ -78,7 +78,7 @@ STRATEGY_MODULES = frozenset({'comfort', 'explore', 'shape'})
 def strategy_instructions(strategy):
     if strategy not in STRATEGY_MODULES:
         raise ValueError('Unknown internal strategy')
-    return load_prompt_artifact(Path(__file__).with_name('prompts') / f'strategy-{strategy}.md')
+    return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/strategy/{strategy}'))
 
 def selector_schema(context=None):
     schema=ImmediateSelection.model_json_schema()

@@ -22,7 +22,8 @@ from .codex_worker_files import write_config
 from .issue14_execution_admission import check_issue14_dispatch, issue14_connection_options
 from .lifetime_memory_context import serialize_packet
 from .lifetime_memory_contracts import Contract, ContextBudget, PinnedContinuity
-from .prompt_artifact import load_prompt_artifact
+from .prompt_composition import render_prompt_artifact
+from .prompt_artifact import prompt_path
 from .lifetime_memory_execution import open_execution
 from .lifetime_memory_lane_engine import (
     SUPPORTED_LANE_MODELS, LaneGenerationPaused, LaneRequestBody,
@@ -146,7 +147,7 @@ def job_contract(fence):
                 'title':{'type':'string','minLength':1,'maxLength':200},
                 field:{'type':'array','minItems':1,'maxItems':len(ids),
                     'items':{'type':'string','enum':ids}}}}}}}
-    instructions = load_prompt_artifact(Path(__file__).with_name('prompts') / f'organiser-job-{fence.phase}-{fence.locale}.md')
+    instructions = render_prompt_artifact(prompt_path(f'memoir/skills/memoir-composer/outline/{fence.phase}/{fence.locale}'))
     return instructions,schema
 
 
@@ -268,10 +269,7 @@ class JobPublication:
 
 
 class JobRequestBody(LaneRequestBody):
-    def __init__(self,content,*,publisher,fence):
-        self._content=bytes(content)
-        self._fence_json=serialize_packet(JobFence.model_validate(fence).model_dump(mode='json'))
-        self._publisher=publisher;self._iterator=None
+    fence_type = JobFence
 
 
 def _publisher(bounded,publisher):

@@ -8,14 +8,14 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import httpx
 
-from .codex_runtime import CodexRuntime, normalize_conversation_language
+from .codex_runtime import CodexRuntime
 from .codex_timeout_policy import COMPOSER_TIMEOUT, COMPOSER_DRAFT_TIMEOUT
 from .conversation_text import original_conversation_text
 from .recall import free_recall_rounds
 from .stage_readiness import LIFE_STAGES
-from .prompt_artifact import load_prompt_artifact
+from .prompt_composition import render_prompt_artifact
+from .prompt_artifact import prompt_path
 
 
 logger = logging.getLogger(__name__)
@@ -25,10 +25,6 @@ logger = logging.getLogger(__name__)
 
 def composer_timeout(phase):
     return COMPOSER_DRAFT_TIMEOUT if phase == 'draft' else COMPOSER_TIMEOUT
-
-
-class PreviewSourceChanged(RuntimeError):
-    pass
 
 
 class LifetimeDraftPending(RuntimeError):
@@ -44,6 +40,8 @@ SKILL = Path(__file__).resolve().parents[2] / 'skills/memoir-composer'
 
 
 def composer_output_schema(phase):
+    if phase not in {'prepare', 'draft', 'review'}:
+        raise KeyError(phase)
     if phase == 'prepare':
         from .memory_events import extraction_schema
         shared = extraction_schema()
@@ -56,10 +54,6 @@ def composer_output_schema(phase):
         for constant in (schema['properties']['schema_version'], schema['properties']['status'],
                          schema['properties']['counter']['properties']['algorithm']):
             constant['type'] = 'string'
-    elif phase == 'index':
-        schema = json.loads((SKILL / 'schemas/request.schema.json').read_text())
-        schema = {'type': 'object', 'properties': {name: schema['properties'][name] for name in ('periods', 'events')},
-                'required': ['periods', 'events'], 'additionalProperties': False, '$defs': schema['$defs']}
     else:
         return {'type': 'object', 'properties': {
             'ready_for_user_review': {'type': 'boolean'}, 'publication_approved': {'type': 'boolean', 'const': False},
@@ -154,11 +148,10 @@ def normalize_canonical_event_dispositions(draft):
     return draft
 
 
-def composer_instructions(phase, *, canonical_page=False):
-    name = f"composer-{phase}" + ("-canonical" if canonical_page and phase == "draft" else "")
-    if phase not in {"prepare", "index", "draft", "review"}:
+def composer_instructions(phase):
+    if phase not in {"prepare", "draft", "review"}:
         raise KeyError(phase)
-    return load_prompt_artifact(Path(__file__).with_name("prompts") / f"{name}.md")
+    return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-composer/{phase}'))
 
 def json_reply(text):
     text = text.strip()
@@ -202,56 +195,35 @@ process.stdout.write(JSON.stringify(result));
 async def composer_call(runtime, storage, project_id, language, phase, packet):
     if not runtime.worker_url or not runtime.worker_secret:
         raise RuntimeError('Memoir composer is unavailable')
-    if getattr(runtime, 'lifetime_bounded', False):
-        started = time.monotonic()
-        outcome, worker_elapsed_ms = 'failed', -1
-        try:
-            from .lifetime_memory_composer import check_model_packet
-            check_model_packet(packet, composer_instructions(phase, canonical_page=True), composer_output_schema(phase))
-            from .lifetime_memory_composer import lane_model_budget
-            from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
-            bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=lane_model_budget())
-            worker_started = time.monotonic()
-            try:
-                result = await send_bounded_lane_request(worker_url=runtime.worker_url, worker_secret=runtime.worker_secret,
-                    bounded_lane=bounded, worker_transport=runtime.worker_transport,
-                    publisher=runtime.lane_publisher, timeout=composer_timeout(phase) + 15)
-            finally:
-                worker_elapsed_ms = int((time.monotonic() - worker_started) * 1000)
-            from .lifetime_memory_lane_engine import lane_artifact_digest
-            artifact = json_reply(result['reply'])
-            if phase == 'draft':
-                normalize_new_chapter_revisions(packet['request'], artifact)
-            await runtime.lane_broker.rpc('record_lifetime_lane_output',
-                p_lane_id=runtime.lifetime_page['lane_id'], p_token=runtime.lifetime_page['token'],
-                p_page_number=runtime.lifetime_page['page_number'], p_phase=phase,
-                p_digest=lane_artifact_digest(phase, artifact), p_page_digest=runtime.lifetime_page['page_digest'])
-            outcome = 'completed'
-            return normalize_composer_refs(artifact)
-        finally:
-            logger.info('memoir_preview canonical_page phase=%s page=%d elapsed_ms=%d worker_elapsed_ms=%d outcome=%s',
-                phase, runtime.lifetime_page['page_number'], (time.monotonic() - started) * 1000,
-                worker_elapsed_ms, outcome)
+    if not getattr(runtime, 'lifetime_bounded', False):
+        raise ValueError('A canonical composer lane is required')
     started = time.monotonic()
-    record_worker_request = getattr(runtime, 'record_worker_request', None)
-    if callable(record_worker_request):
-        record_worker_request()
-    options = {'timeout': composer_timeout(phase) + 15}
-    if runtime.worker_transport is not None:
-        options['transport'] = runtime.worker_transport
-    async with httpx.AsyncClient(**options) as client:
-        response = await client.post(f'{runtime.worker_url}/internal/codex/turn',
-            headers={'X-Codex-Worker-Secret': runtime.worker_secret}, json={
-                'user_id': storage.user_id, 'project_id': project_id,
-                'agent_role': 'composer', 'composer_phase': phase,
-                **({'preparation_id': packet['preparation_id']} if phase == 'prepare' else {}),
-                'language': language, 'text': json.dumps(packet, ensure_ascii=False),
-            })
-        # Never log exception messages, URLs, packets, or model responses.
-        logger.info('memoir_preview phase=%s elapsed_ms=%d http_status=%d',
-                    phase, (time.monotonic() - started) * 1000, response.status_code)
-        response.raise_for_status()
-        return normalize_composer_refs(json_reply(response.json()['reply']))
+    outcome, worker_elapsed_ms = 'failed', -1
+    try:
+        from .lifetime_memory_composer import lane_model_budget
+        from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
+        bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=lane_model_budget())
+        worker_started = time.monotonic()
+        try:
+            result = await send_bounded_lane_request(worker_url=runtime.worker_url, worker_secret=runtime.worker_secret,
+                bounded_lane=bounded, worker_transport=runtime.worker_transport,
+                publisher=runtime.lane_publisher, timeout=composer_timeout(phase) + 15)
+        finally:
+            worker_elapsed_ms = int((time.monotonic() - worker_started) * 1000)
+        from .lifetime_memory_lane_engine import lane_artifact_digest
+        artifact = json_reply(result['reply'])
+        if phase == 'draft':
+            normalize_new_chapter_revisions(packet['request'], artifact)
+        await runtime.lane_broker.rpc('record_lifetime_lane_output',
+            p_lane_id=runtime.lifetime_page['lane_id'], p_token=runtime.lifetime_page['token'],
+            p_page_number=runtime.lifetime_page['page_number'], p_phase=phase,
+            p_digest=lane_artifact_digest(phase, artifact), p_page_digest=runtime.lifetime_page['page_digest'])
+        outcome = 'completed'
+        return normalize_composer_refs(artifact)
+    finally:
+        logger.info('memoir_preview canonical_page phase=%s page=%d elapsed_ms=%d worker_elapsed_ms=%d outcome=%s',
+            phase, runtime.lifetime_page['page_number'], (time.monotonic() - started) * 1000,
+            worker_elapsed_ms, outcome)
 
 
 def source_snapshot(rows, project_id):
@@ -484,118 +456,6 @@ def previous_preview_request(rows, project_id, language):
     return max(candidates, key=lambda item: item[0])[1] if candidates else None
 
 
-async def compose_preview(storage, lease, project_id, *, language=None, runtime=None,
-                          prepared=None, checkpoint=None, save_checkpoint=None):
-    governed = await lease.io(lifetime_draft_head, storage, project_id)
-    if governed:
-        raise LifetimeDraftPending('LIFETIME_COMPOSER_PENDING')
-    reader = getattr(storage, 'composition_memories', None) or getattr(storage, 'all_memories', storage.memories)
-    rows = await lease.io(reader)
-    profile = await lease.io(storage.profile)
-    language = normalize_conversation_language(language or profile.get('preferred_language'))
-    sources = source_snapshot(rows, project_id)
-    key = snapshot_key(sources, project_id, language)
-    if prepared is not None and prepared['key'] != key:
-        raise PreviewSourceChanged('Saved memories changed during composition')
-    checkpoint = dict(checkpoint or {})
-
-    async def progress(phase):
-        if save_checkpoint is not None:
-            await save_checkpoint(phase, checkpoint)
-    existing = cached_preview(rows, key)
-    if existing:
-        return {'status': 'ready', 'preview': existing, 'cached': True}
-    if not sources:
-        return {'status': 'insufficient_context', 'preview': None}
-    if sum(len(source['text']) for source in sources) > 120000:
-        raise ValueError('The preview source snapshot exceeds the supported context limit')
-    runtime = runtime or CodexRuntime()
-    request = {
-        'schema_version': '1.0', 'request_id': key, 'event_id': key, 'project_id': project_id,
-        'trigger': {'type': 'free_rounds_completed', 'confirmed': True,
-                    'free_rounds_completed': await lease.io(storage.recall_rounds_completed),
-                    'free_round_limit': free_recall_rounds(),
-                    'storytelling_confirmation_ref': None, 'composition_authorized': False},
-        'target': {'locale': language, 'audience': 'storyteller', 'medium': 'web'},
-        'snapshot': {'id': key, 'policy_epoch': 1, 'expected_manuscript_revision': 0,
-                     'retrieval_complete': True, 'glossary_version': '1', 'preferences_version': language},
-        'policy': {'max_chapter_words': 7000, 'soft_chapter_words': 6000,
-                   'focus_threshold': 0.65, 'max_followup_questions': 0, 'preview_preference': 'auto'},
-        'sources': sources, 'assets': [], 'periods': [], 'events': [],
-        'prior_state': {'kind': 'none', 'revision': 0, 'chapters': [], 'last_snapshot_fingerprint': ''},
-        'authorised_retirements': [], 'context': {'style': 'plain, warm, faithful',
-                                               'stage_source_ids': stage_source_ids(sources)},
-    }
-    previous_request = previous_preview_request(rows, project_id, language)
-    index_request = incremental_index_request(request, previous_request)
-    bundle = await compose_candidate(request, runtime, storage, project_id, language,
-                                     checkpoint=checkpoint, progress=progress, index_request=index_request)
-    if bundle['status'] != 'ready':
-        return bundle
-    await lease.check()
-    current_sources = source_snapshot(await lease.io(reader), project_id)
-    if snapshot_key(current_sources, project_id, language) != key:
-        raise PreviewSourceChanged('Saved memories changed during composition; please retry')
-    preview = bundle['preview']
-    # Append immutable revisions in the existing private, RLS-protected store.
-    # Successful persistence is the acknowledgement; never debit an interview.
-    saved = await lease.io(storage.save_memory, json.dumps({
-        'type': 'memoir_preview', 'snapshot_key': key, **bundle,
-    }, ensure_ascii=False), kind='memoir', source_paths=[f'memoir-preview:{project_id}', key])
-    if not saved:
-        raise RuntimeError('The preview could not be saved; please retry')
-    return {'status': 'ready', 'preview': preview, 'cached': False}
-
-
-async def index_sources(packet, runtime, storage, project_id, language, checkpoint, progress):
-    """Bound model indexing work and retain completed batches across retries."""
-    # Keep each structured index request comfortably below the worker's
-    # bounded collector/composer budget. Smaller packets also reduce the
-    # chance that a transient provider 504 discards several completed source
-    # updates at once; completed batches remain resumable in checkpoint.
-    batch_size = max(2, min(4, checkpoint.get('index_batch_size', 4)))
-    if len(packet['sources']) <= batch_size:
-        return await composer_call(runtime, storage, project_id, language, 'index', packet)
-    saved = checkpoint.get('index_progress', {})
-    done = set(saved.get('source_ids', []))
-    previous = packet.get('context', {}).get('previous_index', packet)
-    index = {field: copy.deepcopy(saved.get(field, previous.get(field, [])))
-             for field in ('periods', 'events')}
-    remaining = [source for source in packet['sources'] if source['id'] not in done]
-    for offset in range(0, len(remaining), batch_size):
-        batch = remaining[offset:offset + batch_size]
-        part = copy.deepcopy(packet)
-        part['sources'] = batch
-        part['context'] = {**part.get('context', {}), 'previous_index': copy.deepcopy(index),
-                           'stage_source_ids': stage_source_ids(batch)}
-        batch_ids = {source['id'] for source in batch}
-        for field in ('new_source_ids', 'changed_source_ids', 'overlap_source_ids', 'affected_source_ids'):
-            if field in part['context']:
-                part['context'][field] = [id for id in part['context'][field] if id in batch_ids]
-        if 'original_source_manifest' in part['context']:
-            known_ids = batch_ids | {ref['source_id'] for items in index.values()
-                                     for item in items for ref in item['source_refs']}
-            part['context']['original_source_manifest'] = [
-                source for source in part['context']['original_source_manifest'] if source['id'] in known_ids]
-        part.update(copy.deepcopy(index))
-        await progress('indexing')
-        try:
-            update = await composer_call(runtime, storage, project_id, language, 'index', part)
-        except (TimeoutError, httpx.TimeoutException, httpx.HTTPStatusError) as error:
-            if isinstance(error, httpx.HTTPStatusError) and error.response.status_code not in {429, 502, 503, 504}:
-                raise
-            checkpoint['index_batch_size'] = max(2, batch_size // 2)
-            await progress('indexing')
-            raise
-        for field in index:
-            index[field] = list({item['id']: item for item in [*index[field], *update[field]]}.values())
-        done.update(source['id'] for source in batch)
-        checkpoint['index_progress'] = {**copy.deepcopy(index), 'source_ids': sorted(done)}
-        await progress('indexing')
-    checkpoint.pop('index_progress', None)
-    return index
-
-
 def bind_index_sources(request):
     """Source versions come from the host registry, never model transcription."""
     request = copy.deepcopy(request)
@@ -614,17 +474,11 @@ def bind_index_sources(request):
     return request
 
 
-async def compose_candidate(request, runtime, storage, project_id, language, *, checkpoint, progress, index_request=None):
+async def compose_candidate(request, runtime, storage, project_id, language, *, checkpoint, progress):
     if checkpoint.get('request'):
         request = checkpoint['request']
-    elif not request.get('context', {}).get('canonical_event_index'):
-        await progress('indexing')
-        index = (await index_sources(index_request or request, runtime, storage, project_id, language, checkpoint, progress)
-                 if index_request is None or index_request['sources'] else {'periods':[], 'events':[]})
-        if index_request is not None:
-            index = {field: list({item['id']: item for item in [*request[field], *index[field]]}.values())
-                     for field in ('periods', 'events')}
-        request.update(periods=index['periods'], events=index['events'])
+    if not request.get('context', {}).get('canonical_event_index'):
+        raise ValueError('A canonical event index is required for composition')
     request = bind_index_sources(request)
     plan = await skill_operation('plan', request)
     if plan.get('status') == 'insufficient_context':

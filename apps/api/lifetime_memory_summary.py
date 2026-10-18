@@ -7,7 +7,7 @@ from typing import Literal
 from uuid import UUID
 from pydantic import BaseModel,ConfigDict,Field,ValidationError,model_validator
 from .lifetime_memory_contracts import Contract
-from .prompt_artifact import load_prompt_artifact
+from .prompt_artifact import load_prompt_artifact, prompt_path
 
 MAX_SUMMARY_BYTES=8192
 SUMMARY_RETRY_CODES=frozenset({'SUMMARY_EVIDENCE','SUMMARY_BUDGET','OUTPUT_SCHEMA'})
@@ -85,7 +85,7 @@ def summary_contract(page=None):
             choices.append(ref)
         if choices:schema['$defs']['SummaryRef']={'anyOf':choices}
         else:schema['properties']['items']['maxItems']=0
-    return load_prompt_artifact(Path(__file__).with_name('prompts') / 'memory-summary.md'), schema
+    return load_prompt_artifact(prompt_path('memoir/skills/memoir-memory-context/summary')), schema
 
 
 def summary_packet(fence):

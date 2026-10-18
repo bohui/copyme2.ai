@@ -22,7 +22,8 @@ import anyio
 import httpx
 from pydantic import Field, model_validator
 
-from .prompt_artifact import load_prompt_artifact
+from .prompt_artifact import load_prompt_artifact, prompt_path
+from .prompt_composition import render_prompt_artifact
 from .codex_agent import CodexConnection, provider_config
 from .codex_worker_files import write_config
 from .issue14_execution_admission import check_issue14_dispatch, issue14_connection_options
@@ -35,7 +36,7 @@ from .lifetime_memory_publication import PublicationUnavailable
 # already supported pooled aliases; effort routing does not change token bounds.
 SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
     'memoir-luna-low', 'synthetic-byte-bpe'})
-EXTRACTION_WINDOW_CONTRACT = load_prompt_artifact(Path(__file__).with_name("prompts") / "extraction-window.md")
+EXTRACTION_WINDOW_CONTRACT = load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/window'))
 EXTRACTION_REJECTION_REASONS = {
     'Unsupported life stage': 'LIFE_STAGE',
     'Canonical event revision conflict': 'EVENT_REVISION',
@@ -82,7 +83,7 @@ async def _admission(publisher, fence):
 
 
 class LaneArtifact(Contract):
-    phase: Literal['prepare', 'draft', 'review', 'index', 'extract']
+    phase: Literal['prepare', 'draft', 'review', 'extract']
     digest: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
@@ -190,14 +191,15 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
         from .lifetime_memory_summary import summary_contract
         return summary_contract(fence)
     if phase == 'extract':
-        from .memory_events import extraction_instructions, extraction_schema
-        instructions, schema = extraction_instructions(), extraction_schema()
         if two_lane:
             from .two_lane_memory import extraction_contract
             instructions,schema=extraction_contract(strategy=strategy, attribution=bool(fence and fence.attribution_context))
+        else:
+            from .memory_events import extraction_instructions, extraction_schema
+            instructions, schema = extraction_instructions(), extraction_schema()
     else:
         from .memoir_preview import composer_instructions, composer_output_schema
-        instructions, schema = composer_instructions(phase, canonical_page=True), composer_output_schema(phase)
+        instructions, schema = composer_instructions(phase), composer_output_schema(phase)
     if phase == 'extract' and fence is not None:
         from .stage_readiness import LIFE_STAGES
         evidence=schema['$defs']['EvidenceRef']['properties']
@@ -228,13 +230,13 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
             schema['$defs']['ref']={'anyOf':choices}
     if batch:
         if phase == 'prepare':
-            instructions += load_prompt_artifact(Path(__file__).with_name('prompts') / 'lane-batch-prepare.md')
+            instructions += load_prompt_artifact(prompt_path('memoir/skills/memoir-composer/batch/prepare'))
         else:
-            instructions += load_prompt_artifact(Path(__file__).with_name('prompts') / 'lane-batch-compose.md')
+            instructions += load_prompt_artifact(prompt_path('memoir/skills/memoir-composer/batch/compose'))
     locale_name = 'zh-CN' if locale == 'zh-CN' else 'en-AU'
-    instructions += load_prompt_artifact(Path(__file__).with_name('prompts') / f'lane-canonical-context-{locale_name}.md')
+    instructions += render_prompt_artifact(prompt_path(f'memoir/shared/bounded-context/{locale_name}'))
     if fence and fence.attribution_coverage:
-        instructions += load_prompt_artifact(Path(__file__).with_name('prompts') / 'lane-place-conflicts.md')
+        instructions += load_prompt_artifact(prompt_path('memoir/shared/place-conflicts'))
     return instructions, schema
 
 
@@ -242,7 +244,7 @@ class BoundedLaneInput(Contract):
     fence: LaneFence
     budget: ContextBudget
     prompt_version: Literal['lifetime-lane-v1'] = 'lifetime-lane-v1'
-    phase: Literal['extract', 'summarize', 'profile', 'index', 'prepare', 'draft', 'review']
+    phase: Literal['extract', 'summarize', 'profile', 'prepare', 'draft', 'review']
     packet: str = Field(min_length=1, max_length=10_000_000)
 
     @model_validator(mode='after')
@@ -307,7 +309,7 @@ def lane_artifact_digest(phase, value):
 def _required_artifacts(phase, payload):
     if not isinstance(payload, dict):
         raise ValueError('A bounded lane payload must be an object')
-    request = payload if phase == 'index' else payload.get('request', {})
+    request = payload.get('request', {})
     if not isinstance(request, dict) or not isinstance(request.get('context', {}), dict):
         raise ValueError('Invalid canonical lane context')
     prepared = request.get('context', {}).get('prepared_partitions', [])
@@ -453,7 +455,7 @@ def _validate_phase_packet(fence,phase,payload):
             raise ValueError('Preparation payload differs from authoritative page evidence')
     else:
         expected=canonical_lane_request(fence)
-        actual=payload if phase=='index' else payload.get('request')
+        actual=payload.get('request')
         if not isinstance(actual,dict):raise ValueError('Canonical phase request is required')
         context=actual.get('context')
         if not isinstance(context,dict):raise ValueError('Invalid canonical lane context')
@@ -608,9 +610,11 @@ def _publisher(bounded, publisher):
 
 class LaneRequestBody:
     """Immutable single-use HTTP body, locked through transport consumption."""
+    fence_type = LaneFence
+
     def __init__(self, content, *, publisher, fence, after_send=None):
         self._content = bytes(content)
-        self._fence_json = serialize_packet(LaneFence.model_validate(fence).model_dump(mode='json'))
+        self._fence_json = serialize_packet(self.fence_type.model_validate(fence).model_dump(mode='json'))
         self._publisher = publisher
         self._iterator = None
         self._after_send = after_send

@@ -1,5 +1,10 @@
 # Issue 6 Langfuse asset publication
 
+The one-time publisher and its evaluator setup script were removed on
+18 October 2026. Their issue/date prompt copies were retired; stable prompt
+versions, `make prompt-export`, and `make prompt-eval` are the current workflow.
+The commands below record the original publication and are no longer available.
+
 The reviewed semantic fixture and application evaluator are already in Git.
 They do not create managed Langfuse evaluators. This publication command exports
 those synthetic cases, exact application instructions and managed definitions

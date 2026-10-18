@@ -100,7 +100,7 @@ def test_canonical_save_research_and_later_citation(sql, tmp_path, monkeypatch, 
         state = rpc(sql, 'read_user_historical_news', literal(project))
         assert len(state['clues']) == 1
         steps=rpc(sql,'read_lifetime_skill_progress',literal(project))['items']
-        research=next(item for item in steps if item['skill']=='historical-news-research')
+        research=next(item for item in steps if item['skill']=='memoir-historical-news-research')
         assert research['lane']=='B' and research['status']=='saved'
         assert research['client_turn_id']==payload['client_turn_id'] and research['coverage_end']==1
         assert research['execution']=='provider' and research['model_invoked'] is None

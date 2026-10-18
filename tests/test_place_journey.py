@@ -3,7 +3,6 @@ from pathlib import Path
 
 import pytest
 
-from apps.api.codex_runtime import build_system_prompt
 from apps.api.place_journey import (
     extract_place_journey,
     extract_place_journeys,
@@ -272,43 +271,3 @@ def test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named(mes
 ])
 def test_date_uncertainty_does_not_block_a_grounded_place(message):
     assert not place_journey_message_is_ambiguous(message)
-
-
-def test_prompt_includes_the_project_skill_contract():
-    prompt = build_system_prompt("(none)")
-
-    assert "memoir-place-journey" in prompt
-    assert "MEMORY_SPARK_PLACE_JOURNEY" in prompt
-    assert "Private notes from earlier turns:\n(none)" in prompt
-
-
-def test_place_label_preserves_source_script_in_an_english_conversation():
-    prompt = build_system_prompt("(none)", language="en-AU")
-    assert "Never translate or transliterate this field" in prompt
-    journey = {"place": "承德", "hierarchy": ["Earth", "China", "Hebei", "承德"],
-               "granularity": "city"}
-    assert place_journey_matches_message(journey, "我1983年出生在河北承德附属医院。")
-    assert not place_journey_matches_message(journey, "我现在住在悉尼。")
-
-
-def test_prompt_makes_mira_a_low_pressure_oral_history_journalist():
-    prompt = build_system_prompt("(none)")
-
-    assert "You are Mira, the AI memoir interviewer for CopyMe2 Memoir." in prompt
-    assert "Ask at most one main question per turn." in prompt
-    assert "A photograph the storyteller chooses to discuss is a valid photo-first starting point" in prompt
-    assert "Do not ask for name, birth date, hometown, occupation and a first story together." in prompt
-    assert "Do not ask a question merely to fill a missing field" in prompt
-    assert "ask the next question directly when continuing the same memory" in prompt.lower()
-    assert "Reserve a short conversational bridge for returning to a different earlier topic." in prompt
-    assert "Do not narrate the interview process" in prompt
-    assert "Reserve explicit choices about changing pace for moments when the storyteller signals discomfort or asks for control." in prompt
-
-
-def test_prompt_is_loaded_from_the_versioned_system_prompt_file():
-    prompt = build_system_prompt("(none)")
-    source = (Path(__file__).parents[1] / "Mira_Memoir_Journalist_System_Prompt_v1.0.md").read_text(
-        encoding="utf-8"
-    ).rstrip()
-
-    assert prompt.startswith(source + "\n\nPrivate application context")

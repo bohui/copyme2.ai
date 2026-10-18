@@ -21,7 +21,7 @@ def enable_synthetic_lanes(monkeypatch):
 
 
 def page(skill='timeline', index=0, text='我在承德长大。'):
-    return dict(protocol='lifetime_composer_pages', schema_version=1, lane_id='00000000-0000-4000-8000-000000000014', token='00000000-0000-4000-8000-000000000015',
+    result = dict(protocol='lifetime_composer_pages', schema_version=1, lane_id='00000000-0000-4000-8000-000000000014', token='00000000-0000-4000-8000-000000000015',
         snapshot_id='00000000-0000-4000-8000-000000000011', user_id='00000000-0000-4000-8000-000000000012', project_id='project', conversation_id='00000000-0000-4000-8000-000000000013',
         skill=skill, locale='zh-CN', policy_epoch=1, preference_revision=2,
         source_high_water=10000, event_high_water=10000, page_number=index,
@@ -34,6 +34,9 @@ def page(skill='timeline', index=0, text='我在承德长大。'):
             char_end=index*2048+len(text), original_length=index*2048+len(text),
             kind='narrator_chat', language='zh-CN', status='active', author_role='storyteller'),
         events=[], partition=None, previous=None)
+    from apps.api.lifetime_memory_contracts import PinnedContinuity
+    result['preferences'] = PinnedContinuity.model_validate(result['preferences']).model_dump(mode='json')
+    return result
 
 
 class Publisher:

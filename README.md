@@ -338,49 +338,73 @@ full schema reset. Use
 
 High-level Codex activity and early private-draft previews are hidden from storytellers by default. The two debug flags are independent and default to off. Set `MEMORY_SPARK_SHOW_THINKING_STEPS=1` to stream operation summaries and show "Thinking steps". Set `MEMORY_SPARK_SHOW_DRAFT_UPDATES=1` to stream live private-draft checkpoints and show the draft-status panel, including "您的私人草稿正在后台更新" while work is pending. Draft previews, language and retry controls appear beneath the message input when the workspace is hidden or collapsed. Either debug UI requires a browser URL at `localhost`, `127.0.0.1` or `[::1]`; draft streaming does not require the thinking-step flag. With thinking steps off, chat still streams its reply and saved/workspace events, but emits no thinking-step progress or trace. The draft endpoint negotiates `application/x-ndjson`, sends `draft_update` events when the saved view changes and periodic `heartbeat` events, then sends `complete` when background work settles or a safe `error` if delivery fails. The server checks durable draft state every two seconds while work is pending; the UI maintains one connection and only reconnects after transport interruptions, with two bounded retries. Each canonical update retains its own publication guard. Other browser hosts keep this debug UI hidden and cannot open the draft stream even when the flags are enabled. With draft debugging off, a one-time read loads the saved draft in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early. Location/photo cues remain available alongside those tabs until composition unlock, when the composition views take over.
 
+### First-response latency profiling
+
+Measure the current HTTP conversation path with a fresh anonymous test account
+and project:
+
+```sh
+python3 scripts/profile_first_reply.py first-turn --origin http://localhost:3010 --timeout 120
+```
+
+Use `--origin http://localhost:8010` to measure the API directly, without the web proxy.
+This sends one synthetic introduction through the configured model and saves the
+test conversation. JSON output includes response headers, first nonempty text,
+reply completion, and conversation-save timings, without reply text or credentials.
+Timing starts when the turn request is sent, after signup and project creation.
+The account/project identifiers are printed for later cleanup. Browser paint is
+not measured. `scripts/profile_canonical_controlled.py` remains available for
+controlled backend measurements with a simulated model.
+
 ### Versioned prompt artifacts
 
-Memoir's Langfuse project owns the prompt versions. Names describe their purpose,
-such as `memoir/interview/collector`, `memoir/memory/timeline`, and
-`memoir/composer/draft`; issue numbers and release dates stay in version metadata,
-not names. The former `memoir/issue6/20261008-v1/prompts/*` prompts are preserved
-as version 1 of their stable names. The old Issue 6 datasets still exist as
-historical snapshots. The current evaluation datasets are
-`memoir/evaluation/event-grounding`, `temporal-placement`,
-`chapter-continuity`, and `bilingual-consistency` under that folder.
-The [prompt structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md)
-describes the next deduplication and migration.
+Memoir's Langfuse project owns prompt versions. Each skill owns its model
+instructions under `memoir/skills/<skill>/...`, including composer phases and
+shared editorial policy. Repository sources live under that skill's directory.
+Common bounded-worker instructions use `memoir/shared/...`; judge/probe and
+synthesis instructions use `memoir/evaluation/...` and `memoir/speech/...`.
+Issue numbers and release dates stay in metadata and numeric version history.
+The [structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md) explains
+the execution paths, and the [individual inventory](docs/Langfuse_Prompt_Usage.md)
+lists all 69 retained runtime, conditional, shared and evaluation sources.
 
-`memoir/memory/*` holds memory operations and extraction instructions.
-`memoir/skills/*` holds the skill instructions and model-facing references.
-Developer-only contracts stay in the repository and are not Langfuse prompts.
-The duplicate `memoir/runtime/*` imports were
-removed from Langfuse, along with the unused
-`memoir/composer/organiser-job/branch/*` imports. None was registered for export
-or read by the application.
+Guide-only entries and the obsolete composer model index were removed from
+Langfuse. Integration guides, schemas and validators remain repository resources.
+Canonical composition consumes host-owned events. Its retired full-source preview
+fallback and uncalled private-draft executor were removed. The HTTP first-response
+and canonical controlled profilers remain available. Collector configuration
+accepts `compact-v1` and `two-lane-v1`, defaulting to `compact-v1`.
 
-The API reads checked-in prompt files. Each managed file has a `.langfuse.json`
+The API reads checked-in prompt files. Shared instructions have one source;
+task templates reference them through `apps/api/prompt_composition.py`. Runtime
+and dataset evaluations use this same builder. The browser sends original
+narration, without constructing model instructions. Each managed file has a `.langfuse.json`
 receipt with its exact numeric version and SHA-256. A changed pinned file fails
 runtime validation. `make prompt-export` selects the highest numeric version of
 each registered Langfuse prompt and updates the file and receipt together;
 `make prompt-check` compares the checked-in pins with those exact remote
-versions. Both commands use the existing local Memoir project credentials in
+versions and validates template composition. Evaluation preflight includes the
+component versions/hashes and compiled SHA-256. Both commands use the existing
+local Memoir project credentials in
 `$(HOME)/llm_provider/.env` by default. Override `PROMPT_CREDENTIAL_FILE` for a
 different local credential-file location.
 
 ```sh
 python3 -m pip install -e '.[evaluation]'
 make prompt-export                         # All managed prompts, current Langfuse versions.
-make prompt-export PROMPT_NAME=collector-compact
+make prompt-export PROMPT_NAME=collector
 make prompt-check
 make prompt-eval                           # Read-only preflight for timeline/event-grounding.
 ```
 
-Use `PROMPT_NAME=memoir/composer/draft` for another single artifact. Review and
+Use `PROMPT_NAME=memoir/skills/memoir-composer/draft` for another single artifact. Review and
 commit its prompt file and receipt together; a Langfuse edit reaches the app only
 after that Git change is deployed. To preflight another prompt/dataset pair, set
 `PROMPT_EVAL_NAME` and `PROMPT_EVAL_DATASET`. `PROMPT_EVAL_VERSION` can select a
 candidate version before export; otherwise the checked-in version is used.
+Use this evaluation command for composed templates: it supplies the complete
+model input using the same component pins as the app. The template text shown
+in Langfuse is one source of that input, not the complete assembled request.
 `make prompt-eval` pins the dataset at its current UTC snapshot and prints the
 prompt version and item count without model calls. To run the experiment, set
 `PROMPT_EVAL_RUN=1` and `PROMPT_EVAL_MODEL=...`. The command reads provider
@@ -447,7 +471,7 @@ Manual Google Web OAuth and Supabase Google sign-in setup is documented in [`gcp
 
 ### Place journeys in the integrated Codex worker
 
-The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` with the configured geocoder and map tiles when the matching server and browser keys are configured. The opening globe fits the map panel, and arrival finishes in a north-up 2D map at a scale appropriate to the place. Reduced-motion preferences skip the flight. The geocoding key stays server-side, and only the selected provider’s restricted browser key is exposed. The application still keeps places approximate and falls back to saved parents or the hierarchy view without treating a location as biographical fact. The finest supported location is a named suburb or town. Hospitals, schools, streets, compounds, and generic labels stay in the story; an explicitly named containing city or suburb becomes the journey location. The parser normalises `地球` to the canonical `Earth` root and accepts every grounded place in a message. Local Compose mounts the place skill into both the API and private Codex worker so restarting those services loads the current contract; built images retain a copy for deployment. Photo searches use a calendar period only for the place it describes and report `place-photo-research` progress in Thinking steps.
+The project skill at [`skills/memoir-place-journey/SKILL.md`](skills/memoir-place-journey/SKILL.md) turns an explicitly named, coarse place into a durable Earth-to-place workspace journey. The API validates the skill's `MEMORY_SPARK_PLACE_JOURNEY` marker, rejects markers not grounded in the current storyteller message, removes accepted markers from the spoken reply, persists the current versioned record in Supabase, and returns both `place_journey` and a `place_journey_change` envelope; the Memoir browser reveals and hydrates that record only after the current project has been activated by an explicit place cue, then uses CesiumJS `camera.flyTo` with the configured geocoder and map tiles when the matching server and browser keys are configured. The opening globe fits the map panel, and arrival finishes in a north-up 2D map at a scale appropriate to the place. Reduced-motion preferences skip the flight. The geocoding key stays server-side, and only the selected provider’s restricted browser key is exposed. The application still keeps places approximate and falls back to saved parents or the hierarchy view without treating a location as biographical fact. The finest supported location is a named suburb or town. Hospitals, schools, streets, compounds, and generic labels stay in the story; an explicitly named containing city or suburb becomes the journey location. The parser normalises `地球` to the canonical `Earth` root and accepts every grounded place in a message. Local Compose mounts the place skill into both the API and private Codex worker so restarting those services loads the current contract; built images retain a copy for deployment. Photo searches use a calendar period only for the place it describes and report `memoir-place-photo-research` progress in Thinking steps.
 
 The background [`memoir-place-groups` skill](skills/memoir-place-groups/SKILL.md) checks every new place preview, confirmed update, and restored history against existing city groups. `POST /v1/projects/{project_id}/place-groups` uses public hierarchy and cached geocoder administrative metadata without another model call. A city's named suburbs, towns, and administrative districts share one map with independent pins; another city creates another choice. Original location records, stages, and photographs stay distinct. Partial matches and missing child coordinates remain visibly pending, rather than receiving the parent's centre coordinates. The newest mention is checked first, and stale responses cannot overwrite a correction or another project's workspace. Grouping and photo requests run independently of the conversation stream.
 
@@ -604,7 +628,7 @@ alongside the existing catalogues. It reuses the server-only gateway URL, model
 and key and requires completed search receipts with source URLs; a plain model
 answer cannot supply photo evidence. The API and private photo worker use the
 same source inspection and capture-date checks as the
-[place-photo-research helper](skills/place-photo-research/references/llm-web-search.md).
+[memoir-place-photo-research helper](skills/memoir-place-photo-research/references/llm-web-search.md).
 The option is disabled by default and requires a gateway/model with actual
 `web_search` support. Discovered photos remain public memory references with
 unresolved reuse rights.
