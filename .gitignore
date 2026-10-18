@@ -43,5 +43,5 @@ apps/mobile/.env*
 docs/mobile/evidence/
 
 .tmp*
-deprecated-*
 .omo/
+.playwright-mcp/
