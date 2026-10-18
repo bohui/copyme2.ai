@@ -1,7 +1,7 @@
 {
   "name": "memoir/evaluation/trajectory-judge/rubric",
   "schema_version": 1,
-  "sha256": "157937dcddcc256fa7e345c292f47816e0772bbfaf16b82ef1cce175c44d9abd",
+  "sha256": "d8e9d743de1ad91da9ea6dce088d509c1edba6b5323f4fb9e8c4e29e98c9a0c3",
   "type": "text",
-  "version": 1
+  "version": 2
 }

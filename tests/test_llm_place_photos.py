@@ -4,6 +4,7 @@ import hashlib
 import http.client as http_client
 import json
 import socket
+from datetime import date
 from urllib import request as http
 from urllib.error import HTTPError
 from urllib.parse import urlsplit
@@ -91,6 +92,15 @@ def test_skill_discovers_a_source_verified_historical_photo(search_world, tmp_pa
     request, = world['calls']
     assert 'Chengde' in request['input'] and '1980' in request['input'] and '1989' in request['input']
     assert request['tool_choice'] == 'required'
+    assert 'max_tool_calls' not in request
+    assert request['reasoning'] == {'effort': 'low'}
+
+
+def test_gateway_routing_receipts_are_preserved_without_truncation(search_world):
+    helper, world = search_world
+    world['response']['id'] = 'resp_' + 'x' * 500
+    result = helper.llm_search('Chengde', helper.normalize_period('1980s', date.today()))
+    assert result['sources'][0]['response_id'] == world['response']['id']
 
 
 def test_app_returns_photos_discovered_by_llm_search(search_world):

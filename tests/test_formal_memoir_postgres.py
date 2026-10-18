@@ -60,7 +60,7 @@ def consent(sql, project, edition, revision, action='grant', **kwargs):
 def assert_only_current_mode_pending(state):
     # These formal-authority fixtures create no delivered A strategy outcome.
     assert state['authority_eligible'] is False and state['available'] is False
-    assert state['reasons']==['runtime_unavailable','current_decision_required']
+    assert state['reasons']==['current_decision_required']
 
 
 def test_authenticated_initiation_is_durable_idempotent_and_owner_scoped(sql):

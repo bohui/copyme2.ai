@@ -83,6 +83,8 @@ class LiveProvider:
             raise RuntimeError('live_call_budget_exhausted')
         model = (self.config.get('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL') if skill == 'memoir-composer' else None)
         effort = (self.config.get('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT') or 'low') if skill == 'memoir-composer' else self.effort
+        if search:
+            effort = 'low'
         body = {'model': model or self.config['MEMORY_SPARK_LLM_MODEL'], 'instructions': instructions,
                 'input': json.dumps(packet, ensure_ascii=False), 'store': False,
                 'max_output_tokens': 8192 if skill == 'memoir-composer' else 3000,
@@ -90,7 +92,8 @@ class LiveProvider:
         if schema:
             body['text'] = {'format': {'type': 'json_schema', 'name': 'skill_result', 'strict': True, 'schema': schema}}
         if search:
-            body.update(tools=[{'type': 'web_search'}], tool_choice='required', max_tool_calls=1,
+            body['input'] = body.pop('instructions')
+            body.update(tools=[{'type': 'web_search'}], tool_choice='required',
                         include=['web_search_call.action.sources'])
         record = dict(case_id=case_id, skill=skill, requested_model=body['model'], effort=effort,
                       status='started', request_sha256=sha(json.dumps(body, sort_keys=True)),
@@ -125,6 +128,10 @@ class LiveProvider:
             if decoded.get('status') != 'completed' or not decoded.get('id'):
                 raise ValueError('provider_response_not_completed')
             record.update(provider_response_id=decoded['id'], served_model=decoded.get('model'), usage=decoded.get('usage'))
+            if search:
+                record['native_output'] = [{'type': item.get('type'), 'status': item.get('status'),
+                    'source_count': len((item.get('action') or {}).get('sources', []))}
+                    for item in decoded.get('output', []) if isinstance(item, dict)]
             text = ''.join(c.get('text', '') for item in decoded.get('output', []) if item.get('type') == 'message'
                            for c in item.get('content', []) if c.get('type') == 'output_text')
             if not text.strip():
@@ -216,7 +223,8 @@ async def native_search(provider, skill):
         from apps.api.historical_news import validate_evidence
         from apps.api.historical_news_provider import decode_discovery, GatewayHistoricalProvider
         query = 'Sydney, Australia 2000–2000 civic culture sport public events'
-        instructions = skill_prompt(skill) + load_prompt_artifact(ROOT / 'tests/evaluation/prompts/live-skills/native-search.md')
+        from apps.api.prompt_artifact import prompt_path
+        instructions = load_prompt_artifact(prompt_path('memoir/skills/memoir-historical-news-research/discovery')).replace('{{query}}', query)
         _, response = await provider.call('historical-native-search', skill, instructions, {'public_query': query}, search=True)
         discovery = decode_discovery(response)
         hypothesis = {'start': 2000, 'end': 2000, 'place': 'Sydney, Australia', 'country': 'Australia'}
@@ -238,17 +246,21 @@ async def native_search(provider, skill):
         return {'native_search_receipt': discovery['receipt'], 'verified_clues': len(checked), 'inspection_errors': errors}
     from apps.api.place_photo_browser import _research
     helper = _research()
-    _, response = await provider.call('photo-native-search', skill, skill_prompt(skill) +
-        '\nDiscovery only: find original public source pages describing photographs of Sydney streets taken in the 1980s. Return a concise lead list. No downloads or rights claims.',
+    _, response = await provider.call('photo-native-search', skill,
+        'Search for original public photograph pages and archive albums for the place "Sydney". '
+        'Requested scene capture period: 1980-01-01 through 1989-12-31. Cite original source pages. '
+        'Webpage publication and upload dates are not capture dates.',
         {'public_place': 'Sydney, Australia', 'capture_period': '1980–1989'}, search=True)
     calls = [c for c in response['output'] if c.get('type') == 'web_search_call' and c.get('status') == 'completed' and c.get('id')]
-    if len(calls) != 1:
+    if not 1 <= len(calls) <= 4:
         raise ValueError('missing_native_search_receipt')
-    urls = [s['url'] for s in calls[0].get('action', {}).get('sources', []) if s.get('url')]
+    origins = {s['url']: call['id'] for call in calls
+        for s in call.get('action', {}).get('sources', []) if s.get('url')}
+    urls = list(origins)[:24]
     if not urls:
         raise ValueError('missing_native_sources')
     temporal = helper.normalize_period('1980s', date.today())
-    verified, errors = [], []
+    verified, errors, receipts = [], [], []
     for url in urls[:2]:
         try:
             remaining = min(30, provider.deadline - time.monotonic())
@@ -257,13 +269,15 @@ async def native_search(provider, skill):
             # Helper enforces public URLs, DNS pinning, robots, and item date evidence.
             found = await asyncio.to_thread(helper.llm_source_photos, url, 'Sydney', temporal, timeout=remaining)
             verified.extend(found)
+            if found:
+                receipts.append(dict(response_id=response['id'], tool_call_id=origins[url], discovery_source_url=url))
         except Exception as error:
             errors.append(type(error).__name__)
-    save(provider.directory / 'photo-sources.json', {'response_id': response['id'], 'tool_call_id': calls[0]['id'],
+    save(provider.directory / 'photo-sources.json', {'response_id': response['id'], 'tool_call_ids': [call['id'] for call in calls],
         'returned_urls': urls, 'verified_photos': verified, 'inspection_errors': errors})
     if not verified:
         raise ValueError('no_independently_verified_photo')
-    return {'native_search_receipt': {'response_id': response['id'], 'tool_call_id': calls[0]['id']},
+    return {'native_search_receipt': {'response_id': response['id'], 'verified_source_receipts': receipts},
             'verified_photos': len(verified), 'inspection_errors': errors}
 
 

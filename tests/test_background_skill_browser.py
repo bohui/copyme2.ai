@@ -42,6 +42,9 @@ def test_late_skill_save_renders_on_real_turn_after_reload(sql,tmp_path,monkeypa
             elif path.endswith('/journey'):data={'active_session':None}
             elif path=='/story/state':data={'recall_status':{'rounds_completed':1,'free_rounds':20,'payment_required':False,'paid':True},'family_features_enabled':False}
             elif path=='/agent/place-journey':data={'place_journey':None}
+            elif path.endswith('/story-game'):
+                data={'formal':{'run':None,'edition':None},'adaptation':None,
+                    'eligibility':{'available':False,'reasons':['completion_required','adaptation_consent_required'],'revision':0,'consent_revision':0}}
             elif path=='/story/readiness':
                 response=conversation.client.get('/v1/story/readiness',params={'project_id':project_id})
                 assert response.status_code==200,response.text
@@ -101,7 +104,8 @@ def test_late_skill_save_renders_on_real_turn_after_reload(sql,tmp_path,monkeypa
             expect(page.locator('[data-story-game]')).to_be_visible(timeout=30000)
             page.locator('[data-story-game]').click()
             copy=json.loads((Path(__file__).parents[1]/f'apps/web/messages/{locale}.json').read_text())
-            expect(page.locator('.workspace-game')).to_contain_text(copy['Memoir']['game']['integration_unavailable'])
+            expect(page.locator('.story-game-modal')).to_contain_text(copy['Memoir']['game']['completeIntro'])
+            page.locator('[data-close-game]').click()
             assert len(conversation.admissions)==count
             page.reload()
             expect(page.locator('#chat-input')).to_be_visible(timeout=30000)

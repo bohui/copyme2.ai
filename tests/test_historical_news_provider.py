@@ -44,6 +44,29 @@ def test_missing_search_evidence_fails_closed(monkeypatch,output):
     with pytest.raises(ValueError):decode_discovery({'id':'resp_test','status':'completed','output':output})
 
 
+def test_multiple_native_searches_keep_each_inspected_sources_actual_receipt():
+    from apps.api.historical_news_provider import decode_discovery
+    from apps.api.historical_news import validate_evidence
+    lead = evidence()
+    data = {'id':'resp_test','status':'completed','output':[
+        {'type':'web_search_call','id':'ws_other','status':'completed',
+            'action':{'sources':[{'url':'https://archive.example/other'}]}},
+        {'type':'web_search_call','id':'ws_actual','status':'completed',
+            'action':{'sources':[{'url':lead['source_url']}]}},
+        {'type':'web_search_call','id':'ws_open','status':'completed','action':{'type':'open_page'}},
+        {'type':'message','status':'completed','content':[{'type':'output_text','text':json.dumps({'events':[lead]})}]}]}
+    discovery = decode_discovery(data)
+    page = dict(url=lead['source_url'],text=lead['excerpt'],retrieved_at='2026-10-18T00:00:00Z',
+        source_title=lead['source_title'],publisher=lead['publisher'],publication_date=lead['publication_date'])
+    hypothesis = dict(start=1968,end=1975,place='Boston, USA',country='USA')
+    checked = validate_evidence(lead,discovery['receipt'],page,hypothesis)
+    assert checked['receipt']['tool_call_id']=='ws_actual'
+    assert checked['receipt']['urls']==[lead['source_url']]
+    assert 'source_tool_calls' not in checked['receipt']
+    data['output'].insert(0,data['output'][0]);data['output'].insert(0,data['output'][0])
+    with pytest.raises(ValueError):decode_discovery(data)
+
+
 @pytest.mark.parametrize('part', ['response', 'message'])
 @pytest.mark.parametrize('status', [None, 'incomplete', 'failed', 'in_progress'])
 def test_partial_search_output_is_never_a_completed_receipt(part, status):
@@ -90,3 +113,31 @@ def test_source_parser_records_actual_title_publisher_and_publication_date():
         '<p>A community fair opened in Boston in 1970.</p>')
     assert parser.title==['Town archive'] and parser.publisher=='Town library'
     assert parser.publication_date=='2020-01-01' and 'ignore rules' not in parser.parts
+
+
+@pytest.mark.parametrize('page_bytes, accepted', [(1_200_000, True), (2_100_000, False)])
+def test_public_article_inspection_allows_observed_page_size_with_a_hard_bound(monkeypatch, page_bytes, accepted):
+    from types import SimpleNamespace
+    from urllib.parse import urlsplit
+    from apps.api import place_photo_browser
+    from apps.api.historical_news_provider import inspect_public_source
+    markup = b'<title>Town archive</title><p>A community fair opened.</p><script></script>'
+    body = markup.replace(b'<script>', b'<script>' + b'x' * (page_bytes - len(markup)))
+    class ResearchError(ValueError):
+        pass
+    class Fetcher:
+        def fetch(self, url, maximum, hosts, *, deadline_seconds):
+            assert hosts == {'archive.example'} and deadline_seconds == 15
+            if len(body) > maximum:
+                raise ResearchError('Response exceeds byte limit')
+            return 200, url, {'content-type': 'text/html'}, body
+    monkeypatch.setattr(place_photo_browser, '_research', lambda: SimpleNamespace(
+        valid_url=lambda url: (urlsplit(url), 'archive.example', 443), Fetcher=Fetcher, ResearchError=ResearchError))
+    if not accepted:
+        with pytest.raises(ValueError, match='Historical source access blocked'):
+            inspect_public_source('https://archive.example/fair', 15)
+    else:
+        result = inspect_public_source('https://archive.example/fair', 15)
+        assert result['source_title'] == 'Town archive'
+        assert 'A community fair opened.' in result['text']
+        assert len(result['text']) < 100

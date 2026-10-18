@@ -28,6 +28,7 @@ export default async function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="stylesheet" href="/static/styles.css" />
+        <link rel="stylesheet" href="/static/story-game.css" />
       </head>
       <body>
         <NextIntlClientProvider locale={locale} messages={messages}>{children}</NextIntlClientProvider>

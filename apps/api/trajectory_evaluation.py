@@ -30,7 +30,7 @@ from .llm_tracing import mark_llm_trace_error, trace_llm_call, update_llm_trace
 
 TRAJECTORY_SCHEMA_VERSION = "memoir-trajectory/1"
 EVALUATION_RUBRIC_VERSION = "memoir-trajectory-rubric/2"
-JUDGE_RUBRIC_VERSION = "memoir-judge-rubric/1"
+JUDGE_RUBRIC_VERSION = "memoir-judge-rubric/2"
 PRIVACY_POLICY_VERSION = "memoir-evaluation-privacy/1"
 JUDGE_CALIBRATION_SCHEMA_VERSION = "memoir-judge-calibration/1"
 JUDGE_CALIBRATION_REVIEW_STATUS = "human-reviewed"

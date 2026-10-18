@@ -33,7 +33,7 @@ def test_migrate_target_uses_supabase_migration_tracking():
     assert "psql" not in recipe
 
 
-def test_supabase_has_one_fresh_schema_baseline():
+def test_supabase_has_one_consolidated_reset_baseline():
     migrations = sorted((Path(__file__).resolve().parents[1] / 'supabase/migrations').glob('*.sql'))
     assert [path.name for path in migrations] == ['202610180001_initial_schema.sql']
 

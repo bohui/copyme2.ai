@@ -1,15 +1,17 @@
 # Acceptance milestones
 
-Advance only with recorded evidence. This package adds upstream formal authority,
-contract artifacts and synthetic checks. No playable runtime milestone has passed.
+Advance only with recorded evidence. The private runtime now has disposable
+PostgreSQL and actual browser integration checks. Live-provider generation and
+the five-case campaign require their separate retained receipts; source changes
+alone do not satisfy them.
 
 | Milestone | Exit evidence | Status in this package |
 | --- | --- | --- |
-| M0 — completion and privacy | Host-authenticated completion bound to run, manuscript digest/revision, all chapters and validation; separate adaptation consent; blocked Shape-only, preview-only and composition-only cases; threat/permission review. | Formal extractive workflow, atomic receipt, exact-edition consent and blocked game eligibility implemented for disposable testing. Migration unapplied; adaptation review/delivery bindings absent. |
-| M1 — small playable loop | Actual fixed renderer with two connected scenes, two grounded NPCs, controllable author, keyboard and touch movement/interaction, collision and safe spawn, smooth transition; reduced motion, keyboard focus/escape, text-only equivalent, no trapped focus; teardown on route/phase exit and remount. | Two-scene/two-NPC data fixture only; runtime unimplemented. |
-| M2 — source/privacy validation | Evidence and chosen manuscript coverage for every factual line; negative tests for unsupported text, stale sources, minors/sensitive claims, revocation, URLs/code and server-data leakage; independent editorial and author review. | Structural and synthetic semantic-boundary checks only; factual entailment and permission authenticity remain host work. |
-| M3 — Shape/jobs/races | UI and server Shape gates; idempotent replay; two-worker lease race, correction/consent/source/manuscript change during generation and before commit/delivery; atomic stale-write rejection; private cache and access-loss behavior. | Formal workflow has DB and authenticated route integration. Game jobs retain only local snapshot/fence simulations; no game UI, provider or delivery integration. |
-| M4 — regression/licenses/performance | Existing affected suites plus real browser accessibility and lifecycle tests; license ledger and retained notices; recorded device/browser/build and performance measurements with budget comparison. | Test commands and criteria only; no runtime or performance claim. |
+| M0 — completion and privacy | Host-authenticated completion bound to run, manuscript digest/revision, all chapters and validation; separate adaptation consent; blocked Shape-only, preview-only and composition-only cases; threat/permission review. | Formal completion, exact-edition consent, individual permissions and candidate approval exercised on disposable PostgreSQL. |
+| M1 — small playable loop | Actual fixed renderer with two connected scenes, two grounded NPCs, controllable author, keyboard and touch movement/interaction, collision and safe spawn, smooth transition; reduced motion, keyboard focus/escape, text-only equivalent, no trapped focus; teardown on route/phase exit and remount. | Actual DOM/CSS renderer: two scenes/NPCs, keyboard/touch, text version, focus/close and reload recovery passed in English desktop and Chinese phone layouts. |
+| M2 — source/privacy validation | Evidence and chosen manuscript coverage for every factual line; negative tests for unsupported text, stale sources, minors/sensitive claims, revocation, URLs/code and server-data leakage; independent editorial and author review. | Actual stored-original matching, unsupported-quote/identity rejection, owner checks, exact-candidate approval and revocation tests passed. Human permission authenticity remains an author assertion. |
+| M3 — Shape/jobs/races | UI and server Shape gates; idempotent replay; two-worker lease race, correction/consent/source/manuscript change during generation and before commit/delivery; atomic stale-write rejection; private cache and access-loss behavior. | Real game job, token, consent/source invalidation and private HTTP-send race tests passed on disposable PostgreSQL; browser revocation removes play. Live provider/campaign evidence pending. |
+| M4 — regression/licenses/performance | Existing affected suites plus real browser accessibility and lifecycle tests; license ledger and retained notices; recorded device/browser/build and performance measurements with budget comparison. | Affected runtime/browser regression checks are retained under var/story-game-checks; no real-device performance budget claim. |
 
 Run the isolated checks from the repository root with the existing test extra's
 `jsonschema` dependency (no install is performed by this package):
@@ -31,12 +33,11 @@ invented people, statements and IDs; they do not authorize real use.
 
 `tests/test_formal_memoir_postgres.py` uses the repository's task-owned disposable
 PostgreSQL fixture. It exercises actual RPCs and synthetic evidence; it does not
-connect to configured Supabase. In this environment the native fixture encountered
-a macOS shared-memory limit, so the existing `MEMOIR_TEST_POSTGRES_BACKEND=apple-container`
-option was used. Do not substitute an existing database when a disposable backend
+connect to configured Supabase. Current task-owned checks use `MEMOIR_TEST_POSTGRES_BACKEND=native` with a
+verified fresh allocation and cleanup receipt. Do not substitute an existing database when a disposable backend
 is unavailable. See [formal-workflow.md](formal-workflow.md) for scope and limits.
 
-## Runtime checks for later implementation
+## Additional runtime/performance checks
 
 Test forward/backward scene travel repeatedly, holding touch across transitions,
 focus loss, resize, keyboard-only dialog opening/closing, tab order, screen-reader

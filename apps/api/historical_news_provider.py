@@ -18,6 +18,7 @@ from .historical_news import PUBLIC_PLACES, canonical_url
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
 MAX_BYTES=512_000
+SOURCE_MAX_BYTES=2_000_000
 
 
 def decode_discovery(data):
@@ -26,15 +27,17 @@ def decode_discovery(data):
     if (not isinstance(data,dict) or data.get('status')!='completed'
         or not valid(data.get('id')) or not isinstance(data.get('output'),list)):
         raise ValueError('Malformed search response')
-    calls=[row for row in data['output'] if isinstance(row,dict) and row.get('type')=='web_search_call'
-           and row.get('status')=='completed' and valid(row.get('id'))]
-    if len(calls)!=1:raise ValueError('Missing completed search receipt')
-    urls=[]
-    for item in (calls[0].get('action') or {}).get('sources',[])[:24]:
-        if not isinstance(item,dict):continue
-        try:url=canonical_url(item.get('url'))
-        except (ValueError,TypeError):continue
-        if url not in urls:urls.append(url)
+    calls=[row for row in data['output'] if isinstance(row,dict) and row.get('type')=='web_search_call']
+    if not 1<=len(calls)<=4 or any(row.get('status')!='completed' or not valid(row.get('id')) for row in calls):
+        raise ValueError('Missing completed search receipt')
+    origins={}
+    for call in calls:
+        for item in (call.get('action') or {}).get('sources',[])[:24]:
+            if not isinstance(item,dict):continue
+            try:url=canonical_url(item.get('url'))
+            except (ValueError,TypeError):continue
+            if len(origins)<24:origins.setdefault(url,call['id'])
+    urls=list(origins)
     if not urls:raise ValueError('Missing returned source URLs')
     messages=[row for row in data['output'] if isinstance(row,dict) and row.get('type')=='message']
     if any(row.get('status')!='completed' for row in messages):
@@ -46,8 +49,8 @@ def decode_discovery(data):
         events=output['events']
         if not isinstance(events,list) or len(events)>20:raise ValueError()
     except (ValueError,KeyError,TypeError):raise ValueError('Malformed historical leads') from None
-    return {'receipt':{'provider':'approved_gateway','response_id':data['id'],'tool_call_id':calls[0]['id'],
-        'status':'completed','urls':urls},'events':events}
+    return {'receipt':{'provider':'approved_gateway','response_id':data['id'],'tool_call_id':origins[urls[0]],
+        'status':'completed','urls':urls,'source_tool_calls':origins},'events':events}
 
 
 class _Text(HTMLParser):
@@ -72,7 +75,7 @@ def inspect_public_source(url, timeout):
     from .place_photo_browser import _research
     helper=_research();parsed,host,_=helper.valid_url(url)
     try:
-        status,final,headers,body=helper.Fetcher().fetch(url,MAX_BYTES,{host},deadline_seconds=timeout)
+        status,final,headers,body=helper.Fetcher().fetch(url,SOURCE_MAX_BYTES,{host},deadline_seconds=timeout)
     except helper.ResearchError:
         raise ValueError('Historical source access blocked') from None
     if status!=200 or not headers.get('content-type','').lower().startswith(('text/html','text/plain')):

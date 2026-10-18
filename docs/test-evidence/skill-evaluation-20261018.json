@@ -1,0 +1,936 @@
+{
+  "date": "2026-10-18",
+  "project_id": "cmut9t75w00071z02n8bdv7it",
+  "prompt_artifacts_verified": 69,
+  "source_revisions": [
+    "c1d7103caafdbc9d8d976f136b31939803027f3a"
+  ],
+  "synthetic": true,
+  "datasets": [
+    {
+      "name": "memoir/evaluation/skill-deliveries",
+      "id": "cmvdcb2g2000f1z02wqx8n34y",
+      "items": 19,
+      "content_sha256": "3d6a83b40c8a7fe61d819e7f36cb3c3f47514f7ce38968ea8fcfee2fac7c8d54"
+    },
+    {
+      "name": "memoir/evaluation/skill-triggers",
+      "id": "cmvdcb1h100031z020eze1xt8",
+      "items": 9,
+      "content_sha256": "2b3483d18f5ce2c70ec0e89b31bc14240dd2328a38dc4888e2bbb5032310e030"
+    }
+  ],
+  "experiments": [
+    {
+      "run_id": "skills-20261018T044320Z",
+      "dataset": "memoir/evaluation/skill-triggers",
+      "dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "experiment_id": "20e6b8bc73955097",
+      "expected_items": 9,
+      "sdk_items": 9,
+      "readback": {
+        "status": "verified",
+        "items": 9,
+        "scored_items": 9,
+        "expected_items": 9,
+        "exact_inputs_outputs_gold_and_scores": true
+      }
+    },
+    {
+      "run_id": "skills-20261018T044320Z",
+      "dataset": "memoir/evaluation/skill-deliveries",
+      "dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "experiment_id": "28f78dbb29825152",
+      "expected_items": 19,
+      "sdk_items": 19,
+      "readback": {
+        "status": "verified",
+        "items": 19,
+        "scored_items": 19,
+        "expected_items": 19,
+        "exact_inputs_outputs_gold_and_scores": true
+      }
+    },
+    {
+      "run_id": "skills-20261018T044657Z",
+      "dataset": "memoir/evaluation/skill-triggers",
+      "dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "experiment_id": "d1a42b11b55b7808",
+      "expected_items": 9,
+      "sdk_items": 9,
+      "readback": {
+        "status": "verified",
+        "items": 9,
+        "scored_items": 9,
+        "expected_items": 9,
+        "exact_inputs_outputs_gold_and_scores": true
+      }
+    },
+    {
+      "run_id": "skills-20261018T044917Z",
+      "dataset": "memoir/evaluation/skill-deliveries",
+      "dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "experiment_id": "0850785799475a83",
+      "expected_items": 3,
+      "sdk_items": 3,
+      "readback": {
+        "status": "verified",
+        "items": 3,
+        "scored_items": 3,
+        "expected_items": 3,
+        "exact_inputs_outputs_gold_and_scores": true
+      }
+    }
+  ],
+  "trigger_results": [
+    {
+      "status": "unavailable",
+      "counts": {
+        "passed": 10
+      },
+      "exit_code": 0,
+      "evidence": "controlled application checks",
+      "production_status": "unavailable",
+      "reason": "unavailable",
+      "admission_checks_status": "passed",
+      "case_id": "memoir-story-game-triggers",
+      "skill": "memoir-story-game",
+      "kind": "controlled_application_checks",
+      "elapsed_seconds": 1.569,
+      "http_dispatches": 0
+    },
+    {
+      "status": "passed",
+      "counts": {
+        "passed": 3
+      },
+      "exit_code": 0,
+      "evidence": "controlled application checks",
+      "production_status": "implemented",
+      "case_id": "memoir-place-photo-research-triggers",
+      "skill": "memoir-place-photo-research",
+      "kind": "controlled_application_checks",
+      "elapsed_seconds": 6.037,
+      "http_dispatches": 0
+    },
+    {
+      "status": "passed",
+      "counts": {
+        "passed": 7
+      },
+      "exit_code": 0,
+      "evidence": "controlled application checks",
+      "production_status": "implemented",
+      "case_id": "memoir-place-journey-triggers",
+      "skill": "memoir-place-journey",
+      "kind": "controlled_application_checks",
+      "elapsed_seconds": 7.294,
+      "http_dispatches": 0
+    },
+    {
+      "status": "passed",
+      "counts": {
+        "passed": 8
+      },
+      "exit_code": 0,
+      "evidence": "controlled application checks",
+      "production_status": "implemented",
+      "case_id": "memoir-place-groups-triggers",
+      "skill": "memoir-place-groups",
+      "kind": "controlled_application_checks",
+      "elapsed_seconds": 4.766,
+      "http_dispatches": 0
+    },
+    {
+      "status": "passed",
+      "counts": {
+        "passed": 5
+      },
+      "exit_code": 0,
+      "evidence": "controlled application checks",
+      "production_status": "implemented",
+      "case_id": "memoir-memory-context-triggers",
+      "skill": "memoir-memory-context",
+      "kind": "controlled_application_checks",
+      "elapsed_seconds": 6.612,
+      "http_dispatches": 0
+    },
+    {
+      "status": "passed",
+      "counts": {
+        "passed": 12
+      },
+      "exit_code": 0,
+      "evidence": "controlled application checks",
+      "production_status": "implemented",
+      "case_id": "memoir-historical-news-research-triggers",
+      "skill": "memoir-historical-news-research",
+      "kind": "controlled_application_checks",
+      "elapsed_seconds": 1.533,
+      "http_dispatches": 0
+    },
+    {
+      "status": "unavailable",
+      "counts": {
+        "passed": 3
+      },
+      "exit_code": 0,
+      "evidence": "controlled application checks",
+      "production_status": "unwired",
+      "reason": "unwired",
+      "admission_checks_status": "passed",
+      "case_id": "memoir-family-tree-triggers",
+      "skill": "memoir-family-tree",
+      "kind": "controlled_application_checks",
+      "elapsed_seconds": 1.243,
+      "http_dispatches": 0
+    },
+    {
+      "status": "passed",
+      "counts": {
+        "passed": 3
+      },
+      "exit_code": 0,
+      "evidence": "controlled application checks",
+      "production_status": "implemented",
+      "case_id": "memoir-composer-triggers",
+      "skill": "memoir-composer",
+      "kind": "controlled_application_checks",
+      "elapsed_seconds": 52.304,
+      "http_dispatches": 0
+    },
+    {
+      "status": "passed",
+      "counts": {
+        "passed": 3
+      },
+      "exit_code": 0,
+      "evidence": "controlled application checks",
+      "production_status": "implemented",
+      "case_id": "memoir-author-timeline-triggers",
+      "skill": "memoir-author-timeline",
+      "kind": "controlled_application_checks",
+      "elapsed_seconds": 9.056,
+      "http_dispatches": 0
+    }
+  ],
+  "delivery_results": [
+    {
+      "status": "unavailable",
+      "reason": "HTTPStatusError",
+      "case_id": "memoir-place-photo-research-native-discovery",
+      "skill": "memoir-place-photo-research",
+      "kind": "live_native_search",
+      "elapsed_seconds": 2.908,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "unavailable",
+      "reason": "HTTPStatusError",
+      "case_id": "memoir-historical-news-research-native-discovery",
+      "skill": "memoir-historical-news-research",
+      "kind": "live_native_search",
+      "elapsed_seconds": 0.671,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "checks": {
+        "checkpoints": [
+          5,
+          10
+        ],
+        "phases": [
+          {
+            "round": 5,
+            "phase": "prepare"
+          },
+          {
+            "round": 5,
+            "phase": "draft"
+          },
+          {
+            "round": 5,
+            "phase": "review"
+          },
+          {
+            "round": 5,
+            "phase": "draft"
+          },
+          {
+            "round": 5,
+            "phase": "review"
+          },
+          {
+            "round": 5,
+            "phase": "draft"
+          },
+          {
+            "round": 5,
+            "phase": "review"
+          },
+          {
+            "round": 10,
+            "phase": "prepare"
+          },
+          {
+            "round": 10,
+            "phase": "draft"
+          },
+          {
+            "round": 10,
+            "phase": "review"
+          }
+        ],
+        "unchanged_passages_preserved": 1,
+        "new_original_evidence_retained": true,
+        "rendered": true,
+        "publication_approved": false,
+        "scope": "actual composer orchestration with real models; isolated checkpoint storage, native PostgreSQL tested separately"
+      },
+      "case_id": "composer-pipeline-zh-CN",
+      "skill": "memoir-composer",
+      "kind": "live_composer",
+      "elapsed_seconds": 78.777,
+      "http_dispatches": 10,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "checks": {
+        "checkpoints": [
+          5,
+          10
+        ],
+        "phases": [
+          {
+            "round": 5,
+            "phase": "prepare"
+          },
+          {
+            "round": 5,
+            "phase": "draft"
+          },
+          {
+            "round": 5,
+            "phase": "review"
+          },
+          {
+            "round": 10,
+            "phase": "prepare"
+          },
+          {
+            "round": 10,
+            "phase": "draft"
+          },
+          {
+            "round": 10,
+            "phase": "review"
+          },
+          {
+            "round": 10,
+            "phase": "draft"
+          },
+          {
+            "round": 10,
+            "phase": "review"
+          }
+        ],
+        "unchanged_passages_preserved": 1,
+        "new_original_evidence_retained": true,
+        "rendered": true,
+        "publication_approved": false,
+        "scope": "actual composer orchestration with real models; isolated checkpoint storage, native PostgreSQL tested separately"
+      },
+      "case_id": "composer-pipeline-en-AU",
+      "skill": "memoir-composer",
+      "kind": "live_composer",
+      "elapsed_seconds": 62.478,
+      "http_dispatches": 8,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "failed",
+      "reason": "JSONDecodeError",
+      "case_id": "photo-reject-unverified-lead",
+      "skill": "memoir-place-photo-research",
+      "kind": "live_contract",
+      "elapsed_seconds": 11.687,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "historical-reject-unverified-lead",
+      "skill": "memoir-historical-news-research",
+      "kind": "live_contract",
+      "elapsed_seconds": 3.199,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "story-game-missing-authority",
+      "skill": "memoir-story-game",
+      "kind": "live_contract",
+      "elapsed_seconds": 2.604,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "groups-independent-child-pin",
+      "skill": "memoir-place-groups",
+      "kind": "live_contract",
+      "elapsed_seconds": 2.339,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "journey-two-places",
+      "skill": "memoir-place-journey",
+      "kind": "live_contract",
+      "elapsed_seconds": 8.188,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "family-explicit-mother",
+      "skill": "memoir-family-tree",
+      "kind": "live_contract",
+      "elapsed_seconds": 9.257,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "timeline-evidence-zh-CN",
+      "skill": "memoir-author-timeline",
+      "kind": "live_contract",
+      "elapsed_seconds": 21.118,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "timeline-evidence-en-AU",
+      "skill": "memoir-author-timeline",
+      "kind": "live_contract",
+      "elapsed_seconds": 42.565,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "memory-profile-conflicting-avatar",
+      "skill": "memoir-memory-context",
+      "kind": "live_contract",
+      "elapsed_seconds": 2.205,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "memory-profile-reference-is-not-testimony",
+      "skill": "memoir-memory-context",
+      "kind": "live_contract",
+      "elapsed_seconds": 2.259,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "memory-profile-other-people",
+      "skill": "memoir-memory-context",
+      "kind": "live_contract",
+      "elapsed_seconds": 3.022,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "memory-profile-correction",
+      "skill": "memoir-memory-context",
+      "kind": "live_contract",
+      "elapsed_seconds": 5.291,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "memory-profile-manual-reference",
+      "skill": "memoir-memory-context",
+      "kind": "live_contract",
+      "elapsed_seconds": 7.268,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "memory-profile-checkpoint-zh-CN",
+      "skill": "memoir-memory-context",
+      "kind": "live_contract",
+      "elapsed_seconds": 18.767,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    },
+    {
+      "status": "passed",
+      "case_id": "memory-profile-checkpoint-en-AU",
+      "skill": "memoir-memory-context",
+      "kind": "live_contract",
+      "elapsed_seconds": 13.58,
+      "http_dispatches": 1,
+      "evidence": "live gateway output checked against independent contract validators"
+    }
+  ],
+  "trigger_status_counts": {
+    "unavailable": 2,
+    "passed": 7
+  },
+  "trigger_assertions_passed": 54,
+  "delivery_status_counts": {
+    "unavailable": 2,
+    "passed": 16,
+    "failed": 1
+  },
+  "gateway_http_dispatches": 35,
+  "provider_response_ids_received": 33,
+  "reported_input_tokens": 156392,
+  "reported_output_tokens": 38811,
+  "native_search_rejections": [
+    {
+      "case": "photo-native-search",
+      "http_status": 400,
+      "reason": "max_tool_calls_rejected"
+    },
+    {
+      "case": "historical-native-search",
+      "http_status": 400,
+      "reason": "max_tool_calls_rejected"
+    }
+  ],
+  "output_framing_failures": [
+    {
+      "case": "photo-reject-unverified-lead",
+      "reason": "repeated_json_documents"
+    }
+  ],
+  "baseline_corrections": [
+    "The first trigger dataset included retired runtime entry points and an outdated profile fixture; revision 2 uses canonical checks. Original snapshots and results remain stored.",
+    "The initial 32-dispatch cap left three profile cases unexecuted; only those cases were completed in the supplemental experiment. Future runs cap dispatches at 48."
+  ],
+  "limitations": [
+    "Controlled trigger checks do not certify live end-to-end model scheduling.",
+    "Family-tree is unwired in the canonical application; its standalone output probe is separate.",
+    "Story-game generation has no production bindings; its correct rejection is tested.",
+    "Prose quality needs human review; deterministic contract passes are not editorial acceptance.",
+    "Gateway internal attempts and monetary cost are unavailable."
+  ],
+  "followup_20261018": {
+    "prompt_artifacts_verified": 70,
+    "datasets": [
+      "memoir/evaluation/v2/skill-triggers",
+      "memoir/evaluation/v2/skill-deliveries"
+    ],
+    "experiments": [
+      {
+        "run_id": "skills-20261018T053225Z",
+        "status": "failed",
+        "experiments": [
+          {
+            "dataset": "memoir/evaluation/v2/skill-deliveries",
+            "dataset_id": "cmvde28s7001g1z024qbscebn",
+            "experiment_id": "44c4ffe697da7051",
+            "expected_items": 2,
+            "sdk_items": 2,
+            "readback": {
+              "status": "verified",
+              "items": 2,
+              "scored_items": 2,
+              "expected_items": 2
+            }
+          }
+        ],
+        "results": [
+          {
+            "status": "failed",
+            "reason": "missing_native_search_receipt",
+            "case_id": "memoir-place-photo-research-native-discovery",
+            "skill": "memoir-place-photo-research"
+          },
+          {
+            "status": "unavailable",
+            "reason": "TimeoutError",
+            "case_id": "memoir-historical-news-research-native-discovery",
+            "skill": "memoir-historical-news-research"
+          }
+        ],
+        "http_dispatches": 2
+      },
+      {
+        "run_id": "skills-20261018T053749Z",
+        "status": "incomplete",
+        "experiments": [
+          {
+            "dataset": "memoir/evaluation/v2/skill-deliveries",
+            "dataset_id": "cmvde28s7001g1z024qbscebn",
+            "experiment_id": "b9e18a87d6e5e81c",
+            "expected_items": 2,
+            "sdk_items": 2,
+            "readback": {
+              "status": "verified",
+              "items": 2,
+              "scored_items": 2,
+              "expected_items": 2
+            }
+          }
+        ],
+        "results": [
+          {
+            "status": "unavailable",
+            "reason": "TimeoutError",
+            "case_id": "memoir-place-photo-research-native-discovery",
+            "skill": "memoir-place-photo-research"
+          },
+          {
+            "status": "unavailable",
+            "reason": "TimeoutError",
+            "case_id": "memoir-historical-news-research-native-discovery",
+            "skill": "memoir-historical-news-research"
+          }
+        ],
+        "http_dispatches": 2
+      },
+      {
+        "run_id": "skills-20261018T053827Z",
+        "status": "incomplete",
+        "experiments": [
+          {
+            "dataset": "memoir/evaluation/v2/skill-triggers",
+            "dataset_id": "cmvdea22b00221z02a0nv1v93",
+            "experiment_id": "1435168b1e0d6f2e",
+            "expected_items": 9,
+            "sdk_items": 9,
+            "readback": {
+              "status": "verified",
+              "items": 9,
+              "scored_items": 9,
+              "expected_items": 9
+            }
+          }
+        ],
+        "results": [
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 35
+            },
+            "case_id": "memoir-story-game-triggers",
+            "skill": "memoir-story-game"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 3
+            },
+            "case_id": "memoir-place-photo-research-triggers",
+            "skill": "memoir-place-photo-research"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 7
+            },
+            "case_id": "memoir-place-journey-triggers",
+            "skill": "memoir-place-journey"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 8
+            },
+            "case_id": "memoir-place-groups-triggers",
+            "skill": "memoir-place-groups"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 5
+            },
+            "case_id": "memoir-memory-context-triggers",
+            "skill": "memoir-memory-context"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 12
+            },
+            "case_id": "memoir-historical-news-research-triggers",
+            "skill": "memoir-historical-news-research"
+          },
+          {
+            "status": "unavailable",
+            "counts": {
+              "passed": 3
+            },
+            "reason": "unwired",
+            "admission_checks_status": "passed",
+            "case_id": "memoir-family-tree-triggers",
+            "skill": "memoir-family-tree"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 3
+            },
+            "case_id": "memoir-composer-triggers",
+            "skill": "memoir-composer"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 3
+            },
+            "case_id": "memoir-author-timeline-triggers",
+            "skill": "memoir-author-timeline"
+          }
+        ],
+        "http_dispatches": 0
+      },
+      {
+        "run_id": "skills-20261018T054305Z",
+        "status": "failed",
+        "experiments": [
+          {
+            "dataset": "memoir/evaluation/v2/skill-deliveries",
+            "dataset_id": "cmvde28s7001g1z024qbscebn",
+            "experiment_id": "3b3cc834ee8d7d53",
+            "expected_items": 2,
+            "sdk_items": 2,
+            "readback": {
+              "status": "verified",
+              "items": 2,
+              "scored_items": 2,
+              "expected_items": 2
+            }
+          }
+        ],
+        "results": [
+          {
+            "status": "failed",
+            "reason": "repeated_json_documents",
+            "case_id": "photo-reject-unverified-lead",
+            "skill": "memoir-place-photo-research"
+          },
+          {
+            "status": "passed",
+            "case_id": "story-game-missing-authority",
+            "skill": "memoir-story-game"
+          }
+        ],
+        "http_dispatches": 2
+      },
+      {
+        "run_id": "skills-20261018T060037Z",
+        "status": "failed",
+        "experiments": [
+          {
+            "dataset": "memoir/evaluation/v2/skill-deliveries",
+            "dataset_id": "cmvde28s7001g1z024qbscebn",
+            "experiment_id": "00c4d72e3e789cf9",
+            "expected_items": 2,
+            "sdk_items": 2,
+            "readback": {
+              "status": "verified",
+              "items": 2,
+              "scored_items": 2,
+              "expected_items": 2
+            }
+          }
+        ],
+        "results": [
+          {
+            "status": "unavailable",
+            "reason": "TimeoutError",
+            "case_id": "memoir-place-photo-research-native-discovery",
+            "skill": "memoir-place-photo-research"
+          },
+          {
+            "status": "failed",
+            "reason": "ValueError",
+            "case_id": "memoir-historical-news-research-native-discovery",
+            "skill": "memoir-historical-news-research"
+          }
+        ],
+        "http_dispatches": 2
+      },
+      {
+        "run_id": "skills-20261018T060706Z",
+        "status": "failed",
+        "experiments": [
+          {
+            "dataset": "memoir/evaluation/v2/skill-deliveries",
+            "dataset_id": "cmvde28s7001g1z024qbscebn",
+            "experiment_id": "a59294cef64248fd",
+            "expected_items": 1,
+            "sdk_items": 1,
+            "readback": {
+              "status": "verified",
+              "items": 1,
+              "scored_items": 1,
+              "expected_items": 1
+            }
+          }
+        ],
+        "results": [
+          {
+            "status": "failed",
+            "reason": "no_independently_verified_historical_clue",
+            "case_id": "memoir-historical-news-research-native-discovery",
+            "skill": "memoir-historical-news-research"
+          }
+        ],
+        "http_dispatches": 1
+      },
+      {
+        "run_id": "skills-20261018T070626Z",
+        "status": "incomplete",
+        "experiments": [
+          {
+            "dataset": "memoir/evaluation/v2/skill-triggers",
+            "dataset_id": "cmvdea22b00221z02a0nv1v93",
+            "experiment_id": "f64778dd2ade1edc",
+            "expected_items": 9,
+            "sdk_items": 9,
+            "readback": {
+              "status": "verified",
+              "items": 9,
+              "scored_items": 9,
+              "expected_items": 9
+            }
+          }
+        ],
+        "results": [
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 35
+            },
+            "case_id": "memoir-story-game-triggers",
+            "skill": "memoir-story-game"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 3
+            },
+            "case_id": "memoir-place-photo-research-triggers",
+            "skill": "memoir-place-photo-research"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 7
+            },
+            "case_id": "memoir-place-journey-triggers",
+            "skill": "memoir-place-journey"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 8
+            },
+            "case_id": "memoir-place-groups-triggers",
+            "skill": "memoir-place-groups"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 5
+            },
+            "case_id": "memoir-memory-context-triggers",
+            "skill": "memoir-memory-context"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 12
+            },
+            "case_id": "memoir-historical-news-research-triggers",
+            "skill": "memoir-historical-news-research"
+          },
+          {
+            "status": "unavailable",
+            "counts": {
+              "passed": 3
+            },
+            "reason": "unwired",
+            "admission_checks_status": "passed",
+            "case_id": "memoir-family-tree-triggers",
+            "skill": "memoir-family-tree"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 3
+            },
+            "case_id": "memoir-composer-triggers",
+            "skill": "memoir-composer"
+          },
+          {
+            "status": "passed",
+            "counts": {
+              "passed": 3
+            },
+            "case_id": "memoir-author-timeline-triggers",
+            "skill": "memoir-author-timeline"
+          }
+        ],
+        "http_dispatches": 0
+      }
+    ],
+    "notes": [
+      "Historical baseline and its original datasets remain intact.",
+      "Current game implementation is evaluated separately from the frozen conversation campaign.",
+      "Photo protocol now omits unsupported max_tool_calls and preserves full bounded gateway receipt IDs.",
+      "News accepts one to four completed native calls and preserves per-source discovery call provenance.",
+      "Latest native news discovery completed, but independent production fetches of both returned Wikipedia pages were unavailable; no verified clue was saved."
+    ],
+    "affected_checks": {
+      "photo_protocol": {
+        "passed": 160,
+        "receipt": "var/story-game-checks/photo-gateway-verified.json"
+      },
+      "news_provider_and_postgres": {
+        "passed": 138,
+        "receipt": "var/story-game-checks/historical-native-verified.json"
+      },
+      "composer_context_allocation": {
+        "passed": 102,
+        "receipt": "var/story-game-checks/composer-context-allocation.json"
+      },
+      "historical_source_limit": {
+        "passed": 235,
+        "receipt": "var/story-game-checks/historical-source-limit.json"
+      },
+      "scoped_strategy_rollout": {
+        "passed": 29,
+        "receipt": "var/story-game-checks/scoped-strategy-rollout.json"
+      }
+    },
+    "source_reinspection": {
+      "original_experiment_id": "a59294cef64248fd",
+      "live_model_calls": 0,
+      "source_limit_bytes": 2000000,
+      "source_pages_inspected": 2,
+      "verified_clues": 0,
+      "result": "Uninspected historical claim",
+      "receipt": "var/skill-evaluation/skills-20261018T060706Z/historical-source-reinspection-2mb.json"
+    }
+  }
+}

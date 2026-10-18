@@ -207,9 +207,9 @@ def cases():
         schema=object_schema({'generation_permitted': {'type': 'boolean'}, 'game_generated': {'type': 'boolean'},
                               'invent_author_approval': {'type': 'boolean'}}),
         input={'phase': 'shape', 'manuscript_status': 'draft', 'completion_receipt': None,
-               'adaptation_consent': None, 'game_runtime_bindings': False},
+               'adaptation_consent': None, 'game_runtime_bindings': True},
         expected=dict(generation_permitted=False, game_generated=False, invent_author_approval=False),
-        validator='equal', scope='negative admission probe; production game generation is unavailable'))
+        validator='equal', scope='negative admission probe; successful generation/publication is evaluated separately'))
     rows.append(dict(id='historical-reject-unverified-lead', skill='memoir-historical-news-research',
         instructions=skill_prompt('memoir-historical-news-research', 'references/contract.md') + eval_fragment('historical-lead'),
         schema=object_schema({'verified_clues': {'type': 'integer'}, 'creates_memory_event': {'type': 'boolean'},

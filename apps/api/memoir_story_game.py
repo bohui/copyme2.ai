@@ -1,4 +1,4 @@
-"""Repository skill registration; execution remains closed pending game bindings.
+"""Repository skill discovery; generation uses the authenticated game workflow.
 
 This module deliberately accepts no caller-supplied completion/consent booleans.
 The offline package validator is not imported into the production trust boundary.
@@ -32,9 +32,9 @@ def story_game_admission(strategy_plan=None, *, current_mode=None, button_action
         return {**result, 'reason': 'shape_required'}
     if not button_action:
         return {**result, 'reason': 'button_action_required'}
-    # Completion, consent and entitlement bindings remain unavailable. Passing
-    # the mode/action checks grants neither those rights nor executable work.
-    return {**result, 'reason': 'integration_unavailable'}
+    # This collector seam owns no job, edition or consent. Only the separate
+    # authenticated game routes can resolve those gates and invoke the provider.
+    return {**result, 'reason': 'authenticated_game_workflow_required'}
 
 
 class StoryGameUnavailable(ValueError):

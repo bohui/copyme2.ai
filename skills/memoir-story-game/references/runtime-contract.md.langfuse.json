@@ -1,7 +1,7 @@
 {
   "name": "memoir/skills/memoir-story-game/runtime-contract",
   "schema_version": 1,
-  "sha256": "ecad6ba99ee170934214876e6d1dcf7f417a7c1764febd30786c79320aa5ba82",
+  "sha256": "b2d8ae34f3fbc579094db920b6540f96d2217e9932daa32caefd9dc4b33dac6f",
   "type": "text",
-  "version": 1
+  "version": 3
 }
