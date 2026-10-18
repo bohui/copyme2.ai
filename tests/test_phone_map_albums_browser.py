@@ -25,7 +25,7 @@ def album_page(request):
         if mode.startswith('unresolved'):
             place['map_pin']=None
         date = '2026-08-01' if mode == 'current' else '1983'
-        place.update(photo_search_period=place['period'], photo_search_policy='place-fallback-gps-time-v8',
+        place.update(photo_search_period=place['period'], photo_search_policy='place-fallback-gps-time-v9',
                      photo_search_place=place['place']+', 承德' if place['granularity']=='suburb' else place['place'],
                      photo_search_complete=state_mode not in ('loading', 'error','current'), photo_search_at=1,
                      photo_search_latitude=place['latitude'], photo_search_longitude=place['longitude'],
@@ -33,6 +33,10 @@ def album_page(request):
                        image_url=f'/static/album-fixture-{i}-{j}.svg', source_url='https://archive.example/photo',
                        attribution='Synthetic test archive', date_expression=date, latitude=place['latitude'],
                        longitude=place['longitude'], allowed_actions={'embed':True}) for j in range(3)])
+    if mode == 'unmapped':
+        for place in places:
+            place.pop('latitude')
+            place.pop('longitude')
     profile = {'name':'Fixture', 'preferred_language':'zh-CN', 'memory_places':places}
     calls, errors = [], []
     with sync_playwright() as pw:
@@ -46,16 +50,22 @@ def album_page(request):
                 route.abort()
         context.route('**/*', boundary)
         def cesium(route):
+            if mode == 'script-error':
+                return route.abort()
             response = route.fetch()
-            route.fulfill(response=response, body=response.text()+'''\nCesium.Google2DImageryProvider.fromUrl=async()=>new Cesium.GridImageryProvider();
+            imagery = '''\nCesium.Google2DImageryProvider.fromUrl=async()=>new Cesium.GridImageryProvider();
               const OriginalViewer=Cesium.Viewer;window.Cesium={...Cesium,Viewer:new Proxy(OriginalViewer,{construct(target,args){
-                const viewer=Reflect.construct(target,args);window.__mapViewer=viewer;return viewer;}})};''')
+                const viewer=Reflect.construct(target,args);window.__mapViewer=viewer;return viewer;}})};'''
+            if mode == 'tile-error':
+                imagery += '''Cesium.Google2DImageryProvider.fromUrl=async()=>{const provider=new Cesium.GridImageryProvider();
+                  provider.requestImage=()=>Promise.reject(new Error('Synthetic tile rejection'));return provider;};'''
+            route.fulfill(response=response, body=response.text()+imagery)
         context.route('**/Build/Cesium/Cesium.js', cesium)
         context.route('**/static/album-fixture-*.svg', lambda r:r.fulfill(content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220"><rect width="320" height="220" fill="#c4d8d2"/><path d="M0 180L110 70L230 180L320 100V220H0" fill="#397465"/><rect x="130" y="130" width="80" height="80" fill="#eee1bb"/><path d="M120 140L170 100L220 140" fill="#a65c43"/></svg>'))
         def api(route):
             path = route.request.url.split('/api/v1/memoir')[-1].split('?')[0]
             data = {}
-            if path == '/agent/config': data = {'auth_mode':'test','google_maps_browser_api_key':'synthetic-key'}
+            if path == '/agent/config': data = {'auth_mode':'test','google_maps_browser_api_key':'' if mode == 'missing-key' else 'synthetic-key'}
             elif path in ('/agent/profile','/user/profile'):
                 if route.request.method == 'PATCH': profile.update(route.request.post_data_json)
                 data = profile
@@ -65,7 +75,7 @@ def album_page(request):
             elif path == '/story/state': data = {'family_features_enabled':False,'recall_status':{'payment_required':False}}
             elif path == '/user/conversations': data = {'items':[]}
             elif path.endswith('/journey'): data = {'active_session':None}
-            elif path.endswith('/place-photos'):
+            elif path.endswith('/place-photos') or (path.startswith('/agent/places/') and path.endswith('/photos')):
                 calls.append(route.request.url)
                 data = {'items':[], 'status':'UNAVAILABLE' if state_mode=='error' else 'NO_MATCH', 'searching':False}
             return route.fulfill(json=data)
@@ -75,14 +85,17 @@ def album_page(request):
             arriving = dict(asset_id='arriving',title='Arriving dated reference',image_url='/static/album-fixture-arriving.svg',
                 source_url='https://archive.example/photo',attribution='Synthetic test archive',date_expression='1986',
                 latitude=places[-1]['latitude'],longitude=places[-1]['longitude'],allowed_actions={'embed':True})
-            context.add_init_script('''const originalFetch=window.fetch;window.fetch=(url,options)=>String(url).includes('/place-photos?')
+            context.add_init_script(r'''const originalFetch=window.fetch;window.fetch=(url,options)=>/\/(?:place-photos|photos)\?/.test(String(url))
               ? new Promise(resolve=>{window.finishPhotoSearch=()=>resolve(new Response(JSON.stringify({items:'''+json.dumps([arriving])+''',status:'PARTIAL',searching:false}),{headers:{'Content-Type':'application/json'}}));})
               : originalFetch(url,options);''')
         page = context.new_page()
         page.on('pageerror',lambda error:errors.append(str(error)))
         page.goto(base+'/memoir/interview/album-project',wait_until='networkidle')
         expect(page.locator('#chat-input')).to_be_enabled(timeout=30000)
-        expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+        if mode in ('unmapped', 'script-error', 'tile-error', 'missing-key'):
+            expect(page.locator('.story-shell.conversation-only')).to_be_visible(timeout=30000)
+        else:
+            expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
         yield page, calls, errors
         assert not errors, errors
         browser.close()
@@ -205,6 +218,43 @@ def test_desktop_gallery_and_phone_resize_preserve_map(album_page):
         scene=page.locator('.place-journey-scene').bounding_box()
         assert scene['height']>=100,scene
         assert page.locator('#chat-input').bounding_box()['y']<height
+
+
+@pytest.mark.parametrize('album_page',['empty','error','loading'],indirect=True)
+def test_desktop_hides_photo_lane_until_photos_arrive(album_page, request):
+    page,_,_=album_page
+    loading = request.node.callspec.params['album_page'] == 'loading'
+    if loading:
+        page.locator('[data-photo-album]:visible').last.tap()
+        dialog = page.get_by_role('dialog')
+        expect(dialog).to_be_visible()
+        page.wait_for_function("typeof finishPhotoSearch === 'function'")
+        dialog.locator('[data-close-photo-album]').click()
+        page.wait_for_function('!history.state?.memoirPhotoAlbum')
+    for width in (1440, 823):
+        page.set_viewport_size({'width':width,'height':960})
+        expect(page.locator('.workspace-media-gallery')).to_have_count(0)
+        expect(page.locator('.workspace-media-overview.no-gallery')).to_be_visible()
+        overview = page.locator('.workspace-media-overview').bounding_box()
+        map_panel = page.locator('.workspace-media-map').bounding_box()
+        assert map_panel['width'] > overview['width'] * .9
+    if loading:
+        page.evaluate('finishPhotoSearch()')
+        expect(page.locator('.workspace-media-gallery')).to_be_visible()
+        expect(page.locator('.workspace-media-gallery figure')).to_have_count(1)
+        expect(page.locator('.workspace-media-overview.no-gallery')).to_have_count(0)
+
+
+@pytest.mark.parametrize('album_page',['unmapped','script-error','tile-error','missing-key'],indirect=True)
+def test_missing_or_failed_map_closes_the_context_workspace(album_page):
+    page,_,_=album_page
+    page.set_viewport_size({'width':1440,'height':960})
+    expect(page.locator('.story-shell.conversation-only')).to_be_visible()
+    expect(page.locator('#workspace-detail')).to_have_count(0)
+    expect(page.locator('.workspace-media-overview')).to_have_count(0)
+    expect(page.locator('.place-journey-card')).to_have_count(0)
+    expect(page.locator('.life-stage-navigator')).to_have_count(0)
+    expect(page.locator('#chat-input')).to_be_enabled()
 
 
 @pytest.mark.parametrize('album_page',['saved','unresolved'],indirect=True)

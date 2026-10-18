@@ -65,11 +65,12 @@ async function harness(provider = 'geoapify', {throttled = false} = {}) {
       geoapify_browser_api_key: 'synthetic-key', google_maps_browser_api_key: 'synthetic-key'}},
     window: {matchMedia: () => ({matches: true})}, currentUiLocale: () => 'en-AU',
     mapPhotoAlbums: {sync() {}, attach() {}}, cesiumPlaceJourneyViewer: null, console: {warn() {}},
+    placeMapRenderKey: () => 'map', unavailablePlaceMaps: new Set(), render() {},
   });
   vm.runInContext(init, context);
   context.initCesiumPlaceJourney();
   await tick();
-  return {viewer, imagery, container, classes, attributes, resolveImage, rejectImage};
+  return {viewer, imagery, container, classes, attributes, resolveImage, rejectImage, unavailable:context.unavailablePlaceMaps};
 }
 
 test('throttled tile requests preserve Cesium retry behavior', async () => {
@@ -87,6 +88,7 @@ test('late tiles from a detached map cannot enter the final view', async () => {
   await pending;
   h.viewer.completeFlight();
   assert.equal(h.classes.has('is-cesium-map'), false);
+  assert.equal(h.unavailable.size, 0, 'a stale map cannot hide a newly selected map');
 });
 
 test('a late successful tile cannot revive a failed map', async () => {
@@ -114,7 +116,7 @@ for (const provider of ['google', 'geoapify']) {
     assert.equal(h.viewer.scene.mode, 2);
   });
 
-  test(`${provider}: asynchronous tile failure restores the visible fallback`, async () => {
+  test(`${provider}: asynchronous tile failure hides the unavailable map`, async () => {
     const h = await harness(provider);
     h.viewer.completeFlight();
     const pending = h.imagery.requestImage(0, 0, 0);
@@ -127,6 +129,7 @@ for (const provider of ['google', 'geoapify']) {
     assert.equal(h.attributes.has('aria-hidden'), false, 'The fallback must be visible to assistive technology');
     assert.equal(h.classes.has('is-cesium-live'), false);
     assert.equal(h.viewer.imageryLayers.layer, null);
+    assert.equal(h.unavailable.has('map'), true);
   });
 
   test(`${provider}: a tile error after arrival removes the failed map`, async () => {
@@ -141,5 +144,6 @@ for (const provider of ['google', 'geoapify']) {
     assert.equal(h.classes.has('is-cesium-map'), false);
     assert.equal(h.viewer.scene.mode, 3);
     assert.equal(h.attributes.has('aria-hidden'), false);
+    assert.equal(h.unavailable.has('map'), true);
   });
 }

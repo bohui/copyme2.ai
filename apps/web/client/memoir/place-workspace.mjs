@@ -42,6 +42,8 @@ export function createPlaceWorkspace({
 
   let cesiumLoadPromise = null;
 
+  const unavailablePlaceMaps = new Set();
+
   async function hydratePlaceJourney() {
     const scope = captureProjectScope();
     const savedPlaces = mergePlaces(profile().memory_places || [], profile(), state.chat || []);
@@ -128,7 +130,7 @@ export function createPlaceWorkspace({
   function placeWorkspaceSelection({allowUnmapped = false} = {}) {
     if (!state.placeJourney) return null;
     if (state.placeJourney.preview && state.selectedPlace === placeHistoryKey(state.placeJourney)) {
-      return allowUnmapped || placeMapTarget(state.placeJourney) ? state.placeJourney : null;
+      return allowUnmapped || placeMapAvailable(state.placeJourney) ? state.placeJourney : null;
     }
     const places = mergePlaces(profile().memory_places || [], profile());
     const matching = state.lifeStage === "all"
@@ -137,19 +139,19 @@ export function createPlaceWorkspace({
     const explicitlySelected = state.selectedPlace
       ? matching.find(item => placeHistoryKey(item) === state.selectedPlace)
       : null;
-    if (explicitlySelected) return allowUnmapped || placeMapTarget(explicitlySelected) ? explicitlySelected : null;
+    if (explicitlySelected) return allowUnmapped || placeMapAvailable(explicitlySelected) ? explicitlySelected : null;
     if (state.selectedPlace) {
       const group = workspacePlaceGroups(matching).find(item => placeHistoryKey(item.city) === state.selectedPlace);
-      const member = group?.members.find(item => placeMapTarget(item)) || (allowUnmapped ? group?.members.at(-1) : null);
+      const member = group?.members.find(item => placeMapAvailable(item)) || (allowUnmapped ? group?.members.at(-1) : null);
       if (member) return member;
     }
     const current = matching.find(item => placeHistoryKey(item) === placeHistoryKey(state.placeJourney));
-    if (current) return allowUnmapped || placeMapTarget(current) ? current : null;
-    const selected = matching.filter((item) => placeMapTarget(item));
+    if (current) return allowUnmapped || placeMapAvailable(current) ? current : null;
+    const selected = matching.filter((item) => placeMapAvailable(item));
     if (selected.length) {
       return selected.at(-1);
     }
-    return allowUnmapped || placeMapTarget(state.placeJourney) ? state.placeJourney : null;
+    return allowUnmapped || placeMapAvailable(state.placeJourney) ? state.placeJourney : null;
   }
 
   function placeMapTarget(journey) {
@@ -158,6 +160,16 @@ export function createPlaceWorkspace({
     return mapTarget(journey, [])
       || resolvedPlaceTargets.get(key)
       || mapTarget(journey, mergePlaces(profile().memory_places || [], profile()));
+  }
+
+  function placeMapRenderKey(journey) {
+    const target = placeMapTarget(journey);
+    return JSON.stringify([state.project?.id, placeHistoryKey(journey), target?.latitude, target?.longitude,
+      state.supabase?.geo_provider || "google"]);
+  }
+
+  function placeMapAvailable(journey) {
+    return Boolean(placeMapTarget(journey)) && !unavailablePlaceMaps.has(placeMapRenderKey(journey));
   }
 
   function workspaceMediaOverview(toggle = "") {
@@ -173,15 +185,9 @@ export function createPlaceWorkspace({
     const choices = current ? placeHistoryChoices(groupChoices(groups), current) : "";
     const map = placeJourneyMarkup(current, "workspace", activeGroup);
     const pictureItems = current ? renderablePictureItems(workspacePictureItems(current, photoGroup)) : [];
-    const requestKey = current ? photoRequestKey(current) : null;
-    const request = state.photoRequests?.get(requestKey);
-    const empty = request?.loading
-      ? `<p class="workspace-photo-status is-loading" role="status">${t("picturesSearching")}</p>`
-      : request?.error
-        ? `<div class="workspace-photo-status"><p role="status">${t(request.failures?.some(failure => ["verification_required", "robots_denied", "http_403"].includes(failure.reason)) ? "picturesSourceBlocked" : "picturesUnavailable")}</p><button class="button button-secondary button-small" data-photo-retry="${escapeHtml(placeHistoryKey(current))}">${t("picturesSearchRetry")}</button></div>`
-        : `<p class="workspace-photo-status" role="status">${t(current && Object.hasOwn(current, "photo_next_cursor") ? "picturesNoMatch" : "picturesEmpty")}</p>`;
-    const gallery = `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${favoritePhotoWall()}${pictureItems.length ? pictureWall(pictureItems, current) : empty}</div>`;
-    return `<section class="workspace-media-overview" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
+    const pictures = favoritePhotoWall() + (pictureItems.length ? pictureWall(pictureItems, current) : "");
+    const gallery = pictures ? `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${pictures}</div>` : "";
+    return `<section class="workspace-media-overview${gallery ? "" : " no-gallery"}" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
   }
 
   function mapPhotoAlbumsForScene(scene) {
@@ -238,7 +244,7 @@ export function createPlaceWorkspace({
   }
 
   function placeJourneySurface() {
-    return state.placeJourney && placeMapTarget(state.placeJourney) && !workspaceHasContent() ? placeJourneyMarkup(state.placeJourney) : "";
+    return state.placeJourney && placeMapAvailable(state.placeJourney) && !workspaceHasContent() ? placeJourneyMarkup(state.placeJourney) : "";
   }
 
   function disposeCesiumPlaceJourney() {
@@ -384,6 +390,13 @@ export function createPlaceWorkspace({
     const latitude = Number(container.dataset.cesiumLatitude);
     const longitude = Number(container.dataset.cesiumLongitude);
     const journey = placeWorkspaceSelection() || state.placeJourney;
+    const projectId = state.project?.id;
+    const mapKey = placeMapRenderKey(journey);
+    const hideUnavailableMap = () => {
+      if (!container.isConnected || state.project?.id !== projectId) return;
+      unavailablePlaceMaps.add(mapKey);
+      render();
+    };
     const finalMapHeight = Number(container.dataset.cesiumHeight) || placeMapViewHeight(journey, placeMapTarget(journey));
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
     loadCesium().then((cesium) => {
@@ -508,25 +521,26 @@ export function createPlaceWorkspace({
           container.closest(".place-journey-scene")?.classList.remove("is-cesium-live", "is-cesium-map");
           container.parentElement.querySelector(".place-journey-fallback")?.removeAttribute("aria-hidden");
           viewer.scene.requestRender();
-          console.warn("Place map imagery unavailable; using the globe and hierarchy fallback.");
+          hideUnavailableMap();
+          console.warn("Place map imagery unavailable.");
         };
         let imagery;
         if (provider === "google") {
           const key = state.supabase?.google_maps_browser_api_key;
-          if (!key || typeof cesium.Google2DImageryProvider?.fromUrl !== "function") return;
+          if (!key || typeof cesium.Google2DImageryProvider?.fromUrl !== "function") { showImageryFallback(); return; }
           imagery = cesium.Google2DImageryProvider.fromUrl({
             key, mapType: "roadmap", language: currentUiLocale(),
             region: currentUiLocale() === "zh-CN" ? "CN" : "AU",
           });
         } else if (provider === "geoapify") {
           const key = state.supabase?.geoapify_browser_api_key;
-          if (!key || typeof cesium.UrlTemplateImageryProvider !== "function") return;
+          if (!key || typeof cesium.UrlTemplateImageryProvider !== "function") { showImageryFallback(); return; }
           imagery = new cesium.UrlTemplateImageryProvider({
             url: `https://maps.geoapify.com/v1/tile/osm-carto/{z}/{x}/{y}.png?apiKey=${encodeURIComponent(key)}`,
             credit: new cesium.Credit('© <a href="https://www.geoapify.com/">Geoapify</a> | © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>', true),
             maximumLevel: 20,
           });
-        } else return;
+        } else { showImageryFallback(); return; }
         Promise.resolve(imagery).then((layer) => {
           if (!container.isConnected || viewer.isDestroyed()) return;
           layer.errorEvent.addEventListener(showImageryFallback);
@@ -541,6 +555,9 @@ export function createPlaceWorkspace({
                 showFinalRoadMap();
               }
               return image;
+            }, error => {
+              showImageryFallback();
+              throw error;
             });
           };
           mapLayer = viewer.imageryLayers.addImageryProvider(layer);
@@ -548,9 +565,13 @@ export function createPlaceWorkspace({
       } catch (error) {
         if (viewer && !viewer.isDestroyed()) viewer.destroy();
         if (cesiumPlaceJourneyViewer === viewer) cesiumPlaceJourneyViewer = null;
-        console.warn("Cesium place journey unavailable; using the hierarchy fallback.", error);
+        hideUnavailableMap();
+        console.warn("Cesium place journey unavailable.", error);
       }
-    }).catch((error) => console.warn("Cesium place journey unavailable; using the hierarchy fallback.", error));
+    }).catch((error) => {
+      hideUnavailableMap();
+      console.warn("Cesium place journey unavailable.", error);
+    });
   }
 
   function resizeCesiumPlaceJourney() {

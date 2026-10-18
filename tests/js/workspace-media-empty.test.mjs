@@ -3,6 +3,28 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 
+for (const request of [undefined, {loading: true}, {loading: false}, {error: true, failures: [{reason: 'http_403'}]}]) {
+test(`a resolved location with no photos hides the photo lane (${JSON.stringify(request)})`, () => {
+  const source = readMemoirClientSource();
+  const place = {place: 'Chengde', latitude: 40.95, longitude: 117.96};
+  const context = vm.createContext({
+    state: {lifeStage: 'all', photoRequests: new Map([['place', request]])},
+    placeWorkspaceSelection: () => place, placeMapTarget: () => place,
+    profile: () => ({memory_places: [place]}), mergePlaces: places => places,
+    workspacePlaceGroups: () => [], groupChoices: () => [], placeHistoryChoices: () => '',
+    placeJourneyMarkup: () => '<div>map</div>', workspacePictureItems: () => [],
+    renderablePictureItems: items => items, photoRequestKey: () => 'place',
+    favoritePhotoWall: () => '', escapeHtml: String, translate: String,
+    placeHistoryKey: () => 'place',
+  });
+  vm.runInContext(source.match(/function workspaceMediaOverview\([^]*?\n\}/)[0], context);
+  const html = context.workspaceMediaOverview();
+  assert.match(html, /workspace-media-map/);
+  assert.doesNotMatch(html, /workspace-media-gallery|workspace-photo-status/);
+  assert.match(html, /workspace-media-overview no-gallery/);
+});
+}
+
 test('no media workspace renders without a current location', () => {
   const source = readMemoirClientSource();
   const context = vm.createContext({
@@ -54,7 +76,7 @@ test(`background location lookup ${outcome} only shows the workspace when a map 
   const html = context.workspaceMediaOverview();
   if (outcome === 'found') {
     assert.match(html, /workspace-media-map/);
-    assert.match(html, /workspace-media-gallery/);
+    assert.doesNotMatch(html, /workspace-media-gallery/);
     assert.equal(visible.at(-1), true, 'successful resolution must open the workspace without an existing map panel');
   } else assert.equal(html, '');
   context.resolvePlaceMap(journey);

@@ -76,6 +76,38 @@ test('photo and map factories compose around the same saved place and favorite a
   assert.equal(state.photoMemoryRevision, 1);
 });
 
+test('a failed map renderer closes the place workspace without losing its coordinates', async t => {
+  const {state, dependencies} = setup(t);
+  const place = {place:'Chengde', latitude:40.95, longitude:117.96};
+  state.project.profile.memory_places = [place];
+  state.placeJourney = place;
+  const container = {isConnected:true, dataset:{cesiumLatitude:'40.95', cesiumLongitude:'117.96'}};
+  document.querySelector = () => container;
+  window.Cesium = {WebMercatorProjection:class {}, Viewer:class {constructor() {throw new Error('WebGL unavailable');}}};
+  const renders = [];
+  let places;
+  const photos = createPhotoWorkspace({...dependencies, placeMapTarget: entry => places.placeMapTarget(entry)});
+  places = createPlaceWorkspace({...dependencies, photos, loadPlacePictures() {},
+    render:() => renders.push(Boolean(places.placeWorkspaceSelection())),
+    saveProfileUpdates() {}, recordWorkspaceSkillProgress() {}, workspaceHasContent:() => false});
+  assert.equal(places.placeWorkspaceSelection().place, place.place);
+  places.initCesiumPlaceJourney();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(places.placeWorkspaceSelection(), null);
+  assert.equal(places.workspaceMediaOverview(), '');
+  assert.equal(places.placeJourneySurface(), '');
+  assert.equal(places.placeMapTarget(place).latitude, place.latitude);
+  assert.equal(renders.at(-1), false, 'map failure must repaint the conversation without a workspace');
+  assert.equal(places.placeWorkspaceSelection({allowUnmapped:true}).place, place.place);
+  state.project.id = 'another-project';
+  assert.equal(places.placeWorkspaceSelection().place, place.place, 'failures belong to their original project');
+  state.project.id = 'p';
+  assert.equal(places.placeWorkspaceSelection(), null);
+  state.placeJourney = {...place, latitude:40.96};
+  state.project.profile.memory_places = [state.placeJourney];
+  assert.equal(places.placeWorkspaceSelection().latitude, 40.96, 'corrected coordinates can render a new map');
+});
+
 test('history factories restore message numbering and isolate account caches', t => {
   const {state, dependencies} = setup(t);
   const history = createConversationHistory(dependencies);

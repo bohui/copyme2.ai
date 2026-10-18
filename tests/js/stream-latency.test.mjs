@@ -309,7 +309,7 @@ test(`uses backend place stages with ${profileUpdates ? 'a different profile foc
 });
 }
 
-test('photo workspace exposes discovery even before any eligible result', () => {
+test('photo discovery does not reserve a gallery before any eligible result', () => {
   const entry = {place: 'Chengde'};
   const context = vm.createContext({
     state: {placeJourney: entry, project: {id: 'p'}, lifeStage: 'all', photoRequests: new Map()},
@@ -322,9 +322,9 @@ test('photo workspace exposes discovery even before any eligible result', () => 
     photoRequestKey: () => JSON.stringify(['p', 'Chengde', '', null, null]),
   });
   vm.runInContext(extract('workspaceMediaOverview'), context);
-  assert.match(context.workspaceMediaOverview(), /workspace-media-gallery/);
+  assert.doesNotMatch(context.workspaceMediaOverview(), /workspace-media-gallery/);
   context.state.photoRequests.set(JSON.stringify(['p', 'Chengde', '', null, null]), {loading: true});
-  assert.match(context.workspaceMediaOverview(), /role="status"/);
+  assert.doesNotMatch(context.workspaceMediaOverview(), /workspace-media-gallery|workspace-photo-status/);
   context.placeMapTarget = () => null;
   context.placeJourneyMarkup = () => '';
   assert.equal(context.workspaceMediaOverview(), '', 'an unresolved location must not show empty map/photo panels');

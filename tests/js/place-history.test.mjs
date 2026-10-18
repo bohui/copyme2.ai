@@ -163,10 +163,10 @@ test('hides an unresolved selected place even when another saved place has a map
  const mapped = {place: 'Hobart', hierarchy: ['Earth', 'Australia', 'Hobart'], granularity: 'city', latitude: -42.88, longitude: 147.33};
  const context = vm.createContext({
   state: {project: {id: 'project'}, placeJourney: unknown, lifeStage: 'all', selectedPlace: placeHistoryKey(unknown)},
-  mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(),
+  mapTarget, mergePlaces, placeHistoryKey, resolvedPlaceTargets: new Map(), unavailablePlaceMaps: new Set(),
   profile: () => ({memory_places: [unknown, mapped]}), composingWorkspaceActive: () => false, freeRecallFinished: () => false,
  });
- for (const name of ['placeMapTarget', 'placeWorkspaceSelection', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
+ for (const name of ['placeMapTarget', 'placeMapRenderKey', 'placeMapAvailable', 'placeWorkspaceSelection', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
  }
  assert.equal(context.workspaceHasContent(), false);
