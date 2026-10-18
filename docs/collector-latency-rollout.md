@@ -109,6 +109,13 @@ list and preserves security, grants and evidence/lease checks. Disposable SQL
 tests cover checkpoint publication, retained originals, stale claims, unsupported
 models and service-only access. The migration was applied through tracked
 Supabase migration history and those function grants were read back unchanged.
+On 19 October, the same allowlist entry was folded into
+`202610180001_initial_schema.sql` and the standalone follow-up was removed.
+Fresh installs and later resets now use that single migration. This consolidation
+did not reset or apply migrations to the configured database.
+Consolidation checks returned 22 passes, including Supabase CLI push/replay/reset
+on disposable PostgreSQL. The existing story-game foreign-key index and reset
+table-inventory checks still fail; both were reproduced before consolidation.
 The background worker receives the collector settings for checkpoint indexing;
 its extraction/profile/summary/composer calls keep their independent low route.
 

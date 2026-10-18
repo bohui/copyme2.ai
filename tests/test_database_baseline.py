@@ -18,8 +18,7 @@ RETIRED_TABLES = (
 
 def test_one_fresh_baseline_has_no_upgrade_or_backfill_statements():
     migrations = sorted(BASELINE.parent.glob('*.sql'))
-    assert migrations[0] == BASELINE
-    assert [path for path in migrations if path.name.endswith('_initial_schema.sql')] == [BASELINE]
+    assert migrations == [BASELINE]
     assert not (ROOT / 'supabase/legacy-migrations').exists()
     sql = re.sub(r'\$([a-zA-Z_0-9]*)\$.*?\$\1\$', '', BASELINE.read_text(), flags=re.S)
     sql = re.sub(r'--[^\n]*', '', sql)
