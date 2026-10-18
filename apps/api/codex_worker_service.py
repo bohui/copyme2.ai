@@ -395,13 +395,16 @@ class CodexWorker:
                 progress=self._progress_context.get()[1] if self._progress_context.get() else None,
                 uid=uid,apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',effort=self.reasoning_effort)
         if payload.bounded_lane is not None:
+            setting = ('MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT'
+                if payload.bounded_lane.phase in {'extract','summarize','profile'}
+                else 'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT')
             return await run_bounded_lane(command=self._run_command(uid),home_root=self.home_root,
                 base_url=self.base_url,api_key=self.api_key,model=model,
                 bounded_lane=payload.bounded_lane,timeout=self._execution_timeout(payload.agent_role,payload.composer_phase),
                 connection_factory=CodexConnection,issue14_admission=self._issue14_admission,
                 progress=self._progress_context.get()[1] if self._progress_context.get() else None,
                 uid=uid,apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
-                effort=self.reasoning_effort)
+                effort=self.reasoning_effort or os.getenv(setting, 'low').strip() or 'low')
         if payload.governed is not None:
             # Do not visit or migrate any legacy home. Both transports use the
             # identical packet and fresh-home execution/budget validation seam.

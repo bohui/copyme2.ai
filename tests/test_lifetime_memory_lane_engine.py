@@ -212,6 +212,33 @@ def test_each_page_attempt_has_new_home(tmp_path):
     assert Connection.instances[0].home!=Connection.instances[1].home
 
 
+@pytest.mark.parametrize('phase,role,setting',[
+    ('extract','author_timeline','MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT'),
+    ('draft','composer','MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT'),
+])
+@pytest.mark.parametrize('configured',[None,'','low'])
+def test_lane_b_requested_effort_is_low_not_the_global_max(tmp_path,monkeypatch,phase,role,setting,configured):
+    import apps.api.codex_worker_service as worker_module
+    monkeypatch.setenv('MEMORY_SPARK_LLM_REASONING_EFFORT','max')
+    monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
+    if configured is None:monkeypatch.delenv(setting,raising=False)
+    else:monkeypatch.setenv(setting,configured)
+    calls=[]
+    async def fake_lane(**kwargs):
+        calls.append(kwargs)
+        return {'reply':'{}'}
+    monkeypatch.setattr(worker_module,'run_bounded_lane',fake_lane)
+    bounded=transport(phase)
+    worker=CodexWorker(home_root=tmp_path,model=BUDGET.model)
+    payload=WorkerTurnInput(user_id=bounded.fence.user_id,project_id=bounded.fence.project_id,
+        agent_role=role,model=BUDGET.model,bounded_lane=bounded,
+        **({'composer_phase':phase} if role=='composer' else {}))
+    asyncio.run(worker._turn(payload))
+    assert len(calls)==1 and calls[0]['effort']=='low'
+    assert calls[0]['model']==BUDGET.model
+
+
+
 @pytest.mark.parametrize('change',[{'text':'old source'},{'memories':['old']},{'profile':{'name':'old'}},
     {'thread_id':'old-thread'},{'user_id':str(UUID(int=999))},{'project_id':'other'},
     {'interview_context':{'source':'old'}},{'governed':{}},{'agent_role':'collector'}])

@@ -169,7 +169,7 @@ export function createPlaceWorkspace({
   }
 
   function placeMapAvailable(journey) {
-    return Boolean(placeMapTarget(journey)) && !unavailablePlaceMaps.has(placeMapRenderKey(journey));
+    return Boolean(placeMapTarget(journey));
   }
 
   function workspaceMediaOverview(toggle = "") {
@@ -238,7 +238,7 @@ export function createPlaceWorkspace({
     const longitude = Number.isFinite(target?.longitude) ? target.longitude : "";
     const duration = Number(journey.duration_ms) || 5200;
     const pins = target.pins || (parentFallback ? [] : [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}]);
-    const pinData = ` data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
+    const pinData = ` data-cesium-unavailable="${unavailablePlaceMaps.has(placeMapRenderKey(journey))}" data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
     const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
     return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}</section>`;
   }
@@ -392,6 +392,21 @@ export function createPlaceWorkspace({
     const journey = placeWorkspaceSelection() || state.placeJourney;
     const projectId = state.project?.id;
     const mapKey = placeMapRenderKey(journey);
+    // A denied tile provider must not hide saved places or retry on each render.
+    if (unavailablePlaceMaps.has(mapKey)) {
+      const fallback = container.parentElement.querySelector(".place-journey-fallback");
+      if (fallback) {
+        const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
+        fallback.innerHTML = `<span class="journey-fallback-line" role="status">${t("mapUnavailable")}<small>${t("mapUnavailableDetail")}</small><button type="button" class="button button-primary" data-map-retry>${t("mapRetry")}</button></span>`;
+        fallback.querySelector("[data-map-retry]")?.addEventListener("click", () => {
+          if (!container.isConnected || state.project?.id !== projectId) return;
+          unavailablePlaceMaps.delete(mapKey);
+          cesiumLoadPromise = null;
+          render();
+        });
+      }
+      return;
+    }
     const hideUnavailableMap = () => {
       if (!container.isConnected || state.project?.id !== projectId) return;
       unavailablePlaceMaps.add(mapKey);

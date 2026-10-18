@@ -180,6 +180,8 @@ def test_profile_checkpoints_include_intervening_sources_and_respect_manual_stop
             else:
                 assert phase == 'extract'
                 output = {'events': [], 'place_journeys': [], 'prepared_questions': []}
+                if (bounded['fence'].get('two_lane') or {}).get('strategy_mode'):
+                    output['strategy_proposal'] = {'strategy':'explore','objective':'follow_story','focus_event_ids':[]}
         else:
             output = proposal(mode='extract', name=None, question='What else do you remember?')
             output['plan']['conversation_phase'] = 'explore'
@@ -262,6 +264,8 @@ def test_real_profile_worker_does_not_block_a_later_conversation_reply(sql, tmp_
             else:
                 assert bounded['phase'] == 'extract'
                 output = {'events': [], 'place_journeys': [], 'prepared_questions': []}
+                if (bounded['fence'].get('two_lane') or {}).get('strategy_mode'):
+                    output['strategy_proposal'] = {'strategy':'explore','objective':'follow_story','focus_event_ids':[]}
         else:
             output = proposal(mode='extract', name=None, question='What else do you remember?')
             output['plan']['conversation_phase'] = 'explore'

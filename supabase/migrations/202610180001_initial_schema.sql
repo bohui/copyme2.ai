@@ -2756,7 +2756,7 @@ declare snap public.user_lifetime_lane_snapshot%rowtype; identity public.user_li
  processed integer; fingerprint text; count_items bigint; chain text; last_seq bigint; last_start integer;
 begin
  if p_steps is null or p_steps not between 1 and 4 or p_model not in
-   ('gpt-5.6-luna-pooled','gpt-5.6-luna-memoir-low','memoir-luna-low','legal2ai-luna-low','synthetic-byte-bpe') then raise exception 'bounded checkpoint configuration required';end if;
+   ('gpt-5.6-luna-pooled','gpt-5.6-luna-memoir-low','gpt-5.6-luna-memoir-high','memoir-luna-low','legal2ai-luna-low','synthetic-byte-bpe') then raise exception 'bounded checkpoint configuration required';end if;
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  owner:=snap.user_id;
  if not exists(select 1 from public.user_memoir_lane where id=p_lane_id and skill='timeline') then

@@ -141,6 +141,7 @@ test('map markup shows city choices and independent pending pin labels', () => {
     escapeHtml: value => String(value).replaceAll('"', '&quot;'), translate: key => key,
     translateWith: key => key, currentUiLocale: () => 'zh-CN',
     placeHistoryKey, groupMapFrame, specificPlaceChoices, placeMapTarget: place => place,
+    unavailablePlaceMaps: new Set(), placeMapRenderKey: () => 'map',
     lifeStageText: () => '',
   });
   for (const name of ['placeJourneyMarkup', 'groupChoices', 'placeHistoryChoices']) vm.runInContext(extract(name), context);

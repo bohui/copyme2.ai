@@ -59,6 +59,7 @@ SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))
 .PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval prompt-export prompt-check prompt-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 .PHONY: _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
+.PHONY: prompt-sync prompt-sync-check prompt-sync-install
 
 memoir-live-skills-plan: ## Inspect isolated skill contracts; zero model calls.
 	@python3 scripts/run_memoir_live_skills.py $(if $(strip $(LIVE_SKILL)),--skill "$(LIVE_SKILL)",)
@@ -75,7 +76,16 @@ help: ## Show the Apple Container + Mocker commands.
 		/^## / {hints[++hint_count] = substr($$0, 4)} \
 		END {if (hint_count) printf "\n"; for (i = 1; i <= hint_count; i++) printf "%s\n", hints[i]}' $(MAKEFILE_LIST)
 
-prompt-export: ## Export current Langfuse versions into repo artifacts; optional PROMPT_NAME=collector.
+prompt-sync-install: ## Enable automatic prompt sync after main pulls in this clone.
+	@python3 scripts/publish_langfuse_prompts.py --install-hook
+
+prompt-sync: ## Publish changed prompts from committed origin/main and refresh receipts.
+	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)"
+
+prompt-sync-check: ## Check merged main prompt changes without publishing.
+	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check
+
+prompt-export: ## Recovery: export current Langfuse versions into repo artifacts; optional PROMPT_NAME=collector.
 	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
 prompt-check: ## Verify repo prompt artifacts against their pinned Langfuse versions.

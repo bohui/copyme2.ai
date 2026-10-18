@@ -60,10 +60,10 @@ def valid_reply():
         'associations':[], 'response_photo_ids':[], 'stopped':False})
 
 
-def test_dedicated_same_model_low_alias_retains_the_declared_byte_bound():
-    governed, _ = fixture()
+@pytest.mark.parametrize('model', ['gpt-5.6-luna-memoir-low', 'gpt-5.6-luna-memoir-high'])
+def test_dedicated_same_model_collector_alias_retains_the_declared_byte_bound(model, tmp_path):
+    governed, context = fixture()
     packet = json.loads(governed.packet)
-    model = 'gpt-5.6-luna-memoir-low'
     packet['model'] = model
     budget = BUDGET.model_copy(update={'model':model,'framing_headroom':2048})
     for _ in range(8):
@@ -71,6 +71,15 @@ def test_dedicated_same_model_low_alias_retains_the_declared_byte_bound():
     checked = GovernedCollectorInput(packet=serialize_packet(packet),fence=FENCE,budget=budget,prompt_version='lifetime-v1')
     assert checked.budget.model == model
     assert checked.budget.count(checked.packet) <= checked.budget.input_budget
+    effort = 'high' if model.endswith('-high') else 'low'
+    result = asyncio.run(run_governed_collector(command=['fake'], home_root=tmp_path,
+        base_url='http://provider.invalid/v1', api_key='synthetic', model=model,
+        governed=checked, interview_context=context, effort=effort,
+        connection_factory=FakeConnection, publisher=FakePublisher()))
+    connection = FakeConnection.instances[-1]
+    assert connection.requests[0][1]['model'] == model
+    assert connection.turns[0][2]['effort'] == effort
+    assert result['reply'] == valid_reply()
 
 
 class FakeConnection:
@@ -564,6 +573,15 @@ def test_governed_config_excludes_inherited_project_docs():
     legacy = tomllib.loads(provider_config('http://provider.invalid/v1', BUDGET.model))
     assert governed['project_doc_max_bytes'] == 0
     assert 'project_doc_max_bytes' not in legacy
+
+
+def test_governed_runtime_does_not_advertise_general_agent_tools():
+    governed = tomllib.loads(provider_config('http://provider.invalid/v1', BUDGET.model, governed=True))
+    legacy = tomllib.loads(provider_config('http://provider.invalid/v1', BUDGET.model))
+    for feature in ('code_mode_host', 'goals', 'multi_agent', 'apps', 'plugins'):
+        assert governed['features'][feature] is False
+        assert feature not in legacy['features']
+    assert governed['features']['skip_host_skill_discovery'] is True
 
 
 def test_worker_rechecks_mutated_payload_before_dispatch(tmp_path, monkeypatch):
