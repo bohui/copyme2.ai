@@ -13,6 +13,11 @@ _lock = Lock()
 GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 GEOAPIFY_GEOCODING_URL = "https://api.geoapify.com/v1/geocode/search"
 GEOAPIFY_MIN_CONFIDENCE = 0.95
+GEOAPIFY_RESULT_FIELDS = {
+    'country': ('country', 'country_code'), 'state': ('state', 'state_code', 'region'),
+    'county': ('county',), 'city': ('city', 'municipality', 'town', 'village'),
+    'district': ('district',), 'suburb': ('suburb',), 'locality': ('locality',),
+}
 
 
 class GeocodingUnavailable(RuntimeError):
@@ -23,18 +28,19 @@ def geo_provider() -> str:
     return os.environ.get("MEMOIR_GEO_PROVIDER", "google").strip().lower() or "google"
 
 
-def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
+def _geoapify_trusted_fields(record: dict, rank: dict):
     confidences = [rank.get('confidence')]
     if record.get('city') and 'confidence_city_level' in rank:
         confidences.append(rank['confidence_city_level'])
     for confidence in confidences:
         if (not isinstance(confidence, (int, float)) or isinstance(confidence, bool)
                 or not math.isfinite(confidence) or not GEOAPIFY_MIN_CONFIDENCE <= confidence <= 1):
-            return False
-    levels = {'country': ('country', 'country_code'), 'state': ('state', 'state_code', 'region'),
-              'county': ('county',), 'city': ('city', 'municipality', 'town', 'village'),
-              'district': ('district',), 'suburb': ('suburb',), 'locality': ('locality',)}
-    target_fields = levels.get(record.get('result_type'))
+            return None
+    return GEOAPIFY_RESULT_FIELDS.get(record.get('result_type'))
+
+
+def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
+    target_fields = _geoapify_trusted_fields(record, rank)
     labels = [geographic_label(label) for label in query.split(',') if label.strip()]
     if not target_fields or not labels:
         return False
@@ -45,7 +51,7 @@ def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
         return False
     # Match every supplied parent, in order, so a same-name place cannot jump regions.
     parents = iter(geographic_label(record.get(field, ''))
-                   for fields in levels.values() for field in fields)
+                   for fields in GEOAPIFY_RESULT_FIELDS.values() for field in fields)
     return all(any(parent == label for parent in parents) for label in reversed(labels[1:]))
 
 
@@ -127,7 +133,7 @@ def _geocode_record(provider: str, query: str, language: str | None = None):
             # the original query once without localization and accept the
             # translated record only when both responses identify the same map
             # location.
-            if not language:
+            if not language or not _geoapify_trusted_fields(record, rank):
                 return None
             canonical = _geocode_record(provider, query, None)
             if not canonical or not _same_geoapify_location(

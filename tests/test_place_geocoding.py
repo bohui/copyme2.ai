@@ -69,6 +69,32 @@ def test_geoapify_localized_fields_are_checked_against_the_original_query(monkey
 
 
 @pytest.mark.parametrize('overrides', [
+    {'rank': {'match_type': 'full_match', 'confidence': 0.2, 'confidence_city_level': 0.2}},
+    {'result_type': 'building'},
+])
+def test_geoapify_translation_fallback_keeps_confidence_and_type_checks(monkeypatch, overrides):
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER', 'geoapify')
+    monkeypatch.setenv('GEOAPIFY_API_KEY', 'synthetic-key')
+    calls = []
+    localized = {
+        'name': '承德市', 'city': '承德市', 'state': '河北省', 'country': '中国',
+        'country_code': 'cn', 'result_type': 'city', 'lat': 40.97, 'lon': 117.93,
+        'rank': {'match_type': 'full_match', 'confidence': 1.0, 'confidence_city_level': 1.0},
+    }
+    canonical = {**localized, 'name': 'Chengde', 'city': 'Chengde',
+                 'state': 'Hebei', 'country': 'China'}
+
+    def get(url, **kwargs):
+        calls.append(kwargs['params'])
+        record = {**localized, **overrides} if kwargs['params'].get('lang') == 'en' else canonical
+        return httpx.Response(200, json={'results': [record]}, request=httpx.Request('GET', url))
+
+    monkeypatch.setattr(httpx, 'get', get)
+    assert geo.search_place_details('Chengde, Hebei, China', language='en-AU') is None
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize('overrides', [
     {'rank': {'match_type': 'full_match', 'confidence': 0.2}},
     {'rank': {'match_type': 'full_match', 'confidence': 1.0, 'confidence_city_level': 0.3}},
     {'rank': {'match_type': 'full_match'}},

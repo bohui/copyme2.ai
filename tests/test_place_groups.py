@@ -125,6 +125,22 @@ def test_localized_grouping_preserves_city_coordinates_for_unresolved_children(m
     assert result['places'][1]['pin'] is None
 
 
+def test_localized_city_keeps_its_own_pin_when_the_label_changes(monkeypatch):
+    sydney = {'place': 'Sydney', 'hierarchy': ['Earth', 'Australia', 'Sydney'],
+              'granularity': 'city', 'latitude': -33.8688, 'longitude': 151.2093}
+    monkeypatch.setattr(groups, 'search_place_details', lambda query, *, language=None: {
+        'latitude': sydney['latitude'], 'longitude': sydney['longitude'],
+        'city': '悉尼', 'country': '澳大利亚', 'region': '新南威尔士州',
+        'partial_match': False,
+    })
+
+    result = groups.resolve_place_groups([sydney], language='zh-CN')
+
+    assert result['places'][0]['city']['place'] == '悉尼'
+    assert result['places'][0]['pin']['place'] == 'Sydney'
+    assert result['places'][0]['pin']['latitude'] == sydney['latitude']
+
+
 def test_missing_region_does_not_split_the_same_city_or_merge_conflicting_regions(monkeypatch):
     monkeypatch.setattr(groups, 'search_place_details', lambda query: None)
     short = {'place': '悉尼', 'hierarchy': ['Earth', '澳大利亚', '悉尼'], 'granularity': 'city',

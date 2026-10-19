@@ -145,6 +145,22 @@ def test_json_ld_sibling_licences_are_evaluated_per_image(licences, expected):
                  for index in (1, 2)) == expected
 
 
+def test_nested_array_typed_json_ld_photo_keeps_its_licence():
+    record = {'@type': ['ImageObject', 'Photograph'], 'name': 'Chengde street',
+              'dateTaken': '1983-10-01', 'license': 'https://creativecommons.org/licenses/by/4.0/',
+              'contentUrl': 'https://archive.example/nested-photo.jpg'}
+    page = ('<title>Chengde photo gallery</title>'
+            '<script type="application/ld+json">'
+            + json.dumps({'@type': 'ImageGallery', 'itemListElement': [{'item': record}]})
+            + '</script>')
+
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+
+    assert items
+    assert all(item['image_url'] == 'https://archive.example/nested-photo.jpg' for item in items)
+    assert all(item['allowed_actions']['embed'] is True for item in items)
+
+
 def test_separated_caption_does_not_date_a_previous_unrelated_image():
     page = ('<title>Chengde archive</title><img src="https://archive.example/logo.jpg">'
             '<p>Navigation and unrelated text</p><p class="img-desc">Chengde 1983</p>')

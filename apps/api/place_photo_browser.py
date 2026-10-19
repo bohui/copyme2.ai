@@ -83,6 +83,31 @@ def _flickr_cards(source_html: str, base: str) -> list[dict]:
     return list(cards.values())
 
 
+def _json_ld_photo_records(value) -> list[dict]:
+    """Collect photo nodes using the same bounded traversal as source extraction."""
+    records = []
+
+    def visit(node, depth=0):
+        if depth > 10:
+            return
+        if isinstance(node, list):
+            for child in node[:150]:
+                visit(child, depth + 1)
+        elif isinstance(node, dict):
+            kinds = node.get('@type', [])
+            if isinstance(kinds, str):
+                kinds = [kinds]
+            if (isinstance(kinds, list)
+                    and any(isinstance(kind, str) and kind in {'Photograph', 'ImageObject'}
+                            for kind in kinds)):
+                records.append(node)
+            for child in node.values():
+                visit(child, depth + 1)
+
+    visit(value)
+    return records
+
+
 def _source_items(source_html: str, source_url: str, place: str, period: str,
                   *, location_context: str = '') -> list[dict]:
     """Use source captions and capture metadata; page/upload dates cannot date photos."""
@@ -114,14 +139,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
     if not helper._crawl4ai_location_matches(location_evidence, place):
         return []
 
-    objects = []
-    for record in page['json_ld']:
-        records = record if isinstance(record, list) else [record]
-        for item in records:
-            if isinstance(item, dict):
-                objects.extend(item.get('@graph', [item]))
-    photo_records = [item for item in objects if isinstance(item, dict)
-                     and item.get('@type') in ('Photograph', 'ImageObject')]
+    photo_records = _json_ld_photo_records(page['json_ld'])
     photo = photo_records[0] if photo_records else {}
     photo_by_url = {}
     for record in photo_records:

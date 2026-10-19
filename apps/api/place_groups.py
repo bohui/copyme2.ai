@@ -44,6 +44,7 @@ def resolve_place_groups(places, *, allow_provider=True, language=None):
                      and [_label(label) for label in _path(city)] == path[:len(_path(city))]]
         # The containing city owns the view, even if a child was labelled city.
         city = deepcopy(min(ancestors, key=lambda item: len(_path(item)))) if ancestors else None
+        canonical_city_key = _key(city) if city else None
         own_coordinates = _coordinates(place)
         same_as_parent = bool(city and _key(city) != _key(place) and own_coordinates
                               and place.get('latitude') == city.get('latitude')
@@ -75,7 +76,8 @@ def resolve_place_groups(places, *, allow_provider=True, language=None):
         city = city or deepcopy(place)
         # A provider can return only the city centre despite matching the query.
         # It remains a usable map target, never an independent child's position.
-        if (pin and _key(city) != _key(place)
+        city_identity = canonical_city_key if canonical_city_key is not None else _key(city)
+        if (pin and city_identity != _key(place)
                 and pin['latitude'] == city.get('latitude')
                 and pin['longitude'] == city.get('longitude')):
             pin = None
