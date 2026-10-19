@@ -303,7 +303,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     from pathlib import Path
     import subprocess
     import httpx
-    from apps.api import agent_routes, place_geocoding, place_photos, place_photo_browser
+    from apps.api import agent_routes, place_geocoding, place_photos, place_photo_browser, supabase_routes
     from apps.api.historical_news import HistoricalResearch
     from test_place_workspace import photo_page
     from test_place_photo_browser import cse_html, photo_html
@@ -411,7 +411,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     parramatta = {'place':'Parramatta','hierarchy':[*places[1]['hierarchy'],'Parramatta'],
                   'granularity':'suburb','latitude':-33.815,'longitude':151.002}
     def extract(packet):
-        return {**empty(packet), 'place_journeys': places}
+        return {**empty(packet), 'place_journeys': list(reversed(places))}
     def external_get(url,**kwargs):
         params=kwargs['params']
         if 'maps.googleapis.com' in url:
@@ -459,6 +459,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
             queries.append(('news',query))
             return {'receipt':{'status':'completed','response_id':'r','tool_call_id':'w','urls':[]},'events':[]}
     conversation = Conversation(sql,tmp_path,monkeypatch,extract)
+    monkeypatch.setattr(supabase_routes, 'storage', agent_routes.authenticated_storage)
     agent_routes.runtime._news_engine = HistoricalResearch(Provider())
     with conversation.client:
         conversation.say('我现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院')
@@ -466,7 +467,11 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         assert pending['pending'] and pending['derived_workspace']['places']==[]
         conversation.drain()
         ready=progress(conversation)
+        response=conversation.client.get(f'/v1/user/projects/{conversation.project}/history')
+        assert response.status_code==200,response.text
+        history=response.json()
         saved = ready['derived_workspace']['places']
+        assert [place['place'] for place in saved] == ['悉尼', '承德市']
         assert {p['place']:p['research_period'] for p in saved} == {'悉尼':'','承德市':'1980s'}
         assert {p['place']:p['research_year'] for p in saved} == {'悉尼':None,'承德市':1983}
         photos={}
@@ -553,7 +558,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         assert response.status_code==200,response.text
         private_draft=response.json()
         assert private_draft['error']
-        packet={'pending':pending,'ready':ready,'photos':photos,'groups':groups,
+        packet={'pending':pending,'ready':ready,'history':history,'photos':photos,'groups':groups,
                 'private_draft':private_draft,
                 'provider_places':provider_places,'landmark':landmark,'containing_places':containing_places,
                 'containing_titles':containing_titles,'rejected_city_places':rejected_city_places}

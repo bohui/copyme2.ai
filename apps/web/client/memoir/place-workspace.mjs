@@ -132,7 +132,7 @@ export function createPlaceWorkspace({
     if (state.placeJourney.preview && state.selectedPlace === placeHistoryKey(state.placeJourney)) {
       return allowUnmapped || placeMapAvailable(state.placeJourney) ? state.placeJourney : null;
     }
-    const places = mergePlaces(profile().memory_places || [], profile());
+    const places = mergePlaces(profile().memory_places || [], profile(), state.chat || []);
     const matching = state.lifeStage === "all"
       ? places
       : places.filter(item => matchesPlaceStage(item, state.lifeStage));
@@ -176,7 +176,7 @@ export function createPlaceWorkspace({
     const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
     const current = placeWorkspaceSelection();
     if (!current || !placeMapTarget(current)) return "";
-    const places = mergePlaces(profile().memory_places || [], profile());
+    const places = mergePlaces(profile().memory_places || [], profile(), state.chat || []);
     const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage));
     const groups = workspacePlaceGroups(matching);
     const activeGroup = current && groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
@@ -193,7 +193,7 @@ export function createPlaceWorkspace({
   function mapPhotoAlbumsForScene(scene) {
     const container = scene.querySelector("[data-cesium-place]");
     const pins = new Set(JSON.parse(container?.dataset.cesiumPins || "[]").map(pin => pin.key));
-    const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])], profile());
+    const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])], profile(), state.chat || []);
     const group = workspacePlaceGroups(places).find(item => item.key === container?.dataset.placeKey);
     const entries = group?.members || [placeWorkspaceSelection()].filter(Boolean);
     return entries.map(entry => mapPhotoAlbum(placeHistoryKey(entry))).filter(Boolean)
@@ -201,7 +201,7 @@ export function createPlaceWorkspace({
   }
 
   function mapPhotoAlbum(key) {
-    const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])], profile());
+    const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])], profile(), state.chat || []);
     const entry = places.find(place => placeHistoryKey(place) === key);
     if (!entry) return null;
     const group = workspacePlaceGroups(places).find(item => item.members.some(member => placeHistoryKey(member) === key));
@@ -312,7 +312,7 @@ export function createPlaceWorkspace({
   }
 
   function workspacePlaceGroups(places) {
-    const entries = mergePlaces([...places, ...(state.placeJourney?.preview ? [state.placeJourney] : [])], profile());
+    const entries = mergePlaces([...places, ...(state.placeJourney?.preview ? [state.placeJourney] : [])], profile(), state.chat || []);
     return groupPlaces(entries.map(place => {
       const record = placeGroupRecords.get(`${state.project?.id}:${currentUiLocale()}:${placeHistoryKey(place)}`);
       return record && record.language === currentUiLocale() && record.input === JSON.stringify(publicPlaceFields(place))
@@ -329,7 +329,7 @@ export function createPlaceWorkspace({
   function resolvePlaceGroups(journey, {onProgress = null} = {}) {
     const projectId = state.project?.id;
     if (!projectId || !journey) return;
-    const merged = mergePlaces([...(profile().memory_places || []), journey], profile());
+    const merged = mergePlaces([...(profile().memory_places || []), journey], profile(), state.chat || []);
     const newest = merged.find(place => placeHistoryKey(place) === placeHistoryKey(journey));
     if (!newest) return;
     // Resolve the newest mention first even when history is sorted by life stage.

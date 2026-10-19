@@ -14,7 +14,9 @@ const packet = JSON.parse(readFileSync(0, 'utf8'));
 const projectId = packet.ready.derived_workspace.project_id;
 const state = {project:{id:projectId,profile:{}},projectPrincipalId:'owner',
   supabase:{accessToken:'fixture',user:{id:'owner'}},navigationGeneration:0,
-  lifeStage:'childhood',chat:[],people:[],relationships:[],timeline:[],sources:[],storyPlans:[]};
+  lifeStage:'childhood',chat:packet.history.items.filter(item=>item.narrator_text)
+    .map(item=>({role:'user',text:item.narrator_text})),
+  people:[],relationships:[],timeline:[],sources:[],storyPlans:[]};
 const plain = value => JSON.parse(JSON.stringify(value));
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const timers = new Map(), photoCalls = [], loads = [], groups = [], steps = [], memoryWrites = [];
@@ -94,7 +96,7 @@ timers.delete(wake[0]);now=wake[1].at;wake[1].callback();
 await refresh;
 await Promise.all(loads);
 await settle();
-assert.deepEqual(photoCalls,[['承德市','1980s'],['悉尼','']]);
+assert.deepEqual([...photoCalls].sort(),[['承德市','1980s'],['悉尼','']].sort());
 assert.equal(state.lifeStage,'childhood','Exercise the initial stage filter');
 assert.ok(steps.some(step=>step.skill==='memoir-historical-news-research' && step.status==='saved'));
 assert.ok(!steps.some(step=>step.status==='failed'),'The real provider/parser path must complete');
@@ -106,7 +108,8 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
   const html=places.workspaceMediaOverview();
   const navigation=html.match(/<nav class="place-choices"[^]*?<\/nav>/)?.[0]||'';
   const choices=[...navigation.matchAll(/data-place-choice="([^"]*)"[^>]*><span>([^<]+)<\/span>/g)];
-  assert.deepEqual(choices.map(choice=>choice[2]).sort(),language==='zh-CN'?['承德市','悉尼'].sort():['Chengde','Sydney']);
+  assert.deepEqual(choices.map(choice=>choice[2]),language==='zh-CN'?['承德市','悉尼']:['Chengde','Sydney'],
+    'The birthplace must precede the current home even when Sydney is extracted first');
   assert.match(navigation,language==='zh-CN'?/中国 · 河北省/:/China · Hebei/);
   assert.match(navigation,language==='zh-CN'?/澳大利亚 · 新南威尔士州/:/Australia · New South Wales/,
     `Both city and parent labels must survive returning to ${language}`);
@@ -159,6 +162,9 @@ await places.hydratePlaceJourney();
 await Promise.all(loads);
 assert.deepEqual(plain(state.project.profile.memory_places),saved,'A refreshed snapshot must preserve photo cache metadata');
 assert.equal(photoCalls.length,2,'Restoring the interview must reuse both completed searches');
+assert.deepEqual([...places.workspaceMediaOverview()
+  .matchAll(/data-place-choice="[^"]*"[^>]*><span>([^<]+)<\/span>/g)].map(match=>match[1]), ['承德市','悉尼'],
+  'Restoring the interview must retain chronological button order');
 
 Object.assign(context,{escapeHtml,formatText,translateWith,freeRecallFinished:()=>false,
   workspaceIsVisible:()=>true,workspaceTabs:()=>[],composingWorkspaceActive:()=>false,

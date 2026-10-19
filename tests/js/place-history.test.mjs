@@ -2,6 +2,7 @@ import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mergePlaces, placeHistoryKey, mapTarget} from '../../apps/web/client/memoir/places.mjs';
+import {createPlaceWorkspace} from '../../apps/web/client/memoir/place-workspace.mjs';
 const city = {place:'承德', hierarchy:['Earth','中国','河北','承德'], granularity:'city', latitude:40.97, longitude:117.93};
 const suburb = {place:'大石庙镇', hierarchy:[...city.hierarchy,'大石庙镇'], granularity:'suburb'};
 test('restored history excludes generic and detailed places even when labelled suburb', () => {
@@ -103,6 +104,23 @@ test('restored narrator wording attaches birth dates only to the matching place'
  assert.equal(corrected[0].period, '1980s');
  const current = mergePlaces(corrected, {}, [{role:'user',text:'现在生活在承德市'}]);
  assert.equal(current.find(place => place.place === '承德市').period, '');
+});
+
+test('workspace buttons order the birthplace before the current home from the live conversation', t => {
+ const previousWindow = globalThis.window;
+ globalThis.window = {addEventListener() {}, matchMedia:() => ({addEventListener() {}})};
+ t.after(() => {globalThis.window = previousWindow;});
+ const sydney = {...city, place:'悉尼', hierarchy:['Earth','澳大利亚','悉尼'], source_sequence:1};
+ const chengde = {...city, place:'承德市', hierarchy:['Earth','中国','河北省','承德市'], source_sequence:1};
+ const state = {project:{id:'p', profile:{memory_places:[sydney, chengde]}},
+  placeJourney:chengde, selectedPlace:placeHistoryKey(chengde), lifeStage:'all',
+  chat:[{role:'user', text:'我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'}]};
+ const workspace = createPlaceWorkspace({state, profile:() => state.project.profile, lifeStageText:() => '',
+  photos:{favoritePhotoWall:() => '', workspacePictureItems:() => [], renderablePictureItems:items => items}});
+ const html = workspace.workspaceMediaOverview();
+ const navigation = html.match(/<nav class="place-choices"[^]*?<\/nav>/)?.[0] || '';
+ assert.deepEqual([...navigation.matchAll(/data-place-choice="[^"]*"[^>]*><span>([^<]+)<\/span>/g)]
+  .map(match => match[1]), ['承德市','悉尼']);
 });
 
 test('renders the place history navigation in chronological order', async () => {
