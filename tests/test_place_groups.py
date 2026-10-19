@@ -79,6 +79,26 @@ def test_grouping_endpoint_is_project_owned_and_read_only(monkeypatch):
     assert client.post(url, headers=headers, json={'places': [{'place': 'unknown'}]}).status_code == 422
 
 
+def test_grouping_uses_the_ui_language_for_city_and_parent_labels(monkeypatch):
+    calls = []
+    def lookup(query, *, language=None):
+        calls.append(language)
+        return {'latitude':40.97,'longitude':117.93,'city':'承德市' if language=='zh-CN' else 'Chengde',
+            'country':'中国' if language=='zh-CN' else 'China','region':'河北省' if language=='zh-CN' else 'Hebei',
+            'partial_match':False}
+    monkeypatch.setattr(groups, 'search_place_details', lookup)
+    client=TestClient(create_app(MemoryStore()))
+    headers={'X-Account-Id':'localized-group-owner'}
+    project=client.post('/v1/projects',headers=headers,json={'mode':'self'}).json()
+    url=f"/v1/projects/{project['id']}/place-groups"
+    for language, expected in [('zh-CN','承德市'),('en-AU','Chengde')]:
+        result=client.post(url,headers=headers,json={'places':[CITY],'language':language})
+        assert result.status_code==200,result.text
+        assert result.json()['places'][0]['city']['place']==expected
+    assert calls==['zh-CN','en-AU']
+    assert client.post(url,headers=headers,json={'places':[CITY],'language':'invalid'}).status_code==422
+
+
 def test_provider_city_centre_does_not_turn_into_child_pin(monkeypatch):
     monkeypatch.setattr(groups, 'search_place_details', lambda query: {
         'latitude': CITY['latitude'], 'longitude': CITY['longitude'],
@@ -87,6 +107,38 @@ def test_provider_city_centre_does_not_turn_into_child_pin(monkeypatch):
                                                 if key not in ('latitude', 'longitude')}])
     assert result['places'][1]['pin'] is None
     assert result['places'][1]['pin_status'] == 'UNRESOLVED'
+
+
+def test_localized_grouping_preserves_city_coordinates_for_unresolved_children(monkeypatch):
+    child = {key: value for key, value in DISTRICT.items() if key not in ('latitude', 'longitude')}
+
+    def lookup(query, *, language=None):
+        return {'latitude': CITY['latitude'], 'longitude': CITY['longitude'],
+                'city': 'Chengde', 'country': 'China', 'region': 'Hebei',
+                'partial_match': False}
+
+    monkeypatch.setattr(groups, 'search_place_details', lookup)
+    result = groups.resolve_place_groups([CITY, child], language='en-AU')
+
+    assert result['places'][0]['city']['latitude'] == CITY['latitude']
+    assert result['places'][0]['city']['longitude'] == CITY['longitude']
+    assert result['places'][1]['pin'] is None
+
+
+def test_localized_city_keeps_its_own_pin_when_the_label_changes(monkeypatch):
+    sydney = {'place': 'Sydney', 'hierarchy': ['Earth', 'Australia', 'Sydney'],
+              'granularity': 'city', 'latitude': -33.8688, 'longitude': 151.2093}
+    monkeypatch.setattr(groups, 'search_place_details', lambda query, *, language=None: {
+        'latitude': sydney['latitude'], 'longitude': sydney['longitude'],
+        'city': '悉尼', 'country': '澳大利亚', 'region': '新南威尔士州',
+        'partial_match': False,
+    })
+
+    result = groups.resolve_place_groups([sydney], language='zh-CN')
+
+    assert result['places'][0]['city']['place'] == '悉尼'
+    assert result['places'][0]['pin']['place'] == 'Sydney'
+    assert result['places'][0]['pin']['latitude'] == sydney['latitude']
 
 
 def test_missing_region_does_not_split_the_same_city_or_merge_conflicting_regions(monkeypatch):

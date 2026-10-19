@@ -30,7 +30,7 @@ SKILLS = {item.name: item for item in (
     Skill('memoir-story-game', 'game', 'model', 'game_button', modes=('shape',),
         gates=('current_delivered_A_shape','explicit_button','completion','adaptation_consent','exact_originals','person_permissions','exact_candidate_review'),
         recovery='durable_job'),
-    Skill('memoir-historical-news-research', 'historical', 'provider', 'delivered_context',
+    Skill('memoir-historical-news-research', 'historical', 'provider', 'place_selection',
         gates=('rollout_flag','user_settings','public_time_place','reply_delivered','A_lease_released','persisted_claim','source_verification'),recovery='research_claim'),
     Skill('memoir-composer', 'composer', 'model', 'periodic', cadence_owner='private_draft_cadence',
         gates=('SQL_due_milestone','extraction_complete_snapshot','composition_opt_in','canonical_publication'),recovery='durable_lane'),
@@ -145,12 +145,15 @@ class ServiceWork:
         return step
 
 
-async def group_places(owner,project_id,places,*,client_turn_id=None):
+async def group_places(owner,project_id,places,*,client_turn_id=None,language=None):
     from .place_groups import resolve_place_groups
+    if language not in (None,'en-AU','zh-CN'):
+        from fastapi import HTTPException
+        raise HTTPException(422,'Unsupported place display language')
     work = ServiceWork('memoir-place-groups','place_change',owner,project_id,places,client_turn_id=client_turn_id)
     await work.update('running')
     try:
-        result = await asyncio.to_thread(resolve_place_groups,places)
+        result = await asyncio.to_thread(resolve_place_groups,places,language=language)
     except BaseException:
         await work.update('failed')
         raise
@@ -170,7 +173,7 @@ async def photo_step(owner,project_id,result,*,client_turn_id=None):
 def queue_research(publication,runtime,storage,project_id):
     """The sole after-delivery registration point; no launch while A holds a lease."""
     try:
-        admit('memoir-historical-news-research','delivered_context')
+        admit('memoir-historical-news-research','place_selection')
     except SkillUnavailable:
         return
     from .historical_news import HistoricalResearch

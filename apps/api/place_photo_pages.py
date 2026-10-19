@@ -10,7 +10,7 @@ import time
 
 from fastapi import HTTPException
 
-from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable, _decade_fallback, _location_matches, filter_place_photos, search_place_photos
+from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable, _decade_fallback, _location_matches, filter_place_photos, rank_place_photos, search_place_photos
 
 MAX_SNAPSHOTS = 32
 MAX_ACTIVE_SEARCHES = 4
@@ -54,6 +54,15 @@ class PhotoPages:
                 job['revision'] += 1
             if items:
                 save(False)
+        def discover(search_period):
+            try:
+                publish(search_place_photos(place, search_period, limit=None, on_items=publish))
+            except PhotoResearchUnavailable as error:
+                # A blocked dated source must not veto other catalogues' place references.
+                with self.lock:
+                    job['error'] = True
+                    job['failures'].extend(failure for failure in error.failures
+                                           if failure not in job['failures'])
         cached_complete = False
         try:
             cached = self.repository.load(place, period) if self.repository and not refresh else None
@@ -74,14 +83,13 @@ class PhotoPages:
                     job['cache_hit'] = True
                     return
             if not cached_complete:
-                publish(search_place_photos(place, ANY_PHOTO_DATE if job['time_relaxed'] else period,
-                                           limit=None, on_items=publish))
+                discover(ANY_PHOTO_DATE if job['time_relaxed'] else period)
             # Removing GPS accepts every source-backed locality match in the
             # dated pool. Only an empty dated pool needs another discovery pass.
-            if not job['items']:
+            if not job['items'] and not job['time_relaxed'] and period != ANY_PHOTO_DATE:
                 cached_complete = False
                 job['time_relaxed'] = True
-                publish(search_place_photos(place, ANY_PHOTO_DATE, limit=None, on_items=publish))
+                discover(ANY_PHOTO_DATE)
         except Exception as error:
             with self.lock:
                 job['error'] = True
@@ -94,7 +102,10 @@ class PhotoPages:
                 job['done'].set()
                 job['expires'] = time.monotonic() + (0 if job['error'] and not job['items'] else SNAPSHOT_TTL)
 
-    def _snapshot(self, owner, place, period, cursor, *, refresh=False, latitude=None, longitude=None):
+    def _snapshot(self, owner, place, period, cursor, *, refresh=False, latitude=None, longitude=None,
+                  context_year=None):
+        if context_year is not None and (type(context_year) is not int or not 1800 <= context_year <= 2099):
+            raise HTTPException(status_code=422, detail='Invalid photo context year')
         if (latitude is None) != (longitude is None):
             raise HTTPException(status_code=422, detail='Both photo search coordinates are required')
         from .place_photos import _coordinates
@@ -104,7 +115,8 @@ class PhotoPages:
         from .place_photo_repository import search_key
         search_query = (place.strip().casefold(), period.strip().casefold(),
                         search_key(place, period))
-        query = (*search_query, latitude, longitude)
+        # Context changes ordering, not the shared place/period discovery pool.
+        query = (*search_query, latitude, longitude, context_year)
         with self.lock:
             now = time.monotonic()
             for entries in (self.snapshots, self.searches):
@@ -151,7 +163,7 @@ class PhotoPages:
             token = secrets.token_urlsafe(18)
             self.snapshots[token] = {'owner': owner, 'query': query, 'job': job,
                                      'reused':reused,
-                                     'center': center, 'period': period, 'place': place,
+                                     'center': center, 'period': period, 'place': place, 'context_year': context_year,
                                      'expires': now + SNAPSHOT_TTL}
             while len(self.snapshots) > MAX_SNAPSHOTS:
                 self.snapshots.popitem(last=False)
@@ -169,6 +181,7 @@ class PhotoPages:
             if not matches and job['time_relaxed']:
                 matches = filter_place_photos(job['items'], ANY_PHOTO_DATE)
                 fallback = 'gps_time'
+        matches = rank_place_photos(matches, period, center, snapshot['context_year'])
         return [{**item, 'search_fallback': fallback, 'requested_period': period,
                  'search_place': snapshot['place'],
                  **({'period_match': 'any_time'} if fallback == 'gps_time' else {})}
@@ -184,6 +197,7 @@ class PhotoPages:
                 'READY' if len(items) >= MAX_RESULTS else 'PARTIAL' if items else
                 'UNAVAILABLE' if job['error'] else 'NO_MATCH')
             return {'items': items, 'count': count, 'target_count': MAX_RESULTS,
+                    'photo_order': [item['asset_id'] for item in matches if item.get('asset_id')],
                     'job_id':token,'cached':bool(snapshot.get('reused') or job.get('cache_hit')),
                     'search_center': deepcopy(snapshot['center']),
                     'shortfall': max(0, MAX_RESULTS - count), 'status': status,
@@ -193,16 +207,16 @@ class PhotoPages:
                     if not searching and offset + len(items) < count else None}
 
     def page(self, owner: str, place: str, period: str, cursor: str | None, *, refresh=False,
-             latitude=None, longitude=None) -> dict:
+             latitude=None, longitude=None, context_year=None) -> dict:
         token, job, offset, snapshot = self._snapshot(owner, place, period, cursor, refresh=refresh,
-                                           latitude=latitude, longitude=longitude)
+                                           latitude=latitude, longitude=longitude, context_year=context_year)
         job['done'].wait()
         return self._page(token, job, offset, snapshot)
 
     async def stream(self, owner: str, place: str, period: str, cursor: str | None, *, snapshot=None,
-                     latitude=None, longitude=None):
+                     latitude=None, longitude=None, context_year=None):
         token, job, offset, scope = snapshot or self._snapshot(owner, place, period, cursor,
-                                                       latitude=latitude, longitude=longitude)
+                                                       latitude=latitude, longitude=longitude, context_year=context_year)
         # Flush a response immediately; photos follow as originals are verified.
         if not job['done'].is_set():
             yield json.dumps({'items': [], 'status': 'SEARCHING', 'searching': True,'job_id':token,'cached':False}) + '\n'

@@ -248,12 +248,15 @@ class Fetcher:
         self.robots: dict[str, RobotFileParser | bool] = {}
         self.last_fetch: dict[str, float] = {}
 
-    def robot_check(self, url: str, hosts: set[str]) -> None:
+    def robot_check(self, url: str, hosts: set[str], *, deadline: float | None = None) -> None:
         p, host, _ = valid_url(url)
         origin = f"{p.scheme}://{p.netloc}"
         if origin not in self.robots:
+            budget = min(20, deadline - time.monotonic()) if deadline is not None else 20
+            if budget <= 0:
+                fail('Fetch deadline exceeded')
             status, _, _, body = self.fetch(origin + "/robots.txt", 256_000, hosts,
-                                             check_robots=False, deadline_seconds=20)
+                                             check_robots=False, deadline_seconds=budget)
             if status in {404, 410}:
                 self.robots[origin] = True
             elif status == 200:
@@ -275,19 +278,26 @@ class Fetcher:
             fail("Source requires a longer crawl delay; use a permitted manual route")
         remaining = delay - (time.monotonic() - self.last_fetch.get(host, 0))
         if remaining > 0:
+            if deadline is not None and remaining >= deadline - time.monotonic():
+                fail('Fetch deadline exceeded')
             time.sleep(remaining)
 
     def fetch(self, url: str, max_bytes: int, hosts: set[str], *, check_robots: bool = True,
-              deadline_seconds: float = 30) -> tuple[int, str, dict, bytes]:
+              deadline_seconds: float = 30, allow_public_redirects: bool = False) -> tuple[int, str, dict, bytes]:
         hosts = {h.lower().rstrip(".") for h in hosts}
         deadline = time.monotonic() + deadline_seconds
         current = url
         for _ in range(5):
             p, host, port = valid_url(current)
             if host not in hosts:
-                fail(f"Host not in the explicit allowed-host list: {host}")
+                if not allow_public_redirects:
+                    fail(f"Host not in the explicit allowed-host list: {host}")
+                # Discovery redirects (including Baidu) still validate DNS and
+                # robots for every new origin before making a request.
+                public_addresses(host, port)
+                hosts.add(host)
             if check_robots:
-                self.robot_check(current, hosts)
+                self.robot_check(current, hosts, deadline=deadline)
             ips = public_addresses(host, port)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -474,6 +484,8 @@ def _crawl4ai_place_groups(place: str) -> list[list[str]]:
                 ["承德", "Chengde"]]
     if re.fullmatch(r"(?:河北(?:省)?\s*)?承德(?:市)?|Chengde", target, re.I):
         return [list(dict.fromkeys([target, "Chengde", "承德"]))]
+    if re.fullmatch(r"Sydney|悉尼", target, re.I):
+        return [list(dict.fromkeys([target, "Sydney", "悉尼"]))] + ([[parts[1]]] if len(parts) > 1 else [])
     # Keep a parent locality as a separate required search term, never an
     # alternative to the actual landmark or neighbourhood being requested.
     return [[target]] + ([[parts[1]]] if len(parts) > 1 else [])
@@ -756,6 +768,15 @@ def _crawl4ai_source_page(source_url: str) -> dict:
     return _crawl4ai_run(fetch())
 
 
+def _crawl4ai_photo_location(photo: dict) -> str:
+    location = photo.get('contentLocation') or photo.get('spatialCoverage')
+    if isinstance(location, dict):
+        address = location.get('address')
+        location = (location.get('name') or location.get('addressLocality')
+                    or (address.get('addressLocality') if isinstance(address, dict) else ''))
+    return _text(location) if isinstance(location, str) else ''
+
+
 def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]:
     source_url = page["url"]
     parsed = PageParser(source_url)
@@ -763,8 +784,7 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     record = parsed.output()
     title = record.get("title") or page.get("title", "")
     excerpt = record.get("text_excerpt") or page.get("text", "")
-    if not _crawl4ai_location_matches(" ".join([title, excerpt[:2000]]), request["place"]):
-        return []
+    page_matches = _crawl4ai_location_matches(" ".join([title, excerpt[:2000]]), request["place"])
     images = []
     for item in page.get("media", []) if isinstance(page.get("media"), list) else []:
         if isinstance(item, dict):
@@ -773,7 +793,7 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     for item in record["image_candidates"]:
         for url in item["candidate_urls"]:
             images.append({"url": url, "alt": item["alt"], "description": item["figure_text"]})
-    capture_metadata = {}
+    capture_metadata, location_metadata = {}, {}
     def visit(node, depth=0):
         if depth > 10:
             return
@@ -785,6 +805,9 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
             if set(kinds).intersection({"Photograph", "ImageObject"}):
                 url = _crawl4ai_image_url(node.get("contentUrl"))
                 taken = node.get("dateTaken") or node.get("dateCreated")
+                location = _crawl4ai_photo_location(node)
+                if url and location:
+                    location_metadata.setdefault(url, []).append(location)
                 if url and (isinstance(taken, str) or request['temporal'].get('mode') == 'any_time'):
                     if isinstance(taken, str):
                         capture_metadata[url] = taken
@@ -806,10 +829,17 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
         if not url: continue
         alt, caption = _text(image.get("alt")), _text(image.get("description"))
         if NON_PHOTO.search(" ".join([alt, caption])): continue
-        if alt and not (_crawl4ai_location_matches(alt, request["place"]) or _crawl4ai_scene_date(alt, request["temporal"])):
-            continue
-        if not alt and caption and not (_crawl4ai_location_matches(caption, request["place"]) or _crawl4ai_scene_date(caption, request["temporal"])):
-            continue
+        locations = location_metadata.get(url)
+        if locations:
+            if not all(_crawl4ai_location_matches(location, request['place']) for location in locations):
+                continue
+        else:
+            if not page_matches:
+                continue
+            if alt and not (_crawl4ai_location_matches(alt, request["place"]) or _crawl4ai_scene_date(alt, request["temporal"])):
+                continue
+            if not alt and caption and not (_crawl4ai_location_matches(caption, request["place"]) or _crawl4ai_scene_date(caption, request["temporal"])):
+                continue
         # Repeated article-title alt text is not an image-specific date assertion.
         assertion = capture_metadata.get(url) or " ".join(value for value in (alt, caption) if value and value != title)
         scene = _crawl4ai_scene_date(assertion, request["temporal"])
@@ -824,7 +854,8 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
                 continue
         if scene and url in capture_metadata: scene["basis"] = "provider_date_taken"
         unique[url] = {"image_url": url, "observed_image_url": observed, "title": (alt or caption or title)[:1000],
-                       "scene_date": scene, "source_excerpt": ("Place: " + title + "; Image capture assertion: " + assertion)[:1200]}
+                       "scene_date": scene, "source_excerpt": ("Place: " + ("; ".join(locations) if locations else title)
+                       + "; Image capture assertion: " + assertion)[:1200]}
     return list(unique.values())
 
 
@@ -1099,6 +1130,7 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
         records.extend({"@type": "Photograph", "caption": caption, "dateCreated": caption,
                         "contentUrl": url, "caption_record": True} for url in item["candidate_urls"][:1])
     grouped = {}
+    image_licences = {}
     for item in records:
         if not isinstance(item, dict):
             continue
@@ -1112,6 +1144,9 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
         image = _crawl4ai_image_url(item.get("contentUrl"))
         if image:
             grouped.setdefault(image, []).append((fields, item.get("caption_record", False)))
+            licence = item.get('license')
+            if isinstance(licence, str) and licence.strip():
+                image_licences.setdefault(image, set()).add(licence.strip())
     images = []
     for image, entries in grouped.items():
         caption = " ".join(fields[key] for fields, _ in entries
@@ -1140,7 +1175,8 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
             # results with an evidence record exceeding the persisted schema.
             continue
         images.append({"image_url": image, "title": caption, "source_page_url": final,
-                       "scene_date": scene, "source_excerpt": excerpt})
+                       "scene_date": scene, "source_excerpt": excerpt,
+                       "license_url": next(iter(image_licences[image])) if len(image_licences.get(image, ())) == 1 else ''})
     return images
 
 

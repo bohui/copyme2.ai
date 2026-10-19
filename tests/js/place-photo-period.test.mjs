@@ -40,6 +40,8 @@ test('explicit calendar period takes priority and remains grounded', () => {
   assert.equal(context.photoSearchPeriod({place: '承德市', period: '1983年4月'}, {when: '小时候'}), '1983年4月');
   assert.equal(context.photoSearchPeriod({place: '承德市', period: ''}, {where: '河北省承德市', when: '1980s'}), '1980s');
   assert.equal(context.photoSearchPeriod({place: '悉尼', period: ''}, {where: '承德市', when: '1980s'}), '');
+  assert.equal(context.photoSearchPeriod({place: '承德市', research_period: '1980s'}, {}), '1980s');
+  assert.equal(context.photoSearchPeriod({place: '悉尼', research_period: ''}, {when: '1980s'}), '');
 });
 
 test('photo research reports real request progress and an unavailable provider fails the step', async () => {
@@ -100,14 +102,16 @@ test('photo batches persist after being painted optimistically', async () => {
 test('selecting a restored place starts its own photo request', () => {
   const entry = {place: '承德市', granularity: 'city', period: '1983年4月'};
   const calls = [];
+  const mapped = [];
   const state = {project: {id: 'project'}};
   const context = vm.createContext({state, profile: () => ({memory_places: [entry]}),
     placeHistoryKey: place => place.place, loadPlacePictures: (place, project) => calls.push([place, project]),
-    render: () => {},
+    render: () => {},resolvePlaceMap: place => mapped.push(place),
   });
   vm.runInContext(source.match(/function selectPlace\([^]*?\n\}/)[0], context);
   context.selectPlace('承德市');
   assert.equal(state.selectedPlace, '承德市');
   assert.equal(calls[0][0], entry);
   assert.equal(calls[0][1], 'project');
+  assert.equal(mapped[0], entry);
 });

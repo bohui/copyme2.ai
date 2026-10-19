@@ -3608,6 +3608,8 @@ CREATE FUNCTION public.begin_user_historical_news(p_project_id text, p_hypothesi
 declare project public.user_memoir_project%rowtype; rev text; job public.user_historical_news_job%rowtype;
 begin
  if auth.uid() is null then raise exception 'authenticated user required' using errcode='42501'; end if;
+ perform 1 from public.user_agent_turn_lease where user_id=auth.uid() for share;
+ if exists(select 1 from public.user_agent_turn_lease where user_id=auth.uid() and expires_at>clock_timestamp()) then return null; end if;
  select * into project from public.user_memoir_project where user_id=auth.uid() and project_id=p_project_id for update;
  if not found then raise exception 'project unavailable' using errcode='42501'; end if;
  if exists(select 1 from public.user_historical_news_state where user_id=auth.uid() and project_id=p_project_id and not enabled) then return null; end if;
@@ -3618,7 +3620,7 @@ begin
    exists(select 1 from jsonb_object_keys(p_hypothesis) k where k not in ('start','end','place','country','granularity','tentative','time_basis','age_interval')) or
    not exists(select 1 from (values ('New York, USA','USA'),('New York City, USA','USA'),('New York State, USA','USA'),('Boston, USA','USA'),
      ('Sydney, Australia','Australia'),('Perth, Australia','Australia'),('Melbourne, Australia','Australia'),('Chengdu, China','China'),
-     ('Kunming, China','China'),('Beijing, China','China'),('成都, 中国','中国'),('昆明, 中国','中国'),('北京, 中国','中国'),
+     ('Kunming, China','China'),('Beijing, China','China'),('Chengde, China','China'),('承德, 中国','中国'),('成都, 中国','中国'),('昆明, 中国','中国'),('北京, 中国','中国'),
      ('纽约, 美国','美国'),('悉尼, 澳大利亚','澳大利亚')) public_place(place,country)
      where place=p_hypothesis->>'place' and country=p_hypothesis->>'country') or
    (p_hypothesis->>'end')::integer>extract(year from current_date)::integer or
@@ -3627,10 +3629,10 @@ begin
    (p_hypothesis->>'end')::integer-(p_hypothesis->>'start')::integer>15 then raise exception 'invalid news hypothesis'; end if;
  rev:=public.historical_news_revision(auth.uid(),p_project_id);
  if p_snapshot->>'context_revision' is distinct from rev or (p_snapshot->>'source_sequence')::bigint is distinct from project.source_sequence then return null; end if;
- update public.user_historical_news_job set status=case when context_revision=rev then 'unavailable' else 'cancelled' end where user_id=auth.uid() and project_id=p_project_id and status='running'
-   and (expires_at<=clock_timestamp() or context_revision<>rev);
+ update public.user_historical_news_job set status=case when context_revision=rev and hypothesis=p_hypothesis then 'unavailable' else 'cancelled' end where user_id=auth.uid() and project_id=p_project_id and status='running'
+   and (expires_at<=clock_timestamp() or context_revision<>rev or hypothesis<>p_hypothesis);
  if exists(select 1 from public.user_historical_news_job where user_id=auth.uid() and project_id=p_project_id
-   and context_revision=rev and (status='running' or status in ('ready','empty','unavailable') and expires_at>clock_timestamp()-interval '24 hours')) then return null; end if;
+   and context_revision=rev and hypothesis=p_hypothesis and (status='running' or status in ('ready','empty','unavailable') and expires_at>clock_timestamp()-interval '24 hours')) then return null; end if;
  insert into public.user_historical_news_job(user_id,project_id,context_revision,source_sequence,status,expires_at,hypothesis)
  values(auth.uid(),p_project_id,rev,project.source_sequence,'running',clock_timestamp()+interval '45 seconds',p_hypothesis) returning * into job;
  return to_jsonb(job)-'user_id';

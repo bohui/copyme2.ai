@@ -13,12 +13,14 @@ from zoneinfo import ZoneInfo
 
 import httpx
 
+from .place_photo_sources import usage_permissions
+
 MAX_RESULTS = 10
 DISCOVERY_LIMIT = 50
 SEARCH_LIMIT = 50
 PHOTO_RADIUS_KM = 20
 PHOTO_YEAR_TOLERANCE = 10
-PHOTO_SEARCH_POLICY = 'place-fallback-gps-time-v9'
+PHOTO_SEARCH_POLICY = 'place-source-rights-v12'
 ANY_PHOTO_DATE = 'any-date'
 GOOGLE_CSE_ENDPOINT = 'https://customsearch.googleapis.com/customsearch/v1'
 GOOGLE_CSE_PAGE_SIZE = 10
@@ -185,6 +187,8 @@ def filter_place_photos(items: list[dict], period: str, center: dict | None = No
     for item in items:
         if not isinstance(item, dict):
             continue
+        if item.get('allowed_actions', {}).get('embed') is False:
+            continue
         same_decade = (item.get('period_match') == 'decade' and item.get('requested_period') == period
             and item.get('matched_period') == _decade_fallback(period)
             and _date_matches(item.get('date_expression', ''), item['matched_period'], tolerance=0))
@@ -257,7 +261,7 @@ def _commons(place: str, period: str) -> list[dict]:
         data = _get('https://commons.wikimedia.org/w/api.php', {
             'action': 'query', 'format': 'json', 'generator': 'search',
             'gsrsearch': query, 'gsrnamespace': 6, 'gsrlimit': SEARCH_LIMIT,
-            'prop': 'imageinfo', 'iiprop': 'url|mime|extmetadata|sha1', 'iiurlwidth': 640,
+            'prop': 'imageinfo', 'iiprop': 'url|size|mime|extmetadata|sha1', 'iiurlwidth': 640,
         })
         for page in data.get('query', {}).get('pages', {}).values():
             info = (page.get('imageinfo') or [{}])[0]
@@ -270,10 +274,13 @@ def _commons(place: str, period: str) -> list[dict]:
             if NON_PHOTO.search(caption) or not _location_matches(caption, place) or not _date_matches(date, period):
                 continue
             license_name = value('LicenseShortName')
-            if license_name not in {'CC0', 'CC0 1.0', 'Public domain', 'CC BY 4.0', 'CC BY-SA 4.0'}:
+            if value('Restrictions'):
+                continue  # File-level restrictions require an individual review.
+            if (not _google_license({'license': value('LicenseUrl')})
+                    and license_name not in {'CC0', 'CC0 1.0', 'Public domain', 'CC BY 4.0', 'CC BY-SA 4.0'}):
                 continue
             image, source = info.get('thumburl', ''), info.get('descriptionurl', '')
-            if (not _https_host(image, {'upload.wikimedia.org'})
+            if (not _https_host(image, {'upload.wikimedia.org', 'thumb.wikimedia.org'})
                     or not _https_host(source, {'commons.wikimedia.org'})
                     or info.get('mime') not in {'image/jpeg', 'image/png', 'image/webp'}):
                 continue
@@ -282,6 +289,9 @@ def _commons(place: str, period: str) -> list[dict]:
                 'title': title, 'image_url': image, 'source_url': source, 'location': place,
                 'location_evidence': caption, 'attribution': value('Artist'), 'license': license_name,
                 'license_url': value('LicenseUrl'), 'date_expression': date,
+                'date_basis': 'Wikimedia DateTimeOriginal',
+                'width': info.get('width'), 'height': info.get('height'),
+                'usage_permissions': usage_permissions(True),
                 'original_url': info.get('url', image), 'content_hash': info.get('sha1', ''),
                 **(_coordinates({'GPSLatitude': value('GPSLatitude'), 'GPSLongitude': value('GPSLongitude')}) or {}),
                 'allowed_actions': {'embed': True, 'download': False, 'print': False},
@@ -524,6 +534,7 @@ def _google_cse(place: str, period: str, *, limit: int = MAX_RESULTS) -> list[di
             asset_id = 'google-' + hashlib.sha256(f'{source}\n{image}'.encode('utf-8')).hexdigest()[:24]
             items.append({
                 'asset_id': asset_id, 'kind': 'image', 'title': title or 'Google image result',
+                'providers': ['google', 'cse'],
                 'image_url': image, 'source_url': source, 'location': place,
                 'location_evidence': caption, 'attribution': _google_creator(result) or _text(result.get('displayLink')) or source,
                 'license': license_name, 'license_url': license_url,
@@ -554,6 +565,8 @@ def _place_terms(place: str) -> list[str]:
     # Keep aliases geographically narrow: Jehol also named a much larger region.
     if re.search(r"\bchengde\b|承德", place, re.I):
         terms += ['Chengde', '承德']
+    if re.fullmatch(r'Sydney|悉尼', place.strip(), re.I):
+        terms += ['Sydney', '悉尼']
     return list(dict.fromkeys(terms))
 
 
@@ -733,9 +746,28 @@ def _deduplicate(items: list[dict]) -> list[dict]:
 def _mix_sources(items: list[dict]) -> list[dict]:
     groups = {}
     for item in items:
-        host = (urlparse(item['source_url']).hostname or '').removeprefix('www.')
+        host = (urlparse(item.get('source_url', '')).hostname or '').removeprefix('www.')
         groups.setdefault(host, []).append(item)
     return [item for row in zip_longest(*groups.values()) for item in row if item is not None]
+
+
+def rank_place_photos(items, period, center=None, context_year=None):
+    """Rank source-backed capture years, then GPS proximity; never invent dates."""
+    target = ((context_year, context_year) if context_year is not None
+              else _period_bounds(period, expand_bare_year=False))
+    if target is None:
+        year = datetime.now(ZoneInfo('Australia/Sydney')).year
+        target = (year, year)
+
+    def relevance(item):
+        captured = _period_bounds(item.get('date_expression', ''), expand_bare_year=False)
+        gap = max(target[0] - captured[1], captured[0] - target[1], 0) if captured else math.inf
+        precision = captured[1] - captured[0] if captured else math.inf
+        point = _coordinates(item)
+        distance = _distance_km(center, point) if center and point else math.inf
+        return gap, precision, distance
+
+    return sorted(_mix_sources(items), key=relevance)
 
 
 def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, on_items=None,
@@ -745,28 +777,36 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
     items, errors = [], []
     # Independent catalogues overlap their network waits; one failure must not
     # hide the other catalogue's usable photographs.
-    providers = [('commons', _commons), ('loc', _loc)]
-    if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
-        providers.insert(0, ('google', lambda p, t: _google_cse(p, t, limit=DISCOVERY_LIMIT if limit is None else limit)))
-    elif _configured_env('SERPAPI_KEY'):
+    serpapi = bool(_configured_env('SERPAPI_KEY'))
+    providers = [('commons', _commons)] if serpapi else [('commons', _commons), ('loc', _loc)]
+    if serpapi:
         providers.insert(0, ('google', _google_serpapi))
+    if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
+        def cse(p, t, *, on_items=None):
+            try:
+                return _google_cse(p, t, limit=DISCOVERY_LIMIT if limit is None else limit)
+            except httpx.HTTPError:
+                if skip_google_browser:
+                    raise
+                return _google_browser(p, t, on_items=on_items)
+        providers.insert(0, ('google', cse))
     elif not skip_google_browser and (_configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID')):
         providers.insert(0, ('google', _google_browser))
-    providers.insert(0, ('flickr', _flickr if _configured_env('FLICKR_API_KEY') else _flickr_browser))
+    if not serpapi:
+        providers.insert(0, ('flickr', _flickr if _configured_env('FLICKR_API_KEY') else _flickr_browser))
     if _configured_env('MEMORY_SPARK_PHOTO_WEB_SEARCH').lower() in {'1', 'true', 'yes'}:
         providers.insert(0, ('llm_web_search', _llm_web_search))
     def run(provider):
         def matching(found):
             return [item for item in found
-                    if _location_matches(item.get('location_evidence') or item.get('title', ''), place)
+                    if item.get('allowed_actions', {}).get('embed') is not False
+                    and _location_matches(item.get('location_evidence') or item.get('title', ''), place)
                     and _date_matches(item.get('date_expression', ''), period)]
         def publish(found):
             accepted = matching(found)
             if accepted and on_items:
                 on_items(_deduplicate(accepted))
-        if on_items and (provider in (_google_browser, _flickr_browser)
-                         or (provider is _google_serpapi and
-                             _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'})):
+        if on_items and provider in (_google_browser, _flickr_browser, _google_serpapi):
             found = provider(place, period, on_items=publish)
         else:
             found = matching(provider(place, period))
@@ -848,78 +888,11 @@ def search_place_photos(place: str, period: str = '', *, limit: int | None = MAX
 
 
 def _google_serpapi(place: str, period: str, *, on_items=None) -> list[dict]:
-    if _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}:
-        return _google_serpapi_expanded(place, period, on_items=on_items)
-    import json
-    from pathlib import Path
-    import subprocess
-    import sys
-    from threading import Lock
-    from .place_photo_browser import _research, _source_items, MAX_SOURCE_PAGES
-    helper = _research()
-    query = _google_query(place, period)
-    bounds = _photo_period_bounds(period)
-    if bounds or _is_historical_period(period):
-        temporal = ({'mode': 'historical_range', 'start': f'{bounds[0]}-01-01', 'end': f'{bounds[1]}-12-31'}
-                    if bounds else {'mode': 'historical_unspecified'})
-        query = helper._crawl4ai_query({'place': place, 'temporal': temporal})
-    # Reuse the skill's credential-redacting provider in its bounded process.
-    try:
-        result = subprocess.run([sys.executable, str(Path(helper.__file__).with_name('photo_search.py')),
-            'worker', 'serpapi'], input=json.dumps({'query': query, 'refresh': True}),
-            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=50, check=True)
-        data = next(json.loads(line.removeprefix('PLACE_PHOTO_RESULT:'))
-                    for line in reversed(result.stdout.splitlines()) if line.startswith('PLACE_PHOTO_RESULT:'))
-    except subprocess.TimeoutExpired:
-        raise PhotoResearchUnavailable('google', 'timeout') from None
-    except (subprocess.SubprocessError, OSError, StopIteration, ValueError):
-        raise PhotoResearchUnavailable('google', 'invalid_response') from None
-    if not isinstance(data, dict) or not isinstance(data.get('cards', []), list):
-        raise PhotoResearchUnavailable('google', 'invalid_response')
-    if data.get('status') != 'success':
-        reason = data.get('error', '')
-        if reason == 'TimeoutError':
-            raise PhotoResearchUnavailable('google', 'timeout')
-        raise PhotoResearchUnavailable('google', reason if isinstance(reason, str) and re.fullmatch(r'http_\d{3}', reason) else 'unavailable')
-    sources = {}
-    for card in data.get('cards', []):
-        if not isinstance(card, dict):
-            continue
-        if not _location_matches(card.get('text', ''), place):
-            continue
-        source = card.get('source_url')
-        if not isinstance(source, str) or source in sources:
-            continue
-        sources[source] = card
-        if len(sources) >= MAX_SOURCE_PAGES:
-            break
-    # Share robots rules and crawl-delay timing across pages of each source.
-    fetchers = {urlparse(source).netloc: (Lock(), helper.Fetcher()) for source in sources}
-    def inspect(source):
-        _, host, port = helper.valid_url(source)
-        helper.public_addresses(host, port)
-        lock, fetcher = fetchers[urlparse(source).netloc]
-        with lock:
-            status, final, headers, body = fetcher.fetch(source, helper.MAX_PAGE_BYTES, {host}, deadline_seconds=15)
-        if status != 200 or headers.get('content-type', '').split(';', 1)[0] not in {'text/html', 'application/xhtml+xml'}:
-            raise ValueError('Source unavailable')
-        return [{**item, 'providers': ['google', 'serpapi']} for item in
-            _source_items(body.decode('utf-8', errors='replace'), final, place, period)]
-    items, failed = [], False
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        for future in as_completed([pool.submit(inspect, source) for source in sources]):
-            try:
-                items.extend(future.result())
-            except (helper.ResearchError, OSError, ValueError, http.client.HTTPException):
-                failed = True
-    if not items and failed:
-        raise PhotoResearchUnavailable('google', 'source_unavailable')
-    return _deduplicate(items)
-
+    return _google_serpapi_expanded(place, period, on_items=on_items)
 
 
 def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[dict]:
-    """Expand sparse historical Google Images discovery with bounded original-page checks.
+    """Discover images and archive records, then inspect bounded original pages.
 
     Keep the existing SerpAPI provider and its fresh-search contract. Discovery
     snippets are leads only: dates and place evidence come from inspected pages.
@@ -931,7 +904,8 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
     import sys
     import time
     from threading import Lock
-    from .place_photo_browser import _research, _source_items
+    from .place_photo_browser import _item_locality_matches, _research, _source_items
+    from .place_photo_sources import discovery_queries
     from .place_photo_expansion import (
         EXPANDED_SEARCH_SECONDS, MAX_EXPANDED_SOURCE_PAGES,
         MAX_SOURCE_LEADS_PER_QUERY, historical_queries,
@@ -945,8 +919,16 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
                      'end': f'{bounds[1]}-12-31'} if bounds
                     else {'mode': 'historical_unspecified'})
         primary = helper._crawl4ai_query({'place': place, 'temporal': temporal})
-    queries = historical_queries(primary, helper._crawl4ai_place_query(place), bounds)
+    queries = discovery_queries(place, period, primary)
+    expanded = _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}
+    if expanded:
+        queries += [('google_images', query) for query in historical_queries(
+            primary, helper._crawl4ai_place_query(place), bounds)[1:]]
+        queries = list(dict.fromkeys(queries))[:7]
+    source_budget = MAX_EXPANDED_SOURCE_PAGES if expanded else 12
+    per_query_sources = MAX_SOURCE_LEADS_PER_QUERY if expanded else 4
     deadline = time.monotonic() + EXPANDED_SEARCH_SECONDS
+    query_deadline = deadline
     inspected, items, failures = set(), [], []
     fetchers = {}
 
@@ -955,12 +937,12 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
         helper.public_addresses(host, port)
         lock, fetcher = fetchers[urlparse(source).netloc]
         with lock:
-            remaining = deadline - time.monotonic()
+            remaining = min(deadline, query_deadline) - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError()
             status, final, headers, body = fetcher.fetch(
                 source, helper.MAX_PAGE_BYTES, {host},
-                deadline_seconds=min(15, remaining),
+                deadline_seconds=min(8, remaining), allow_public_redirects=True,
             )
         if (status != 200 or headers.get('content-type', '').split(';', 1)[0]
                 not in {'text/html', 'application/xhtml+xml'}):
@@ -977,19 +959,12 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
         )
         page_title = _text(page.get('title'))
         if location_context:
-            def matches_requested_locality(value, requested):
-                # Explicit source locality must retain the geographic anchor.
-                # For "离宫, 承德市", a generic "summer palace" landmark alias
-                # does not establish Chengde and must never admit Beijing.
-                groups = helper._crawl4ai_place_groups(requested)
-                if len(groups) > 1:
-                    return any(helper._crawl4ai_location_matches(value, anchor)
-                               for anchor in groups[-1])
-                return helper._crawl4ai_location_matches(value, requested)
-            if conflicting_item_locality(page, place, matches_requested_locality):
+            if conflicting_item_locality(page, place, _item_locality_matches):
                 return [], []
-        photos = [{**item, 'providers': ['google', 'serpapi']} for item in
-                  _source_items(markup, final, place, period, location_context=location_context)]
+        photos = [{**item, 'providers': ['baidu' if engine == 'baidu' else 'google', 'serpapi'],
+                   'discovery_engine': engine} for item in
+                  _source_items(markup, final, place, period, location_context=location_context)
+                  if item['allowed_actions']['embed']]
         # Fingerprint *before* declaring the ten-photo target complete. Copies
         # rehosted under different URLs must not use up the target count.
         from .place_photo_fingerprints import image_fingerprint
@@ -1022,8 +997,8 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
                     break
         return photos, leads
 
-    for query in queries:
-        if len(items) >= MAX_RESULTS or len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
+    for engine, query in queries:
+        if len(items) >= MAX_RESULTS or len(inspected) >= source_budget:
             break
         remaining = deadline - time.monotonic()
         if remaining <= 0:
@@ -1032,9 +1007,9 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
         try:
             result = subprocess.run(
                 [sys.executable, str(Path(helper.__file__).with_name('photo_search.py')), 'worker', 'serpapi'],
-                input=json.dumps({'query': query, 'refresh': True}),
+                input=json.dumps({'query': query, 'engine': engine, 'refresh': True}),
                 stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                text=True, timeout=min(50, remaining), check=True,
+                text=True, timeout=min(30, remaining), check=True,
             )
             data = next(json.loads(line.removeprefix('PLACE_PHOTO_RESULT:'))
                         for line in reversed(result.stdout.splitlines())
@@ -1056,18 +1031,19 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
             failures.append({'provider': 'google', 'reason': reason})
             break
 
+        query_deadline = min(deadline, time.monotonic() + (30 if expanded else 15))
         sources = []
         for card in data.get('cards', []):
-            if not isinstance(card, dict) or not _location_matches(_text(card.get('text')), place):
+            if not isinstance(card, dict):
                 continue
             source = card.get('source_url')
             if not isinstance(source, str) or not source or source in inspected:
                 continue
-            if len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
+            if len(inspected) >= source_budget:
                 break
             inspected.add(source)  # Failed and blocked pages also count against the cap.
             sources.append(source)
-            if len(sources) >= MAX_SOURCE_LEADS_PER_QUERY:
+            if len(sources) >= per_query_sources:
                 break  # Leave room for later queries and promising linked albums.
         for source in sources:
             fetchers.setdefault(urlparse(source).netloc, (Lock(), helper.Fetcher()))
@@ -1075,7 +1051,7 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
         # same-host collections. Failed, repeated and blocked leads consume
         # the same page budget; one source may yield several different photos.
         pending = [(source, 0, '') for source in sources]
-        while pending and len(items) < MAX_RESULTS and time.monotonic() < deadline:
+        while pending and len(items) < MAX_RESULTS and time.monotonic() < query_deadline:
             batch, pending = pending[:4], pending[4:]
             with ThreadPoolExecutor(max_workers=4) as executor:
                 futures = [executor.submit(inspect, source, context)
@@ -1091,7 +1067,7 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
                         if depth >= 2 or len(items) >= MAX_RESULTS:
                             continue
                         for url, album_context in links:
-                            if len(inspected) >= MAX_EXPANDED_SOURCE_PAGES:
+                            if len(inspected) >= source_budget:
                                 break
                             if url in inspected:
                                 continue
@@ -1137,6 +1113,9 @@ def _llm_web_search(place: str, period: str) -> list[dict]:
                 source_failed = True
                 continue
             for image in images:
+                licence = _google_license({'license': image.get('license_url')})
+                if not licence:
+                    continue
                 scene = image['scene_date']
                 expression = scene['start'] if scene else ''
                 if scene and scene['precision'] == 'month':
@@ -1154,7 +1133,8 @@ def _llm_web_search(place: str, period: str) -> list[dict]:
                     'date_expression': expression, 'scene_date_range': scene,
                     'date_basis': 'Source capture metadata' if scene else 'Unknown capture date',
                     'attribution': urlparse(image['source_page_url']).hostname,
-                    'license': 'Unknown', 'memory_reference_only': True,
+                    'license': licence[0], 'license_url': licence[1],
+                    'usage_permissions': usage_permissions(True), 'memory_reference_only': True,
                     'providers': ['llm_web_search'], 'discovery_origins': [origin],
                     'allowed_actions': {'embed': True, 'memory_reference': True, 'download': False,
                                         'print': False, 'publish': False},

@@ -2,6 +2,7 @@ import {readMemoirClientSource} from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {applyDerivedWorkspace} from '../../apps/web/client/memoir/derived-workspace.mjs';
 
 const source = readMemoirClientSource();
 const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0];
@@ -92,6 +93,21 @@ for (const recording of ['recording', 'storyRecording', 'voiceMode']) test(`prof
   assert.equal(h.state.audioTranscript, 'An unfinished voice answer');
   assert.equal(h.renders.length, 0);
   assert.equal(menus, 1);
+});
+
+test('background catch-up requests photos for both locations with their separate research periods', async () => {
+  const h = harness();
+  const calls = [];
+  Object.assign(h.context,{applyDerivedWorkspace,rememberPlaceJourneyProject() {},resolvePlaceMap() {},
+    loadPlacePictures:place=>calls.push([place.place,place.research_period])});
+  const pending = h.context.refreshStageReadiness();
+  h.requests[0]({...stage(10),derived_workspace:{project_id:'p',source_revision:1,policy_epoch:1,authoritative:true,
+    places:[
+      {place:'承德市',hierarchy:['Earth','中国','河北省','承德市'],granularity:'city',status:'active',research_period:'1980s'},
+      {place:'悉尼',hierarchy:['Earth','澳大利亚','悉尼'],granularity:'city',status:'active',research_period:''},
+    ]}});
+  await pending;
+  assert.deepEqual(calls,[['承德市','1980s'],['悉尼','']]);
 });
 
 test('saved-project Begin replaces the cancelled poll before its resume greeting finishes', async () => {
