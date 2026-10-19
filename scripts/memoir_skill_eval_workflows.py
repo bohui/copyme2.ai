@@ -13,11 +13,12 @@ async def photo(item, adapter, budget, max_bytes):
     The provider boundary may be catalogue/browser/native search. Native model
     search is never required when the configured provider supplied the leads.
     """
-    from apps.api.place_photo_browser import _source_items
+    from apps.api.place_photo_browser import _source_items, _research
     from apps.api import place_photos
     from apps.api.historical_news import canonical_url
+    from datetime import date
     query = item['task']['public_query']
-    witnesses = dict(provider=None, discovery=None, inspected_sources=[])
+    witnesses = dict(provider=None, discovery=None, inspected_sources=[], standalone_diagnostics=[])
     reply = await budget.dispatch(adapter, dict(item_id=item['id'], skill=item['skill'], kind='discovery',
         input=query), require_completion=False)
     discovery = reply['output']
@@ -35,6 +36,12 @@ async def photo(item, adapter, budget, max_bytes):
             or not isinstance(page.get('html'), str) or len(page['html'].encode()) > max_bytes):
             raise LookupError('photo_inspected_source_unavailable')
         witnesses['inspected_sources'].append(deepcopy(page))
+        helper = _research()
+        temporal = ({'mode': 'any_time'} if query['period'] == place_photos.ANY_PHOTO_DATE
+                    else helper.normalize_period(query['period'], date.today()))
+        standalone = helper._crawl4ai_source_images(page, {}, dict(place=query['place'], temporal=temporal))
+        witnesses['standalone_diagnostics'].append(dict(url=url, candidates=len(standalone),
+            scope='diagnostic_only_not_accepted_photo_delivery'))
         candidates += _source_items(page['html'], url, query['place'], query['period'])
         if item['case'] == 'relaxed-match' and not candidates:
             relaxed = _source_items(page['html'], url, query['place'], place_photos.ANY_PHOTO_DATE)
@@ -44,7 +51,11 @@ async def photo(item, adapter, budget, max_bytes):
     if item['case'] == 'ranking':
         rank = getattr(place_photos, 'rank_place_photos', None)
         if rank is None: raise LookupError('photo_ranking_dependency_pr88')
-        result = rank(result, query['period'], None, 1983)
+        before = [p['source_url'] for p in result]
+        result = rank(result, query['period'], query.get('center'), query.get('context_year'))
+        witnesses['ranking'] = dict(implementation='apps.api.place_photos.rank_place_photos',
+            before=before, after=[p['source_url'] for p in result],
+            center=query.get('center'), context_year=query.get('context_year'))
     return dict(items=result), witnesses
 
 

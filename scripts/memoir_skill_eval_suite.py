@@ -29,6 +29,16 @@ KNOWN = frozenset('memoir-' + name for name in (
     'place-journey', 'place-groups', 'place-photo-research', 'historical-news-research', 'story-game'))
 PHASES = ('interview', 'extract', 'progressive', 'proposal', 'integration', 'review', 'group', 'discover', 'publish', 'play')
 JUDGES = ROOT / 'tests/evaluation/prompts/skill-judges'
+UPSTREAM_PHOTO_GAPS = [
+    dict(id='photo-locality-compound-query', upstream_head='9b795a019d5ace594e95d706e8c573c4638d3505',
+         scope='photo_research.py:_crawl4ai_source_images', affects='issue90/story19',
+         status='known_upstream_failure',
+         behavior='Valid Chengde Mountain Resort capture with contentLocation Chengde is omitted for query 离宫, 承德市.'),
+    dict(id='photo-locality-contradictory-title', upstream_head='9b795a019d5ace594e95d706e8c573c4638d3505',
+         scope='photo_research.py:_crawl4ai_source_images', affects='issue90/story19',
+         status='known_upstream_failure',
+         behavior='Standalone helper accepts Beijing street with contentLocation Chengde; API source parsing rejects it.'),
+]
 
 
 def digest(value):
@@ -131,6 +141,7 @@ def plan(*, skill=None, phase=None, locale=None, case=None):
         expected_output=dict(human_label=None, human_reviewed=False, critical_violation_label=None))
         for s in catalog for split in ('development', 'holdout')]
     return dict(schema_version='memoir-skill-evaluation/3', inventory=catalog, selected_skills=selected,
+        upstream_dependencies=deepcopy(UPSTREAM_PHOTO_GAPS) if 'memoir-place-photo-research' in selected else [],
         items=selected_items, catalog_items=items,
         datasets=[*all_datasets.values(), 'memoir/evaluation/workflows', 'memoir/evaluation/judge-calibration'],
         dataset_snapshot=snapshot, dataset_snapshot_kind='local_plan_timestamp',
@@ -154,8 +165,12 @@ def packet(item):
         instructions, schema = profile_contract(task['page'])
         payload = profile_packet(task['page'])
     elif skill == 'memoir-interviewer':
-        from apps.api.interview_plan import collector_instructions, collector_schema
-        instructions, schema = collector_instructions(task['context']), collector_schema(task['context'])
+        from apps.api.interview_strategy import strategy_instructions
+        from apps.api.lifetime_memory_continuity import GOVERNED_CONTINUITY_INSTRUCTIONS, governed_collector_schema
+        from apps.api.prompt_composition import render_prompt_artifact
+        instructions = '\n'.join((strategy_instructions(task['strategy']), render_prompt_artifact(
+            prompt_path('memoir/skills/memoir-interviewer/language/' + item['locale'])), GOVERNED_CONTINUITY_INSTRUCTIONS))
+        schema = governed_collector_schema(task['context'])
         payload = task['context']
     elif skill in {'memoir-author-timeline', 'memoir-place-journey'}:
         from apps.api.lifetime_memory_lane_engine import lane_contract, EXTRACTION_WINDOW_CONTRACT
@@ -203,9 +218,15 @@ def validate(item, output):
         if {c['field']: c['value'] for c in value['profile_patch']} != facts:
             raise ValueError('profile_gold_mismatch')
     elif skill == 'memoir-interviewer':
-        from apps.api.interview_plan import validate_collector_result
-        validate_collector_result(output, task['context'])
-        if output['stopped'] != facts['stopped']: raise ValueError('interviewer_control_mismatch')
+        from apps.api.lifetime_memory_continuity import validate_governed_collector_result
+        from jsonschema import Draft202012Validator
+        Draft202012Validator(packet(item)['schema']).validate(output)
+        result = validate_governed_collector_result(output, task['context'])
+        outcome = result['strategy_outcome']
+        if result['stopped'] != facts['stopped'] or bool(outcome['question_delivered']) != facts['question']:
+            raise ValueError('interviewer_control_mismatch')
+        if facts['selection_reason'] and outcome['selection_reason'] != facts['selection_reason']:
+            raise ValueError('interviewer_current_intent')
     elif skill == 'memoir-author-timeline':
         from apps.api.memory_events import validate_extraction
         from jsonschema import Draft202012Validator
@@ -317,6 +338,9 @@ def validate_workflow(item, output, witnesses, directory=None):
                 raise ValueError('photo_rights_not_independently_granted')
         if item['case'] == 'relaxed-match' and any(p.get('period_match') != 'any_time' for p in photos):
             raise ValueError('photo_relaxed_period_unlabelled')
+        if item['case'] == 'ranking':
+            if [p['source_url'] for p in photos] != item['gold']['facts']['ranked_source_urls']:
+                raise ValueError('photo_capture_and_distance_order')
     else:
         raise LookupError('unknown_application_workflow')
 
@@ -410,10 +434,12 @@ def report(receipt):
     for row in receipt['results']:
         lines.append('| ' + ' | '.join((row['case_id'], row['execution'], row['contract']['status'],
             str(row['positive_delivery']), row['quality']['status'], row.get('reason', ''))) + ' |')
+    for dependency in receipt.get('upstream_dependencies', []):
+        lines += ['', 'Known upstream dependency ' + dependency['id'] + ': ' + dependency['behavior']]
     lines += ['', 'Remaining gates: merged-main prompt publication; installed Langfuse evaluator/rule interface verification;',
-        'disabled synthetic-only rules and hosted score readbacks; live provider delivery; persisted-state/browser witnesses;',
+        'disabled synthetic-only rules and hosted score readbacks; live provider delivery; full-scenario persisted-state/browser witnesses;',
         'human-reviewed calibration development labels and separate held-out labels. Family canonical execution is unwired.',
-        'Photo production changes owned by PR88 remain external. This report does not establish full issue acceptance.', '']
+        'PR88 is integrated; its known locality gaps remain visible. This report does not establish full issue acceptance.', '']
     return '\n'.join(lines)
 
 
@@ -429,6 +455,7 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
     if (directory / 'receipt.json').exists(): raise ValueError('existing_run_must_be_preserved')
     judge = sdk_judge if sdk_judge is not None else managed_judge
     receipt = dict(schema_version=planned['schema_version'], run_id=str(uuid4()), status='running',
+        upstream_dependencies=deepcopy(planned.get('upstream_dependencies', [])),
         scope='controlled_offline', dataset_snapshot=planned['dataset_snapshot'],
         source_revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
         source_content_sha256=digest({str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()

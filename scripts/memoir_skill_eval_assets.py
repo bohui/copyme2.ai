@@ -6,6 +6,7 @@ Tests supply a controlled store implementing snapshot/read/write operations.
 """
 from copy import deepcopy
 from datetime import datetime
+import math
 
 from scripts.memoir_skill_eval_suite import digest, identity
 
@@ -141,7 +142,75 @@ def score_readback(items, expected):
                 or score.get('trace_id') != target['trace_id'] or score.get('observation_id') != target['observation_id']
                 or score.get('output_sha256') != target['output_sha256']):
                 return dict(status='incomplete', reason='score_identity_mismatch')
+            actual_value, expected_value = score.get('value'), evaluator.get('value')
+            numeric = type(actual_value) in (int, float) and type(expected_value) in (int, float)
+            same_value = (math.isfinite(actual_value) and math.isfinite(expected_value) and actual_value == expected_value
+                          if numeric else type(actual_value) is type(expected_value) and actual_value == expected_value)
+            if 'value' not in evaluator or 'value' not in score or expected_value is None or not same_value:
+                return dict(status='incomplete', reason='score_value_mismatch')
     return dict(status='verified', items=len(items))
+
+
+def read_experiment_scores(client, experiment_id, expected, *, started_at, max_pages=4):
+    """Read-only injected v4 SDK seam, adapted from PR93; never creates a client.
+
+    Full IO, item metadata and score values augment the existing receipt/version
+    bindings. Controlled SDK shape checks do not verify a deployed server release.
+    """
+    if type(max_pages) is not int or not 1 <= max_pages <= 10 or not experiment_id:
+        raise ValueError('invalid_experiment_readback_limit')
+    if started_at.tzinfo is None or started_at.utcoffset() is None:
+        raise ValueError('experiment_window_requires_timezone')
+    if not expected: return dict(status='incomplete', reason='empty_experiment')
+    def field(value, name, default=None):
+        return value.get(name, default) if isinstance(value, dict) else getattr(value, name, default)
+    wanted = {row['item_id']: row for row in expected}
+    if len(wanted) != len(expected): raise ValueError('duplicate_expected_item')
+    for row in expected:
+        if any(key not in row or row.get(key + '_sha256') != digest(row[key]) for key in ('input', 'output')):
+            return dict(status='incomplete', reason='expected_payload_binding_mismatch')
+    normalized, cursor, seen = [], None, set()
+    for _ in range(max_pages):
+        try:
+            result = client.api.experiments.list_items(experiment_id=experiment_id, from_start_time=started_at,
+                fields='core,dataset,io,itemMetadata,experimentMetadata,scores', limit=100, score_limit=50,
+                **({'cursor': cursor} if cursor else {}))
+            for item in result.data:
+                target = wanted.get(field(item, 'experiment_item_id'))
+                if (target is None or field(item, 'experiment_id') != experiment_id
+                    or field(item, 'experiment_dataset_id') != target['dataset_id']):
+                    return dict(status='incomplete', reason='experiment_item_identity')
+                if any(key not in target or digest(field(item, key)) != digest(target[key])
+                       for key in ('input', 'expected_output', 'output')):
+                    return dict(status='incomplete', reason='experiment_content_binding')
+                if (not target.get('item_metadata')
+                    or field(item, 'experiment_item_metadata') != target['item_metadata']):
+                    return dict(status='incomplete', reason='experiment_metadata_binding')
+                metadata, scores = field(item, 'experiment_metadata') or {}, []
+                required_names = {e['name'] for e in target['evaluators']}
+                for score in field(item, 'scores') or []:
+                    if field(score, 'name') not in required_names: continue
+                    subject, provenance = field(score, 'subject'), field(score, 'metadata') or {}
+                    if field(subject, 'kind') != 'observation':
+                        return dict(status='incomplete', reason='score_observation_subject_required')
+                    scores.append(dict(name=field(score, 'name'), value=field(score, 'value'),
+                        evaluator_version=provenance.get('evaluator_version'), compiled_sha256=provenance.get('compiled_sha256'),
+                        trace_id=field(subject, 'trace_id'), observation_id=field(subject, 'id'),
+                        output_sha256=provenance.get('output_sha256')))
+                normalized.append(dict(item_id=field(item, 'experiment_item_id'), dataset=metadata.get('dataset'),
+                    dataset_snapshot=metadata.get('dataset_snapshot'), input_sha256=digest(field(item, 'input')),
+                    output_sha256=digest(field(item, 'output')), trace_id=field(item, 'trace_id'),
+                    observation_id=scores[0]['observation_id'] if scores else None, scores=scores))
+            if len(normalized) > len(expected):
+                return dict(status='incomplete', reason='experiment_item_count_or_duplicates')
+            cursor = field(result.meta, 'cursor')
+            if not cursor:
+                return score_readback(normalized, expected)
+            if cursor in seen: break
+            seen.add(cursor)
+        except Exception as error:
+            return dict(status='incomplete', reason='experiment_readback_' + type(error).__name__)
+    return dict(status='incomplete', reason='experiment_pagination_incomplete')
 
 
 class IndependentJudgeAdapter:

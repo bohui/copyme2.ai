@@ -111,7 +111,8 @@ class PhotoFixture:
             output = dict(provider='configured_catalogue', status='completed', urls=['https://archive.example/photo'])
         else:
             photo = dict(**{'@type': 'Photograph'}, dateCreated='1983-10-01',
-                contentUrl='https://images.example/street.jpg', creator=dict(name='Synthetic Photographer'))
+                contentUrl='https://images.example/street.jpg', creator=dict(name='Synthetic Photographer'),
+                license='https://creativecommons.org/licenses/by/4.0/')
             output = dict(url=request['input']['url'], html='<title>Sydney street</title><script type="application/ld+json">'
                           + json.dumps(photo) + '</script>')
         return dict(output=output, response_id=None, model=None, usage=None)
@@ -139,6 +140,61 @@ def test_photo_without_capture_evidence_cannot_pass(tmp_path):
         'memoir-place-photo-research/capture-period/en-AU']), tmp_path, photo_provider=UploadDate()))
     assert receipt['results'][0]['contract']['status'] == 'fail'
     assert not receipt['results'][0]['positive_delivery']
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_photo_ranking_uses_merged_production_year_and_gps_order(tmp_path, locale):
+    import json
+    planned = suite.plan(case=[f'memoir-place-photo-research/ranking/{locale}'])
+    item, = planned['items']
+    class RankedSources:
+        async def call(self, request):
+            sources = item['task']['ranking_fixture']
+            if request['kind'] == 'discovery':
+                output = dict(provider='configured_catalogue', status='completed', urls=[s['url'] for s in sources])
+            else:
+                source = next(s for s in sources if s['url'] == request['input']['url'])
+                output = dict(url=source['url'], html='<title>Sydney street archive</title>'
+                    '<script type="application/ld+json">' + json.dumps(source['photo']) + '</script>')
+            return dict(output=output, response_id=None, model=None, usage=None)
+    receipt = asyncio.run(suite.run(planned, tmp_path, photo_provider=RankedSources()))
+    row, = receipt['results']
+    assert row['contract']['status'] == 'pass', row
+    assert [p['source_url'] for p in row['output']['items']] == [
+        'https://archive.example/near', 'https://archive.example/far', 'https://archive.example/later']
+    assert row['witnesses']['ranking']['implementation'] == 'apps.api.place_photos.rank_place_photos'
+    assert row['witnesses']['ranking']['before'] != row['witnesses']['ranking']['after']
+    assert all(c['model'] is None for c in receipt['budgets']['skill']['calls'])
+    # A schema-valid reversed list still fails the independent order expectation.
+    changed = deepcopy(row['output']); changed['items'].reverse()
+    with pytest.raises(ValueError): suite.validate_workflow(item, changed, row['witnesses'])
+
+
+@pytest.mark.parametrize('contradictory', [False, True])
+def test_upstream_photo_locality_gaps_remain_visible_without_inflating_delivery(tmp_path, contradictory):
+    import json
+    case = 'wrong-place' if contradictory else 'configured-discovery'
+    planned = suite.plan(case=[f'memoir-place-photo-research/{case}/zh-CN'])
+    item, = planned['items']
+    item['task']['public_query']['place'] = 'Chengde' if contradictory else '离宫, 承德市'
+    class LocalitySource:
+        async def call(self, request):
+            if request['kind'] == 'discovery':
+                output = dict(provider='configured_catalogue', status='completed', urls=['https://archive.example/chengde'])
+            else:
+                photo = dict(**{'@type': 'Photograph'}, name='Beijing street' if contradictory else 'Mountain Resort',
+                    dateCreated='1983-10-01', contentLocation=dict(name='Chengde'),
+                    contentUrl='https://images.example/resort.jpg', license='https://creativecommons.org/licenses/by/4.0/')
+                output = dict(url=request['input']['url'], html='<title>Chengde Mountain Resort</title>'
+                    '<script type="application/ld+json">' + json.dumps(photo) + '</script>')
+            return dict(output=output, response_id=None, model=None, usage=None)
+    receipt = asyncio.run(suite.run(planned, tmp_path, photo_provider=LocalitySource()))
+    row, = receipt['results']
+    assert not row['positive_delivery']
+    assert row['contract']['status'] == ('pass' if contradictory else 'fail')
+    assert len(receipt['upstream_dependencies']) == 2
+    assert row['witnesses']['standalone_diagnostics'][0]['candidates'] == (1 if contradictory else 0)
+    assert 'photo-locality' in (tmp_path / 'report.md').read_text()
 
 
 def test_place_extraction_is_embedded_in_one_real_timeline_packet(tmp_path):
