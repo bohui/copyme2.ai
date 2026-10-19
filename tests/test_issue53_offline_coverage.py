@@ -33,14 +33,10 @@ def test_all_manifest_rows_execute_with_real_persistence_and_mocked_generation(f
     assert journal['budget']['dispatched']==38*cohorts
     assert all(c['live_model_dispatch'] is False for c in journal['budget']['calls'])
     assert not report['release_accepted']
-    # The existing parser does not recognize the natural-language override
-    # variants in these cases. Keep that baseline limitation visible as failures.
-    expected={r['row_id'] for r in planned['rows'] if '/switch-skip/' in r['scenario_id'] and r['step_id'] in {'turn-3','turn-4'}}
-    failed={r['row_id'] for r in report['rows'] if r['contracts']['status']=='fail'}
-    assert failed==expected,[(r['row_id'],r['contracts']) for r in report['rows'] if r['contracts']['status']!='pass']
-    assert all(r['contracts'].get('reason')=='reply_language_request_not_applied'
-               for r in report['rows'] if r['row_id'] in expected)
-    assert report['status']=='failed'
+    assert all(r['contracts']['status']=='pass' for r in report['rows']),[
+        (r['row_id'],r['contracts']) for r in report['rows'] if r['contracts']['status']!='pass']
+    # Fixture contracts pass; semantic and human acceptance remain incomplete.
+    assert report['status']=='incomplete'
 
 
 def test_controlled_rollback_affects_next_generation_and_keeps_prior_saved_state(full_native_manifest):
