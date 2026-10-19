@@ -1,0 +1,289 @@
+{
+  "scope": "issue53 additive offline sequence and profiling prerequisite; not model-quality or release acceptance",
+  "base": "bb31f44ac8cb1c31baad8db418157b96dbe0eee0",
+  "restored_application_reference": "d4c6f58d15450df69742342d1b6104bdf04f4772",
+  "dependency": {
+    "pr": 92,
+    "reviewed_head": "0fe69a5b66fc2b17da35398b1f79e192febc188c",
+    "shared_core_modified": false
+  },
+  "files_sha256": {
+    "scripts/profile_first_reply.py": "d8046cc0433d46c66e99a1aef838087db133901d78c64dea9150916fc9a60654",
+    "scripts/issue53_profile_sequences.py": "e8cfff9ba111d977108a22d80d518840e0bf43344b635a42a7b6fb0e6dcd53f2",
+    "scripts/issue53_sequence_application.py": "a4c893e25214d69c0bbcbd5a3f7403b20edfe4143ad9a09899267c266d1eb196",
+    "tests/evaluation/response_sequences.json": "36385b21b54597fdffd0d49900d805d0d002776b417e014728160c030a6bbaf6",
+    "tests/test_issue53_profile_sequences.py": "15b658b1bce767af8d5179b85804d2e56fe7e7ab8c410ecfc844ff059926efe5",
+    "tests/test_issue53_sequence_application.py": "e86475a0947777b88cbfff35993b160acf4fe3ebcc05c898760ee054467faf2a",
+    "docs/issue53-response-sequences.md": "32ec56daa9d1172bea5d748fc449d994c457f281eb05da2f4ede8828c500d65e"
+  },
+  "tdd_initial_red": {
+    "exit_code": 2,
+    "reason": "Expected missing additive module before implementation",
+    "log_sha256": "ee74749409d04eb0e45e4c4f5f2b1c752e553f3b44d0b2a0d9fe52ddef6d9510"
+  },
+  "checks": [
+    {
+      "name": "native-initial",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_sequence_application.py"
+      ],
+      "exit_code": 2,
+      "status": "completed",
+      "duration_seconds": 0.44,
+      "log_sha256": "c906eaedac7418fc8f240c3ee955ab93c739b4f844fe36946da394d694a1259e",
+      "summary": "1 error in 0.23s",
+      "cleanup_verified": true,
+      "cleanup_root_removed": true
+    },
+    {
+      "name": "native-second",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_sequence_application.py"
+      ],
+      "exit_code": 1,
+      "status": "completed",
+      "duration_seconds": 21.99,
+      "log_sha256": "d9f3244bcf241c3cb7be7cb93e3b59daf94bec4310838914c7f1860085512c41",
+      "summary": "2 failed, 1 passed in 21.70s",
+      "cleanup_verified": true,
+      "cleanup_root_removed": true
+    },
+    {
+      "name": "native-third",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_sequence_application.py"
+      ],
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 22.99,
+      "log_sha256": "6dd2bc2bf1ddea88ef4efbca6727d763117806cbe3e1916c1d19367e765b4208",
+      "summary": "3 passed in 22.66s",
+      "cleanup_verified": true,
+      "cleanup_root_removed": true
+    },
+    {
+      "name": "native-fourth",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_sequence_application.py"
+      ],
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 23.4,
+      "log_sha256": "ae0d486c10cd2ad9ee864a88728a7440b7d9280ba5da6156949125cfc706c3b8",
+      "summary": "3 passed in 23.06s",
+      "cleanup_verified": true,
+      "cleanup_root_removed": true
+    },
+    {
+      "name": "focused-final-1",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "exit_code": 1,
+      "status": "completed",
+      "duration_seconds": 29.84,
+      "log_sha256": "174ac503599187eb95fd51a50fa173b5353ae7c659796364997f73f27838624d",
+      "summary": "1 failed, 52 passed in 29.52s",
+      "cleanup_verified": true,
+      "cleanup_root_removed": true
+    },
+    {
+      "name": "focused-final-2",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 28.55,
+      "log_sha256": "ec20ae3bd66b93c9507d6902a1177015396f8d23fcce481ff3ff24680038e078",
+      "summary": "59 passed in 28.17s",
+      "cleanup_verified": true,
+      "cleanup_root_removed": true
+    },
+    {
+      "name": "focused-final-3",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 29.44,
+      "log_sha256": "8cfbcd43717d41353ac341000cdf5be3b8a43c30a4c9c7d532459ad44795fafd",
+      "summary": "60 passed in 29.04s",
+      "cleanup_verified": true,
+      "cleanup_root_removed": true
+    },
+    {
+      "name": "focused-final-4",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 29.52,
+      "log_sha256": "d9279ea96d8ad60ec60a4049586339720bb24563463938895ec98958bb8be35f",
+      "summary": "63 passed in 29.18s",
+      "cleanup_verified": true,
+      "cleanup_root_removed": true
+    },
+    {
+      "name": "focused-final-5",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 28.0,
+      "log_sha256": "b88285a9c4fb4938db97a034fe023a13d3ecdf0fdceae7278191ae344822d39d",
+      "summary": "63 passed in 27.66s",
+      "cleanup_verified": true,
+      "cleanup_root_removed": true
+    }
+  ],
+  "cli_checks": [
+    {
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "scripts/profile_first_reply.py"
+      ],
+      "exit_code": 0,
+      "planned_rows": 80,
+      "status": null,
+      "dispatches": 0,
+      "release_accepted": null
+    },
+    {
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "scripts/profile_first_reply.py",
+        "compare",
+        "--plan-file",
+        "/tmp/issue53-final-plan.json"
+      ],
+      "exit_code": 1,
+      "planned_rows": 80,
+      "status": "incomplete",
+      "dispatches": null,
+      "release_accepted": false
+    }
+  ],
+  "native_scope": {
+    "locales": [
+      "en-AU",
+      "zh-CN"
+    ],
+    "planned_rows": 20,
+    "completed_rows": 16,
+    "mocked_worker_dispatches": 12,
+    "live_dispatches": 0,
+    "unavailable_rows": [
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-4/0/baseline",
+        "reason": "future_rollback_configuration_adapter_unavailable"
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-4/0/candidate",
+        "reason": "future_rollback_configuration_adapter_unavailable"
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-4/0/baseline",
+        "reason": "future_rollback_configuration_adapter_unavailable"
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-4/0/candidate",
+        "reason": "future_rollback_configuration_adapter_unavailable"
+      }
+    ],
+    "frozen_plan_sha256": "13fd431eb33dd1184f7f21599ce71ee392a50092586a28a8a43609133a571e4e",
+    "artifact_sha256": {
+      "plan.json": "c0c844e97d54d21eb20bbb4363feb5af7d258e9a1ad0adf6e37a8d4cb1c95c00",
+      "results.json": "f86d221c4e41bd094cf8c76921b3237a0ef47fcc7362f57557d5fda189535312",
+      "receipts.json": "ba57d7dfa6fe52c6576c7db69f2435153d262ba18e5870c8060b5be3536a6d94"
+    }
+  },
+  "independent_review": {
+    "status": "no_remaining_actionable_findings_in_offline_scope",
+    "initial_findings_fixed": 9,
+    "pure_offline_tests_passed": 15,
+    "final_two_line_plan_persistence_delta_reviewed": true,
+    "native_tests_rerun_by_reviewer": false
+  },
+  "acceptance": {
+    "release_accepted": false,
+    "model_quality": "unestablished",
+    "human_bilingual_heldout": "pending",
+    "live_latency": "not_run",
+    "future_rollback_execution": "unavailable",
+    "other_scenario_native_execution": "not_claimed",
+    "background_derived_quality": "not_run",
+    "hosted_publication": "not_run",
+    "configured_database_changes": false,
+    "production_prompt_or_model_changes": false,
+    "merges_or_deployments": false
+  },
+  "unrun_checks": [
+    "Live/provider/hosted execution (authorized budget zero)",
+    "Bilingual human development/heldout calibration",
+    "Actual provider policy/usage attestation",
+    "Future-turn route rollback execution",
+    "Other manifest families through native/live semantic acceptance",
+    "Background derived-event/extraction quality",
+    "Production/browser performance acceptance"
+  ]
+}

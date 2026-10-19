@@ -1,12 +1,15 @@
-"""Measure first-response latency through the current HTTP conversation API.
+"""Plan paired sequence profiles offline, or ingest their existing evidence.
 
-Creates a fresh anonymous test account/project and saves one synthetic turn.
-Output contains timings and test identifiers, never credentials or reply text.
+The explicit legacy first-turn mode creates an anonymous account/project and
+saves one synthetic turn. It is a dispatching diagnostic, never the default.
 """
 import argparse
 import asyncio
 import json
 import time
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from uuid import uuid4
 
 
@@ -74,13 +77,39 @@ async def first_turn(origin, timeout):
         raise RuntimeError('Stream ended before conversation_saved')
 
 
-def main():
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('mode', choices=['first-turn'])
+    parser.add_argument('mode', nargs='?', default='plan', choices=['plan', 'blind', 'compare', 'first-turn'])
+    parser.add_argument('--plan-file', type=str)
+    parser.add_argument('--results', type=str)
+    parser.add_argument('--receipts', type=str)
+    parser.add_argument('--reviews', type=str)
+    parser.add_argument('--scenario', action='append')
+    parser.add_argument('--samples', type=int, default=1)
+    parser.add_argument('--variants', type=str)
     parser.add_argument('--origin', default='http://localhost:3010')
     parser.add_argument('--timeout', type=float, default=120,
         help='HTTP timeout and total first-turn deadline in seconds')
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    if args.mode != 'first-turn':
+        from pathlib import Path
+        from scripts import issue53_profile_sequences as sequences
+        def read(path, default):
+            return json.loads(Path(path).read_text()) if path else default
+        if args.mode == 'plan':
+            result = sequences.plan(samples=args.samples, scenario=args.scenario, variants=read(args.variants, None))
+        else:
+            if not args.plan_file:
+                parser.error('--plan-file is required for ingestion')
+            planned = read(args.plan_file, None)
+            results = read(args.results, [])
+            if args.mode == 'blind':
+                result = sequences.blind_packets(planned, results, read(args.receipts, {}))
+            else:
+                result = sequences.compare(planned, results, read(args.receipts, {}), read(args.reviews, {}),
+                    directory=Path(args.receipts).parent if args.receipts else Path.cwd())
+        report(**result)
+        return 0 if args.mode != 'compare' else 1
     if not 0 < args.timeout < float('inf'):
         parser.error('--timeout must be a positive finite number')
     try:
@@ -92,4 +121,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    # Direct script execution and module imports share the same offline-first CLI.
+    raise SystemExit(main())

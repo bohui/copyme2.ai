@@ -1,0 +1,1356 @@
+{
+  "scope": "Completed bounded offline prerequisite; no preserved model-quality or release acceptance",
+  "checks": [
+    {
+      "name": "alternate-binding-red",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_sequence_application.py",
+        "-k",
+        "malformed_optional_side_binding"
+      ],
+      "exit_code": 1,
+      "summary": "7 failed, 23 deselected in 22.75s",
+      "duration_seconds": 23.1,
+      "cleanup_verified": true,
+      "log_sha256": "d56120ff8841e96bea6ff1dad32f75767656d0b26e7bd8cbbc9e54c023a4899c",
+      "supervisor_receipt_sha256": "b7bfb68cc0c0c6ce3508504d04a145dd5625000798f90a1378c2bde9787f444d"
+    },
+    {
+      "name": "binding-regressions-green",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "exit_code": 0,
+      "summary": "80 passed in 39.12s",
+      "duration_seconds": 39.49,
+      "cleanup_verified": true,
+      "log_sha256": "0ade647dae57a2d6e8b759d972e7110b1e1bbeecbc51fe45b78184a2b73bd0cc",
+      "supervisor_receipt_sha256": "20b8de9d1cc0b3e4799040079879b09aa8016bae072055c67857429b09fd47d9"
+    },
+    {
+      "name": "coverage-green",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_offline_coverage.py"
+      ],
+      "exit_code": 0,
+      "summary": "12 passed in 219.30s (0:03:39)",
+      "duration_seconds": 219.65,
+      "cleanup_verified": true,
+      "log_sha256": "6df3a2c97e9a9acf1d126df4da72333907b9318b6e39d9446d5852a15e84ea9c",
+      "supervisor_receipt_sha256": "026af9a5662b2d45838e65342d2c148ec73782a1e00f1d5f16ef6c46f273834b"
+    },
+    {
+      "name": "final-offline-matrix",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_issue53_offline_coverage.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "exit_code": 0,
+      "summary": "102 passed in 268.47s (0:04:28)",
+      "duration_seconds": 268.87,
+      "cleanup_verified": true,
+      "log_sha256": "7c452241b3771ca50db4b7bf69ec0919528b4700a2cc1e94c69a4f783f06cc43",
+      "supervisor_receipt_sha256": "9ee3fb98792ced96b2b54d66f71e46ae09b1ffd2066bcb5970e6c1fe5a196950"
+    },
+    {
+      "name": "final-bound-scenarios",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "exit_code": 0,
+      "summary": "8 passed, 8 deselected in 160.19s (0:02:40)",
+      "duration_seconds": 160.58,
+      "cleanup_verified": true,
+      "log_sha256": "fe8d12a215916aeb7fc024baa3614deaca691804a789eb88a9a2327063126a17",
+      "supervisor_receipt_sha256": "2a07bbee819f314e950b59501379c60845f1a2cb35a47a29a2cd364dce3ffbc1"
+    }
+  ],
+  "files_sha256": {
+    "scripts/profile_first_reply.py": "d8046cc0433d46c66e99a1aef838087db133901d78c64dea9150916fc9a60654",
+    "scripts/issue53_profile_sequences.py": "41a70b2b217e3c0cb52878b59417f9e0519e7c0c8528d1278b3ba3435161df27",
+    "scripts/issue53_sequence_application.py": "b27141998039c2ddf8ddff4529692a51d523806f9c1bd2043c7d43e6616ad9c8",
+    "tests/evaluation/response_sequences.json": "6b45d2a76ed198710e9066609902a1a71a36c39921e411f410fb0e650c589261",
+    "tests/test_issue53_profile_sequences.py": "b1fe25e95d4042a1760574a82488450a24c265bfdd9dce087be93dd3d6257fc7",
+    "tests/test_issue53_sequence_application.py": "36ae811bb43810d021e81a7e7d137ccb088578880e0bc48bdd3bc8deed3cd984",
+    "tests/test_issue53_offline_coverage.py": "3226cfb2e2b855a7cc361ddbf77e9e0c3406c8514df6b32267f5254fd20c7439",
+    "docs/issue53-response-sequences.md": "4875e26e87e99b3cc573915d32db71463fac60223fd3cbcbaf1f8d94b2f9956c"
+  },
+  "full_manifest": {
+    "run_id": "ba07301d-ed55-43b6-ad73-bebe5008b6eb",
+    "plan_sha256": "2acf2bc714a0f88ba636e87570c1a1d6213b40e673006ddcab07ee0785f42ec7",
+    "scenarios": 12,
+    "planned_rows": 80,
+    "completed_rows": 80,
+    "mock_dispatches": 76,
+    "live_dispatches": 0,
+    "deterministic_contracts": {
+      "pass_count": 72,
+      "fail_count": 8
+    },
+    "failures": [
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-3/0/baseline",
+        "reason": "reply_language_request_not_applied",
+        "requested_reply_language": "zh-CN",
+        "observed_reply_language": "en-AU"
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-3/0/candidate",
+        "reason": "reply_language_request_not_applied",
+        "requested_reply_language": "zh-CN",
+        "observed_reply_language": "en-AU"
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-4/0/baseline",
+        "reason": "reply_language_request_not_applied",
+        "requested_reply_language": "zh-CN",
+        "observed_reply_language": "en-AU"
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-4/0/candidate",
+        "reason": "reply_language_request_not_applied",
+        "requested_reply_language": "zh-CN",
+        "observed_reply_language": "en-AU"
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-3/0/baseline",
+        "reason": "reply_language_request_not_applied",
+        "requested_reply_language": "en-AU",
+        "observed_reply_language": "zh-CN"
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-3/0/candidate",
+        "reason": "reply_language_request_not_applied",
+        "requested_reply_language": "en-AU",
+        "observed_reply_language": "zh-CN"
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-4/0/baseline",
+        "reason": "reply_language_request_not_applied",
+        "requested_reply_language": "en-AU",
+        "observed_reply_language": "zh-CN"
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-4/0/candidate",
+        "reason": "reply_language_request_not_applied",
+        "requested_reply_language": "en-AU",
+        "observed_reply_language": "zh-CN"
+      }
+    ],
+    "all_rows": [
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "fail",
+          "reason": "reply_language_request_not_applied",
+          "violations": [
+            "reply_language_request_not_applied"
+          ],
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "fail",
+          "reason": "reply_language_request_not_applied",
+          "violations": [
+            "reply_language_request_not_applied"
+          ],
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-4/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "fail",
+          "reason": "reply_language_request_not_applied",
+          "violations": [
+            "reply_language_request_not_applied"
+          ],
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-4/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "fail",
+          "reason": "reply_language_request_not_applied",
+          "violations": [
+            "reply_language_request_not_applied"
+          ],
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "fail",
+          "reason": "reply_language_request_not_applied",
+          "violations": [
+            "reply_language_request_not_applied"
+          ],
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "fail",
+          "reason": "reply_language_request_not_applied",
+          "violations": [
+            "reply_language_request_not_applied"
+          ],
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-4/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "fail",
+          "reason": "reply_language_request_not_applied",
+          "violations": [
+            "reply_language_request_not_applied"
+          ],
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-4/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "fail",
+          "reason": "reply_language_request_not_applied",
+          "violations": [
+            "reply_language_request_not_applied"
+          ],
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/photo-reference/en-AU/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/photo-reference/en-AU/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/photo-reference/en-AU/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/photo-reference/en-AU/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/photo-reference/zh-CN/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/photo-reference/zh-CN/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/photo-reference/zh-CN/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/photo-reference/zh-CN/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/replay/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/replay/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-4/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/en-AU/turn-4/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-1/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-1/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-2/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-2/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-3/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-3/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/replay/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/replay/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-4/0/baseline",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      },
+      {
+        "row_id": "issue53/resume-replay-rollback/zh-CN/turn-4/0/candidate",
+        "execution": "completed",
+        "contracts": {
+          "status": "pass",
+          "scope": "controlled_sequence_contracts",
+          "semantic_quality": "separate"
+        }
+      }
+    ],
+    "controlled_future_rollback_rows": 4,
+    "saved_replay_rows": 4,
+    "artifact_hashes": {
+      "plan.json": "3e18b9545e91242d6522362a63bab130b8da7c52debcf99f843c6b8bc6bc83c5",
+      "results.json": "2f014c4aefabc6891bb88236e375a3b13443733ce2ff5b42960f22a0e742aef4",
+      "receipts.json": "09fb13329f50e04146e28e13e3a2b403282ac80d40c195555c4b48e833b38153",
+      "comparison.json": "4fb14c1b50dd32a5af23647826d2e5e0d7e726e076bc6d48583c5c5bac286f87"
+    }
+  },
+  "bilingual_fault_matrix": [
+    {
+      "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+      "fault": "save_failure",
+      "execution": "failed",
+      "planned_rows": 6,
+      "all_rows": [
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-2/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-2/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-3/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-3/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        }
+      ],
+      "original_source_preserved": true,
+      "saved_reply": false,
+      "durable_save_s": null,
+      "public_text_observed": true,
+      "consumed_mock_attempts": 1,
+      "receipt_sha256": "33694fb4d6563c514eaf9901d3ee22c4f41bab268c20b69808d2dc194e8f9b41"
+    },
+    {
+      "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+      "fault": "timeout",
+      "execution": "timed_out",
+      "planned_rows": 6,
+      "all_rows": [
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+          "execution": "timed_out",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-2/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-2/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-3/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-3/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        }
+      ],
+      "original_source_preserved": true,
+      "saved_reply": false,
+      "durable_save_s": null,
+      "public_text_observed": false,
+      "consumed_mock_attempts": 1,
+      "receipt_sha256": "a61c80ff09565c7bab83629063592cfcee129b61910d2c5418ec53e1ad08ba10"
+    },
+    {
+      "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+      "fault": "disconnect",
+      "execution": "failed",
+      "planned_rows": 6,
+      "all_rows": [
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-2/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-2/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-3/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-3/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        }
+      ],
+      "original_source_preserved": true,
+      "saved_reply": false,
+      "durable_save_s": null,
+      "public_text_observed": true,
+      "consumed_mock_attempts": 1,
+      "receipt_sha256": "45bc1cf386e017a520d4df248a951589ba7ddde10fba320009960dcdbe4c0451"
+    },
+    {
+      "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+      "fault": "malformed",
+      "execution": "failed",
+      "planned_rows": 6,
+      "all_rows": [
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-2/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-2/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-3/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-3/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        }
+      ],
+      "original_source_preserved": true,
+      "saved_reply": false,
+      "durable_save_s": null,
+      "public_text_observed": false,
+      "consumed_mock_attempts": 1,
+      "receipt_sha256": "29de23243924841e2b77d7bd24eaa8fc1ec42d61bfe6d80cb7183c6737d19e03"
+    },
+    {
+      "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+      "fault": "save_failure",
+      "execution": "failed",
+      "planned_rows": 6,
+      "all_rows": [
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-2/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-2/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        }
+      ],
+      "original_source_preserved": true,
+      "saved_reply": false,
+      "durable_save_s": null,
+      "public_text_observed": true,
+      "consumed_mock_attempts": 1,
+      "receipt_sha256": "c575fcf878bf4fbf7a7eb7e506edd736dab568a13af381accbe105d5ef3001bd"
+    },
+    {
+      "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+      "fault": "timeout",
+      "execution": "timed_out",
+      "planned_rows": 6,
+      "all_rows": [
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+          "execution": "timed_out",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-2/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-2/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        }
+      ],
+      "original_source_preserved": true,
+      "saved_reply": false,
+      "durable_save_s": null,
+      "public_text_observed": false,
+      "consumed_mock_attempts": 1,
+      "receipt_sha256": "710a3f6f57adb2b25c9b561de11aad6cad25675ba0f65536c5cec7b21b22ccaa"
+    },
+    {
+      "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+      "fault": "disconnect",
+      "execution": "failed",
+      "planned_rows": 6,
+      "all_rows": [
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-2/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-2/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        }
+      ],
+      "original_source_preserved": true,
+      "saved_reply": false,
+      "durable_save_s": null,
+      "public_text_observed": true,
+      "consumed_mock_attempts": 1,
+      "receipt_sha256": "48e5094370c535648edc0ab3a1aae1134e3e7b804e891bb39bff27bda37fb833"
+    },
+    {
+      "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+      "fault": "malformed",
+      "execution": "failed",
+      "planned_rows": 6,
+      "all_rows": [
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-2/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-2/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/baseline",
+          "execution": "failed",
+          "reason": "CanonicalTurnFailed"
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/candidate",
+          "execution": "completed",
+          "reason": ""
+        }
+      ],
+      "original_source_preserved": true,
+      "saved_reply": false,
+      "durable_save_s": null,
+      "public_text_observed": false,
+      "consumed_mock_attempts": 1,
+      "receipt_sha256": "8b36f7dc37a245cef93b4b55e9d6f1873dbedd0b501e25c1dc4eaff8cc0602c4"
+    }
+  ],
+  "tdd": {
+    "continuity_red_sha256": "0cd8abbff728ac98fe084007be6e0346f2aad12090c21b6df7d73c715c48f958",
+    "continuity_green_sha256": "a784ec13ae6a53285d11c8dc168519d88ae29fb415ebd383e034b0feb7b07bf0",
+    "eligibility_reviewer_repro": "/tmp/issue53-followup-review-evidence/eligibility_probe.py"
+  },
+  "acceptance": {
+    "release_accepted": false,
+    "model_quality": "not_established",
+    "provider_policy": "unknown_mock_routes_only",
+    "human": "pending_bilingual_heldout_calibration",
+    "live": "not_run_zero_authorized_budget",
+    "baseline_blocker": "Natural-language override forms ignored; apps/api/conversation_locale.py explicit_request is unchanged"
+  },
+  "artifact_directory": "/tmp/issue53-followup-evidence/final-artifacts",
+  "remaining_offline_scenario_scaffolding": false,
+  "independent_review": {
+    "source_hashes": {
+      "scripts/issue53_profile_sequences.py": "41a70b2b217e3c0cb52878b59417f9e0519e7c0c8528d1278b3ba3435161df27",
+      "scripts/issue53_sequence_application.py": "b27141998039c2ddf8ddff4529692a51d523806f9c1bd2043c7d43e6616ad9c8",
+      "tests/evaluation/response_sequences.json": "6b45d2a76ed198710e9066609902a1a71a36c39921e411f410fb0e650c589261",
+      "tests/test_issue53_profile_sequences.py": "b1fe25e95d4042a1760574a82488450a24c265bfdd9dce087be93dd3d6257fc7",
+      "tests/test_issue53_sequence_application.py": "36ae811bb43810d021e81a7e7d137ccb088578880e0bc48bdd3bc8deed3cd984",
+      "tests/test_issue53_offline_coverage.py": "3226cfb2e2b855a7cc361ddbf77e9e0c3406c8514df6b32267f5254fd20c7439"
+    },
+    "capsule": "/tmp/pytest-of-agent/pytest-22/issue53-full-manifest0",
+    "reimport_identical": true,
+    "rows": 80,
+    "mock_calls": 76,
+    "contracts": {
+      "pass_count": 72,
+      "fail_count": 8,
+      "reasons": [
+        "reply_language_request_not_applied"
+      ]
+    },
+    "native_cleanup_witnesses": 80,
+    "tamper_probes": [
+      {
+        "mode": "eligibility",
+        "reason": "governed_packet_dispatch_mismatch"
+      },
+      {
+        "mode": "envelope",
+        "reason": "independent_dispatch_request_mismatch"
+      },
+      {
+        "mode": "policy",
+        "reason": "controlled_policy_dispatch_mismatch"
+      },
+      {
+        "mode": "missing_policy",
+        "reason": "controlled_policy_dispatch_mismatch"
+      },
+      {
+        "mode": "missing_request",
+        "reason": "dispatched_request_evidence_missing"
+      },
+      {
+        "mode": "saved_policy",
+        "reason": "controlled_policy_dispatch_mismatch"
+      }
+    ],
+    "blind_pairs_checked": 40,
+    "stubbed_verifiers": false,
+    "actionable_findings": [],
+    "release_accepted": false,
+    "generation_provenance_note": "Reviewer reimported the preceding matrix under final source; final-bound-scenarios separately regenerated all80 rows with exact final source hashes."
+  },
+  "checks_provenance_note": "final-offline-matrix loaded profiler before the last policy-strengthening check; final-bound-scenarios regenerated and verified all80 scenario rows with the final profiler. Fault adapter and remaining source bytes were unchanged."
+}

@@ -1,0 +1,1085 @@
+{
+  "schema_version": "memoir-response-sequences/1",
+  "synthetic": true,
+  "scenarios": [
+    {
+      "id": "issue53/name-clue/en-AU",
+      "family": "name-clue",
+      "locale": "en-AU",
+      "synthetic": true,
+      "coverage": [
+        "name_only",
+        "short_extraction"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "My name is Joan.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-1",
+          "work": "reply_only",
+          "requirement": "Retain exact preferred name; invite an optional topic without forcing earliest memory.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU",
+            "phase-name-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "I was born in Hobart.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Retain the short birthplace clue as testimony; do not classify by length alone.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "later",
+          "text": "We grew beans beside the kitchen.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-3",
+          "work": "extract",
+          "requirement": "Continue the supplied memory without repeating the name introduction.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU",
+            "phase-rich-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        }
+      ]
+    },
+    {
+      "id": "issue53/name-clue/zh-CN",
+      "family": "name-clue",
+      "locale": "zh-CN",
+      "synthetic": true,
+      "coverage": [
+        "name_only",
+        "short_extraction"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "我叫韩凤江。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-1",
+          "work": "reply_only",
+          "requirement": "Retain exact preferred name; invite an optional topic without forcing earliest memory.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN",
+            "phase-name-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "我出生在霍巴特。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Retain the short birthplace clue as testimony; do not classify by length alone.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "later",
+          "text": "我们在厨房旁种豆子。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-3",
+          "work": "extract",
+          "requirement": "Continue the supplied memory without repeating the name introduction.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN",
+            "phase-rich-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        }
+      ]
+    },
+    {
+      "id": "issue53/correction/en-AU",
+      "family": "correction",
+      "locale": "en-AU",
+      "synthetic": true,
+      "coverage": [
+        "name_story",
+        "correction",
+        "already_answered"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "I am Joan. My father repaired bicycles in our shed. We lived in Hobart.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Retain both the preferred name and all story details.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU",
+            "phase-rich-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "I was mistaken: Mother repaired the bicycles, not Father.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Preserve the correction, original testimony and superseded relationship; do not silently erase either source.",
+          "rubric_refs": [
+            "memoir-interviewer/correction/en-AU",
+            "phase-detail-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "later",
+          "text": "As I said, our home was in Hobart. I brought Mother the tools.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-3",
+          "work": "extract",
+          "requirement": "Do not ask where the home was or who repaired bicycles; use the corrected mother context.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        }
+      ]
+    },
+    {
+      "id": "issue53/correction/zh-CN",
+      "family": "correction",
+      "locale": "zh-CN",
+      "synthetic": true,
+      "coverage": [
+        "name_story",
+        "correction",
+        "already_answered"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "我叫韩凤江。父亲在棚屋里修自行车。我们住在霍巴特。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Retain both the preferred name and all story details.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN",
+            "phase-rich-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "我说错了，修自行车的是母亲，不是父亲。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Preserve the correction, original testimony and superseded relationship; do not silently erase either source.",
+          "rubric_refs": [
+            "memoir-interviewer/correction/zh-CN",
+            "phase-detail-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "later",
+          "text": "我说过，我们住在霍巴特。我给母亲递工具。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-3",
+          "work": "extract",
+          "requirement": "Do not ask where the home was or who repaired bicycles; use the corrected mother context.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        }
+      ]
+    },
+    {
+      "id": "issue53/emotional/en-AU",
+      "family": "emotional",
+      "locale": "en-AU",
+      "synthetic": true,
+      "coverage": [
+        "long_emotional",
+        "stop"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "My name is Joan. When the workshop closed, Mother packed the tools into a blue box. I carried it to the bus while she waited in the rain. I do not remember the year. We said very little. I was proud to help, but I was frightened about leaving. I still keep the small spanner, and telling this is difficult. Please take it gently.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Preserve the entire accepted testimony, uncertainty and mixed emotions without diagnosing or inventing a year.",
+          "rubric_refs": [
+            "memoir-interviewer/slow-pacing/en-AU",
+            "phase-rich-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "The small spanner reminds me of how carefully she worked.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Follow the offered detail gently and ask at most one answerable question.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "later",
+          "text": "This is upsetting. Stop here for today.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-3",
+          "work": "reply_only",
+          "requirement": "Respect stop with no interview question or pressure to continue.",
+          "rubric_refs": [
+            "memoir-interviewer/pause/en-AU",
+            "phase-distress-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        }
+      ]
+    },
+    {
+      "id": "issue53/emotional/zh-CN",
+      "family": "emotional",
+      "locale": "zh-CN",
+      "synthetic": true,
+      "coverage": [
+        "long_emotional",
+        "stop"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "我叫韩凤江。工房关闭时，母亲把工具装进蓝盒子。我把盒子搬到公交车旁，她在雨里等着。我不记得是哪一年。我们都没怎么说话。能帮上忙我很自豪，可离开又让我害怕。我还留着那把小扳手，说起这些很难受。请慢慢聊。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Preserve the entire accepted testimony, uncertainty and mixed emotions without diagnosing or inventing a year.",
+          "rubric_refs": [
+            "memoir-interviewer/slow-pacing/zh-CN",
+            "phase-rich-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "那把小扳手让我想起她干活时多么仔细。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Follow the offered detail gently and ask at most one answerable question.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "later",
+          "text": "这让我难受，今天就到这里，请停下。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-3",
+          "work": "reply_only",
+          "requirement": "Respect stop with no interview question or pressure to continue.",
+          "rubric_refs": [
+            "memoir-interviewer/pause/zh-CN",
+            "phase-distress-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        }
+      ]
+    },
+    {
+      "id": "issue53/switch-skip/en-AU",
+      "family": "switch-skip",
+      "locale": "en-AU",
+      "synthetic": true,
+      "coverage": [
+        "skip",
+        "language_switch"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "I am Joan. We planted beans beside our old kitchen.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Retain the supplied garden memory.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU",
+            "phase-rich-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "Skip that question. I do not want to discuss the kitchen.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-2",
+          "work": "reply_only",
+          "requirement": "Do not repeat the skipped question or probe the excluded kitchen topic.",
+          "rubric_refs": [
+            "memoir-interviewer/redirect/en-AU",
+            "phase-skip-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "later",
+          "text": "Please reply in Chinese from now on. 我想聊上学的事。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-3",
+          "work": "reply_only",
+          "requirement": "Respect the explicit new conversation language and current school topic.",
+          "rubric_refs": [
+            "memoir-interviewer/redirect/en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-4",
+          "action": "turn",
+          "phase": "later",
+          "text": "My sister walked to school with me.",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-4",
+          "work": "extract",
+          "requirement": "Retain the explicit language override on the next generated turn.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        }
+      ]
+    },
+    {
+      "id": "issue53/switch-skip/zh-CN",
+      "family": "switch-skip",
+      "locale": "zh-CN",
+      "synthetic": true,
+      "coverage": [
+        "skip",
+        "language_switch"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "我叫韩凤江。我们在老厨房旁种豆子。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Retain the supplied garden memory.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN",
+            "phase-rich-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "跳过这个问题。我不想聊厨房。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-2",
+          "work": "reply_only",
+          "requirement": "Do not repeat the skipped question or probe the excluded kitchen topic.",
+          "rubric_refs": [
+            "memoir-interviewer/redirect/zh-CN",
+            "phase-skip-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "later",
+          "text": "接下来请用英语回答。I want to talk about school.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-3",
+          "work": "reply_only",
+          "requirement": "Respect the explicit new conversation language and current school topic.",
+          "rubric_refs": [
+            "memoir-interviewer/redirect/zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-4",
+          "action": "turn",
+          "phase": "later",
+          "text": "姐姐陪我走路上学。",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-4",
+          "work": "extract",
+          "requirement": "Retain the explicit language override on the next generated turn.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        }
+      ]
+    },
+    {
+      "id": "issue53/photo-reference/en-AU",
+      "family": "photo-reference",
+      "locale": "en-AU",
+      "synthetic": true,
+      "coverage": [
+        "photo_reference"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "I am Joan. The caption calls this photograph our shed. You have not seen the pixels.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Attribute the shed identification to the supplied caption; do not claim visual inspection.",
+          "rubric_refs": [
+            "memoir-interviewer/photo-metadata/en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "context": {
+            "photo_caption": "our shed",
+            "pixels_inspected": false
+          },
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "An archive page says the town had a bicycle factory. I never said I worked there or lived by it.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Keep public reference separate from personal testimony; place context is not proof of residence or employment.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        }
+      ]
+    },
+    {
+      "id": "issue53/photo-reference/zh-CN",
+      "family": "photo-reference",
+      "locale": "zh-CN",
+      "synthetic": true,
+      "coverage": [
+        "photo_reference"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "我叫韩凤江。照片说明把这里叫作我们的棚屋。你没有看过图像。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Attribute the shed identification to the supplied caption; do not claim visual inspection.",
+          "rubric_refs": [
+            "memoir-interviewer/photo-metadata/zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "context": {
+            "photo_caption": "我们的棚屋",
+            "pixels_inspected": false
+          },
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "档案网页说镇上有自行车厂。我没说过我在那里工作，也没说住在附近。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Keep public reference separate from personal testimony; place context is not proof of residence or employment.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        }
+      ]
+    },
+    {
+      "id": "issue53/resume-replay-rollback/en-AU",
+      "family": "resume-replay-rollback",
+      "locale": "en-AU",
+      "synthetic": true,
+      "coverage": [
+        "persisted_resume",
+        "saved_replay",
+        "future_rollback",
+        "already_answered"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "I am Joan. My sister and I planted beans beside our old kitchen.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Retain exact preferred name and both actors.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU",
+            "phase-rich-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "My sister labelled every row. This happened in Hobart.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Retain the answered place and the sister context.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU",
+            "phase-rich-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "reopen",
+          "action": "reopen",
+          "requires": [
+            "close_client",
+            "new_runtime",
+            "same_persisted_project"
+          ],
+          "witnesses": [
+            "session_before_close",
+            "session_after_reopen",
+            "source_ids_unchanged",
+            "saved_reply_ids_unchanged"
+          ]
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "resumed",
+          "text": "Can we continue the beans memory? I remember the labels were blue.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-3",
+          "work": "extract",
+          "requirement": "Recover persisted name, sources, prior questions and planning context in a fresh runtime; do not restart onboarding.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU",
+            "phase-return-en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "requires": [
+            "persisted_session",
+            "prior_sources",
+            "prior_replies",
+            "current_configuration"
+          ],
+          "source_language": "en-AU"
+        },
+        {
+          "id": "replay",
+          "action": "replay",
+          "phase": "replay",
+          "target": "turn-3",
+          "client_turn_key": "turn-3",
+          "witnesses": [
+            "same_source_id",
+            "same_saved_reply",
+            "zero_generation_dispatches",
+            "unchanged_source_count"
+          ]
+        },
+        {
+          "id": "rollback",
+          "action": "rollback",
+          "target_configuration": "baseline",
+          "witnesses": [
+            "future_configuration_baseline",
+            "prior_sources_unchanged",
+            "prior_replies_unchanged"
+          ]
+        },
+        {
+          "id": "turn-4",
+          "action": "turn",
+          "phase": "later",
+          "text": "She kept the spare labels in a tin.",
+          "reply_language": "en-AU",
+          "client_turn_key": "turn-4",
+          "work": "extract",
+          "requirement": "After rollback, use the approved baseline for this future turn while preserving saved sources, replies and event identities.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/en-AU"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "en-AU"
+        }
+      ]
+    },
+    {
+      "id": "issue53/resume-replay-rollback/zh-CN",
+      "family": "resume-replay-rollback",
+      "locale": "zh-CN",
+      "synthetic": true,
+      "coverage": [
+        "persisted_resume",
+        "saved_replay",
+        "future_rollback",
+        "already_answered"
+      ],
+      "steps": [
+        {
+          "id": "turn-1",
+          "action": "turn",
+          "phase": "first",
+          "text": "我叫韩凤江。小时候我和姐姐在老厨房旁种豆子。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-1",
+          "work": "extract",
+          "requirement": "Retain exact preferred name and both actors.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN",
+            "phase-rich-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "turn-2",
+          "action": "turn",
+          "phase": "later",
+          "text": "姐姐给每行都写了标签。这件事发生在霍巴特。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-2",
+          "work": "extract",
+          "requirement": "Retain the answered place and the sister context.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN",
+            "phase-rich-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "reopen",
+          "action": "reopen",
+          "requires": [
+            "close_client",
+            "new_runtime",
+            "same_persisted_project"
+          ],
+          "witnesses": [
+            "session_before_close",
+            "session_after_reopen",
+            "source_ids_unchanged",
+            "saved_reply_ids_unchanged"
+          ]
+        },
+        {
+          "id": "turn-3",
+          "action": "turn",
+          "phase": "resumed",
+          "text": "我们接着聊种豆子吧。我记得标签是蓝色的。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-3",
+          "work": "extract",
+          "requirement": "Recover persisted name, sources, prior questions and planning context in a fresh runtime; do not restart onboarding.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN",
+            "phase-return-zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "requires": [
+            "persisted_session",
+            "prior_sources",
+            "prior_replies",
+            "current_configuration"
+          ],
+          "source_language": "zh-CN"
+        },
+        {
+          "id": "replay",
+          "action": "replay",
+          "phase": "replay",
+          "target": "turn-3",
+          "client_turn_key": "turn-3",
+          "witnesses": [
+            "same_source_id",
+            "same_saved_reply",
+            "zero_generation_dispatches",
+            "unchanged_source_count"
+          ]
+        },
+        {
+          "id": "rollback",
+          "action": "rollback",
+          "target_configuration": "baseline",
+          "witnesses": [
+            "future_configuration_baseline",
+            "prior_sources_unchanged",
+            "prior_replies_unchanged"
+          ]
+        },
+        {
+          "id": "turn-4",
+          "action": "turn",
+          "phase": "later",
+          "text": "她把多余的标签收在铁盒里。",
+          "reply_language": "zh-CN",
+          "client_turn_key": "turn-4",
+          "work": "extract",
+          "requirement": "After rollback, use the approved baseline for this future turn while preserving saved sources, replies and event identities.",
+          "rubric_refs": [
+            "memoir-interviewer/grounded-question/zh-CN"
+          ],
+          "witnesses": [
+            "accepted_source_exact",
+            "prior_sources_unchanged",
+            "validated_public_reply",
+            "durable_save",
+            "owner_project_scope"
+          ],
+          "source_language": "zh-CN"
+        }
+      ]
+    }
+  ],
+  "dependency": {
+    "pr": 92,
+    "commit": "0fe69a5b66fc2b17da35398b1f79e192febc188c"
+  },
+  "acceptance": {
+    "live_semantics": "pending_separate_bounded_authorization",
+    "human": "pending_bilingual_heldout",
+    "critical_blockers": [
+      "unsupported_fact",
+      "ignored_stop",
+      "lost_testimony"
+    ],
+    "latency_sla": null,
+    "acceptable_quality_loss": null
+  }
+}
