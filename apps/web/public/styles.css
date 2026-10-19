@@ -684,7 +684,7 @@ h3 { line-height: 1.1; }
 .private-draft-status p { margin: 0 0 8px; }
 .private-draft-status details { line-height: 1.6; }
 #timeline-artwork { display: block; max-width: 100%; margin-top: 8px; padding: 8px; }
-.place-choices { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 12px; }
+.place-choices { display: flex; flex-shrink: 0; gap: 8px; overflow-x: auto; margin-bottom: 12px; }
 .place-choices button { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 20px; padding: 8px 14px; background: var(--white); color: var(--green); }
 .place-choices button[aria-pressed="true"] { background: var(--green); color: var(--white); }
 .place-choices button span, .place-choices button small { display: block; text-align: left; }

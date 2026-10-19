@@ -34,6 +34,22 @@ test('unresolved children are not pinned at the city centre', () => {
   assert.deepEqual(groupMapPins(grouped).map(pin => pin.place), ['承德']);
 });
 
+test('translated city labels preserve city pins and still reject child pins at the city centre', () => {
+  const sydney = {place:'Sydney', hierarchy:['Earth','Australia','Sydney'], granularity:'city',
+    latitude:-33.8688, longitude:151.2093};
+  const display = {...sydney, place:'悉尼', hierarchy:['Earth','澳大利亚','新南威尔士州','悉尼']};
+  const cityKey = JSON.stringify(['澳大利亚','新南威尔士州','悉尼']);
+  const localized = {...sydney, map_city:display, map_city_key:cityKey, map_pin:sydney};
+  const child = {place:'Chatswood', hierarchy:[...sydney.hierarchy,'Chatswood'], granularity:'suburb',
+    latitude:sydney.latitude, longitude:sydney.longitude, map_city:display, map_city_key:cityKey, map_pin:null};
+  const group = groupPlaces([localized, child])[0];
+  assert.equal(group.city.place, '悉尼');
+  assert.deepEqual(groupMapPins(group).map(pin => [pin.place,pin.isChild]), [['Sydney',false]]);
+  assert.equal(groupMapFrame(group, null).pins[0].latitude, sydney.latitude);
+  const partial = groupPlaces([sydney, child]).find(item => item.key === cityKey);
+  assert.equal(partial.city.place, '悉尼', 'A pending city translation cannot erase a child response\'s localized label');
+});
+
 test('provider-confirmed city membership works without a city ancestor', () => {
   const groups = groupPlaces([
     {...district, hierarchy:['Earth','中国','双桥区'], map_city:city},
@@ -88,7 +104,7 @@ test('background checks prioritise each new mention and ignore superseded correc
     state: {project: {id: 'p'}, placeJourney: district},
     profile: () => ({memory_places: [city, district]}), mergePlaces, placeHistoryKey, groupPlaces,
     placeGroupRecords: new Map(), placeGroupRequests: new Map(), placeGroupLatest: new Map(),
-    setTimeout: () => {}, translate: key => key, render: () => {renders++;},
+    setTimeout: () => {}, currentUiLocale: () => 'en-AU', translate: key => key, render: () => {renders++;},
     api: (url, options) => new Promise(resolve => calls.push({url, body: JSON.parse(options.body), resolve})),
   });
   for (const name of ['publicPlaceFields', 'resolvePlaceGroups', 'workspacePlaceGroups']) vm.runInContext(extract(name), context);
@@ -102,7 +118,7 @@ test('background checks prioritise each new mention and ignore superseded correc
   calls[0].resolve({places: [{index: 0, city, pin: district}]});
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(renders, 1, 'late correction result triggered a stale render');
-  assert.equal(context.placeGroupRecords.get(`p:${placeHistoryKey(district)}`).pin.latitude, correction.latitude);
+  assert.equal(context.placeGroupRecords.get(`p:en-AU:${placeHistoryKey(district)}`).pin.latitude, correction.latitude);
   assert.equal(groupMapPins(context.workspacePlaceGroups([city, correction])[0])[0].latitude, correction.latitude);
   assert.equal(groupMapPins(context.workspacePlaceGroups([city, district])[0])[0].latitude, district.latitude,
     'cache applies enrichment to different source coordinates');
@@ -119,7 +135,7 @@ test(`city grouping reports its actual ${failed?'failed':'completed'} skill call
   let finish;
   const context=vm.createContext({state:{project:{id:'p'},chat:[],showThinkingSteps:true},profile:()=>({memory_places:[city]}),
     mergePlaces,placeHistoryKey,placeGroupRecords:new Map(),placeGroupRequests:new Map(),placeGroupLatest:new Map(),
-    translate:key=>key,persistChatHistory:()=>{},render:()=>{},setTimeout:()=>{},
+    translate:key=>key,currentUiLocale:()=> 'en-AU',persistChatHistory:()=>{},render:()=>{},setTimeout:()=>{},
     api:()=>new Promise((resolve,reject)=>{finish=()=>failed?reject(Error('private URL')):resolve({places:[]});}),
   });
   for(const name of ['publicPlaceFields','resolvePlaceGroups']) vm.runInContext(extract(name),context);
@@ -145,9 +161,9 @@ test('map markup shows city choices and independent pending pin labels', () => {
     lifeStageText: () => '',
   });
   for (const name of ['placeJourneyMarkup', 'groupChoices', 'placeHistoryChoices']) vm.runInContext(extract(name), context);
-  assert.equal(context.placeHistoryChoices(context.groupChoices(groups), district), '');
+  assert.match(context.placeHistoryChoices(context.groupChoices(groups), district), /data-place-choice=/);
   const markup = context.placeJourneyMarkup(district, 'workspace', groups[0]);
-  assert.match(markup, /<h2>承德<\/h2>/);
+  assert.doesNotMatch(markup, /place-journey-heading/);
   assert.match(markup, /data-cesium-pins=/);
   assert.match(markup, /双桥区/);
   assert.match(markup, /大石庙镇/);

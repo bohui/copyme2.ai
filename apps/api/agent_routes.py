@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 from typing import Literal
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, Request
 from pydantic import BaseModel, Field, model_validator
 
 from .agent_lock import AgentTurnBusyError, AgentTurnLease
@@ -284,9 +284,10 @@ async def place_journey(authorization: str | None = Header(default=None)):
 
 
 @router.get('/places/{project_id}/photos')
-async def project_place_photos(project_id: str, request: Request,
+async def project_place_photos(project_id: str, request: Request, background_tasks: BackgroundTasks,
                               place: str = Query(min_length=1, max_length=120),
                               period: str = Query(default='', max_length=160),
+                              context_year: int | None = Query(default=None, ge=1800, le=2099),
                               cursor: str | None = Query(default=None, max_length=160),
                               refresh: bool = Query(default=False),
                               latitude: float | None = Query(default=None, ge=-90, le=90),
@@ -308,6 +309,15 @@ async def project_place_photos(project_id: str, request: Request,
         user_id = storage.user_id
         from .background_skills import action_turn
         client_turn_id = await action_turn(storage,project_id,request.headers.get('X-Memoir-Progress-Turn'))
+        if (not period or context_year is None) and callable(getattr(storage, 'research_places', None)):
+            from .place_research import same_research_place
+            places = await asyncio.to_thread(storage.research_places, project_id)
+            selected = next((item for item in reversed(places)
+                             if same_research_place(item['place'], place)), None)
+            if selected:
+                period = period or selected['research_period']
+                if context_year is None and period == selected['research_period']:
+                    context_year = selected.get('research_year')
     except (httpx.HTTPStatusError, httpx.RequestError):
         raise HTTPException(503, 'Project verification temporarily unavailable',
                             headers={'X-Error-Code': 'PROJECT_HISTORY_UNAVAILABLE'}) from None
@@ -316,12 +326,36 @@ async def project_place_photos(project_id: str, request: Request,
     try:
         from .place_photo_transport import photo_response
         from .background_skills import photo_step
+        if not cursor and period:
+            background_tasks.add_task(_selected_place_news, authorization, project_id, place, period)
         return await photo_response(request.app.state.memoir_photo_pages, owner, place, period, cursor,
-            refresh=refresh, latitude=latitude, longitude=longitude,
+            refresh=refresh, latitude=latitude, longitude=longitude, context_year=context_year,
             progress=lambda result:photo_step(user_id,project_id,result,client_turn_id=client_turn_id),
             stream='application/x-ndjson' in request.headers.get('accept', ''))
     except (httpx.HTTPError, ValueError, KeyError, TypeError):
         return {'items': [], 'status': 'UNAVAILABLE'}
+
+
+async def _selected_place_news(authorization, project_id, place, period):
+    """Reuse the news runner and durable claim after the selected photo response."""
+    from .background_skills import admit, SkillUnavailable
+    from .historical_news import HistoricalResearch, enrich
+    from .historical_news_provider import GatewayHistoricalProvider
+    storage = None
+    try:
+        admit('memoir-historical-news-research', 'place_selection')
+        storage = await asyncio.to_thread(authenticated_storage, authorization)
+        if runtime._news_engine is None:
+            runtime._news_engine = HistoricalResearch(GatewayHistoricalProvider())
+        await enrich(storage, project_id, runtime._news_engine, selection={'place': place, 'period': period})
+    except SkillUnavailable:
+        pass
+    except Exception as error:
+        import logging
+        logging.getLogger(__name__).warning('Selected-place news unavailable: %s', type(error).__name__)
+    finally:
+        if storage is not None:
+            await asyncio.to_thread(storage.client.close)
 
 
 @router.post('/places/{project_id}/groups')
@@ -338,7 +372,7 @@ async def project_place_groups(project_id: str, payload: dict, authorization: st
         places=[validate_place_journey(item) for item in raw]
         if any(item is None for item in places):raise HTTPException(422,'Invalid place group input')
         turn=await action_turn(storage,project_id,payload.get('client_turn_id'))
-        return await group_places(storage.user_id,project_id,places,client_turn_id=turn)
+        return await group_places(storage.user_id,project_id,places,client_turn_id=turn,language=payload.get('language'))
     finally:
         await asyncio.to_thread(storage.client.close)
 

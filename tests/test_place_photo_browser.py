@@ -12,7 +12,7 @@ from apps.api import place_photo_browser as browser
 from apps.api import place_photos as photos
 
 
-def photo_html(index=1, *, date='1983-10-01', place='Chengde', licence=None):
+def photo_html(index=1, *, date='1983-10-01', place='Chengde', licence='https://creativecommons.org/licenses/by/4.0/'):
     record = {'@type': 'Photograph', 'name': f'{place} street', 'dateCreated': date,
               'contentLocation': {'geo': {'latitude': 40.98, 'longitude': 117.94}},
               'contentUrl': f'https://live.staticflickr.com/1/{index}.jpg',
@@ -121,6 +121,132 @@ def test_google_source_reads_explicit_sibling_captions_not_article_dates():
     assert items[0]['date_expression'] == '1980-1989'
 
 
+@pytest.mark.parametrize('licences,expected', [
+    ((None, 'https://creativecommons.org/licenses/by/4.0/'), (False, True)),
+    (('https://creativecommons.org/licenses/by/4.0/', None), (True, False)),
+])
+def test_json_ld_sibling_licences_are_evaluated_per_image(licences, expected):
+    records = []
+    for index, licence in enumerate(licences, 1):
+        record = {'@type': 'Photograph', 'name': f'Chengde street {index}',
+                  'dateTaken': '1983-10-01',
+                  'contentUrl': f'https://archive.example/photo-{index}.jpg'}
+        if licence:
+            record['license'] = licence
+        records.append(record)
+    page = ('<title>Chengde photo gallery</title>'
+            '<script type="application/ld+json">'
+            + json.dumps({'@graph': records})
+            + '</script>')
+
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+    by_url = {item['image_url']: item for item in items}
+    assert tuple(by_url[f'https://archive.example/photo-{index}.jpg']['allowed_actions']['embed']
+                 for index in (1, 2)) == expected
+
+
+def test_nested_array_typed_json_ld_photo_keeps_its_licence():
+    record = {'@type': ['ImageObject', 'Photograph'], 'name': 'Chengde street',
+              'dateTaken': '1983-10-01', 'license': 'https://creativecommons.org/licenses/by/4.0/',
+              'contentUrl': 'https://archive.example/nested-photo.jpg'}
+    page = ('<title>Chengde photo gallery</title>'
+            '<script type="application/ld+json">'
+            + json.dumps({'@type': 'ImageGallery', 'itemListElement': [{'item': record}]})
+            + '</script>')
+
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+
+    assert items
+    assert all(item['image_url'] == 'https://archive.example/nested-photo.jpg' for item in items)
+    assert all(item['allowed_actions']['embed'] is True for item in items)
+
+
+@pytest.mark.parametrize('primary', [False,True])
+def test_nested_gallery_preserves_each_photo_creator_without_inheriting_sibling_credit(primary):
+    records = [{'@type':'Photograph', 'name':'Chengde street', 'dateTaken':'1983-10-01',
+                'license':'https://creativecommons.org/licenses/by/4.0/',
+                'contentUrl':f'https://archive.example/credit-{index}.jpg', **creator}
+               for index,creator in enumerate(({'creator':{'name':'Alice Example'}},
+                                               {'author':{'name':'Bob Example'}}, {}),1)]
+    page = ('<title>Chengde archive</title>'
+            + ('<meta property="og:image" content="https://archive.example/credit-1.jpg">' if primary else '')
+            + '<script type="application/ld+json">'
+            + json.dumps({'@type':'ImageGallery','itemListElement':[{'item':record} for record in records]})
+            + '</script>')
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+    assert {item['image_url']:item['attribution'] for item in items} == {
+        records[0]['contentUrl']:'Alice Example', records[1]['contentUrl']:'Bob Example',
+        records[2]['contentUrl']:'archive.example'}
+
+
+@pytest.mark.parametrize('nested', [False,True])
+@pytest.mark.parametrize('location,accepted', [('Chengde',True),('Beijing',False)])
+@pytest.mark.parametrize('heading', ['Chengde archive','Willow trees'])
+def test_descriptive_photo_uses_its_structured_location_and_capture_date(nested, location, accepted, heading):
+    record = {'@type':'Photograph', 'name':'Willow trees', 'dateTaken':'1983-10-01',
+              'contentLocation':{'name':location}, 'creator':{'name':'Alice Example'},
+              'license':'https://creativecommons.org/licenses/by/4.0/',
+              'contentUrl':'https://archive.example/willows.jpg'}
+    document = {'@type':'ImageGallery','itemListElement':[{'item':record}]} if nested else record
+    page = (f'<title>{heading}</title><script type="application/ld+json">'
+            + json.dumps(document) + '</script>')
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+    assert bool(items) is accepted
+    if accepted:
+        assert items[0]['date_expression'] == '1983-10-01'
+        assert items[0]['attribution'] == 'Alice Example'
+        assert items[0]['allowed_actions']['embed'] is True
+
+
+def test_explicit_primary_photo_can_read_its_nested_capture_metadata():
+    record = {'@type':['ImageObject','Photograph'], 'name':'Chengde street',
+              'dateTaken':'1983-10-01', 'license':'https://creativecommons.org/licenses/by/4.0/',
+              'contentUrl':'https://live.staticflickr.com/1/primary.jpg'}
+    page = ('<title>Chengde street</title>'
+            '<meta property="og:image" content="https://live.staticflickr.com/1/primary.jpg">'
+            '<script type="application/ld+json">' + json.dumps({'@graph':[record]}) + '</script>')
+    items = browser._source_items(page, 'https://www.flickr.com/photos/author/1/', 'Chengde', '1980s')
+    assert items
+    assert all(item['date_expression'] == '1983-10-01' for item in items)
+    assert all(item['allowed_actions']['embed'] is True for item in items)
+
+
+def test_nested_gallery_photos_keep_their_own_coordinates():
+    records = [{'@type':'Photograph', 'name':'Chengde street', 'dateTaken':'1983-10-01',
+                'license':'https://creativecommons.org/licenses/by/4.0/',
+                'contentUrl':f'https://archive.example/scene-{index}.jpg',
+                'contentLocation':{'geo':{'latitude':40.97 + index / 100,'longitude':117.93}}}
+               for index in (1,2)]
+    page = ('<title>Chengde photo gallery</title><script type="application/ld+json">'
+            + json.dumps({'@type':'ImageGallery','itemListElement':[{'item':record} for record in records]})
+            + '</script>')
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+    assert len(items) == 2
+    assert {item['image_url']:item.get('latitude') for item in items} == {
+        record['contentUrl']:record['contentLocation']['geo']['latitude'] for record in records}
+
+
+@pytest.mark.parametrize('kind', ['Photograph', ['ImageObject','Photograph']])
+@pytest.mark.parametrize('subject,accepted', [('Beijing street', False), ('Chengde street', True)])
+@pytest.mark.parametrize('shape', ['nested','root','graph'])
+@pytest.mark.parametrize('inherited', [False, True])
+def test_nested_gallery_photo_uses_its_own_relevance_not_the_page_title(kind, subject, accepted, shape, inherited):
+    record = {'@type': kind, 'name': subject, 'dateTaken': '1983-10-01',
+              'license': 'https://creativecommons.org/licenses/by/4.0/',
+              'contentUrl': 'https://archive.example/nested-street.jpg'}
+    document = {'nested': {'@type':'ImageGallery','itemListElement':[{'item':record}]},
+                'root': record, 'graph': {'@graph':[record]}}[shape]
+    page = ('<title>Chengde photo gallery</title>'
+            '<meta property="og:image" content="https://archive.example/nested-street.jpg">'
+            '<script type="application/ld+json">'
+            + json.dumps(document)
+            + '</script>')
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s',
+                                  location_context='Chengde album' if inherited else '')
+    assert bool(items) is accepted
+    assert all(item['allowed_actions']['embed'] is True for item in items)
+
+
 def test_separated_caption_does_not_date_a_previous_unrelated_image():
     page = ('<title>Chengde archive</title><img src="https://archive.example/logo.jpg">'
             '<p>Navigation and unrelated text</p><p class="img-desc">Chengde 1983</p>')
@@ -144,6 +270,7 @@ def serpapi_sources(monkeypatch):
     monkeypatch.setattr(subprocess, 'run', run)
     monkeypatch.setattr(browser._research(), 'public_addresses', lambda *args: ['8.8.8.8'])
     monkeypatch.setattr(browser._research().Fetcher, 'fetch', fetch)
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     return data, sources, searches, fetched
 
 
@@ -286,17 +413,17 @@ def test_configured_google_images_key_reaches_the_app_provider(monkeypatch):
     monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
     monkeypatch.delenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', raising=False)
     calls = []
-    def search(place, period):
+    def search(place, period, **kwargs):
         calls.append((place, period))
         return browser._source_items(photo_html(), 'https://archive.example/photo', place, period)
     monkeypatch.setattr(photos, '_google_serpapi', search, raising=False)
-    monkeypatch.setattr(photos, '_google_browser', lambda *args: pytest.fail('configured image API was ignored'))
+    monkeypatch.setattr(photos, '_google_browser', lambda *args: calls.append(('cse', *args)) or [])
     for name in ('_flickr_browser', '_flickr', '_commons', '_loc'):
         monkeypatch.setattr(photos, name, lambda *args: [])
     monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     found = photos.search_place_photos('Chengde', '1980s')
     assert len(found) == 1
-    assert calls == [('Chengde', '1980s')]
+    assert set(calls) == {('Chengde', '1980s'), ('cse', 'Chengde', '1980s')}
 
 
 def test_cse_url_and_id_have_same_query_without_page_date_filter(monkeypatch):
@@ -343,7 +470,7 @@ def test_cse_reads_originals_deduplicates_and_checks_source_robots(fake_crawler)
     assert len(result) == 1
     assert result[0]['image_url'] == 'https://live.staticflickr.com/1/1.jpg'
     assert result[0]['source_url'] == source and result[0]['memory_reference_only']
-    assert result[0]['license'] == 'Unknown'
+    assert result[0]['license'] == 'CC BY'
     assert result[0]['allowed_actions'] == {'embed': True, 'memory_reference': True,
                                          'download': False, 'print': False, 'publish': False}
     assert all(config.check_robots_txt for url, config in calls if 'cse.google.com' not in url)
@@ -359,7 +486,8 @@ def test_flickr_browses_public_search_and_ignores_upload_date(fake_crawler):
     pages[search + '&page=1'] = '<a href="/photos/author/123/">Chengde</a>'
     pages[source] = ('<title>Chengde street</title><meta property="og:image" '
                      'content="https://live.staticflickr.com/1/street.jpg">'
-                     '<p>Taken on October 1, 1983 Uploaded on October 1, 2025</p>')
+                     '<p>Taken on October 1, 1983 Uploaded on October 1, 2025</p>'
+                     '<a href="https://creativecommons.org/licenses/by/4.0/">Licence</a>')
     result = asyncio.run(browser._browse_query('flickr', 'Chengde', '1980s', search))
     assert len(result) == 1 and result[0]['date_expression'] == 'October 1, 1983'
     assert all(config.check_robots_txt for _, config in calls)
@@ -1045,7 +1173,12 @@ def test_expansion_cache_identity_tracks_server_provider_mode_not_credential_val
     monkeypatch.setenv('SERPAPI_KEY', 'private-two')
     assert search_key('Chengde', '1980s') == serpapi_key
     monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'private-three')
-    assert search_key('Chengde', '1980s') not in {browser_key, serpapi_key}
+    assert search_key('Chengde', '1980s') != serpapi_key, 'Adding a CSE route requires fresh research'
+    combined_api_key = search_key('Chengde', '1980s')
+    monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'private-four')
+    assert search_key('Chengde', '1980s') == combined_api_key
+    monkeypatch.delenv('SERPAPI_KEY')
+    assert search_key('Chengde', '1980s') not in {browser_key, serpapi_key, combined_api_key}
 
 
 
@@ -1092,7 +1225,7 @@ def test_serpapi_verifies_and_publishes_initial_photo_before_followup_query(
     monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
     monkeypatch.delenv('FLICKR_API_KEY', raising=False)
     monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
-    for name in ('_flickr_browser', '_commons', '_loc'):
+    for name in ('_google_browser', '_flickr_browser', '_commons', '_loc'):
         monkeypatch.setattr(photos, name, lambda *args, **kwargs: [])
     monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     sources['https://archive.example/photos/1'] = photo_html(1)
@@ -1154,6 +1287,7 @@ def test_album_landmark_alias_cannot_override_wrong_city_on_photo(
             '@type': 'Photograph', 'name': 'Willow trees',
             'contentLocation': {'name': 'Chengde'},
             'dateCreated': '1983-10-01',
+            'license': 'https://creativecommons.org/licenses/by/4.0/',
             'contentUrl': 'https://live.staticflickr.com/1/73.jpg',
         }) + '</script>')
 
@@ -1197,6 +1331,7 @@ def test_explicit_album_photo_locality_requires_city_anchor(
         '<script type="application/ld+json">' + json.dumps({
             '@type': 'Photograph', 'name': 'Marble Boat', 'dateCreated': '1983-10-01',
             'contentLocation': {'name': child_location},
+            'license': 'https://creativecommons.org/licenses/by/4.0/',
             'contentUrl': 'https://live.staticflickr.com/1/75.jpg',
         }) + '</script>')
 

@@ -107,9 +107,61 @@ def test_provider_failure_is_not_an_empty_search(monkeypatch):
     cache = pages.PhotoPages()
     try:
         assert cache.page('owner', 'Chengde', '1983年', None, **CENTER)['status'] == 'UNAVAILABLE'
-        assert calls == ['1983年']
+        assert calls == ['1983年', photos.ANY_PHOTO_DATE]
     finally:
         cache.close()
+
+
+def test_an_empty_any_date_search_is_not_repeated_as_its_own_fallback(monkeypatch):
+    calls=[]
+    monkeypatch.setattr(pages,'search_place_photos',lambda place,period,**kwargs:calls.append(period) or [])
+    cache=pages.PhotoPages()
+    try:
+        result=cache.page('owner','Chengde',photos.ANY_PHOTO_DATE,None,**CENTER)
+        assert result['status']=='NO_MATCH'
+        assert calls==[photos.ANY_PHOTO_DATE]
+    finally:
+        cache.close()
+
+
+@pytest.mark.parametrize('stream',[False,True])
+def test_blocked_historical_sources_still_allow_licensed_commons_place_references(monkeypatch,stream):
+    from test_place_workspace import photo_page
+    monkeypatch.setenv('SERPAPI_KEY','fixture')
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL',raising=False)
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WEB_SEARCH',raising=False)
+    page=photo_page(129537598,date='2008-06-18 13:49',title='CN Chengde 0806 (118).jpg')
+    page['imageinfo'][0].update(
+        thumburl='https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/Chengde.jpg/640px-Chengde.jpg')
+    page['imageinfo'][0]['extmetadata'].update(LicenseShortName={'value':'CC BY-SA 2.0'},
+        LicenseUrl={'value':'https://creativecommons.org/licenses/by-sa/2.0/'})
+    queries=[]
+    def catalogue(url,params):
+        queries.append(params['gsrsearch'])
+        return {'query':{'pages':{'129537598':page}}}
+    def blocked_sources(*args,**kwargs):
+        raise photos.PhotoResearchUnavailable('google','source_unavailable')
+    monkeypatch.setattr(photos,'_get',catalogue)
+    monkeypatch.setattr(photos,'_google_serpapi',blocked_sources)
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint',lambda _: {})
+    with TestClient(create_app(MemoryStore())) as client:
+        headers={'X-Account-Id':'chengde-fallback-owner',
+            'Accept':'application/x-ndjson' if stream else 'application/json'}
+        project=client.post('/v1/projects',headers=headers,json={'mode':'self'}).json()
+        response=client.get(f"/v1/projects/{project['id']}/place-photos",headers=headers,
+            params={'place':'承德市','period':'1980s',**CENTER})
+    assert response.status_code==200
+    result=json.loads(response.text.splitlines()[-1]) if stream else response.json()
+    assert result['status']=='PARTIAL'
+    assert len(result['items'])==1
+    item=result['items'][0]
+    assert item['asset_id']=='commons-129537598'
+    assert item['requested_period']=='1980s' and item['date_expression']=='2008-06-18 13:49'
+    assert item['search_fallback']=='gps_time' and item['period_match']=='any_time'
+    assert item['allowed_actions']['embed'] and item['license']=='CC BY-SA 2.0'
+    assert result['failures']==[{'provider':'google','reason':'source_unavailable'}]
+    assert any('1980' in query for query in queries)
+    assert any('1980' not in query for query in queries)
 
 
 def test_missing_search_center_marks_source_described_photos_as_gps_fallback(monkeypatch):
@@ -162,7 +214,8 @@ def test_llm_time_fallback_inspects_real_source_metadata(search_world, date_expr
     world['pages']['https://archive.example/photo'] = (
         '<title>Chengde photographs</title><script type="application/ld+json">' + json.dumps({
             '@type': 'Photograph', 'name': 'Chengde street', 'dateCreated': date_expression,
-            'contentUrl': 'https://images.example/street.jpg'}) + '</script>')
+            'contentUrl': 'https://images.example/street.jpg',
+            'license': 'https://creativecommons.org/licenses/by/4.0/'}) + '</script>')
     item, = photos.search_place_photos('Chengde', photos.ANY_PHOTO_DATE)
     assert item['date_expression'] == date_expression
     assert item['allowed_actions']['publish'] is False

@@ -610,6 +610,8 @@ def _project_public_response(project: dict[str, Any], *, status_code: int = 200,
                 from .place_identity import place_identity
                 saved = {place_identity(place): place for place in project['profile'].get('memory_places', [])}
                 journeys = service.lifetime_rpc('read_lifetime_place_journeys', p_project_id=project['id'])
+                if journeys and callable(getattr(service, 'research_places', None)):
+                    journeys = service.research_places(project['id'], journeys)
                 profile['memory_places'] = [{**saved.get(place_identity(place), {}), **place} for place in journeys]
             return build(_project_response(project,
                 authoritative_profile=profile))
@@ -2512,7 +2514,7 @@ def create_app(
         places = [validate_place_journey(place) for place in raw_places]
         if any(place is None for place in places):
             raise HTTPException(status_code=422, detail='Invalid place group input')
-        return await group_places(_account_id(x_account_id),project_id,places)
+        return await group_places(_account_id(x_account_id),project_id,places,language=payload.get('language'))
 
     from .place_photo_pages import PhotoPages
     photo_pages = PhotoPages()
@@ -2557,6 +2559,7 @@ def create_app(
     @app.get("/v1/projects/{project_id}/place-photos")
     async def place_photos(project_id: str, request: Request, place: str = Query(min_length=1, max_length=120),
                      period: str = Query(default="", max_length=160),
+                     context_year: int | None = Query(default=None, ge=1800, le=2099),
                      cursor: str | None = Query(default=None, max_length=160),
                      refresh: bool = Query(default=False),
                      latitude: float | None = Query(default=None, ge=-90, le=90),
@@ -2568,7 +2571,7 @@ def create_app(
         try:
             from .place_photo_transport import photo_response
             return await photo_response(photo_pages, project_id, place, period, cursor,
-                                        refresh=refresh, latitude=latitude, longitude=longitude,
+                                        refresh=refresh, latitude=latitude, longitude=longitude, context_year=context_year,
                                         stream='application/x-ndjson' in request.headers.get('accept', ''))
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             return {"items": [], "status": "UNAVAILABLE"}
