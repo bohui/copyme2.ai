@@ -51,10 +51,91 @@ def test_current_window_and_location_boundaries():
     assert photos._location_matches('承德街景', 'Chengde, Hebei, China')
 
 
+@pytest.mark.parametrize('remote_worker', [False, True])
+@pytest.mark.parametrize('stream', [False, True])
+def test_endpoint_ranks_by_context_year_then_distance_to_the_selected_place(monkeypatch, remote_worker, stream):
+    import json
+    import httpx
+    from apps.api.photo_worker_service import create_photo_worker
+    candidates = [picture('1989', date_expression='1989'),
+                  picture('1983-far', date_expression='1983', latitude=41.00),
+                  picture('1982', date_expression='1982', latitude=41.01),
+                  picture('1980', date_expression='1980'),
+                  picture('1984', date_expression='1984'),
+                  picture('1983-near', date_expression='1983'),
+                  picture('wrong-place', location_evidence='Beijing street')]
+    calls = []
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL', raising=False)
+    monkeypatch.setattr(pages, 'search_place_photos',
+        lambda *args, **kwargs: calls.append(args) or candidates)
+    if remote_worker:
+        worker_cache = pages.PhotoPages()
+        worker = create_photo_worker(pages=worker_cache)
+        original = httpx.AsyncClient
+        monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_URL', 'http://worker:8767')
+        monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_SECRET', 'fixture-secret')
+        monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs:
+            original(transport=httpx.ASGITransport(app=worker), **kwargs))
+
+    def result(response):
+        assert response.status_code == 200, response.text
+        return json.loads(response.text.splitlines()[-1]) if stream else response.json()
+
+    with TestClient(create_app(MemoryStore())) as client:
+        headers = {'X-Account-Id': 'ranking-owner',
+                   'Accept': 'application/x-ndjson' if stream else 'application/json'}
+        project = client.post('/v1/projects', headers=headers, json={'mode': 'self'}).json()
+        url = f"/v1/projects/{project['id']}/place-photos"
+        params = {'place': 'Chengde', 'period': '1980s', 'context_year': 1983,
+                  'latitude': 40.98, 'longitude': 117.94}
+        ranked = result(client.get(url, params=params, headers=headers))
+        assert [item['asset_id'] for item in ranked['items']] == [
+            'archive.example-1983-near', 'archive.example-1983-far', 'archive.example-1984',
+            'archive.example-1982', 'archive.example-1980', 'archive.example-1989']
+        assert ranked['photo_order'] == [item['asset_id'] for item in ranked['items']]
+        changed = result(client.get(url, params={**params, 'context_year': 1984}, headers=headers))
+        assert changed['items'][0]['asset_id'] == 'archive.example-1984'
+        assert len(calls) == 1, 'Ranking another year must reuse the same public discovery pool'
+    if remote_worker:
+        worker_cache.close()
+
+
 def test_google_webpage_dates_cannot_date_a_photo():
     result = {'title': 'Chengde street', 'pagemap': {'metatags': [
         {'datePublished': '1983', 'dateModified': '1983', 'uploadDate': '1983'}]}}
     assert photos._google_date(result, '1980s') is None
+
+
+def test_relevance_ranks_known_capture_dates_and_coordinates_before_unknown_metadata():
+    items = [picture('undated', date_expression=''),
+             picture('no-gps', latitude=None, longitude=None),
+             picture('range', date_expression='1980–1989'),
+             picture('far', latitude=41.02), picture('near')]
+    ranked = photos.rank_place_photos(items, '1980s', {'latitude':40.98,'longitude':117.94}, 1983)
+    assert [item['asset_id'] for item in ranked] == [f'archive.example-{name}' for name in (
+        'near','far','no-gps','range','undated')]
+
+
+def test_cached_pool_is_reranked_per_context_with_stable_year_bound_cursors(monkeypatch):
+    candidates = [picture(index, date_expression=str(1980 + index % 10)) for index in range(15)]
+    class Repository:
+        def load(self, place, period): return {'items':candidates, 'complete':True}
+    monkeypatch.setattr(pages, 'search_place_photos', lambda *a, **k: pytest.fail('Reuse public discovery'))
+    for year in (1983, 1989):
+        cache = pages.PhotoPages(repository=Repository())
+        try:
+            first = cache.page('owner', 'Chengde', '1980s', None, context_year=year)
+            assert first['items'][0]['date_expression'] == str(year)
+            with pytest.raises(Exception) as error:
+                cache.page('owner', 'Chengde', '1980s', first['next_cursor'], context_year=1984)
+            assert error.value.status_code == 422
+            last = cache.page('owner', 'Chengde', '1980s', first['next_cursor'], context_year=year)
+            found = first['items'] + last['items']
+            assert len({item['asset_id'] for item in found}) == 15
+            gaps = [abs(int(item['date_expression'])-year) for item in found]
+            assert gaps == sorted(gaps)
+        finally:
+            cache.close()
 
 
 def test_deduplication_matches_flickr_sizes_commons_thumbnails_and_hashes():
@@ -103,7 +184,7 @@ def test_stable_pages_reuse_one_search_and_reject_other_queries(monkeypatch):
     assert error.value.status_code == 410
 
 
-def test_completed_time_fallback_exposes_cse_sources_on_the_first_stable_page(monkeypatch):
+def test_completed_time_fallback_ranks_capture_year_above_source_diversity(monkeypatch):
     commons = [picture(i, 'commons.wikimedia.org', date_expression='2008') for i in range(49)]
     cse = [picture(i, 'zh.wikipedia.org', date_expression='2010', providers=['google', 'cse'])
            for i in range(9)]
@@ -121,8 +202,8 @@ def test_completed_time_fallback_exposes_cse_sources_on_the_first_stable_page(mo
     cache = pages.PhotoPages()
     try:
         first = cache.page('owner', 'Chengde', '1980s', None)
-        assert any('cse' in item.get('providers', []) for item in first['items']), (
-            'Early Commons batches must not bury all CSE references on later pages')
+        assert all(item['date_expression'] == '2008' for item in first['items']), (
+            'References closer to the context must outrank newer CSE results')
         found, page = [], first
         while True:
             found.extend(page['items'])
@@ -130,6 +211,7 @@ def test_completed_time_fallback_exposes_cse_sources_on_the_first_stable_page(mo
                 break
             page = cache.page('owner', 'Chengde', '1980s', page['next_cursor'])
         assert len(found) == len({item['asset_id'] for item in found}) == 58
+        assert all(item['date_expression'] == '2010' for item in found[-9:])
         assert all(item['period_match'] == 'any_time' for item in found)
         assert cache.page('owner', 'Chengde', '1980s', None)['items'] == first['items']
         assert calls == ['1980s', photos.ANY_PHOTO_DATE]

@@ -12,7 +12,7 @@ from .turn_stream import STREAM_HEADERS
 
 
 async def photo_response(cache, owner, place, period, cursor, *, stream=False, refresh=False,
-                         latitude=None, longitude=None, progress=None):
+                         latitude=None, longitude=None, context_year=None, progress=None):
     from .background_skills import admit
     admit('memoir-place-photo-research','place_selection')
     async def observed(events):
@@ -35,6 +35,8 @@ async def photo_response(cache, owner, place, period, cursor, *, stream=False, r
             yield json.dumps(value,ensure_ascii=False)+'\n'
     args = (owner, place, period, cursor)
     coordinates = {'latitude': latitude, 'longitude': longitude} if latitude is not None or longitude is not None else {}
+    if context_year is not None:
+        coordinates['context_year'] = context_year
     origin = os.getenv('MEMORY_SPARK_PHOTO_WORKER_URL', '').rstrip('/')
     if not origin:
         if stream:

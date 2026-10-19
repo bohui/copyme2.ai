@@ -746,9 +746,28 @@ def _deduplicate(items: list[dict]) -> list[dict]:
 def _mix_sources(items: list[dict]) -> list[dict]:
     groups = {}
     for item in items:
-        host = (urlparse(item['source_url']).hostname or '').removeprefix('www.')
+        host = (urlparse(item.get('source_url', '')).hostname or '').removeprefix('www.')
         groups.setdefault(host, []).append(item)
     return [item for row in zip_longest(*groups.values()) for item in row if item is not None]
+
+
+def rank_place_photos(items, period, center=None, context_year=None):
+    """Rank source-backed capture years, then GPS proximity; never invent dates."""
+    target = ((context_year, context_year) if context_year is not None
+              else _period_bounds(period, expand_bare_year=False))
+    if target is None:
+        year = datetime.now(ZoneInfo('Australia/Sydney')).year
+        target = (year, year)
+
+    def relevance(item):
+        captured = _period_bounds(item.get('date_expression', ''), expand_bare_year=False)
+        gap = max(target[0] - captured[1], captured[0] - target[1], 0) if captured else math.inf
+        precision = captured[1] - captured[0] if captured else math.inf
+        point = _coordinates(item)
+        distance = _distance_km(center, point) if center and point else math.inf
+        return gap, precision, distance
+
+    return sorted(_mix_sources(items), key=relevance)
 
 
 def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, on_items=None,

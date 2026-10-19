@@ -30,7 +30,7 @@ def research_places(places, sources):
     active = {source.get('sequence'): source for source in sources if source.get('status') == 'active'}
     result = []
     for place in places:
-        period, basis = '', ''
+        period, basis, year = '', '', None
         source = active.get(place.get('source_sequence'))
         for clause in re.split(r'[，。!?！？；;\n]|\bbut\b|但是|不过|然而', (source or {}).get('text', '')):
             if not _named(clause, place['place']) or UNRESOLVED.search(clause):
@@ -55,7 +55,9 @@ def research_places(places, sources):
                 period, basis = f'{years[0] // 10 * 10}s', 'birth_decade' if birth else 'explicit_period'
             else:
                 period, basis = expression, 'explicit_period'
-        result.append({**place, 'research_period': period, 'research_period_basis': basis})
+            year = years[0] if len(years) == 1 and not re.search(r's|年代', expression, re.I) else None
+        result.append({**place, 'research_period': period, 'research_period_basis': basis,
+                       'research_year': year})
     return result
 
 

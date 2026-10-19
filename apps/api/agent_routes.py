@@ -287,6 +287,7 @@ async def place_journey(authorization: str | None = Header(default=None)):
 async def project_place_photos(project_id: str, request: Request, background_tasks: BackgroundTasks,
                               place: str = Query(min_length=1, max_length=120),
                               period: str = Query(default='', max_length=160),
+                              context_year: int | None = Query(default=None, ge=1800, le=2099),
                               cursor: str | None = Query(default=None, max_length=160),
                               refresh: bool = Query(default=False),
                               latitude: float | None = Query(default=None, ge=-90, le=90),
@@ -308,13 +309,15 @@ async def project_place_photos(project_id: str, request: Request, background_tas
         user_id = storage.user_id
         from .background_skills import action_turn
         client_turn_id = await action_turn(storage,project_id,request.headers.get('X-Memoir-Progress-Turn'))
-        if not period and callable(getattr(storage, 'research_places', None)):
+        if (not period or context_year is None) and callable(getattr(storage, 'research_places', None)):
             from .place_research import same_research_place
             places = await asyncio.to_thread(storage.research_places, project_id)
             selected = next((item for item in reversed(places)
                              if same_research_place(item['place'], place)), None)
             if selected:
-                period = selected['research_period']
+                period = period or selected['research_period']
+                if context_year is None and period == selected['research_period']:
+                    context_year = selected.get('research_year')
     except (httpx.HTTPStatusError, httpx.RequestError):
         raise HTTPException(503, 'Project verification temporarily unavailable',
                             headers={'X-Error-Code': 'PROJECT_HISTORY_UNAVAILABLE'}) from None
@@ -326,7 +329,7 @@ async def project_place_photos(project_id: str, request: Request, background_tas
         if not cursor and period:
             background_tasks.add_task(_selected_place_news, authorization, project_id, place, period)
         return await photo_response(request.app.state.memoir_photo_pages, owner, place, period, cursor,
-            refresh=refresh, latitude=latitude, longitude=longitude,
+            refresh=refresh, latitude=latitude, longitude=longitude, context_year=context_year,
             progress=lambda result:photo_step(user_id,project_id,result,client_turn_id=client_turn_id),
             stream='application/x-ndjson' in request.headers.get('accept', ''))
     except (httpx.HTTPError, ValueError, KeyError, TypeError):

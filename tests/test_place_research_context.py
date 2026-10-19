@@ -25,6 +25,8 @@ def test_birth_decade_is_shared_research_context_without_dating_current_home():
     assert places[0]['research_period'] == ''
     assert places[1]['research_period'] == '1980s'
     assert places[1]['research_period_basis'] == 'birth_decade'
+    assert places[1]['research_year'] == 1983
+    assert places[0]['research_year'] is None
     hypothesis = news.accepted_hypothesis(value, current_year=2026)
     assert (hypothesis['place'], hypothesis['start'], hypothesis['end']) == ('承德, 中国', 1980, 1989)
     assert hypothesis['time_basis'] == 'birth_decade'
@@ -69,6 +71,7 @@ def test_selected_photo_request_uses_the_shared_period_and_triggers_news(monkeyp
     from apps.api.main import create_app
     from apps.api.store import MemoryStore
     from apps.api.place_research import research_places
+    from test_place_photo_pages import picture
 
     calls = []
     class Storage:
@@ -86,7 +89,7 @@ def test_selected_photo_request_uses_the_shared_period_and_triggers_news(monkeyp
     async def run(self, hypothesis): return {'status': 'empty', 'clues': []}
     def search(place, period, **kwargs):
         calls.append(('photos', place, period))
-        return []
+        return [picture(1980, date_expression='1980'), picture(1983, date_expression='1983')]
     monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS', '1')
     monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL', raising=False)
     monkeypatch.delenv('MEMOIR_PUBLICATION_DATABASE_URL', raising=False)
@@ -96,5 +99,6 @@ def test_selected_photo_request_uses_the_shared_period_and_triggers_news(monkeyp
     with TestClient(create_app(MemoryStore())) as client:
         response = client.get('/v1/agent/places/project/photos', params={'place': '承德市'})
     assert response.status_code == 200, response.text
+    assert response.json()['items'][0]['date_expression'] == '1983'
     assert calls[0] == ('photos', '承德市', '1980s')
     assert ('news', '承德, 中国', 1980, 1989) in calls

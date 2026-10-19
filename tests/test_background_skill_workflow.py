@@ -329,7 +329,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     pages[place_photo_browser._search_url('google','承德市','1980s')]=cse_html(cse_sources)
     pages[place_photo_browser._search_url('google','悉尼','')]='<div class="gs-no-results-result">No results</div>'
     for index,source in enumerate(cse_sources,1):
-        pages[source]=photo_html(index)
+        pages[source]=photo_html(index, date=f'{1979+index}-10-01')
     places = [
         {'place':'承德市','hierarchy':['Earth','中国','河北省','承德市'],'granularity':'city','latitude':40.97,'longitude':117.93},
         {'place':'悉尼','hierarchy':['Earth','澳大利亚','悉尼'],'granularity':'city','latitude':-33.86,'longitude':151.2},
@@ -387,6 +387,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         ready=progress(conversation)
         saved = ready['derived_workspace']['places']
         assert {p['place']:p['research_period'] for p in saved} == {'悉尼':'','承德市':'1980s'}
+        assert {p['place']:p['research_year'] for p in saved} == {'悉尼':None,'承德市':1983}
         photos={}
         for place in saved:
             response = conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
@@ -399,8 +400,10 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
             assert len(final['items'])==10
             assert not final.get('failures')
             if place['place']=='承德市':
-                assert all(item['providers']==['google','cse'] and item['date_expression']=='1983-10-01'
-                           for item in final['items'])
+                assert all(item['providers']==['google','cse'] for item in final['items'])
+                assert final['items'][0]['date_expression']=='1983-10-01'
+                gaps=[abs(int(item['date_expression'][:4])-1983) for item in final['items']]
+                assert gaps==sorted(gaps)
         assert any(q[0]=='serpapi' and q[1:] == ('承德市','1980s') for q in queries)
         assert any(url==place_photo_browser._search_url('google','承德市','1980s') for url,_ in browser_calls)
         assert any(q[0]=='photo' and 'Chengde' in q[1] and '1980' in q[1] and '1989' in q[1] for q in queries)

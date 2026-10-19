@@ -18,6 +18,7 @@ class PhotoSearchInput(BaseModel):
     owner: str = Field(min_length=1, max_length=128)
     place: str = Field(min_length=1, max_length=120)
     period: str = Field(default='', max_length=160)
+    context_year: int | None = Field(default=None, ge=1800, le=2099)
     cursor: str | None = Field(default=None, max_length=160)
     refresh: bool = False
     latitude: float | None = Field(default=None, ge=-90, le=90)
@@ -63,6 +64,8 @@ def create_photo_worker(*, browser_factory=WarmPhotoBrowser, pages=None):
             raise HTTPException(status_code=401, detail='Worker authentication required')
         args = (payload.owner, payload.place, payload.period, payload.cursor)
         coordinates = {'latitude': payload.latitude, 'longitude': payload.longitude}
+        if payload.context_year is not None:
+            coordinates['context_year'] = payload.context_year
         if 'application/x-ndjson' in request.headers.get('accept', ''):
             snapshot = cache._snapshot(*args, refresh=payload.refresh, **coordinates)  # Validate before sending stream headers.
             return StreamingResponse(cache.stream(*args, snapshot=snapshot), media_type='application/x-ndjson',

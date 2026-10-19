@@ -2559,6 +2559,7 @@ def create_app(
     @app.get("/v1/projects/{project_id}/place-photos")
     async def place_photos(project_id: str, request: Request, place: str = Query(min_length=1, max_length=120),
                      period: str = Query(default="", max_length=160),
+                     context_year: int | None = Query(default=None, ge=1800, le=2099),
                      cursor: str | None = Query(default=None, max_length=160),
                      refresh: bool = Query(default=False),
                      latitude: float | None = Query(default=None, ge=-90, le=90),
@@ -2570,7 +2571,7 @@ def create_app(
         try:
             from .place_photo_transport import photo_response
             return await photo_response(photo_pages, project_id, place, period, cursor,
-                                        refresh=refresh, latitude=latitude, longitude=longitude,
+                                        refresh=refresh, latitude=latitude, longitude=longitude, context_year=context_year,
                                         stream='application/x-ndjson' in request.headers.get('accept', ''))
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             return {"items": [], "status": "UNAVAILABLE"}

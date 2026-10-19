@@ -48,6 +48,8 @@ const api=async(path,options)=>{
   assert.equal(url.pathname,`/v1/agent/places/${projectId}/photos`);
   const place=url.searchParams.get('place'),period=url.searchParams.get('period');
   assert.equal(period,place==='承德市'?'1980s':'','Each place must retain its own research period');
+  assert.equal(url.searchParams.get('context_year'),place==='承德市'?'1983':null,
+    'The original context year must survive the containing-decade search');
   assert.ok(Object.hasOwn(packet.photos,place),`Unexpected photo lookup ${place}`);
   photoCalls.push([place,period]);
   return context.consumePhotoStream(new Response(packet.photos[place]),options.onPhotoPage);
@@ -107,6 +109,10 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
     const selected=places.placeWorkspaceSelection();
     assert.equal(selected.place,['Chengde','承德市'].includes(choice[2])?'承德市':'悉尼');
     assert.equal(photos.workspacePictureItems(selected).length,10,'Each selected place must retain its own photographs');
+    if (selected.place==='承德市') {
+      const gaps=photos.workspacePictureItems(selected).map(photo=>Math.abs(Number(photo.date_expression.slice(0,4))-1983));
+      assert.deepEqual(gaps,[...gaps].sort((a,b)=>a-b),'The gallery must preserve the API relevance order');
+    }
   }
 }
 assert.ok(groups.includes('zh-CN') && groups.includes('en-AU'));

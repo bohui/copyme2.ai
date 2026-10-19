@@ -661,7 +661,9 @@ source-grounded period resolver in `apps/api/place_research.py`. A dated birth
 cue such as “born in Chengde in April 1983” supplies a **1980s research window**
 for that birthplace; it does not change the memoir's birth date or assign that
 period to a separately mentioned present home. Explicit remembered ranges take
-their own bounds. Restored place snapshots carry `research_period`, and selecting
+their own bounds. Snapshots retain `research_year=1983` separately from the
+`research_period=1980s` search window, so ranking does not lose the original year.
+Restored place snapshots carry that context, and selecting
 the photo gallery also registers news research under the same place/period.
 News retains its rollout switch, opt-out, reviewed public vocabulary, independent
 source verification and durable deduplication. It does not require another birth
@@ -773,13 +775,15 @@ cannot establish the century. Google browser is skipped in the subsequent
 decade fallback, including after a blocked search, because it already covered
 both scopes. Flickr queries the original place language and verified aliases
 separately. Other catalogues expand to the containing decade if fewer than ten
-exact-period matches are found. Completed results place exact-period matches
-first; streamed batches keep their arrival order. Wider matches retain their
-capture dates and show a same-decade reference label. Completed other-period
-fallback pages interleave original source sites before the first page is exposed,
-so early Commons batches cannot hide CSE references. The supplied Chengde Flickr
-album is also a bounded
-discovery source: its title establishes location, never individual capture dates.
+exact-period matches are found. Eligible photos rank by capture-year distance to
+the selected place's context year, then date precision and GPS distance to that
+place. Unknown years come last; missing GPS loses location ties. For 1983, exact
+1983 captures precede 1982/1984, then more distant years. With only a decade or
+range, captures within that window share temporal priority; undated current
+context uses the current year. Source sites interleave only where relevance ties.
+Wider matches retain their actual capture dates and reference labels. The supplied
+Chengde Flickr album is also a bounded discovery source: its title establishes
+location, never individual capture dates.
 The initial result is filtered against the requested locality and capture period (or
 the explicitly labelled containing-decade fallback);
 without a period, the preceding 24-month current-photo window applies. Page,
@@ -791,8 +795,11 @@ manual load/retry button. A bounded discovery pool (at most 150 matches) is
 kept in memory for 15 minutes and persisted globally by public place/period,
 making repeated searches across projects fast. Cursors remain project-bound. The client requests NDJSON and
 displays verified batches immediately, keeping a loading indicator while the
-remaining sources are checked. Streamed results retain stable arrival order;
-ordinary JSON clients still receive completed pages. An expired cursor starts a new snapshot and
+remaining sources are checked. A bounded `photo_order` list promotes better
+matches as they arrive; completed pages retain a stable relevance order. Context
+year and coordinates scope cursors, while the public discovery pool remains
+shared by place/period and can be ranked again without new provider calls.
+Ordinary JSON clients receive completed pages. An expired cursor starts a new snapshot and
 retains/deduplicates visible photos. Robots and research budgets still limit
 coverage; scroll loading does not bypass them.
 Eligible browser results retain source and capture-date metadata and are marked

@@ -85,7 +85,7 @@ export function createPhotoWorkspace({
   function photoRequestKey(entry, projectId = state.project?.id) {
     const center = placePhotoCenter({...entry, photo_search_latitude: undefined, photo_search_longitude: undefined});
     return JSON.stringify([projectId, placeHistoryKey(entry), photoSearchPeriod(entry, profile().story_focus),
-      center?.latitude ?? null, center?.longitude ?? null]);
+      center?.latitude ?? null, center?.longitude ?? null, Number.isInteger(entry.research_year) ? entry.research_year : null]);
   }
 
   function photoMatchesScope(picture, entry, focus = null) {
