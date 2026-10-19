@@ -189,9 +189,8 @@ for (const parent of packet.containing_places) {
   state.project.profile.memory_places=[parent];state.placeJourney=parent;
   await context.loadPlacePictures(parent,projectId);
   const items=photos.workspacePictureItems(state.project.profile.memory_places[0]);
-  const city={China:'Beijing',Hebei:'Chengde',Australia:'Sydney'}[parent.place];
-  assert.deepEqual(items.map(photo=>photo.title),[`${city} street`],
-    `The ${parent.place} gallery must retain the source-confirmed photograph of ${city}`);
+  assert.deepEqual(items.map(photo=>photo.title),[packet.containing_titles[parent.place]],
+    `The ${parent.place} gallery must retain its source-confirmed photograph`);
   assert.equal(items[0].date_expression,'1983-10-01');
   assert.match(photos.pictureWall(items,parent),new RegExp(`${parent.place.toLowerCase()}\\.jpg`));
 }
@@ -199,6 +198,6 @@ for (const city of packet.rejected_city_places) {
   state.project.profile.memory_places=[city];state.placeJourney=city;
   await context.loadPlacePictures(city,projectId);
   const items=photos.workspacePictureItems(state.project.profile.memory_places[0]);
-  assert.deepEqual(items,[],`${city.place} must not display the conflicting Sydney photograph`);
+  assert.deepEqual(items,[],`${city.place} must not display a conflicting city photograph`);
 }
 console.log('Place regression replay passed: delayed extraction, two searches, localized buttons, selection and restore.');

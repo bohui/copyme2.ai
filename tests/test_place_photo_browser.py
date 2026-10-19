@@ -12,14 +12,15 @@ from apps.api import place_photo_browser as browser
 from apps.api import place_photos as photos
 
 
-def photo_html(index=1, *, date='1983-10-01', place='Chengde', licence='https://creativecommons.org/licenses/by/4.0/'):
-    record = {'@type': 'Photograph', 'name': f'{place} street', 'dateCreated': date,
+def photo_html(index=1, *, date='1983-10-01', place='Chengde', licence='https://creativecommons.org/licenses/by/4.0/', title=None):
+    title = title or f'{place} street'
+    record = {'@type': 'Photograph', 'name': title, 'dateCreated': date,
               'contentLocation': {'geo': {'latitude': 40.98, 'longitude': 117.94}},
               'contentUrl': f'https://live.staticflickr.com/1/{index}.jpg',
               'creator': {'name': 'Photographer'}}
     if licence:
         record['license'] = licence
-    return (f'<title>{place} street</title><meta property="og:title" content="{place} street">'
+    return (f'<title>{title}</title><meta property="og:title" content="{title}">'
             f'<script type="application/ld+json">{json.dumps(record)}</script>')
 
 
@@ -214,9 +215,10 @@ def test_descriptive_photo_uses_its_structured_location_and_capture_date(nested,
     ('Hebei','Beijing street','','Beijing, China',False),
     ('China','Beijing street','','Chengde, Hebei, China',False),
     ('Chengde','Beijing street','','Chengde, Hebei, China',False),
-    ('China','Beijing street, China 1983','','',True),
-    ('Hebei','Chengde street in Hebei 1983','','',True),
-    ('Australia','Sydney street, Australia 1983','','',True),
+    # Captions alone cannot establish that an unfamiliar target is a parent place.
+    ('China','Beijing street, China 1983','','',False),
+    ('Hebei','Chengde street in Hebei 1983','','',False),
+    ('Australia','Sydney street, Australia 1983','','',False),
     ('Chengde','Beijing street, Chengde 1983','','',False),
     ('China','Beijing street','',{'name':'Beijing','address':{'addressCountry':'China'}},True),
     ('Hebei','Chengde street','',{'name':'Chengde','address':{'addressRegion':'Hebei','addressCountry':'China'}},True),
@@ -233,12 +235,33 @@ def test_descriptive_photo_uses_its_structured_location_and_capture_date(nested,
     ('Perth','Sydney street','',{'@type':'City','name':'Perth'},False),
     ('Perth','Sydney street','',{'@type':'AdministrativeArea','name':'Perth'},False),
     ('China','Beijing street','',{'@type':'Country','name':'China'},True),
-    ('Hebei','Chengde street','',{'@type':'AdministrativeArea','name':'Hebei'},True),
+    ('Hebei','Chengde street','',{'@type':'AdministrativeArea','name':'Hebei'},False),
+    ('Hebei','Chengde street','',{'@type':'State','name':'Hebei'},True),
     ('Australia','Sydney street','',{'@type':'Country','name':'Australia'},True),
     ('Canada','Sydney waterfront','',{'@type':'Country','name':'Canada'},True),
     ('New South Wales','Sydney street','',{'@type':'State','name':'New South Wales'},True),
     ('Nova Scotia','Sydney waterfront','',{'name':'Sydney','address':{'addressRegion':'Nova Scotia','addressCountry':'Canada'}},True),
     ('China','Beijing street','',{'@type':'Country','name':'Australia'},False),
+    ('China','Beijing street','',{'name':'China','address':{'addressLocality':'Beijing','addressCountry':'China'}},True),
+    ('Hebei','Chengde street','',{'name':'Hebei','address':{'addressLocality':'Chengde','addressRegion':'Hebei','addressCountry':'China'}},True),
+    ('Australia','Sydney street','',{'name':'Australia','address':{'addressLocality':'Sydney','addressCountry':'Australia'}},True),
+    ('Bergen','Oslo street','',{'@type':'City','name':'Bergen'},False),
+    ('Lisbon','Porto waterfront','',{'@type':'City','name':'Lisbon'},False),
+    ('Northbridge','Southport city centre in Northbridge','','',False),
+    ('Firstland','Secondville street','',{'@type':'Country','name':'Firstland',
+        'address':{'addressLocality':'Firstville','addressCountry':'Firstland'}},False),
+    ('Firstland','Firstville street','',{'name':'Firstland',
+        'address':{'addressLocality':'Firstville','addressCountry':'Firstland'}},True),
+    ('Firstshire','Firstville street','',{'@type':'State','name':'Firstshire'},True),
+    ('Firstshire','Firstville street','',{'name':'Firstville',
+        'containedInPlace':{'@type':'AdministrativeArea','name':'Firstshire'}},True),
+    ('Wien','Vienna street','',{'@type':'City','name':'Wien','alternateName':'Vienna'},True),
+    ('長野市','松本市街景','',{'@type':'City','name':'長野市'},False),
+    ('Brighton and Hove','Brighton and Hove street','',{'@type':'City','name':'Brighton and Hove'},True),
+    ('Firstville, Firstland','Secondville street','',{'@type':'City','name':'Secondville',
+        'address':{'addressCountry':'Firstland'}},False),
+    ('Firstville, Firstland','Firstville street','',{'@type':'City','name':'Firstville',
+        'address':{'addressCountry':'Firstland'}},True),
 ])
 def test_photo_reconciles_item_caption_with_its_structured_city(place, name, caption, location, accepted):
     record = {'@type':'Photograph','name':name,'caption':caption,'dateTaken':'1983-10-01',
@@ -677,8 +700,8 @@ def test_album_location_does_not_inherit_album_date(fake_crawler):
     first = 'https://www.flickr.com/photos/kattebelletje/1/'
     second = 'https://www.flickr.com/photos/kattebelletje/2/'
     pages[album] = f'<title>Chengde 承德 1983</title><a href="{first}">Willow trees</a><a href="{second}">Lake</a>'
-    pages[first] = photo_html(place='Willow trees')
-    pages[second] = photo_html(2, place='Lake', date='1984-05-01')
+    pages[first] = photo_html(title='Willow trees')
+    pages[second] = photo_html(2, title='Lake', date='1984-05-01')
     exact = asyncio.run(browser._browse_query('flickr', '承德', '1983年', album, album=True, page_budget=1))
     assert sorted(item['date_expression'] for item in exact) == ['1983-10-01', '1984-05-01']
     decade = asyncio.run(browser._browse_query('flickr', '承德', '1980s', album, album=True, page_budget=1))
@@ -1123,8 +1146,8 @@ def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, 
         '<aside class="related-gallery">'
         '<a href="https://archive.example/photos/related-beijing">More photos</a></aside>'
     )
-    sources['https://archive.example/photos/1'] = photo_html(1, place='Willow trees', date='1983-10-01')
-    sources['https://archive.example/photos/2'] = photo_html(2, place='Market street', date='1984-05-01')
+    sources['https://archive.example/photos/1'] = photo_html(1, title='Willow trees', date='1983-10-01')
+    sources['https://archive.example/photos/2'] = photo_html(2, title='Market stalls', date='1984-05-01')
     sources['https://archive.example/photos/3'] = photo_html(3, place='Museum', date='2025-05-01')
     sources['https://archive.example/photos/4'] = photo_html(4, place='Chengdu', date='1983-10-01')
     sources['https://archive.example/photos/5'] = photo_html(5, place='Hillside', date='')
@@ -1167,7 +1190,7 @@ def test_gallery_item_with_structured_conflicting_city_cannot_inherit_album_loca
         '<a href="https://archive.example/photos/1">Local album image</a>'
         '<a href="https://archive.example/photos/7">Other city image</a>'
         '</section>')
-    sources['https://archive.example/photos/1'] = photo_html(1, place='Willow trees')
+    sources['https://archive.example/photos/1'] = photo_html(1, title='Willow trees')
     claim = {'@type': 'Photograph', 'name': 'Willow trees', 'dateCreated': '1983-10-01',
              'contentLocation': {'name': 'Beijing'},
              'contentUrl': 'https://live.staticflickr.com/1/7.jpg'}
