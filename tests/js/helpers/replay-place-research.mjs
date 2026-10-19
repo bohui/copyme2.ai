@@ -54,8 +54,8 @@ const api=async(path,options)=>{
   }
   assert.equal(url.pathname,`/v1/agent/places/${projectId}/photos`);
   const place=url.searchParams.get('place'),period=url.searchParams.get('period');
-  assert.equal(period,place==='承德市'?'1980s':'','Each place must retain its own research period');
-  assert.equal(url.searchParams.get('context_year'),place==='承德市'?'1983':null,
+  assert.equal(period,place==='悉尼'?'':'1980s','Each place must retain its own research period');
+  assert.equal(url.searchParams.get('context_year'),place==='悉尼'?null:'1983',
     'The original context year must survive the containing-decade search');
   assert.ok(Object.hasOwn(packet.photos,place),`Unexpected photo lookup ${place}`);
   photoCalls.push([place,period]);
@@ -174,4 +174,15 @@ const parramatta=cityChoices.find(choice=>choice[2]==='Parramatta');
 cityWorkspace.selectPlace(parramatta[1].replaceAll('&quot;','"').replaceAll('&amp;','&'));
 assert.equal(cityWorkspace.placeWorkspaceSelection().place,'Parramatta');
 assert.equal(cityLoads.at(-1),'Parramatta');
+
+const landmark=packet.landmark;
+state.project.profile.memory_places=[landmark];state.placeJourney=landmark;
+await context.loadPlacePictures(landmark,projectId);
+const landmarkPhotos=photos.workspacePictureItems(state.project.profile.memory_places[0]);
+assert.deepEqual(landmarkPhotos.map(photo=>photo.title),['Mountain Resort'],
+  'The landmark caption and structured city must survive API-to-client filtering');
+assert.equal(landmarkPhotos[0].date_expression,'1983-10-01');
+const landmarkWall=photos.pictureWall(landmarkPhotos,landmark);
+assert.match(landmarkWall,/resort\.jpg/);
+assert.doesNotMatch(landmarkWall,/Beijing|beijing\.jpg/);
 console.log('Place regression replay passed: delayed extraction, two searches, localized buttons, selection and restore.');

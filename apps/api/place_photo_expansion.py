@@ -77,14 +77,6 @@ _NON_MEMBER_REGION = re.compile(
 )
 _VOID_TAGS = frozenset({'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link',
                         'meta', 'param', 'source', 'track', 'wbr'})
-# These aliases are defensive evidence of *conflicting* named cities, not a
-# gazetteer used to invent a photo location or widen the requested place.
-_CITY_ALIASES = (
-    ('Chengde', '承德'), ('Chengdu', '成都'), ('Beijing', '北京'),
-    ('Shanghai', '上海'), ('Tianjin', '天津'), ('Guangzhou', '广州'),
-    ('Shenzhen', '深圳'), ('Sydney', '悉尼'), ('Melbourne', '墨尔本'),
-    ('Nanjing', '南京'), ('Hangzhou', '杭州'), ('Chongqing', '重庆'),
-)
 
 
 def verified_album_member_links(source_html: str, source_url: str) -> list[str]:
@@ -139,65 +131,5 @@ def conflicting_item_locality(page: dict, place: str, location_matches) -> bool:
     inheritance; descriptive subjects like "Willow trees" cannot create a new
     city claim. The caller supplies existing validated location alias matching.
     """
-    metadata = {str(item.get('name') or item.get('property') or '').casefold():
-                item.get('content') for item in page.get('metadata', [])
-                if isinstance(item, dict)}
-    explicit = [metadata.get('geo.placename'), metadata.get('place:location:name')]
-    titles = [page.get('title', ''), metadata.get('og:title', '')]
-
-    def visit(node, depth=0):
-        if depth > 5:
-            return
-        if isinstance(node, list):
-            for child in node[:40]:
-                visit(child, depth + 1)
-        elif isinstance(node, dict):
-            types = node.get('@type', [])
-            if isinstance(types, str):
-                types = [types]
-            if not isinstance(types, list):
-                types = []
-            if any(value in {'ImageObject', 'Photograph', 'ImageGallery'}
-                   for value in types if isinstance(value, str)):
-                titles.append(node.get('name', ''))
-                location = node.get('contentLocation') or node.get('spatialCoverage')
-                if isinstance(location, dict):
-                    explicit.append(location.get('name') or location.get('addressLocality'))
-                    address = location.get('address')
-                    if isinstance(address, dict):
-                        explicit.append(address.get('addressLocality'))
-                elif isinstance(location, str):
-                    explicit.append(location)
-            if '@graph' in node:
-                visit(node['@graph'], depth + 1)
-    visit(page.get('json_ld', []))
-    def named_city_in(value, aliases):
-        for alias in aliases:
-            expression = re.escape(alias.casefold())
-            expression = ((r'(?<!\w)' + expression + r'(?!\w)')
-                          if alias.isascii() else expression)
-            if re.search(expression, value.casefold()):
-                return True
-        return False
-
-    for locality in explicit:
-        if not isinstance(locality, str) or not locality.strip():
-            continue
-        # Even if Chengde appears, explicit mention of a different known
-        # city makes this item ambiguous: never let a parent album resolve it.
-        if any(named_city_in(locality, aliases) and not named_city_in(place, aliases)
-               for aliases in _CITY_ALIASES):
-            return True
-        if not location_matches(locality, place):
-            return True
-    for title in titles:
-        if not isinstance(title, str):
-            continue
-        cleaned = re.sub(r'^(?:old|historical|vintage|archive|photo of)\s+', '',
-                         title.strip(), flags=re.I)
-        for aliases in _CITY_ALIASES:
-            if (any(re.match(re.escape(alias) + (r'\b' if alias.isascii() else ''),
-                             cleaned, re.I) for alias in aliases)
-                    and not any(alias.casefold() in place.casefold() for alias in aliases)):
-                return True
-    return False
+    from .place_photo_browser import _research
+    return _research()._crawl4ai_conflicting_item_locality(page, place, location_matches)

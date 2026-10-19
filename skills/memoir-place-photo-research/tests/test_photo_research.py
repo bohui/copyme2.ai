@@ -424,6 +424,44 @@ class WorkflowTests(unittest.TestCase):
         images = p._crawl4ai_source_images(page, card, request)
         self.assertEqual([item["image_url"] for item in images], ["https://images.example/historical.jpg"])
 
+    def test_discovery_reconciles_item_caption_with_its_structured_city(self):
+        cases = [
+            ('Chengde Mountain Resort','Mountain Resort','','Chengde',True),
+            ('离宫, 承德市','避暑山庄','','承德市',True),
+            ('Chengde Mountain Resort','Willow trees','Mountain Resort','Chengde',True),
+            ('Chengde Mountain Resort','Chengde street','','Chengde',False),
+            ('Chengde Mountain Resort','Mountain Resort','','Beijing',False),
+            ('Chengde','Beijing street','','Chengde',False),
+            ('Chengde','Willow trees','Beijing street','Chengde',False),
+            ('Chengde','Willow trees','','Chengde',True),
+        ]
+        for place,name,caption,location,accepted in cases:
+            with self.subTest(place=place,name=name,caption=caption,location=location):
+                self.req.update(place=place,temporal=p.normalize_period('1980s',ASOF),count=1)
+                p.write_json(self.run/'request.json',self.req)
+                p.write_json(self.run/'candidates.json',[])
+                p.write_text(self.run/'evidence.jsonl','')
+                p.write_text(self.run/'search_log.jsonl','')
+                record = {'@type':'Photograph','name':name,'caption':caption,'dateTaken':'1983-10-01',
+                          'contentLocation':{'name':location},'contentUrl':'https://images.example/photo.jpg'}
+                page = {'url':'https://archive.example/item','html':
+                        '<title>Chengde Mountain Resort photo gallery</title><script type="application/ld+json">'
+                        + json.dumps({'@type':'ImageGallery','itemListElement':[{'item':record}]}) + '</script>'}
+                card = {'source_url':page['url'],'text':'Chengde Mountain Resort 避暑山庄 承德市'}
+                with patch.object(p,'_crawl4ai_search_pages',return_value=[card]), \
+                     patch.object(p,'_crawl4ai_source_page',return_value=page), \
+                     patch.object(p,'public_addresses',return_value=['93.184.216.34']):
+                    summary = p.crawl4ai_discover(self.run,'https://cse.google.com/cse?cx=test')
+                self.assertEqual(summary['qualifying'],int(accepted))
+                candidates = p.read_json(self.run/'candidates.json')
+                self.assertEqual(len(candidates),int(accepted))
+                if accepted:
+                    self.assertEqual(candidates[0]['place']['match'],'exact')
+                    self.assertEqual(candidates[0]['scene_date']['start'],'1983-10-01')
+                    evidence = p.read_jsonl(self.run/'evidence.jsonl')
+                    self.assertTrue(p._crawl4ai_location_matches(
+                        next(item['excerpt'] for item in evidence if item['kind']=='place'),place))
+
     def test_crawl4ai_image_url_upgrades_observed_http_cdn(self):
         observed = "http://k.sinaimg.cn/n/sinacn/w550h329/20180116/photo.png/w700d1q75cms.jpg"
         self.assertEqual(

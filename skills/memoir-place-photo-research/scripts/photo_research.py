@@ -517,6 +517,87 @@ def _crawl4ai_location_matches(text: str, place: str) -> bool:
     return bool(required) and all(any(matches(term) for term in group) for group in required)
 
 
+def _crawl4ai_item_locality_matches(value: str, requested: str) -> bool:
+    groups = _crawl4ai_place_groups(requested)
+    # A landmark alias cannot replace its containing city as the geographic anchor.
+    anchors = groups[-1] if len(groups) > 1 else [requested]
+    return any(_crawl4ai_location_matches(value, anchor) for anchor in anchors)
+
+
+# Defensive evidence of conflicting named cities, never a source of positive matches.
+_CITY_ALIASES = (
+    ('Chengde', '承德'), ('Chengdu', '成都'), ('Beijing', '北京'),
+    ('Shanghai', '上海'), ('Tianjin', '天津'), ('Guangzhou', '广州'),
+    ('Shenzhen', '深圳'), ('Sydney', '悉尼'), ('Melbourne', '墨尔本'),
+    ('Nanjing', '南京'), ('Hangzhou', '杭州'), ('Chongqing', '重庆'),
+)
+
+
+def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches) -> bool:
+    """Veto conflicting photo locations and named cities, including in captions."""
+    metadata = {str(item.get('name') or item.get('property') or '').casefold():
+                item.get('content') for item in page.get('metadata', [])
+                if isinstance(item, dict)}
+    explicit = [metadata.get('geo.placename'), metadata.get('place:location:name')]
+    titles = [page.get('title', ''), metadata.get('og:title', '')]
+
+    def visit(node, depth=0):
+        if depth > 5:
+            return
+        if isinstance(node, list):
+            for child in node[:40]:
+                visit(child, depth + 1)
+        elif isinstance(node, dict):
+            types = node.get('@type', [])
+            if isinstance(types, str):
+                types = [types]
+            if not isinstance(types, list):
+                types = []
+            if any(value in {'ImageObject', 'Photograph', 'ImageGallery'}
+                   for value in types if isinstance(value, str)):
+                titles.extend((node.get('name', ''),node.get('caption', '')))
+                location = node.get('contentLocation') or node.get('spatialCoverage')
+                if isinstance(location, dict):
+                    explicit.append(location.get('name') or location.get('addressLocality'))
+                    address = location.get('address')
+                    if isinstance(address, dict):
+                        explicit.append(address.get('addressLocality'))
+                elif isinstance(location, str):
+                    explicit.append(location)
+            if '@graph' in node:
+                visit(node['@graph'], depth + 1)
+    visit(page.get('json_ld', []))
+
+    def named_city_in(value, aliases):
+        for alias in aliases:
+            expression = re.escape(alias.casefold())
+            expression = ((r'(?<!\w)' + expression + r'(?!\w)')
+                          if alias.isascii() else expression)
+            if re.search(expression, value.casefold()):
+                return True
+        return False
+
+    for locality in explicit:
+        if not isinstance(locality, str) or not locality.strip():
+            continue
+        if any(named_city_in(locality, aliases) and not named_city_in(place, aliases)
+               for aliases in _CITY_ALIASES):
+            return True
+        if not location_matches(locality, place):
+            return True
+    for title in titles:
+        if not isinstance(title, str):
+            continue
+        cleaned = re.sub(r'^(?:old|historical|vintage|archive|photo of)\s+', '',
+                         title.strip(), flags=re.I)
+        for aliases in _CITY_ALIASES:
+            if (any(re.match(re.escape(alias) + (r'\b' if alias.isascii() else ''),
+                             cleaned, re.I) for alias in aliases)
+                    and not any(alias.casefold() in place.casefold() for alias in aliases)):
+                return True
+    return False
+
+
 def _crawl4ai_years(text: str) -> list[int]:
     return [int(value) for value in re.findall(r"(?<!\d)((?:18|19|20)\d{2})(?!\d)", text or "")]
 
@@ -793,7 +874,7 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     for item in record["image_candidates"]:
         for url in item["candidate_urls"]:
             images.append({"url": url, "alt": item["alt"], "description": item["figure_text"]})
-    capture_metadata, location_metadata = {}, {}
+    capture_metadata, location_metadata, photo_metadata = {}, {}, {}
     def visit(node, depth=0):
         if depth > 10:
             return
@@ -805,6 +886,8 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
             if set(kinds).intersection({"Photograph", "ImageObject"}):
                 url = _crawl4ai_image_url(node.get("contentUrl"))
                 taken = node.get("dateTaken") or node.get("dateCreated")
+                if url:
+                    photo_metadata.setdefault(url, []).append(node)
                 location = _crawl4ai_photo_location(node)
                 if url and location:
                     location_metadata.setdefault(url, []).append(location)
@@ -821,17 +904,25 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     if primary and taken:
         capture_metadata[primary] = taken
         images.append({"url": primary, "alt": metadata.get("og:title", title), "description": ""})
-    unique = {}
+    unique, rejected = {}, set()
     for image in images:
         observed = image.get("url")
         if isinstance(observed, str): observed = urljoin(source_url, observed)
         url = _crawl4ai_image_url(observed)
-        if not url: continue
+        if not url or url in rejected: continue
         alt, caption = _text(image.get("alt")), _text(image.get("description"))
         if NON_PHOTO.search(" ".join([alt, caption])): continue
+        if _crawl4ai_conflicting_item_locality(
+                {'title':alt,'metadata':[{'property':'og:title','content':caption}],
+                 'json_ld':photo_metadata.get(url,[])},request['place'],_crawl4ai_item_locality_matches):
+            rejected.add(url)
+            unique.pop(url,None)
+            continue
         locations = location_metadata.get(url)
         if locations:
-            if not all(_crawl4ai_location_matches(location, request['place']) for location in locations):
+            # Compatible item captions and structured cities can supply different parts of a landmark match.
+            if not all(_crawl4ai_location_matches(' '.join((alt,caption,location)),request['place'])
+                       for location in locations):
                 continue
         else:
             if not page_matches:
@@ -854,7 +945,7 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
                 continue
         if scene and url in capture_metadata: scene["basis"] = "provider_date_taken"
         unique[url] = {"image_url": url, "observed_image_url": observed, "title": (alt or caption or title)[:1000],
-                       "scene_date": scene, "source_excerpt": ("Place: " + ("; ".join(locations) if locations else title)
+                       "scene_date": scene, "source_excerpt": ("Place: " + ("; ".join([alt,caption,*locations]) if locations else title)
                        + "; Image capture assertion: " + assertion)[:1200]}
     return list(unique.values())
 

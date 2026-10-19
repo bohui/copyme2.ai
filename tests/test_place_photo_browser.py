@@ -198,6 +198,52 @@ def test_descriptive_photo_uses_its_structured_location_and_capture_date(nested,
         assert items[0]['allowed_actions']['embed'] is True
 
 
+@pytest.mark.parametrize('place,name,caption,location,accepted', [
+    ('Chengde Mountain Resort','Mountain Resort','','Chengde',True),
+    ('离宫, 承德市','避暑山庄','','承德市',True),
+    ('Chengde Mountain Resort','Willow trees','Mountain Resort','Chengde',True),
+    ('Chengde Mountain Resort','Chengde street','','Chengde',False),
+    ('Chengde Mountain Resort','Mountain Resort','','Beijing',False),
+    ('Chengde','Beijing street','','Chengde',False),
+    ('Chengde','Willow trees','Beijing street','Chengde',False),
+    ('Chengde','Willow trees','','Chengde',True),
+])
+def test_photo_reconciles_item_caption_with_its_structured_city(place, name, caption, location, accepted):
+    record = {'@type':'Photograph','name':name,'caption':caption,'dateTaken':'1983-10-01',
+              'contentLocation':{'name':location},
+              'license':'https://creativecommons.org/licenses/by/4.0/',
+              'contentUrl':'https://archive.example/photo.jpg'}
+    page = ('<title>Chengde Mountain Resort photo gallery</title><script type="application/ld+json">'
+            + json.dumps({'@type':'ImageGallery','itemListElement':[{'item':record}]}) + '</script>')
+    items = browser._source_items(page,'https://archive.example/chengde',place,'1980s')
+    assert bool(items) is accepted
+    if accepted:
+        assert items[0]['date_expression'] == '1983-10-01'
+        assert items[0]['allowed_actions']['embed'] is True
+
+
+@pytest.mark.parametrize('surface', ['api','skill'])
+@pytest.mark.parametrize('caption_source', ['img','og:image'])
+def test_conflicting_image_caption_cannot_be_readmitted_by_structured_metadata(surface, caption_source):
+    image = 'https://archive.example/photo.jpg'
+    record = {'@type':'Photograph','name':'Willow trees','dateTaken':'1983-10-01',
+              'contentLocation':{'name':'Chengde'},'contentUrl':image,
+              'license':'https://creativecommons.org/licenses/by/4.0/'}
+    caption = (f'<img src="{image}" alt="Beijing street">' if caption_source == 'img' else
+               f'<meta property="og:image" content="{image}">'
+               '<meta property="og:title" content="Beijing street">'
+               '<meta name="dateTaken" content="1983-10-01">')
+    page = ('<title>Chengde archive</title>' + caption
+            + '<script type="application/ld+json">' + json.dumps(record) + '</script>')
+    if surface == 'api':
+        items = browser._source_items(page,'https://archive.example/item','Chengde','1980s')
+    else:
+        helper = browser._research()
+        items = helper._crawl4ai_source_images({'url':'https://archive.example/item','html':page},{},
+            {'place':'Chengde','temporal':helper.normalize_period('1980s',datetime(2026,10,19).date())})
+    assert items == []
+
+
 def test_explicit_primary_photo_can_read_its_nested_capture_metadata():
     record = {'@type':['ImageObject','Photograph'], 'name':'Chengde street',
               'dateTaken':'1983-10-01', 'license':'https://creativecommons.org/licenses/by/4.0/',
