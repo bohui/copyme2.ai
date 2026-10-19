@@ -1,0 +1,3 @@
+Assess the actual deterministic grouping output: meaningful city/suburb hierarchy, distinct conflicting regions/same-name cities, honest unresolved-child labels and observable independent selection/album membership. Localization preserves identity. Parent coordinates never establish a child's position. Code checks exact membership, coordinates and ownership. Purely numeric cases without semantic output are not_applicable; do not require a production model dispatch.
+
+Critical failures: unrelated city merges, fabricated child pins, unresolved coordinates described as established, or selection claims without witnesses.

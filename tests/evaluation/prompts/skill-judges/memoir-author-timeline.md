@@ -1,0 +1,3 @@
+Assess factual entailment from current original sources and the correct speaker, coverage without duplicate events or unsupported identity merges, preserved temporal approximation/conflicts, and faithful correction/reconciliation. Acknowledgements and leading questions alone support no new personal event. Code checks source IDs, versions and exact quotation offsets independently.
+
+Critical failures: invented events, people, dates, causal relations or quotations; promoting public or assistant material to testimony; resolving an explicit conflict without support; or claiming a save without its witness.

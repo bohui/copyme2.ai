@@ -72,3 +72,13 @@ PROMPT_PATHS = {
     'memoir/speech/en-AU': 'apps/api/prompts/speech/en-AU.md',
     'memoir/speech/zh-CN': 'apps/api/prompts/speech/zh-CN.md',
 }
+
+# New evaluation sources become runnable only after main publication creates pins.
+PENDING_EVALUATION_PROMPTS = {
+    'memoir/evaluation/judges/shared-policy': 'tests/evaluation/prompts/skill-judges/shared-policy.md',
+    **{f'memoir/evaluation/judges/{skill}': f'tests/evaluation/prompts/skill-judges/{skill}.md'
+       for skill in (
+           'memoir-author-timeline', 'memoir-composer', 'memoir-family-tree',
+           'memoir-historical-news-research', 'memoir-interviewer', 'memoir-memory-context',
+           'memoir-place-groups', 'memoir-place-journey', 'memoir-place-photo-research', 'memoir-story-game')},
+}

@@ -1,5 +1,10 @@
 # Live skill tests
 
+The [ten-skill dataset evaluation CLI](memoir-skill-evaluation.md) adds stable
+per-skill datasets and optional independent judges. The isolated runner below
+also includes the foreground interviewer; inventory no longer depends only on
+the presence of `SKILL.md`.
+
 Run `make memoir-live-skills-test` to test the active skill packages with
 real Responses calls through the existing private gateway configuration. Use
 `LIVE_SKILL=memoir-composer` to run one package. `make memoir-live-skills-plan`
@@ -18,6 +23,7 @@ unavailable and are not claimed to be bounded by the client dispatch count.
 
 | Package | Live check |
 | --- | --- |
+| memoir-interviewer | Eight bilingual foreground scenarios: Comfort, Explore, Shape, pause, redirect, correction, photo-only input and quoted controls; validated by the production collector contract |
 | memoir-memory-context | Admitted checkpoint pages in English/Chinese; accumulated earlier originals, manual target exclusion, saved reference, corrections, exact window-relative evidence, and empty/ambiguous patches |
 | memoir-author-timeline | Original evidence, childhood stage, and no invented family identities, in both languages |
 | memoir-family-tree | Explicit mother and her grounded introduction through the application marker parser |
@@ -25,14 +31,14 @@ unavailable and are not claimed to be bounded by the client dispatch count.
 | memoir-composer | Both languages at rounds 5 and 10: summarise only five new messages, draft a progressive revision, validate original evidence, review and render; preserve an independent passage exactly; at most three draft attempts per checkpoint |
 | memoir-historical-news-research | Reject unverified leads and private search data; native search receipt and independent public-source inspection/validation |
 | memoir-place-photo-research | Reject unverified leads and unsupported downloads; native search receipt and independently inspected item capture metadata |
-| memoir-place-groups | Instruction contract checked against the deterministic city/pin resolver |
+| memoir-place-groups | Actual deterministic city/pin resolver checked against explicit expected counts; no skill model request |
 | memoir-story-game | Reject missing completion/adaptation authority; no game generation |
 
 These are isolated skill contract tests using synthetic or public inputs. They do
 not create Auth users, save Supabase artifacts, grant entitlements, enable rollout
 flags, or certify browser/voice/persistence workflows. Grouping and localization
-remain deterministic in production. The game runtime is unavailable; its passing
-negative test is not a successful game-generation test. Native research fails
+remain deterministic in production. The game probe checks missing authority;
+its passing negative test is not a successful game-generation test. Native research fails
 when actual search receipts or inspected source support are absent, even if the
 model returns plausible URLs.
 

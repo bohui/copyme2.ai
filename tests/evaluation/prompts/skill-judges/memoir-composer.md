@@ -1,0 +1,3 @@
+Assess narrator-grounded prose, coherent chapters with neutral bridges where causes are unknown, appropriate use of new evidence while preserving supported unchanged writing, and consistent facts/uncertainty across supplied revisions or languages. Empty checkpoints need no invented chapter. The composer's self-review is an evaluated artifact rather than an independent quality verdict. Exact passage preservation is checked by code.
+
+Critical failures: invented dialogue, motives, sensory details, causes or certainty; revived withdrawn evidence; unjustified rewriting of protected passages; or unsupported completed/saved memoir claims.

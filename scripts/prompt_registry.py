@@ -1,13 +1,23 @@
 """Export only model-consumed sources from the application's prompt catalog."""
 from pathlib import Path
 
-from apps.api.prompt_catalog import PROMPT_PATHS
+from apps.api.prompt_catalog import PROMPT_PATHS, PENDING_EVALUATION_PROMPTS
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 def prompt_registry(root: Path = ROOT) -> dict[str, str]:
     result = dict(PROMPT_PATHS)
+    result.update({name: path for name, path in PENDING_EVALUATION_PROMPTS.items()
+                   if (root / (path + '.langfuse.json')).is_file()})
+    return _validate(result, root)
+
+
+def publication_prompt_registry(root: Path = ROOT) -> dict[str, str]:
+    return _validate({**PROMPT_PATHS, **PENDING_EVALUATION_PROMPTS}, root)
+
+
+def _validate(result, root):
     if len(result) != len(set(result.values())):
         raise ValueError("Two Langfuse prompt names target the same artifact")
     if any(not (root / path).is_file() for path in result.values()):

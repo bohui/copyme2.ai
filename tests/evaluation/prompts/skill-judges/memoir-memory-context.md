@@ -1,0 +1,3 @@
+Assess only admitted profile targets: direct narrator facts, distinction between birthplace/childhood place/current residence, faithful explicit corrections and ambiguity, and respect for manual values/blanks, exclusions and stop controls. Empty evidence can correctly yield an empty patch. A relative's facts belong to the relative. Cadence and saved effects need host witnesses.
+
+Critical failures: misattributing quoted/relative facts, guessing identity or avatar from photos/spouse/language, overwriting protected fields, turning approximate dates into exact birth years, or claiming a saved profile from an uncommitted patch.

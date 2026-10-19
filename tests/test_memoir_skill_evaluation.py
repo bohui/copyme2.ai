@@ -6,18 +6,21 @@ from types import SimpleNamespace
 import pytest
 
 from scripts.run_memoir_skill_evaluation import (
-    datasets, evaluate, item_id, junit_result, manifest, readback, verify_items,
+    datasets, evaluate, item_id, junit_result, manifest, readback, verify_items, select_datasets,
 )
+from apps.api.background_skills import SKILLS
 
 
-def test_both_datasets_cover_every_registered_skill_and_hide_gold_from_model_packets():
+def test_named_datasets_cover_every_skill_and_hide_prompts_and_gold_from_model_packets():
+    assert {name.rsplit('/', 1)[-1] for name in datasets()} == set(manifest()['skills'])
     for name, rows in datasets().items():
-        assert {r['input']['skill'] for r in rows} == set(manifest()['skills'])
+        assert {r['input']['skill'] for r in rows} == {name.rsplit('/', 1)[-1]}
         assert len({item_id(name, r) for r in rows}) == len(rows)
         for row in rows:
             assert 'expected_output' not in row['input']
+            assert 'instructions' not in row['input']
             if row['input']['kind'] == 'live_contract':
-                assert 'expected' not in row['input']['input']
+                assert 'expected' not in row['input']['packet']
 
 
 @pytest.mark.parametrize('mutation', ['input', 'gold', 'status', 'extra', 'missing'])
@@ -59,7 +62,7 @@ def test_unavailable_and_failed_checks_cannot_earn_numeric_credit():
     assert evaluate(output=dict(status='passed', evidence='verified completion')).value == 1
 
 
-@pytest.mark.parametrize('skill', manifest()['skills'])
+@pytest.mark.parametrize('skill', sorted(SKILLS))
 def test_current_registry_requires_the_real_trigger_and_rejects_unbound_skills(monkeypatch, skill):
     from apps.api.background_skills import SKILLS, SkillUnavailable, admit
     monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS', '1')
@@ -93,14 +96,14 @@ def test_case_from_another_phase_is_rejected_before_service_allocation(tmp_path,
     import sys
     import scripts.run_memoir_skill_evaluation as evaluation
 
-    rows = next(rows for name, rows in datasets().items() if name.endswith('triggers'))
+    rows = next(iter(select_datasets(datasets(), phase='triggers').values()))
     allocated = []
     client = SimpleNamespace(api=SimpleNamespace(projects=SimpleNamespace(get=lambda:
         SimpleNamespace(data=[SimpleNamespace(id='cmut9t75w00071z02n8bdv7it')]))))
     monkeypatch.setattr(evaluation, 'prompt_client', lambda *args: allocated.append('langfuse') or client)
     monkeypatch.setattr('scripts.export_langfuse_prompts.export_prompts', lambda *args, **kwargs: [])
     monkeypatch.setattr(evaluation, 'publish_datasets', lambda *args: (
-        {'memoir/evaluation/v2/skill-triggers': SimpleNamespace(items=[
+        {'memoir/evaluation/skills/memoir-author-timeline': SimpleNamespace(items=[
             SimpleNamespace(input=row['input']) for row in rows])}, datetime.now(timezone.utc)))
     monkeypatch.setattr(evaluation, 'TracedProvider', lambda *args, **kwargs: SimpleNamespace())
     env = tmp_path / 'empty.env'
@@ -123,7 +126,7 @@ def test_an_empty_experiment_cannot_report_passed(tmp_path, monkeypatch):
     import sys
     import scripts.run_memoir_skill_evaluation as evaluation
 
-    name = 'memoir/evaluation/v2/skill-triggers'
+    name = 'memoir/evaluation/skills/memoir-author-timeline'
     monkeypatch.setattr(evaluation, 'datasets', lambda: {name: []})
     client = SimpleNamespace(api=SimpleNamespace(projects=SimpleNamespace(get=lambda:
         SimpleNamespace(data=[SimpleNamespace(id='cmut9t75w00071z02n8bdv7it')]))))

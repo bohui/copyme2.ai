@@ -4,13 +4,13 @@ import hashlib
 import json
 from pathlib import Path
 
-from .prompt_catalog import PROMPT_PATHS
+from .prompt_catalog import PROMPT_PATHS, PENDING_EVALUATION_PROMPTS
 
 ROOT = Path(__file__).resolve().parents[2]
 
 
 def prompt_path(name: str) -> Path:
-    return ROOT / PROMPT_PATHS[name]
+    return ROOT / {**PROMPT_PATHS, **PENDING_EVALUATION_PROMPTS}[name]
 
 
 def load_prompt_artifact(path: Path) -> str:

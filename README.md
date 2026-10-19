@@ -445,6 +445,12 @@ and [versioned dataset experiments](https://langfuse.com/docs/evaluation/experim
 
 ### Langfuse trajectory evaluation
 
+The [ten-skill dataset evaluator](docs/memoir-skill-evaluation.md) inventories all
+runtime skill prompt owners, including the foreground interviewer. It provides
+stable skill datasets, controlled/isolated contract execution and optional pinned
+LLM judges; the [implementation spec](https://github.com/bohui/copyme2.ai/issues/90)
+tracks the remaining bilingual cases and managed evaluator publication.
+
 Memoir keeps the evaluation runner beside the application and private
 `codex-worker` boundary. The default dataset and callback are checked in at
 [`tests/evaluation/cases.json`](tests/evaluation/cases.json) and

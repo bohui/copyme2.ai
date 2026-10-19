@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.export_langfuse_prompt import sync_prompt
 from scripts.langfuse_prompt_client import prompt_client
-from scripts.prompt_registry import prompt_registry
+from scripts.prompt_registry import publication_prompt_registry as prompt_registry
 
 
 def git(root: Path, *args: str) -> str:

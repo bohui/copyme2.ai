@@ -25,6 +25,7 @@ import httpx
 import jsonschema
 
 from scripts.memoir_live_skill_cases import cases, progressive_page, skill_prompt, validate_case
+from scripts.memoir_skill_inventory import skill_inventory
 from apps.api.prompt_artifact import load_prompt_artifact
 
 
@@ -282,10 +283,11 @@ async def native_search(provider, skill):
 
 
 def manifest():
-    skills = sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md'))
+    inventory = skill_inventory()
+    skills = list(inventory)
     return dict(skills=skills, scope='isolated live LLM skill contracts; no application persistence or end-to-end certification',
                 synthetic=True, concurrency=1, transport_retries=0,
-                skill_sha256={s: hashlib.sha256((ROOT / 'skills' / s / 'SKILL.md').read_bytes()).hexdigest() for s in skills})
+                skill_sha256={s: inventory[s]['sha256'] for s in skills}, inventory=inventory)
 
 
 def task_list():
@@ -333,6 +335,11 @@ async def execute(args):
                 result['checks'] = await compose(provider, case)
             elif case is None:
                 result['checks'] = await native_search(provider, skill)
+            elif case.get('execution') == 'deterministic':
+                from apps.api.place_groups import resolve_place_groups
+                result['output'] = resolve_place_groups(case['input']['places'], allow_provider=False)
+                validate_case(case, result['output'])
+                result['checks'] = {'production_grouping': True}
             else:
                 value, _ = await provider.call(case_id, skill, case['instructions'], case['input'], case['schema'])
                 validate_case(case, value)
@@ -361,7 +368,7 @@ async def execute(args):
     report += [f"| {r['case_id']} | {r['skill']} | {r['status']} | {r['elapsed_seconds']} | {r['http_dispatches']} |" for r in receipt['results']]
     report += ['', 'Native search passes require completed tool receipts and independently inspected source evidence.',
                'Profile cases validate admitted checkpoint pages, not host scheduling or persisted effects. Retired localization is excluded.',
-               'Story-game tests the missing-authority rejection; game runtime is unavailable. Grouping uses deterministic production code.',
+               'Story-game probes check rejection, not successful game delivery. Grouping uses deterministic production code.',
                'HTTP calls are bounded; internal gateway attempts and monetary cost are not verified.', '']
     (directory / 'report.md').write_text('\n'.join(report))
     print(json.dumps({'status': receipt['status'], 'receipt': str(directory / 'receipt.json'), 'report': str(directory / 'report.md')}))

@@ -1,0 +1,3 @@
+Assess faithful narrator/relative attribution, relationship direction, distinct identities including people sharing a name, and source-grounded biographies with uncertain names/dates retained. Do not fill missing parents or infer gender, birth years, portraits or identity for completeness. Evaluate an isolated proposal only in its declared scope; the canonical runner remains unwired until independent host evidence establishes otherwise.
+
+Critical failures: invented people or relationships, unsupported identity merges, promoting questions or public photos to family facts, and claims of entitlement or canonical persistence without witnesses.

@@ -169,8 +169,48 @@ def validate_profile_case(case, value):
         raise ValueError('profile_semantic_mismatch')
 
 
+def interviewer_cases():
+    from apps.api.interview_strategy import strategy_instructions
+    from apps.api.lifetime_memory_continuity import (
+        GOVERNED_CONTINUITY_INSTRUCTIONS, governed_collector_schema,
+    )
+    from apps.api.prompt_composition import render_prompt_artifact
+
+    examples = [
+        ('comfort-entry', 'comfort', 'I would like to talk about my childhood.', '我想聊聊小时候的故事。', None),
+        ('explore-memory', 'explore', 'Father and I repaired bicycles in our shed.', '我和父亲在院子里修自行车。', None),
+        ('shape-order', 'shape', 'I started school before we moved to Perth.', '我先上了学，后来我们搬到了成都。', None),
+        ('pause', 'comfort', 'Not today. Stop here.', '今天先到这里。', 'pause'),
+        ('redirect', 'explore', "Let’s talk about my garden.", '我想聊我的花园。', 'user_redirect'),
+        ('correction', 'shape', 'I meant 1962, not 1961.', '我说错了，是1962年，不是1961年。', 'current_correction'),
+        ('photo-only', 'explore', '', '', None),
+        ('quoted-control', 'explore', 'Father said, "Stop here." Then I repaired a bicycle.', '父亲说：“今天先到这里。”后来我修了一辆自行车。', None),
+    ]
+    rows = []
+    for locale in ('en-AU', 'zh-CN'):
+        for family, strategy, english, chinese, reason in examples:
+            text = english if locale == 'en-AU' else chinese
+            source = dict(id=f'interviewer-{family}-{locale}', version=1, status='active', text=text) if text else None
+            context = dict(source=source, sources=[source] if source else [], events=[], photos=[],
+                photo_context=[], strategy_selector=True, two_lane_memory=True,
+                interview_language=locale, opening_turn=family == 'comfort-entry',
+                has_accepted_narration=bool(source), strategy_context={'mode': 'active', 'plan': None})
+            if family == 'photo-only':
+                context['photo_context'] = [dict(photo_id='reference:synthetic-garden', kind='public_reference',
+                    title='A garden reference', provenance='public_reference')]
+            instructions = (strategy_instructions(strategy) + '\n' + render_prompt_artifact(
+                prompt_path(f'memoir/skills/memoir-interviewer/language/{locale}')) + '\n' + GOVERNED_CONTINUITY_INSTRUCTIONS)
+            rows.append(dict(id=f'interviewer-{family}-{locale}', skill='memoir-interviewer',
+                locale=locale, case_family=family, instructions=instructions, input=context,
+                schema=governed_collector_schema(context), validator='interviewer',
+                expected=dict(question=family != 'pause', selection_reason=reason),
+                scope='isolated foreground proposal; no saved-turn or delivery certification'))
+    return rows
+
+
 def cases():
     rows = profile_cases()
+    rows.extend(interviewer_cases())
     for locale in ('en-AU', 'zh-CN'):
         original = source(locale)
         rows.extend([
@@ -193,15 +233,10 @@ def cases():
                    granularity='city', latitude=-33.87, longitude=151.21),
               dict(place='Chatswood', hierarchy=['Earth', 'Australia', 'New South Wales', 'Sydney', 'Chatswood'],
                    granularity='suburb', latitude=-33.797, longitude=151.183)]
-    expected_groups = resolve_place_groups(deepcopy(places), allow_provider=False)
     rows.append(dict(id='groups-independent-child-pin', skill='memoir-place-groups',
-        instructions=skill_prompt('memoir-place-groups') + eval_fragment('place-groups'),
-        schema=object_schema({'city_groups': {'type': 'integer'}, 'independent_pins': {'type': 'integer'},
-                              'conversation_must_wait': {'type': 'boolean'}}),
-        input={'places': places}, expected={'city_groups': len({p['city_key'] for p in expected_groups['places']}),
-            'independent_pins': sum(p['pin'] is not None for p in expected_groups['places']),
-            'conversation_must_wait': False}, validator='equal',
-        scope='instruction probe; actual grouping is deterministic and has no model invocation'))
+        instructions='', schema=None, input={'places': places},
+        expected={'city_groups': 1, 'independent_pins': 2}, validator='grouping',
+        execution='deterministic', scope='actual production grouping; no skill model invocation'))
     rows.append(dict(id='story-game-missing-authority', skill='memoir-story-game',
         instructions=skill_prompt('memoir-story-game', 'references/runtime-contract.md') + eval_fragment('story-game'),
         schema=object_schema({'generation_permitted': {'type': 'boolean'}, 'game_generated': {'type': 'boolean'},
@@ -233,7 +268,22 @@ def cases():
 
 def validate_case(case, value):
     kind = case['validator']
-    if kind == 'equal':
+    if kind == 'grouping':
+        observed = dict(city_groups=len({place['city_key'] for place in value['places']}),
+                        independent_pins=sum(place['pin'] is not None for place in value['places']))
+        if observed != case['expected']:
+            raise ValueError('grouping_membership_or_pin_coverage')
+    elif kind == 'interviewer':
+        from apps.api.lifetime_memory_continuity import validate_governed_collector_result
+        result = validate_governed_collector_result(value, case['input'])
+        outcome = result['strategy_outcome']
+        if bool(outcome['question_delivered']) != case['expected']['question']:
+            raise ValueError('interviewer_question_disposition')
+        if case['expected']['selection_reason'] and outcome['selection_reason'] != case['expected']['selection_reason']:
+            raise ValueError('interviewer_current_intent')
+        if not case['input'].get('source') and result.get('associations'):
+            raise ValueError('photo_is_not_narrator_testimony')
+    elif kind == 'equal':
         if value != case['expected']:
             raise ValueError('semantic_mismatch')
     elif kind == 'profile':
