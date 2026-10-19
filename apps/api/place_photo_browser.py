@@ -109,11 +109,7 @@ def _json_ld_photo_records(value) -> list[dict]:
 
 
 def _item_locality_matches(value: str, requested: str) -> bool:
-    helper = _research()
-    groups = helper._crawl4ai_place_groups(requested)
-    # A landmark's generic alias cannot replace its containing city as the geographic anchor.
-    anchors = groups[-1] if len(groups) > 1 else [requested]
-    return any(helper._crawl4ai_location_matches(value, anchor) for anchor in anchors)
+    return _research()._crawl4ai_item_locality_matches(value, requested)
 
 
 def _source_items(source_html: str, source_url: str, place: str, period: str,
