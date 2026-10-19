@@ -118,7 +118,9 @@ def test_background_correction_commits_without_republishing_the_invalidated_stra
     from test_interview_strategy_runtime import client_fixture
     from test_interview_strategy import wire
     def provider(request):
-        return httpx.Response(200,json={'reply':json.dumps(wire(selection_reason='latest_story')),'thread_id':'synthetic','artifacts':[]})
+        source = json.loads(request.content)['interview_context']['source']['text']
+        reason = 'current_correction' if source.startswith('Correction:') else 'latest_story'
+        return httpx.Response(200,json={'reply':json.dumps(wire(selection_reason=reason)),'thread_id':'synthetic','artifacts':[]})
     client=client_fixture(sql,tmp_path,monkeypatch,provider)
     with client:
         response=client.post('/v1/agent/turn',json={'text':'I started school in 1960.','client_turn_id':str(uuid4())})

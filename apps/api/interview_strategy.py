@@ -16,6 +16,7 @@ from .interview_plan import PhotoAssociation,TurnWorkPlan
 from .two_lane_memory import PreparedQuestion
 from .prompt_composition import render_prompt_artifact
 from .prompt_artifact import prompt_path
+from .stage_readiness import LIFE_STAGES
 
 Strategy=Literal['comfort','explore','shape']
 SelectionReason=Literal['prepared_candidate','adapted_candidate','latest_story','user_redirect','current_correction',
@@ -75,6 +76,24 @@ def strategy_enabled():
 STRATEGY_MODULES = frozenset({'comfort', 'explore', 'shape'})
 
 
+def stage_breadth_checkpoint(coverage):
+    """Three distinct grounded events permit an invitation, never completion."""
+    stages = {row['life_stage']: row for row in coverage or [] if row['life_stage'] in LIFE_STAGES
+              and row['grounded_events'] > 0}
+    if not stages:
+        return None
+    current = max(stages, key=lambda stage: (stages[stage]['last_source_sequence'], LIFE_STAGES.index(stage)))
+    if stages[current]['grounded_events'] < 3:
+        return None
+    other_stages = LIFE_STAGES[LIFE_STAGES.index(current) + 1:] + LIFE_STAGES[:LIFE_STAGES.index(current)]
+    next_stage = next((stage for stage in other_stages
+                       if stages.get(stage, {}).get('grounded_events', 0) < 3), None)
+    if next_stage is None:
+        return None
+    return dict(current_stage=current, suggested_stage=next_stage,
+                grounded_events=stages[current]['grounded_events'], minimum_grounded_events=3)
+
+
 def strategy_instructions(strategy):
     if strategy not in STRATEGY_MODULES:
         raise ValueError('Unknown internal strategy')
@@ -102,10 +121,17 @@ def selector_schema(context=None):
     if constraints.get('no_question'):
         schema['properties']['question']={'type':'null'}
         schema['properties']['selection_reason']['enum']=['pause']
+    elif constraints.get('override') and not direct_question(context):
+        # Literal intent matching cannot enumerate every natural request to stop.
+        schema['properties']['selection_reason']['enum']=[constraints['override'], 'pause']
     return schema
 
 
-def current_constraints(text):
+def direct_question(context):
+    return bool(re.search(r'[?？]', _direct_narrator_text((context.get('source') or {}).get('text', ''))))
+
+
+def _direct_narrator_text(text):
     # Bound reported speech to its own clause. Mask whole quotes first, keeping
     # a sentence boundary so later direct narrator requests remain authoritative.
     from .conversation_attribution import QUOTED_SENTENCE_PATTERN,QUOTED_PATTERN,ATTRIBUTION_PATTERN
@@ -132,9 +158,15 @@ def current_constraints(text):
             # introduction followed only by a newline continues to the next one.
             if re.search(r'[.!?。！？;；]',boundary):reported_continuation=False
             continue
-        direct.append(clause)
-    value='\n'.join(direct)
+        direct.append(clause + boundary)
+    return '\n'.join(direct)
+
+
+def current_constraints(text):
+    value = _direct_narrator_text(text)
     if re.search(r'\b(?:not today|stop here|pause here|finished today)\b|今天不聊|今天先到这里|先停一停',value,re.I):return {'no_question':True}
+    if re.search(r'(?m)^\s*(?:(?:please\s+)?stop(?:\s+(?:now|the interview|asking questions))?|no more questions(?:\s+(?:please|today|for now))?|(?:请|請)?(?:停一下|停止提问|停止提問|不要再问了|不要再問了|别再问了|別再問了))\s*[.!?。！？;；]*\s*$',value,re.I):
+        return {'no_question':True}
     if re.search(r"let[’']s (?:talk|discuss)|change (?:the )?(?:subject|topic)|换个话题|想聊",value,re.I):return {'override':'user_redirect'}
     if re.search(r'\b(?:I meant|got that wrong|correction)\b|(?:我(?:说|說)错)|更正',value,re.I):return {'override':'current_correction'}
     if re.search(r'\b(?:lighter question|keep it gentle|take it slowly)\b|轻松|慢慢聊',value,re.I):return {'override':'pacing'}
@@ -150,6 +182,9 @@ def adapt_selection(raw,context):
         raise ValueError('Only one immediate question is allowed')
     if item.stopped and item.question is not None:raise ValueError('A stop cannot force a question')
     if constraints.get('no_question') and item.question is not None:raise ValueError('Current pause requires no question')
+    if constraints.get('override') and not direct_question(context) and not item.stopped:
+        if item.question is None or item.selection_reason != constraints['override']:
+            raise ValueError('Current intent requires one appropriate follow-up question')
     if item.question is None and item.selection_reason not in {'pause','direct_answer'}:raise ValueError('No-question outcome requires an explicit reason')
     if item.selected_candidate_id is not None:
         if item.selected_candidate_id not in available:raise ValueError('Candidate is stale, asked or outside this project')
