@@ -17,10 +17,30 @@ def test_public_milestones_ignore_headers_private_json_and_generic_filler():
     observation.observe({'type':'text_delta','text':'Thank you. '})
     assert observation.timings['first_meaningful_text_s'] is None
     observation.observe({'type':'text_delta','text':'You remember blue labels.'})
-    observation.observe({'type':'progress','data':{'question_pool':{'chosen_id':'q'}}})
-    observation.observe({'type':'reply_complete'})
+    observation.observe({'type':'question_validated','data':{'has_question':True}})
+    observation.observe({'type':'reply_complete','data':{'cached':False,'has_question':True}})
     observation.observe({'type':'conversation_saved','data':{'conversation_saved':True}})
     assert list(observation.timings.values()) == [4,5,6,7]
+
+
+def test_saved_replay_completion_uses_terminal_receipt_without_generation_milestones():
+    ticks=iter(range(4))
+    observation=StreamObservation('blue labels',clock=lambda:next(ticks))
+    observation.observe({'type':'result','data':{'cached':True,'conversation_saved':True,'reply':None}})
+    assert all(v is None for v in observation.timings.values())
+    observation.observe({'type':'result','data':{'cached':True,'conversation_saved':True,'reply':'The labels were blue.'}})
+    assert observation.timings['reply_complete_s']==2
+    assert all(observation.timings[k] is None for k in profile.MILESTONES if k!='reply_complete_s')
+
+
+def test_duplicate_public_milestones_do_not_replace_first_receipt_time():
+    ticks=iter(range(6))
+    observation=StreamObservation('blue labels',clock=lambda:next(ticks))
+    for event in [{'type':'question_validated','data':{'has_question':True}},
+                  {'type':'reply_complete','data':{'cached':False,'has_question':True}}]*2:
+        observation.observe(event)
+    assert observation.timings['validated_question_s']==1
+    assert observation.timings['reply_complete_s']==2
 
 
 @pytest.fixture(scope='module')

@@ -32,16 +32,23 @@ class StreamObservation:
         elapsed = self.clock() - self.started
         self.events.append({**deepcopy(event), 'elapsed_s':elapsed})
         kind = event.get('type')
+        data=event.get('data') if isinstance(event.get('data'),dict) else {}
+        def mark(key):
+            if self.timings[key] is None:self.timings[key]=elapsed
         if kind == 'text_delta':
             self.public += event.get('text', '')
             if self.excerpt and self.excerpt in self.public and self.timings['first_meaningful_text_s'] is None:
                 self.timings['first_meaningful_text_s'] = elapsed
-        pool = (event.get('data') or {}).get('question_pool')
-        if kind == 'progress' and isinstance(pool, dict) and pool.get('chosen_id'):
-            self.timings['validated_question_s'] = elapsed
-        if kind == 'reply_complete': self.timings['reply_complete_s'] = elapsed
-        if kind == 'conversation_saved' and (event.get('data') or {}).get('conversation_saved'):
-            self.timings['durable_save_s'] = elapsed
+        pool = data.get('question_pool')
+        if (kind=='question_validated' and data.get('has_question') is True
+            or kind=='progress' and isinstance(pool,dict) and pool.get('chosen_id')):
+            mark('validated_question_s')
+        saved_replay=(data.get('cached') is True and data.get('conversation_saved') is True
+                      and isinstance(data.get('reply'),str) and bool(data['reply'].strip()))
+        if kind=='reply_complete' and data.get('cached') is not True or kind=='result' and saved_replay:
+            mark('reply_complete_s')
+        if kind=='conversation_saved' and data.get('conversation_saved') is True:
+            mark('durable_save_s')
 
     def receipt(self):
         return dict(timings=self.timings, meaningful_excerpt=self.excerpt,

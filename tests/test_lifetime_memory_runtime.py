@@ -111,19 +111,28 @@ def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tm
         activity=next((step for step in result['trace'] if step['id']=='tool-1'),None)
         assert activity is not None, 'Tool calls disappeared from thinking steps; only the question pool remains'
         assert activity['status']=='completed'
-        pool=next(step['question_pool'] for step in result['trace'] if step['id']=='question-pool')
-        assert pool['chosen_id']==output['plan']['chosen_id']
-        assert pool['candidates'][0]['question']=='What would you like to share?'
+        summary=next(step for step in result['trace'] if step['id']=='question-pool')
+        assert summary['status']=='completed'
+        assert all('question_pool' not in step for step in result['trace'])
+        assert 'plan' not in result and 'work' not in result
+        private_plan=json.loads(sql("select collector->'plan' from public.user_interview_turn;").stdout)
+        assert private_plan['chosen_id']==output['plan']['chosen_id']
+        assert private_plan['candidates'][0]['question']=='What would you like to share?'
+        assert private_plan['work']==output['plan']['work']
         if streaming:
-            assert next(e['data'] for e in events if e['type']=='progress' and e['data']['id']=='question-pool')['question_pool']==pool
+            assert next(e['data'] for e in events if e['type']=='progress' and e['data']['id']=='question-pool')==summary
             assert any(e['type']=='progress' and e['data']['id']=='tool-1' for e in events)
+            assert next(e['data'] for e in events if e['type']=='question_validated')=={'has_question':True}
+            assert next(e['data'] for e in events if e['type']=='reply_complete')=={'cached':False,'has_question':True}
         payload['project_id']=result['project_id']
         monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
         retry=client.post('/v1/agent/turn',headers=headers,json=payload)
         if streaming:replayed=next(json.loads(line)['data'] for line in retry.text.splitlines() if json.loads(line)['type']=='result')
         else:replayed=retry.json()
         assert replayed['cached'] and replayed['reply']==result['reply']
-        assert replayed['trace'][0]['question_pool']==pool
+        assert any(step['id']=='question-pool' and step['status']=='completed' for step in replayed['trace'])
+        assert all('question_pool' not in step for step in replayed['trace'])
+        assert 'plan' not in replayed and 'work' not in replayed
         conflict=client.post('/v1/agent/turn',headers=headers,json={**payload,'text':'Different narrator input'})
         if streaming:assert any(json.loads(line)['type']=='error' for line in conflict.text.splitlines())
         else:assert conflict.status_code>=400

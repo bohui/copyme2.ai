@@ -5,6 +5,30 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 const source=readMemoirClientSource();
 const extract = name => ['captureProjectScope', 'isCurrentProjectScope', 'currentWorkspaceMemoryFocus', 'workspaceTurnFocus', 'markWorkspaceFocusStarted', 'readBrowserValues', 'mergeChatHistoryCopies'].map(helper => source.match(new RegExp(`(?:async )?function ${helper}\\([^]*?\\n\}`))[0]).join('\n') + '\n' + (source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0]);
+test('public milestone metadata cannot unlock the next answer before conversation save', async()=>{
+ let controller;
+ const body=new ReadableStream({start(value){controller=value;}});
+ const seen=[];
+ const context=vm.createContext({fetch:async()=>({ok:true,status:200,body}),state:{supabase:{accessToken:'test'},project:{id:'p'}},
+   memoirApiPath:p=>p,readCookie:()=>'',TextDecoder,conversationLanguage:()=> 'en-AU'});
+ vm.runInContext(extract('streamAgentTurn'),context);
+ let ready=false;
+ const pending=context.streamAgentTurn('A memory',async text=>seen.push(text),async()=>{}).then(result=>{ready=true;return result;});
+ const emit=events=>controller.enqueue(new TextEncoder().encode(events.map(JSON.stringify).join('\n')+'\n'));
+ try{
+   emit([{type:'text_delta',text:'A memory. '},{type:'question_validated',data:{has_question:true}},
+     {type:'text_delta',text:'What happened next?'},{type:'reply_complete',data:{cached:false,has_question:true}}]);
+   await new Promise(resolve=>setImmediate(resolve));
+   assert.equal(ready,false);
+   assert.deepEqual(seen,['A memory. ','What happened next?']);
+   emit([{type:'conversation_saved',data:{reply:'A memory. What happened next?',conversation_saved:true}},
+     {type:'result',data:{reply:'A memory. What happened next?',conversation_saved:true}}]);
+   const result=await pending;
+   assert.equal(ready,true);
+   assert.equal(result.conversation_saved,true);
+   assert.equal(result.reply,'A memory. What happened next?');
+ }finally{controller.close();}
+});
 test('forwards progress before text and skill events after conversation save', async () => {
  const seen=[];
  const events=[{type:'progress',data:{id:'context',label:'Loading context'}},{type:'text_delta',text:'Hello'}, {type:'conversation_saved',data:{reply:'Hello',conversation_saved:true}}, {type:'progress',data:{id:'place',skill:'memoir-place-journey'}},{type:'result',data:{reply:'Hello'}}];

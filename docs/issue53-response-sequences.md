@@ -149,7 +149,7 @@ done
 
 Run these groups separately so a slow native fixture cannot obscure the status
 of focused or fault checks. Both locale runs are needed to cover all 80 rows.
-Each runs all eight scenario/receipt checks and retains its own plan, results,
+Each runs all nine scenario/receipt checks and retains its own plan, results,
 comparison and cleanup receipt. Fresh fixed artifact directories avoid pytest's
 rotating temporary-directory cleanup; use a new check root for another campaign.
 The locale selector is test-only; the default
@@ -166,11 +166,13 @@ review status is superseded. Historical owner and reviewer evidence remain
 separately identified. The language-gate continuation also has independent
 re-import of both current-source cohorts with real receipt verification.
 
-Two existing HTTP replay tests expect `trace.question_pool`, which is absent on
-unchanged main `8b8b494`; they fail with the same `KeyError` before and after the
-language fix. The continuation records these baseline failures instead of
-changing their assertions or the unrelated trace contract. Unemitted timing
-milestones remain unknown, including structured validated-question observations.
+The language-gate continuation recorded two inherited HTTP replay tests failing
+on `trace.question_pool`, also absent on unchanged main `8b8b494`. The subsequent
+observability slice reconciles those tests with the existing privacy contract:
+the public trace has a completed summary, while the full chosen plan and work
+decision are checked in private SQL readback. The previously unreached cold
+replay, paused generation, conflicting input, source/reply identity and lease
+assertions now run. Private planning is not added to the stream.
 
 The adapter admits only mocked worker transports, strips service credentials,
 blocks external sockets, and allocates/removes its own native PostgreSQL
@@ -265,15 +267,63 @@ acceptable quality loss, small-sample p95 or production percentile is invented.
 A faster failed response cannot improve acceptance status.
 
 Public timings distinguish an annotated meaningful excerpt in received
-`text_delta`, the validated question-pool event, `reply_complete`, and
-`conversation_saved` plus independent durable readback. Headers, private model
-JSON, progress and generic filler do not satisfy the excerpt observation. The
-excerpt's semantic adequacy still requires review. Unemitted milestones remain
-null; a cached replay need not emit a new save event. Browser paint is not
-measured. Actual prompt metadata in the governed packet is retained separately
+`text_delta`, `question_validated`, `reply_complete`, and `conversation_saved`
+plus independent durable readback. Headers, private model JSON, progress and
+generic filler do not satisfy the excerpt observation. The excerpt's semantic
+adequacy still requires review. Unemitted applicable milestones remain null.
+Browser paint is not measured. Actual prompt metadata in the governed packet is retained separately
 from requested descriptors. Provider usage/cache tokens, policy, internal
 attempts/retries and load observations remain unknown when unavailable, rather
 than being replaced by zero or synthetic worker counts.
+
+## Governed public milestone observations
+
+This slice is stacked on the unchanged PR96 language-gate head
+`8315df3e7876374f699ac0ab07b8481659660606`; PR96 must merge first. The latest
+observed main is `7d12641357b69ef767a49e171cc188e23a039c72`. Its separate
+place-workspace changes are checked in a disposable integration checkout, rather
+than duplicated in the stacked PR. Check receipts and source hashes are retained
+in `docs/test-evidence/issue53-stream-milestones-20261020.json`.
+
+After full proposal validation and required persistence, the backend sends a
+fenced `question_validated` event containing only `{"has_question":true}` when
+there is a chosen question. Its received timestamp is a **post-commit validation
+attestation**, not the internal validation finish or question-text delivery time.
+It reveals no chosen ID, candidate questions, work decision or private plan.
+Stopped replies emit no question milestone.
+
+Every generated path sends `reply_complete` after its final public text delta
+and before the existing save attestation. The default payload contains only
+`cached:false` and `has_question`; the existing two-lane public response envelope
+and reply identity are preserved. This marks completed public reply text, not
+terminal-result delivery or completed background work. It does not replace the
+client's `conversation_saved` readiness check. JSON response bodies are unchanged.
+Both markers use the existing publication fence and are rejected without it.
+
+Saved replay produces no artificial generation or save events. A nonempty saved
+cached `result` supplies its observed reply-completion time; new-text, new-question
+and new-save timings are not applicable. Stopped turns also have no applicable
+question timing. Comparison derives these exclusions from the frozen planned
+row, reports `not_applicable` separately from `unknown`, and leaves their paired
+deltas null. Raw observations remain available. The first received milestone
+wins if duplicated. The profiler still reads historical private-pool progress
+receipts, but this slice does not restore that server publication.
+
+Native controlled tests cover normal and cold-resumed generated turns, stop,
+saved replay, two-lane and strategy paths. A blocked commit may coexist with an
+early acknowledgement but cannot produce a question, completion or save marker.
+A failed commit preserves the source for same-turn recovery. Disconnects at the
+question delta or completion send cannot fabricate received completion/save;
+retry returns the saved reply without another generation. Private plan readback,
+source/reply identity and expired leases remain checked. A client stream test
+also proves that the new metadata cannot unlock another answer before save.
+The bilingual matrix and upstream-failure cases remain synthetic contract
+evidence, not model-quality or production-latency measurements.
+
+The broader owner run passed 228 checks and retained five failures in unchanged
+two-lane background tests. The exact PR96 baseline reproduces all five, involving
+strategy-proposal expectations and a stale background page. They remain visible
+in the evidence; this slice does not claim the entire aggregate is green.
 
 ## Remaining acceptance and bounded live work
 
@@ -292,8 +342,8 @@ or authorization to run. Background extraction/research/composition fanout needs
 its own inspected and approved bound before any live execution; it is not
 silently funded by the foreground allowance.
 
-Before release consideration: resolve the separately reproduced baseline trace
-regressions and missing milestone observations; verify actual provider policy and complete route/prompt/configuration
+Before release consideration: verify these observations against real provider
+execution and verify actual provider policy and complete route/prompt/configuration
 provenance; exercise the full bilingual manifest against real model outputs,
 including rollback, failed-save/stop/ownership and derived testimony handling;
 perform the blinded comparisons through the existing evaluator; obtain disjoint

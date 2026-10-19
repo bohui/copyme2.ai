@@ -390,9 +390,12 @@ def _latency(rows):
                   outcomes={s:sum(r['execution'] == s for r in rows) for s in ('completed','failed','timed_out','unavailable')})
     result['milestones'] = {}
     for key in MILESTONES:
-        values = {arm:[r['timings'].get(key) for pair in complete for r in pair if r['arm'] == arm] for arm in ('baseline','candidate')}
+        applicable={arm:[r for pair in complete for r in pair if r['arm']==arm and key not in r.get('not_applicable_milestones',[])]
+                    for arm in ('baseline','candidate')}
+        values = {arm:[r['timings'].get(key) for r in group] for arm,group in applicable.items()}
         valid = {arm:[v for v in group if type(v) in (int,float) and math.isfinite(v) and v >= 0] for arm,group in values.items()}
         result['milestones'][key] = {arm:dict(observed=len(v), unknown=len(values[arm])-len(v),
+            not_applicable=sum(r['arm']==arm and key in r.get('not_applicable_milestones',[]) for pair in complete for r in pair),
             median_s=statistics.median(v) if v else None, samples_s=v, p95_s=None) for arm,v in valid.items()}
     result['paired_deltas'] = []
     for pair in complete:
@@ -400,7 +403,8 @@ def _latency(rows):
         deltas = {}
         for key in MILESTONES:
             b, c = (arms[a]['timings'].get(key) for a in ('baseline','candidate'))
-            deltas[key] = c-b if all(type(v) in (int,float) and math.isfinite(v) and v >= 0 for v in (b,c)) else None
+            deltas[key] = c-b if (all(key not in r.get('not_applicable_milestones',[]) for r in pair)
+                and all(type(v) in (int,float) and math.isfinite(v) and v >= 0 for v in (b,c))) else None
         result['paired_deltas'].append(dict(pair_id=pair[0]['pair_id'], candidate_minus_baseline_s=deltas))
     return result
 
@@ -434,6 +438,8 @@ def compare(planned, results, journal, reviews, *, directory):
         status = value.get('execution', 'unavailable')
         if status not in {'completed','failed','timed_out','unavailable'}: raise ValueError('invalid_execution_status')
         item = {k:row[k] for k in ('row_id','pair_id','arm','locale','phase','scenario_id','sample')}
+        item['not_applicable_milestones']=([k for k in MILESTONES if k!='reply_complete_s'] if row['action']=='replay'
+            else ['validated_question_s'] if row['item']['gold']['facts']['stopped'] else [])
         item.update(execution=status, timings=value.get('timings', {}),
             reason=value.get('reason', 'not_run'),
             # This offline adapter has no provider-policy/usage attestor. Raw

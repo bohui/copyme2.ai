@@ -70,6 +70,32 @@ def test_name_work_stop_skip_and_correction_contracts_are_observable(full_native
         assert all(p['current']['narrator']['original']==row['item']['task']['source']['text'] for p in capture['packet_readbacks'])
 
 
+def test_public_milestones_distinguish_generated_stop_and_saved_replay(full_native_manifest):
+    planned,rows,journal,report,folder=full_native_manifest
+    for row in planned['rows']:
+        capture=journal['rows'][row['row_id']]
+        observation=capture['stream_observation'];events=observation['events']
+        kinds=[e['type'] for e in events]
+        assert observation['timings']['reply_complete_s'] is not None
+        if row['action']=='replay':
+            assert not any(k in kinds for k in ['question_validated','reply_complete','conversation_saved'])
+            assert all(observation['timings'][k] is None for k in profile.MILESTONES if k!='reply_complete_s')
+            continue
+        stopped=row['item']['gold']['facts']['stopped']
+        assert kinds.count('question_validated')==(0 if stopped else 1)
+        assert kinds.count('reply_complete')==kinds.count('conversation_saved')==1
+        completion=next(e for e in events if e['type']=='reply_complete')
+        assert completion['data']=={'cached':False,'has_question':not stopped}
+        assert max(i for i,k in enumerate(kinds) if k=='text_delta')<kinds.index('reply_complete')<kinds.index('conversation_saved')
+        if stopped:
+            assert observation['timings']['validated_question_s'] is None
+        else:
+            validated=next(e for e in events if e['type']=='question_validated')
+            assert validated['data']=={'has_question':True}
+            assert kinds.index('question_validated')<max(i for i,k in enumerate(kinds) if k=='text_delta')
+            assert observation['timings']['validated_question_s'] is not None
+
+
 def test_current_policy_tail_eligibility_does_not_erase_saved_testimony(full_native_manifest):
     planned,rows,journal,report,folder=full_native_manifest
     locale=planned['scenarios'][0]['locale']
@@ -143,7 +169,9 @@ def test_negative_streams_retain_failed_rows_and_durable_original_without_false_
     proof=journal['failures'][row_id]
     assert len(proof['after']['sources'])==1 and proof['after']['replies']==[]
     assert proof['after']['sources'][0]['text']==planned['rows'][0]['item']['task']['source']['text']
-    assert not any(e['type']=='conversation_saved' for e in proof['stream_observation']['events'])
+    assert not any(e['type'] in {'question_validated','reply_complete','conversation_saved'} for e in proof['stream_observation']['events'])
+    assert failed['timings']['validated_question_s'] is None
+    assert failed['timings']['reply_complete_s'] is None
     assert failed['timings']['durable_save_s'] is None
     if fault=='save_failure':
         assert proof['stream_observation']['public_text']
