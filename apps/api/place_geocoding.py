@@ -13,6 +13,11 @@ _lock = Lock()
 GOOGLE_GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json"
 GEOAPIFY_GEOCODING_URL = "https://api.geoapify.com/v1/geocode/search"
 GEOAPIFY_MIN_CONFIDENCE = 0.95
+GEOAPIFY_RESULT_FIELDS = {
+    'country': ('country', 'country_code'), 'state': ('state', 'state_code', 'region'),
+    'county': ('county',), 'city': ('city', 'municipality', 'town', 'village'),
+    'district': ('district',), 'suburb': ('suburb',), 'locality': ('locality',),
+}
 
 
 class GeocodingUnavailable(RuntimeError):
@@ -23,18 +28,19 @@ def geo_provider() -> str:
     return os.environ.get("MEMOIR_GEO_PROVIDER", "google").strip().lower() or "google"
 
 
-def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
+def _geoapify_trusted_fields(record: dict, rank: dict):
     confidences = [rank.get('confidence')]
     if record.get('city') and 'confidence_city_level' in rank:
         confidences.append(rank['confidence_city_level'])
     for confidence in confidences:
         if (not isinstance(confidence, (int, float)) or isinstance(confidence, bool)
                 or not math.isfinite(confidence) or not GEOAPIFY_MIN_CONFIDENCE <= confidence <= 1):
-            return False
-    levels = {'country': ('country', 'country_code'), 'state': ('state', 'state_code', 'region'),
-              'county': ('county',), 'city': ('city', 'municipality', 'town', 'village'),
-              'district': ('district',), 'suburb': ('suburb',), 'locality': ('locality',)}
-    target_fields = levels.get(record.get('result_type'))
+            return None
+    return GEOAPIFY_RESULT_FIELDS.get(record.get('result_type'))
+
+
+def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
+    target_fields = _geoapify_trusted_fields(record, rank)
     labels = [geographic_label(label) for label in query.split(',') if label.strip()]
     if not target_fields or not labels:
         return False
@@ -45,21 +51,25 @@ def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
         return False
     # Match every supplied parent, in order, so a same-name place cannot jump regions.
     parents = iter(geographic_label(record.get(field, ''))
-                   for fields in levels.values() for field in fields)
+                   for fields in GEOAPIFY_RESULT_FIELDS.values() for field in fields)
     return all(any(parent == label for parent in parents) for label in reversed(labels[1:]))
 
 
 @lru_cache(maxsize=1024)
-def _geocode_record(provider: str, query: str):
+def _geocode_record(provider: str, query: str, language: str | None = None):
     if provider == "google":
         api_key = os.environ.get("GOOGLE_MAPS_GEOCODING_API_KEY", "").strip()
         url = os.environ.get("GOOGLE_MAPS_GEOCODING_URL", GOOGLE_GEOCODING_URL)
         params = {"address": query, "key": api_key}
+        if language:
+            params['language'] = 'zh-CN' if language == 'zh-CN' else 'en'
     elif provider == "geoapify":
         api_key = os.environ.get("GEOAPIFY_API_KEY", "").strip()
         url = os.environ.get("GEOAPIFY_GEOCODING_URL", GEOAPIFY_GEOCODING_URL)
         params = {"text": query, "format": "json", "limit": 1, "apiKey": api_key,
                   "bias": "countrycode:none"}
+        if language:
+            params['lang'] = 'zh' if language == 'zh-CN' else 'en'
     else:
         raise GeocodingUnavailable("MEMOIR_GEO_PROVIDER must be google or geoapify")
     if not api_key:
@@ -112,17 +122,29 @@ def _geocode_record(provider: str, query: str):
         rank = record.get('rank') or {}
         if not isinstance(rank, dict):
             raise ValueError("Geoapify geocoding returned invalid match metadata")
-        if not _geoapify_matches_query(record, rank, query):
-            return None
+        place_id = record.get('place_id')
+        identity = (place_id, record.get('result_type')) if isinstance(place_id, str) and place_id.strip() else None
         partial_match = rank.get('match_type') != 'full_match'
+        if not _geoapify_matches_query(record, rank, query):
+            # Translate only the same provider feature; nearby places can have different levels and identities.
+            if not language or not _geoapify_trusted_fields(record, rank):
+                return None
+            canonical = _geocode_record(provider, query, None)
+            if not identity or not canonical or canonical.get('_geoapify_identity') != identity:
+                return None
+            latitude, longitude = canonical['latitude'], canonical['longitude']
+            partial_match = partial_match or canonical['partial_match']
         attribution = 'Geoapify / OpenStreetMap'
-    return {'latitude': latitude, 'longitude': longitude, 'city': city, 'region': region,
-            'country': country, 'partial_match': partial_match, 'attribution': attribution}
+    details = {'latitude': latitude, 'longitude': longitude, 'city': city, 'region': region,
+               'country': country, 'partial_match': partial_match, 'attribution': attribution}
+    if provider == 'geoapify':
+        details['_geoapify_identity'] = identity
+    return details
 
 
 def search_place(query: str):
     provider = geo_provider()
-    record = _geocode_record(provider, query)
+    record = _geocode_record(provider, query, None)
     if record and provider == 'geoapify' and record['partial_match']:
         return None
     return {'latitude': record['latitude'], 'longitude': record['longitude'],
@@ -132,10 +154,14 @@ def search_place(query: str):
 search_place.cache_clear = _geocode_record.cache_clear
 
 
-def search_place_details(query: str):
+def search_place_details(query: str, *, language: str | None = None):
     """Public administrative membership; partial results are not precise pins."""
-    record = _geocode_record(geo_provider(), query)
-    return dict(record) if record else None
+    record = _geocode_record(geo_provider(), query, language)
+    if not record:
+        return None
+    details = dict(record)
+    details.pop('_geoapify_identity', None)
+    return details
 
 
 def resolve_place_map(journey: dict, saved_places: list) -> dict:

@@ -83,10 +83,41 @@ def _flickr_cards(source_html: str, base: str) -> list[dict]:
     return list(cards.values())
 
 
+def _json_ld_photo_records(value) -> list[dict]:
+    """Collect photo nodes using the same bounded traversal as source extraction."""
+    records = []
+
+    def visit(node, depth=0):
+        if depth > 10:
+            return
+        if isinstance(node, list):
+            for child in node[:150]:
+                visit(child, depth + 1)
+        elif isinstance(node, dict):
+            kinds = node.get('@type', [])
+            if isinstance(kinds, str):
+                kinds = [kinds]
+            if (isinstance(kinds, list)
+                    and any(isinstance(kind, str) and kind in {'Photograph', 'ImageObject'}
+                            for kind in kinds)):
+                records.append(node)
+            for child in node.values():
+                visit(child, depth + 1)
+
+    visit(value)
+    return records
+
+
+def _item_locality_matches(value: str, requested: str) -> bool:
+    return _research()._crawl4ai_item_locality_matches(value, requested)
+
+
 def _source_items(source_html: str, source_url: str, place: str, period: str,
                   *, location_context: str = '') -> list[dict]:
     """Use source captions and capture metadata; page/upload dates cannot date photos."""
     from .place_photos import ANY_PHOTO_DATE, _coordinates, _date_matches, _google_license, _photo_period_bounds, _text
+    from .place_photo_sources import source_registry_id, usage_permissions
+    from .place_photo_expansion import conflicting_item_locality
     helper = _research()
     any_date = period == ANY_PHOTO_DATE
     parser = helper.PageParser(source_url)
@@ -110,17 +141,19 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                                  urlsplit(link['url']).path)))
     # An unrelated item on a relevant search page is still unrelated.
     location_evidence = ' '.join((context, item_location, location_context)).strip()
-    if not helper._crawl4ai_location_matches(location_evidence, place):
-        return []
+    page_matches = helper._crawl4ai_location_matches(location_evidence, place)
 
-    objects = []
-    for record in page['json_ld']:
-        records = record if isinstance(record, list) else [record]
-        for item in records:
-            if isinstance(item, dict):
-                objects.extend(item.get('@graph', [item]))
-    photo = next((item for item in objects if isinstance(item, dict)
-                  and item.get('@type') in ('Photograph', 'ImageObject')), {})
+    photo_records = _json_ld_photo_records(page['json_ld'])
+    # Nested gallery images are not primary unless the page explicitly selects their URL.
+    photo = next((item for document in page['json_ld']
+                  for item in (document if isinstance(document, list) else [document])
+                  if item in photo_records), {})
+    photo_by_url = {}
+    for record in photo_records:
+        record_url = helper._crawl4ai_image_url(record.get('contentUrl') or record.get('url'))
+        if record_url:
+            photo_by_url[record_url] = record
+    photo = photo_by_url.get(helper._crawl4ai_image_url(meta.get('og:image'))) or photo
     taken = _text(photo.get('dateTaken') or photo.get('dateCreated'))
     if not taken:
         # Flickr exposes this separate from its "Uploaded on" timestamp.
@@ -189,21 +222,24 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                 scene_date = {'start': start, 'end': end}
     creator = photo.get('creator') or photo.get('author') or {}
     attribution = _text(creator.get('name') if isinstance(creator, dict) else creator)
-    licence_url = _text(photo.get('license') or meta.get('license'))
-    if not licence_url and is_flickr:
-        licence_url = next((link['url'] for link in page['links']
+    source_licence_url = _text(meta.get('license'))
+    if not source_licence_url and mediawiki_file:
+        # Commons' hidden file licence is distinct from the page/footer licence.
+        match = re.search(r'<[^>]+class=["\'][^"\']*\blicensetpl_link\b[^"\']*["\'][^>]*>(.*?)</',
+                          source_html, re.I | re.S)
+        source_licence_url = _text(match[1]) if match else ''
+    if not source_licence_url and is_flickr:
+        source_licence_url = next((link['url'] for link in page['links']
             if urlsplit(link['url']).hostname == 'creativecommons.org'
             and urlsplit(link['url']).path.startswith('/licenses/')), '')
-    licence = _google_license({'license': licence_url})
-    if licence_url and not licence:
-        return []
+    licence_url = _text(photo.get('license')) or source_licence_url
     image_urls = []
     primary = photo.get('contentUrl') or meta.get('og:image')
     if mediawiki_file:
         original = next((link['url'] for link in page['links']
                          if re.search(r'original file|原始文件', link['text'], re.I)), None)
         primary = original or primary
-    if primary and (scene_date or any_date):
+    if primary and (scene_date or any_date) and page_matches and (is_flickr or mediawiki_file or location_context):
         image_urls.append((primary, title, scene_date))
     if not is_flickr and not mediawiki_file:
         images = helper._crawl4ai_source_images(
@@ -244,22 +280,47 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         if is_flickr:
             if not re.fullmatch(r'(?:live|farm\d+)\.staticflickr\.com', urlsplit(image).hostname or ''):
                 continue
+        image_photo = photo_by_url.get(image)
+        if image_photo is not None:
+            if conflicting_item_locality({'json_ld': [image_photo], 'title': image_photo.get('caption', '')},
+                                         place, _item_locality_matches):
+                continue
+            image_licence_url = _text(image_photo.get('license')) or source_licence_url
+        elif image == helper._crawl4ai_image_url(primary):
+            image_licence_url = licence_url
+        else:
+            image_licence_url = source_licence_url
+        image_licence = _google_license({'license': image_licence_url})
+        if image_licence_url and not image_licence:
+            continue
+        image_point = _coordinates(image_photo or {})
+        if image_point is None and observed == primary:
+            image_point = point
+        image_creator = (image_photo or {}).get('creator') or (image_photo or {}).get('author') or ''
+        creators = image_creator if isinstance(image_creator, list) else [image_creator]
+        image_attribution = ', '.join(filter(None, (_text(creator.get('name') if isinstance(creator, dict) else creator)
+                                                    for creator in creators)))
+        if not image_attribution and image == helper._crawl4ai_image_url(primary):
+            image_attribution = attribution
+        image_location = helper._crawl4ai_photo_location(image_photo or {})
         identifier = hashlib.sha256(f'{source_url}\n{image}'.encode()).hexdigest()[:24]
         items.append({
             'asset_id': 'crawl4ai-' + identifier, 'kind': 'image', 'title': _text(caption),
             'source_url': source_url, 'image_url': image, 'original_url': image,
-            'location': place, 'attribution': attribution or urlsplit(source_url).hostname,
-            'location_evidence': location_evidence,
+            'location': place, 'attribution': image_attribution or urlsplit(source_url).hostname,
+            'location_evidence': ' '.join(filter(None, (location_evidence, image_location, _text(caption)))),
             'date_expression': taken if is_flickr and taken else (
                 '' if image_date is None else image_date['start'] if image_date['start'] == image_date['end'] else
                 image_date['start'][:4] if image_date['start'][:4] == image_date['end'][:4] else
                 image_date['start'][:4] + '-' + image_date['end'][:4]),
             'scene_date_range': image_date,
             'date_basis': 'Source capture metadata or caption' if image_date else 'Unknown capture date',
-            **((point or {}) if observed == primary else {}),
-            'license': licence[0] if licence else 'Unknown', 'license_url': licence_url,
+            **(image_point or {}),
+            'license': image_licence[0] if image_licence else 'Unknown', 'license_url': image_licence_url,
+            'source_registry_id': source_registry_id(source_url),
+            'usage_permissions': usage_permissions(bool(image_licence)),
             'memory_reference_only': True,
-            'allowed_actions': {'embed': True, 'memory_reference': True, 'download': False,
+            'allowed_actions': {'embed': bool(image_licence), 'memory_reference': True, 'download': False,
                                 'print': False, 'publish': False},
         })
     return items
@@ -273,7 +334,7 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
     from .place_photos import _deduplicate
     helper = _research()
     source_period = period
-    seen_sources, items = set(), []
+    seen_sources, items, source_errors = set(), [], []
     checked_hosts = {}
     deadline = time.monotonic() + timeout - min(10, timeout / 4)
 
@@ -335,6 +396,13 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                 raise PhotoResearchUnavailable(provider, 'verification_required')
             cards = (helper.parse_crawl4ai_image_results(result.html or '') if provider == 'google'
                      else _flickr_cards(result.html or '', url))
+            if provider == 'google' and not cards:
+                markup = result.html or ''
+                if not re.search(r'class=["\'][^"\']*\bgs-no-results-result\b', markup, re.I):
+                    if items:
+                        return items[:limit]
+                    reason = 'search_error' if re.search(r'class=["\'][^"\']*\bgs-error\b', markup, re.I) else 'widget_not_ready'
+                    raise PhotoResearchUnavailable(provider, reason)
             album_context = ''
             if album:
                 parser = helper.PageParser(url)
@@ -365,7 +433,6 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                 if not cards:
                     break
                 continue
-            source_errors = []
             async def inspect_source(source):
                 async with source_slots:
                     if time.monotonic() >= deadline:
@@ -377,8 +444,10 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                             check_robots_txt=True, delay_before_return_html=0.2,
                         )), timeout=min(15, max(0.1, deadline - time.monotonic())))
                         if detail.success:
-                            found = _source_items(detail.html or '', source, place, source_period,
-                                                  location_context=album_context)
+                            found = [{**item, 'providers': ['google', 'cse'] if provider == 'google' else [provider]}
+                                for item in _source_items(
+                                detail.html or '', source, place, source_period,
+                                location_context=album_context) if item['allowed_actions']['embed']]
                             from .place_photo_fingerprints import image_fingerprint
                             for item in found:
                                 if time.monotonic() >= deadline:
@@ -405,15 +474,13 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                     if not task.done():
                         task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
-            if not items and source_errors:
-                from .place_photos import _configured_env
-                if _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}:
-                    raise PhotoResearchUnavailable(failures=[{
-                        'provider': provider, 'reason': source_errors[0], 'scope': 'source',
-                    }])
-                raise PhotoResearchUnavailable(provider, source_errors[0])
             if len(seen_sources) >= source_budget:
                 break
+    # A denied original cannot establish failure for later search pages.
+    if not items and source_errors:
+        raise PhotoResearchUnavailable(failures=[{
+            'provider': provider, 'reason': reason, 'scope': 'source',
+        } for reason in dict.fromkeys(source_errors)])
     return items[:limit]
 
 

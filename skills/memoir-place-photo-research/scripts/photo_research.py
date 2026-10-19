@@ -27,6 +27,7 @@ import ssl
 import sys
 import tempfile
 import time
+import unicodedata
 from datetime import date, datetime, timezone
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
@@ -248,12 +249,15 @@ class Fetcher:
         self.robots: dict[str, RobotFileParser | bool] = {}
         self.last_fetch: dict[str, float] = {}
 
-    def robot_check(self, url: str, hosts: set[str]) -> None:
+    def robot_check(self, url: str, hosts: set[str], *, deadline: float | None = None) -> None:
         p, host, _ = valid_url(url)
         origin = f"{p.scheme}://{p.netloc}"
         if origin not in self.robots:
+            budget = min(20, deadline - time.monotonic()) if deadline is not None else 20
+            if budget <= 0:
+                fail('Fetch deadline exceeded')
             status, _, _, body = self.fetch(origin + "/robots.txt", 256_000, hosts,
-                                             check_robots=False, deadline_seconds=20)
+                                             check_robots=False, deadline_seconds=budget)
             if status in {404, 410}:
                 self.robots[origin] = True
             elif status == 200:
@@ -275,19 +279,26 @@ class Fetcher:
             fail("Source requires a longer crawl delay; use a permitted manual route")
         remaining = delay - (time.monotonic() - self.last_fetch.get(host, 0))
         if remaining > 0:
+            if deadline is not None and remaining >= deadline - time.monotonic():
+                fail('Fetch deadline exceeded')
             time.sleep(remaining)
 
     def fetch(self, url: str, max_bytes: int, hosts: set[str], *, check_robots: bool = True,
-              deadline_seconds: float = 30) -> tuple[int, str, dict, bytes]:
+              deadline_seconds: float = 30, allow_public_redirects: bool = False) -> tuple[int, str, dict, bytes]:
         hosts = {h.lower().rstrip(".") for h in hosts}
         deadline = time.monotonic() + deadline_seconds
         current = url
         for _ in range(5):
             p, host, port = valid_url(current)
             if host not in hosts:
-                fail(f"Host not in the explicit allowed-host list: {host}")
+                if not allow_public_redirects:
+                    fail(f"Host not in the explicit allowed-host list: {host}")
+                # Discovery redirects (including Baidu) still validate DNS and
+                # robots for every new origin before making a request.
+                public_addresses(host, port)
+                hosts.add(host)
             if check_robots:
-                self.robot_check(current, hosts)
+                self.robot_check(current, hosts, deadline=deadline)
             ips = public_addresses(host, port)
             remaining = deadline - time.monotonic()
             if remaining <= 0:
@@ -474,6 +485,8 @@ def _crawl4ai_place_groups(place: str) -> list[list[str]]:
                 ["承德", "Chengde"]]
     if re.fullmatch(r"(?:河北(?:省)?\s*)?承德(?:市)?|Chengde", target, re.I):
         return [list(dict.fromkeys([target, "Chengde", "承德"]))]
+    if re.fullmatch(r"Sydney|悉尼", target, re.I):
+        return [list(dict.fromkeys([target, "Sydney", "悉尼"]))] + ([[parts[1]]] if len(parts) > 1 else [])
     # Keep a parent locality as a separate required search term, never an
     # alternative to the actual landmark or neighbourhood being requested.
     return [[target]] + ([[parts[1]]] if len(parts) > 1 else [])
@@ -503,6 +516,79 @@ def _crawl4ai_location_matches(text: str, place: str) -> bool:
             pattern += r"(?![号號])"
         return bool(re.search(pattern, haystack))
     return bool(required) and all(any(matches(term) for term in group) for group in required)
+
+
+def _crawl4ai_item_locality_matches(value: str, requested: str) -> bool:
+    groups = _crawl4ai_place_groups(requested)
+    # A landmark alias cannot replace its containing city as the geographic anchor.
+    anchors = groups[-1] if len(groups) > 1 else [requested]
+    return any(_crawl4ai_location_matches(value, anchor) for anchor in anchors)
+
+
+def _crawl4ai_same_locality(names: list[str], aliases: list[str]) -> bool:
+    def identity(value):
+        label = ' '.join(unicodedata.normalize('NFKC', value).casefold().split())
+        return re.sub(r'([\u3400-\u9fff])[市省]$', r'\1', label)
+    return bool({identity(name) for name in names} & {identity(alias) for alias in aliases})
+
+
+def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches) -> bool:
+    """Prefer source-stated image geography; keep caption-only checks conservative."""
+    metadata = {str(item.get('name') or item.get('property') or '').casefold():
+                item.get('content') for item in page.get('metadata', []) if isinstance(item, dict)}
+    geographies, fallback_geographies = [], []
+    titles = [page.get('title', ''), metadata.get('og:title', '')]
+    for field in ('geo.placename', 'place:location:name'):
+        if metadata.get(field):
+            fallback_geographies.append(_crawl4ai_photo_geography({'contentLocation':metadata[field]}))
+
+    def visit(node, depth=0):
+        if depth > 5:
+            return
+        if isinstance(node, list):
+            for child in node[:40]:
+                visit(child, depth + 1)
+        elif isinstance(node, dict):
+            kinds = node.get('@type', [])
+            kinds = [kinds] if isinstance(kinds, str) else kinds
+            if isinstance(kinds, list) and any(kind in {'ImageObject','Photograph','ImageGallery'}
+                                               for kind in kinds if isinstance(kind, str)):
+                titles.extend((node.get('name', ''),node.get('caption', '')))
+                geography = _crawl4ai_photo_geography(node)
+                if geography['labels']:
+                    (geographies if any(kind in {'ImageObject','Photograph'} for kind in kinds)
+                     else fallback_geographies).append(geography)
+            if '@graph' in node:
+                visit(node['@graph'], depth + 1)
+    visit(page.get('json_ld', []))
+    geographies = geographies or fallback_geographies
+
+    groups = _crawl4ai_place_groups(place)
+    target_aliases = groups[0] if groups else []
+    anchor_aliases = groups[-1] if groups else []
+    def target_matches(names):
+        return _crawl4ai_same_locality(names, target_aliases)
+
+    for geography in geographies:
+        if not location_matches(' '.join(geography['labels']), place):
+            return True
+        parent_match = any(target_matches(names) for names in geography['parents'])
+        if (geography['localities'] and not parent_match
+                and not all(target_matches(names) or _crawl4ai_same_locality(names, anchor_aliases)
+                            for names in geography['localities'])):
+            return True
+    if geographies:
+        return False  # A caption cannot overrule the image's own matching location.
+    for title in titles:
+        if not isinstance(title, str):
+            continue
+        # Check explicit location labels, without inferring cities from subject names.
+        claim = re.match(r'^(?:location|place|地点|所在地)\s*[:：]\s*(.+)', title.strip(), re.I)
+        if not claim:
+            claim = re.match(r'^(.+?)\s+city(?:\s+cent(?:re|er))?\s+(?:in|at)\s+', title.strip(), re.I)
+        if claim and not location_matches(claim[1], place):
+            return True
+    return False
 
 
 def _crawl4ai_years(text: str) -> list[int]:
@@ -756,6 +842,68 @@ def _crawl4ai_source_page(source_url: str) -> dict:
     return _crawl4ai_run(fetch())
 
 
+def _crawl4ai_photo_geography(photo: dict) -> dict:
+    """Keep aliases and containment roles separate from display-label order."""
+    result = {'labels':[], 'localities':[], 'parents':[]}
+
+    def names(value):
+        if isinstance(value, str):
+            return [_text(value).strip()] if value.strip() else []
+        if isinstance(value, list):
+            return [name for child in value[:20] for name in names(child)]
+        if isinstance(value, dict):
+            return names(value.get('name')) + names(value.get('alternateName'))
+        return []
+
+    def add(values, parent):
+        values = list(dict.fromkeys(values))
+        if values:
+            result['labels'].extend(values)
+            result['parents' if parent else 'localities'].append(values)
+
+    def visit(value, role='place', parent=False, depth=0):
+        if depth > 5:
+            return
+        if isinstance(value, str):
+            if parent or role in {'country','region'}:
+                add(names(value), True)
+                return
+            parts = [part.strip() for part in re.split(r'[,，]', value) if part.strip()]
+            if parts:
+                add(names(parts[0]), False)
+                for ancestor in parts[1:]:
+                    add(names(ancestor), True)
+            return
+        if not isinstance(value, dict):
+            return
+        kinds = value.get('@type', [])
+        kinds = [kinds] if isinstance(kinds, str) else kinds
+        kinds = {kind for kind in kinds if isinstance(kind,str)} if isinstance(kinds,list) else set()
+        parent = parent or role in {'country','region'} or bool(kinds.intersection({'Country','State'}))
+        aliases = names(value)
+        result['labels'].extend(aliases)
+        addresses = [address for address in (value,value.get('address')) if isinstance(address,dict)]
+        has_locality = any(names(address.get('addressLocality')) for address in addresses)
+        if parent:
+            add(aliases, True)
+        elif not has_locality or 'City' in kinds:
+            if len(aliases) == 1 and role == 'place':
+                visit(aliases[0], depth=depth+1)
+            else:
+                add(aliases, False)
+        for address in addresses:
+            for field,field_role in (('addressLocality','city'),('addressRegion','region'),('addressCountry','country')):
+                visit(address.get(field),role=field_role,parent=field_role != 'city',depth=depth+1)
+        visit(value.get('containedInPlace'),parent=True,depth=depth+1)
+    visit(photo.get('contentLocation') or photo.get('spatialCoverage'))
+    result['labels'] = list(dict.fromkeys(result['labels']))
+    return result
+
+
+def _crawl4ai_photo_location(photo: dict) -> str:
+    return ', '.join(_crawl4ai_photo_geography(photo)['labels'])
+
+
 def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]:
     source_url = page["url"]
     parsed = PageParser(source_url)
@@ -763,8 +911,7 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     record = parsed.output()
     title = record.get("title") or page.get("title", "")
     excerpt = record.get("text_excerpt") or page.get("text", "")
-    if not _crawl4ai_location_matches(" ".join([title, excerpt[:2000]]), request["place"]):
-        return []
+    page_matches = _crawl4ai_location_matches(" ".join([title, excerpt[:2000]]), request["place"])
     images = []
     for item in page.get("media", []) if isinstance(page.get("media"), list) else []:
         if isinstance(item, dict):
@@ -773,7 +920,7 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     for item in record["image_candidates"]:
         for url in item["candidate_urls"]:
             images.append({"url": url, "alt": item["alt"], "description": item["figure_text"]})
-    capture_metadata = {}
+    capture_metadata, location_metadata, photo_metadata = {}, {}, {}
     def visit(node, depth=0):
         if depth > 10:
             return
@@ -785,6 +932,11 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
             if set(kinds).intersection({"Photograph", "ImageObject"}):
                 url = _crawl4ai_image_url(node.get("contentUrl"))
                 taken = node.get("dateTaken") or node.get("dateCreated")
+                if url:
+                    photo_metadata.setdefault(url, []).append(node)
+                location = _crawl4ai_photo_location(node)
+                if url and location:
+                    location_metadata.setdefault(url, []).append(location)
                 if url and (isinstance(taken, str) or request['temporal'].get('mode') == 'any_time'):
                     if isinstance(taken, str):
                         capture_metadata[url] = taken
@@ -798,18 +950,33 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     if primary and taken:
         capture_metadata[primary] = taken
         images.append({"url": primary, "alt": metadata.get("og:title", title), "description": ""})
-    unique = {}
+    unique, rejected = {}, set()
     for image in images:
         observed = image.get("url")
         if isinstance(observed, str): observed = urljoin(source_url, observed)
         url = _crawl4ai_image_url(observed)
-        if not url: continue
+        if not url or url in rejected: continue
         alt, caption = _text(image.get("alt")), _text(image.get("description"))
         if NON_PHOTO.search(" ".join([alt, caption])): continue
-        if alt and not (_crawl4ai_location_matches(alt, request["place"]) or _crawl4ai_scene_date(alt, request["temporal"])):
+        if _crawl4ai_conflicting_item_locality(
+                {'title':alt,'metadata':[{'property':'og:title','content':caption}],
+                 'json_ld':photo_metadata.get(url,[])},request['place'],_crawl4ai_item_locality_matches):
+            rejected.add(url)
+            unique.pop(url,None)
             continue
-        if not alt and caption and not (_crawl4ai_location_matches(caption, request["place"]) or _crawl4ai_scene_date(caption, request["temporal"])):
-            continue
+        locations = location_metadata.get(url)
+        if locations:
+            # Compatible item captions and structured cities can supply different parts of a landmark match.
+            if not all(_crawl4ai_location_matches(' '.join((alt,caption,location)),request['place'])
+                       for location in locations):
+                continue
+        else:
+            if not page_matches:
+                continue
+            if alt and not (_crawl4ai_location_matches(alt, request["place"]) or _crawl4ai_scene_date(alt, request["temporal"])):
+                continue
+            if not alt and caption and not (_crawl4ai_location_matches(caption, request["place"]) or _crawl4ai_scene_date(caption, request["temporal"])):
+                continue
         # Repeated article-title alt text is not an image-specific date assertion.
         assertion = capture_metadata.get(url) or " ".join(value for value in (alt, caption) if value and value != title)
         scene = _crawl4ai_scene_date(assertion, request["temporal"])
@@ -824,7 +991,8 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
                 continue
         if scene and url in capture_metadata: scene["basis"] = "provider_date_taken"
         unique[url] = {"image_url": url, "observed_image_url": observed, "title": (alt or caption or title)[:1000],
-                       "scene_date": scene, "source_excerpt": ("Place: " + title + "; Image capture assertion: " + assertion)[:1200]}
+                       "scene_date": scene, "source_excerpt": ("Place: " + ("; ".join([alt,caption,*locations]) if locations else title)
+                       + "; Image capture assertion: " + assertion)[:1200]}
     return list(unique.values())
 
 
@@ -1099,6 +1267,7 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
         records.extend({"@type": "Photograph", "caption": caption, "dateCreated": caption,
                         "contentUrl": url, "caption_record": True} for url in item["candidate_urls"][:1])
     grouped = {}
+    image_licences = {}
     for item in records:
         if not isinstance(item, dict):
             continue
@@ -1112,6 +1281,9 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
         image = _crawl4ai_image_url(item.get("contentUrl"))
         if image:
             grouped.setdefault(image, []).append((fields, item.get("caption_record", False)))
+            licence = item.get('license')
+            if isinstance(licence, str) and licence.strip():
+                image_licences.setdefault(image, set()).add(licence.strip())
     images = []
     for image, entries in grouped.items():
         caption = " ".join(fields[key] for fields, _ in entries
@@ -1140,7 +1312,8 @@ def llm_source_photos(source_url: str, place: str, temporal: dict, *, timeout: f
             # results with an evidence record exceeding the persisted schema.
             continue
         images.append({"image_url": image, "title": caption, "source_page_url": final,
-                       "scene_date": scene, "source_excerpt": excerpt})
+                       "scene_date": scene, "source_excerpt": excerpt,
+                       "license_url": next(iter(image_licences[image])) if len(image_licences.get(image, ())) == 1 else ''})
     return images
 
 

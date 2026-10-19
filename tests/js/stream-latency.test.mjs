@@ -226,7 +226,7 @@ test('one turn saves and groups every place while retaining existing photographs
     state: {supabase: {accessToken: 'test'}, project: {id: 'p'}, chat: []},
     LIFE_STAGES: [{id: 'childhood'}], appliedWorkspaceSequences: new Map(), workspaceUpdateQueue: Promise.resolve(),
     placeGroupRecords: new Map(), placeGroupRequests: new Map(), placeGroupLatest: new Map(),
-    setTimeout: () => {}, translate: key => key,
+    setTimeout: () => {}, translate: key => key,currentUiLocale: () => 'zh-CN',
     conversationLanguage: () => 'zh-CN', simulatedLoopTrace: () => [],
     nextAssistantMessageId: () => 'm', render: () => {}, toast: () => {},
     profile: () => currentProfile, mergePlaces, placeHistoryKey: entry => entry.place,

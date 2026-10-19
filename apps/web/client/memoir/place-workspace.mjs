@@ -77,7 +77,7 @@ export function createPlaceWorkspace({
       state.selectedPlace = placeHistoryKey(state.placeJourney);
       state.workspaceTab = "memoir";
       rememberPlaceJourneyProject(state.project?.id);
-      void loadPlacePictures(state.placeJourney, projectId);
+      for (const place of savedPlaces) void loadPlacePictures(place, projectId);
       resolvePlaceMap(state.placeJourney);
       return;
     }
@@ -117,7 +117,7 @@ export function createPlaceWorkspace({
   }
 
   function placeHistoryChoices(places, current) {
-    if (places.length < 2) return "";
+    if (!places.length) return "";
     const label = escapeHtml(translate("Memoir.workspace.placeHistory"));
     return `<nav class="place-choices" aria-label="${label}">${places.map(item => {
       const context = (item.hierarchy || []).filter(part => part !== "Earth" && part !== item.place).join(" · ");
@@ -182,7 +182,7 @@ export function createPlaceWorkspace({
     const activeGroup = current && groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
     const photoGroup = current && (state.lifeStage === "all" ? activeGroup : workspacePlaceGroups(places)
       .find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current))));
-    const choices = current ? placeHistoryChoices(groupChoices(groups), current) : "";
+    const choices = current ? placeHistoryChoices(groupChoices(workspacePlaceGroups(places)), current) : "";
     const map = placeJourneyMarkup(current, "workspace", activeGroup);
     const pictureItems = current ? renderablePictureItems(workspacePictureItems(current, photoGroup)) : [];
     const pictures = favoritePhotoWall() + (pictureItems.length ? pictureWall(pictureItems, current) : "");
@@ -240,7 +240,8 @@ export function createPlaceWorkspace({
     const pins = target.pins || (parentFallback ? [] : [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}]);
     const pinData = ` data-cesium-unavailable="${unavailablePlaceMaps.has(placeMapRenderKey(journey))}" data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
     const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
-    return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}"><div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div><div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}</section>`;
+    const heading = variant === "workspace" ? "" : `<div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div>`;
+    return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}">${heading}<div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}</section>`;
   }
 
   function placeJourneySurface() {
@@ -298,16 +299,23 @@ export function createPlaceWorkspace({
 
   function selectPlace(key) {
     state.selectedPlace = key;
-    const place = (profile().memory_places || []).find(item => placeHistoryKey(item) === key);
-    if (place) void loadPlacePictures(place, state.project?.id);
+    state.lifeStage = "all";
+    const entries = profile().memory_places || [];
+    const place = entries.find(item => placeHistoryKey(item) === key)
+      || workspacePlaceGroups(entries).find(group => placeHistoryKey(group.city) === key)?.members.at(-1);
+    if (place) {
+      state.placeJourney = place;
+      resolvePlaceMap(place);
+      void loadPlacePictures(place, state.project?.id);
+    }
     render();
   }
 
   function workspacePlaceGroups(places) {
     const entries = mergePlaces([...places, ...(state.placeJourney?.preview ? [state.placeJourney] : [])], profile());
     return groupPlaces(entries.map(place => {
-      const record = placeGroupRecords.get(`${state.project?.id}:${placeHistoryKey(place)}`);
-      return record && record.input === JSON.stringify(publicPlaceFields(place))
+      const record = placeGroupRecords.get(`${state.project?.id}:${currentUiLocale()}:${placeHistoryKey(place)}`);
+      return record && record.language === currentUiLocale() && record.input === JSON.stringify(publicPlaceFields(place))
         ? {...place, map_city: record.city, map_city_key: record.city_key, map_pin: record.pin} : place;
     }));
   }
@@ -329,7 +337,8 @@ export function createPlaceWorkspace({
       ...merged.filter(place => placeHistoryKey(place) !== placeHistoryKey(journey))];
     // The grouping service receives only public geographic fields.
     const publicPlaces = places.map(publicPlaceFields);
-    const signature = JSON.stringify([projectId, publicPlaces]);
+    const language = currentUiLocale();
+    const signature = JSON.stringify([projectId, language, publicPlaces]);
     if (placeGroupRequests.has(signature)) return;
     const scope = captureProjectScope();
     const progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
@@ -343,16 +352,16 @@ export function createPlaceWorkspace({
     report("running");
     placeGroupLatest.set(projectId, signature);
     const request = (state.supabase?.accessToken ? supabaseApi(`/v1/agent/places/${projectId}/groups`, {
-      method:"POST",body:JSON.stringify({places:publicPlaces,...(progressTurn ? {client_turn_id:progressTurn} : {})}),
+      method:"POST",body:JSON.stringify({places:publicPlaces,language,...(progressTurn ? {client_turn_id:progressTurn} : {})}),
     }) : api(`/v1/projects/${projectId}/place-groups`, {
-      method: "POST", body: JSON.stringify({places: publicPlaces}),
+      method: "POST", body: JSON.stringify({places: publicPlaces, language}),
     })).then(result => {
       report("completed",result.skill_progress);
       if (state.project?.id !== projectId || placeGroupLatest.get(projectId) !== signature) return;
       for (const record of result.places || []) {
         const place = places[record.index];
-        if (place) placeGroupRecords.set(`${projectId}:${placeHistoryKey(place)}`,
-          {...record, input: JSON.stringify(publicPlaces[record.index])});
+        if (place) placeGroupRecords.set(`${projectId}:${language}:${placeHistoryKey(place)}`,
+          {...record, language, input: JSON.stringify(publicPlaces[record.index])});
       }
       render();
     }).catch(() => { report("failed"); }).finally(() => {

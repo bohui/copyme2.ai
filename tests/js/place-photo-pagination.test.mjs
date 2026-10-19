@@ -6,7 +6,7 @@ import {mergePlaces, placeHistoryKey} from '../../apps/web/client/memoir/places.
 
 const source = readMemoirClientSource();
 const center = {latitude: 40.98, longitude: 117.94};
-const scope = {photo_search_policy: 'place-fallback-gps-time-v9', photo_search_latitude: center.latitude,
+const scope = {photo_search_policy: 'place-source-rights-v13', photo_search_latitude: center.latitude,
   photo_search_longitude: center.longitude};
 const picture = id => ({asset_id: id, image_url: `https://images.example/${id}.jpg`,
   date_expression: '1983', ...center});
@@ -40,15 +40,66 @@ test('landmark search keeps its geographic parent and memory period', async () =
   assert.equal(h.entry().place, '离宫');
 });
 
+test('context year survives the decade query and promotes late higher ranked photos', async () => {
+  const calls = [];
+  const h = harness({place:'Chengde', research_period:'1980s', research_year:1983}, async (url, options) => {
+    calls.push(new URL(url, 'http://localhost').searchParams);
+    await options.onPhotoPage({items:[picture('older'), {...picture('old-id'), image_url:picture('closest').image_url}],
+      searching:true, photo_order:['older','old-id']});
+    assert.equal(h.entry().pictures[0].asset_id, 'older');
+    await options.onPhotoPage({items:[picture('closest')], searching:false,
+      photo_order:['closest','older'], next_cursor:null});
+    return {};
+  });
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls[0].get('period'), '1980s');
+  assert.equal(calls[0].get('context_year'), '1983');
+  assert.deepEqual(Array.from(h.entry().pictures, item=>item.asset_id), ['closest','older']);
+  assert.equal(h.entry().photo_search_context_year, 1983);
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls.length, 1, 'A completed ranking must survive hydration');
+  const priorKey = h.context.photoRequestKey(h.entry(), 'project');
+  h.entry().research_year = 1984;
+  assert.notEqual(h.context.photoRequestKey(h.entry(), 'project'), priorKey);
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls.length, 2, 'Changing the context year must replace the old ranking');
+  assert.equal(calls[1].get('context_year'), '1984');
+});
+
 test('refresh restores persisted photos without searching after the old cache expires', async () => {
   let calls = 0;
   const saved = {place: 'Chengde', period: '1980s', photo_search_period: '1980s',
     photo_search_place: 'Chengde', photo_search_at: Date.now() - 86400000,
-    photo_search_policy: 'place-fallback-gps-time-v9', photo_next_cursor: null, pictures: [picture('saved')]};
+    photo_search_policy: 'place-source-rights-v13', photo_next_cursor: null, pictures: [picture('saved')]};
   const h = harness(saved, async () => { calls++; return {items: [], next_cursor: null}; });
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 0, 'history restoration unnecessarily triggered photo discovery');
   assert.equal(h.entry().pictures[0].asset_id, 'saved');
+});
+
+test('a SerpAPI-only photo cache is refreshed to include configured CSE results', async () => {
+  let calls = 0;
+  const saved = {place: 'Chengde', photo_search_period: '1980s', photo_search_place: 'Chengde',
+    photo_search_policy: 'place-source-rights-v11', photo_search_complete: true,
+    photo_search_at: Date.now(), photo_next_cursor: null, pictures: [picture('older-provider-route')]};
+  const h = harness(saved, async () => {
+    calls++;
+    return {status: 'READY', items: [{...picture('cse-1983'), providers: ['google', 'cse']}], next_cursor: null};
+  });
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls, 1, 'The saved SerpAPI-only result must not hide CSE research');
+  assert.deepEqual(Array.from(h.entry().pictures, item => item.asset_id), ['cse-1983']);
+  assert.equal(h.entry().photo_search_policy, 'place-source-rights-v13');
+});
+
+test('a source-balanced v12 cache is refreshed under the relevance policy', async () => {
+  let calls = 0;
+  const h = harness({place:'Chengde', photo_search_period:'1980s', photo_search_place:'Chengde',
+    photo_search_policy:'place-source-rights-v12', photo_search_complete:true, pictures:[picture('old-order')]},
+    async () => {calls++; return {items:[picture('ranked')], photo_order:['ranked']};});
+  await h.context.loadPlacePictures(h.entry(), 'project');
+  assert.equal(calls, 1);
+  assert.deepEqual(Array.from(h.entry().pictures, item=>item.asset_id), ['ranked']);
 });
 test('a late public lookup cannot restore a place removed by canonical readback',async()=>{
   let finish,saves=0;
@@ -266,7 +317,7 @@ test('older empty searches are retried under the radius and year policy', async 
   await h.context.loadPlacePictures(h.entry(), 'project');
   await h.context.loadPlacePictures(h.entry(), 'project');
   assert.equal(calls, 1);
-  assert.equal(h.entry().photo_search_policy, 'place-fallback-gps-time-v9');
+  assert.equal(h.entry().photo_search_policy, 'place-source-rights-v13');
 });
 
 test('decade matches are labelled and a zero-image wall stays hidden', () => {

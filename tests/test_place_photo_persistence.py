@@ -268,7 +268,7 @@ def test_cache_key_normalizes_public_place_and_period_without_combining_periods(
     assert search_key('承德', '1980s') != search_key('承德', '1990s')
 
 
-def test_previous_cache_reuses_historical_photos_before_any_modern_alternatives(monkeypatch):
+def test_new_rights_policy_researches_legacy_caches_again():
     historical = {'asset_id':'saved-history', 'image_url':'https://images.example/1980.jpg',
         'source_url':'https://archive.example/1980', 'date_expression':'1980-1989'}
     modern = {**historical, 'asset_id':'modern', 'image_url':'https://images.example/modern.jpg',
@@ -278,15 +278,7 @@ def test_previous_cache_reuses_historical_photos_before_any_modern_alternatives(
         return httpx.Response(200, json=[{'result': {'complete':True, 'time_relaxed':True,
             'items':[modern, historical]}}] if request.url.params['search_key'] == 'eq.' + legacy else [])
     repository = PhotoRepository('https://example.supabase.co', 'server-secret', transport=httpx.MockTransport(server))
-    monkeypatch.setattr(pages, 'search_place_photos', lambda *args, **kwargs: pytest.fail('saved historical research repeated'))
-    worker = pages.PhotoPages(repository=repository)
-    try:
-        result = worker.page('owner', '承德市', '1983年4月', None)
-        assert [item['asset_id'] for item in result['items']] == ['saved-history']
-        assert result['items'][0]['period_match'] == 'decade'
-        assert result['items'][0]['search_fallback'] == 'gps'
-    finally:
-        worker.close()
+    assert repository.load('承德市', '1983年4月') is None
 
 
 def test_saved_containing_decade_references_are_reused_for_a_narrow_period(monkeypatch):
@@ -317,8 +309,9 @@ def test_empty_matches_are_reusable_but_provider_errors_are_not_persisted(monkey
         worker = pages.PhotoPages(repository=Repository())
         try: worker.page(owner, '承德', '1980s', None)
         finally: worker.close()
-    assert len(calls) == 2
-    assert [call[1] for call in calls] == (['1980s', '1980s'] if fails else ['1980s', photos.ANY_PHOTO_DATE])
+    assert [call[1] for call in calls] == ['1980s', photos.ANY_PHOTO_DATE] * (2 if fails else 1)
+    if fails:
+        assert rows == {}, 'Provider failures must not be persisted as a completed empty search'
 
 
 def test_global_database_is_server_writable_and_contains_no_user_story_data(database):

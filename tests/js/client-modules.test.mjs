@@ -8,6 +8,8 @@ import { createConversationHistory } from '../../apps/web/client/memoir/conversa
 import { createConversationAudio } from '../../apps/web/client/memoir/conversation-audio.mjs';
 import { createStoryCheckout } from '../../apps/web/client/memoir/story-checkout.mjs';
 import { createUiLocale } from '../../apps/web/client/memoir/ui-locale.mjs';
+import {applyDerivedWorkspace} from '../../apps/web/client/memoir/derived-workspace.mjs';
+import {placeHistoryKey,groupPlaces} from '../../apps/web/client/memoir/places.mjs';
 
 function setup(t) {
   const storage = () => {
@@ -76,6 +78,71 @@ test('photo and map factories compose around the same saved place and favorite a
   assert.equal(state.photoMemoryRevision, 1);
 });
 
+test('unstaged background places remain selectable during the default childhood view', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const {state, dependencies} = setup(t);
+  state.lifeStage = 'childhood';
+  const chengde = {place:'承德市',hierarchy:['Earth','中国','河北省','承德市'],granularity:'city',
+    status:'active',source_sequence:1,research_period:'1980s'};
+  const sydney = {place:'悉尼',hierarchy:['Earth','澳大利亚','悉尼'],granularity:'city',
+    status:'active',source_sequence:1,research_period:'',latitude:-33.86,longitude:151.2};
+  applyDerivedWorkspace(state,{project_id:'p',source_revision:1,policy_epoch:1,
+    authoritative:true,places:[chengde,sydney]});
+  let places;
+  const searched = [];
+  const mapped = [];
+  const photos = createPhotoWorkspace({...dependencies,placeMapTarget:entry=>places.placeMapTarget(entry)});
+  places = createPlaceWorkspace({...dependencies,photos,loadPlacePictures:entry=>searched.push(entry.place),
+    api:async (path,options)=>{
+      const entry=JSON.parse(options.body);mapped.push(entry.place);
+      return {target:{...entry,latitude:40.95,longitude:117.96}};
+    },
+    saveProfileUpdates() {},recordWorkspaceSkillProgress() {},workspaceHasContent:()=>true});
+  const html = places.workspaceMediaOverview();
+  assert.equal((html.match(/data-place-choice=/g) || []).length,2);
+  assert.match(html, /<span>承德市<\/span>/);
+  assert.match(html, /<span>悉尼<\/span>/);
+  assert.doesNotMatch(html, /place-journey-heading/);
+  places.selectPlace(placeHistoryKey(chengde));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(places.placeWorkspaceSelection().place,'承德市');
+  assert.deepEqual(mapped,['承德市']);
+  assert.ok(searched.length && searched.every(place=>place==='承德市'));
+  searched.length = 0;
+  await places.hydratePlaceJourney();
+  assert.deepEqual(searched,['承德市','悉尼']);
+});
+
+test('provider-confirmed Parramatta remains a separate selectable city from its saved Sydney ancestor', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const {state, dependencies} = setup(t);
+  const sydney = {place:'Sydney', hierarchy:['Earth','Australia','Sydney'], granularity:'city',
+    latitude:-33.86, longitude:151.2};
+  const parramatta = {place:'Parramatta', hierarchy:[...sydney.hierarchy,'Parramatta'], granularity:'suburb',
+    latitude:-33.815, longitude:151.002};
+  const confirmed = {...parramatta, granularity:'city', hierarchy:['Earth','Australia','New South Wales','Parramatta']};
+  state.project.profile.memory_places = [sydney,parramatta];
+  state.placeJourney = parramatta;
+  let places;
+  const photos = createPhotoWorkspace({...dependencies, placeMapTarget:entry=>places.placeMapTarget(entry)});
+  const loaded = [];
+  places = createPlaceWorkspace({...dependencies, photos, loadPlacePictures:entry=>loaded.push(entry.place),
+    saveProfileUpdates() {}, recordWorkspaceSkillProgress() {}, workspaceHasContent:()=>true,
+    supabaseApi:async (path, options)=>({places:JSON.parse(options.body).places.map((place,index)=>{
+      const city = place.place === 'Parramatta' ? confirmed : sydney;
+      return {index,city,city_key:groupPlaces([city])[0].key,pin:place};
+    })})});
+  places.resolvePlaceMap(parramatta);
+  await new Promise(resolve=>setImmediate(resolve));
+  const html = places.workspaceMediaOverview();
+  const buttons = [...html.matchAll(/data-place-choice="([^"]*)"[^>]*><span>([^<]+)<\/span>/g)];
+  assert.deepEqual(buttons.map(button=>button[2]), ['Sydney','Parramatta']);
+  const key = buttons.find(button=>button[2] === 'Parramatta')[1].replaceAll('&quot;','"');
+  places.selectPlace(key);
+  assert.equal(places.placeWorkspaceSelection().place, 'Parramatta');
+  assert.equal(loaded.at(-1), 'Parramatta');
+});
+
 test('a failed map renderer preserves the place workspace and its coordinates', async t => {
   const {state, dependencies} = setup(t);
   const place = {place:'Chengde', latitude:40.95, longitude:117.96};
@@ -109,6 +176,42 @@ test('a failed map renderer preserves the place workspace and its coordinates', 
   state.placeJourney = {...place, latitude:40.96};
   state.project.profile.memory_places = [state.placeJourney];
   assert.equal(places.placeWorkspaceSelection().latitude, 40.96, 'corrected coordinates can render a new map');
+});
+
+test('location buttons follow the UI language and refresh their localized cache', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const {state,dependencies}=setup(t);
+  const chengde={place:'承德市',hierarchy:['Earth','中国','河北省','承德市'],granularity:'city',latitude:40.95,longitude:117.96};
+  const sydney={place:'悉尼',hierarchy:['Earth','澳大利亚','悉尼'],granularity:'city',latitude:-33.86,longitude:151.2};
+  state.project.profile.memory_places=[chengde,sydney];state.placeJourney=sydney;
+  const requests=[];
+  let places;
+  const photos=createPhotoWorkspace({...dependencies,placeMapTarget:entry=>places.placeMapTarget(entry)});
+  places=createPlaceWorkspace({...dependencies,photos,loadPlacePictures() {},saveProfileUpdates() {},
+    recordWorkspaceSkillProgress() {},workspaceHasContent:()=>true,
+    supabaseApi:async (path,options)=>{
+      const payload=JSON.parse(options.body);requests.push(payload.language);
+      return {places:payload.places.map((entry,index)=>{
+        const chinese=payload.language==='zh-CN',chengde=entry.place==='承德市';
+        const name=chengde ? chinese ? '承德市' : 'Chengde' : chinese ? '悉尼' : 'Sydney';
+        const hierarchy=chengde ? chinese ? ['中国','河北省'] : ['China','Hebei']
+          : chinese ? ['澳大利亚','新南威尔士州'] : ['Australia','New South Wales'];
+        const city={place:name,hierarchy:['Earth',...hierarchy,name],granularity:'city'};
+        return {index,city,city_key:groupPlaces([city])[0].key,pin:entry};
+      })};
+    }});
+  for(const language of ['zh-CN','en-AU','zh-CN']) {
+    document.documentElement.lang=language;
+    places.resolvePlaceMap(sydney);
+    await new Promise(resolve=>setImmediate(resolve));
+    const html=places.workspaceMediaOverview();
+    assert.match(html,language==='zh-CN' ? /<span>承德市<\/span>/ : /<span>Chengde<\/span>/);
+    assert.match(html,language==='zh-CN' ? /<span>悉尼<\/span>/ : /<span>Sydney<\/span>/);
+    assert.match(html,language==='zh-CN' ? /新南威尔士州/ : /New South Wales/);
+    assert.doesNotMatch(html,/place-journey-heading/);
+  }
+  assert.deepEqual(requests,['zh-CN','en-AU']);
+  assert.deepEqual(state.project.profile.memory_places,[chengde,sydney]);
 });
 
 test('history factories restore message numbering and isolate account caches', t => {

@@ -17,22 +17,22 @@ def _expansion_enabled():
 
 def search_key(place, period, *, policy=None):
     from .place_photos import PHOTO_SEARCH_POLICY
-    if policy is None and _expansion_enabled():
+    if policy is None:
         from .place_photos import _configured_env
         # Source-provider configuration affects completeness; never treat a
         # result from a different route as proof the current route was searched.
+        serpapi = bool(_configured_env('SERPAPI_KEY'))
         if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
-            google = 'cse-api'
-        elif _configured_env('SERPAPI_KEY'):
-            google = 'serpapi'
+            google = 'cse-api-browser-fallback'
         elif _configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID'):
             google = 'cse-browser'
         else:
             google = 'none'
-        flickr = 'flickr-api' if _configured_env('FLICKR_API_KEY') else 'flickr-browser'
+        flickr = 'disabled' if serpapi else 'flickr-api' if _configured_env('FLICKR_API_KEY') else 'flickr-browser'
         llm = 'llm-on' if _configured_env('MEMORY_SPARK_PHOTO_WEB_SEARCH').lower() in {'1', 'true', 'yes'} else 'llm-off'
         # Never include credential values, only provider modes, in a cache ID.
-        policy = f'{PHOTO_SEARCH_POLICY}-expanded-v1-{google}-{flickr}-{llm}'
+        mode = 'expanded' if _expansion_enabled() else 'standard'
+        policy = f'{PHOTO_SEARCH_POLICY}-{mode}-{"serpapi" if serpapi else "no-serpapi"}-{google}-{flickr}-{llm}'
     normalized = [' '.join(unicodedata.normalize('NFKC', value).casefold().split())
                   for value in (place, period)]
     return hashlib.sha256(json.dumps([policy or PHOTO_SEARCH_POLICY, *normalized], ensure_ascii=False).encode()).hexdigest()
@@ -49,7 +49,7 @@ class PhotoRepository:
             with httpx.Client(timeout=10, transport=self.transport) as client:
                 # Revalidate previous public research under the current filters
                 # so source outages do not discard already found photographs.
-                for policy in ((None,) if _expansion_enabled() else (None, 'place-fallback-gps-time-v8')):
+                for policy in (None,):
                     response = client.get(self.url, headers=self.headers, params={
                         'search_key': 'eq.' + search_key(place, period, policy=policy), 'select': 'result', 'limit': '1'})
                     response.raise_for_status()

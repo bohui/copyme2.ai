@@ -7,6 +7,7 @@ from test_conversation_attribution import Conversation, empty, episode
 from test_background_profile_workflow import database
 from test_lifetime_memory_postgres import event_database, private_database, attachment_database
 from test_shared_memory_events_postgres import sql
+from test_place_photo_browser import fake_crawler
 
 
 @pytest.fixture(autouse=True)
@@ -295,6 +296,266 @@ def test_shared_place_pass_is_embedded_not_a_second_model_request(sql,tmp_path,m
         assert not embedded['model_invoked'] and embedded['model_attempts']==0
         assert [phase for phase,_ in conversation.admissions]==['profile','extract']
         assert all(item['skill']!='memoir-family-tree' for item in steps)
+
+
+def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_path,monkeypatch,request,fake_crawler):
+    import json
+    from pathlib import Path
+    import subprocess
+    import httpx
+    from apps.api import agent_routes, place_geocoding, place_photos, place_photo_browser
+    from apps.api.historical_news import HistoricalResearch
+    from test_place_workspace import photo_page
+    from test_place_photo_browser import cse_html, photo_html
+    monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS', '1')
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '1')
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL', raising=False)
+    for key in ('SERPAPI_KEY','GOOGLE_CSE_API_KEY','GOOGLE_CSE_ID','GOOGLE_CSE_URL','MEMORY_SPARK_PHOTO_WEB_SEARCH'):
+        monkeypatch.delenv(key,raising=False)
+    monkeypatch.setenv('SERPAPI_KEY','fixture-serpapi')
+    monkeypatch.setenv('GOOGLE_CSE_ID','fixture-cse')
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION','0')
+    monkeypatch.setenv('FLICKR_API_KEY','fixture')
+    monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY','fixture')
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER','google')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint',lambda _: {})
+    place_geocoding.search_place.cache_clear()
+    request.addfinalizer(place_geocoding.search_place.cache_clear)
+    queries = []
+    monkeypatch.setattr(place_photos,'_google_serpapi',
+        lambda place,period,**kwargs: queries.append(('serpapi',place,period)) or [])
+    pages, browser_calls, _ = fake_crawler
+    cse_sources=[f'https://archive.example/chengde/{index}' for index in range(1,11)]
+    pages[place_photo_browser._search_url('google','承德市','1980s')]=cse_html(cse_sources)
+    pages[place_photo_browser._search_url('google','悉尼','')]='<div class="gs-no-results-result">No results</div>'
+    for index,source in enumerate(cse_sources,1):
+        pages[source]=photo_html(index, date=f'{1979+index}-10-01')
+        if index in (1,3,4):
+            record = {'@type':'Photograph','name':'Main Street' if index == 1 else 'Chengde street',
+                      'caption':{3:'Beijing Summer Palace',4:'Taken in 1983'}.get(index,''),
+                      'dateTaken':f'{1979+index}-10-01','license':'https://creativecommons.org/licenses/by/4.0/',
+                      'contentLocation':{'name':'Chengde','geo':{'latitude':40.98,'longitude':117.94}},
+                      'contentUrl':f'https://live.staticflickr.com/1/{index}.jpg'}
+            pages[source] = ('<title>Chengde archive</title><script type="application/ld+json">'
+                             + json.dumps(record) + '</script>')
+        if index == 2:
+            local = {'@type':['ImageObject','Photograph'], 'name':'Willow trees',
+                     'dateTaken':f'{1979+index}-10-01', 'license':'https://creativecommons.org/licenses/by/4.0/',
+                     'creator':{'name':'Alice Example'},
+                     'contentLocation':{'name':'Chengde','geo':{'latitude':40.98,'longitude':117.94}},
+                     'contentUrl':f'https://live.staticflickr.com/1/{index}.jpg'}
+            wrong_city = {**local, 'name':'Beijing street', 'dateTaken':'1983-10-01',
+                          'contentLocation':{'name':'Beijing'},
+                          'contentUrl':'https://live.staticflickr.com/1/beijing.jpg'}
+            wrong_landmarks = [{**wrong_city,'name':name,'contentLocation':{'name':city},
+                               'contentUrl':f'https://live.staticflickr.com/1/{slug}.jpg'}
+                              for name,city,slug in (('Beijing Summer Palace','Beijing','beijing-palace'),
+                                                     ('Sydney Opera House','Sydney','sydney-opera'))]
+            pages[source] = ('<title>Chengde photo gallery</title><script type="application/ld+json">'
+                             + json.dumps({'@type':'ImageGallery','itemListElement':[
+                                 {'item':record} for record in [wrong_city,*wrong_landmarks,local]]}) + '</script>')
+    landmark = {'place':'Chengde Mountain Resort','hierarchy':['Earth','China','Hebei','Chengde','Mountain Resort'],
+                'granularity':'landmark','latitude':40.98,'longitude':117.94,
+                'research_period':'1980s','research_year':1983}
+    landmark_source = 'https://archive.example/chengde/resort'
+    pages[place_photo_browser._search_url('google',landmark['place'],'1980s')] = (
+        cse_html([landmark_source]).replace('Chengde','Chengde Mountain Resort'))
+    resort_photo = {**local,'name':'Mountain Resort','dateTaken':'1983-10-01',
+                    'contentUrl':'https://live.staticflickr.com/1/resort.jpg'}
+    pages[landmark_source] = ('<title>Chengde Mountain Resort gallery</title><script type="application/ld+json">'
+                             + json.dumps({'@type':'ImageGallery','itemListElement':[
+                                 {'item':wrong_city},{'item':resort_photo}]}) + '</script>')
+    containing_places, containing_titles = [], {}
+    for name,city,hierarchy,granularity,location in (
+            ('China','Beijing',['Earth','China'],'country',
+             {'name':'China','address':{'addressLocality':'Beijing','addressCountry':'China'}}),
+            ('Hebei','Chengde',['Earth','China','Hebei'],'region',
+             {'name':'Hebei','address':{'addressLocality':'Chengde','addressRegion':'Hebei','addressCountry':'China'}}),
+            ('Australia','Sydney',['Earth','Australia'],'country',
+             {'name':'Australia','address':{'addressLocality':'Sydney','addressCountry':'Australia'}}),
+            ('Norway','Bergen',['Earth','Norway'],'country',
+             {'name':'Norway','address':{'addressLocality':'Bergen','addressCountry':'Norway'}}),
+            ('Firstshire','Firstville',['Earth','Firstland','Firstshire'],'region',
+             {'name':'Firstville','containedInPlace':{'@type':'AdministrativeArea','name':'Firstshire'}}),
+            ('Japan','長野市',['Earth','Japan'],'country',
+             {'@type':'Country','name':'日本','alternateName':'Japan','address':{'addressLocality':'長野市'}}),
+            ('Brighton and Hove','Brighton and Hove',['Earth','United Kingdom','Brighton and Hove'],'city',
+             {'@type':'Place','name':'Brighton and Hove'})):
+        containing_places.append({'place':name,'hierarchy':hierarchy,'granularity':granularity,
+                                  'research_period':'1980s','research_year':1983})
+        containing_titles[name] = f'{city} street'
+        slug = name.lower().replace(' ','-')
+        source = f'https://archive.example/containing/{slug}'
+        pages[place_photo_browser._search_url('google',name,'1980s')] = cse_html([source]).replace('Chengde',name)
+        record = {**resort_photo,'name':f'{city} street','contentLocation':location,
+                  'contentUrl':f'https://live.staticflickr.com/1/{slug}.jpg'}
+        pages[source] = (f'<title>{name} archive</title><script type="application/ld+json">'
+                         + json.dumps(record) + '</script>')
+    rejected_city_places = []
+    for name,wrong_city in (('Perth','Sydney'),('Hobart','Sydney'),('Canberra','Sydney'),('Northbridge','Southport')):
+        rejected_city_places.append({'place':name,'hierarchy':['Earth',name],
+                                     'granularity':'city','research_period':'1980s','research_year':1983})
+        source = f'https://archive.example/city/{name.lower()}'
+        pages[place_photo_browser._search_url('google',name,'1980s')] = cse_html([source]).replace('Chengde',name)
+        pages[place_photo_browser._search_url('google',name,place_photos.ANY_PHOTO_DATE)] = (
+            pages[place_photo_browser._search_url('google',name,'1980s')])
+        record = {key:value for key,value in resort_photo.items() if key != 'contentLocation'}
+        record.update(name=f'{wrong_city} city centre in {name}',
+                      contentUrl=f'https://live.staticflickr.com/1/{wrong_city.lower()}.jpg')
+        pages[source] = (f'<title>{name} archive</title><script type="application/ld+json">'
+                         + json.dumps(record) + '</script>')
+    places = [
+        {'place':'承德市','hierarchy':['Earth','中国','河北省','承德市'],'granularity':'city','latitude':40.97,'longitude':117.93},
+        {'place':'悉尼','hierarchy':['Earth','澳大利亚','悉尼'],'granularity':'city','latitude':-33.86,'longitude':151.2},
+    ]
+    parramatta = {'place':'Parramatta','hierarchy':[*places[1]['hierarchy'],'Parramatta'],
+                  'granularity':'suburb','latitude':-33.815,'longitude':151.002}
+    def extract(packet):
+        return {**empty(packet), 'place_journeys': places}
+    def external_get(url,**kwargs):
+        params=kwargs['params']
+        if 'maps.googleapis.com' in url:
+            chinese=params.get('language')=='zh-CN'
+            chengde='承德' in params['address']
+            name,region,country=(('承德市','河北省','中国') if chengde else ('悉尼','新南威尔士州','澳大利亚')) if chinese else (
+                ('Chengde','Hebei','China') if chengde else ('Sydney','New South Wales','Australia'))
+            place=places[0 if chengde else 1]
+            if 'Parramatta' in params['address']:
+                name,region,country='Parramatta','New South Wales','Australia'
+                place=parramatta
+            result={'status':'OK','results':[{'geometry':{'location':{'lat':place['latitude'],'lng':place['longitude']}},
+                'address_components':[{'long_name':value,'types':[kind]} for value,kind in (
+                    (name,'locality'),(region,'administrative_area_level_1'),(country,'country'))]}]}
+        elif 'commons.wikimedia.org' in url:
+            query=params['gsrsearch']
+            queries.append(('photo',query))
+            chengde='Chengde' in query
+            pages=[]
+            if chengde or 'Sydney' in query:
+                current=place_photos.datetime.now(place_photos.ZoneInfo('Australia/Sydney')).date().isoformat()
+                for index in range(1,11):
+                    identifier=index+(0 if chengde else 10)
+                    # Modern Commons photos must not displace dated CSE originals.
+                    page=photo_page(identifier,date='2008-06-18' if chengde else current,
+                        title=f'{"Chengde" if chengde else "Sydney"} street {identifier}.jpg')
+                    info=page['imageinfo'][0]
+                    filename=f'{"Chengde" if chengde else "Sydney"}_street_{identifier}.jpg'
+                    info['thumburl']=f'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/{filename}/640px-{filename}'
+                    info['extmetadata'].update(GPSLatitude={'value':str(places[0 if chengde else 1]['latitude'])},
+                        GPSLongitude={'value':str(places[0 if chengde else 1]['longitude'])})
+                    pages.append(page)
+            result={'query':{'pages':{str(page['pageid']):page for page in pages}}}
+        elif 'flickr.com' in url:
+            result={'stat':'ok','photos':{'photo':[]}}
+        elif 'loc.gov' in url:
+            result={}
+        else:
+            pytest.fail(f'Unexpected external request: {url.split("?")[0]}')
+        return httpx.Response(200,json=result,request=httpx.Request('GET',url))
+    monkeypatch.setattr(httpx,'get',external_get)
+    class Provider:
+        identity = 'synthetic-place-news'
+        async def discover(self, query, **kwargs):
+            queries.append(('news',query))
+            return {'receipt':{'status':'completed','response_id':'r','tool_call_id':'w','urls':[]},'events':[]}
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract)
+    agent_routes.runtime._news_engine = HistoricalResearch(Provider())
+    with conversation.client:
+        conversation.say('我现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院')
+        pending=progress(conversation)
+        assert pending['pending'] and pending['derived_workspace']['places']==[]
+        conversation.drain()
+        ready=progress(conversation)
+        saved = ready['derived_workspace']['places']
+        assert {p['place']:p['research_period'] for p in saved} == {'悉尼':'','承德市':'1980s'}
+        assert {p['place']:p['research_year'] for p in saved} == {'悉尼':None,'承德市':1983}
+        photos={}
+        for place in saved:
+            response = conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
+                params={'place':place['place'],'latitude':place['latitude'],'longitude':place['longitude']},
+                headers={'Accept':'application/x-ndjson'})
+            assert response.status_code == 200,response.text
+            photos[place['place']]=response.text
+            final=json.loads(response.text.splitlines()[-1])
+            assert final['status']=='READY',final
+            assert len(final['items'])==10
+            assert not final.get('failures')
+            if place['place']=='承德市':
+                assert all(item['providers']==['google','cse'] for item in final['items'])
+                assert not any('beijing' in item['image_url'] or 'sydney-opera' in item['image_url']
+                               for item in final['items'])
+                assert next(item for item in final['items'] if item['image_url'].endswith('/1.jpg'))['title'] == 'Main Street'
+                assert any(item['image_url'].endswith('/3.jpg') for item in final['items'])
+                assert next(item for item in final['items'] if item['image_url'].endswith('/4.jpg'))['date_expression'] == '1983-10-01'
+                credited=next(item for item in final['items'] if item['image_url'].endswith('/2.jpg'))
+                assert credited['title']=='Willow trees'
+                assert credited['attribution']=='Alice Example'
+                assert final['items'][0]['date_expression']=='1983-10-01'
+                gaps=[abs(int(item['date_expression'][:4])-1983) for item in final['items']]
+                assert gaps==sorted(gaps)
+        assert any(q[0]=='serpapi' and q[1:] == ('承德市','1980s') for q in queries)
+        assert any(url==place_photo_browser._search_url('google','承德市','1980s') for url,_ in browser_calls)
+        assert any(q[0]=='photo' and 'Chengde' in q[1] and '1980' in q[1] and '1989' in q[1] for q in queries)
+        assert any(q[0]=='photo' and 'Sydney' in q[1] for q in queries)
+        assert any(q[0]=='news' and q[1].startswith('承德, 中国 1980–1989') for q in queries)
+        steps = progress(conversation)['skill_progress']['items']
+        assert any(s['skill']=='memoir-historical-news-research' and s['status']=='saved' for s in steps)
+        assert any(s['skill']=='memoir-place-photo-research' and s['status']=='completed' for s in steps)
+        response = conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
+            params={'place':landmark['place'],'period':'1980s','context_year':1983,
+                    'latitude':landmark['latitude'],'longitude':landmark['longitude']},
+            headers={'Accept':'application/x-ndjson'})
+        assert response.status_code == 200,response.text
+        photos[landmark['place']] = response.text
+        final = json.loads(response.text.splitlines()[-1])
+        assert final['status'] == 'PARTIAL',final
+        assert not final.get('failures')
+        assert [item['title'] for item in final['items']] == ['Mountain Resort']
+        assert final['items'][0]['date_expression'] == '1983-10-01'
+        for parent in containing_places:
+            response = conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
+                params={'place':parent['place'],'period':'1980s','context_year':1983},
+                headers={'Accept':'application/x-ndjson'})
+            assert response.status_code == 200,response.text
+            photos[parent['place']] = response.text
+            final = json.loads(response.text.splitlines()[-1])
+            assert final['status'] == 'PARTIAL',final
+            assert not final.get('failures')
+            assert [item['title'] for item in final['items']] == [containing_titles[parent['place']]]
+            assert final['items'][0]['date_expression'] == '1983-10-01'
+        for city in rejected_city_places:
+            response = conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
+                params={'place':city['place'],'period':'1980s','context_year':1983},
+                headers={'Accept':'application/x-ndjson'})
+            assert response.status_code == 200,response.text
+            photos[city['place']] = response.text
+            final = json.loads(response.text.splitlines()[-1])
+            assert final['status'] == 'NO_MATCH',final
+            assert final['items'] == [] and not final.get('failures')
+        groups=[]
+        public=[{key:place[key] for key in ('place','hierarchy','granularity','latitude','longitude')} for place in saved]
+        for language in ('zh-CN','en-AU'):
+            for ordered in (public,list(reversed(public))):
+                request={'places':ordered,'language':language}
+                response=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json=request)
+                assert response.status_code==200,response.text
+                expected=['承德市','悉尼'] if language=='zh-CN' else ['Chengde','Sydney']
+                assert {item['city']['place'] for item in response.json()['places']}==set(expected)
+                groups.append({'request':request,'response':response.json()})
+        provider_places=[next(place for place in public if place['place']=='悉尼'),parramatta]
+        request={'places':list(reversed(provider_places)),'language':'en-AU'}
+        response=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json=request)
+        assert response.status_code==200,response.text
+        assert {item['city']['place'] for item in response.json()['places']}=={'Sydney','Parramatta'}
+        groups.append({'request':request,'response':response.json()})
+        ready=progress(conversation)
+        packet={'pending':pending,'ready':ready,'photos':photos,'groups':groups,
+                'provider_places':provider_places,'landmark':landmark,'containing_places':containing_places,
+                'containing_titles':containing_titles,'rejected_city_places':rejected_city_places}
+        (tmp_path/'place-research-replay.json').write_text(json.dumps(packet,ensure_ascii=False))
+        replay=Path(__file__).parent/'js/helpers/replay-place-research.mjs'
+        result=subprocess.run(['node',str(replay)],input=json.dumps(packet),text=True,capture_output=True,timeout=20)
+        assert result.returncode==0,result.stdout+result.stderr
 
 
 def test_shared_place_pass_reports_skipped_when_no_place_was_derived(sql,tmp_path,monkeypatch):

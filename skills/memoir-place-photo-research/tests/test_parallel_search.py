@@ -180,6 +180,31 @@ class ParallelTests(unittest.TestCase):
         self.assertEqual(options['no_cache'], ['true'])
         self.assertEqual(opened.call_args.kwargs['timeout'], 45)
 
+    def test_web_and_baidu_results_are_source_leads_not_licensed_images(self):
+        payload = {'search_metadata': {'status': 'Success'}, 'organic_results': [{
+            'link': 'https://archive.example/item', 'title': 'Archive record',
+            'snippet': 'Chengde 1983', 'thumbnail': 'https://images.example/preview.jpg',
+        }]}
+        for engine in ('google', 'baidu'):
+            with self.subTest(engine=engine):
+                response = SimpleNamespace(read=lambda limit: json.dumps(payload).encode())
+                with patch.object(s, 'urlopen', return_value=contextlib.nullcontext(response)) as opened:
+                    result = s.serpapi('承德 1980年代', engine=engine)
+                options = parse_qs(urlsplit(opened.call_args.args[0].full_url).query)
+                self.assertEqual(options['engine'], [engine])
+                self.assertEqual(result['status'], 'success')
+                self.assertIsNone(result['cards'][0]['image_url'])
+                self.assertEqual(result['cards'][0]['source_url'], 'https://archive.example/item')
+                self.assertIn('Chengde 1983', result['cards'][0]['text'])
+                self.assertNotIn('fake-private-key', json.dumps(result))
+
+    def test_completed_empty_google_query_is_not_a_provider_outage(self):
+        payload = {'search_metadata': {'status': 'Success'},
+                   'error': "Google hasn't returned any results for this query."}
+        response = SimpleNamespace(read=lambda limit: json.dumps(payload).encode())
+        with patch.object(s, 'urlopen', return_value=contextlib.nullcontext(response)):
+            self.assertEqual(s.serpapi('Chengde', engine='google')['status'], 'success')
+
     def test_worker_hard_timeout_kills_and_reaps(self):
         class Process:
             pid = 12345

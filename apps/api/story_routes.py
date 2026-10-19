@@ -342,6 +342,8 @@ def build_router(
                     result['skill_execution_map'] = execution_map()
                     result['current_mode'] = storage.lifetime_rpc('read_lifetime_current_mode',p_project_id=project_id) if strategy_enabled() else None
                     places=storage.lifetime_rpc('read_lifetime_place_journeys',p_project_id=project_id)
+                    if places and callable(getattr(storage, 'research_places', None)):
+                        places = storage.research_places(project_id, places)
                     result['derived_workspace']={'project_id':project_id,'policy_epoch':fence.policy_epoch,
                         'source_revision':fence.source_revision,'places':places,'authoritative':True}
                     profile = storage.profile()

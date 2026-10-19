@@ -174,13 +174,16 @@ def read_filter(key, value):
         return key + ' is null'
     if value.startswith('gt.') and key == 'project_id' and re.fullmatch('[A-Za-z0-9][A-Za-z0-9_-]{0,127}', value[3:]):
         return key + '>' + quoted(value[3:])
-    if value.startswith('in.(') and value.endswith(')') and key in {'kind', 'client_turn_id'}:
+    if value.startswith('in.(') and value.endswith(')') and key in {'kind', 'client_turn_id', 'sequence'}:
         values = value[4:-1].split(',')
         if not 1 <= len(values) <= 1001:
             raise ValueError('Invalid synthetic list filter')
         if key == 'kind':
             if not all(item in {'agent', 'agent_greeting'} for item in values):
                 raise ValueError('Invalid synthetic memory kind')
+        elif key == 'sequence':
+            if not all(re.fullmatch(r'\d{1,18}', item) for item in values):
+                raise ValueError('Invalid synthetic source sequence')
         elif not all(str(UUID(item)) == item for item in values):
             raise ValueError('Invalid synthetic turn identifier')
         return key + ' in (' + ','.join(quoted(item) for item in values) + ')'

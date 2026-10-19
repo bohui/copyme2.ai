@@ -17,7 +17,8 @@ export function applyDerivedWorkspace(state, update) {
   const decorations = ['pictures','map_city','map_city_key','map_pin','life_stage','life_stages','period'];
   const places = update.places.filter(p => p?.status === 'active' && p.place && Array.isArray(p.hierarchy)).map(p => {
     const saved = preserve && previous.get(placeHistoryKey(p));
-    return {...(saved ? Object.fromEntries(decorations.filter(key => Object.hasOwn(saved,key)).map(key => [key,saved[key]])) : {}),...p};
+    return Object.fromEntries(Object.entries({...saved,...p}).filter(([key]) => Object.hasOwn(p,key)
+      || decorations.includes(key) || key.startsWith('photo_search_') || key === 'photo_next_cursor'));
   });
   state.derivedWorkspace = {project_id:update.project_id, policy_epoch:update.policy_epoch, source_revision:update.source_revision};
   if (JSON.stringify(previousPlaces) === JSON.stringify(places)

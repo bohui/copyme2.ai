@@ -465,8 +465,21 @@ class UserStorage:
             'p_reply':reply, 'p_response_photo_ids':response_photo_ids or [], 'p_thread_id':thread_id}).json()
 
     def historical_news_basis(self, project_id):
-        return self.request('POST', '/rest/v1/rpc/read_user_historical_news_basis', json={
+        view = self.request('POST', '/rest/v1/rpc/read_user_historical_news_basis', json={
             'p_project_id':project_id}).json()
+        if view and self.lifetime_rpc('read_lifetime_project_identity', p_project_id=project_id):
+            places = self.lifetime_rpc('read_lifetime_place_journeys', p_project_id=project_id)
+            if places:
+                view['places'] = places
+        return view
+
+    def research_places(self, project_id, places=None):
+        from .place_research import load_research_places
+        if places is None:
+            if not self.lifetime_rpc('read_lifetime_project_identity', p_project_id=project_id):
+                return []
+            places = self.lifetime_rpc('read_lifetime_place_journeys', p_project_id=project_id)
+        return load_research_places(self, project_id, places)
 
     def begin_historical_news(self, project_id, hypothesis, snapshot):
         return self.request('POST', '/rest/v1/rpc/begin_user_historical_news', json={

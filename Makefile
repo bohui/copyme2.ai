@@ -56,10 +56,11 @@ TUNNEL_LABEL := com.cloudflare.cloudflared.copyme2
 SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
 SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
-.PHONY: help check migrate db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval prompt-export prompt-check prompt-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
+.PHONY: help check migrate reset db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval prompt-export prompt-check prompt-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 .PHONY: _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
 .PHONY: prompt-sync prompt-sync-check prompt-sync-install
+.PHONY: test-web test-place-research
 
 memoir-live-skills-plan: ## Inspect isolated skill contracts; zero model calls.
 	@python3 scripts/run_memoir_live_skills.py $(if $(strip $(LIVE_SKILL)),--skill "$(LIVE_SKILL)",)
@@ -107,6 +108,14 @@ migrate: ## Apply the consolidated Supabase migration using tracked migration hi
 	test -n "$${SUPABASE_DB_URL:-}" || { echo "Set SUPABASE_DB_URL in .env."; exit 2; }; \
 	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before running migrations."; exit 1; }; \
 	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes
+
+reset: ## Reset the disposable Supabase database from the consolidated baseline without seeding.
+	@set -a; \
+	if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; \
+	set +a; \
+	test -n "$${SUPABASE_DB_URL:-}" || { echo "Set SUPABASE_DB_URL in $(ENV_FILE)."; exit 2; }; \
+	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before resetting the database."; exit 1; }; \
+	supabase db reset --db-url "$${SUPABASE_DB_URL}" --no-seed --yes
 
 db-truncate: ## Clear user/app data, Auth, Storage and local Compose state; preserve shared photo search cache; pass RESET_CONFIRM=1.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _db-truncate
@@ -187,8 +196,20 @@ setup_stripe_live: ## Create or reuse the live catalog with STRIPE_SECRET_KEY=sk
 runtime-start: check ## Start the Apple Container runtime.
 	@$(APPLE_CONTAINER_BIN) system start
 
-test: ## Run the local Python test suite.
+test: test-web ## Run the local JavaScript and Python test suites.
 	@python3 -m pytest -q
+
+test-web: ## Run the web client regressions without a browser or external services.
+	@node --test tests/js/*.test.mjs
+
+test-place-research: test-web ## Replay the two-place interview through the API, database and web client.
+	@python3 -c 'import os, shutil, sys; sys.exit(0 if os.getenv("MEMOIR_TEST_POSTGRES_BACKEND") in {"apple-container", "docker"} or (os.geteuid() != 0 and all(shutil.which(tool) for tool in ("initdb", "pg_ctl", "psql"))) else "Place regression requires local PostgreSQL tools and a non-root user, or MEMOIR_TEST_POSTGRES_BACKEND=apple-container/docker.")'
+	@python3 -m pytest -q tests/test_place_research_context.py tests/test_place_photo_discovery.py tests/test_place_photo_browser.py \
+		tests/test_place_groups.py tests/test_place_geocoding.py tests/test_place_photo_fallback.py \
+		tests/test_place_photo_pages.py tests/test_place_photo_persistence.py tests/test_photo_worker.py \
+		tests/test_background_skill_workflow.py::test_restored_chengde_period_drives_both_photo_and_news_research \
+		tests/test_database_baseline.py::test_one_fresh_baseline_has_no_upgrade_or_backfill_statements
+	@python3 -m unittest discover -s skills/memoir-place-photo-research/tests
 
 langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/worker seam.
 	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \

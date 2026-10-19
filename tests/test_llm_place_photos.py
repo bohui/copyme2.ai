@@ -23,7 +23,8 @@ def search_world(monkeypatch):
     source = 'https://archive.example/photo'
     image = 'https://images.example/street.jpg'
     photo = {'@type': 'Photograph', 'name': 'Chengde street',
-             'dateCreated': '1983-10-01', 'contentUrl': image}
+             'dateCreated': '1983-10-01', 'contentUrl': image,
+             'license': 'https://creativecommons.org/licenses/by/4.0/'}
     world = {'calls': [], 'pages': {source: '<title>Chengde archive</title>'
              + '<script type="application/ld+json">' + json.dumps(photo) + '</script>'},
              'response': {'id': 'resp_fixture', 'output': [{
@@ -241,7 +242,9 @@ def test_app_preserves_year_precision_from_source_captions(search_world):
     _, world = search_world
     world['pages']['https://archive.example/photo'] = (
         '<figure><img src="https://images.example/street.jpg">'
-        '<figcaption>Chengde street 1983</figcaption></figure>')
+        '<figcaption>Chengde street 1983</figcaption></figure>'
+        '<script type="application/ld+json">{"@type":"ImageObject","contentUrl":"https://images.example/street.jpg",'
+        '"license":"https://creativecommons.org/licenses/by/4.0/"}</script>')
     found, = photos.search_place_photos('Chengde', '1980s')
     assert found['date_expression'] == '1983'
     assert found['scene_date_range']['precision'] == 'year'
@@ -284,7 +287,9 @@ def test_app_accepts_a_dated_candidate_for_unspecified_historical_period(search_
     _, world = search_world
     world['pages']['https://archive.example/photo'] = (
         '<figure><img src="https://images.example/street.jpg">'
-        '<figcaption>Chengde street 1983</figcaption></figure>')
+        '<figcaption>Chengde street 1983</figcaption></figure>'
+        '<script type="application/ld+json">{"@type":"ImageObject","contentUrl":"https://images.example/street.jpg",'
+        '"license":"https://creativecommons.org/licenses/by/4.0/"}</script>')
     found, = photos.search_place_photos('Chengde', 'historical')
     assert found['date_expression'] == '1983'
     assert found['scene_date_range']['precision'] == 'year'
@@ -440,9 +445,17 @@ def test_all_image_fields_reconcile_exact_capture_dates(search_world, tmp_path, 
 
 def set_image_metadata(world, fields):
     record = {'@type': 'Photograph', 'name': 'Chengde street',
-              'contentUrl': 'https://images.example/street.jpg', **fields}
+              'contentUrl': 'https://images.example/street.jpg',
+              'license': 'https://creativecommons.org/licenses/by/4.0/', **fields}
     world['pages']['https://archive.example/photo'] = (
         '<script type="application/ld+json">' + json.dumps(record) + '</script>')
+
+
+@pytest.mark.parametrize('licence', [None, 'https://creativecommons.org/licenses/by-nc/4.0/'])
+def test_native_search_cannot_bypass_photo_display_rights(search_world, licence):
+    _, world = search_world
+    set_image_metadata(world, {'dateCreated': '1983-10-01', 'license': licence})
+    assert photos.search_place_photos('Chengde', '1980s') == []
 
 
 def discover_image_metadata(helper, tmp_path, capsys, surface):
