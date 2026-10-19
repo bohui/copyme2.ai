@@ -330,6 +330,14 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     pages[place_photo_browser._search_url('google','悉尼','')]='<div class="gs-no-results-result">No results</div>'
     for index,source in enumerate(cse_sources,1):
         pages[source]=photo_html(index, date=f'{1979+index}-10-01')
+        if index in (1,3,4):
+            record = {'@type':'Photograph','name':'Main Street' if index == 1 else 'Chengde street',
+                      'caption':{3:'Beijing Summer Palace',4:'Taken in 1983'}.get(index,''),
+                      'dateTaken':f'{1979+index}-10-01','license':'https://creativecommons.org/licenses/by/4.0/',
+                      'contentLocation':{'name':'Chengde','geo':{'latitude':40.98,'longitude':117.94}},
+                      'contentUrl':f'https://live.staticflickr.com/1/{index}.jpg'}
+            pages[source] = ('<title>Chengde archive</title><script type="application/ld+json">'
+                             + json.dumps(record) + '</script>')
         if index == 2:
             local = {'@type':['ImageObject','Photograph'], 'name':'Willow trees',
                      'dateTaken':f'{1979+index}-10-01', 'license':'https://creativecommons.org/licenses/by/4.0/',
@@ -337,10 +345,15 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
                      'contentLocation':{'name':'Chengde','geo':{'latitude':40.98,'longitude':117.94}},
                      'contentUrl':f'https://live.staticflickr.com/1/{index}.jpg'}
             wrong_city = {**local, 'name':'Beijing street', 'dateTaken':'1983-10-01',
+                          'contentLocation':{'name':'Beijing'},
                           'contentUrl':'https://live.staticflickr.com/1/beijing.jpg'}
+            wrong_landmarks = [{**wrong_city,'name':name,'contentLocation':{'name':city},
+                               'contentUrl':f'https://live.staticflickr.com/1/{slug}.jpg'}
+                              for name,city,slug in (('Beijing Summer Palace','Beijing','beijing-palace'),
+                                                     ('Sydney Opera House','Sydney','sydney-opera'))]
             pages[source] = ('<title>Chengde photo gallery</title><script type="application/ld+json">'
                              + json.dumps({'@type':'ImageGallery','itemListElement':[
-                                 {'item':wrong_city},{'item':local}]}) + '</script>')
+                                 {'item':record} for record in [wrong_city,*wrong_landmarks,local]]}) + '</script>')
     landmark = {'place':'Chengde Mountain Resort','hierarchy':['Earth','China','Hebei','Chengde','Mountain Resort'],
                 'granularity':'landmark','latitude':40.98,'longitude':117.94,
                 'research_period':'1980s','research_year':1983}
@@ -365,14 +378,17 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
             ('Firstshire','Firstville',['Earth','Firstland','Firstshire'],'region',
              {'name':'Firstville','containedInPlace':{'@type':'AdministrativeArea','name':'Firstshire'}}),
             ('Japan','長野市',['Earth','Japan'],'country',
-             {'@type':'Country','name':'日本','alternateName':'Japan','address':{'addressLocality':'長野市'}})):
+             {'@type':'Country','name':'日本','alternateName':'Japan','address':{'addressLocality':'長野市'}}),
+            ('Brighton and Hove','Brighton and Hove',['Earth','United Kingdom','Brighton and Hove'],'city',
+             {'@type':'Place','name':'Brighton and Hove'})):
         containing_places.append({'place':name,'hierarchy':hierarchy,'granularity':granularity,
                                   'research_period':'1980s','research_year':1983})
         containing_titles[name] = f'{city} street'
-        source = f'https://archive.example/containing/{name.lower()}'
+        slug = name.lower().replace(' ','-')
+        source = f'https://archive.example/containing/{slug}'
         pages[place_photo_browser._search_url('google',name,'1980s')] = cse_html([source]).replace('Chengde',name)
         record = {**resort_photo,'name':f'{city} street','contentLocation':location,
-                  'contentUrl':f'https://live.staticflickr.com/1/{name.lower()}.jpg'}
+                  'contentUrl':f'https://live.staticflickr.com/1/{slug}.jpg'}
         pages[source] = (f'<title>{name} archive</title><script type="application/ld+json">'
                          + json.dumps(record) + '</script>')
     rejected_city_places = []
@@ -466,7 +482,11 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
             assert not final.get('failures')
             if place['place']=='承德市':
                 assert all(item['providers']==['google','cse'] for item in final['items'])
-                assert not any('beijing' in item['image_url'] for item in final['items'])
+                assert not any('beijing' in item['image_url'] or 'sydney-opera' in item['image_url']
+                               for item in final['items'])
+                assert next(item for item in final['items'] if item['image_url'].endswith('/1.jpg'))['title'] == 'Main Street'
+                assert any(item['image_url'].endswith('/3.jpg') for item in final['items'])
+                assert next(item for item in final['items'] if item['image_url'].endswith('/4.jpg'))['date_expression'] == '1983-10-01'
                 credited=next(item for item in final['items'] if item['image_url'].endswith('/2.jpg'))
                 assert credited['title']=='Willow trees'
                 assert credited['attribution']=='Alice Example'

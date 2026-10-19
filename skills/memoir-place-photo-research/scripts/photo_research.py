@@ -27,6 +27,7 @@ import ssl
 import sys
 import tempfile
 import time
+import unicodedata
 from datetime import date, datetime, timezone
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
@@ -524,43 +525,22 @@ def _crawl4ai_item_locality_matches(value: str, requested: str) -> bool:
     return any(_crawl4ai_location_matches(value, anchor) for anchor in anchors)
 
 
-def _crawl4ai_caption_localities(value: str, place: str) -> list[str]:
-    """Read explicit location phrases, without a catalogue of geographic names."""
-    text = _text(value).strip()
-    text = re.sub(r'^(?:(?:old|historical|vintage|archive|photo(?:graph)? of)\s+)+', '', text, flags=re.I)
-    text = re.sub(r'^(?:18|19|20)\d{2}\s+', '', text)
-    claims = []
-    for expression in (
-        r'^(.+?)\s+(?:streets?|city(?:\s+cent(?:re|er))?|waterfront|harbou?r|skyline|downtown)\b',
-        r'^(?:streets?|city|town)\s+of\s+([^,;；]+)',
-        r'(?:photographed|taken|located)\s+(?:in|at)\s+([^,;；]+)',
-        r'^(.+?)(?:街景|街道|老街|海滨|城市中心)',
-        r'(?:地点|所在地)\s*[:：]\s*([^,，;；]+)',
-    ):
-        match = re.search(expression, text, re.I)
-        if match:
-            claim = re.split(r'\s+(?:18|19|20)\d{2}\b', match[1])[0].strip()
-            if claim:
-                claims.append(claim)
-    groups = _crawl4ai_place_groups(place)
-    # A verified landmark alias can follow a city label in the item's caption.
-    if len(groups) > 1 and len(groups[0]) > 2:
-        for alias in groups[0]:
-            match = re.match(r'^(.+?)\s+' + re.escape(alias) + r'(?:\b|$)', text, re.I)
-            if match:
-                claims.append(match[1].strip())
-    return list(dict.fromkeys(claims))
+def _crawl4ai_same_locality(names: list[str], aliases: list[str]) -> bool:
+    def identity(value):
+        label = ' '.join(unicodedata.normalize('NFKC', value).casefold().split())
+        return re.sub(r'([\u3400-\u9fff])[市省]$', r'\1', label)
+    return bool({identity(name) for name in names} & {identity(alias) for alias in aliases})
 
 
 def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches) -> bool:
-    """Validate item geography and caption claims against source-declared roles."""
+    """Prefer source-stated image geography; keep caption-only checks conservative."""
     metadata = {str(item.get('name') or item.get('property') or '').casefold():
                 item.get('content') for item in page.get('metadata', []) if isinstance(item, dict)}
-    geographies = []
+    geographies, fallback_geographies = [], []
     titles = [page.get('title', ''), metadata.get('og:title', '')]
     for field in ('geo.placename', 'place:location:name'):
         if metadata.get(field):
-            geographies.append(_crawl4ai_photo_geography({'contentLocation':metadata[field]}))
+            fallback_geographies.append(_crawl4ai_photo_geography({'contentLocation':metadata[field]}))
 
     def visit(node, depth=0):
         if depth > 5:
@@ -576,39 +556,38 @@ def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches
                 titles.extend((node.get('name', ''),node.get('caption', '')))
                 geography = _crawl4ai_photo_geography(node)
                 if geography['labels']:
-                    geographies.append(geography)
+                    (geographies if any(kind in {'ImageObject','Photograph'} for kind in kinds)
+                     else fallback_geographies).append(geography)
             if '@graph' in node:
                 visit(node['@graph'], depth + 1)
     visit(page.get('json_ld', []))
+    geographies = geographies or fallback_geographies
 
     groups = _crawl4ai_place_groups(place)
     target_aliases = groups[0] if groups else []
+    anchor_aliases = groups[-1] if groups else []
     def target_matches(names):
-        return any(_crawl4ai_location_matches(' '.join(names), alias) for alias in target_aliases)
+        return _crawl4ai_same_locality(names, target_aliases)
 
     for geography in geographies:
         if not location_matches(' '.join(geography['labels']), place):
             return True
         parent_match = any(target_matches(names) for names in geography['parents'])
         if (geography['localities'] and not parent_match
-                and not all(target_matches(names) or location_matches(' '.join(names), place)
+                and not all(target_matches(names) or _crawl4ai_same_locality(names, anchor_aliases)
                             for names in geography['localities'])):
             return True
+    if geographies:
+        return False  # A caption cannot overrule the image's own matching location.
     for title in titles:
         if not isinstance(title, str):
             continue
-        for claim in _crawl4ai_caption_localities(title, place):
-            if not geographies:
-                if not location_matches(claim, place):
-                    return True
-                continue
-            for geography in geographies:
-                # A parent-only record supports the requested scope, while an
-                # explicit child locality must agree with the item's caption.
-                names = geography['localities'] + geography['parents']
-                if geography['localities'] and not any(
-                        _crawl4ai_location_matches(' '.join(group), claim) for group in names):
-                    return True
+        # Check explicit location labels, without inferring cities from subject names.
+        claim = re.match(r'^(?:location|place|地点|所在地)\s*[:：]\s*(.+)', title.strip(), re.I)
+        if not claim:
+            claim = re.match(r'^(.+?)\s+city(?:\s+cent(?:re|er))?\s+(?:in|at)\s+', title.strip(), re.I)
+        if claim and not location_matches(claim[1], place):
+            return True
     return False
 
 
@@ -891,8 +870,7 @@ def _crawl4ai_photo_geography(photo: dict) -> dict:
                 return
             parts = [part.strip() for part in re.split(r'[,，]', value) if part.strip()]
             if parts:
-                for peer in re.split(r'\s+and\s+|、', parts[0], flags=re.I):
-                    add(names(peer), False)
+                add(names(parts[0]), False)
                 for ancestor in parts[1:]:
                     add(names(ancestor), True)
             return
@@ -909,7 +887,7 @@ def _crawl4ai_photo_geography(photo: dict) -> dict:
         if parent:
             add(aliases, True)
         elif not has_locality or 'City' in kinds:
-            if len(aliases) == 1 and role == 'place' and 'City' not in kinds:
+            if len(aliases) == 1 and role == 'place':
                 visit(aliases[0], depth=depth+1)
             else:
                 add(aliases, False)

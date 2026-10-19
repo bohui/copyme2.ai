@@ -125,11 +125,10 @@ def verified_album_member_links(source_html: str, source_url: str) -> list[str]:
 
 
 def conflicting_item_locality(page: dict, place: str, location_matches) -> bool:
-    """Veto item-level location claims incompatible with inherited album context.
+    """Prefer the image's geography over inherited album context and captions.
 
-    Structured photo location and clearly city-leading photo titles can veto
-    inheritance; descriptive subjects like "Willow trees" cannot create a new
-    city claim. The caller supplies existing validated location alias matching.
+    Without image geography, check explicit location labels conservatively.
+    The caller supplies existing validated location alias matching.
     """
     from .place_photo_browser import _research
     return _research()._crawl4ai_conflicting_item_locality(page, place, location_matches)
