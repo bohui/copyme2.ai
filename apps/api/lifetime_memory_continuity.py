@@ -272,6 +272,12 @@ def validate_governed_collector_result(raw, context):
         if key in seen:
             raise ValueError('Duplicate continuity update')
         seen.add(key)
+        if item.kind == 'person' and item.assertion == 'asserted':
+            from .interview_strategy import current_constraints
+            prefix = source['text'][:item.char_start].rstrip()
+            if (current_constraints(source['text']).get('override') == 'current_correction'
+                    and re.search(r'\bnot(?:\s+(?:my|our|the|his|her|their|your))?\s*$|(?:不是|并非|並非)(?:我|我的|他|他的|她|她的)?$', prefix, re.I)):
+                raise ValueError('A superseded person cannot become asserted continuity')
         if item.kind in _DIRECT_KINDS and (item.assertion != 'asserted'
                 or not any(_same_literal(item, direct) for direct in literal)):
             raise ValueError('Privacy and commitment continuity require asserted direct narrator wording')

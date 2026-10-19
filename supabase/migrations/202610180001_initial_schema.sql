@@ -8599,7 +8599,7 @@ CREATE FUNCTION public.read_lifetime_interview_context(p_conversation_id uuid) R
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
-declare owner uuid:=auth.uid(); project text; plan jsonb; events jsonb;
+declare owner uuid:=auth.uid(); project text; plan jsonb; events jsonb; coverage jsonb;
 begin
  select project_id into project from public.user_lifetime_conversation where user_id=owner and conversation_id=p_conversation_id;
  if not found then raise exception 'conversation unavailable'; end if;
@@ -8611,7 +8611,28 @@ begin
  and not exists(select 1 from public.user_memory_event_source r where r.user_id=owner and r.project_id=project and r.event_id=e.id
    and not exists(select 1 from public.user_narrator_source s where s.user_id=owner and s.project_id=project and s.id=r.source_id
      and s.version=r.source_version and s.status='active')) order by e.change_sequence desc,e.id limit 8) e;
- return jsonb_build_object('plan',plan,'events',events,'photos','[]'::jsonb,'photo_associations','[]'::jsonb,
+ -- Count canonical events with current original evidence, never raw turns or word volume.
+ with grounded as (
+   select e.id,e.life_stage,max(s.sequence) last_sequence
+   from public.user_memory_event e
+   join public.user_memory_event_source r on r.user_id=e.user_id and r.project_id=e.project_id and r.event_id=e.id
+   join public.user_narrator_source s on s.user_id=r.user_id and s.project_id=r.project_id and s.id=r.source_id
+     and s.version=r.source_version and s.status='active'
+   where e.user_id=owner and e.project_id=project and e.status='active' and e.kind='event'
+     and e.life_stage<>'unplaced' and length(btrim(coalesce(e.data->>'title','')))>0
+     and r.stage_progress_role in ('primary','stage','legacy_primary','legacy_stage')
+     and not exists(select 1 from public.user_memory_event_source bad
+       where bad.user_id=e.user_id and bad.project_id=e.project_id and bad.event_id=e.id
+         and not exists(select 1 from public.user_narrator_source original
+           where original.user_id=bad.user_id and original.project_id=bad.project_id and original.id=bad.source_id
+             and original.version=bad.source_version and original.status='active'))
+     and not exists(select 1 from public.user_memory_event_source_exclusion x
+       where x.user_id=e.user_id and x.project_id=e.project_id and x.event_id=e.id)
+   group by e.id,e.life_stage
+ ) select coalesce(jsonb_agg(row),'[]') into coverage from (
+   select life_stage,count(*) grounded_events,max(last_sequence) last_source_sequence
+   from grounded group by life_stage order by life_stage) row;
+ return jsonb_build_object('plan',plan,'events',events,'stage_coverage',coverage,'photos','[]'::jsonb,'photo_associations','[]'::jsonb,
    'historical_context_complete',false,'historical_news',public.read_user_historical_news(project),
    'has_accepted_narration',public.conversation_has_narration(owner,project));
 end $$;
