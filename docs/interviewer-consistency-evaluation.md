@@ -30,10 +30,13 @@ Both the compact collector and strategy selector consume this shared guidance.
 source from an explicitly selected local export, plus eight labelled
 counterfactual probes. The observed prefixes contain no future turns. Saved
 replies are optional: an accepted original remains in later prefixes when its
-response failed or was never saved. Observed stop turns have no-question gold
-and a stop-specific requirement, rather than inheriting story-follow-up gold.
-Saved
-assistant replies are context, not personal testimony or verified delivery
+response failed or was never saved. Every observed source requires an independently
+reviewed control expectation (stopped, question, selection reason), bound to its
+version and text hash. Missing or stale labels fail case creation; the production
+literal intent matcher never generates gold. This permits indirect departures
+such as needing to leave for an appointment to have valid stop gold. Stops and
+direct answers have their own requirements instead of story-follow-up gold.
+Saved assistant replies are context, not personal testimony or verified delivery
 receipts. The additional dataset is
 `memoir/evaluation/conversations/memoir-interviewer`; it is separate from the
 stable synthetic 160-item catalog, and records private-data and origin metadata.

@@ -6,7 +6,7 @@ The stable synthetic 160-item catalog is unchanged.
 """
 from copy import deepcopy
 
-from apps.api.interview_strategy import current_constraints, stage_breadth_checkpoint
+from apps.api.interview_strategy import stage_breadth_checkpoint
 from scripts.memoir_skill_eval_suite import digest
 
 DATASET = 'memoir/evaluation/conversations/memoir-interviewer'
@@ -23,7 +23,7 @@ REQUIREMENTS = {
 }
 
 
-def conversation_cases(template, sources, turns):
+def conversation_cases(template, sources, turns, *, control_expectations):
     """One exact original prefix per accepted source; never include future turns."""
     originals = sorted((s for s in sources if s['status'] == 'active'), key=lambda s: s['sequence'])
     if not originals or len({s['project_id'] for s in originals}) != 1:
@@ -52,13 +52,26 @@ def conversation_cases(template, sources, turns):
             has_accepted_narration=bool(history), interview_language=source['language'],
             recent_dialogue=history, breadth_checkpoint=None)
         c['strategy_context'] = dict(mode='active', plan=None, prior_delivered_question=None)
-        constraints = current_constraints(source['text'])
-        stopped = bool(constraints.get('no_question'))
-        row['gold']['facts'] = dict(stopped=stopped, question=not stopped,
-            selection_reason='pause' if stopped else constraints.get('override'))
-        row['gold']['required'] = ['Respect the stop with no question and no transition invitation.'] if stopped else [
-            'One useful unanswered question; preserve continuity and narrator agency.',
-            REQUIREMENTS.get(source['sequence'], 'Follow the latest detail using only the supplied original prefix.')]
+        expected = control_expectations.get(source['id'], {})
+        facts = expected.get('facts', {})
+        if (expected.get('source_version') != source['version']
+                or expected.get('text_sha256') != digest(source['text'])
+                or set(facts) != {'stopped', 'question', 'selection_reason'}
+                or type(facts['stopped']) is not bool or type(facts['question']) is not bool
+                or facts['selection_reason'] is not None and not isinstance(facts['selection_reason'], str)
+                or facts['stopped'] and (facts['question'] or facts['selection_reason'] != 'pause')):
+            raise ValueError('reviewed_source_control_expectation_required')
+        # Absence from a literal stop matcher never establishes narrator intent.
+        row['gold']['facts'] = deepcopy(facts)
+        stopped = facts['stopped']
+        if stopped:
+            required = ['Respect the stop with no immediate question or invitation to change life stage; an optional future-return courtesy is allowed.']
+        elif not facts['question']:
+            required = ["Answer the narrator's direct question or request without an unnecessary interview follow-up."]
+        else:
+            required = ['One useful unanswered question; preserve continuity and narrator agency.',
+                REQUIREMENTS.get(source['sequence'], 'Follow the latest detail using only the supplied original prefix.')]
+        row['gold']['required'] = required
         row['gold']['forbidden'] = ['Invent a personal fact, repeat an answered question, treat assistant text as testimony.']
         row['origin'] = dict(kind='observed_conversation_prefix', synthetic=False,
             source_id=source['id'], source_version=source['version'], source_sequence=source['sequence'])
