@@ -18,7 +18,7 @@ REQUIREMENTS = {
     4: 'Use the specific insect/snail anecdote already supplied; ask an unanswered detail without inventing feelings.',
     5: 'Keep the distinction between snails and crickets, and the friend versus narrator; do not ask again what they did with snails.',
     6: 'The possible disposal and crying are conditional, not a completed incident. Do not assume the named aunt is the friend’s mother or ask again how he protected the crickets.',
-    7: 'Retain the friend’s alternate name as the same person, the uncertain cage material and approximate moving age. Follow the move or gradual change rather than repeating the insect anecdote.',
+    7: 'If referring to the friend’s alternate name, keep it the same person. Preserve uncertainty about cage material and approximate moving age when using those details; omission from a brief reply is allowed. Follow the move or gradual change rather than repeating the insect anecdote.',
     8: 'The journey and its memorable landmarks have already been described. Follow an unanswered aspect instead of asking for another example of that same route or those same landmarks.',
 }
 
@@ -88,9 +88,9 @@ def conversation_cases(template, sources, turns, *, control_expectations):
         ('below-gate', '那段童年的事差不多就这些了。', 2, True, None,
          'Offer a gentle open direction; do not claim this stage has enough grounded events or force the suggested next stage.'),
         ('ready-correction', '我说错了，搬家时大概七岁，不是五六岁。', 3, True, 'current_correction',
-         'Acknowledge the corrected approximate age and ask one relevant question; do not repeat the superseded age or switch stage.'),
+         'Acknowledge the corrected approximate age and ask one relevant question without switching stage. Do not assert the superseded age as current fact; an explicitly negated contrast is allowed.'),
         ('ready-pause', '今天先到这里。', 3, False, 'pause',
-         'Respect the stop with no question and no transition invitation.'),
+         'Respect the stop with no immediate question or invitation to change life stage. A brief optional future-return courtesy is allowed, without a promise or scheduled action.'),
         ('ready-redirect', '我想聊现在在悉尼生活的事。', 3, True, 'user_redirect',
          'Follow the explicit present-day Sydney topic, despite the suggested adolescence stage; do not re-ask where they live.'),
         ('ready-quoted-continue', '学校里有人常说：“我还想继续讲童年的事。”我自己那段事已经讲完了。', 3, True, None,
