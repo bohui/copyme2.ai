@@ -291,13 +291,13 @@ def test_configured_google_images_key_reaches_the_app_provider(monkeypatch):
         calls.append((place, period))
         return browser._source_items(photo_html(), 'https://archive.example/photo', place, period)
     monkeypatch.setattr(photos, '_google_serpapi', search, raising=False)
-    monkeypatch.setattr(photos, '_google_browser', lambda *args: pytest.fail('configured image API was ignored'))
+    monkeypatch.setattr(photos, '_google_browser', lambda *args: calls.append(('cse', *args)) or [])
     for name in ('_flickr_browser', '_flickr', '_commons', '_loc'):
         monkeypatch.setattr(photos, name, lambda *args: [])
     monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     found = photos.search_place_photos('Chengde', '1980s')
     assert len(found) == 1
-    assert calls == [('Chengde', '1980s')]
+    assert set(calls) == {('Chengde', '1980s'), ('cse', 'Chengde', '1980s')}
 
 
 def test_cse_url_and_id_have_same_query_without_page_date_filter(monkeypatch):
@@ -1047,9 +1047,12 @@ def test_expansion_cache_identity_tracks_server_provider_mode_not_credential_val
     monkeypatch.setenv('SERPAPI_KEY', 'private-two')
     assert search_key('Chengde', '1980s') == serpapi_key
     monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'private-three')
-    assert search_key('Chengde', '1980s') == serpapi_key, 'SerpAPI remains the selected provider'
+    assert search_key('Chengde', '1980s') != serpapi_key, 'Adding a CSE route requires fresh research'
+    combined_api_key = search_key('Chengde', '1980s')
+    monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'private-four')
+    assert search_key('Chengde', '1980s') == combined_api_key
     monkeypatch.delenv('SERPAPI_KEY')
-    assert search_key('Chengde', '1980s') not in {browser_key, serpapi_key}
+    assert search_key('Chengde', '1980s') not in {browser_key, serpapi_key, combined_api_key}
 
 
 
@@ -1096,7 +1099,7 @@ def test_serpapi_verifies_and_publishes_initial_photo_before_followup_query(
     monkeypatch.delenv('GOOGLE_CSE_API_KEY', raising=False)
     monkeypatch.delenv('FLICKR_API_KEY', raising=False)
     monkeypatch.setenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', '0')
-    for name in ('_flickr_browser', '_commons', '_loc'):
+    for name in ('_google_browser', '_flickr_browser', '_commons', '_loc'):
         monkeypatch.setattr(photos, name, lambda *args, **kwargs: [])
     monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     sources['https://archive.example/photos/1'] = photo_html(1)

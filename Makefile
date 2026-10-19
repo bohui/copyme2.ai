@@ -204,7 +204,7 @@ test-web: ## Run the web client regressions without a browser or external servic
 
 test-place-research: test-web ## Replay the two-place interview through the API, database and web client.
 	@python3 -c 'import os, shutil, sys; sys.exit(0 if os.getenv("MEMOIR_TEST_POSTGRES_BACKEND") in {"apple-container", "docker"} or (os.geteuid() != 0 and all(shutil.which(tool) for tool in ("initdb", "pg_ctl", "psql"))) else "Place regression requires local PostgreSQL tools and a non-root user, or MEMOIR_TEST_POSTGRES_BACKEND=apple-container/docker.")'
-	@python3 -m pytest -q tests/test_place_research_context.py tests/test_place_photo_discovery.py \
+	@python3 -m pytest -q tests/test_place_research_context.py tests/test_place_photo_discovery.py tests/test_place_photo_browser.py \
 		tests/test_place_groups.py tests/test_place_geocoding.py tests/test_place_photo_fallback.py \
 		tests/test_place_photo_pages.py tests/test_place_photo_persistence.py \
 		tests/test_background_skill_workflow.py::test_restored_chengde_period_drives_both_photo_and_news_research \

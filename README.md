@@ -668,7 +668,8 @@ source verification and durable deduplication. It does not require another birth
 sentence, a stated country when the place is unambiguous, or a conversation-round
 milestone. Current-photo searches remain available for undated places.
 
-The V1 default is Wikimedia Commons plus server-side `SERPAPI_KEY` discovery.
+The V1 default is Wikimedia Commons plus server-side `SERPAPI_KEY` discovery,
+with the configured Google CSE searched independently alongside SerpAPI.
 SerpAPI searches Google Images, Google web records and, for Chinese places,
 Baidu web records. A small source registry in
 [`apps/api/place_photo_sources.py`](apps/api/place_photo_sources.py) prioritises
@@ -701,7 +702,7 @@ The option is disabled by default and requires a gateway/model with actual
 unresolved reuse rights.
 
 The app's photo endpoint searches catalogues independently of local research
-runs. Without `SERPAPI_KEY`, when `GOOGLE_CSE_API_KEY` is blank it browses the configured
+runs. When `GOOGLE_CSE_API_KEY` is blank it browses the configured
 `GOOGLE_CSE_ID` or `GOOGLE_CSE_URL` with Crawl4AI, follows the visible image-result
 links, and extracts photographs from their public source pages. When
 `FLICKR_API_KEY` is blank, it browses Flickr's public search and item pages with
@@ -712,10 +713,14 @@ Blocked pages or browser failures leave the other catalogues available.
 If none returns eligible photos and a provider fails, the endpoint reports
 `UNAVAILABLE` with safe provider/reason diagnostics, and the gallery offers a
 retry. It reports `NO_MATCH` only for completed, empty searches. An unrendered or
-failed CSE widget is retryable, rather than a cacheable empty search. With both
-keys present SerpAPI takes precedence; an unavailable legacy Google JSON API
-falls back to the public CSE browser. Human verification
-and robots denials stop browser retries; they are not bypassed. Failed empty
+failed CSE widget is retryable, rather than a cacheable empty search. Configured
+SerpAPI and CSE searches run concurrently; neither disables the other. An unavailable
+legacy Google JSON API falls back to the public CSE browser. Provider configuration
+and the search policy version separate cached results, so an older SerpAPI-only
+result cannot suppress CSE research. Human verification
+and search-page robots denials stop browser retries; they are not bypassed.
+Source-page denials skip that original while later CSE result pages remain
+eligible within the same research budget. Failed empty
 searches are not cached, and the client invalidates the older empty-result cache.
 The private `photo-worker` warms one Chromium process at startup and reuses it
 across searches. Its separate 2 GiB container keeps browser memory outside the
@@ -769,8 +774,11 @@ decade fallback, including after a blocked search, because it already covered
 both scopes. Flickr queries the original place language and verified aliases
 separately. Other catalogues expand to the containing decade if fewer than ten
 exact-period matches are found. Completed results place exact-period matches
-first; streamed batches keep their arrival order. Wider matches retain their capture dates and show a
-same-decade reference label. The supplied Chengde Flickr album is also a bounded
+first; streamed batches keep their arrival order. Wider matches retain their
+capture dates and show a same-decade reference label. Completed other-period
+fallback pages interleave original source sites before the first page is exposed,
+so early Commons batches cannot hide CSE references. The supplied Chengde Flickr
+album is also a bounded
 discovery source: its title establishes location, never individual capture dates.
 The initial result is filtered against the requested locality and capture period (or
 the explicitly labelled containing-decade fallback);

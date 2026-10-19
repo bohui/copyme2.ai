@@ -7,6 +7,7 @@ from test_conversation_attribution import Conversation, empty, episode
 from test_background_profile_workflow import database
 from test_lifetime_memory_postgres import event_database, private_database, attachment_database
 from test_shared_memory_events_postgres import sql
+from test_place_photo_browser import fake_crawler
 
 
 @pytest.fixture(autouse=True)
@@ -297,19 +298,23 @@ def test_shared_place_pass_is_embedded_not_a_second_model_request(sql,tmp_path,m
         assert all(item['skill']!='memoir-family-tree' for item in steps)
 
 
-def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_path,monkeypatch,request):
+def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_path,monkeypatch,request,fake_crawler):
     import json
     from pathlib import Path
     import subprocess
     import httpx
-    from apps.api import agent_routes, place_geocoding, place_photos
+    from apps.api import agent_routes, place_geocoding, place_photos, place_photo_browser
     from apps.api.historical_news import HistoricalResearch
     from test_place_workspace import photo_page
+    from test_place_photo_browser import cse_html, photo_html
     monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS', '1')
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '1')
     monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL', raising=False)
     for key in ('SERPAPI_KEY','GOOGLE_CSE_API_KEY','GOOGLE_CSE_ID','GOOGLE_CSE_URL','MEMORY_SPARK_PHOTO_WEB_SEARCH'):
         monkeypatch.delenv(key,raising=False)
+    monkeypatch.setenv('SERPAPI_KEY','fixture-serpapi')
+    monkeypatch.setenv('GOOGLE_CSE_ID','fixture-cse')
+    monkeypatch.setenv('MEMOIR_PHOTO_EXPANSION','0')
     monkeypatch.setenv('FLICKR_API_KEY','fixture')
     monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY','fixture')
     monkeypatch.setenv('MEMOIR_GEO_PROVIDER','google')
@@ -317,6 +322,14 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     place_geocoding.search_place.cache_clear()
     request.addfinalizer(place_geocoding.search_place.cache_clear)
     queries = []
+    monkeypatch.setattr(place_photos,'_google_serpapi',
+        lambda place,period,**kwargs: queries.append(('serpapi',place,period)) or [])
+    pages, browser_calls, _ = fake_crawler
+    cse_sources=[f'https://archive.example/chengde/{index}' for index in range(1,11)]
+    pages[place_photo_browser._search_url('google','承德市','1980s')]=cse_html(cse_sources)
+    pages[place_photo_browser._search_url('google','悉尼','')]='<div class="gs-no-results-result">No results</div>'
+    for index,source in enumerate(cse_sources,1):
+        pages[source]=photo_html(index)
     places = [
         {'place':'承德市','hierarchy':['Earth','中国','河北省','承德市'],'granularity':'city','latitude':40.97,'longitude':117.93},
         {'place':'悉尼','hierarchy':['Earth','澳大利亚','悉尼'],'granularity':'city','latitude':-33.86,'longitude':151.2},
@@ -343,7 +356,8 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
                 current=place_photos.datetime.now(place_photos.ZoneInfo('Australia/Sydney')).date().isoformat()
                 for index in range(1,11):
                     identifier=index+(0 if chengde else 10)
-                    page=photo_page(identifier,date='1983-04-01' if chengde else current,
+                    # Modern Commons photos must not displace dated CSE originals.
+                    page=photo_page(identifier,date='2008-06-18' if chengde else current,
                         title=f'{"Chengde" if chengde else "Sydney"} street {identifier}.jpg')
                     info=page['imageinfo'][0]
                     filename=f'{"Chengde" if chengde else "Sydney"}_street_{identifier}.jpg'
@@ -384,6 +398,11 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
             assert final['status']=='READY',final
             assert len(final['items'])==10
             assert not final.get('failures')
+            if place['place']=='承德市':
+                assert all(item['providers']==['google','cse'] and item['date_expression']=='1983-10-01'
+                           for item in final['items'])
+        assert any(q[0]=='serpapi' and q[1:] == ('承德市','1980s') for q in queries)
+        assert any(url==place_photo_browser._search_url('google','承德市','1980s') for url,_ in browser_calls)
         assert any(q[0]=='photo' and 'Chengde' in q[1] and '1980' in q[1] and '1989' in q[1] for q in queries)
         assert any(q[0]=='photo' and 'Sydney' in q[1] for q in queries)
         assert any(q[0]=='news' and q[1].startswith('承德, 中国 1980–1989') for q in queries)

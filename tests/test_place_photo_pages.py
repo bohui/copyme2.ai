@@ -103,6 +103,40 @@ def test_stable_pages_reuse_one_search_and_reject_other_queries(monkeypatch):
     assert error.value.status_code == 410
 
 
+def test_completed_time_fallback_exposes_cse_sources_on_the_first_stable_page(monkeypatch):
+    commons = [picture(i, 'commons.wikimedia.org', date_expression='2008') for i in range(49)]
+    cse = [picture(i, 'zh.wikipedia.org', date_expression='2010', providers=['google', 'cse'])
+           for i in range(9)]
+    calls = []
+
+    def search(place, period, **kwargs):
+        calls.append(period)
+        if period != photos.ANY_PHOTO_DATE:
+            return []
+        kwargs['on_items'](commons)
+        kwargs['on_items'](cse)
+        return commons + cse
+
+    monkeypatch.setattr(pages, 'search_place_photos', search)
+    cache = pages.PhotoPages()
+    try:
+        first = cache.page('owner', 'Chengde', '1980s', None)
+        assert any('cse' in item.get('providers', []) for item in first['items']), (
+            'Early Commons batches must not bury all CSE references on later pages')
+        found, page = [], first
+        while True:
+            found.extend(page['items'])
+            if not page['next_cursor']:
+                break
+            page = cache.page('owner', 'Chengde', '1980s', page['next_cursor'])
+        assert len(found) == len({item['asset_id'] for item in found}) == 58
+        assert all(item['period_match'] == 'any_time' for item in found)
+        assert cache.page('owner', 'Chengde', '1980s', None)['items'] == first['items']
+        assert calls == ['1980s', photos.ANY_PHOTO_DATE]
+    finally:
+        cache.close()
+
+
 def test_same_decade_photos_prevent_modern_fallback_for_a_birth_month(monkeypatch):
     queries = []
     historical = picture('historical', date_expression='1986')

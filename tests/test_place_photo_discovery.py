@@ -11,17 +11,49 @@ from apps.api import place_photos as photos
 from test_place_photo_browser import fake_crawler, photo_html, serpapi_sources
 
 
-def test_serpapi_is_preferred_when_an_old_cse_key_is_also_configured(monkeypatch):
+@pytest.mark.parametrize('cse_key', ['', 'old-cse-key'])
+@pytest.mark.parametrize('serpapi_unavailable', [False, True])
+def test_serpapi_does_not_disable_configured_cse(monkeypatch, cse_key, serpapi_unavailable):
+    from threading import Event
     monkeypatch.setenv('SERPAPI_KEY', 'server-only-serpapi')
-    monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'old-cse-key')
+    monkeypatch.setenv('GOOGLE_CSE_API_KEY', cse_key)
     monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
     calls = []
-    monkeypatch.setattr(photos, '_google_serpapi', lambda *a, **k: calls.append('serpapi') or [])
-    monkeypatch.setattr(photos, '_google_cse', lambda *a, **k: pytest.fail('old CSE key masked SerpAPI'))
+    serpapi_started, cse_started = Event(), Event()
+
+    def serpapi(*args, **kwargs):
+        calls.append('serpapi')
+        serpapi_started.set()
+        assert cse_started.wait(1), 'CSE must run alongside SerpAPI'
+        if serpapi_unavailable:
+            raise photos.PhotoResearchUnavailable('google', 'timeout')
+        return []
+
+    monkeypatch.setattr(photos, '_google_serpapi', serpapi)
+
+    def denied(*args, **kwargs):
+        calls.append('api')
+        request = httpx.Request('GET', photos.GOOGLE_CSE_ENDPOINT)
+        response = httpx.Response(403, request=request)
+        raise httpx.HTTPStatusError('Denied', request=request, response=response)
+
+    def public_engine(*args, **kwargs):
+        calls.append('cse')
+        cse_started.set()
+        assert serpapi_started.wait(1)
+        return [{**item, 'providers': ['google', 'cse']} for item in browser._source_items(
+            photo_html(licence='https://creativecommons.org/licenses/by/4.0/'),
+            'https://archive.example/photo', 'Chengde', '1980s')]
+
+    monkeypatch.setattr(photos, '_google_cse', denied)
+    monkeypatch.setattr(photos, '_google_browser', public_engine)
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     for name in ('_commons', '_loc', '_flickr_browser', '_flickr'):
         monkeypatch.setattr(photos, name, lambda *a, **k: [])
-    assert photos.search_place_photos('Chengde', '1980s') == []
-    assert calls == ['serpapi']
+    found = photos.search_place_photos('Chengde', '1980s')
+    assert len(found) == 1, 'A configured CSE result was lost when SerpAPI was enabled'
+    assert found[0]['providers'] == ['google', 'cse']
+    assert sorted(calls) == sorted(['serpapi', 'cse', *(['api'] if cse_key else [])])
 
 
 def test_cse_api_access_denial_falls_back_to_the_public_engine(monkeypatch):
@@ -68,6 +100,43 @@ def test_completed_empty_cse_widget_is_a_real_no_match(fake_crawler):
     url = 'https://cse.google.com/cse?cx=engine'
     pages[url] = '<div class="gs-no-results-result">No results</div>'
     assert asyncio.run(browser._browse_query('google', 'Chengde', '1980s', url)) == []
+
+
+@pytest.mark.parametrize('later_healthy', [False, True])
+def test_blocked_original_does_not_hide_later_cse_pages(monkeypatch, fake_crawler, later_healthy):
+    from test_place_photo_browser import cse_html
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
+    search = 'https://cse.google.com/cse?cx=engine'
+    blocked, healthy = 'https://blocked.example/photo', 'https://archive.example/photo'
+    visits = []
+
+    class Crawler:
+        crawler_strategy = SimpleNamespace(set_hook=lambda *args: None)
+
+        async def arun(self, url, config):
+            visits.append(url)
+            if url == search:
+                source = healthy if later_healthy and visits.count(search) > 1 else blocked
+                return SimpleNamespace(success=True, html=cse_html([source]))
+            if url == blocked:
+                return SimpleNamespace(success=False, status_code=403,
+                                       response_headers={'X-Robots-Status': 'Disallowed'})
+            assert url == healthy
+            return SimpleNamespace(success=True, html=photo_html())
+
+    def browse():
+        return asyncio.run(browser._browse_query('google', 'Chengde', '1980s', search,
+            limit=1, page_budget=2, crawler=Crawler()))
+
+    if later_healthy:
+        found = browse()
+        assert len(found) == 1 and found[0]['source_url'] == healthy
+    else:
+        with pytest.raises(photos.PhotoResearchUnavailable) as error:
+            browse()
+        assert error.value.failures == [{'provider': 'google', 'reason': 'robots_denied', 'scope': 'source'}]
+    assert visits.count(search) == 2
+    assert visits.count(blocked) == 1, 'A source robots denial must never be retried'
 
 
 def test_chengde_discovery_uses_google_archives_and_baidu_after_images(monkeypatch, serpapi_sources):

@@ -21,19 +21,18 @@ def search_key(place, period, *, policy=None):
         from .place_photos import _configured_env
         # Source-provider configuration affects completeness; never treat a
         # result from a different route as proof the current route was searched.
-        if _configured_env('SERPAPI_KEY'):
-            google = 'serpapi'
-        elif _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
+        serpapi = bool(_configured_env('SERPAPI_KEY'))
+        if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
             google = 'cse-api-browser-fallback'
         elif _configured_env('GOOGLE_CSE_URL') or _configured_env('GOOGLE_CSE_ID'):
             google = 'cse-browser'
         else:
             google = 'none'
-        flickr = 'disabled' if google == 'serpapi' else 'flickr-api' if _configured_env('FLICKR_API_KEY') else 'flickr-browser'
+        flickr = 'disabled' if serpapi else 'flickr-api' if _configured_env('FLICKR_API_KEY') else 'flickr-browser'
         llm = 'llm-on' if _configured_env('MEMORY_SPARK_PHOTO_WEB_SEARCH').lower() in {'1', 'true', 'yes'} else 'llm-off'
         # Never include credential values, only provider modes, in a cache ID.
         mode = 'expanded' if _expansion_enabled() else 'standard'
-        policy = f'{PHOTO_SEARCH_POLICY}-{mode}-{google}-{flickr}-{llm}'
+        policy = f'{PHOTO_SEARCH_POLICY}-{mode}-{"serpapi" if serpapi else "no-serpapi"}-{google}-{flickr}-{llm}'
     normalized = [' '.join(unicodedata.normalize('NFKC', value).casefold().split())
                   for value in (place, period)]
     return hashlib.sha256(json.dumps([policy or PHOTO_SEARCH_POLICY, *normalized], ensure_ascii=False).encode()).hexdigest()

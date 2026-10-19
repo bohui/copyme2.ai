@@ -1105,7 +1105,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const samePlace = placeHistoryKey({place: entry.photo_search_place || entry.place}) === placeHistoryKey({place: searchPlace});
   const sameCenter = !center || (entry.photo_search_latitude === center.latitude && entry.photo_search_longitude === center.longitude);
   const sameSearch = entry.photo_search_period === period && samePlace && sameCenter
-    && entry.photo_search_policy === "place-source-rights-v11";
+    && entry.photo_search_policy === "place-source-rights-v12";
   const requestKey = photoRequestKey(entry, projectId);
   let progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
   let progressIdentity = `photos:${requestKey}`;
@@ -1123,7 +1123,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   if (more && (!sameSearch || !entry.photo_next_cursor)) return;
   if (!more && !force && sameSearch && ((entry.pictures || []).length
       || entry.photo_search_complete || (Object.hasOwn(entry, "photo_next_cursor")
-        && entry.photo_search_policy === "place-source-rights-v11" && entry.photo_search_at > 0))) {
+        && entry.photo_search_policy === "place-source-rights-v12" && entry.photo_search_at > 0))) {
     if (entry.photo_search_progress?.id) {
       progressIdentity=entry.photo_search_progress.id;
       if (entry.photo_search_progress.client_turn_id !== progressTurn) onProgress=null;
@@ -1181,7 +1181,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_longitude: resultCenter.longitude} : {})};
         const pictures = mergePlacePictures(latest.photo_search_period === period
           && placeHistoryKey({place: latest.photo_search_place || latest.place}) === placeHistoryKey({place: searchPlace})
-          && latest.photo_search_policy === "place-source-rights-v11" ? latest.pictures || [] : [], result.items)
+          && latest.photo_search_policy === "place-source-rights-v12" ? latest.pictures || [] : [], result.items)
           .filter(picture => photoMatchesScope(picture, scope, profile().story_focus));
         const updatedEntry = { ...latest, pictures, photo_search_period: period,
           ...(resultCenter ? {photo_search_latitude: resultCenter.latitude, photo_search_longitude: resultCenter.longitude} : {}),
@@ -1192,7 +1192,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_complete: !result.searching,
           photo_search_progress: result.skill_progress ? {id:result.skill_progress.id,
             client_turn_id:result.skill_progress.client_turn_id ?? progressTurn} : null,
-          photo_search_policy: "place-source-rights-v11" };
+          photo_search_policy: "place-source-rights-v12" };
         if (index >= 0) places[index] = updatedEntry;
         else places.push(updatedEntry);
         profile().memory_places = places;

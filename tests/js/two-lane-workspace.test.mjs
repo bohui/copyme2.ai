@@ -65,7 +65,7 @@ test('repeated background snapshots preserve photo search scope and completion',
   const snapshot=update([place('Hobart')]);
   applyDerivedWorkspace(s,snapshot);
   Object.assign(s.project.profile.memory_places[0],{photo_search_period:'',photo_search_place:'Hobart',
-    photo_search_policy:'place-source-rights-v11',photo_search_complete:true,photo_search_at:123,
+    photo_search_policy:'place-source-rights-v12',photo_search_complete:true,photo_search_at:123,
     photo_next_cursor:null});
   assert.equal(applyDerivedWorkspace(s,snapshot),false);
   assert.equal(s.project.profile.memory_places[0].photo_search_complete,true);

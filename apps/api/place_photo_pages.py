@@ -10,7 +10,7 @@ import time
 
 from fastapi import HTTPException
 
-from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable, _decade_fallback, _location_matches, filter_place_photos, search_place_photos
+from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable, _decade_fallback, _location_matches, _mix_sources, filter_place_photos, search_place_photos
 
 MAX_SNAPSHOTS = 32
 MAX_ACTIVE_SEARCHES = 4
@@ -175,7 +175,9 @@ class PhotoPages:
             matches = filter_place_photos(job['items'], period)
             fallback = 'gps'
             if not matches and job['time_relaxed']:
-                matches = filter_place_photos(job['items'], ANY_PHOTO_DATE)
+                # This tier is hidden until completion, so balancing its sources
+                # cannot change offsets for pages already delivered to clients.
+                matches = _mix_sources(filter_place_photos(job['items'], ANY_PHOTO_DATE))
                 fallback = 'gps_time'
         return [{**item, 'search_fallback': fallback, 'requested_period': period,
                  'search_place': snapshot['place'],

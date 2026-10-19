@@ -20,7 +20,7 @@ DISCOVERY_LIMIT = 50
 SEARCH_LIMIT = 50
 PHOTO_RADIUS_KM = 20
 PHOTO_YEAR_TOLERANCE = 10
-PHOTO_SEARCH_POLICY = 'place-source-rights-v11'
+PHOTO_SEARCH_POLICY = 'place-source-rights-v12'
 ANY_PHOTO_DATE = 'any-date'
 GOOGLE_CSE_ENDPOINT = 'https://customsearch.googleapis.com/customsearch/v1'
 GOOGLE_CSE_PAGE_SIZE = 10
@@ -534,6 +534,7 @@ def _google_cse(place: str, period: str, *, limit: int = MAX_RESULTS) -> list[di
             asset_id = 'google-' + hashlib.sha256(f'{source}\n{image}'.encode('utf-8')).hexdigest()[:24]
             items.append({
                 'asset_id': asset_id, 'kind': 'image', 'title': title or 'Google image result',
+                'providers': ['google', 'cse'],
                 'image_url': image, 'source_url': source, 'location': place,
                 'location_evidence': caption, 'attribution': _google_creator(result) or _text(result.get('displayLink')) or source,
                 'license': license_name, 'license_url': license_url,
@@ -761,7 +762,7 @@ def _search_period(place: str, period: str, *, limit: int | None = MAX_RESULTS, 
     providers = [('commons', _commons)] if serpapi else [('commons', _commons), ('loc', _loc)]
     if serpapi:
         providers.insert(0, ('google', _google_serpapi))
-    elif _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
+    if _configured_env('GOOGLE_CSE_API_KEY') and _configured_env('GOOGLE_CSE_ID'):
         def cse(p, t, *, on_items=None):
             try:
                 return _google_cse(p, t, limit=DISCOVERY_LIMIT if limit is None else limit)

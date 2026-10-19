@@ -281,7 +281,7 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
     from .place_photos import _deduplicate
     helper = _research()
     source_period = period
-    seen_sources, items = set(), []
+    seen_sources, items, source_errors = set(), [], []
     checked_hosts = {}
     deadline = time.monotonic() + timeout - min(10, timeout / 4)
 
@@ -380,7 +380,6 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                 if not cards:
                     break
                 continue
-            source_errors = []
             async def inspect_source(source):
                 async with source_slots:
                     if time.monotonic() >= deadline:
@@ -392,7 +391,8 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                             check_robots_txt=True, delay_before_return_html=0.2,
                         )), timeout=min(15, max(0.1, deadline - time.monotonic())))
                         if detail.success:
-                            found = [item for item in _source_items(
+                            found = [{**item, 'providers': ['google', 'cse'] if provider == 'google' else [provider]}
+                                for item in _source_items(
                                 detail.html or '', source, place, source_period,
                                 location_context=album_context) if item['allowed_actions']['embed']]
                             from .place_photo_fingerprints import image_fingerprint
@@ -421,15 +421,13 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                     if not task.done():
                         task.cancel()
                 await asyncio.gather(*tasks, return_exceptions=True)
-            if not items and source_errors:
-                from .place_photos import _configured_env
-                if _configured_env('MEMOIR_PHOTO_EXPANSION').lower() in {'1', 'true', 'yes'}:
-                    raise PhotoResearchUnavailable(failures=[{
-                        'provider': provider, 'reason': source_errors[0], 'scope': 'source',
-                    }])
-                raise PhotoResearchUnavailable(provider, source_errors[0])
             if len(seen_sources) >= source_budget:
                 break
+    # A denied original cannot establish failure for later search pages.
+    if not items and source_errors:
+        raise PhotoResearchUnavailable(failures=[{
+            'provider': provider, 'reason': reason, 'scope': 'source',
+        } for reason in dict.fromkeys(source_errors)])
     return items[:limit]
 
 
