@@ -25,6 +25,9 @@ python scripts/run_memoir_skill_evaluation.py --execute --controlled-application
   --case memoir-story-game/publication/en-AU --output-root /tmp/issue90-game-run
 # Play additionally requires a task-owned loopback source frontend and Chromium.
 # Add --browser-url http://127.0.0.1:<allocated-port> for a selected play case.
+# Explicit browser regression selection (requires that source frontend):
+MEMOIR_BROWSER_URL=http://127.0.0.1:<allocated-port> \
+  python -m pytest tests/browser_skill_eval_application.py
 ```
 
 Repeat skill, phase, locale or case flags to select a subset. A contradictory or
@@ -100,6 +103,21 @@ application receipt with matching run/item/task/packet/output/source/dataset
 identities. Hosted score readback checks named evaluator versions and exact
 trace/observation/input/output identities, not just counts.
 
+The read-only `read_experiment_scores` seam adapts PR93's useful v4 SDK
+experiment checks while retaining this suite's receipt boundaries. It accepts an
+injected client, bounds pagination, compares exact input/gold/output and item
+metadata, and requires matching dataset snapshot, observation subject, named
+score value and evaluator provenance. Metadata-only revisions remain reviewed
+content changes. Tests deserialize controlled responses with the installed SDK's
+own parser. No client or credentials are created, and this does not verify the
+deployed server, publish assets or enable a live CLI path. PR93's smaller catalog
+and publication-on-execution behavior were not imported.
+
+Foreground packets also reuse PR93's governed immediate-selector approach:
+production strategy/language/continuity composition, actual wire schema and
+independent question/current-intent expectations for pause, redirect, correction
+and pacing. The existing stable family identities and bilingual facts are retained.
+
 Contract, execution, positive delivery, quality and human calibration remain
 separate. Negative passes do not count as positive delivery. Verified disposable
 application results have `canonical_delivery=true` only within their declared
@@ -122,20 +140,20 @@ coverage whose real application witness or semantic acceptance remains open.
 | 1, 5: inventory and unmapped-owner rejection | Offline: ten skills, registry/prompt-owner union, interviewer included | Keep preflight as skills evolve |
 | 2–4: stable datasets, history, identity and snapshots | Offline: twelve definitions, stable IDs, content diffs, archive/retry/readback fixtures | Gate: native hosted snapshots and real conditional-write behavior |
 | 6–7: zero-call plans and bounded selection | Offline: full plan, repeated filters and cross-phase rejection | None for local planning |
-| 8–9: grounded interviewer and current intent | Offline: bilingual tasks and actual collector schema/validator | Gate: useful live questions and independent semantic judgments |
+| 8–9: grounded interviewer and current intent | Offline: bilingual tasks, actual governed selector schema/validator, explicit pause/redirect/correction/pacing reasons and foreign-candidate rejection | Gate: useful live questions and independent semantic judgments |
 | 10: exact event testimony | Offline: actual wire schema before normalization, strict Unicode quote offsets, source versions and gold minimums; disposable exact-testimony source/event readback | Gate: semantic grounding/correction quality and canonical witnesses for remaining families |
 | 11–12: progressive composition and independent quality | Offline: all eight composer families; real orchestration, correction/withdrawal, retained passages, private output | Gate: live output, persisted canonical checkpoints, independent published judge quality |
 | 13–14: family identity/direction and unwired reporting | Offline: production marker validation, independent direction/count checks; canonical integration unavailable | Family runner remains unwired by design; isolated proposals never imply integration |
 | 15: manual profile values/blanks | Offline: actual profile packet/schema/validator, exact original spans, omission/gold checks | Gate: live model quality and persisted manual-lock readbacks |
 | 16–17: place extraction and deterministic grouping | Offline: actual place validation; eight grouping families in both locales, zero skill model dispatch | Gate: live place extraction semantics and visible label quality |
-| 18–19: configured photo discovery and honest metadata/rights | Offline: provider-independent leads, inspected HTML, actual capture/place/rights parsing and filtering | Partial: ranking requires PR88's production function; browser/persistence acceptance remains open |
+| 18–19: configured photo discovery and honest metadata/rights | Offline: configured leads and inspected HTML; PR88 production capture-year/GPS ranking with independent order gold; PR94 production compound scopes and image-geography precedence | Partial: valid duplicate capture assertions are still dropped by the API on current main; live visual quality and photo persistence/browser acceptance remain open |
 | 20–21: source-inspected history and privacy separation | Offline: case-specific production hypothesis/minimization, all eight adversarial source fixtures in both locales, inspected-page validation and conflicting/unsupported/date/injection checks | Gate: live provider/source readbacks and privacy review |
 | 22–23: game phases and permission boundaries | Offline: all eight families through actual disposable application authority, generated candidate staging, exact review/publication readbacks, revoked/missing/stale/person-permission denials; real frontend play/recovery/revocation in both locales | Gate: authorized live provider and deployed browser acceptance; no real consent granted |
 | 24: equivalent bilingual facts | Offline: 160 paired items; both composer locales and all grouping/profile locale fixtures | Gate: native-speaker semantic review |
 | 25–27: twenty evaluators, composed rubrics and evidence citations | Offline: named definitions, draft policy/rubrics, pin gating, strict independent judgment handling | Gate: merged-main prompt publication, deployed evaluator/rule API verification and actual definitions |
 | 28–29: separate dimensions and gold exclusion | Offline: separate report columns/denominators, positive-case flags, model packets without gold/rubrics | Gate: full live output coverage |
 | 30–31: budgets and exclusive executors | Offline: failed/cancelled dispatch accounting, independent budgets, no dual executor | Gate: provider internal attempts/cost remain unknown absent provider accounting |
-| 32–33: version/evidence binding and publication preflight | Offline: source/prompt/compiled hashes, receipt matching, controlled reconciliation and exact score identity readbacks | Gate: real numeric evaluator versions and hosted readbacks |
+| 32–33: version/evidence binding and publication preflight | Offline: source/prompt/compiled hashes, receipt matching, full-content reconciliation including metadata-only updates, bounded installed-SDK IO/metadata/score readbacks | Gate: real numeric evaluator versions and hosted readbacks |
 | 34: calibration development/holdout | Offline: separate datasets/items, null human labels, advisory-only scores | Gate: independent human labels, accepted agreement and critical-violation behavior |
 | 35–36: incomplete reports and controlled CLI fixtures | Offline: all selected rows retained; service fixtures drive CLI/adapters/contracts/judges/reporting | Gate: live browser/provider delivery is not established by fixtures |
 
@@ -144,6 +162,8 @@ coverage whose real application witness or semantic acceptance remains open.
 The original machine-readable evidence is [issue90-offline-checks.json](test-evidence/issue90-offline-checks.json).
 Follow-up review/native/browser evidence is in
 [issue90-offline-followup-checks.json](test-evidence/issue90-offline-followup-checks.json).
+Selective PR93 integration and updated-main reruns are recorded in
+[issue90-integration-checks.json](test-evidence/issue90-integration-checks.json).
 Check counts overlap between runs and must not be added into a campaign count.
 Task checks used an external-socket denial guard, the repository's isolated-check
 environment allowlist, task-owned outputs, and disposable native PostgreSQL Unix
@@ -157,6 +177,12 @@ canonical publication context. A separate background workflow expectation also
 fails on that base: it expects `integration_unavailable`, while the game endpoint
 returns `authenticated_game_workflow_required`. These eleven baseline failures
 are reported separately and were not repaired by changing production behavior.
+On updated main `d4c6f58d15450df69742342d1b6104bdf04f4772`, the broader
+selections still have those ten evaluation failures and one photo capture failure:
+`test_consistent_duplicate_image_records_preserve_all_assertions[app]` drops a
+valid image with compatible year/day assertions. All eleven were reproduced in
+an unchanged detached main checkout. The original game reason mismatch remains
+historical baseline evidence; it is not part of that latest eleven-test selection.
 
 An initial catalogue check lacked the worktree's Node dependency path; sharing
 the existing local dependency directory made the catalogue check pass. Two
@@ -165,9 +191,14 @@ corrected selections and the original TDD red result are retained in evidence.
 No executed test was skipped in the recorded focused checks.
 
 Live model/provider requests, all Langfuse writes, deployment, real consent,
-customer data, configured-database changes, merge and human calibration were
+customer data, configured-database changes, merging PR92 and human calibration were
 excluded from this execution. Publication is blocked pending reviewed main and
 actual pins; the deployed evaluator/rule release is unverified. Full live application
 and browser acceptance remain incomplete. PR88 is external-owned
-photo work and was neither edited nor duplicated. Its ranking API is an explicit
-dependency, reported unavailable on this main base rather than reimplemented.
+photo work and was neither edited nor duplicated. Its merged ranking API and
+PR94's merged locality implementation are reused through updated main. Earlier
+locality diagnostics are retained in historical evidence. Current controlled
+cases check the new source-role rules: compound query support, rejection of
+foreign image geography, and precedence of explicit image geography over a
+caption's apparent place name. These local checks do not establish general
+provider, visual-quality or deployment acceptance.

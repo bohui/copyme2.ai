@@ -1,0 +1,994 @@
+{
+  "scope": "offline synthetic issue90 integration; no full issue acceptance",
+  "reviewed_code_head": "53f905fab304767bfebf589bf9966e4f4d1abff0",
+  "integrated_main_head": "d4c6f58d15450df69742342d1b6104bdf04f4772",
+  "pr93_source_head": "3687963ae2cfb457206ec1154d13808b0dacbbe9",
+  "borrowed": [
+    "Governed foreground selector composition and independent current-intent expectations.",
+    "Read-only injected installed-SDK experiment IO/score readbacks, strengthened with full metadata and receipt/version bindings.",
+    "README discoverability link; the smaller catalog and automatic publication execution path were not imported."
+  ],
+  "source_sha256": {
+    "apps/api/place_photo_browser.py": "c254ec8cf489017f10d0890fed0b997d9e1a91b232a31b664fc779762f40074d",
+    "apps/api/place_photo_expansion.py": "20f8ad9863252a087d5d0e51eb7758d5355fda5321fafb407b160230d3cbc8ad",
+    "apps/api/place_photos.py": "d909752a70d163259a6383288cd3d12bee880e72780dae6107838ddd72c37155",
+    "scripts/controlled_lifecycle.py": "4e15eea749e6bfbd807d2ced76cb0dabbb097d91dfe192929a0261b0ccda1be8",
+    "scripts/memoir_live_skill_cases.py": "bab674c2696bedacd3172b5e37e8089d84bb972f2021d3c4cdcbf5bc0317ab9f",
+    "scripts/memoir_skill_eval_application.py": "ec054f66939dd49716cd15d8566dd8965b04b04ff4ba442da2fcffb357807ca0",
+    "scripts/memoir_skill_eval_assets.py": "456685b5109ca3b2c33d2f9751eae98a9c423316f2c09b502e194919b4e15eb9",
+    "scripts/memoir_skill_eval_browser.py": "8fa4da82dd1ea5c663720678d7f64b45ceebf0345fb9067c87fded8ec9028747",
+    "scripts/memoir_skill_eval_suite.py": "2a6dcd8fbb8d4ad8385a7065c51e88c33bb63f429bf71bcbeb0a351969697d67",
+    "scripts/memoir_skill_eval_workflows.py": "1f7d805e925c175215e8183ff0e56ee6c8bda31c5cefce197a68ed910e6f43cf",
+    "scripts/memoir_skill_scenarios.py": "57b766df51d463b0442f8dc4c27a717f6965de9723ec82fcb484eeb1c0839df9",
+    "scripts/prompt_registry.py": "f1fa45475884012d3d6adeb1ed09116876d82d6558cf8edfa6d491e288cb8516",
+    "scripts/publish_langfuse_prompts.py": "b88e1c371d77bc7cd943b62762f824fdcfd0e5651974925d94e087fcd1f02100",
+    "scripts/run_isolated_check.py": "4aa336510f3d2d301bcf9bd17e9143abd8cd696ea728f2304d686ccb1108229c",
+    "scripts/run_memoir_skill_evaluation.py": "019aef28ea21b90938cfdb59a41c0a1a9150a6ccf59c6bf340b3aaad228d15ce",
+    "skills/memoir-place-photo-research/scripts/photo_research.py": "e504b55af307f169ff75df07b62c0e72c81ac8fae95f17fa3a5c80e327e544a5",
+    "tests/browser_skill_eval_application.py": "225a8705e11c6ad98f720a37d3a24bddea28bbfa3dd66b1dee2ac14b05abec7f",
+    "tests/evaluation/prompts/skill-judges/memoir-author-timeline.md": "8988996834a0225f4803d814c6f98fe1ce65cbde9e7edb98975a8cfd49029897",
+    "tests/evaluation/prompts/skill-judges/memoir-composer.md": "705c405b971edbf6c25f0fdb36af426dff03c5159e61ef62eeeaa2ccb3314031",
+    "tests/evaluation/prompts/skill-judges/memoir-family-tree.md": "5282ab0846d4440713800a9fc7cb2dab4e24eca2de63ac7de5c6a195718353ca",
+    "tests/evaluation/prompts/skill-judges/memoir-historical-news-research.md": "a8c5a1ce06c75e655656567649b7b08a224a7874d665b6e01e74e0e576a6433d",
+    "tests/evaluation/prompts/skill-judges/memoir-interviewer.md": "79a295bf91bf40e99bd30e12ff9440bfc4c6c38d6bb22c304ef9a3e7f148509f",
+    "tests/evaluation/prompts/skill-judges/memoir-memory-context.md": "ce4ba4b18e11dcfc6d477bd975d2a8316df3dcbe1e2580373fabf3cf4cb561e7",
+    "tests/evaluation/prompts/skill-judges/memoir-place-groups.md": "e63c3c0092bc764e3f67dffe754828f6b5441dd459325ab876f2866e88fdb6d8",
+    "tests/evaluation/prompts/skill-judges/memoir-place-journey.md": "e4c28969702ac1887cd68c34e9f790ada3f0a8181239f4e0e9d8cb9631e651bf",
+    "tests/evaluation/prompts/skill-judges/memoir-place-photo-research.md": "e96ef7343aa76df44a97eddde6cd79bcb55fc468342c9e037930ee21cdeb79d0",
+    "tests/evaluation/prompts/skill-judges/memoir-story-game.md": "2590dcbd5c36b38583c2faccb04b00a367dd7892ee64d61a785e46e1badb2070",
+    "tests/evaluation/prompts/skill-judges/policy.md": "8be3e0ed026c79f19b4737d906173e823471cf0b5ad61c93352976515f8fa3ba",
+    "tests/memoir_postgres_workflow.py": "ef0431e8d714d9b4d454f069dc9cb2f70156c1b23cf0fa91d252909c24f07fd3",
+    "tests/test_conversation_attribution.py": "ac52836aa000b02273462cc4ef15ea1345fdfcd50b21d30cb1d232c586e82b29",
+    "tests/test_memoir_skill_evaluation.py": "a54055db37380352a5da8257953af0a9f00544da7f0bde648efea666126e3fef",
+    "tests/test_prompt_publication.py": "b1aaf83c3ec55bf683be28b316dd031e3518e32aafba8541be8f4f3f799babdc",
+    "tests/test_skill_eval_application.py": "dd8234e19101062d6766b477f98536ef8f02ee59abb88418248baecfed912ca0",
+    "tests/test_skill_eval_assets.py": "1d9a7269d4f693d6e6135f76c33f852edac2d982aeec52af92e02cbc81d71bd7",
+    "tests/test_skill_eval_interviewer.py": "31c07f18fbe64d93aca2ca648dc80931246c90ad947c40455b59d4c60c6b022d",
+    "tests/test_skill_eval_review_regressions.py": "8ba900b3435bb858ad30ee6e1ca39fcf669a8f73e204d22f3eac151e2b4f7967",
+    "tests/test_skill_eval_sdk_readback.py": "f4b055485bc7c0dd148f1752756aa4bad7706bfd5913ccd47d471cb4e7e8e41d",
+    "tests/test_skill_eval_suite.py": "1dd6706b8087e7741a0301caf9e8d3942b51866d01366e6445a6a5a9da605557",
+    "tests/test_skill_eval_workflows.py": "981755bb868079aeef90c8cd02863858f73d1e7274831234bdde267bfdb1c1be",
+    "tests/test_story_game_runtime_postgres.py": "f915acfaac860b97abdfd3b2d9f549048b5dbd8a59d8e875d7bf8e56627ad03a"
+  },
+  "checks": [
+    {
+      "name": "ranking-integration-red",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_workflows.py",
+        "-k",
+        "photo_ranking or upstream_photo",
+        "--junitxml=/workspace/issue90-evidence/ranking-integration-red.xml"
+      ],
+      "base_head": "d12fbfcd10c4ea34a853eae30148f9fda3f1ce58",
+      "tree": "365f90238dce7177c17c85ccc7083c1500707255",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 0.84,
+      "classification": "tdd_red",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/ranking-integration-red.json",
+          "sha256": "4a2872deae7930571ce37c968ef0cfccfcdda5d7779191c5eef526ffb1ea4bf2"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/ranking-integration-red.log",
+          "sha256": "bb5ef8d8b838c4e7955d36611d9e207aac42446be9385e994f2b21b582ce1769"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/ranking-integration-red.xml",
+          "sha256": "5249df8da1fb4b5c36171974cf32efa3c0e4091332c620e9533f99dc8ea867de"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 4,
+        "passed": 0,
+        "failure": 4,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [
+        "tests.test_skill_eval_workflows::test_photo_ranking_uses_merged_production_year_and_gps_order[en-AU]",
+        "tests.test_skill_eval_workflows::test_photo_ranking_uses_merged_production_year_and_gps_order[zh-CN]",
+        "tests.test_skill_eval_workflows::test_upstream_photo_locality_gaps_remain_visible_without_inflating_delivery[False]",
+        "tests.test_skill_eval_workflows::test_upstream_photo_locality_gaps_remain_visible_without_inflating_delivery[True]"
+      ],
+      "pytest_summary": [
+        "4 failed, 36 deselected in 0.49s"
+      ]
+    },
+    {
+      "name": "ranking-integration-green",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_workflows.py",
+        "-k",
+        "photo",
+        "--junitxml=/workspace/issue90-evidence/ranking-integration-green.xml"
+      ],
+      "base_head": "d12fbfcd10c4ea34a853eae30148f9fda3f1ce58",
+      "tree": "365f90238dce7177c17c85ccc7083c1500707255",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_seconds": 0.84,
+      "classification": "prior_integration_pass",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/ranking-integration-green.json",
+          "sha256": "998a8303d41ca581fb2542a11760718ce4c7c347ba7cf22968a2da0cae33fc66"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/ranking-integration-green.log",
+          "sha256": "59074e0337486e68e03b03a38bc2285d4c6b25c81667a6d457d79242efcb2c4a"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/ranking-integration-green.xml",
+          "sha256": "ec134d5be6a9165c5f01a57d10d27c075f755e9f847588ad8d607829701aa70b"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 6,
+        "passed": 6,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [],
+      "pytest_summary": [
+        "6 passed, 34 deselected in 0.49s"
+      ]
+    },
+    {
+      "name": "pr93-borrow-red",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_assets.py",
+        "-k",
+        "foreground_packets or score_counts or numeric_score",
+        "--junitxml=/workspace/issue90-evidence/pr93-borrow-red.xml"
+      ],
+      "base_head": "d12fbfcd10c4ea34a853eae30148f9fda3f1ce58",
+      "tree": "365f90238dce7177c17c85ccc7083c1500707255",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 1.6,
+      "classification": "tdd_red",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/pr93-borrow-red.json",
+          "sha256": "30a434276fcd18c27272f513cd60ef181087ff36dffb5df51dd9a052589763fc"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/pr93-borrow-red.log",
+          "sha256": "61a7e3c3959ba8eba3c59f5a42367a6565e12b4f28b307fb9fd3803c242c3fba"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/pr93-borrow-red.xml",
+          "sha256": "8d7ae7c73b2a20c5156e74ccc2ddd003b94ce291baa7d395bee9a93730097a43"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 30,
+        "passed": 11,
+        "failure": 19,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [
+        "tests.test_skill_eval_assets::test_numeric_score_does_not_accept_a_boolean_as_the_expected_value",
+        "tests.test_skill_eval_assets::test_score_counts_cannot_substitute_for_exact_identities[missing_value]",
+        "tests.test_skill_eval_assets::test_score_counts_cannot_substitute_for_exact_identities[value]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[correction-en-AU]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[correction-zh-CN]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[grounded-question-en-AU]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[grounded-question-zh-CN]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[input-injection-en-AU]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[input-injection-zh-CN]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[pause-en-AU]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[pause-zh-CN]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[photo-metadata-en-AU]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[photo-metadata-zh-CN]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[redirect-en-AU]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[redirect-zh-CN]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[slow-pacing-en-AU]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[slow-pacing-zh-CN]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[uncertain-date-en-AU]",
+        "tests.test_skill_eval_interviewer::test_foreground_packets_validate_real_selector_and_current_intent[uncertain-date-zh-CN]"
+      ],
+      "pytest_summary": [
+        "19 failed, 11 passed, 11 deselected in 1.25s"
+      ]
+    },
+    {
+      "name": "pr93-sdk-red",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_sdk_readback.py",
+        "--junitxml=/workspace/issue90-evidence/pr93-sdk-red.xml"
+      ],
+      "base_head": "d12fbfcd10c4ea34a853eae30148f9fda3f1ce58",
+      "tree": "365f90238dce7177c17c85ccc7083c1500707255",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 0.76,
+      "classification": "tdd_red_with_one_fixture_order_error",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/pr93-sdk-red.json",
+          "sha256": "ccc394e9ce45395fbf6b87ab81180688d4617bea48c1572c374bd23e3bb86ac8"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/pr93-sdk-red.log",
+          "sha256": "75651a5d6ad805162357dcb5e0a59bca81707838d02fea40662f34506e3b57e3"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/pr93-sdk-red.xml",
+          "sha256": "a435f75583d1e8894cd9c419e5536702221dbebd3bcb5dd0667f5045e8f4a8d2"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 19,
+        "passed": 0,
+        "failure": 19,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [
+        "tests.test_skill_eval_sdk_readback::test_metadata_only_revision_is_a_reviewable_write_and_exact_readback",
+        "tests.test_skill_eval_sdk_readback::test_sdk_pagination_is_bounded_and_empty_or_duplicate_items_never_verify[bounded]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_pagination_is_bounded_and_empty_or_duplicate_items_never_verify[complete]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_pagination_is_bounded_and_empty_or_duplicate_items_never_verify[duplicate]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_pagination_is_bounded_and_empty_or_duplicate_items_never_verify[empty]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[compiled]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[dataset]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[duplicate_score]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[gold]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[input]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[metadata]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[missing_score]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[none]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[observation]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[output]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[snapshot]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[trace]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[value]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[version]"
+      ],
+      "pytest_summary": [
+        "19 failed in 0.39s"
+      ]
+    },
+    {
+      "name": "pr93-borrow-green-1",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_assets.py",
+        "tests/test_skill_eval_sdk_readback.py",
+        "--junitxml=/workspace/issue90-evidence/pr93-borrow-green-1.xml"
+      ],
+      "base_head": "d12fbfcd10c4ea34a853eae30148f9fda3f1ce58",
+      "tree": "365f90238dce7177c17c85ccc7083c1500707255",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 2.64,
+      "classification": "fixture_sdk_alias_error",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/pr93-borrow-green-1.json",
+          "sha256": "7a347bde9f609b66a01f76ad1e598a9c5726987c88a1edf47deb16560b1c02fc"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/pr93-borrow-green-1.log",
+          "sha256": "b0c8f1ea69347b2237fc28ccc35ae7ce8f11f2774c1f08ce3fd7a733e2919627"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/pr93-borrow-green-1.xml",
+          "sha256": "d88774a993ef53cf15f76ef44efcc63ee0dc089e42d508746a3936fdef28cd9d"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 60,
+        "passed": 58,
+        "failure": 2,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [
+        "tests.test_skill_eval_sdk_readback::test_sdk_pagination_is_bounded_and_empty_or_duplicate_items_never_verify[complete]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[none]"
+      ],
+      "pytest_summary": [
+        "2 failed, 58 passed in 2.11s"
+      ]
+    },
+    {
+      "name": "pr93-borrow-green-2",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_assets.py",
+        "tests/test_skill_eval_sdk_readback.py",
+        "--junitxml=/workspace/issue90-evidence/pr93-borrow-green-2.xml"
+      ],
+      "base_head": "d12fbfcd10c4ea34a853eae30148f9fda3f1ce58",
+      "tree": "365f90238dce7177c17c85ccc7083c1500707255",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_seconds": 2.6,
+      "classification": "prior_integration_pass",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/pr93-borrow-green-2.json",
+          "sha256": "55f7cdecc6977ed520667b988b9f8a141869717df005ae408eda052daf67375c"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/pr93-borrow-green-2.log",
+          "sha256": "2a668566b6fbb51748b1ce71005e637e16a586afa40f002793d6a4bd38aaff96"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/pr93-borrow-green-2.xml",
+          "sha256": "61ed2cfbcb7c1a491a510d978f56ebb6d5112e9e7783b17fd5a2aa1bf906c752"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 60,
+        "passed": 60,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [],
+      "pytest_summary": [
+        "60 passed in 2.15s"
+      ]
+    },
+    {
+      "name": "integrated-core-1",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "MEMORY_SPARK_DATABASE=/workspace/issue90-evidence/integrated-core-1-application.sqlite3",
+        "MEMORY_SPARK_TASK_DB=/workspace/issue90-evidence/integrated-core-1-tasks.sqlite3",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_suite.py",
+        "tests/test_skill_eval_assets.py",
+        "tests/test_skill_eval_workflows.py",
+        "tests/test_skill_eval_review_regressions.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_sdk_readback.py",
+        "tests/test_prompt_artifact.py",
+        "tests/test_prompt_composition.py",
+        "tests/test_prompt_publication.py",
+        "tests/test_memoir_skill_evaluation.py",
+        "tests/test_memoir_live_skills.py",
+        "--junitxml=/workspace/issue90-evidence/integrated-core-1.xml"
+      ],
+      "base_head": "d12fbfcd10c4ea34a853eae30148f9fda3f1ce58",
+      "tree": "365f90238dce7177c17c85ccc7083c1500707255",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 19.33,
+      "classification": "fixture_sdk_alias_error",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/integrated-core-1.json",
+          "sha256": "31d854d5add369d8ba8961c17e4db5c23487251e8400233a587ee753e2400a73"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/integrated-core-1.log",
+          "sha256": "f1ddafc77a95ffca4c6ec32d2781d148233d858cc1531e5f6fe1f4837cf5fc15"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/integrated-core-1.xml",
+          "sha256": "a65858ab704b44a384075126ea68db7128b2031c044f4a043caa6c27002b8e1e"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 227,
+        "passed": 225,
+        "failure": 2,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [
+        "tests.test_skill_eval_sdk_readback::test_sdk_pagination_is_bounded_and_empty_or_duplicate_items_never_verify[complete]",
+        "tests.test_skill_eval_sdk_readback::test_sdk_readback_matches_actual_payloads_metadata_and_scores[none]"
+      ],
+      "pytest_summary": [
+        "2 failed, 225 passed in 18.63s"
+      ]
+    },
+    {
+      "name": "updated-main-core-red",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_suite.py",
+        "tests/test_skill_eval_assets.py",
+        "tests/test_skill_eval_workflows.py",
+        "tests/test_skill_eval_review_regressions.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_sdk_readback.py",
+        "--junitxml=/workspace/issue90-evidence/updated-main-core-red.xml"
+      ],
+      "base_head": "b1878b65e9ac950f5949474d5c5c421df3860019",
+      "tree": "717c7246a1cb6dbf16eb8a8794d7314d4556ad9b",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 16.5,
+      "classification": "old_locality_expectations_after_main_update",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/updated-main-core-red.json",
+          "sha256": "fee1d19e9ed670ef43533fc607ac37b22c9593623bc0e265b97c5a887cfaa822"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/updated-main-core-red.log",
+          "sha256": "75cafb11e6d4f1a9e9e516f0b246f2474d4a8674d2cac01e20c6f7096a7d1ee7"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/updated-main-core-red.xml",
+          "sha256": "3cc1a66417870a76b305e55d5ccce1c537dda7efdd6880fb4b063c08a1a94114"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 132,
+        "passed": 130,
+        "failure": 2,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [
+        "tests.test_skill_eval_workflows::test_upstream_photo_locality_gaps_remain_visible_without_inflating_delivery[False]",
+        "tests.test_skill_eval_workflows::test_upstream_photo_locality_gaps_remain_visible_without_inflating_delivery[True]"
+      ],
+      "pytest_summary": [
+        "2 failed, 130 passed in 15.84s"
+      ]
+    },
+    {
+      "name": "updated-main-core-final",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_suite.py",
+        "tests/test_skill_eval_assets.py",
+        "tests/test_skill_eval_workflows.py",
+        "tests/test_skill_eval_review_regressions.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_sdk_readback.py",
+        "tests/test_prompt_artifact.py",
+        "tests/test_prompt_composition.py",
+        "tests/test_prompt_publication.py",
+        "tests/test_memoir_skill_evaluation.py",
+        "tests/test_memoir_live_skills.py",
+        "--junitxml=/workspace/issue90-evidence/updated-main-core-final.xml"
+      ],
+      "base_head": "b1878b65e9ac950f5949474d5c5c421df3860019",
+      "tree": "717c7246a1cb6dbf16eb8a8794d7314d4556ad9b",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_seconds": 21.03,
+      "classification": "passed",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/updated-main-core-final.json",
+          "sha256": "0da1f2444ea822660aa9670e7df92ed3dd606541ee0a84afa3c369623706f135"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/updated-main-core-final.log",
+          "sha256": "33ea6ecbb88c6804cbb1168fab6ecdff3a2da5380728ac29076c22e6750450ae"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/updated-main-core-final.xml",
+          "sha256": "3d179c391720034234b512da27802d9e3ca36bd941666e41cc3a73346342c4a7"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 232,
+        "passed": 232,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [],
+      "pytest_summary": [
+        "232 passed in 20.17s"
+      ]
+    },
+    {
+      "name": "updated-main-place-research",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "make",
+        "test-place-research"
+      ],
+      "base_head": "b1878b65e9ac950f5949474d5c5c421df3860019",
+      "tree": "717c7246a1cb6dbf16eb8a8794d7314d4556ad9b",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_seconds": 27.92,
+      "classification": "passed",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/updated-main-place-research.json",
+          "sha256": "969c5e8e7a49370a1abdc3f32a7f9f420b5af40c8dbf692ff101c0d5b686a844"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/updated-main-place-research.log",
+          "sha256": "eddfa3f2c292d5fdcb6b060185b2d948dc8ba24dd1681e0c57b131c51bb0ad18"
+        }
+      },
+      "cleanup_verified": true,
+      "reported_checks": {
+        "javascript_passed": 577,
+        "pytest_passed": 384,
+        "unittest_passed": 95,
+        "failures": 0,
+        "skips": 0
+      }
+    },
+    {
+      "name": "updated-main-research-regressions",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_llm_place_photos.py",
+        "tests/test_photo_capture_assertions.py",
+        "tests/test_photo_progress.py",
+        "skills/memoir-place-photo-research/tests",
+        "tests/test_place_journey.py",
+        "tests/test_place_identity_evaluation.py",
+        "tests/test_historical_news.py",
+        "tests/test_historical_news_provider.py",
+        "tests/test_historical_news_runtime.py",
+        "tests/test_localization_review_manifest.py",
+        "--junitxml=/workspace/issue90-evidence/updated-main-research-regressions.xml"
+      ],
+      "base_head": "b1878b65e9ac950f5949474d5c5c421df3860019",
+      "tree": "717c7246a1cb6dbf16eb8a8794d7314d4556ad9b",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 4.78,
+      "classification": "failed_baseline",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/updated-main-research-regressions.json",
+          "sha256": "d5565e3b3e3d7f6904242ea2f22f1ec58182ac7fa48e87699b5fc78e05d29390"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/updated-main-research-regressions.log",
+          "sha256": "b794ef443ffb429e64e88f1f46b9b450ff4a080750c13bfc7710a4da0cf449b0"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/updated-main-research-regressions.xml",
+          "sha256": "49a13810977870d1ea9dd27b518ac29852c7263338096bdaef153551cdd8eca2"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 536,
+        "passed": 535,
+        "failure": 1,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [
+        "tests.test_photo_capture_assertions::test_consistent_duplicate_image_records_preserve_all_assertions[app]"
+      ],
+      "pytest_summary": [
+        "1 failed, 535 passed, 87 subtests passed in 3.96s"
+      ]
+    },
+    {
+      "name": "integrated-evaluation-regressions",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "MEMORY_SPARK_DATABASE=/workspace/issue90-evidence/integrated-evaluation-regressions-application.sqlite3",
+        "MEMORY_SPARK_TASK_DB=/workspace/issue90-evidence/integrated-evaluation-regressions-tasks.sqlite3",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_cases.py",
+        "tests/test_evaluation_budget.py",
+        "tests/test_langfuse_evaluation_cli.py",
+        "tests/test_trajectory_evaluation.py",
+        "tests/test_progressive_composer.py",
+        "tests/test_interview_plan.py",
+        "tests/test_interview_strategy.py",
+        "tests/test_lifetime_memory_continuity.py",
+        "tests/test_background_profile.py",
+        "tests/test_memory_event_date_evidence.py",
+        "tests/test_family_context.py",
+        "tests/test_story_game_runtime.py",
+        "--junitxml=/workspace/issue90-evidence/integrated-evaluation-regressions.xml"
+      ],
+      "base_head": "d12fbfcd10c4ea34a853eae30148f9fda3f1ce58",
+      "tree": "365f90238dce7177c17c85ccc7083c1500707255",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 18.23,
+      "classification": "failed_baseline",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/integrated-evaluation-regressions.json",
+          "sha256": "8ffa67355341cb090008ce09e72c061b8124d6e0b1f64ae4129cead21efb4294"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/integrated-evaluation-regressions.log",
+          "sha256": "72ec189d29ba7b6ac153b597d4e5fdaeb4019b1503d7732df1caf4f1c68c08c5"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/integrated-evaluation-regressions.xml",
+          "sha256": "1b8145f7ee83646b253f013a673bf8e329fb6608f02feeb062cba2e54c9c1682"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 303,
+        "passed": 293,
+        "failure": 10,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [
+        "tests.test_evaluation_cases::test_checked_in_cases_pass_through_the_runtime_boundary",
+        "tests.test_langfuse_evaluation_cli::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[baseline]",
+        "tests.test_langfuse_evaluation_cli::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[candidate]",
+        "tests.test_langfuse_evaluation_cli::test_successful_synthetic_cli_keeps_existing_output_contract",
+        "tests.test_langfuse_evaluation_cli::test_task_exception_preserves_completed_siblings_and_failed_case[False-1]",
+        "tests.test_langfuse_evaluation_cli::test_task_exception_preserves_completed_siblings_and_failed_case[False-2]",
+        "tests.test_langfuse_evaluation_cli::test_task_exception_preserves_completed_siblings_and_failed_case[True-1]",
+        "tests.test_trajectory_evaluation::test_runtime_returns_trajectory_only_for_an_evaluation_turn[None-legacy-test-route]",
+        "tests.test_trajectory_evaluation::test_runtime_returns_trajectory_only_for_an_evaluation_turn[memoir-luna-low-memoir-luna-low]",
+        "tests.test_trajectory_evaluation::test_worker_turn_adds_evaluation_envelope_only_when_requested"
+      ],
+      "pytest_summary": [
+        "10 failed, 293 passed in 17.49s"
+      ]
+    },
+    {
+      "name": "updated-main-baseline-failures",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90-baseline-main",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_evaluation_cases.py",
+        "tests/test_langfuse_evaluation_cli.py",
+        "tests/test_trajectory_evaluation.py",
+        "tests/test_photo_capture_assertions.py::test_consistent_duplicate_image_records_preserve_all_assertions",
+        "--junitxml=/workspace/issue90-evidence/updated-main-baseline-failures.xml"
+      ],
+      "base_head": "d4c6f58d15450df69742342d1b6104bdf04f4772",
+      "tree": "b5b6acf5ac9b4364d5ef75ab9e17193320791f8e",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 3.57,
+      "classification": "baseline_reproduction",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/updated-main-baseline-failures.json",
+          "sha256": "bd89c02203476288c4299b0969a63e8b8a388336487bb3cf805fee6bba59d742"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/updated-main-baseline-failures.log",
+          "sha256": "1aa0edf11a28315f2becda640b4cc9470357170152eece01a965d5b6c50d8619"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/updated-main-baseline-failures.xml",
+          "sha256": "f15e2e4ca4865c27ae3f153ba43d372de7aa549301e2722b191297156cc9afea"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 54,
+        "passed": 43,
+        "failure": 11,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [
+        "tests.test_evaluation_cases::test_checked_in_cases_pass_through_the_runtime_boundary",
+        "tests.test_langfuse_evaluation_cli::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[baseline]",
+        "tests.test_langfuse_evaluation_cli::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[candidate]",
+        "tests.test_langfuse_evaluation_cli::test_successful_synthetic_cli_keeps_existing_output_contract",
+        "tests.test_langfuse_evaluation_cli::test_task_exception_preserves_completed_siblings_and_failed_case[False-1]",
+        "tests.test_langfuse_evaluation_cli::test_task_exception_preserves_completed_siblings_and_failed_case[False-2]",
+        "tests.test_langfuse_evaluation_cli::test_task_exception_preserves_completed_siblings_and_failed_case[True-1]",
+        "tests.test_photo_capture_assertions::test_consistent_duplicate_image_records_preserve_all_assertions[app]",
+        "tests.test_trajectory_evaluation::test_runtime_returns_trajectory_only_for_an_evaluation_turn[None-legacy-test-route]",
+        "tests.test_trajectory_evaluation::test_runtime_returns_trajectory_only_for_an_evaluation_turn[memoir-luna-low-memoir-luna-low]",
+        "tests.test_trajectory_evaluation::test_worker_turn_adds_evaluation_envelope_only_when_requested"
+      ],
+      "pytest_summary": [
+        "11 failed, 43 passed in 3.24s"
+      ]
+    },
+    {
+      "name": "updated-main-native-browser",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_application.py",
+        "tests/browser_skill_eval_application.py",
+        "--junitxml=/workspace/issue90-evidence/updated-main-native-browser.xml"
+      ],
+      "base_head": "b1878b65e9ac950f5949474d5c5c421df3860019",
+      "tree": "717c7246a1cb6dbf16eb8a8794d7314d4556ad9b",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_seconds": 94.71,
+      "classification": "passed",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/updated-main-native-browser.json",
+          "sha256": "9ed35f6d1988e42402c7905be9aa0c8ef480d1f70ae92efb7d9dc3b5a06aa2fa"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/updated-main-native-browser.log",
+          "sha256": "acc6f7a227531c52b35ea4c69c87cf4465560c4437a5a67d2538857672203802"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/updated-main-native-browser.xml",
+          "sha256": "547cb023789705e9799b5581358d8b929b0267f0aa16beb98389939d51041ce5"
+        }
+      },
+      "cleanup_verified": true,
+      "junit_counts": {
+        "total": 21,
+        "passed": 21,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_test_ids": [],
+      "pytest_summary": [
+        "21 passed in 94.35s (0:01:34)"
+      ]
+    },
+    {
+      "name": "updated-main-localization",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "scripts/check_localization_catalog.py"
+      ],
+      "base_head": "b1878b65e9ac950f5949474d5c5c421df3860019",
+      "tree": "717c7246a1cb6dbf16eb8a8794d7314d4556ad9b",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_seconds": 0.12,
+      "classification": "passed",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/updated-main-localization.json",
+          "sha256": "b7565dac3a0ab87670ee72b4bfc020b6fc5edddd392887c751229bb026985465"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/updated-main-localization.log",
+          "sha256": "f3c23f523e7ee2254f8041457b7af12af7cb96e3b7026165afef8ad9ea302ebe"
+        }
+      },
+      "cleanup_verified": true,
+      "catalogue": {
+        "messages": 721,
+        "locales": [
+          "en-AU",
+          "zh-CN"
+        ]
+      }
+    },
+    {
+      "name": "updated-main-cli-plan",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "/workspace/issue90-evidence/compare_probe.py"
+      ],
+      "base_head": "53f905fab304767bfebf589bf9966e4f4d1abff0",
+      "tree": "29fca0274a6b058805277436fcffa4ee0b6a1d88",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_seconds": 0.36,
+      "classification": "passed",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/updated-main-cli-plan.json",
+          "sha256": "ebfddadc3bf22557a44b48e53f7478bb42249f27dd3c043e260970e501590157"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/updated-main-cli-plan.log",
+          "sha256": "ed4dbfc39b13e1a0aeb9fbfb0e7962d38267d319718851a3a7adc2cc0afaa65e"
+        }
+      },
+      "cleanup_verified": true
+    },
+    {
+      "name": "updated-main-cli-incomplete",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "scripts/run_memoir_skill_evaluation.py",
+        "--execute",
+        "--max-skill-calls",
+        "0",
+        "--max-judge-calls",
+        "0",
+        "--output-root",
+        "/workspace/issue90-evidence/updated-main-incomplete-run"
+      ],
+      "base_head": "53f905fab304767bfebf589bf9966e4f4d1abff0",
+      "tree": "29fca0274a6b058805277436fcffa4ee0b6a1d88",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_seconds": 0.85,
+      "classification": "expected_incomplete",
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/updated-main-cli-incomplete.json",
+          "sha256": "a1bb74c26cd090a6f24401bc35dd981094afff89b8eb5705dcfaff868f129257"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/updated-main-cli-incomplete.log",
+          "sha256": "a028dda0d9cde15d423f730a6a5238f1b4f65a470cbaf383b18ac47f84b6a897"
+        }
+      },
+      "cleanup_verified": true
+    }
+  ],
+  "baseline_failures": {
+    "main_head": "d4c6f58d15450df69742342d1b6104bdf04f4772",
+    "exact_ids_match": true,
+    "ids": [
+      "tests.test_evaluation_cases::test_checked_in_cases_pass_through_the_runtime_boundary",
+      "tests.test_langfuse_evaluation_cli::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[baseline]",
+      "tests.test_langfuse_evaluation_cli::test_asymmetric_variant_failure_never_becomes_zero_score_baseline[candidate]",
+      "tests.test_langfuse_evaluation_cli::test_successful_synthetic_cli_keeps_existing_output_contract",
+      "tests.test_langfuse_evaluation_cli::test_task_exception_preserves_completed_siblings_and_failed_case[False-1]",
+      "tests.test_langfuse_evaluation_cli::test_task_exception_preserves_completed_siblings_and_failed_case[False-2]",
+      "tests.test_langfuse_evaluation_cli::test_task_exception_preserves_completed_siblings_and_failed_case[True-1]",
+      "tests.test_photo_capture_assertions::test_consistent_duplicate_image_records_preserve_all_assertions[app]",
+      "tests.test_trajectory_evaluation::test_runtime_returns_trajectory_only_for_an_evaluation_turn[None-legacy-test-route]",
+      "tests.test_trajectory_evaluation::test_runtime_returns_trajectory_only_for_an_evaluation_turn[memoir-luna-low-memoir-luna-low]",
+      "tests.test_trajectory_evaluation::test_worker_turn_adds_evaluation_envelope_only_when_requested"
+    ],
+    "meaning": "Ten retired trajectory/canonical-context failures plus one compatible duplicate photo capture assertion omitted by the API. No unrelated product behavior was changed."
+  },
+  "cli": {
+    "planned_items": 160,
+    "skills": 10,
+    "families": 80,
+    "locales": {
+      "en_AU": 80,
+      "zh_CN": 80
+    },
+    "skill_dispatches": 0,
+    "judge_dispatches": 0,
+    "status": "incomplete",
+    "contract_pass": 16,
+    "canonical_delivery": 0,
+    "live_delivery": 0,
+    "artifacts": [
+      {
+        "path": "/workspace/issue90-evidence/updated-main-incomplete-run/receipt.json",
+        "sha256": "3c9d556a3205426a5d53bcfd26bbac5b49c48dbd369cf814e7592ee9ab9d271a"
+      },
+      {
+        "path": "/workspace/issue90-evidence/updated-main-incomplete-run/report.md",
+        "sha256": "b7afdb00560607f749b18d31468312465c1e05465bc18adcf0a7a76a1319adae"
+      }
+    ]
+  },
+  "cleanup": {
+    "all_listed_supervisors_verified": true,
+    "task_owned_frontend_stopped": true,
+    "frontend_origin": "http://127.0.0.1:55001",
+    "frontend_pid": 74701,
+    "dependency_symlink_removed": true
+  },
+  "notes": [
+    "Counts overlap and must not be summed into campaign acceptance.",
+    "The two intermediate SDK positive failures used Pydantic model_validate rather than the installed SDK alias parser; corrected to its parse_obj_as and rerun.",
+    "One initial metadata fixture assertion assumed stable array position after upsert; corrected to stable-ID lookup.",
+    "PR94 changes prioritize explicit image geography over apparent place names in captions. New tests retain compound matches, reject foreign image geography and respect this precedence.",
+    "Earlier PR88 locality diagnostics remain in historical evidence; they are not retained as current failures after the latest upstream policy change.",
+    "Required place-research replay uses actual disposable PostgreSQL and production client code. Browser checks use the real source frontend with controlled external Auth/models.",
+    "All listed executed tests report zero skips. No model/provider or hosted Langfuse service was contacted."
+  ],
+  "remaining_gates": {
+    "live_provider_delivery": "not_run_user_boundary",
+    "hosted_publication": "not_run_user_boundary",
+    "deployed_langfuse_evaluator_rule_api": "blocked_unverified",
+    "actual_prompt_evaluator_pins": "blocked_pending_reviewed_main_publication",
+    "human_calibration_holdout": "blocked_pending_human_labels_and_agreement_review",
+    "family_canonical_runner": "out_of_scope_unwired",
+    "photo_capture_consistency": "upstream_failure_reproduced_on_current_main",
+    "full_issue_acceptance": false
+  }
+}
