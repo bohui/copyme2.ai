@@ -40,3 +40,35 @@ def test_pg_single_lifetime_event_cannot_expand_interview_context(sql):
     assert event['evidence_complete'] is False and event['details_complete'] is False
     assert event['uncertainty'] == 'Possible name; year disputed' and event['assertion'] == 'inferred'
     assert 'private' not in json.dumps(context)
+
+
+def test_stage_breadth_counts_distinct_current_source_backed_events(sql):
+    identity = resolve(sql)
+    project = literal(identity['project_id'])
+    sql(f"""insert into public.user_narrator_source(user_id,project_id,id,client_turn_id,sequence,text,kind,language,processing_status)
+      select '{OWNER}',{project},md5('breadth-source'||n)::uuid,md5('breadth-turn'||n)::uuid,n,
+        'Childhood memory '||n,'narrator_chat','en-AU','succeeded' from generate_series(1,4) n;
+      insert into public.user_narrator_source_version(user_id,project_id,source_id,version,text,language)
+      select user_id,project_id,id,version,text,language from public.user_narrator_source where project_id={project};
+      insert into public.user_narrator_source_version(user_id,project_id,source_id,version,text,language)
+      select user_id,project_id,id,2,text,language from public.user_narrator_source where project_id={project} and sequence=3;
+      insert into public.user_memory_event(user_id,project_id,id,kind,life_stage,status,data,change_sequence)
+      select '{OWNER}',{project},'breadth-event-'||n,'event','childhood','active',
+        jsonb_build_object('title','Childhood memory '||n),n from generate_series(1,4) n;
+      insert into public.user_memory_event_source(user_id,project_id,event_id,source_id,source_version,evidence_hash,evidence,stage_progress_role)
+      select user_id,project_id,'breadth-event-'||sequence,id,1,md5(id::text),
+        jsonb_build_object('source_id',id,'version',1,'quote',text,'char_start',0,'char_end',length(text)),'primary'
+        from public.user_narrator_source where project_id={project};
+      update public.user_narrator_source set status='withdrawn' where sequence=4 and project_id={project};
+      update public.user_narrator_source set version=2 where sequence=3 and project_id={project};
+      update public.user_memoir_project set source_sequence=4,event_sequence=4 where project_id={project};""")
+    context = rpc(sql, 'read_lifetime_interview_context', f"'{identity['conversation_id']}'")
+    assert context['stage_coverage'] == [dict(life_stage='childhood', grounded_events=2, last_source_sequence=2)]
+    # A second evidence row for the same event cannot advance the gate.
+    sql("insert into public.user_memory_event_source select user_id,project_id,event_id,source_id,source_version,"
+        "'another-proof',evidence,'stage' from public.user_memory_event_source where event_id='breadth-event-1';")
+    sql("update public.user_memory_event_source set source_version=2 where event_id='breadth-event-3';")
+    context = rpc(sql, 'read_lifetime_interview_context', f"'{identity['conversation_id']}'")
+    assert context['stage_coverage'] == [dict(life_stage='childhood', grounded_events=3, last_source_sequence=3)]
+    from apps.api.interview_strategy import stage_breadth_checkpoint
+    assert stage_breadth_checkpoint(context['stage_coverage'])['suggested_stage'] == 'adolescence'

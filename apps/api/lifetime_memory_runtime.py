@@ -269,6 +269,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             context.pop('conversation_phase',None)
             context.update(source=source,sources=[source],photo_context=accepted.get('photo_context',[]),
                 interview_language=selected_language,opening_turn=accepted.get('sequence')==1)
+            from .interview_strategy import stage_breadth_checkpoint
+            context['breadth_checkpoint'] = stage_breadth_checkpoint(context.pop('stage_coverage', []))
             if two_lane:
                 context['two_lane_memory']=True
                 context['prepared_questions']=await call('read_lifetime_prepared_questions',p_conversation_id=str(identity.conversation_id))
