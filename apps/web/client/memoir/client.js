@@ -60,6 +60,7 @@ const state = {
   showThinkingSteps: false,
   showDraftUpdates: false,
   privateDraftExpanded: false,
+  privateDraftThinkingExpanded: false,
   profileIntakePending: true,
   placeJourney: null,
   placeJourneyChange: null,
@@ -241,7 +242,7 @@ const {
 
 const {
   currentSectionRework, decidePrivateDraftProposal, loadMorePrivateDraft, openSectionRework,
-  privateDraftPreview, refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
+  privateDraftPreview, privateDraftThinkingStep, refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
 } = createPrivateDraft({
   applyBackgroundSkillProgress, captureProjectScope, freeRecallFinished, isCurrentProjectScope, memoirApiPath, persistChatHistory, profile,
   render, state, storyApi, updateStreamingAssistantMessage
@@ -377,6 +378,7 @@ function invalidateProjectNavigation() {
   state.privateDraftStream = null;
   state.stageReadinessRefresh?.controller.abort();
   state.privateDraftExpanded = false;
+  state.privateDraftThinkingExpanded = false;
   state.photoRequests?.clear();
   state.pendingConversationTurn = null;
   state.photoTurns?.clearDisplay();
@@ -1260,14 +1262,16 @@ function updateStreamingAssistantMessage(message) {
     text.innerHTML = formatText(visibleText);
     text.hidden = !visibleText;
   }
-  const traceHtml = renderAgentTrace(message.trace || [], message.traceMode, message.streaming && !visibleText);
   const thinking = row.querySelector(".message-thinking");
   if (thinking) thinking.hidden = !message.streaming || Boolean(visibleText);
   const trace = row.querySelector(".message-trace");
   if (trace) {
     const expanded = trace.querySelector("details")?.open;
-    trace.innerHTML = traceHtml;
+    const draft = trace.querySelector(".agent-composer-draft");
+    if (draft) state.privateDraftThinkingExpanded = draft.open;
+    trace.innerHTML = renderAgentTrace(message.trace || [], message.traceMode, message.streaming && !visibleText, message.clientTurnId);
     if (!responseStarted && expanded !== undefined && trace.querySelector("details")) trace.querySelector("details").open = expanded;
+    trace.querySelectorAll?.('[data-action="load-more-private-draft"]').forEach(button => button.addEventListener("click", () => loadMorePrivateDraft()));
   }
   if (scroll && followConversation) conversationScroll.refresh();
 }
@@ -1324,7 +1328,7 @@ async function refreshFamilyEntitlement() {
     state.recallStatus = entitlement.recall_status || null;
     // Project hydration can finish its draft read before restored allowance is
     // known. Recheck once eligibility arrives, without delaying the interview.
-    if (freeRecallFinished() && !state.showDraftUpdates) void refreshPrivateDraft();
+    if (freeRecallFinished() && !state.showThinkingSteps && !state.showDraftUpdates) void refreshPrivateDraft();
     if (freeRecallFinished()) void ensureRecallPreview();
     state.familyFeaturesEnabled = entitlement.family_features_enabled === true
       && features.has("family_tree")
@@ -2152,6 +2156,13 @@ async function hydrateAccountHistory(history = null) {
 }
 
 function renderStory() {
+  for (const message of state.chat) {
+    const row = message.id ? document.querySelector?.(`[data-message-id="${message.id}"]`) : null;
+    const details = row?.querySelector(".agent-loop");
+    if (details && !row.querySelector(".message-text")?.hidden) message.traceExpanded = details.open;
+  }
+  const thinkingDraft = $(".agent-composer-draft");
+  if (thinkingDraft) state.privateDraftThinkingExpanded = thinkingDraft.open;
   const profileFocus = document.activeElement?.dataset?.profileAction;
   const profileTriggerFocused = document.activeElement?.hasAttribute?.("data-profile-trigger");
   const hadRecallPrompt = Boolean($(".recall-package-prompt"));
@@ -2196,7 +2207,6 @@ function renderStory() {
         <main class="${chatClass}" aria-label="${t("mainLabel")}">
           <div id="chat-scroll" class="chat-scroll" tabindex="0" role="region" aria-label="${t("historyRegion")}"><div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
           ${chatComposer()}
-          ${!workspaceVisible && state.showDraftUpdates ? privateDraftPreview() : ""}
         </main>
         ${workspaceAvailable ? workspaceDetail() : ""}
       </div>
@@ -2288,7 +2298,7 @@ function workspaceDetail() {
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
     : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
-  return `<aside id="workspace-detail" class="workspace-detail${mediaOverview && tabs.length ? " has-recall-views" : ""}" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${tabs.length || mediaOverview ? lifeStageNavigator() : ""}${active === "memoir" ? "" : privateDraftPreview()}</aside>`;
+  return `<aside id="workspace-detail" class="workspace-detail${mediaOverview && tabs.length ? " has-recall-views" : ""}" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${tabs.length || mediaOverview ? lifeStageNavigator() : ""}</aside>`;
 }
 
 function currentWorkspaceMemoryFocus() {
@@ -2800,24 +2810,26 @@ function renderMessage(message) {
   const visibleText = cleanAssistantText(message.text);
   // Older saved conversations may still contain the retired manual-save action.
   const action = !streaming && message.action && message.action.name !== "save-memory" ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
-  const trace = renderAgentTrace(message.trace || [], message.traceMode, streaming && !visibleText);
+  const trace = renderAgentTrace(message.trace || [], message.traceMode, message.traceExpanded ?? (streaming && !visibleText), message.clientTurnId);
   const listen = streaming || state.voiceMode ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(visibleText)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
   return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.historicalContext ? historicalContextMarkup(message.historicalContext, currentUiLocale()) : ""}${message.responsePhotos?.length ? responsePhotoMarkup(message.responsePhotos) : ""}${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
 }
 
-function renderAgentTrace(trace, mode = "simulated", expanded = false) {
-  if (!state.showThinkingSteps || mode === "simulated") return "";
+function renderAgentTrace(trace, mode = "simulated", expanded = false, clientTurnId = null) {
+  if (!state.showThinkingSteps) return "";
+  const draft = state.privateDraft && clientTurnId ? privateDraftThinkingStep(clientTurnId) : "";
+  if (mode === "simulated" && !draft) return "";
   // Routine transport and persistence events are not useful conversation steps.
-  const visibleSteps = trace.filter(step => step.skill || (!["context", "reply"].includes(step.id)
+  const visibleSteps = mode === "simulated" ? [] : trace.filter(step => step.skill || (!["context", "reply"].includes(step.id)
     && (step.id !== "workspace" || ["completed", "failed"].includes(step.status))));
-  if (!visibleSteps.length) return "";
+  if (!visibleSteps.length && !draft) return "";
   const title = escapeHtml(translate("Memoir.trace.title"));
   const steps = visibleSteps.map((step) => {
     const execution = ["model","embedded","deterministic","provider","cache"].includes(step.execution)
       ? ` · ${escapeHtml(translate(`Memoir.trace.execution.${step.execution}`))}` : "";
     return `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}" data-lane="${escapeHtml(step.lane || "A")}" data-execution="${escapeHtml(step.execution || "operation")}"><span class="agent-loop-detail">${escapeHtml(step.lane || "A")} · ${step.skill ? `${escapeHtml(step.skill)} · ${escapeHtml(translate(`Memoir.trace.status.${step.status || "triggered"}`))}${execution} — ` : ""}${escapeHtml(step.detail || step.label || "")}</span></li>`;
   }).join("");
-  return `<details class="agent-loop" ${expanded ? "open" : ""}><summary><span>${title}</span></summary><ol class="agent-loop-list">${steps}</ol></details>`;
+  return `<details class="agent-loop" ${expanded ? "open" : ""}><summary><span>${title}</span></summary><ol class="agent-loop-list">${steps}${draft}</ol></details>`;
 }
 
 function bindViewActions() {

@@ -180,9 +180,12 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, sh
                 'title': 'Saved garden draft' if locale == 'en-AU' else '已保存的花园草稿',
                 'text': 'The saved draft recalls afternoons in the garden.' if locale == 'en-AU' else '已保存的草稿记述了花园里的午后。',
             }}
+            if route.request.headers.get('accept') == 'application/x-ndjson':
+                return route.fulfill(content_type='application/x-ndjson', body='\n'.join(json.dumps(event) for event in [
+                    {'type':'draft_update', 'data':data}, {'type':'complete'}])+'\n')
         elif path == '/agent/turn':
             assert route.request.post_data_json['conversation_text'] == 'A memory from the garden'
-            assert 'The storyteller said:' in route.request.post_data_json['text']
+            assert route.request.post_data_json['text'] == 'A memory from the garden'
             model['turns'] += 1
             model['completed'] += 1
             reply = 'I remember the garden.' if locale == 'en-AU' else '我记得那个花园。'
@@ -232,7 +235,7 @@ def test_final_reply_package_selection_refresh_and_payment(locale, anonymous, sh
         expect(send).to_be_enabled(timeout=30000)
         page.wait_for_load_state('networkidle')
         expect(page.locator('[data-workspace-tab]')).to_have_count(0)
-        expect(page.locator('.private-draft-status')).to_have_count(1 if show_developer_steps else 0)
+        expect(page.locator('.private-draft-status')).to_have_count(0)
         page.locator('#chat-input').fill('A memory from the garden')
         send.click()
         prompt = page.locator('.recall-package-prompt')

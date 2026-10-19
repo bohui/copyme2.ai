@@ -148,7 +148,7 @@ export function createPrivateDraft({
     const scope = captureProjectScope();
     if (!scope.projectId || !state.supabase?.accessToken) return;
     const language = state.privateDraftLocale || profile().preferred_language || currentUiLocale();
-    const debug = state.showDraftUpdates;
+    const debug = state.showThinkingSteps || state.showDraftUpdates;
     const active = state.privateDraftStream;
     if (debug && !restart && active && !active.controller.signal.aborted &&
         isCurrentProjectScope(active.scope) && active.language === language) return active.ready;
@@ -268,8 +268,27 @@ export function createPrivateDraft({
     }
   }
 
+  function privateDraftThinkingStep(clientTurnId) {
+    const saved = state.privateDraft;
+    if (!state.showThinkingSteps || !saved || !clientTurnId) return "";
+    const receipts = saved.skill_progress?.project_id === state.project?.id
+      ? (saved.skill_progress.items || []).filter(step => step.skill === "memoir-composer" && step.client_turn_id) : [];
+    // Canonical previews belong to their frozen coverage, even while a later turn is composing.
+    const receipt = saved.source_revision != null
+      ? receipts.findLast(step => step.coverage_end === saved.source_revision) : receipts.at(-1);
+    const turn = Object.hasOwn(saved, "skill_progress") ? receipt?.client_turn_id : state.backgroundDraftTurn;
+    if (turn !== clientTurnId) return "";
+    const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
+    const records = [...new Map([saved.first_record, ...(saved.pages || []), saved.selected_record].filter(Boolean).map(record => [record.id, record])).values()];
+    const previews = records.length ? records.filter(record => record.preview) : saved.preview ? [{preview:saved.preview}] : [];
+    if (!previews.length) return "";
+    const sections = previews.map(record => `<article class="agent-composer-section" data-event-id="${escapeHtml(record.event_id || "")}"><h4>${escapeHtml(record.preview.title)}</h4>${formatText(record.preview.text)}</article>`).join("");
+    const pagination = saved.next_cursor ? `<p>${t('draftPagesPartial')}</p><button type="button" class="text-button" data-action="load-more-private-draft" ${saved.loading_page ? "disabled" : ""}>${t(saved.loading_page ? 'loadingSavedPage' : 'loadMoreDraft')}</button>` : "";
+    return `<li class="agent-loop-step agent-loop-skill" data-step-id="memoir-composer-draft"><details class="agent-composer-draft" ${state.privateDraftThinkingExpanded ? "open" : ""}><summary><span>memoir-composer · ${t('readSavedDraft')}</span></summary><div class="agent-composer-content">${sections}${pagination}${saved.page_error ? `<p role="status">${t('savedPageChanged')}</p>` : ""}</div></details></li>`;
+  }
+
   function privateDraftPreview({ inChapters = false } = {}) {
-    if (!state.showDraftUpdates && !(inChapters && freeRecallFinished())) return "";
+    if (!inChapters || !(state.showDraftUpdates || freeRecallFinished())) return "";
     const saved=state.privateDraft;
     if (!saved || !saved.preview && !saved.error && !saved.approval_required && !saved.original_withheld &&
         !saved.updating) return "";
@@ -293,6 +312,6 @@ export function createPrivateDraft({
 
   return {
     currentSectionRework, decidePrivateDraftProposal, loadMorePrivateDraft, openSectionRework,
-    privateDraftPreview, refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
+    privateDraftPreview, privateDraftThinkingStep, refreshPrivateDraft, retryPrivateDraft, selectPrivateDraftLocale, submitSectionRework
   };
 }

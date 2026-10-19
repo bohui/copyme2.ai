@@ -112,18 +112,32 @@ test('ordinary storytellers cannot see early draft content or background status'
   }
 });
 
-test('the draft-update flag shows early checkpoint previews without thinking steps', () => {
+test('the draft-update flag keeps early checkpoint controls inside Chapters', () => {
   const context = setup({showDraftUpdates:true, privateDraft:savedDraft,
     recallStatus:{rounds_completed:5, free_rounds:20}});
-  assert.match(context.privateDraftPreview(), /童年草稿|已保存的童年回忆/);
-  assert.match(context.workspaceDetail(), /private-draft-status/);
+  assert.equal(context.privateDraftPreview(), '');
+  assert.doesNotMatch(context.workspaceDetail(), /private-draft-status/);
   assert.equal(context.workspaceTabs().length, 0);
+  context.state.workspaceUnlocked = true;
+  assert.match(context.workspaceDetail(), /private-draft-status|童年草稿/);
 });
 
-test('thinking steps alone do not show draft previews',()=>{
+test('thinking steps alone do not add draft controls to the place/photo workspace',()=>{
   const context=setup({showThinkingSteps:true,privateDraft:savedDraft,
     recallStatus:{rounds_completed:5,free_rounds:20}});
   assert.equal(context.privateDraftPreview(),'');
+});
+
+test('draft retry belongs to Chapters in the three-panel workspace', () => {
+  for (const showThinkingSteps of [false, true]) for (const showDraftUpdates of [false, true]) {
+    const context = setup({showThinkingSteps, showDraftUpdates, privateDraft:{error:'DRAFT_UNAVAILABLE'},
+      recallStatus:{rounds_completed:20, free_rounds:20}, workspaceUnlocked:true});
+    assert.match(context.workspaceDetail(), /data-action="retry-private-draft"/);
+    for (const tab of ['family', 'timeline']) {
+      context.state.workspaceTab = tab;
+      assert.doesNotMatch(context.workspaceDetail(), /private-draft-status|retry-private-draft/);
+    }
+  }
 });
 
 test('paid Family storytellers retain their selected Family and Timeline tabs at round 20 before composition', () => {

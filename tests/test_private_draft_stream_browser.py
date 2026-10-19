@@ -15,12 +15,21 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.mark.parametrize('drafts', [False, True])
 @pytest.mark.parametrize('thinking', [False, True])
-def test_thinking_steps_and_live_draft_panel_have_independent_flags(drafts, thinking):
+def test_progressive_composer_drafts_live_inside_collapsible_thinking_steps(drafts, thinking):
     base = os.environ['MEMOIR_BROWSER_URL']
     project = {'id':'draft-debug-project', 'revision':1, 'mode':'self', 'profile':{'preferred_language':'zh-CN'}}
     history = StoryHistoryFixture(STAGE_OWNER, project['id'], 'fixture-only')
     catalog = json.loads((ROOT/'apps/web/messages/zh-CN.json').read_text())['Memoir']
     recall = {'rounds_completed':5, 'free_rounds':20, 'paid':False, 'payment_required':False}
+    retries = []
+    place = {'place':'Chengde', 'latitude':40.9515, 'longitude':117.9634,
+             'hierarchy':['Earth','China','Hebei','Chengde'], 'granularity':'city', 'life_stage':'childhood',
+             'period':'1980s', 'research_period':'1980s'}
+    picture = {'title':'Chengde garden', 'image_url':'/static/timeline_avatar_child_male.png',
+               'source_url':'https://archive.example/garden', 'date_expression':'1983-04-01',
+               'latitude':place['latitude'], 'longitude':place['longitude'], 'allowed_actions':{'embed':True}}
+    place['pictures'] = [picture]
+    project['profile']['memory_places'] = [place]
 
     def api(route):
         if history.serve(route): return
@@ -32,13 +41,18 @@ def test_thinking_steps_and_live_draft_panel_have_independent_flags(drafts, thin
         elif path in ('/agent/profile','/user/profile'): data = project['profile']
         elif path == '/projects/draft-debug-project': data = project
         elif path == '/projects/draft-debug-project/journey': data = {'active_session':None}
-        elif path == '/story/state': data = {'recall_status':recall, 'family_features_enabled':False}
-        elif path == '/agent/place-journey': data = {'place_journey':None}
+        elif path == '/story/state': data = {'recall_status':recall,
+            'family_features_enabled':project.get('workspace_unlocked', False), 'payment_features':['family_tree','timeline']}
+        elif path == '/agent/family-context': data = {'family_features_enabled':True, 'family_context':{'people':[], 'relationships':[], 'timeline':[]}}
+        elif path == '/agent/place-journey': data = {'place_journey':place}
+        elif path.endswith('/place-map'): data = {'status':'READY', 'target':place}
+        elif path.endswith('/photos'): data = {'status':'READY', 'items':[picture], 'complete':True}
         elif path == '/agent/turn':
             saved = {'reply':'What do you remember about your garden?', 'conversation_saved':True, 'recall_status':recall}
             events = [{'type':'progress','data':{'id':'analysis','detail':'测试思考步骤','status':'completed'}},
                       {'type':'conversation_saved','data':saved}, {'type':'result','data':saved}]
             return route.fulfill(content_type='application/x-ndjson', body='\n'.join(json.dumps(e) for e in events)+'\n')
+        elif path == '/story/private-draft/retry': retries.append(route.request.post_data_json)
         elif path.startswith('/projects/draft-debug-project/') or path == '/user/conversations': data = {'items':[]}
         return route.fulfill(content_type='application/json', body=json.dumps(data))
 
@@ -59,7 +73,11 @@ def test_thinking_steps_and_live_draft_panel_have_independent_flags(drafts, thin
             window.fetch = async (url, options) => {
                 if (!String(url).includes('/story/private-draft?')) return originalFetch(url,options);
                 window.draftCalls++;
-                if (options.headers.Accept !== 'application/x-ndjson') throw Error('Missing draft streaming Accept');
+                const error = sessionStorage.getItem('composer-error-fixture');
+                if (options.headers.Accept !== 'application/x-ndjson') {
+                    if (!error) throw Error('Missing draft streaming Accept');
+                    return new Response(JSON.stringify({error:'DRAFT_UNAVAILABLE',updating:false}),{headers:{'Content-Type':'application/json'}});
+                }
                 const encoder = new TextEncoder();
                 return new Response(new ReadableStream({start(controller) {
                     window.emitDraftEvent = event => {
@@ -69,10 +87,14 @@ def test_thinking_steps_and_live_draft_panel_have_independent_flags(drafts, thin
                     window.emitDraft = (text, phase, updating=true) => window.emitDraftEvent({type:'draft_update',data:{
                         status:updating?'pending':'ready',snapshot_id:'debug-root',root_digest:text,
                         preview:text ? {title:'Garden draft',text} : null,covered_round:5,updating,
+                        first_record:text ? {id:'garden-section',event_id:'garden-event',preview:{title:'Garden draft',text}} : null,
                         background_progress:{state:updating?'running':'finished',phase}
                     }});
-                    window.emitDraft(null,'summarizing');
                     window.closeDraft = () => { window.emitDraftEvent({type:'complete'});controller.close(); };
+                    if (error) {
+                        window.emitDraftEvent({type:'draft_update',data:{error:'DRAFT_UNAVAILABLE',updating:false}});
+                        window.closeDraft();
+                    } else window.emitDraft(null,'summarizing');
                 }}),{headers:{'Content-Type':'application/x-ndjson'}});
             };
         """)
@@ -82,42 +104,67 @@ def test_thinking_steps_and_live_draft_panel_have_independent_flags(drafts, thin
         page.locator('#chat-input').fill('I remember our garden.')
         page.locator('.send-button').click()
         expect(page.locator('.assistant-message').last).to_contain_text('What do you remember about your garden?')
+        expect(page.locator('.workspace-media-map, .workspace-media-gallery')).to_have_count(2)
+        expect(page.locator('.private-draft-status, [data-action="retry-private-draft"]')).to_have_count(0)
         if thinking:
             expect(page.locator('.assistant-message').last).to_contain_text('测试思考步骤')
             expect(page.locator('.assistant-message').last.locator('.agent-loop')).to_have_count(1)
         else:
             expect(page.locator('.assistant-message').last.locator('.agent-loop')).to_have_count(0)
-        if drafts:
-            expect(page.locator('.private-draft-status')).to_contain_text(catalog['workspace']['privateDraftUpdating'])
-            expect(page.locator('.chat-main > .private-draft-status')).to_have_count(1)
-            if not thinking:
-                screenshot = ROOT/'output/preview-debug/draft-status-zh-CN.png'
-                screenshot.parent.mkdir(parents=True, exist_ok=True)
-                page.locator('.private-draft-status').screenshot(path=str(screenshot))
+        if thinking or drafts:
             page.evaluate("window.emitDraft('Initial 童年 draft','summarizing')")
-            expect(page.locator('.private-draft-status')).to_contain_text('Garden draft')
-            page.get_by_text(catalog['workspace']['readSavedDraft'], exact=True).click()
-            expect(page.locator('.private-draft-status')).to_contain_text('Initial 童年 draft')
-            page.evaluate("window.emitDraft('Updated 童年回忆 draft','drafting')")
-            expect(page.locator('.private-draft-status')).to_contain_text('Updated 童年回忆 draft')
-            expect(page.locator('.saved-draft-sections')).to_have_attribute('open', '')
+            draft = page.locator('.assistant-message').last.locator('.agent-loop .agent-composer-draft')
             if thinking:
+                expect(draft).to_have_count(1)
+                expect(draft).not_to_have_attribute('open', '')
+                expect(page.locator('.assistant-message').last.locator('.agent-loop')).not_to_have_attribute('open', '')
+                page.locator('.assistant-message').last.locator('.agent-loop > summary').click()
+                draft.locator('summary').click()
+                expect(draft.locator('[data-event-id="garden-event"]')).to_be_visible()
+                expect(draft).to_contain_text('Initial 童年 draft')
+            else:
+                expect(draft).to_have_count(0)
+            page.evaluate("window.emitDraft('Updated 童年回忆 draft','drafting')")
+            if thinking:
+                expect(draft).to_contain_text('Updated 童年回忆 draft')
+                expect(draft).to_have_attribute('open', '')
+                expect(page.locator('.assistant-message').last.locator('.agent-loop')).to_have_attribute('open', '')
                 expect(page.locator('.assistant-message').last).to_contain_text(catalog['trace']['backgroundDraft'])
+                draft.locator('summary').click()
+                page.evaluate("window.emitDraft('Reviewed 童年回忆 draft','reviewing')")
+                expect(draft).to_contain_text('Reviewed 童年回忆 draft')
+                expect(draft).not_to_have_attribute('open', '')
             else:
                 expect(page.locator('.assistant-message').last.locator('.agent-loop')).to_have_count(0)
             # Wait beyond the retired polling interval while the stream stays open.
             page.wait_for_timeout(2200)
             assert page.evaluate('window.draftCalls') == 1
             page.evaluate("window.emitDraft('Finished 童年回忆 draft','saving',false);window.closeDraft()")
-            expect(page.locator('.private-draft-status')).to_contain_text('Finished 童年回忆 draft')
-            expect(page.locator('.saved-draft-sections')).to_have_attribute('open', '')
             if thinking:
+                expect(draft).to_contain_text('Finished 童年回忆 draft')
+                expect(draft).not_to_have_attribute('open', '')
                 expect(page.locator('.assistant-message').last).to_contain_text(catalog['trace']['backgroundSaved'])
-            screenshot = ROOT/f'output/preview-debug/draft-ndjson-thinking-{thinking}.png'
-            screenshot.parent.mkdir(parents=True, exist_ok=True)
-            page.locator('.private-draft-status').screenshot(path=str(screenshot))
+                draft.locator('summary').click()
+                screenshot = ROOT/f'output/preview-debug/draft-thinking-drafts-{drafts}.png'
+                screenshot.parent.mkdir(parents=True, exist_ok=True)
+                page.locator('.assistant-message').last.screenshot(path=str(screenshot))
         else:
-            expect(page.locator('.private-draft-status')).to_have_count(0)
             assert page.evaluate('window.draftCalls') == 0
+        expect(page.locator('.private-draft-status, [data-action="retry-private-draft"]')).to_have_count(0)
+        saved_chat = page.evaluate("JSON.stringify(Object.fromEntries(Object.entries(localStorage).filter(([key])=>key.startsWith('memory-spark-chat-history:'))))")
+        assert 'Finished 童年回忆 draft' not in saved_chat
+        project['workspace_unlocked'] = True
+        recall.update(rounds_completed=20, paid=True)
+        page.evaluate("sessionStorage.setItem('composer-error-fixture','1')")
+        page.reload()
+        expect(page.locator('.story-shell.workspace-visible')).to_be_visible(timeout=30000)
+        expect(page.locator('[data-workspace-tab]')).to_have_count(3)
+        retry = page.locator('#workspace-detail [data-action="retry-private-draft"]')
+        expect(retry).to_be_visible()
+        expect(page.locator('.workspace-media-overview, .chat-main .private-draft-status')).to_have_count(0)
+        retry.click()
+        expect(retry).to_be_visible()
+        assert len(retries) == 1
+        assert retries[0]['project_id'] == project['id']
         assert errors == []
         browser.close()

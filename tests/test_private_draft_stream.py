@@ -118,10 +118,12 @@ def frames(messages):
     ('1', '1', 'http://127.0.0.1:3010', True),
     ('1', '1', 'http://[::1]:3010', True),
     ('0', '1', 'http://localhost:3010', True),
-    ('1', '0', 'http://localhost:3010', False),
+    ('1', '0', 'http://localhost:3010', True),
+    ('0', '0', 'http://localhost:3010', False),
+    ('1', '0', 'https://copyme2.ai', False),
     ('1', '1', 'https://copyme2.ai', False),
 ])
-def test_debug_stream_requires_its_own_flag_and_a_loopback_browser(mapped, monkeypatch, thinking, drafts, origin, allowed):
+def test_debug_stream_requires_thinking_or_draft_updates_and_a_loopback_browser(mapped, monkeypatch, thinking, drafts, origin, allowed):
     client, _, calls, _ = mapped
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', thinking)
     monkeypatch.setenv('MEMORY_SPARK_SHOW_DRAFT_UPDATES', drafts)

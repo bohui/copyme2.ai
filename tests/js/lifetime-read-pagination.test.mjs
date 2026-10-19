@@ -25,36 +25,36 @@ test('draft delivery failure offers reconnection while worker failure keeps gene
   for(const [error,action] of [['PRIVATE_DRAFT_UNAVAILABLE','refresh-private-draft'], ['DRAFT_UNAVAILABLE','retry-private-draft']]) {
     const context=setup({privateDraft:{error,updating:false}});
     load(context,'privateDraftPreview');
-    assert.match(context.privateDraftPreview(),new RegExp(`data-action="${action}"`));
+    assert.match(context.privateDraftPreview({inChapters:true}),new RegExp(`data-action="${action}"`));
   }
 });
 
 test('a pending draft shows the background status without a preview or thinking steps',()=>{
   const context=setup({showThinkingSteps:false,privateDraft:{updating:true}});
   load(context,'privateDraftPreview');
-  assert.match(context.privateDraftPreview(),/privateDraftUpdating/);
+  assert.match(context.privateDraftPreview({inChapters:true}),/privateDraftUpdating/);
   context.state.showDraftUpdates=false;
   assert.equal(context.privateDraftPreview(),'');
 });
 test('later frozen draft pages are reachable and first page is explicitly partial', async () => {
   const context = setup();
   load(context,'privateDraftPreview');
-  assert.match(context.privateDraftPreview(), /load-more-private-draft/);
-  assert.match(context.privateDraftPreview(), /draftPagesPartial/);
+  assert.match(context.privateDraftPreview({inChapters:true}), /load-more-private-draft/);
+  assert.match(context.privateDraftPreview({inChapters:true}), /draftPagesPartial/);
   load(context,'loadMorePrivateDraft');
   await context.loadMorePrivateDraft();
   assert.equal(context.state.privateDraft.pages[0].preview.text, 'Second');
   assert.equal(context.state.privateDraft.next_cursor, null);
-  assert.match(context.privateDraftPreview(), /Second/);
-  assert.doesNotMatch(context.privateDraftPreview(), /load-more-private-draft/);
+  assert.match(context.privateDraftPreview({inChapters:true}), /Second/);
+  assert.doesNotMatch(context.privateDraftPreview({inChapters:true}), /load-more-private-draft/);
 });
 
 test('draft language uses the requested Mandarin edition when a failed response omits its locale', () => {
   const context = setup({project:{id:'project',profile:{preferred_language:'zh-CN'}},
     privateDraft:{error:'MEMOIR_UNAVAILABLE'}});
   load(context,'privateDraftPreview');
-  assert.match(context.privateDraftPreview(), /value="zh-CN" selected/);
-  assert.doesNotMatch(context.privateDraftPreview(), /value="en-AU" selected/);
+  assert.match(context.privateDraftPreview({inChapters:true}), /value="zh-CN" selected/);
+  assert.doesNotMatch(context.privateDraftPreview({inChapters:true}), /value="en-AU" selected/);
 });
 test('draft page response cannot overwrite newer root or newer project', async () => {
   for (const change of ['root','project']) {
@@ -92,7 +92,7 @@ test('protected draft proposals remain explicitly review-only and missing origin
   const context=setup({privateDraft:{snapshot_id:'root',snapshot_state:'proposed',approval_required:true,original_withheld:true,
     preview:null,proposed_preview:{title:'Suggestion',text:'Proposed words'},page_complete:true}});
   load(context,'privateDraftPreview');
-  const html=context.privateDraftPreview();
+  const html=context.privateDraftPreview({inChapters:true});
   assert.match(html,/draftApprovalRequired/);assert.match(html,/draftOriginalWithheld/);
   assert.match(html,/draftProposalReview/);assert.match(html,/Proposed words/);
   assert.doesNotMatch(html,/privateDraftSaved/);

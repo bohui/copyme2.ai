@@ -141,13 +141,18 @@ test('duplicate refreshes share an active stream and navigation aborts its reade
 });
 
 test('debug disabled makes no early draft requests; final Chapters still load once', async()=>{
-  for(const flags of [{showDraftUpdates:false},{showDraftUpdates:false,showThinkingSteps:false}]) {
-    const s=setup(flags);await s.context.refreshPrivateDraft();
-    assert.equal(s.requests(),0);assert.equal(s.reads(),0);
-    s.context.freeRecallFinished=()=>true;
-    await s.context.refreshPrivateDraft();
-    assert.equal(s.requests(),0);assert.equal(s.reads(),1);
-  }
+  const s=setup({showDraftUpdates:false,showThinkingSteps:false});await s.context.refreshPrivateDraft();
+  assert.equal(s.requests(),0);assert.equal(s.reads(),0);
+  s.context.freeRecallFinished=()=>true;
+  await s.context.refreshPrivateDraft();
+  assert.equal(s.requests(),0);assert.equal(s.reads(),1);
+});
+
+test('thinking steps alone stream progressive drafts without the draft-update flag', async()=>{
+  const s=setup({showDraftUpdates:false});
+  await s.context.refreshPrivateDraft();await settled(s.state);
+  assert.equal(s.requests(),1);assert.equal(s.reads(),0);
+  assert.equal(s.state.privateDraft.preview.text,'童年回忆');
 });
 
 test('draft streaming works with thinking steps disabled',async()=>{

@@ -263,23 +263,39 @@ def test_mobile_voice_controls_with_synthetic_microphone(conversation_page):
 
 def test_saved_draft_stays_reachable_without_page_scroll(conversation_page):
     page=conversation_page
-    page.route('**/api/v1/memoir/story/private-draft?*',lambda r:r.fulfill(content_type='application/json',body=json.dumps({'milestone':5,'preview':{'title':'Synthetic saved draft','text':'Synthetic draft paragraph. '*200}})))
+    draft = {'milestone':5, 'source_revision':5, 'preview':{'title':'Synthetic saved draft','text':'Synthetic draft paragraph. '*200},
+             'skill_progress':{'project_id':'scroll-project','items':[{'id':'composer-save','skill':'memoir-composer',
+                'client_turn_id':'draft-turn','coverage_end':5,'status':'saved','phase':'checkpoint'}]}}
+    page.route('**/api/v1/memoir/story/private-draft?*',lambda r:r.fulfill(content_type='application/x-ndjson',body='\n'.join(
+        json.dumps(event) for event in [{'type':'draft_update','data':draft},{'type':'complete'}])+'\n'))
+    page.add_init_script("""
+      for (const storage of [localStorage,sessionStorage]) for (const key of Object.keys(storage)) {
+        if (!key.startsWith('memory-spark-chat-history:')) continue;
+        const messages=JSON.parse(storage.getItem(key));
+        const message=messages.findLast(item=>item.role==='assistant');
+        if (message) { message.clientTurnId='draft-turn';message.updatedAt=Date.now()+1;storage.setItem(key,JSON.stringify(messages)); }
+      }
+    """)
     page.reload()
-    expect(page.locator('.private-draft-status')).to_be_visible(timeout=10000)
+    history = page.locator('[data-action="toggle-chat-history"]')
+    expect(history).to_be_visible(timeout=10000)
+    if history.get_attribute('aria-expanded') == 'false': history.click()
+    saved = page.locator('.agent-composer-draft')
+    expect(saved).to_have_count(1)
+    page.locator('.assistant-message:has(.agent-composer-draft) .agent-loop > summary').click()
     for width,height in [(390,844),(823,768),(1440,1000)]:
         page.set_viewport_size({'width':width,'height':height})
         page.wait_for_timeout(150)
         assert metrics(page)['pageHeight']<=height+1
-        page.locator('.private-draft-status summary').click()
-        expect(page.locator('.private-draft-status h3')).to_be_visible()
+        saved.locator('summary').click()
+        expect(saved.locator('h4')).to_be_visible()
         page.wait_for_timeout(100)
         assert metrics(page)['pageHeight']<=height+1
-        assert page.locator('.private-draft-status').evaluate('(e)=>e.scrollHeight>e.clientHeight')
-        page.locator('.private-draft-status summary').click()
-        # A draft without an active map stays in the conversation. It must
-        # remain readable without activating an empty map workspace.
+        assert saved.locator('.agent-composer-content').evaluate('(e)=>e.scrollHeight>e.clientHeight')
+        saved.locator('summary').click()
         expect(page.locator('#workspace-detail')).to_have_count(0)
         expect(page.locator('[data-action="toggle-workspace"]')).to_have_count(0)
         assert metrics(page)['composer']['bottom']<=height+1
-        expect(page.locator('.private-draft-status')).to_be_visible()
+        expect(saved).to_be_visible()
+        expect(page.locator('.private-draft-status')).to_have_count(0)
     screenshot(page,'after-desktop-workspace')

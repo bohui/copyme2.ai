@@ -9,6 +9,7 @@ from starlette.responses import StreamingResponse
 
 from .lifetime_memory_reads import ReadJSONResponse, _settle
 from .turn_stream import STREAM_HEADERS
+from .turn_progress import thinking_steps_enabled
 
 
 logger = logging.getLogger(__name__)
@@ -19,7 +20,7 @@ def draft_updates_enabled():
 
 
 def local_draft_updates(request):
-    if not draft_updates_enabled():
+    if not (thinking_steps_enabled() or draft_updates_enabled()):
         return False
     browser_url = request.headers.get('origin') or request.headers.get('referer')
     if not browser_url:

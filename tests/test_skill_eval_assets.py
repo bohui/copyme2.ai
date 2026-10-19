@@ -195,7 +195,7 @@ def test_managed_rules_are_disabled_synthetic_only_and_sdk_does_not_schedule_jud
                for r in managed['rules'])
 
 
-def test_draft_judge_sources_use_main_publisher_and_cannot_pass_runtime_pin_checks():
+def test_judge_sources_use_main_publisher_and_require_runtime_receipts(tmp_path):
     from scripts.prompt_registry import prompt_registry, EVALUATION_PROMPT_PATHS
     from apps.api.prompt_artifact import load_prompt_artifact
     ordinary = prompt_registry()
@@ -203,6 +203,9 @@ def test_draft_judge_sources_use_main_publisher_and_cannot_pass_runtime_pin_chec
     assert len(EVALUATION_PROMPT_PATHS) == 11
     for name, relative in EVALUATION_PROMPT_PATHS.items():
         assert publishing[name] == relative
-        assert name not in ordinary
+        source = suite.ROOT / relative
+        assert (name in ordinary) is source.with_name(source.name + '.langfuse.json').is_file()
+        unpublished = tmp_path / source.name
+        unpublished.write_text(source.read_text())
         with pytest.raises(ValueError, match='receipt'):
-            load_prompt_artifact(suite.ROOT / relative)
+            load_prompt_artifact(unpublished)

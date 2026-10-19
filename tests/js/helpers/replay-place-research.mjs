@@ -7,7 +7,8 @@ import {applyDerivedWorkspace} from '../../../apps/web/client/memoir/derived-wor
 import {createPhotoWorkspace} from '../../../apps/web/client/memoir/photo-workspace.mjs';
 import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
 import {placeHistoryKey} from '../../../apps/web/client/memoir/places.mjs';
-import {translate} from '../../../apps/web/client/i18n.js';
+import {translate,translateWith} from '../../../apps/web/client/i18n.js';
+import {escapeHtml,formatText} from '../../../apps/web/client/memoir/dom.mjs';
 
 const packet = JSON.parse(readFileSync(0, 'utf8'));
 const projectId = packet.ready.derived_workspace.project_id;
@@ -158,6 +159,19 @@ await places.hydratePlaceJourney();
 await Promise.all(loads);
 assert.deepEqual(plain(state.project.profile.memory_places),saved,'A refreshed snapshot must preserve photo cache metadata');
 assert.equal(photoCalls.length,2,'Restoring the interview must reuse both completed searches');
+
+Object.assign(context,{escapeHtml,formatText,translateWith,freeRecallFinished:()=>false,
+  workspaceIsVisible:()=>true,workspaceTabs:()=>[],composingWorkspaceActive:()=>false,
+  workspaceMediaOverview:places.workspaceMediaOverview,lifeStageNavigator:()=>'',
+  currentSectionRework:()=>null,sectionReworkNotice:()=>'',currentUiLocale:()=>document.documentElement.lang});
+for (const name of ['privateDraftPreview','workspaceDetail']) {
+  vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
+}
+state.showThinkingSteps=true;state.showDraftUpdates=true;state.privateDraft=packet.private_draft;
+const workspace=context.workspaceDetail();
+assert.match(workspace,/workspace-media-overview/);
+assert.doesNotMatch(workspace,/private-draft-status|retry-private-draft|data-draft-locale/,
+  'A real pending/failed draft response must not add draft controls to the place/photo workspace');
 
 const chengde=state.project.profile.memory_places.find(place=>place.place==='承德市');
 state.project.profile.memory_places=[chengde];state.placeJourney=chengde;

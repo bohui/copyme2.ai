@@ -683,6 +683,9 @@ h3 { line-height: 1.1; }
 .private-draft-status { margin: 12px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 12px; }
 .private-draft-status p { margin: 0 0 8px; }
 .private-draft-status details { line-height: 1.6; }
+.agent-composer-draft { width: 100%; }
+.agent-composer-content { max-height: 24rem; overflow-y: auto; overscroll-behavior-y: contain; font-size: 12px; line-height: 1.6; }
+.agent-composer-section h4 { margin: 12px 0 6px; }
 #timeline-artwork { display: block; max-width: 100%; margin-top: 8px; padding: 8px; }
 .place-choices { display: flex; flex-shrink: 0; gap: 8px; overflow-x: auto; margin-bottom: 12px; }
 .place-choices button { flex: 0 0 auto; border: 1px solid var(--line); border-radius: 20px; padding: 8px 14px; background: var(--white); color: var(--green); }

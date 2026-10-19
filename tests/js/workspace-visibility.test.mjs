@@ -82,7 +82,7 @@ test('live draft previews require only their own flag and a local browser', asyn
   }
 });
 
-test('draft controls beneath the message input appear only with local debugging enabled', () => {
+test('draft controls never appear beneath the message input, including with local debugging enabled', () => {
   for (const showThinkingSteps of [false, true]) for (const showDraftUpdates of [false,true]) {
     for (const overrides of [{placeJourney:null}, {workspaceCollapsed:true}]) {
       const html = renderedWorkspace({...overrides, showThinkingSteps, showDraftUpdates,
@@ -92,18 +92,17 @@ test('draft controls beneath the message input appear only with local debugging 
       });
       const conversation = html.match(/<main\b[^]*?<\/main>/)[0];
       assert.match(conversation, /id="chat-input"/);
-      if (showDraftUpdates) assert.match(conversation, /<\/form>\s*<section class="private-draft-status"/);
-      else assert.doesNotMatch(conversation, /private-draft-status|Draft language and retry/);
+      assert.doesNotMatch(conversation, /private-draft-status|Draft language and retry/);
     }
   }
 });
 
-test('local draft debugging stays in the workspace when it is expanded', () => {
-  const html = renderedWorkspace({showThinkingSteps:true, privateDraft:{error:'MEMOIR_UNAVAILABLE'}}, {
+test('local draft debugging does not add a status card to the place/photo workspace', () => {
+  const html = renderedWorkspace({showThinkingSteps:true, showDraftUpdates:true, privateDraft:{error:'MEMOIR_UNAVAILABLE'}}, {
     privateDraftPreview:() => '<section class="private-draft-status">Draft language and retry</section>',
   });
   assert.doesNotMatch(html.match(/<main\b[^]*?<\/main>/)[0], /private-draft-status/);
-  assert.equal((html.match(/private-draft-status/g) || []).length, 1);
+  assert.doesNotMatch(html, /private-draft-status|Draft language and retry/);
 });
 
 test('early family and timeline records do not open a workspace without a map', () => {

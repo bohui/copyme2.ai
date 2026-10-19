@@ -549,7 +549,12 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         assert {item['city']['place'] for item in response.json()['places']}=={'Sydney','Parramatta'}
         groups.append({'request':request,'response':response.json()})
         ready=progress(conversation)
+        response=conversation.client.get('/v1/story/private-draft',params={'project_id':conversation.project})
+        assert response.status_code==200,response.text
+        private_draft=response.json()
+        assert private_draft['error']
         packet={'pending':pending,'ready':ready,'photos':photos,'groups':groups,
+                'private_draft':private_draft,
                 'provider_places':provider_places,'landmark':landmark,'containing_places':containing_places,
                 'containing_titles':containing_titles,'rejected_city_places':rejected_city_places}
         (tmp_path/'place-research-replay.json').write_text(json.dumps(packet,ensure_ascii=False))
@@ -693,3 +698,10 @@ def test_composer_cached_retry_saves_without_counting_another_model_pass(sql,tmp
         models=[item for item in steps if item['execution']=='model']
         assert len(models)==3 and all(item['status']=='saved' and item['model_attempts']==1 for item in models)
         assert any(item['status']=='cached' and item['execution']=='cache' and not item['model_invoked'] for item in steps)
+        response=conversation.client.get('/v1/story/private-draft',params={'project_id':conversation.project})
+        assert response.status_code==200,response.text
+        draft=response.json()
+        assert draft['preview']
+        turn=sql(f"select client_turn_id from public.user_narrator_source where sequence={int(draft['source_revision'])};").stdout.strip()
+        assert any(item['skill']=='memoir-composer' and item['coverage_end']==draft['source_revision']
+            and item['client_turn_id']==turn for item in draft['skill_progress']['items'])
