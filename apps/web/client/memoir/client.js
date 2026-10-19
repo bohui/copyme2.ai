@@ -1019,9 +1019,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
       if (done) break;
     }
       if (!ready) {
-        if (!result) throw new Error(localizedErrorMessage());
-        ready = true;
-        resolveReady(result);
+        throw new Error(localizedErrorMessage());
       }
     } catch (error) {
       if (!ready) {

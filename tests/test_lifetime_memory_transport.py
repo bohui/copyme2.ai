@@ -104,6 +104,21 @@ def test_personal_bodies_sent_under_guard_and_cleanup_after_final_send():
     execute(scenario())
 
 
+@pytest.mark.parametrize('kind',['question_validated','reply_complete'])
+def test_milestone_metadata_never_uses_the_unfenced_generic_exemption(kind):
+    async def scenario():
+        publisher=Publisher();events=[]
+        async def run(emit):
+            await emit.event({'type':kind,'data':{'has_question':True}})
+            return {'reply':'Unfenced'}
+        async def send(message):
+            if event:=body_event(message):events.append(event)
+        await GovernedStreamingResponse(governed_turn_events(run),publisher=publisher)(SCOPE,no_disconnect,send)
+        assert [e['type'] for e in events]==['started','error']
+        assert not publisher.fences
+    execute(scenario())
+
+
 def test_database_connection_timeout_ends_stream_with_retry_message(monkeypatch):
     from apps.api.lifetime_memory_publication import TransactionalPublication
     from psycopg import AsyncConnection

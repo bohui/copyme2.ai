@@ -1,0 +1,559 @@
+{
+  "scope": "Issue53 bounded public stream observability; no response-time optimization or model-quality acceptance",
+  "client_date": "2026-10-20",
+  "client_timezone": "Australia/Sydney",
+  "dependency": {
+    "pr": 96,
+    "state_at_check": "open",
+    "head": "8315df3e7876374f699ac0ab07b8481659660606",
+    "base_main": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+    "untouched": true
+  },
+  "latest_observed_main": "7d12641357b69ef767a49e171cc188e23a039c72",
+  "files_sha256": {
+    "apps/api/lifetime_memory_runtime.py": "174a9a08ea6caee2e827947ff2891277ca23942e566580c7e20c315a279bcf8f",
+    "docs/issue53-response-sequences.md": "7205e6d6edb7ab7d25f5f90360a5a8985b3232dfb74ba45901c6aec5fac432d8",
+    "scripts/issue53_profile_sequences.py": "70b0d71fd2c4ae2d5bab7c1f15804ea11a5b42557b9a3f7e77931090e483384e",
+    "scripts/issue53_sequence_application.py": "fdddc7c8d0f1517c3b3bc5cc33f76febac3f616d49597def0b7790d0e0c64dce",
+    "tests/js/live-trace.test.mjs": "717eb0127eaa7719315bdf087c546c29833c6c7f4eb90e1e3d7e9c14b5c99fef",
+    "tests/test_conversation_milestones.py": "508abbef44d3d4e0ee5b7ce544a49b66ab0ae67f8fd5139179d66c90650143c0",
+    "tests/test_issue53_offline_coverage.py": "2b8af6bf180d2ff6fac480bec2a286f62a2c05513aeccc59861e8c585662e89c",
+    "tests/test_issue53_profile_sequences.py": "600ade70fb8cbbd1e44766839ee66e4f81e59fbab3f3ecc65cfb82c1c0e7735e",
+    "tests/test_issue53_sequence_application.py": "ba5bc2d10e1d788eb87a87bfc582a02d93a678d468e2d1fdde05c16e12a56271",
+    "tests/test_lifetime_memory_runtime.py": "c07147ec63dfe2ff130fe6e2e00a9365700a36c61c81db08e721618466f1cd49",
+    "tests/test_lifetime_memory_transport.py": "646215f618539143d1937e03d6c6ae1af536b2a3f38ec50ddb4fab35f95f1943"
+  },
+  "provenance_note": "Supervisor base_head/tree identify the commit at launch, not the dirty working tree. Final-source capsules freeze actual application/profiler bytes; files_sha256 additionally binds tests/docs. Integration checks use a separate disposable checkout of main7d plus PR96 and the task patch; those are not the old-base matrix capsules.",
+  "integration": {
+    "worktree": "/workspace/issue53-milestone-integration",
+    "base_main": "7d12641357b69ef767a49e171cc188e23a039c72",
+    "dependency_commit_applied_without_commit": "8315df3e7876374f699ac0ab07b8481659660606",
+    "implementation_sha256": {
+      "apps/api/lifetime_memory_runtime.py": "174a9a08ea6caee2e827947ff2891277ca23942e566580c7e20c315a279bcf8f",
+      "scripts/issue53_profile_sequences.py": "70b0d71fd2c4ae2d5bab7c1f15804ea11a5b42557b9a3f7e77931090e483384e",
+      "scripts/issue53_sequence_application.py": "fdddc7c8d0f1517c3b3bc5cc33f76febac3f616d49597def0b7790d0e0c64dce"
+    },
+    "actual_working_tree_snapshot_after_checks": "91b7333eed4277ad597f3690b4352e271e520e01",
+    "snapshot_note": "Captured after checks using an independent temporary Git index; the real integration index and checkout were not changed. All three functional implementation files match the frozen task-source hashes. Supervisor tree identifies HEAD at launch, not this working tree.",
+    "working_source_manifest_sha256": {
+      "apps/api/conversation_locale.py": "00e0ad8fb1b894e70978d47b0abedbf7e3a1753f5a0bd60f1a31896895aea8a3",
+      "apps/api/lifetime_memory_runtime.py": "174a9a08ea6caee2e827947ff2891277ca23942e566580c7e20c315a279bcf8f",
+      "docs/issue53-response-sequences.md": "1f49e54f453caa8a1670397296152947fcfeb9b72a2eb0e1fe460fc1fd2e019d",
+      "docs/test-evidence/issue53-language-gate-20261020.json": "8287c253e5f61f49bbc8240b143d01560ec3a6b1db51590871a073d0d7b623b1",
+      "scripts/issue53_profile_sequences.py": "70b0d71fd2c4ae2d5bab7c1f15804ea11a5b42557b9a3f7e77931090e483384e",
+      "scripts/issue53_sequence_application.py": "fdddc7c8d0f1517c3b3bc5cc33f76febac3f616d49597def0b7790d0e0c64dce",
+      "tests/js/live-trace.test.mjs": "717eb0127eaa7719315bdf087c546c29833c6c7f4eb90e1e3d7e9c14b5c99fef",
+      "tests/test_conversation_locale_directives.py": "4041e782eb056f36bcff8140e558df32e5072ec64429bd5e212d6d729ed80fb7",
+      "tests/test_conversation_milestones.py": "508abbef44d3d4e0ee5b7ce544a49b66ab0ae67f8fd5139179d66c90650143c0",
+      "tests/test_issue53_offline_coverage.py": "2b8af6bf180d2ff6fac480bec2a286f62a2c05513aeccc59861e8c585662e89c",
+      "tests/test_issue53_profile_sequences.py": "600ade70fb8cbbd1e44766839ee66e4f81e59fbab3f3ecc65cfb82c1c0e7735e",
+      "tests/test_issue53_sequence_application.py": "ba5bc2d10e1d788eb87a87bfc582a02d93a678d468e2d1fdde05c16e12a56271",
+      "tests/test_lifetime_memory_runtime.py": "c07147ec63dfe2ff130fe6e2e00a9365700a36c61c81db08e721618466f1cd49",
+      "tests/test_lifetime_memory_transport.py": "646215f618539143d1937e03d6c6ae1af536b2a3f38ec50ddb4fab35f95f1943"
+    }
+  },
+  "checks": [
+    {
+      "name": "milestones-red",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-red",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "-k",
+        "public_milestones_ignore or saved_replay_completion or duplicate_public_milestones or real_governed_http_save_cold"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 1,
+      "summary": [
+        "5 failed, 58 deselected in 3.06s"
+      ],
+      "duration_seconds": 3.53,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/milestones-red.json",
+      "log_path": "/tmp/issue53-milestone-evidence/milestones-red.log",
+      "receipt_sha256": "d8ca9713d854b0fb254b9bd2f3e2afffacf23514e42eba13b9cec652606aed4e",
+      "log_sha256": "fc5e38b4de1873cbf228f957392161acc7ae0eab276b9884086f10f15f0d118a"
+    },
+    {
+      "name": "milestones-red-corrected",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-red-corrected",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "-k",
+        "public_milestones_ignore or saved_replay_completion or duplicate_public_milestones or real_governed_http_save_cold"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 1,
+      "summary": [
+        "4 failed, 1 passed, 58 deselected in 2.48s"
+      ],
+      "duration_seconds": 2.89,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/milestones-red-corrected.json",
+      "log_path": "/tmp/issue53-milestone-evidence/milestones-red-corrected.log",
+      "receipt_sha256": "668244e6bb815cca206f23ec73211812ecdfe9be7dc8ee0bf7fbdef2da07dad7",
+      "log_sha256": "955fcc426b4382ef3f344a79102c8e7e96f56610283037af5d61bdcc9477d6f4"
+    },
+    {
+      "name": "failure-milestones-red",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-failure-red",
+        "tests/test_conversation_milestones.py"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 1,
+      "summary": [
+        "3 failed, 1 passed in 2.68s"
+      ],
+      "duration_seconds": 3.14,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/failure-milestones-red.json",
+      "log_path": "/tmp/issue53-milestone-evidence/failure-milestones-red.log",
+      "receipt_sha256": "18a5d6f6754018c9297e91c4b7fde6c3f6f24b0c917ff7aec8cbbaa26cd148a9",
+      "log_sha256": "38ea13e715a73060d7a6600f4975b57e702a48e252cda87afb1a98114354ba62"
+    },
+    {
+      "name": "milestones-green",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-green",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "tests/test_conversation_milestones.py",
+        "tests/test_lifetime_memory_transport.py"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 1,
+      "summary": [
+        "2 failed, 118 passed in 53.32s"
+      ],
+      "duration_seconds": 53.85,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/milestones-green.json",
+      "log_path": "/tmp/issue53-milestone-evidence/milestones-green.log",
+      "receipt_sha256": "cf3ad1cb3b1ff60d10868ee76d79fff0848caec2effb669c0a81f677cf9ecbb4",
+      "log_sha256": "cccdf34648792dbeff6d4944eaffe88a1f3a27dd91e1bbad749e80b15c5f2cec"
+    },
+    {
+      "name": "milestones-corrected",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-corrected",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "tests/test_conversation_milestones.py",
+        "tests/test_lifetime_memory_transport.py",
+        "tests/test_two_lane_memory.py",
+        "tests/test_interview_strategy_runtime.py",
+        "tests/test_issue53_saved_plan.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 1,
+      "summary": [
+        "5 failed, 228 passed in 115.13s (0:01:55)"
+      ],
+      "duration_seconds": 115.93,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/milestones-corrected.json",
+      "log_path": "/tmp/issue53-milestone-evidence/milestones-corrected.log",
+      "receipt_sha256": "0c459000fbdc2f6758d49770ffaf48339c8d5aa454c2ab2ef5972149460a9780",
+      "log_sha256": "c2a40206eae5b2c75c2ce93eb64e9494b9465562eaf7a66f988722a19133b17f"
+    },
+    {
+      "name": "client-readiness",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern",
+        "public milestone metadata",
+        "tests/js/live-trace.test.mjs"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 0,
+      "summary": [
+        "ℹ tests 1",
+        "ℹ pass 1",
+        "ℹ fail 0"
+      ],
+      "duration_seconds": 0.13,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/client-readiness.json",
+      "log_path": "/tmp/issue53-milestone-evidence/client-readiness.log",
+      "receipt_sha256": "4346559e84f2352dcab9b07f980b59c485234db2c93bae889042a456f4e6c619",
+      "log_sha256": "4989ef215d1b54de69be33dc180aa99460d93191277025a9329df067525bf8e2"
+    },
+    {
+      "name": "matrix-en-AU",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=en-AU",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-matrix-en-AU",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 0,
+      "summary": [
+        "9 passed, 8 deselected in 87.60s (0:01:27)"
+      ],
+      "duration_seconds": 87.94,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/matrix-en-AU.json",
+      "log_path": "/tmp/issue53-milestone-evidence/matrix-en-AU.log",
+      "receipt_sha256": "47a635f87072bf979353ef36b6318e60b29111cde7b0393041cb4aa18dfa4cd9",
+      "log_sha256": "9c61a716ad92c6f3e0153615c9d769b6dd88eccfeff64ef27b7051badeaaee3d"
+    },
+    {
+      "name": "matrix-zh-CN",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=zh-CN",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-matrix-zh-CN",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 0,
+      "summary": [
+        "9 passed, 8 deselected in 88.03s (0:01:28)"
+      ],
+      "duration_seconds": 88.4,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/matrix-zh-CN.json",
+      "log_path": "/tmp/issue53-milestone-evidence/matrix-zh-CN.log",
+      "receipt_sha256": "167916a9b90c0eba75dff2ac1f9203ccb0bf4755f34437220fca5a4d8661b786",
+      "log_sha256": "7498ea698ae2bdbf0b523368834b667358b3ea392b7a966f17a818cae486a6a8"
+    },
+    {
+      "name": "faults-final",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-faults",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "negative_streams"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 0,
+      "summary": [
+        "8 passed, 9 deselected in 78.38s (0:01:18)"
+      ],
+      "duration_seconds": 78.73,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/faults-final.json",
+      "log_path": "/tmp/issue53-milestone-evidence/faults-final.log",
+      "receipt_sha256": "10ad7bc6c0ec265b34432b4b91ff7d4403914c5155460893b780bb1ba169a08c",
+      "log_sha256": "41c828268c29cce4b922e6c8fd9902b4341beb37497bd065bb87201158eeea5a"
+    },
+    {
+      "name": "baseline-two-lane",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-baseline-two-lane",
+        "tests/test_two_lane_memory.py"
+      ],
+      "base_head": "8315df3e7876374f699ac0ab07b8481659660606",
+      "head_tree_at_launch": "5e75960fd61771b42682fcd2f72f22e9b9212bfc",
+      "exit_code": 1,
+      "summary": [
+        "5 failed, 23 passed in 9.45s"
+      ],
+      "duration_seconds": 9.96,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/baseline-two-lane.json",
+      "log_path": "/tmp/issue53-milestone-evidence/baseline-two-lane.log",
+      "receipt_sha256": "5f218ae250e9e7c7ff3ba1b14ebd81ea96163200f9501d1f68ed97ceb56cc0ba",
+      "log_sha256": "90f85110823d5ba06773f45475ffb3457b07bea1a1a04059acc2c0c720291be1"
+    },
+    {
+      "name": "integration-stream",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-evidence/pytest-integration-stream",
+        "tests/test_conversation_milestones.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "-k",
+        "commit_barrier or disconnect_does or real_governed_http_save_cold or streamed_language_directive"
+      ],
+      "base_head": "7d12641357b69ef767a49e171cc188e23a039c72",
+      "head_tree_at_launch": "fe9d51a41d2200af611ce5cf2d7a5effacbe69da",
+      "exit_code": 0,
+      "summary": [
+        "10 passed, 23 deselected in 8.93s"
+      ],
+      "duration_seconds": 9.55,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/integration-stream.json",
+      "log_path": "/tmp/issue53-milestone-evidence/integration-stream.log",
+      "receipt_sha256": "be91887fcb1192e003cbffdc4b8de98ccaf6bf6a26cb5702904beeed24e8c091",
+      "log_sha256": "a5b192a528f73d474f04836b7b8f9dffcac18d83751a0b39b7337b80faaf8cf4"
+    },
+    {
+      "name": "integration-place-research",
+      "command": [
+        "env",
+        "NODE_PATH=/workspace/copyme2.ai/apps/web/node_modules",
+        "PYTEST_ADDOPTS=--basetemp=/tmp/issue53-milestone-evidence/pytest-integration-place",
+        "make",
+        "test-place-research"
+      ],
+      "base_head": "7d12641357b69ef767a49e171cc188e23a039c72",
+      "head_tree_at_launch": "fe9d51a41d2200af611ce5cf2d7a5effacbe69da",
+      "exit_code": 0,
+      "summary": [
+        "ℹ pass 585",
+        "ℹ fail 0",
+        "384 passed in 11.53s",
+        "Ran 95 tests in 0.261s",
+        "OK"
+      ],
+      "duration_seconds": 18.55,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-evidence/integration-place-research.json",
+      "log_path": "/tmp/issue53-milestone-evidence/integration-place-research.log",
+      "receipt_sha256": "a04b833c3c8331ad0094941403daabce8495b940ebc6e278984a06f22b8ac340",
+      "log_sha256": "c4a5d1a8410a74d7f0f6cf41be826229f50765e6fd40e49e4d4bd3a74c589ffb"
+    }
+  ],
+  "cohorts": [
+    {
+      "locale": "en-AU",
+      "directory": "/tmp/issue53-milestone-evidence/pytest-matrix-en-AU/issue53-full-manifest0",
+      "run_id": "7b390dd5-2a1b-45cb-b1d8-9771a6b886ac",
+      "plan_sha256": "4ae0d66a74b3bf7579356a47da23da9754f830937b2c0dd248168b7585ef6230",
+      "artifacts_sha256": {
+        "plan.json": "bfa5cb889176ecbef94a3d06592eed402a9c337ce8bce73eb5e86160f6343979",
+        "results.json": "5111e7db19b0ba5659daaa2e4f8fb7f392df937f3b4e2fe869cb56626af3d2cb",
+        "receipts.json": "0867e46252e42cc5e0b60acad89198d300f1f49e73b5be3ce6e61525b61d3ca1",
+        "comparison.json": "3a0ce9f8d7e3b48dc430b6f337d8d99c6bff35d58761fdecf610d3c9a367a9d9"
+      },
+      "rows": 40,
+      "contracts_pass": 40,
+      "mocked_dispatches": 38,
+      "matched_complete_pairs": 20,
+      "milestones": {
+        "first_meaningful_text_s": {
+          "baseline": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          },
+          "candidate": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          }
+        },
+        "validated_question_s": {
+          "baseline": {
+            "observed": 18,
+            "unknown": 0,
+            "not_applicable": 2
+          },
+          "candidate": {
+            "observed": 18,
+            "unknown": 0,
+            "not_applicable": 2
+          }
+        },
+        "reply_complete_s": {
+          "baseline": {
+            "observed": 20,
+            "unknown": 0,
+            "not_applicable": 0
+          },
+          "candidate": {
+            "observed": 20,
+            "unknown": 0,
+            "not_applicable": 0
+          }
+        },
+        "durable_save_s": {
+          "baseline": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          },
+          "candidate": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          }
+        }
+      },
+      "status": "incomplete",
+      "release_accepted": false,
+      "frozen_implementation": {
+        "apps/api/lifetime_memory_runtime.py": "174a9a08ea6caee2e827947ff2891277ca23942e566580c7e20c315a279bcf8f",
+        "scripts/issue53_sequence_application.py": "fdddc7c8d0f1517c3b3bc5cc33f76febac3f616d49597def0b7790d0e0c64dce",
+        "scripts/issue53_profile_sequences.py": "70b0d71fd2c4ae2d5bab7c1f15804ea11a5b42557b9a3f7e77931090e483384e"
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "directory": "/tmp/issue53-milestone-evidence/pytest-matrix-zh-CN/issue53-full-manifest0",
+      "run_id": "ce60d3f3-d077-4513-9b8f-1507366c5d7b",
+      "plan_sha256": "549a350c27ee70e6d60f32130cbc14b680ad71768c5434350a8c59f027989dd2",
+      "artifacts_sha256": {
+        "plan.json": "98d8708c1d33cd6e9b59de66548c9568f02599905a1db0be68b867d36afcf9c6",
+        "results.json": "6ededbbbd93419b0965d65842edc40753b39ae0ababd0e2c6b416acf276dadf4",
+        "receipts.json": "125b03efc3d0be58144c2f1ce916e0dda9bfad81f91da09a510c9e6c78387403",
+        "comparison.json": "4e46a05a741889b24145ac364566366a92960ea4a0fdcb99cf154f1ddc11cdae"
+      },
+      "rows": 40,
+      "contracts_pass": 40,
+      "mocked_dispatches": 38,
+      "matched_complete_pairs": 20,
+      "milestones": {
+        "first_meaningful_text_s": {
+          "baseline": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          },
+          "candidate": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          }
+        },
+        "validated_question_s": {
+          "baseline": {
+            "observed": 18,
+            "unknown": 0,
+            "not_applicable": 2
+          },
+          "candidate": {
+            "observed": 18,
+            "unknown": 0,
+            "not_applicable": 2
+          }
+        },
+        "reply_complete_s": {
+          "baseline": {
+            "observed": 20,
+            "unknown": 0,
+            "not_applicable": 0
+          },
+          "candidate": {
+            "observed": 20,
+            "unknown": 0,
+            "not_applicable": 0
+          }
+        },
+        "durable_save_s": {
+          "baseline": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          },
+          "candidate": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          }
+        }
+      },
+      "status": "incomplete",
+      "release_accepted": false,
+      "frozen_implementation": {
+        "apps/api/lifetime_memory_runtime.py": "174a9a08ea6caee2e827947ff2891277ca23942e566580c7e20c315a279bcf8f",
+        "scripts/issue53_sequence_application.py": "fdddc7c8d0f1517c3b3bc5cc33f76febac3f616d49597def0b7790d0e0c64dce",
+        "scripts/issue53_profile_sequences.py": "70b0d71fd2c4ae2d5bab7c1f15804ea11a5b42557b9a3f7e77931090e483384e"
+      }
+    }
+  ],
+  "test_interpretation": {
+    "milestones-red": "Initial test authoring exposed three missing observer behaviors; two HTTP fixture errors came from an invalid extra opening candidate. Corrected before the meaningful red run; not product regressions.",
+    "milestones-red-corrected": "Three observer cases and streaming HTTP marker assertion fail before implementation; JSON HTTP variant passes and reaches original downstream save/replay/lease assertions.",
+    "failure-milestones-red": "Normal commit lacked marker; two disconnect expectations initially asked for raw OSError although Starlette wraps it as ClientDisconnect. Corrected test expectation, without a production workaround.",
+    "milestones-green": "118 pass; only two incorrect raw-OSError expectations fail. These are corrected in final test source.",
+    "milestones-corrected": "228 pass and five failures in unchanged test_two_lane_memory.py. All new milestone, transport, profiler, saved-plan, existing receipt-negative and strategy tests pass. Entire aggregate is not green.",
+    "baseline-two-lane": "Exact unchanged PR96 reproduces the same five failures: missing/invalid strategy proposal, reply-only extra strategy key and stale background page. Kept visible; unrelated application behavior was not changed."
+  },
+  "baseline_failures": [
+    "tests/test_two_lane_memory.py::test_background_places_candidates_and_events_share_one_fenced_page",
+    "tests/test_two_lane_memory.py::test_actual_ndjson_a_is_saved_while_b_provider_is_blocked_or_failed[blocked]",
+    "tests/test_two_lane_memory.py::test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_deduplicates",
+    "tests/test_two_lane_memory.py::test_name_only_reply_only_skips_the_background_model_and_does_not_mark_a_question_delivered",
+    "tests/test_two_lane_memory.py::test_burst_coalescing_concurrent_claim_crash_restart_and_old_token_are_idempotent"
+  ],
+  "milestone_semantics": {
+    "first_meaningful_text_s": "Receipt of annotated meaningful text excerpt in public delta; semantic adequacy still requires review.",
+    "validated_question_s": "Receipt of fenced post-commit validation attestation; not validation compute finish or text delivery. Absent for stopped and replay rows.",
+    "reply_complete_s": "Receipt after final generated public delta; cached saved nonempty terminal result for replay. Not background completion, final result delivery for generation, or save-attestation receipt.",
+    "durable_save_s": "Receipt of conversation_saved attestation plus separate SQL readback; replay has no new-save measurement.",
+    "duplicates": "First received qualifying milestone wins.",
+    "applicability": "Derived from frozen replay/stop plan rows; N/A separate from unknown; no fabricated zero and no N/A paired delta."
+  },
+  "acceptance_limits": {
+    "release_accepted": false,
+    "semantic_quality": "not_established",
+    "human_bilingual_heldout": "pending",
+    "live_provider_calls": 0,
+    "hosted_publication": 0,
+    "production_latency_improvement": "not_measured",
+    "provider_usage_and_policy": "unknown",
+    "not_run": [
+      "real provider/model outputs",
+      "browser paint timing",
+      "live disconnect/save/rollback campaign",
+      "background derived-artifact semantic quality",
+      "calibrated blinded bilingual human-heldout acceptance",
+      "deployment or merge"
+    ],
+    "remaining_live_budget": "Zero currently authorized; proposed future foreground/judge/fanout bounds in docs require separate explicit authorization."
+  }
+}

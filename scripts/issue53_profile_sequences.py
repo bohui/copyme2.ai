@@ -14,7 +14,7 @@ from pathlib import Path
 import statistics
 import subprocess
 import time
-from uuid import uuid4
+from uuid import uuid4,uuid5,NAMESPACE_URL
 
 from scripts import memoir_skill_eval_suite as suite
 from scripts.memoir_skill_eval_application import verify_witness
@@ -163,6 +163,12 @@ def check_plan(planned):
 def context(planned, row):
     return dict(run_id=planned['run_id'], source_revision=planned['provenance']['source_revision'],
         source_content_sha256=digest(planned['provenance']), invocation_id=row['invocation_id'])
+
+
+def client_turn_id(planned, row):
+    case=next(s for s in planned['scenarios'] if s['id']==row['scenario_id'])
+    step=next(s for s in case['steps'] if s['id']==row['step_id'])
+    return str(uuid5(NAMESPACE_URL,planned['run_id']+case['id']+str(row['sample'])+step['client_turn_key']))
 
 
 def packet_projection(request):
@@ -324,9 +330,13 @@ def verify_capture(planned, row, result, capture, directory, prior_capture=None,
         raise ValueError('invalid_stream_clock')
     from scripts.issue53_sequence_application import StreamObservation
     clock = iter([0, *elapsed])
-    replay = StreamObservation(observation['meaningful_excerpt'], clock=lambda:next(clock))
+    current=capture['output']['canonical_result']
+    replay = StreamObservation(observation['meaningful_excerpt'],client_turn_id=client_turn_id(planned,row),
+        project_id=capture['project_id'],accepted_source_id=current['accepted_source_id'],
+        replay=row['action']=='replay',expected_reply=current['reply'],clock=lambda:next(clock))
     for event in events: replay.observe({k:v for k,v in event.items() if k != 'elapsed_s'})
     if (replay.timings != observation['timings'] or replay.public != observation['public_text']
+        or replay.identity != observation.get('identity') or replay.replay != observation.get('replay')
         or row['action'] != 'replay' and replay.timings['durable_save_s'] is None):
         raise ValueError('public_milestone_evidence_missing')
     # A domain failure must not invent state loss on the next turn. Only after
@@ -390,9 +400,12 @@ def _latency(rows):
                   outcomes={s:sum(r['execution'] == s for r in rows) for s in ('completed','failed','timed_out','unavailable')})
     result['milestones'] = {}
     for key in MILESTONES:
-        values = {arm:[r['timings'].get(key) for pair in complete for r in pair if r['arm'] == arm] for arm in ('baseline','candidate')}
+        applicable={arm:[r for pair in complete for r in pair if r['arm']==arm and key not in r.get('not_applicable_milestones',[])]
+                    for arm in ('baseline','candidate')}
+        values = {arm:[r['timings'].get(key) for r in group] for arm,group in applicable.items()}
         valid = {arm:[v for v in group if type(v) in (int,float) and math.isfinite(v) and v >= 0] for arm,group in values.items()}
         result['milestones'][key] = {arm:dict(observed=len(v), unknown=len(values[arm])-len(v),
+            not_applicable=sum(r['arm']==arm and key in r.get('not_applicable_milestones',[]) for pair in complete for r in pair),
             median_s=statistics.median(v) if v else None, samples_s=v, p95_s=None) for arm,v in valid.items()}
     result['paired_deltas'] = []
     for pair in complete:
@@ -400,7 +413,8 @@ def _latency(rows):
         deltas = {}
         for key in MILESTONES:
             b, c = (arms[a]['timings'].get(key) for a in ('baseline','candidate'))
-            deltas[key] = c-b if all(type(v) in (int,float) and math.isfinite(v) and v >= 0 for v in (b,c)) else None
+            deltas[key] = c-b if (all(key not in r.get('not_applicable_milestones',[]) for r in pair)
+                and all(type(v) in (int,float) and math.isfinite(v) and v >= 0 for v in (b,c))) else None
         result['paired_deltas'].append(dict(pair_id=pair[0]['pair_id'], candidate_minus_baseline_s=deltas))
     return result
 
@@ -434,6 +448,8 @@ def compare(planned, results, journal, reviews, *, directory):
         status = value.get('execution', 'unavailable')
         if status not in {'completed','failed','timed_out','unavailable'}: raise ValueError('invalid_execution_status')
         item = {k:row[k] for k in ('row_id','pair_id','arm','locale','phase','scenario_id','sample')}
+        item['not_applicable_milestones']=([k for k in MILESTONES if k!='reply_complete_s'] if row['action']=='replay'
+            else ['validated_question_s'] if row['item']['gold']['facts']['stopped'] else [])
         item.update(execution=status, timings=value.get('timings', {}),
             reason=value.get('reason', 'not_run'),
             # This offline adapter has no provider-policy/usage attestor. Raw
