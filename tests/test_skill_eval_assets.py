@@ -108,13 +108,13 @@ def test_conflicts_fail_closed_without_unreviewed_writes(mutation):
 def score_pair():
     expected = dict(item_id='item', dataset='synthetic', dataset_snapshot='2026-10-19T00:00:00Z',
         input_sha256='a'*64, output_sha256='b'*64, trace_id='trace', observation_id='generation',
-        evaluators=[dict(name='skill/quality', version=2, compiled_sha256='c'*64)])
+        evaluators=[dict(name='skill/quality', version=2, compiled_sha256='c'*64, value='pass')])
     actual = {**deepcopy(expected), 'scores': [dict(name='skill/quality', evaluator_version=2,
-        compiled_sha256='c'*64, trace_id='trace', observation_id='generation', output_sha256='b'*64)]}
+        compiled_sha256='c'*64, trace_id='trace', observation_id='generation', output_sha256='b'*64, value='pass')]}
     return actual, expected
 
 
-@pytest.mark.parametrize('mutation', ['none', 'empty', 'item', 'input', 'output', 'trace', 'observation', 'score', 'version', 'compiled', 'duplicate'])
+@pytest.mark.parametrize('mutation', ['none', 'empty', 'item', 'input', 'output', 'trace', 'observation', 'score', 'version', 'compiled', 'duplicate', 'value', 'missing_value'])
 def test_score_counts_cannot_substitute_for_exact_identities(mutation):
     actual, expected = score_pair()
     if mutation == 'empty':
@@ -128,7 +128,24 @@ def test_score_counts_cannot_substitute_for_exact_identities(mutation):
     elif mutation == 'version': actual['scores'][0]['evaluator_version'] = 3
     elif mutation == 'compiled': actual['scores'][0]['compiled_sha256'] = 'd'*64
     elif mutation == 'duplicate': actual['scores'] *= 2
+    elif mutation == 'value': actual['scores'][0]['value'] = 'fail'
+    elif mutation == 'missing_value': actual['scores'][0].pop('value')
     assert assets.score_readback([actual], [expected])['status'] == ('verified' if mutation == 'none' else 'incomplete')
+
+
+def test_numeric_score_does_not_accept_a_boolean_as_the_expected_value():
+    actual, expected = score_pair()
+    expected['evaluators'][0]['value'] = 1
+    actual['scores'][0]['value'] = True
+    assert assets.score_readback([actual], [expected])['status'] == 'incomplete'
+
+
+@pytest.mark.parametrize('value,status', [(1.0, 'verified'), (0.0, 'incomplete'), (float('nan'), 'incomplete')])
+def test_numeric_score_readback_accepts_sdk_float_without_accepting_wrong_values(value, status):
+    actual, expected = score_pair()
+    expected['evaluators'][0]['value'] = 1
+    actual['scores'][0]['value'] = value
+    assert assets.score_readback([actual], [expected])['status'] == status
 
 
 def test_real_judge_adapter_handles_injection_as_data_and_draft_pin_gate(tmp_path):

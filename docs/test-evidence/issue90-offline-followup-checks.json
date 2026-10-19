@@ -1,0 +1,817 @@
+{
+  "scope": "controlled offline follow-up; no live model/provider or hosted writes",
+  "checks": [
+    {
+      "name": "review-findings-red",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_review_regressions.py"
+      ],
+      "exit_code": 1,
+      "base_head": "92745cb33204e1ed90994a087a0b856c4ce70da1",
+      "tree": "bd12364d86f3283cc99a8bfdf5706e24dda80601",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-megl9ebp",
+      "command_group": {
+        "group_id": 28773,
+        "leader_started": "Mon Oct 19 07:59:41 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-megl9ebp",
+            "device": 33,
+            "inode": 102065
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 0.79,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/review-findings-red.json",
+          "sha256": "c5941d11793e00abffff5a4b546c0cb023353b1d33dc4cce998aaf06c2634809"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/review-findings-red.log",
+          "sha256": "4c8d8b7630baebc275e8a978c7b12bc4a69b304638da4380eb79d95869bedd2b"
+        }
+      }
+    },
+    {
+      "name": "review-findings-green-1",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_review_regressions.py"
+      ],
+      "exit_code": 0,
+      "base_head": "92745cb33204e1ed90994a087a0b856c4ce70da1",
+      "tree": "bd12364d86f3283cc99a8bfdf5706e24dda80601",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-hh4scrvz",
+      "command_group": {
+        "group_id": 28883,
+        "leader_started": "Mon Oct 19 08:00:49 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-hh4scrvz",
+            "device": 33,
+            "inode": 102555
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 0.85,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/review-findings-green-1.json",
+          "sha256": "ee69676619c703299d68c2747ae0fcfc5228d53414a2bfaf7ca2238c7563faab"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/review-findings-green-1.log",
+          "sha256": "3064c4d524b3b7773ca06fa00846e528379c0f979a7feba5dadf68e41aa1d90c"
+        }
+      }
+    },
+    {
+      "name": "reviewed-core-final",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_suite.py",
+        "tests/test_skill_eval_assets.py",
+        "tests/test_skill_eval_workflows.py",
+        "tests/test_skill_eval_review_regressions.py",
+        "tests/test_prompt_artifact.py",
+        "tests/test_prompt_composition.py",
+        "tests/test_prompt_publication.py",
+        "tests/test_memoir_skill_evaluation.py",
+        "tests/test_memoir_live_skills.py",
+        "--junitxml=/workspace/issue90-evidence/reviewed-core-final.xml"
+      ],
+      "exit_code": 0,
+      "base_head": "92745cb33204e1ed90994a087a0b856c4ce70da1",
+      "tree": "bd12364d86f3283cc99a8bfdf5706e24dda80601",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-hfxk2qkp",
+      "command_group": {
+        "group_id": 45903,
+        "leader_started": "Mon Oct 19 08:11:55 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-hfxk2qkp",
+            "device": 33,
+            "inode": 199123
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 17.58,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/reviewed-core-final.json",
+          "sha256": "7d31d234eb8f02cccf95da22fb4902c962645c9deb3cc4a222ec2d8df6b2861e"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/reviewed-core-final.log",
+          "sha256": "4e4539c8c6e05c86aa957cd54e8494a599fb6bcdbf2f374037a6fe19003c5699"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/reviewed-core-final.xml",
+          "sha256": "1e142f9a61a8fb7b0d076e6a1f59cc3c58d405c8c1b6c106a40c13b58546432c"
+        }
+      },
+      "test_counts": {
+        "failure": 0,
+        "error": 0,
+        "skipped": 0,
+        "total": 185
+      }
+    },
+    {
+      "name": "application-production-regressions",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_turn_publication.py",
+        "tests/test_story_game_runtime_postgres.py",
+        "tests/test_background_profile_postgres.py",
+        "tests/test_conversation_attribution.py",
+        "--junitxml=/workspace/issue90-evidence/application-production-regressions.xml"
+      ],
+      "exit_code": 0,
+      "base_head": "92745cb33204e1ed90994a087a0b856c4ce70da1",
+      "tree": "bd12364d86f3283cc99a8bfdf5706e24dda80601",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-7ld6v0ro",
+      "command_group": {
+        "group_id": 45884,
+        "leader_started": "Mon Oct 19 08:11:53 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-7ld6v0ro",
+            "device": 33,
+            "inode": 198795
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 147.04,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/application-production-regressions.json",
+          "sha256": "fe7f6dfb9553a62ea5a8952ede37f013273b9df37c69f9f4254baaea4f5ba1ea"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/application-production-regressions.log",
+          "sha256": "a952ad43e7de2ac1e62a4e4f9774fce5632ba174171a26b86c6dbdc53ba3e602"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/application-production-regressions.xml",
+          "sha256": "2c0f764d2bd18ea3534720851733681afa3a9db7fadf9badb634804b626a879f"
+        }
+      },
+      "test_counts": {
+        "failure": 0,
+        "error": 0,
+        "skipped": 0,
+        "total": 113
+      }
+    },
+    {
+      "name": "native-browser-final-1",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "MEMOIR_BROWSER_URL=http://127.0.0.1:60871",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_application.py",
+        "tests/test_skill_eval_application_browser.py",
+        "-x",
+        "--junitxml=/workspace/issue90-evidence/native-browser-final-1.xml"
+      ],
+      "exit_code": 2,
+      "base_head": "92745cb33204e1ed90994a087a0b856c4ce70da1",
+      "tree": "bd12364d86f3283cc99a8bfdf5706e24dda80601",
+      "status": "cleanup_failed",
+      "native_allocation_root": "/tmp/memoir-check-pg-ahn0ea9f",
+      "command_group": {
+        "group_id": 35614,
+        "leader_started": "Mon Oct 19 08:06:45 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": false,
+        "retained_root": "/tmp/memoir-check-pg-ahn0ea9f",
+        "failure_class": "RuntimeError"
+      },
+      "child_returncode": 0,
+      "duration_seconds": 92.72,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/native-browser-final-1.json",
+          "sha256": "f320c5a375bcdbdc674d3cec0c3dad180277daacfca4d020c379279c860a7fc5"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/native-browser-final-1.log",
+          "sha256": "b4cd917c4261fdb8f1144091bdd54def03978138c6d5f79294c5b3386f2de69a"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/native-browser-final-1.xml",
+          "sha256": "f0dbcbca2803ce37d64ee630fd73c394b7d322a4a23034f511779cf11f75bc97"
+        }
+      },
+      "test_counts": {
+        "failure": 0,
+        "error": 0,
+        "skipped": 0,
+        "total": 20
+      }
+    },
+    {
+      "name": "native-browser-final-2",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "MEMOIR_BROWSER_URL=http://127.0.0.1:60871",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_application.py",
+        "tests/test_skill_eval_application_browser.py",
+        "--junitxml=/workspace/issue90-evidence/native-browser-final-2.xml"
+      ],
+      "exit_code": 1,
+      "base_head": "92745cb33204e1ed90994a087a0b856c4ce70da1",
+      "tree": "bd12364d86f3283cc99a8bfdf5706e24dda80601",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-jmj9mh5d",
+      "command_group": {
+        "group_id": 40653,
+        "leader_started": "Mon Oct 19 08:09:28 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": false,
+        "retained_root": "/tmp/memoir-check-pg-jmj9mh5d",
+        "failure_class": "RuntimeError"
+      },
+      "child_returncode": 1,
+      "duration_seconds": 91.87,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/native-browser-final-2.json",
+          "sha256": "c3cb45158710c519089d4b94c6cf44f08ec1b9dbea6c518dcaf3891217839f5f"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/native-browser-final-2.log",
+          "sha256": "1bcab0ef85561e47fe5921d014dcd14a2e5487aeaed23f5b4a3714b96a19f178"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/native-browser-final-2.xml",
+          "sha256": "58c303f742ffc0cc9e695c1657da6cb4849b8acabe238d552f03b903697139fb"
+        }
+      },
+      "test_counts": {
+        "failure": 1,
+        "error": 0,
+        "skipped": 0,
+        "total": 21
+      }
+    },
+    {
+      "name": "native-browser-final-3",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_application.py",
+        "tests/test_skill_eval_application_browser.py",
+        "--junitxml=/workspace/issue90-evidence/native-browser-final-3.xml"
+      ],
+      "exit_code": 0,
+      "base_head": "92745cb33204e1ed90994a087a0b856c4ce70da1",
+      "tree": "bd12364d86f3283cc99a8bfdf5706e24dda80601",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-0pble9tx",
+      "command_group": {
+        "group_id": 64916,
+        "leader_started": "Mon Oct 19 08:17:23 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-0pble9tx",
+            "device": 33,
+            "inode": 278430
+          },
+          {
+            "root": "/tmp/memoir-case-0n6dv5e4",
+            "device": 33,
+            "inode": 298666
+          },
+          {
+            "root": "/tmp/memoir-case-3b5quin_",
+            "device": 33,
+            "inode": 281807
+          },
+          {
+            "root": "/tmp/memoir-case-4segqo82",
+            "device": 33,
+            "inode": 278443
+          },
+          {
+            "root": "/tmp/memoir-case-4uj4oer9",
+            "device": 33,
+            "inode": 288524
+          },
+          {
+            "root": "/tmp/memoir-case-50npvc08",
+            "device": 33,
+            "inode": 290208
+          },
+          {
+            "root": "/tmp/memoir-case-7ch3s3kg",
+            "device": 33,
+            "inode": 303701
+          },
+          {
+            "root": "/tmp/memoir-case-_4fev41f",
+            "device": 33,
+            "inode": 286840
+          },
+          {
+            "root": "/tmp/memoir-case-_nvjeqrm",
+            "device": 33,
+            "inode": 300356
+          },
+          {
+            "root": "/tmp/memoir-case-anvxzvvs",
+            "device": 33,
+            "inode": 285157
+          },
+          {
+            "root": "/tmp/memoir-case-b0wwempj",
+            "device": 33,
+            "inode": 295287
+          },
+          {
+            "root": "/tmp/memoir-case-dihm7vrj",
+            "device": 33,
+            "inode": 308853
+          },
+          {
+            "root": "/tmp/memoir-case-h3ub218c",
+            "device": 33,
+            "inode": 291895
+          },
+          {
+            "root": "/tmp/memoir-case-ik_7evpu",
+            "device": 33,
+            "inode": 306946
+          },
+          {
+            "root": "/tmp/memoir-case-kvh3hia6",
+            "device": 33,
+            "inode": 302054
+          },
+          {
+            "root": "/tmp/memoir-case-lbqfkpi4",
+            "device": 33,
+            "inode": 283481
+          },
+          {
+            "root": "/tmp/memoir-case-sm1by50d",
+            "device": 33,
+            "inode": 293591
+          },
+          {
+            "root": "/tmp/memoir-case-v835r83o",
+            "device": 33,
+            "inode": 296969
+          },
+          {
+            "root": "/tmp/memoir-case-ycozj0o_",
+            "device": 33,
+            "inode": 280125
+          },
+          {
+            "root": "/tmp/memoir-controlled-pg-9aepfqiy",
+            "device": 33,
+            "inode": 305320
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 92.56,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/native-browser-final-3.json",
+          "sha256": "a4f1fec47093f67b9b54f682cf451a5e1204c91662114d16219b8249a9fc56e7"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/native-browser-final-3.log",
+          "sha256": "c0f68b3ebc624fd0f3b2fbd57900bb65264d982fcbaa23d61ea63c57b416b912"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/native-browser-final-3.xml",
+          "sha256": "caa7471a6c3db88e3dab65ae9799f85b140707023cda78a6f28eb8dd7b4b0a98"
+        }
+      },
+      "test_counts": {
+        "failure": 0,
+        "error": 0,
+        "skipped": 0,
+        "total": 21
+      }
+    }
+  ],
+  "notes": [
+    "Five independent review defects reproduced at92745cb and corrected in follow-up.",
+    "Native-browser-final-1:20 tests passed but outer cleanup failed on a new unsupported allocation prefix; not an acceptance pass. Use the existing supported memoir-case prefix.",
+    "Native-browser-final-2:20 passed/1 failed because the nested test allocated a command root without command-group metadata. Use an existing supported non-command root for that test.",
+    "Native-browser-final-3:21 passed, zero failures/errors/skips, transitive native allocation cleanup verified.",
+    "The two failed supervisors retained metadata only; missing child roots and process identities were checked before metadata reconciliation. Proof files are retained and hashed.",
+    "Application-production-regressions:113 passed; reviewed-core-final:185 passed. Counts overlap and must not be summed."
+  ],
+  "cleanup_proofs": [
+    {
+      "path": "/workspace/issue90-evidence/supervisor-prefix-reconciliation.json",
+      "sha256": "327e7ca41fc73a4bf73999a632b80ee6b2ba1ff5299cb3077c072fea3a9b6b52",
+      "proof": [
+        {
+          "root": "/tmp/memoir-check-pg-xwpt2aup",
+          "registered_children_absent": [
+            {
+              "root": "/tmp/memoir-skill-eval-qn71k3cz",
+              "device": 33,
+              "inode": 125895
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-84vxz8gy",
+              "device": 33,
+              "inode": 124205
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-lq6ns4sj",
+              "device": 33,
+              "inode": 122515
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-i_o_jpl4",
+              "device": 33,
+              "inode": 120826
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-29rf_im3",
+              "device": 33,
+              "inode": 119144
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-0mujwuvi",
+              "device": 33,
+              "inode": 117464
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-avduivin",
+              "device": 33,
+              "inode": 115776
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-dv8kgcmc",
+              "device": 33,
+              "inode": 114073
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-dg214r5s",
+              "device": 33,
+              "inode": 112389
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-n0gw8ks6",
+              "device": 33,
+              "inode": 110705
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-iqmcsqy0",
+              "device": 33,
+              "inode": 109022
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-y2kvtqtd",
+              "device": 33,
+              "inode": 107346
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-9nqho8o8",
+              "device": 33,
+              "inode": 105672
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-gfb5h_ik",
+              "device": 33,
+              "inode": 103990
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-7kf2hzr2",
+              "device": 33,
+              "inode": 102222
+            }
+          ],
+          "command_group_verified_gone": true,
+          "metadata_only": true
+        },
+        {
+          "root": "/tmp/memoir-check-pg-y3tsacco",
+          "registered_children_absent": [
+            {
+              "root": "/tmp/memoir-skill-eval-jygpvecq",
+              "device": 33,
+              "inode": 129467
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-383dc0pp",
+              "device": 33,
+              "inode": 127575
+            }
+          ],
+          "command_group_verified_gone": true,
+          "metadata_only": true
+        },
+        {
+          "root": "/tmp/memoir-check-pg-ahn0ea9f",
+          "registered_children_absent": [
+            {
+              "root": "/tmp/memoir-skill-eval-74dckruc",
+              "device": 33,
+              "inode": 164574
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-1bb84ix2",
+              "device": 33,
+              "inode": 162691
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-mok9dt6e",
+              "device": 33,
+              "inode": 161070
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-a1gczk91",
+              "device": 33,
+              "inode": 159423
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-wg0nchnd",
+              "device": 33,
+              "inode": 157733
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-bjltxw61",
+              "device": 33,
+              "inode": 156043
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-qy69zdke",
+              "device": 33,
+              "inode": 154354
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-48jd_m_v",
+              "device": 33,
+              "inode": 152672
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-zxc3y5or",
+              "device": 33,
+              "inode": 150992
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-iv9iqo5z",
+              "device": 33,
+              "inode": 149304
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-j7twww1j",
+              "device": 33,
+              "inode": 147617
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-6yjfae55",
+              "device": 33,
+              "inode": 145933
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-w50q4ksg",
+              "device": 33,
+              "inode": 144249
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-yklljwh0",
+              "device": 33,
+              "inode": 142566
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-5x55vcia",
+              "device": 33,
+              "inode": 140890
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-wub4mgk3",
+              "device": 33,
+              "inode": 139216
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-fbtmqcw0",
+              "device": 33,
+              "inode": 137534
+            },
+            {
+              "root": "/tmp/memoir-skill-eval-qc04_e7p",
+              "device": 33,
+              "inode": 135852
+            }
+          ],
+          "command_group_verified_gone": true,
+          "metadata_only": true
+        }
+      ]
+    },
+    {
+      "path": "/workspace/issue90-evidence/nested-fixture-reconciliation.json",
+      "sha256": "8c145234d16b05bf9cbf6c1b1735182df24212935f3c76a0b4648e31c86008b7",
+      "proof": {
+        "root": "/tmp/memoir-check-pg-vqjuzfb0",
+        "uid": 1000,
+        "contents": [
+          "owned-roots"
+        ],
+        "registered_absent_children": [
+          {
+            "root": "/tmp/memoir-case-o99t3bbv",
+            "device": 33,
+            "inode": 193370
+          }
+        ],
+        "outer_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-jmj9mh5d",
+              "device": 33,
+              "inode": 166524
+            },
+            {
+              "root": "/tmp/memoir-case-2xfrekjq",
+              "device": 33,
+              "inode": 185039
+            },
+            {
+              "root": "/tmp/memoir-case-8yl5pvda",
+              "device": 33,
+              "inode": 186728
+            },
+            {
+              "root": "/tmp/memoir-case-9jgk0f7z",
+              "device": 33,
+              "inode": 176618
+            },
+            {
+              "root": "/tmp/memoir-case-_9ptye09",
+              "device": 33,
+              "inode": 169901
+            },
+            {
+              "root": "/tmp/memoir-case-chk1hxqh",
+              "device": 33,
+              "inode": 188418
+            },
+            {
+              "root": "/tmp/memoir-case-f4mp1fhc",
+              "device": 33,
+              "inode": 166537
+            },
+            {
+              "root": "/tmp/memoir-case-ny9qmwlg",
+              "device": 33,
+              "inode": 168219
+            },
+            {
+              "root": "/tmp/memoir-case-ou2anazd",
+              "device": 33,
+              "inode": 181677
+            },
+            {
+              "root": "/tmp/memoir-case-qbtl7hhn",
+              "device": 33,
+              "inode": 178302
+            },
+            {
+              "root": "/tmp/memoir-case-r8l4txd2",
+              "device": 33,
+              "inode": 171575
+            },
+            {
+              "root": "/tmp/memoir-case-rlbahu7p",
+              "device": 33,
+              "inode": 174934
+            },
+            {
+              "root": "/tmp/memoir-case-t20as2ke",
+              "device": 33,
+              "inode": 179989
+            },
+            {
+              "root": "/tmp/memoir-case-vc6w8esd",
+              "device": 33,
+              "inode": 183357
+            },
+            {
+              "root": "/tmp/memoir-case-w39buxjj",
+              "device": 33,
+              "inode": 173251
+            },
+            {
+              "root": "/tmp/memoir-case-w6kp4hsv",
+              "device": 33,
+              "inode": 194992
+            },
+            {
+              "root": "/tmp/memoir-case-ycucg9e9",
+              "device": 33,
+              "inode": 191747
+            },
+            {
+              "root": "/tmp/memoir-case-zhpe1czt",
+              "device": 33,
+              "inode": 190108
+            },
+            {
+              "root": "/tmp/memoir-case-znobud8l",
+              "device": 33,
+              "inode": 196875
+            },
+            {
+              "root": "/tmp/memoir-check-pg-vqjuzfb0",
+              "device": 33,
+              "inode": 193366
+            }
+          ],
+          "command_groups_stopped": []
+        }
+      }
+    }
+  ]
+}

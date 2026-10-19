@@ -1,6 +1,7 @@
 """Private games through real conversation, immutable editions and disposable SQL."""
 from copy import deepcopy
 import json
+import re
 from pathlib import Path
 from uuid import uuid4
 
@@ -44,7 +45,8 @@ def proposal_from_packet(packet):
     proposal = {'scenes': []}
     for chapter in packet['chapters']:
         for index, block in enumerate(chapter['blocks']):
-            person = next((p for p in ('father', 'mother') if p in block['text']), None)
+            match = re.search(r'father|mother|父亲|母亲', block['text'], re.I)
+            person = match.group() if match else None
             if person and not any(p['person'] == person for p in proposal['scenes']):
                 proposal['scenes'].append(dict(chapter_id=chapter['chapter_id'], block_index=index,
                     title=person, person=person, quote=block['text'], art='generic-garden'))

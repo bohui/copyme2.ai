@@ -445,6 +445,11 @@ and [versioned dataset experiments](https://langfuse.com/docs/evaluation/experim
 
 ### Langfuse trajectory evaluation
 
+The [ten-skill evaluation CLI](docs/issue90-offline-evaluation.md) provides
+zero-call planning, 160 bilingual synthetic tasks, controlled application
+witnesses and independent judge/readback contracts. Hosted publication and live
+acceptance remain separate gates.
+
 Memoir keeps the evaluation runner beside the application and private
 `codex-worker` boundary. The default dataset and callback are checked in at
 [`tests/evaluation/cases.json`](tests/evaluation/cases.json) and
