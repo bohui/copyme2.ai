@@ -49,9 +49,10 @@ async def photo(item, adapter, budget, max_bytes):
 
 
 async def history(item, adapter, budget):
-    from apps.api.historical_news import HistoricalResearch, public_queries
+    from apps.api.historical_news import HistoricalResearch, public_queries, derive_hypothesis
     from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
-    hypothesis = dict(start=2000, end=2000, place='Sydney, Australia', country='Australia', tentative=False)
+    hypothesis = derive_hypothesis(item['task']['research_context'], current_year=2026)
+    if hypothesis is None: raise LookupError('historical_context_unresolved')
     witnesses = dict(queries=[], source_reads=[], completed_source_reads=[], inspected_pages=[])
 
     class Boundary:

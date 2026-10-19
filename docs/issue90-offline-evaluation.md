@@ -19,6 +19,12 @@ python scripts/run_memoir_skill_evaluation.py --phase extract \
 # A report with unavailable quality/execution exits 1, honestly marked incomplete.
 python scripts/run_memoir_skill_evaluation.py --execute \
   --max-skill-calls 0 --max-judge-calls 0 --output-root /tmp/issue90-offline-run
+
+# Explicit synthetic application execution allocates a disposable PostgreSQL cluster.
+python scripts/run_memoir_skill_evaluation.py --execute --controlled-application \
+  --case memoir-story-game/publication/en-AU --output-root /tmp/issue90-game-run
+# Play additionally requires a task-owned loopback source frontend and Chromium.
+# Add --browser-url http://127.0.0.1:<allocated-port> for a selected play case.
 ```
 
 Repeat skill, phase, locale or case flags to select a subset. A contradictory or
@@ -33,8 +39,16 @@ Tests inject skill completions, independent judge completions, configured photo
 discovery/source reads, historical discovery/source reads, and composer model
 completions. Production packet builders, validators, photo source parsing,
 historical evidence checks and progressive composer orchestration still run.
-Composer checkpoint I/O is explicitly in memory; native application PostgreSQL
-checks cover admission and persistence separately. No fixture grants authority
+Composer checkpoint I/O is explicitly in memory. The optional application adapter
+uses real admission, source/event persistence, edition/consent/review/publication
+RPCs and independent SQL readbacks in its own subprocess and disposable cluster.
+It supports both locales for all eight game families plus interviewer grounded
+questions and exact-testimony events. Other canonical scenarios remain unavailable.
+Its external worker/model replies and Auth identity are controlled synthetic
+fixtures; counted fixture dispatches explicitly record `live_model_dispatch=false`.
+The adapter binds a separate receipt to exact task, output, source readbacks,
+dataset snapshot and run identity, and verifies cluster removal before accepting it.
+No fixture grants authority
 on a real account. Application behavior and configured model routes are unchanged.
 
 ## Identities, datasets and judges
@@ -87,8 +101,14 @@ identities. Hosted score readback checks named evaluator versions and exact
 trace/observation/input/output identities, not just counts.
 
 Contract, execution, positive delivery, quality and human calibration remain
-separate. Negative passes do not count as positive delivery. Offline results do
-not certify canonical delivery. Calibration development and holdout IDs are
+separate. Negative passes do not count as positive delivery. Verified disposable
+application results have `canonical_delivery=true` only within their declared
+synthetic phase; every result retains `live_delivery=false`. Browser play uses the
+real source frontend, local API routes and SQL, checks movement and original
+dialogue, reload/new-context recovery, and persisted consent revocation. Browser
+network access is restricted to the task-owned origin and fulfilled Auth fixture.
+These observations do not certify deployed or live model/browser acceptance.
+Calibration development and holdout IDs are
 disjoint and carry no invented human labels; all quality scores remain advisory.
 
 ## Issue acceptance matrix
@@ -103,14 +123,14 @@ coverage whose real application witness or semantic acceptance remains open.
 | 2–4: stable datasets, history, identity and snapshots | Offline: twelve definitions, stable IDs, content diffs, archive/retry/readback fixtures | Gate: native hosted snapshots and real conditional-write behavior |
 | 6–7: zero-call plans and bounded selection | Offline: full plan, repeated filters and cross-phase rejection | None for local planning |
 | 8–9: grounded interviewer and current intent | Offline: bilingual tasks and actual collector schema/validator | Gate: useful live questions and independent semantic judgments |
-| 10: exact event testimony | Offline: production extraction schema/validator, source bounds and independent gold minimums | Gate: semantic grounding/correction quality for all items |
+| 10: exact event testimony | Offline: actual wire schema before normalization, strict Unicode quote offsets, source versions and gold minimums; disposable exact-testimony source/event readback | Gate: semantic grounding/correction quality and canonical witnesses for remaining families |
 | 11–12: progressive composition and independent quality | Offline: all eight composer families; real orchestration, correction/withdrawal, retained passages, private output | Gate: live output, persisted canonical checkpoints, independent published judge quality |
 | 13–14: family identity/direction and unwired reporting | Offline: production marker validation, independent direction/count checks; canonical integration unavailable | Family runner remains unwired by design; isolated proposals never imply integration |
 | 15: manual profile values/blanks | Offline: actual profile packet/schema/validator, exact original spans, omission/gold checks | Gate: live model quality and persisted manual-lock readbacks |
 | 16–17: place extraction and deterministic grouping | Offline: actual place validation; eight grouping families in both locales, zero skill model dispatch | Gate: live place extraction semantics and visible label quality |
 | 18–19: configured photo discovery and honest metadata/rights | Offline: provider-independent leads, inspected HTML, actual capture/place/rights parsing and filtering | Partial: ranking requires PR88's production function; browser/persistence acceptance remains open |
-| 20–21: source-inspected history and privacy separation | Offline: actual historical discovery orchestration and source validation, coarse query allowlist | Gate: live provider/source readbacks and privacy review |
-| 22–23: game phases and permission boundaries | Partial: eight task families, actual proposal validator and exact original quote checks; absent authority/UI witnesses stay unavailable | Controlled authenticated phase adapters and real review/publication/play witnesses remain open; no real consent granted |
+| 20–21: source-inspected history and privacy separation | Offline: case-specific production hypothesis/minimization, all eight adversarial source fixtures in both locales, inspected-page validation and conflicting/unsupported/date/injection checks | Gate: live provider/source readbacks and privacy review |
+| 22–23: game phases and permission boundaries | Offline: all eight families through actual disposable application authority, generated candidate staging, exact review/publication readbacks, revoked/missing/stale/person-permission denials; real frontend play/recovery/revocation in both locales | Gate: authorized live provider and deployed browser acceptance; no real consent granted |
 | 24: equivalent bilingual facts | Offline: 160 paired items; both composer locales and all grouping/profile locale fixtures | Gate: native-speaker semantic review |
 | 25–27: twenty evaluators, composed rubrics and evidence citations | Offline: named definitions, draft policy/rubrics, pin gating, strict independent judgment handling | Gate: merged-main prompt publication, deployed evaluator/rule API verification and actual definitions |
 | 28–29: separate dimensions and gold exclusion | Offline: separate report columns/denominators, positive-case flags, model packets without gold/rubrics | Gate: full live output coverage |
@@ -121,7 +141,9 @@ coverage whose real application witness or semantic acceptance remains open.
 
 ## Validation and remaining gates
 
-The machine-readable evidence is [issue90-offline-checks.json](test-evidence/issue90-offline-checks.json).
+The original machine-readable evidence is [issue90-offline-checks.json](test-evidence/issue90-offline-checks.json).
+Follow-up review/native/browser evidence is in
+[issue90-offline-followup-checks.json](test-evidence/issue90-offline-followup-checks.json).
 Check counts overlap between runs and must not be added into a campaign count.
 Task checks used an external-socket denial guard, the repository's isolated-check
 environment allowlist, task-owned outputs, and disposable native PostgreSQL Unix
@@ -145,7 +167,7 @@ No executed test was skipped in the recorded focused checks.
 Live model/provider requests, all Langfuse writes, deployment, real consent,
 customer data, configured-database changes, merge and human calibration were
 excluded from this execution. Publication is blocked pending reviewed main and
-actual pins; the deployed evaluator/rule release is unverified. Game application
-witness adapters and browser acceptance remain incomplete. PR88 is external-owned
+actual pins; the deployed evaluator/rule release is unverified. Full live application
+and browser acceptance remain incomplete. PR88 is external-owned
 photo work and was neither edited nor duplicated. Its ranking API is an explicit
 dependency, reported unavailable on this main base rather than reimplemented.

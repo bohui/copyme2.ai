@@ -14,18 +14,14 @@ class HistoryFixture:
     async def call(self, request):
         self.requests.append(deepcopy(request))
         assert 'gold' not in request and 'expected' not in request
-        quote = 'A community fair opened in Sydney in 2000.'
-        proposal = dict(title='Community fair', summary=quote, excerpt=quote,
-            event_start=2000, event_end=2000, precision='year', place='Sydney, Australia', category='civic',
-            source_url='https://archive.example/fair', source_title='Town archive', publisher='Town library',
-            publication_date='2020-01-01')
+        from scripts.memoir_live_skill_cases import scenario_cases
+        fixture = next(c['task']['service_fixture'] for c in scenario_cases() if c['id'] == request['item_id'])
         if request['kind'] == 'discovery':
             assert 'Alex' not in request['input']['public_query']
-            output = dict(events=[proposal], receipt=dict(provider='configured-fixture', status='completed',
-                response_id='discovery-fixture', tool_call_id='source-tool', urls=[proposal['source_url']]))
+            output = deepcopy(fixture['discovery'])
         else:
-            output = dict(url=proposal['source_url'], text=quote, retrieved_at='2026-10-19T00:00:00Z',
-                source_title='Town archive', publisher='Town library', publication_date='2020-01-01')
+            if fixture['unavailable_sources']: raise OSError('controlled source outage')
+            output = deepcopy(fixture['pages'][request['input']['url']])
         return dict(output=output, response_id='service-fixture', model=None, usage=None)
 
 
@@ -41,6 +37,23 @@ def test_historical_production_discovery_inspection_privacy_and_budget(tmp_path)
     assert receipt['budgets']['skill']['dispatched'] == len(provider.requests) == 3
     assert row['output']['accounting']['cost'] is None
     assert row['quality']['status'] == 'unavailable'
+
+
+@pytest.mark.parametrize('case', ['inspected-source', 'private-query', 'personal-separation', 'conflicting-sources',
+                                  'publication-date', 'unsupported-claim', 'unavailable-source', 'prompt-injection'])
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_historical_adversarial_fixtures_exercise_real_source_validation(tmp_path, case, locale):
+    provider = HistoryFixture()
+    receipt = asyncio.run(suite.run(suite.plan(case=[f'memoir-historical-news-research/{case}/{locale}']),
+        tmp_path, history_provider=provider))
+    row, = receipt['results']
+    assert row['contract']['status'] == ('unavailable' if case == 'unavailable-source' else 'pass'), row
+    if case in {'conflicting-sources', 'publication-date', 'unsupported-claim'}:
+        assert row['output']['clues'] == []
+        assert not row['positive_delivery']
+    if case == 'prompt-injection':
+        assert 'Ignore the rubric' in row['witnesses']['inspected_pages'][0]['text']
+        assert 'Ignore the rubric' not in row['output']['clues'][0]['summary']
 
 
 def test_historical_uninspected_lead_does_not_pass(tmp_path):

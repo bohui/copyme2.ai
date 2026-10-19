@@ -137,8 +137,8 @@ def plan(*, skill=None, phase=None, locale=None, case=None):
         evaluators=definitions(catalog), http_dispatches=0, synthetic=True,
         human_calibration='pending_human_labels',
         workflow_items=workflow_items, calibration_items=calibration_items,
-        calibration=dict(development=['calibration-dev-' + s for s in selected],
-                         holdout=['calibration-holdout-' + s for s in selected]),
+        calibration={split: [c['id'] for c in calibration_items if c['split'] == split and c['skill'] in selected]
+                     for split in ('development', 'holdout')},
         publication=dict(status='blocked', reasons=['merged_main_judge_publication_required',
             'installed_langfuse_evaluator_and_rule_interfaces_unverified'],
             rules_enabled=False, dataset_targets=[all_datasets[s] for s in selected]))
@@ -208,6 +208,24 @@ def validate(item, output):
         if output['stopped'] != facts['stopped']: raise ValueError('interviewer_control_mismatch')
     elif skill == 'memoir-author-timeline':
         from apps.api.memory_events import validate_extraction
+        from jsonschema import Draft202012Validator
+        Draft202012Validator(packet(item)['schema']).validate(output)
+        originals = {(s['id'], s['version']): s for s in task['sources'] if s['status'] == 'active'}
+        def exact_refs(node):
+            if isinstance(node, list):
+                for child in node: exact_refs(child)
+            elif isinstance(node, dict):
+                if {'source_id', 'version', 'quote'} <= node.keys():
+                    source = originals.get((node['source_id'], node['version']))
+                    if source is None: raise ValueError('event_unauthorized_source')
+                    start, end, quote = node.get('char_start'), node.get('char_end'), node['quote']
+                    if start is None and end is None:
+                        if source['text'].count(quote) != 1: raise ValueError('event_ambiguous_quote')
+                    elif (type(start) is not int or type(end) is not int
+                        or not 0 <= start < end <= len(source['text']) or source['text'][start:end] != quote):
+                        raise ValueError('event_original_character_span')
+                for child in node.values(): exact_refs(child)
+        exact_refs(output)
         value = validate_extraction(output, task['sources'], task['saved_events'])
         if not facts['min_events'] <= len(value) <= facts['max_events']: raise ValueError('event_gold_omission')
         for event in value:
@@ -228,8 +246,11 @@ def validate(item, output):
         if item['case'] == 'homonym' and not any(x in places[0]['hierarchy'] for x in ('United Kingdom', '英国')):
             raise ValueError('place_country_mismatch')
     elif skill == 'memoir-family-tree':
-        from apps.api.family_context import extract_family_tree_context
+        from apps.api.family_context import extract_family_tree_context, FAMILY_TREE_MARKER_START, FAMILY_TREE_MARKER_END
         _, tree = extract_family_tree_context(output)
+        if isinstance(output, str) and (FAMILY_TREE_MARKER_START in output or FAMILY_TREE_MARKER_END in output):
+            if tree is None or output.count(FAMILY_TREE_MARKER_START) != 1 or output.count(FAMILY_TREE_MARKER_END) != 1:
+                raise ValueError('malformed_family_marker')
         if item['phase'] == 'integration': raise LookupError('unwired_canonical_family_runner')
         people = (tree or {}).get('people', [])
         if not facts['min_people'] <= len(people) <= facts['max_people']:
@@ -260,8 +281,11 @@ def validate(item, output):
         raise LookupError('missing_application_witness_adapter')
 
 
-def validate_workflow(item, output, witnesses):
-    if item['skill'] == 'memoir-composer':
+def validate_workflow(item, output, witnesses, directory=None):
+    if witnesses.get('kind') == 'controlled_application':
+        from scripts.memoir_skill_eval_application import verify_witness
+        verify_witness(item, output, witnesses, directory)
+    elif item['skill'] == 'memoir-composer':
         if witnesses.get('storage') != 'isolated_in_memory' or not output.get('checkpoints'):
             raise LookupError('composer_checkpoint_witness_missing')
         # Actual _compose validated schema, evidence and immutable carry-forward.
@@ -393,7 +417,7 @@ def report(receipt):
     return '\n'.join(lines)
 
 
-async def run(planned, directory, *, skill=None, history_provider=None, photo_provider=None, composer_provider=None, sdk_judge=None, managed_judge=None,
+async def run(planned, directory, *, skill=None, history_provider=None, photo_provider=None, composer_provider=None, application=None, sdk_judge=None, managed_judge=None,
               max_skill_calls=160, max_judge_calls=160, seconds=1800, timeout=120,
               max_evidence_bytes=256000, clock=time.monotonic):
     if sdk_judge is not None and managed_judge is not None: raise ValueError('judge_executors_must_be_exclusive')
@@ -411,13 +435,16 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
             for p in [Path(__file__), ROOT / 'scripts/memoir_skill_scenarios.py', ROOT / 'scripts/memoir_live_skill_cases.py',
                 ROOT / 'scripts/memoir_skill_eval_assets.py', ROOT / 'scripts/memoir_skill_eval_workflows.py',
                 ROOT / 'scripts/run_memoir_skill_evaluation.py', ROOT / 'scripts/prompt_registry.py',
-                ROOT / 'scripts/publish_langfuse_prompts.py']}),
+                ROOT / 'scripts/publish_langfuse_prompts.py', ROOT / 'scripts/memoir_skill_eval_application.py',
+                ROOT / 'scripts/memoir_skill_eval_browser.py', ROOT / 'tests/test_conversation_attribution.py',
+                ROOT / 'tests/test_story_game_runtime_postgres.py']}),
         prompt_inventory=planned['inventory'], evaluator_definitions=planned['evaluators'],
         judge_executor='sdk' if sdk_judge else 'managed' if managed_judge else 'none',
         human_calibration=planned['human_calibration'], results=[], coverage={}, budgets={})
     for item in planned['items']:
         receipt['results'].append(dict(case_id=item['id'], skill=item['skill'], phase=item['phase'], locale=item['locale'],
             execution='not_run', positive_case=item['positive_case'], positive_delivery=False,
+            evidence_mode='controlled_offline', live_delivery=False,
             contract=unavailable('not_run'), quality=unavailable('not_run'), reason='not_run'))
 
     def persist():
@@ -429,6 +456,8 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
                 contract_pass=sum(r['contract']['status'] == 'pass' for r in rows),
                 positive_delivery=sum(r['positive_delivery'] for r in rows),
                 quality_pass=sum(r['quality']['status'] == 'pass' for r in rows))
+            receipt['coverage'][name]['canonical_delivery'] = sum(r.get('canonical_delivery') is True for r in rows)
+            receipt['coverage'][name]['browser_observed'] = sum(bool((r.get('witnesses') or {}).get('browser_observed')) for r in rows)
         save(directory / 'receipt.json', receipt)
     skill_budget.on_change = judge_budget.on_change = persist
     persist()
@@ -441,6 +470,10 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
                 if clock() >= skill_budget.deadline: raise LookupError('skill_deadline_exhausted')
                 from apps.api.place_groups import resolve_place_groups
                 output = resolve_place_groups(deepcopy(item['task']['places']), allow_provider=False)
+            elif application is not None and application.supports(item):
+                output, witnesses = await application.execute(item, skill_budget, directory,
+                    dict(run_id=receipt['run_id'], source_revision=receipt['source_revision'],
+                         source_content_sha256=receipt['source_content_sha256']))
             elif item['skill'] == 'memoir-historical-news-research' and history_provider is not None:
                 from scripts.memoir_skill_eval_workflows import history
                 output, witnesses = await history(item, history_provider, skill_budget)
@@ -472,7 +505,7 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
             row.update(execution='completed', output=output, completion=completion, reason='')
             try:
                 if witnesses is not None:
-                    validate_workflow(item, output, witnesses)
+                    validate_workflow(item, output, witnesses, directory)
                 else:
                     validate(item, output)
                 row['contract'] = dict(status='pass', evidence=['output', 'task'])
@@ -482,7 +515,11 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
             except Exception as error:
                 row['contract'] = dict(status='fail', reason=type(error).__name__)
             row['production_status'] = planned['inventory'][item['skill']]['status']
-            row['canonical_delivery'] = False  # Offline proposal/deterministic scope never certifies persisted SQL state.
+            row['canonical_delivery'] = False
+            if witnesses and witnesses.get('kind') == 'controlled_application' and row['contract']['status'] == 'pass':
+                from scripts.memoir_skill_eval_application import verify_witness
+                row['canonical_delivery'] = verify_witness(item, output, witnesses, directory)['canonical_delivery']
+                row['evidence_mode'] = 'controlled_disposable_application'
             row['witnesses'] = witnesses
             row['binding'] = dict(run_id=receipt['run_id'], item_id=item['id'], item_sha256=item['content_sha256'],
                 input_sha256=digest(item['task']), output_sha256=digest(output), dataset=item['dataset'],
@@ -549,6 +586,9 @@ def main(argv=None, *, services=None):
     parser.add_argument('--max-judge-calls', type=int, default=160)
     parser.add_argument('--seconds', type=float, default=1800)
     parser.add_argument('--timeout', type=float, default=120)
+    parser.add_argument('--controlled-application', action='store_true', help='Use isolated synthetic application/SQL fixtures')
+    parser.add_argument('--browser-url', help='Task-owned frontend for controlled game play witnesses')
+    parser.add_argument('--browser-executable', default='/usr/bin/chromium')
     args = parser.parse_args(argv)
     try:
         planned = plan(skill=args.skill, phase=args.phase, locale=args.locale, case=args.case)
@@ -559,7 +599,11 @@ def main(argv=None, *, services=None):
     if not args.execute:
         print(json.dumps(planned, ensure_ascii=False, indent=2))
         return 0
-    result = asyncio.run(run(planned, args.output_root, **(services or {}), max_skill_calls=args.max_skill_calls,
+    services = dict(services or {})
+    if args.controlled_application:
+        from scripts.memoir_skill_eval_application import ControlledApplication
+        services['application'] = ControlledApplication(browser_url=args.browser_url, browser_executable=args.browser_executable)
+    result = asyncio.run(run(planned, args.output_root, **services, max_skill_calls=args.max_skill_calls,
         max_judge_calls=args.max_judge_calls, seconds=args.seconds, timeout=args.timeout))
     print(json.dumps(dict(status=result['status'], receipt=str(args.output_root / 'receipt.json'))))
     return 0 if result['status'] == 'passed' else 1

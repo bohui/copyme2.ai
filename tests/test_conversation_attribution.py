@@ -22,7 +22,8 @@ from test_shared_memory_events_postgres import literal, rpc, sql
 
 
 class Conversation:
-    def __init__(self, sql, tmp_path, monkeypatch, extract, *, work='extract', name=None, family=True, strategy=None):
+    def __init__(self, sql, tmp_path, monkeypatch, extract, *, work='extract', name=None, family=True, strategy=None,
+                 external_boundary=None):
         self.sql, self.extract, self.project = sql, extract, None
         self.admissions = []
         self.fail_immediate = False
@@ -73,7 +74,9 @@ class Conversation:
                     output = wire(question=None if pause else 'What happened next?',used_strategy=strategy,
                         selection_reason='pause' if pause else 'latest_story',stopped=bool(pause),work={'mode':work,'name':name})
             return worker_response(request, output)
-        transport = httpx.MockTransport(provider)
+        async def bounded_provider(request):
+            return await external_boundary(request, provider) if external_boundary else await provider(request)
+        transport = httpx.MockTransport(bounded_provider)
         monkeypatch.setattr(agent_routes, 'runtime', CodexRuntime(home_root=tmp_path,
             worker_url='http://controlled.invalid', worker_secret='synthetic', worker_transport=transport))
         def worker_sql(query, **options):
