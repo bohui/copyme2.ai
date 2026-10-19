@@ -195,4 +195,10 @@ for (const parent of packet.containing_places) {
   assert.equal(items[0].date_expression,'1983-10-01');
   assert.match(photos.pictureWall(items,parent),new RegExp(`${parent.place.toLowerCase()}\\.jpg`));
 }
+for (const city of packet.rejected_city_places) {
+  state.project.profile.memory_places=[city];state.placeJourney=city;
+  await context.loadPlacePictures(city,projectId);
+  const items=photos.workspacePictureItems(state.project.profile.memory_places[0]);
+  assert.deepEqual(items,[],`${city.place} must not display the conflicting Sydney photograph`);
+}
 console.log('Place regression replay passed: delayed extraction, two searches, localized buttons, selection and restore.');

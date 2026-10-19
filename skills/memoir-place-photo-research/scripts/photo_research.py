@@ -532,6 +532,14 @@ _CITY_ALIASES = (
     ('Nanjing', '南京'), ('Hangzhou', '杭州'), ('Chongqing', '重庆'),
 )
 
+# Reviewed broad labels for caption-only containment. Other requested places
+# need source-typed geography; absence from the city veto list proves no scope.
+_PARENT_PLACE_NAMES = frozenset({
+    'china', '中国', '中华人民共和国',
+    'australia', '澳大利亚', '澳洲',
+    'hebei', '河北', '河北省',
+})
+
 
 def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches) -> bool:
     """Veto conflicting photo locations and named cities, including in captions."""
@@ -540,6 +548,23 @@ def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches
                 if isinstance(item, dict)}
     explicit = [metadata.get('geo.placename'), metadata.get('place:location:name')]
     titles = [page.get('title', ''), metadata.get('og:title', '')]
+    parent_labels = []
+
+    def collect_parent_labels(location, depth=0):
+        if depth > 5 or not isinstance(location, dict):
+            return
+        types = location.get('@type', [])
+        types = [types] if isinstance(types, str) else types
+        # AdministrativeArea alone is ambiguous: it may describe a city.
+        if isinstance(types, list) and any(kind in {'Country', 'State'}
+                                          for kind in types if isinstance(kind, str)):
+            if isinstance(location.get('name'), str):
+                parent_labels.append(location['name'])
+        for address in (location, location.get('address')):
+            if isinstance(address, dict):
+                for key in ('addressRegion', 'addressCountry'):
+                    parent_labels.append(_crawl4ai_photo_location({'contentLocation': address.get(key)}))
+        collect_parent_labels(location.get('containedInPlace'), depth + 1)
 
     def visit(node, depth=0):
         if depth > 5:
@@ -557,6 +582,7 @@ def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches
                    for value in types if isinstance(value, str)):
                 titles.extend((node.get('name', ''),node.get('caption', '')))
                 explicit.append(_crawl4ai_photo_location(node))
+                collect_parent_labels(node.get('contentLocation') or node.get('spatialCoverage'))
             if '@graph' in node:
                 visit(node['@graph'], depth + 1)
     visit(page.get('json_ld', []))
@@ -571,13 +597,24 @@ def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches
         return False
 
     containment_claims = [claim for claim in explicit if isinstance(claim,str) and claim.strip()] or titles
+    target = _crawl4ai_place_groups(place)
+    parent_scope = ((bool(target) and any(term.casefold() in _PARENT_PLACE_NAMES for term in target[0]))
+                    or any(_crawl4ai_location_matches(label, place) for label in parent_labels if label))
+    explicit_cities = [aliases for aliases in _CITY_ALIASES
+                       if any(isinstance(claim, str) and named_city_in(claim, aliases) for claim in explicit)]
 
     def city_is_supported(aliases):
         if named_city_in(place, aliases):
             return True
-        # A city search still rejects other cities; broader searches need an item-level parent claim.
-        if any(named_city_in(place, city) for city in _CITY_ALIASES):
+        # A caption cannot promote an unknown city query into a parent search.
+        if not parent_scope or any(named_city_in(place, city) for city in _CITY_ALIASES):
             return False
+        # Parent-only item geography confirms the requested scope without
+        # needing to repeat the caption's child city. A different explicit city
+        # must still veto that caption, even when both mention the same parent.
+        if not explicit_cities and any(isinstance(claim, str) and claim.strip()
+                                       and location_matches(claim, place) for claim in explicit):
+            return True
         for claim in containment_claims:
             if not isinstance(claim, str):
                 continue

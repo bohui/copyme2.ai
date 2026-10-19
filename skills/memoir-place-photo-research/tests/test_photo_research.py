@@ -453,6 +453,19 @@ class WorkflowTests(unittest.TestCase):
             ('Chengde','Beijing street','',{'name':'Chengde','address':{'addressLocality':'Beijing','addressCountry':'China'}},False),
             ('Perth','Sydney street in Perth','','Perth, Scotland',False),
             ('China','Beijing street in China','','Chengde, Hebei, China',False),
+            ('Perth','Sydney city centre in Perth','','',False),
+            ('Hobart','Sydney city centre in Hobart','','',False),
+            ('Canberra','Sydney city centre in Canberra','','',False),
+            ('Oxford','Sydney waterfront, Oxford','','',False),
+            ('Perth','Sydney street','',{'@type':'City','name':'Perth'},False),
+            ('Perth','Sydney street','',{'@type':'AdministrativeArea','name':'Perth'},False),
+            ('China','Beijing street','',{'@type':'Country','name':'China'},True),
+            ('Hebei','Chengde street','',{'@type':'AdministrativeArea','name':'Hebei'},True),
+            ('Australia','Sydney street','',{'@type':'Country','name':'Australia'},True),
+            ('Canada','Sydney waterfront','',{'@type':'Country','name':'Canada'},True),
+            ('New South Wales','Sydney street','',{'@type':'State','name':'New South Wales'},True),
+            ('Nova Scotia','Sydney waterfront','',{'name':'Sydney','address':{'addressRegion':'Nova Scotia','addressCountry':'Canada'}},True),
+            ('China','Beijing street','',{'@type':'Country','name':'Australia'},False),
         ]
         for place,name,caption,location,accepted in cases:
             with self.subTest(place=place,name=name,caption=caption,location=location):
