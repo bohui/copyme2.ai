@@ -51,6 +51,42 @@ def test_lane_b_confirmation_preempts_the_next_question_and_is_consumed_once(sql
         assert queue() == []
 
 
+@pytest.mark.parametrize('text,reason,question', [
+    ('Actually, it was Perth, not Hobart.', 'current_correction', 'What do you remember about Perth?'),
+    ("I'd prefer to tell you about my sister.", 'user_redirect', 'What would you like to remember about your sister?'),
+])
+def test_model_recognized_control_overrides_a_saved_lane_b_confirmation(sql,tmp_path,monkeypatch,text,reason,question):
+    import json
+    from test_background_profile_workflow import worker_response
+    from test_interview_strategy import wire
+    from test_shared_memory_events_postgres import rpc, literal
+    original = 'I grew up in Hobart and walked by the river.'
+    confirmation = {'question': 'Did you mean Hobart in Tasmania?', 'topic': 'Hobart',
+                    'quote': 'Hobart', 'requires_confirmation': True}
+    def extract(packet):
+        return {**empty(packet), 'prepared_questions': [confirmation] if packet['sources'][0]['text'] == original else []}
+    async def boundary(request, provider):
+        body = json.loads(request.content)
+        if not body.get('bounded_lane') and body['interview_context']['source']['text'] == text:
+            return worker_response(request, wire(question=question, selection_reason=reason))
+        return await provider(request)
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract,strategy='explore',external_boundary=boundary)
+    with conversation.client:
+        conversation.say(original)
+        conversation.drain()
+        identity = rpc(sql, 'resolve_lifetime_conversation', literal(conversation.project))
+        queue = lambda: rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
+        pending = queue()
+        assert pending[0]['question'] == confirmation['question']
+        response = conversation.say(text)
+        assert response['reply'].endswith(question)
+        assert confirmation['question'] not in response['reply']
+        assert queue()[0]['id'] == pending[0]['id'], 'The old question was not delivered or consumed'
+        outcome = json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o order by source_sequence desc limit 1;').stdout)
+        assert outcome['selection_reason'] == reason
+        assert outcome['question_delivered'] == question and outcome['selected_candidate_id'] is None
+
+
 def test_readiness_reports_saved_skill_with_actual_turn_and_source_coverage(sql,tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     conversation = Conversation(sql,tmp_path,monkeypatch,

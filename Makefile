@@ -211,6 +211,7 @@ test-place-research: test-web ## Replay the two-place interview through the API,
 		tests/test_two_lane_memory.py::test_confirmations_rank_first_and_survive_the_ordinary_hint_expiry \
 		tests/test_two_lane_memory.py::test_confirmation_from_an_earlier_source_window_stays_queued \
 		tests/test_background_skill_workflow.py::test_lane_b_confirmation_preempts_the_next_question_and_is_consumed_once \
+		tests/test_background_skill_workflow.py::test_model_recognized_control_overrides_a_saved_lane_b_confirmation \
 		tests/test_background_skill_workflow.py::test_restored_chengde_period_drives_both_photo_and_news_research \
 		tests/test_database_baseline.py::test_one_fresh_baseline_has_no_upgrade_or_backfill_statements
 	@python3 -m unittest discover -s skills/memoir-place-photo-research/tests

@@ -101,6 +101,8 @@ def prioritize_confirmation(value, context):
     if not question or value.get('stopped') or (context.get('strategy_selector') and value.get('question') is None):
         return value
     if context.get('strategy_selector'):
+        if value.get('selection_reason') in {'current_correction', 'user_redirect', 'pacing', 'pause', 'direct_answer'}:
+            return value
         return {**value, 'question': question['question'], 'selected_candidate_id': question['id'],
                 'selection_reason': 'prepared_candidate'}
     return {**value, 'plan': {**value['plan'], 'chosen_id': question['id'], 'active_event_id': None,

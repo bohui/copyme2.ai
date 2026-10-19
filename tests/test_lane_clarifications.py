@@ -64,3 +64,30 @@ def test_a_current_correction_still_takes_priority_over_a_pending_confirmation()
     context['prepared_questions'] = [CONFIRMATION]
     result = validate_governed_collector_result(wire(selection_reason='current_correction'), context)
     assert result['plan']['chosen_id'] != CONFIRMATION['id']
+
+
+@pytest.mark.parametrize('text,reason,question', [
+    ('Actually, it was Perth, not Hobart.', 'current_correction', 'What do you remember about Perth?'),
+    ("I'd prefer to tell you about my sister.", 'user_redirect', 'What would you like to remember about your sister?'),
+    ('Could you make the next question easier?', 'pacing', 'Which part feels easiest to begin with?'),
+])
+def test_model_recognized_controls_outrank_confirmation_without_literal_keyword(text, reason, question):
+    from apps.api.interview_strategy import current_constraints
+    context = strategy_context(text=text)
+    confirmation = {**CONFIRMATION, 'question': 'Did you mean Hobart in Tasmania?', 'topic': 'Hobart'}
+    context.update(two_lane_memory=True, prepared_questions=[confirmation])
+    assert current_constraints(text) == {}, 'Exercise semantic intent beyond the literal fallback'
+    result = validate_governed_collector_result(wire(question=question, selection_reason=reason), context)
+    assert result['reply'].endswith(question)
+    assert result['strategy_outcome']['selection_reason'] == reason
+    assert result['strategy_outcome']['selected_candidate_id'] is None
+    assert result['plan']['chosen_id'] != confirmation['id']
+    assert context['prepared_questions'] == [confirmation]
+
+
+def test_model_recognized_control_still_validates_the_proposed_candidate():
+    context = strategy_context(text='Actually, it was Perth, not Hobart.')
+    context['prepared_questions'] = [CONFIRMATION]
+    with pytest.raises(ValueError, match='Candidate is stale, asked or outside this project'):
+        validate_governed_collector_result(wire(selection_reason='current_correction',
+            selected_candidate_id='cross-project'), context)
