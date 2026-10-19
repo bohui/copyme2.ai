@@ -51,13 +51,21 @@ zero generation dispatches.
 The full native regression executes all 12 sequences: 80 completed application
 rows and 76 mocked worker dispatches, including four saved replays with no
 dispatch. It observes real SQL persistence, stream publication and fresh-runtime
-context recovery. Eight rows in the existing language-switch scenarios fail
-the deterministic gate: the current language parser does not apply the natural
-language override forms in those scripts. Their failed gates remain visible;
-test success means the limitation is detected, not that those contracts passed.
-Worker outputs are synthetic fixtures, so none of these results establish model
+context recovery. PR95 originally retained eight language-switch failures. The
+continuation from main `8b8b494e087a00641fb56094a4b5dc638cc6878d` extends the
+existing leading-command parser for English "from now on" and Chinese temporal
+prefixes, clearing those failures without changing narration or model settings.
+All 80 deterministic matrix rows now pass. Worker outputs remain synthetic
+fixtures, so none of these results establish model
 quality. Background extraction/composition is not drained; source durability
 does not establish semantic extraction or derived-artifact quality.
+
+New real backend HTTP/NDJSON regressions verify that a command changes the later
+reply language, survives a fresh runtime with stale UI language, and preserves
+source IDs, original text/version, the saved name and previous replies. Quoted
+commands leave the established language unchanged. Prompt bytes, routing,
+reasoning settings and the running app are unchanged. Evidence is recorded in
+`docs/test-evidence/issue53-language-gate-20261020.json`.
 
 Rollback requires an explicit test-only `controlled_rollback=True` plan option.
 Inside the credential-stripped process and mock transport, the candidate uses
@@ -148,13 +156,21 @@ The locale selector is test-only; the default
 still exercises the full bilingual manifest. Timeouts bound test execution and
 are not response-latency acceptance targets.
 
-The independent review of `71dbb93` confirmed 86 focused checks, eight fault
+The initial independent review of `71dbb93` confirmed 86 focused checks, eight fault
 checks and a 24-row native subset (20 mock calls, four replay rows and four
 rollback rows). Its combined 102-check run timed out after 600 seconds; that
-review did **not** independently confirm the complete eight-check/80-row matrix.
-Earlier full-matrix results in this document are owner executions. The new
-follow-up evidence records separately generated locale cohorts against the
-saved-plan fix and identifies each check's source hashes and review limits.
+run did **not** confirm the complete eight-check/80-row matrix. The reviewer
+subsequently completed both 40-row cohorts at `7892c9c`, plus 24 saved-plan,
+86 focused and eight fault checks, with cleanup verified. The earlier incomplete
+review status is superseded. Historical owner and reviewer evidence remain
+separately identified. The language-gate continuation also has independent
+re-import of both current-source cohorts with real receipt verification.
+
+Two existing HTTP replay tests expect `trace.question_pool`, which is absent on
+unchanged main `8b8b494`; they fail with the same `KeyError` before and after the
+language fix. The continuation records these baseline failures instead of
+changing their assertions or the unrelated trace contract. Unemitted timing
+milestones remain unknown, including structured validated-question observations.
 
 The adapter admits only mocked worker transports, strips service credentials,
 blocks external sockets, and allocates/removes its own native PostgreSQL
@@ -276,8 +292,8 @@ or authorization to run. Background extraction/research/composition fanout needs
 its own inspected and approved bound before any live execution; it is not
 silently funded by the foreground allowance.
 
-Before release consideration: resolve the detected language-switch baseline
-failures; verify actual provider policy and complete route/prompt/configuration
+Before release consideration: resolve the separately reproduced baseline trace
+regressions and missing milestone observations; verify actual provider policy and complete route/prompt/configuration
 provenance; exercise the full bilingual manifest against real model outputs,
 including rollback, failed-save/stop/ownership and derived testimony handling;
 perform the blinded comparisons through the existing evaluator; obtain disjoint

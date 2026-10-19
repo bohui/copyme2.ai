@@ -78,9 +78,9 @@ def explicit_profile(profile, locale):
 def explicit_request(text):
     # Only a language-only leading sentence is a directive, never a recollection/quote.
     text = re.split(r'[.。!！]\s*', text.strip(), maxsplit=1)[0].strip()
-    if re.fullmatch(r'(?:please\s+)?(?:reply|respond|speak|continue)(?:\s+to me)?\s+in\s+(English|Chinese)(?:\s+please)?', text, re.I):
+    if re.fullmatch(r'(?:please\s+)?(?:reply|respond|speak|continue)(?:\s+to me)?\s+in\s+(English|Chinese)(?:\s+from\s+now\s+on)?(?:\s+please)?', text, re.I):
         return 'zh-CN' if 'chinese' in text.lower() else 'en-AU'
-    match = re.fullmatch(r'(?:请(?:接下来|以后)?|以后请|以后)?(?:用|使用)(中文|汉语|英语|英文)(?:(?:回复|回答|交流|继续)(?:我)?)?', text)
+    match = re.fullmatch(r'(?:请(?:接下来|以后)?|(?:接下来|以后)请?)?(?:用|使用)(中文|汉语|英语|英文)(?:(?:回复|回答|交流|继续)(?:我)?)?', text)
     return ('zh-CN' if match[1] in {'中文','汉语'} else 'en-AU') if match else None
 
 

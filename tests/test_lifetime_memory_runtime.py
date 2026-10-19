@@ -15,6 +15,63 @@ from test_name_only_opening import proposal
 from controlled_collector import worker_reply
 
 
+@pytest.mark.parametrize('initial,text,expected',[
+    ('en-AU','Please reply in Chinese from now on. 我想聊上学的事。','zh-CN'),
+    ('zh-CN','接下来请用英语回答。I want to talk about school.','en-AU'),
+    ('en-AU','"Please reply in Chinese from now on." My mother said that in class.','en-AU'),
+    ('zh-CN','“接下来请用英语回答。”那是老师说的，我想聊上学的事。','zh-CN'),
+])
+def test_streamed_language_directive_preserves_source_and_cold_continuation(sql,tmp_path,monkeypatch,initial,text,expected):
+    from apps.api.main import create_app
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
+    storage=PostgresRest(sql,OWNER).storage()
+    storage.save_profile({'preferred_language':initial})
+    storage.client.close()
+    name='Joan' if initial=='en-AU' else '韩凤江'
+    originals=['My name is Joan' if initial=='en-AU' else '我叫韩凤江',text,
+               'My sister and I walked together.' if expected=='en-AU' else '我和姐姐一起走路上学。']
+    languages=[]
+    def provider(request):
+        body=json.loads(request.content);packet=json.loads(body['governed']['packet'])
+        index=len(languages);locale=initial if index==0 else expected
+        assert body['interview_context']['interview_language']==packet['pinned']['language']==locale
+        assert packet['current']['narrator']['original']==originals[index]
+        assert [s['narrator']['original'] for s in packet['tail']]==originals[:index]
+        if index:assert packet['pinned']['chosen_name']==name
+        languages.append(locale)
+        output=proposal(mode='reply_only' if index==0 else 'extract',name=name if index==0 else None,
+            question='What do you remember about school?' if locale=='en-AU' else '您还记得上学时的什么事？')
+        output['acknowledgement']=('You said: ' if locale=='en-AU' else '您说：')+originals[index]
+        return worker_reply(request,{'reply':json.dumps(output,ensure_ascii=False),'thread_id':'language-fixture','artifacts':[]})
+    def new_runtime():
+        return CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',
+            worker_secret='synthetic',worker_transport=httpx.MockTransport(provider))
+    monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
+    monkeypatch.setattr(agent_routes,'runtime',new_runtime())
+    project=None;source_ids=[];replies=[]
+    with TestClient(create_app(MemoryStore())) as client:
+        for index,message in enumerate(originals):
+            if index==2:monkeypatch.setattr(agent_routes,'runtime',new_runtime())
+            response=client.post('/v1/agent/turn',headers={'Accept':'application/x-ndjson'},json={
+                'project_id':project,'client_turn_id':str(uuid4()),'text':message,'language':initial})
+            assert response.status_code==200,response.text
+            events=[json.loads(line) for line in response.text.splitlines()]
+            assert not any(e['type']=='error' for e in events),events
+            result=next(e['data'] for e in events if e['type']=='result')
+            assert result['conversation_saved'] and any(e['type']=='text_delta' for e in events)
+            assert any(e['type']=='conversation_saved' for e in events)
+            project=result['project_id'];source_ids.append(result['accepted_source_id']);replies.append(result['reply'])
+    assert languages==[initial,expected,expected]
+    saved_sources=json.loads(sql('select json_agg(s order by sequence) from public.user_narrator_source s;').stdout)
+    assert [s['text'] for s in saved_sources]==originals
+    assert [s['id'] for s in saved_sources]==source_ids and all(s['version']==1 for s in saved_sources)
+    saved_replies=json.loads(sql("select json_agg(collector->>'reply' order by sequence) from public.user_interview_turn;").stdout)
+    assert saved_replies==replies
+    profile=json.loads(sql('select profile from public.user_profile;').stdout)
+    assert profile['preferred_language']==expected
+
+
 @pytest.mark.parametrize('streaming',[True,False])
 def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tmp_path,monkeypatch,streaming):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')

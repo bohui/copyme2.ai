@@ -1,0 +1,581 @@
+{
+  "scope": "Issue53 continuation: clear deterministic bilingual language-switch gate before latency tuning",
+  "client_date": "2026-10-20",
+  "client_timezone": "Australia/Sydney",
+  "base_main": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+  "merged_pr95": "033b5745afd936c3b401ae536e90b77cdd489574",
+  "files_sha256": {
+    "apps/api/conversation_locale.py": "00e0ad8fb1b894e70978d47b0abedbf7e3a1753f5a0bd60f1a31896895aea8a3",
+    "tests/test_conversation_locale_directives.py": "4041e782eb056f36bcff8140e558df32e5072ec64429bd5e212d6d729ed80fb7",
+    "tests/test_lifetime_memory_runtime.py": "2e88809244d77969e39cef1fc52a7dbc8215c00081e67a784cb6294048946f66",
+    "tests/test_issue53_offline_coverage.py": "80ae3526545b5ccd868d03c5786215907d74735ca16e73a8025f968d48e5b9a0",
+    "docs/issue53-response-sequences.md": "186d10c40ce1c6e871bcc4951af5e79438daa94474d9b438c042304c4f5db7f0"
+  },
+  "checks": [
+    {
+      "name": "language-red",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-language-evidence/pytest-red",
+        "tests/test_conversation_locale_directives.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "-k",
+        "leading_language_command or quotes_recollections or streamed_language_directive"
+      ],
+      "base_head": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+      "exit_code": 1,
+      "summary": "7 failed, 16 passed, 25 deselected in 4.82s",
+      "duration_seconds": 5.22,
+      "cleanup_verified": true,
+      "log_path": "/tmp/issue53-language-evidence/language-red.log",
+      "log_sha256": "91b2a2f517a853925476d0ff4150610df9706f3887ede7dc4c603481959519e5",
+      "supervisor_sha256": "48be7c324c01bad53a3ce3ffde76304b03b3dfd2aeed6d82930468c46f7b7e7d"
+    },
+    {
+      "name": "language-green",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-language-evidence/pytest-green",
+        "tests/test_conversation_locale_directives.py",
+        "tests/test_lifetime_memory_runtime.py"
+      ],
+      "base_head": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+      "exit_code": 1,
+      "summary": "2 failed, 46 passed in 22.40s",
+      "duration_seconds": 22.88,
+      "cleanup_verified": true,
+      "log_path": "/tmp/issue53-language-evidence/language-green.log",
+      "log_sha256": "7ec9bb131746c64701fdd6947f25f6fa23530edd34905eb9f958b527af5b7264",
+      "supervisor_sha256": "e22d89dacf2ff8103d72d17d35e21d2f3971519cedb64d17700c18fa26c1bb80"
+    },
+    {
+      "name": "baseline-trace",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-language-evidence/pytest-baseline-trace",
+        "tests/test_lifetime_memory_runtime.py",
+        "-k",
+        "real_governed_http_save_cold"
+      ],
+      "base_head": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+      "exit_code": 1,
+      "summary": "2 failed, 23 deselected in 2.47s",
+      "duration_seconds": 2.89,
+      "cleanup_verified": true,
+      "log_path": "/tmp/issue53-language-evidence/baseline-trace.log",
+      "log_sha256": "6f48ca2778c9299c194224a5cb695c9144dc6748b8b6b4aed50f6d157497a197",
+      "supervisor_sha256": "3436a0966eafd0a51a585cad6b4b3be6975859a003aae457651975abe083f5ba"
+    },
+    {
+      "name": "focused-final",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-language-evidence/pytest-focused",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_issue53_saved_plan.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "base_head": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+      "exit_code": 0,
+      "summary": "110 passed in 80.72s (0:01:20)",
+      "duration_seconds": 81.2,
+      "cleanup_verified": true,
+      "log_path": "/tmp/issue53-language-evidence/focused-final.log",
+      "log_sha256": "ce592f52446958192d1296e63d462c2e6920900360a0f9e80553cf0e4170f0d7",
+      "supervisor_sha256": "7f870b10168ff48c73ea41ba0d355db827920fa26f9b78c46e8e1b48a8196f72"
+    },
+    {
+      "name": "matrix-en-AU",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=en-AU",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-language-evidence/pytest-matrix-en-AU",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+      "exit_code": 0,
+      "summary": "8 passed, 8 deselected in 98.98s (0:01:38)",
+      "duration_seconds": 99.44,
+      "cleanup_verified": true,
+      "log_path": "/tmp/issue53-language-evidence/matrix-en-AU.log",
+      "log_sha256": "06e43784c138c40e50793e05d78ee69213a4b7e16720bf44ecca290257f70d4f",
+      "supervisor_sha256": "3e9951523b265f114f2f3435c82b1d741b40fd383d538eec7f066a043086a8ea"
+    },
+    {
+      "name": "matrix-zh-CN",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=zh-CN",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-language-evidence/pytest-matrix-zh-CN",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+      "exit_code": 0,
+      "summary": "8 passed, 8 deselected in 99.17s (0:01:39)",
+      "duration_seconds": 99.69,
+      "cleanup_verified": true,
+      "log_path": "/tmp/issue53-language-evidence/matrix-zh-CN.log",
+      "log_sha256": "c4d8868f45c0f4d2fe4fa08c3700bcfb5f8ca1ca2085e6cea6395aca4fa863c3",
+      "supervisor_sha256": "34ca362b799282750c3bc4d6c674f317fd26787cbdaee4723b2be3596a84934a"
+    },
+    {
+      "name": "faults-final",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-language-evidence/pytest-faults",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "negative_streams"
+      ],
+      "base_head": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+      "exit_code": 0,
+      "summary": "8 passed, 8 deselected in 100.13s (0:01:40)",
+      "duration_seconds": 100.55,
+      "cleanup_verified": true,
+      "log_path": "/tmp/issue53-language-evidence/faults-final.log",
+      "log_sha256": "fc033f631302c50e04dec1c3be26dd5ffe7fa61158766671bedd7c73ca936c81",
+      "supervisor_sha256": "650be4022cbbe2cf9a5cf9ebf65eaa94eb9e52f9ceedd3b96c59b38d4695cbb6"
+    },
+    {
+      "name": "place-research",
+      "command": [
+        "env",
+        "PYTEST_ADDOPTS=--basetemp=/tmp/issue53-language-evidence/pytest-place",
+        "make",
+        "test-place-research"
+      ],
+      "base_head": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+      "exit_code": 2,
+      "summary": "make: *** [Makefile:203: test-web] Error 1",
+      "duration_seconds": 8.24,
+      "cleanup_verified": true,
+      "log_path": "/tmp/issue53-language-evidence/place-research.log",
+      "log_sha256": "74f3a5d101bd6dacba0103a47bcaef33f2ac7aeb90b8e33cebc311548d65c5d2",
+      "supervisor_sha256": "b9c5487925aa16a0203a81a3d8244032badc9f8d3d125364b254a45c95638d41"
+    },
+    {
+      "name": "place-research-with-dependencies",
+      "command": [
+        "env",
+        "NODE_PATH=/workspace/copyme2.ai/apps/web/node_modules",
+        "PYTEST_ADDOPTS=--basetemp=/tmp/issue53-language-evidence/pytest-place-final",
+        "make",
+        "test-place-research"
+      ],
+      "base_head": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+      "exit_code": 0,
+      "summary": "OK",
+      "duration_seconds": 21.02,
+      "cleanup_verified": true,
+      "log_path": "/tmp/issue53-language-evidence/place-research-with-dependencies.log",
+      "log_sha256": "80de8f87db5d2a04e4152a4c252e71e4e4fa81bc2cb822439e38dc37fbea518f",
+      "supervisor_sha256": "b83a454bd02e2afbceb42b3a6e0b8451cee3b8b947407840ee8b026e6a1b6c1e"
+    }
+  ],
+  "test_results": {
+    "new_parser_and_stream_cases": 23,
+    "full_language_runtime_group": {
+      "passed": 46,
+      "known_baseline_failures": 2
+    },
+    "focused_passed": 110,
+    "fault_checks_passed": 8,
+    "locale_checks_passed": {
+      "en-AU": 8,
+      "zh-CN": 8
+    },
+    "place_research": {
+      "javascript": 583,
+      "pytest": 384,
+      "unittest": 95
+    }
+  },
+  "owner_native_matrix": {
+    "rows": 80,
+    "completed": 80,
+    "contracts_passed": 80,
+    "mock_dispatches": 76,
+    "live_calls": 0,
+    "cohorts": [
+      {
+        "locale": "en-AU",
+        "run_id": "3ab620e5-9315-4492-a8fb-777ff4afe79b",
+        "plan_sha256": "225b4a876d41c7c96e07c94aa7e4f313d2b678448a1af4ee946a93088f556105",
+        "rows": 40,
+        "completed": 40,
+        "contracts_pass": 40,
+        "mock_dispatches": 38,
+        "replay_rows": 2,
+        "rollback_rows": 2,
+        "status": "incomplete",
+        "release_accepted": false,
+        "former_failures_now_passing": [
+          {
+            "row_id": "issue53/switch-skip/en-AU/turn-3/0/baseline",
+            "reply_language": "zh-CN",
+            "source_language": "en-AU",
+            "exact_original_preserved": true,
+            "prior_testimony_and_replies_unchanged": true
+          },
+          {
+            "row_id": "issue53/switch-skip/en-AU/turn-3/0/candidate",
+            "reply_language": "zh-CN",
+            "source_language": "en-AU",
+            "exact_original_preserved": true,
+            "prior_testimony_and_replies_unchanged": true
+          },
+          {
+            "row_id": "issue53/switch-skip/en-AU/turn-4/0/baseline",
+            "reply_language": "zh-CN",
+            "source_language": "en-AU",
+            "exact_original_preserved": true,
+            "prior_testimony_and_replies_unchanged": true
+          },
+          {
+            "row_id": "issue53/switch-skip/en-AU/turn-4/0/candidate",
+            "reply_language": "zh-CN",
+            "source_language": "en-AU",
+            "exact_original_preserved": true,
+            "prior_testimony_and_replies_unchanged": true
+          }
+        ],
+        "artifact_directory": "/tmp/issue53-language-evidence/pytest-matrix-en-AU/issue53-full-manifest0",
+        "artifact_hashes": {
+          "plan.json": "79b4677f19d427406b1b7b80aee301574f8f8afc8b6b0637907725c40e5ddd22",
+          "results.json": "bfa415fdefd053e66b3774cc7c5bf5b2e3fe487e3ddddde7d0e258901d1a4dd3",
+          "receipts.json": "d1a5119df1e429cbb80696f5995afa0baf79ee381d3b722f46a69b8f7f5f0d86",
+          "comparison.json": "145d5c5c56d72bf82f3a1a88bb6b09cc36ff23da83c956867afde0d1a4bb822e"
+        }
+      },
+      {
+        "locale": "zh-CN",
+        "run_id": "77191282-660f-4622-9d3f-835bfc8db566",
+        "plan_sha256": "a34d4f77a2637ef3311074707c16dc7c9c06b16ac29c8c19c5fe3877f127bd13",
+        "rows": 40,
+        "completed": 40,
+        "contracts_pass": 40,
+        "mock_dispatches": 38,
+        "replay_rows": 2,
+        "rollback_rows": 2,
+        "status": "incomplete",
+        "release_accepted": false,
+        "former_failures_now_passing": [
+          {
+            "row_id": "issue53/switch-skip/zh-CN/turn-3/0/baseline",
+            "reply_language": "en-AU",
+            "source_language": "en-AU",
+            "exact_original_preserved": true,
+            "prior_testimony_and_replies_unchanged": true
+          },
+          {
+            "row_id": "issue53/switch-skip/zh-CN/turn-3/0/candidate",
+            "reply_language": "en-AU",
+            "source_language": "en-AU",
+            "exact_original_preserved": true,
+            "prior_testimony_and_replies_unchanged": true
+          },
+          {
+            "row_id": "issue53/switch-skip/zh-CN/turn-4/0/baseline",
+            "reply_language": "en-AU",
+            "source_language": "zh-CN",
+            "exact_original_preserved": true,
+            "prior_testimony_and_replies_unchanged": true
+          },
+          {
+            "row_id": "issue53/switch-skip/zh-CN/turn-4/0/candidate",
+            "reply_language": "en-AU",
+            "source_language": "zh-CN",
+            "exact_original_preserved": true,
+            "prior_testimony_and_replies_unchanged": true
+          }
+        ],
+        "artifact_directory": "/tmp/issue53-language-evidence/pytest-matrix-zh-CN/issue53-full-manifest0",
+        "artifact_hashes": {
+          "plan.json": "91e6e6c3ed8547a512b75fddb7d56a63725bea2305afe25589b36d7731681b1e",
+          "results.json": "c05f8bfed83cf36bde9a8a096decc7a07b9a8cd21a2197b4d669690ff67ce15c",
+          "receipts.json": "a2a05b25dc53ea94f690f5bcfe5a22080b05c29489a9aedf957ae0a16b7b48d1",
+          "comparison.json": "76abda275c485961351b260b2e121b6e7f79fef5602f8376f47fb0275ad91dc0"
+        }
+      }
+    ],
+    "milestones": {
+      "first_meaningful_text_s": {
+        "observed": 76,
+        "unknown": 4,
+        "scope": "synthetic_backend_HTTP_receipt"
+      },
+      "validated_question_s": {
+        "observed": 0,
+        "unknown": 80,
+        "scope": "synthetic_backend_HTTP_receipt"
+      },
+      "reply_complete_s": {
+        "observed": 0,
+        "unknown": 80,
+        "scope": "synthetic_backend_HTTP_receipt"
+      },
+      "durable_save_s": {
+        "observed": 76,
+        "unknown": 4,
+        "scope": "synthetic_backend_HTTP_receipt"
+      }
+    }
+  },
+  "unchanged_main_failures": {
+    "base": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+    "function": "test_real_governed_http_save_cold_replay_preserves_identity_and_lease",
+    "streaming_modes": [
+      true,
+      false
+    ],
+    "error": "KeyError: 'question_pool'",
+    "unchanged_function_sha256": "90844b4b4513214b304dd6a87b4757cd4aa6421e9e07cf2cccfde94ce1f977b6",
+    "baseline_log_sha256": "6f48ca2778c9299c194224a5cb695c9144dc6748b8b6b4aed50f6d157497a197",
+    "changed_log_sha256": "7ec9bb131746c64701fdd6947f25f6fa23530edd34905eb9f958b527af5b7264",
+    "source_or_assertion_not_fixed_in_this_change": true
+  },
+  "dependency_repair": {
+    "initial_failure": "Missing @formatjs/intl-localematcher in fresh worktree",
+    "resolution": "Child-only NODE_PATH to existing installed web dependencies; no package or configuration edits"
+  },
+  "independent_review": {
+    "base": "8b8b494e087a00641fb56094a4b5dc638cc6878d",
+    "source_hashes": {
+      "apps/api/conversation_locale.py": "00e0ad8fb1b894e70978d47b0abedbf7e3a1753f5a0bd60f1a31896895aea8a3",
+      "tests/test_issue53_offline_coverage.py": "80ae3526545b5ccd868d03c5786215907d74735ca16e73a8025f968d48e5b9a0",
+      "tests/test_lifetime_memory_runtime.py": "2e88809244d77969e39cef1fc52a7dbc8215c00081e67a784cb6294048946f66",
+      "tests/test_conversation_locale_directives.py": "4041e782eb056f36bcff8140e558df32e5072ec64429bd5e212d6d729ed80fb7"
+    },
+    "old_accepted_inputs_preserved": 1600,
+    "new_command_forms": 176,
+    "quoted_or_nonleading_inputs_rejected": 1056,
+    "actionable_findings": [],
+    "native_capsule_review": [
+      {
+        "locale": "en-AU",
+        "rows": 40,
+        "contracts_pass": 40,
+        "mock_dispatches": 38,
+        "language_switch_rows": [
+          "issue53/switch-skip/en-AU/turn-3/0/baseline",
+          "issue53/switch-skip/en-AU/turn-3/0/candidate",
+          "issue53/switch-skip/en-AU/turn-4/0/baseline",
+          "issue53/switch-skip/en-AU/turn-4/0/candidate"
+        ],
+        "stored_report_identical": true,
+        "native_witnesses_cleanup_confirmed": 40,
+        "supervisor_status": "completed",
+        "supervisor_cleanup": true,
+        "release_accepted": false
+      },
+      {
+        "locale": "zh-CN",
+        "rows": 40,
+        "contracts_pass": 40,
+        "mock_dispatches": 38,
+        "language_switch_rows": [
+          "issue53/switch-skip/zh-CN/turn-3/0/baseline",
+          "issue53/switch-skip/zh-CN/turn-3/0/candidate",
+          "issue53/switch-skip/zh-CN/turn-4/0/baseline",
+          "issue53/switch-skip/zh-CN/turn-4/0/candidate"
+        ],
+        "stored_report_identical": true,
+        "native_witnesses_cleanup_confirmed": 40,
+        "supervisor_status": "completed",
+        "supervisor_cleanup": true,
+        "release_accepted": false
+      }
+    ],
+    "independent_native_runs": 0,
+    "final_supervised_checks": [
+      {
+        "name": "place-research-with-dependencies",
+        "receipt": "/tmp/issue53-language-evidence/place-research-with-dependencies.json",
+        "log": "/tmp/issue53-language-evidence/place-research-with-dependencies.log",
+        "command": [
+          "env",
+          "NODE_PATH=/workspace/copyme2.ai/apps/web/node_modules",
+          "PYTEST_ADDOPTS=--basetemp=/tmp/issue53-language-evidence/pytest-place-final",
+          "make",
+          "test-place-research"
+        ],
+        "exit_code": 0,
+        "cleanup_verified": true,
+        "passed": {
+          "javascript": 583,
+          "pytest": 384,
+          "unittest": 95
+        },
+        "log_sha256": "80de8f87db5d2a04e4152a4c252e71e4e4fa81bc2cb822439e38dc37fbea518f",
+        "review_scope": "Inspected owner-run receipt and log; reviewer did not execute this check."
+      },
+      {
+        "name": "focused-final",
+        "receipt": "/tmp/issue53-language-evidence/focused-final.json",
+        "log": "/tmp/issue53-language-evidence/focused-final.log",
+        "command": [
+          "/workspace/copyme2.ai/.venv/bin/python",
+          "-m",
+          "pytest",
+          "-q",
+          "--basetemp=/tmp/issue53-language-evidence/pytest-focused",
+          "tests/test_issue53_profile_sequences.py",
+          "tests/test_issue53_sequence_application.py",
+          "tests/test_issue53_saved_plan.py",
+          "tests/test_first_reply_profiler.py",
+          "tests/test_skill_eval_interviewer.py",
+          "tests/test_skill_eval_receipt_replay.py"
+        ],
+        "exit_code": 0,
+        "cleanup_verified": true,
+        "passed": {
+          "pytest": 110
+        },
+        "log_sha256": "ce592f52446958192d1296e63d462c2e6920900360a0f9e80553cf0e4170f0d7",
+        "review_scope": "Inspected owner-run receipt and log; reviewer did not execute this check."
+      },
+      {
+        "name": "faults-final",
+        "receipt": "/tmp/issue53-language-evidence/faults-final.json",
+        "log": "/tmp/issue53-language-evidence/faults-final.log",
+        "command": [
+          "/workspace/copyme2.ai/.venv/bin/python",
+          "-m",
+          "pytest",
+          "-q",
+          "--basetemp=/tmp/issue53-language-evidence/pytest-faults",
+          "tests/test_issue53_offline_coverage.py",
+          "-k",
+          "negative_streams"
+        ],
+        "exit_code": 0,
+        "cleanup_verified": true,
+        "passed": {
+          "pytest": 8
+        },
+        "log_sha256": "fc033f631302c50e04dec1c3be26dd5ffe7fa61158766671bedd7c73ca936c81",
+        "review_scope": "Inspected owner-run receipt and log; reviewer did not execute this check."
+      },
+      {
+        "name": "matrix-en-AU",
+        "receipt": "/tmp/issue53-language-evidence/matrix-en-AU.json",
+        "log": "/tmp/issue53-language-evidence/matrix-en-AU.log",
+        "command": [
+          "env",
+          "ISSUE53_TEST_LOCALE=en-AU",
+          "/workspace/copyme2.ai/.venv/bin/python",
+          "-m",
+          "pytest",
+          "-q",
+          "--basetemp=/tmp/issue53-language-evidence/pytest-matrix-en-AU",
+          "tests/test_issue53_offline_coverage.py",
+          "-k",
+          "not negative_streams"
+        ],
+        "exit_code": 0,
+        "cleanup_verified": true,
+        "passed": {
+          "pytest": 8,
+          "planned_rows": 40
+        },
+        "log_sha256": "06e43784c138c40e50793e05d78ee69213a4b7e16720bf44ecca290257f70d4f",
+        "review_scope": "Inspected owner-run receipt and log; reviewer did not execute this check."
+      },
+      {
+        "name": "matrix-zh-CN",
+        "receipt": "/tmp/issue53-language-evidence/matrix-zh-CN.json",
+        "log": "/tmp/issue53-language-evidence/matrix-zh-CN.log",
+        "command": [
+          "env",
+          "ISSUE53_TEST_LOCALE=zh-CN",
+          "/workspace/copyme2.ai/.venv/bin/python",
+          "-m",
+          "pytest",
+          "-q",
+          "--basetemp=/tmp/issue53-language-evidence/pytest-matrix-zh-CN",
+          "tests/test_issue53_offline_coverage.py",
+          "-k",
+          "not negative_streams"
+        ],
+        "exit_code": 0,
+        "cleanup_verified": true,
+        "passed": {
+          "pytest": 8,
+          "planned_rows": 40
+        },
+        "log_sha256": "c4d8868f45c0f4d2fe4fa08c3700bcfb5f8ca1ca2085e6cea6395aca4fa863c3",
+        "review_scope": "Inspected owner-run receipt and log; reviewer did not execute this check."
+      }
+    ],
+    "historical_environment_failure": {
+      "check": "place-research",
+      "exit_code": 2,
+      "reason": "Missing @formatjs/intl-localematcher in isolated worktree's module resolution.",
+      "resolved": true,
+      "resolution": "Child process NODE_PATH points to existing /workspace/copyme2.ai/apps/web/node_modules; no package installation or configuration edit.",
+      "final_check": "place-research-with-dependencies",
+      "final_exit_code": 0
+    },
+    "remaining_baseline_failures": {
+      "count": 2,
+      "tests": [
+        "test_real_governed_http_save_cold_replay_preserves_identity_and_lease[True]",
+        "test_real_governed_http_save_cold_replay_preserves_identity_and_lease[False]"
+      ],
+      "reason": "KeyError: question_pool in existing trace assertions",
+      "reproduced_on_unchanged_main": true,
+      "receipt": "/tmp/issue53-language-evidence/baseline-trace.json",
+      "scope": "Unrelated baseline failures remain; the complete runtime module is not all green."
+    },
+    "reviewer_test_reruns_for_evidence_correction": 0,
+    "acceptance_limits": [
+      "Model responses remain synthetic fixtures.",
+      "Semantic quality, bilingual human-heldout acceptance and live latency are not established.",
+      "release_accepted remains false."
+    ]
+  },
+  "previous_review_correction": {
+    "head": "7892c9c1406334841b38aa244c00cc4a96a7af7f",
+    "status": "Subsequently confirmed both 40-row cohorts, 24 saved-plan, 86 focused, 8 fault checks and cleanup; supersedes earlier partial-review status",
+    "provenance": "Updated parent review evidence"
+  },
+  "limits": {
+    "release_accepted": false,
+    "model_quality": "not_established_mock_generation_only",
+    "human": "pending_bilingual_heldout_calibration",
+    "latency": "no_live_comparison_or_SLA",
+    "live_budget": 0,
+    "runtime_settings": "No prompt/model/effort/default-route changes or running-app changes",
+    "remaining": "Baseline trace failures and unemitted timing milestones; real provider/model/quality acceptance"
+  }
+}
