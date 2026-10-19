@@ -243,11 +243,19 @@ def _sequence(planned, row, capture, prior_capture):
         if packets[-1]['interview_context']['interview_language'] != current_step['reply_language']:
             violations.append('reply_language_request_not_applied')
         saved_plan = capture['after']['replies'][-1].get('plan')
-        if saved_plan is not None:
-            if saved_plan['work']['mode'] != row['expected_work']:
-                violations.append('work_decision_mismatch')
-            if row['item']['gold']['facts']['stopped'] and (saved_plan['candidates'] or saved_plan['chosen_id'] is not None):
-                violations.append('ignored_stop')
+        if saved_plan is None:
+            raise ValueError('saved_plan_evidence_required')
+        from apps.api.interview_plan import InterviewPlan
+        try:
+            validated_plan = InterviewPlan.model_validate(saved_plan, strict=True)
+            if validated_plan.work is None:
+                raise ValueError('required_work_decision_missing')
+        except (ValueError, TypeError):
+            raise ValueError('saved_plan_evidence_invalid') from None
+        if validated_plan.work.mode != row['expected_work']:
+            violations.append('work_decision_mismatch')
+        if row['item']['gold']['facts']['stopped'] and (validated_plan.candidates or validated_plan.chosen_id is not None):
+            violations.append('ignored_stop')
         if (capture['after']['replies'][-1]['source_id'] != sources[-1]['id']
             or capture['after']['replies'][-1]['reply'] != capture['output']['canonical_result']['reply']):
             raise ValueError('durable_reply_readback_mismatch')

@@ -2,6 +2,7 @@
 import asyncio
 from copy import deepcopy
 import json
+import os
 import shutil
 
 import pytest
@@ -13,7 +14,11 @@ from scripts.issue53_sequence_application import controlled_sequences
 @pytest.fixture(scope='module')
 def full_native_manifest(tmp_path_factory):
     folder=tmp_path_factory.mktemp('issue53-full-manifest')
-    planned=profile.plan(max_skill_calls=80,controlled_rollback=True)
+    locale=os.environ.get('ISSUE53_TEST_LOCALE')
+    if locale is not None and locale not in {'en-AU','zh-CN'}:
+        raise ValueError('unsupported_issue53_test_locale')
+    selected=[s['id'] for s in profile.load_manifest()['scenarios'] if locale is None or s['locale']==locale]
+    planned=profile.plan(scenario=selected,max_skill_calls=80,controlled_rollback=True)
     rows,journal=asyncio.run(controlled_sequences(planned,folder))
     report=profile.compare(planned,rows,journal,{},directory=folder)
     (folder/'comparison.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
@@ -22,9 +27,10 @@ def full_native_manifest(tmp_path_factory):
 
 def test_all_manifest_rows_execute_with_real_persistence_and_mocked_generation(full_native_manifest):
     planned,rows,journal,report,folder=full_native_manifest
-    assert len(planned['scenarios'])==12 and len(rows)==80
+    cohorts=len({s['locale'] for s in planned['scenarios']})
+    assert len(planned['scenarios'])==6*cohorts and len(rows)==40*cohorts
     assert all(r['execution']=='completed' for r in rows),[(r['row_id'],r.get('reason')) for r in rows if r['execution']!='completed']
-    assert journal['budget']['dispatched']==76
+    assert journal['budget']['dispatched']==38*cohorts
     assert all(c['live_model_dispatch'] is False for c in journal['budget']['calls'])
     assert not report['release_accepted']
     # The existing parser does not recognize the natural-language override
@@ -70,14 +76,15 @@ def test_name_work_stop_skip_and_correction_contracts_are_observable(full_native
 
 def test_current_policy_tail_eligibility_does_not_erase_saved_testimony(full_native_manifest):
     planned,rows,journal,report,folder=full_native_manifest
-    row=next(r for r in planned['rows'] if '/switch-skip/en-AU' in r['scenario_id'] and r['step_id']=='turn-2')
+    locale=planned['scenarios'][0]['locale']
+    row=next(r for r in planned['rows'] if r['scenario_id']=='issue53/switch-skip/'+locale and r['step_id']=='turn-2')
     capture=journal['rows'][row['row_id']]
     packet=capture['packet_readbacks'][-1]
     assert packet['tail_readback']['complete']
     assert not packet['tail_readback']['records'][0].get('conversation_saved',False)
     assert 'assistant' not in packet['tail'][0]
     assert capture['before']['replies']==capture['after']['replies'][:-1]
-    row=next(r for r in planned['rows'] if '/name-clue/en-AU' in r['scenario_id'] and r['step_id']=='turn-2')
+    row=next(r for r in planned['rows'] if r['scenario_id']=='issue53/name-clue/'+locale and r['step_id']=='turn-2')
     capture=deepcopy(journal['rows'][row['row_id']])
     prior=next(c for c in journal['rows'].values() if c['row_id']==row['row_id'].replace('turn-2','turn-1'))
     capture['packet_readbacks'][-1]['tail'][0].pop('assistant')
@@ -90,7 +97,8 @@ def test_rewritten_observations_cannot_replace_independent_dispatch_request(full
     planned,rows,journal,report,folder=full_native_manifest
     copied=tmp_path/'changed';shutil.copytree(folder,copied)
     changed=deepcopy(journal)
-    row=next(r for r in planned['rows'] if r['scenario_id']=='issue53/name-clue/en-AU'
+    locale=planned['scenarios'][0]['locale']
+    row=next(r for r in planned['rows'] if r['scenario_id']=='issue53/name-clue/'+locale
              and r['step_id']=='turn-2' and r['arm']=='candidate')
     capture=changed['rows'][row['row_id']]
     packet=capture['packet_readbacks'][-1]
@@ -99,8 +107,9 @@ def test_rewritten_observations_cannot_replace_independent_dispatch_request(full
         eligible=packet['tail_readback']['records'][0]
         eligible['conversation_saved']=False;eligible.pop('assistant_reply')
     elif tamper=='envelope':
-        capture['request_envelopes'][-1]['input']['interview_context']['interview_language']='zh-CN'
-        packet['interview_context']['interview_language']='zh-CN'
+        other='zh-CN' if locale=='en-AU' else 'en-AU'
+        capture['request_envelopes'][-1]['input']['interview_context']['interview_language']=other
+        packet['interview_context']['interview_language']=other
     else:
         capture['controlled_policy']['observed_request_model']='fabricated-route'
     body={k:v for k,v in capture.items() if k not in {'sequence_receipt_path','sequence_receipt_sha256'}}

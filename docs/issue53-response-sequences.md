@@ -109,13 +109,52 @@ harness. Run its tests through the existing isolated supervisor, with native
 `initdb`, `pg_ctl`, `psql` and the repository test dependencies available:
 
 ```sh
+issue53_checks=$(mktemp -d /tmp/issue53-checks.XXXXXX)
 python scripts/run_isolated_check.py --root "$PWD" \
-  --output-dir /tmp/issue53-checks --name sequence-regressions --timeout 480 -- \
-  python -m pytest -q tests/test_issue53_profile_sequences.py \
-  tests/test_issue53_sequence_application.py tests/test_issue53_offline_coverage.py \
+  --output-dir "$issue53_checks" --name focused --timeout 240 -- \
+  python -m pytest -q --basetemp="$issue53_checks/pytest-focused" \
+  tests/test_issue53_profile_sequences.py \
+  tests/test_issue53_sequence_application.py \
   tests/test_first_reply_profiler.py \
   tests/test_skill_eval_interviewer.py tests/test_skill_eval_receipt_replay.py
+
+python scripts/run_isolated_check.py --root "$PWD" \
+  --output-dir "$issue53_checks" --name saved-plan --timeout 240 -- \
+  python -m pytest -q --basetemp="$issue53_checks/pytest-saved-plan" \
+  tests/test_issue53_saved_plan.py
+
+python scripts/run_isolated_check.py --root "$PWD" \
+  --output-dir "$issue53_checks" --name fault-streams --timeout 240 -- \
+  python -m pytest -q --basetemp="$issue53_checks/pytest-faults" \
+  tests/test_issue53_offline_coverage.py -k negative_streams
+
+# Execute each locale in its own process: six sequences / 40 rows / 38 mock calls.
+# Set the selector inside the supervisor's credential-stripped child environment.
+for locale in en-AU zh-CN; do
+  python scripts/run_isolated_check.py --root "$PWD" \
+    --output-dir "$issue53_checks" --name "matrix-$locale" --timeout 360 -- \
+    env ISSUE53_TEST_LOCALE="$locale" python -m pytest -q \
+    --basetemp="$issue53_checks/pytest-$locale" \
+    tests/test_issue53_offline_coverage.py -k 'not negative_streams'
+done
 ```
+
+Run these groups separately so a slow native fixture cannot obscure the status
+of focused or fault checks. Both locale runs are needed to cover all 80 rows.
+Each runs all eight scenario/receipt checks and retains its own plan, results,
+comparison and cleanup receipt. Fresh fixed artifact directories avoid pytest's
+rotating temporary-directory cleanup; use a new check root for another campaign.
+The locale selector is test-only; the default
+still exercises the full bilingual manifest. Timeouts bound test execution and
+are not response-latency acceptance targets.
+
+The independent review of `71dbb93` confirmed 86 focused checks, eight fault
+checks and a 24-row native subset (20 mock calls, four replay rows and four
+rollback rows). Its combined 102-check run timed out after 600 seconds; that
+review did **not** independently confirm the complete eight-check/80-row matrix.
+Earlier full-matrix results in this document are owner executions. The new
+follow-up evidence records separately generated locale cohorts against the
+saved-plan fix and identifies each check's source hashes and review limits.
 
 The adapter admits only mocked worker transports, strips service credentials,
 blocks external sockets, and allocates/removes its own native PostgreSQL
@@ -271,3 +310,7 @@ binding; null, array, number or string alternates cannot erase its judgment.
 Language/work/stop failures retain a failed contract result after all native,
 stream and current-run checks. A verified durable after-state can still anchor
 the next turn, avoiding a spurious lost-chain diagnosis after a language failure.
+Every generated reply also requires a non-null saved plan validated by the
+existing application schema, including an explicit work decision. Missing or
+malformed plans fail evidence validation; removing one cannot erase a work/stop
+failure or restore its pair to latency comparisons.
