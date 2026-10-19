@@ -256,6 +256,34 @@ def test_individual_packet_binding_survives_loss_of_mate_after_review(native_pai
     assert report['status']=='failed'
 
 
+@pytest.mark.parametrize('alternate',[None,[],[1],0,1,'invalid',True])
+def test_valid_pair_binding_preserves_critical_judgment_despite_malformed_optional_side_binding(native_pair,alternate):
+    planned,rows,journal,directory=native_pair
+    candidate=next(r for r in planned['rows'] if r['arm']=='candidate' and r['phase']=='first')
+    pair=profile.blind_packets(planned,rows,journal)[candidate['pair_id']]
+    side=profile.blind_side(planned,candidate)
+    review=dict(packet_sha256=pair['packet_sha256'],side_packet_sha256=alternate)
+    review[side]=judgment(critical=['lost_testimony'])
+    report=profile.compare(planned,rows,journal,{candidate['pair_id']:review},directory=directory)
+    result=next(r for r in report['rows'] if r['row_id']==candidate['row_id'])
+    assert result['semantic']['critical_violations']==['lost_testimony']
+    assert result['semantic']['status']=='fail' and report['status']=='failed'
+
+
+@pytest.mark.parametrize('pair_hash',[None,'stale-pair'])
+def test_valid_single_side_binding_needs_no_valid_pair_binding(native_pair,pair_hash):
+    planned,rows,journal,directory=native_pair
+    candidate=next(r for r in planned['rows'] if r['arm']=='candidate' and r['phase']=='first')
+    pair=profile.blind_packets(planned,rows,journal)[candidate['pair_id']]
+    side=profile.blind_side(planned,candidate)
+    review=dict(packet_sha256=pair_hash,side_packet_sha256={side:pair[side]['packet_sha256']})
+    review[side]=judgment(critical=['unsupported_fact'])
+    report=profile.compare(planned,rows,journal,{candidate['pair_id']:review},directory=directory)
+    result=next(r for r in report['rows'] if r['row_id']==candidate['row_id'])
+    assert result['semantic']['status']=='fail' and report['status']=='failed'
+    assert result['comparison']['status']=='unavailable'
+
+
 def test_abstention_with_valid_critical_evidence_still_blocks_without_direction(native_pair):
     planned,rows,journal,directory=native_pair
     baseline=next(r for r in planned['rows'] if r['arm']=='baseline' and r['phase']=='first')

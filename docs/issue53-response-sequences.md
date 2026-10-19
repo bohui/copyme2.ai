@@ -48,21 +48,36 @@ a one-turn supplied-history fixture as a resumed execution. Saved replay uses th
 same client-turn identity and must preserve both source and reply while consuming
 zero generation dispatches.
 
-The native regression executes both locale versions of the resume/replay
-sequence: 16 completed fixture rows, 12 mocked worker dispatches, and four
-retained unavailable future-turn rollback rows. It observes real SQL persistence,
-stream publication and fresh-runtime context recovery. Its worker outputs are
-synthetic fixtures, so these are deterministic integration witnesses only.
-Background extraction/composition is not drained by this adapter; accepted
-source durability does not establish semantic extraction or derived-artifact
-quality. Other manifest families currently have planning and rubric coverage;
-they are not claimed as completed native or live semantic acceptance.
+The full native regression executes all 12 sequences: 80 completed application
+rows and 76 mocked worker dispatches, including four saved replays with no
+dispatch. It observes real SQL persistence, stream publication and fresh-runtime
+context recovery. Eight rows in the existing language-switch scenarios fail
+the deterministic gate: the current language parser does not apply the natural
+language override forms in those scripts. Their failed gates remain visible;
+test success means the limitation is detected, not that those contracts passed.
+Worker outputs are synthetic fixtures, so none of these results establish model
+quality. Background extraction/composition is not drained; source durability
+does not establish semantic extraction or derived-artifact quality.
 
-Rollback remains a genuine evidence requirement in the manifest. The controlled
-adapter does not change model/provider/collector settings and explicitly leaves
-the future rollback turn unavailable. There is no claim of verified route
-rollback. It refuses non-null provider configuration descriptors, so a fixture
-cannot attest that an unexecuted route actually ran.
+Rollback requires an explicit test-only `controlled_rollback=True` plan option.
+Inside the credential-stripped process and mock transport, the candidate uses
+`synthetic-byte-bpe` before rollback and the approved baseline route
+`gpt-5.6-luna-pooled` on the next generation. Request, governed packet and saved
+session readbacks must agree, while saved testimony and replies remain unchanged.
+These process-scoped overrides are restored after each call and change no
+configuration files or running app. Without this option, all four future
+rollback rows stay unavailable. Non-null provider descriptors remain rejected;
+this mock route exercise does not attest effective provider policy.
+
+Eight additional bilingual fault scenarios inject malformed output, upstream
+disconnect, timeout or commit failure. Every planned row remains in the result;
+the failed turn preserves its accepted original source without a saved reply or
+false save milestone. A disconnect may occur before any public text is released,
+so private upstream fragments are recorded separately from public observations.
+After a skip changes privacy preferences, the current-policy SQL tail may omit
+an older assistant reply. The gate checks this eligibility readback separately
+from durable saved replies and original narrator sources; an eligible exchange
+missing from the governed packet still fails.
 
 ## Offline commands
 
@@ -95,9 +110,10 @@ harness. Run its tests through the existing isolated supervisor, with native
 
 ```sh
 python scripts/run_isolated_check.py --root "$PWD" \
-  --output-dir /tmp/issue53-checks --name sequence-regressions --timeout 180 -- \
+  --output-dir /tmp/issue53-checks --name sequence-regressions --timeout 480 -- \
   python -m pytest -q tests/test_issue53_profile_sequences.py \
-  tests/test_issue53_sequence_application.py tests/test_first_reply_profiler.py \
+  tests/test_issue53_sequence_application.py tests/test_issue53_offline_coverage.py \
+  tests/test_first_reply_profiler.py \
   tests/test_skill_eval_interviewer.py tests/test_skill_eval_receipt_replay.py
 ```
 
@@ -123,6 +139,9 @@ the root ledger against the current plan and passes exact independent row slices
 to PR92's native verifier. Rewritten receipt files, incomplete/tampered ledgers,
 old run IDs and fabricated resumed/replay state cannot pass those checks. The
 separate sequence receipt binds before/after readbacks and public-stream clocks.
+Each captured governed packet is a checked projection of the exact request
+envelope hashed by the independent runner ledger. Rewriting a sequence receipt
+cannot invent a different dispatched context or policy-authorized omission.
 As with other offline artifact ingestion, a user-authored replacement for the
 entire trusted runner ledger is not proof of real provider execution. Imported
 artifacts remain advisory and cannot certify release.
@@ -137,7 +156,9 @@ from connected-sequence results.
 
 Blind A/B packets hide arm, route, effort and timing labels and reuse PR92's
 single-output interviewer policy/rubric. They include sequence requirements and
-actual saved sources, replies and supplied model context. The packet hash binds
+actual saved sources, replies and supplied model context. Session routing fields,
+prompt-version metadata and execution timestamps are excluded from semantic
+witnesses. The packet hash binds
 imported judgments to the frozen evaluator and evidence. Both arms' evaluated
 model identities are excluded from independent assessment. PR92's categorical
 judgment shape remains unchanged: `status`, `citations`, `rationale`,
@@ -216,9 +237,10 @@ or authorization to run. Background extraction/research/composition fanout needs
 its own inspected and approved bound before any live execution; it is not
 silently funded by the foreground allowance.
 
-Before release consideration: verify actual provider policy and complete route/
-prompt/configuration provenance; exercise the full bilingual manifest including
-rollback, failed-save/stop/ownership contracts and derived testimony handling;
+Before release consideration: resolve the detected language-switch baseline
+failures; verify actual provider policy and complete route/prompt/configuration
+provenance; exercise the full bilingual manifest against real model outputs,
+including rollback, failed-save/stop/ownership and derived testimony handling;
 perform the blinded comparisons through the existing evaluator; obtain disjoint
 native-speaker development and heldout review with agreed calibration criteria;
 and review every locale/phase quality or completion/save regression. No quality
@@ -244,3 +266,8 @@ missing, failed, timed out or unavailable. A full pair hash still binds paired
 preference. A missing mate or invalid preference cannot erase a valid critical
 side judgment. An unavailable/not-applicable human preference has no direction:
 a stray `preferred_side` is ignored, while valid critical evidence still blocks.
+An already valid pair binding takes precedence over an optional malformed side
+binding; null, array, number or string alternates cannot erase its judgment.
+Language/work/stop failures retain a failed contract result after all native,
+stream and current-run checks. A verified durable after-state can still anchor
+the next turn, avoiding a spurious lost-chain diagnosis after a language failure.

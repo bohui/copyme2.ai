@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 import asyncio
+from contextlib import nullcontext
 import json
 import re
 import sys
@@ -52,8 +53,35 @@ def focused_state(snapshot):
     sources = sorted(state['user_narrator_source'], key=lambda s:s['sequence'])
     turns = sorted((t for t in state['user_interview_turn'] if t.get('collector')), key=lambda s:s['sequence'])
     return dict(sources=[{k:s[k] for k in ('id','version','sequence','text','user_id','project_id','client_turn_id','language')} for s in sources],
-        replies=[dict(source_id=t['source_id'], client_turn_id=t['client_turn_id'], reply=t['collector']['reply']) for t in turns],
+        replies=[dict(source_id=t['source_id'], client_turn_id=t['client_turn_id'], reply=t['collector']['reply'],
+                      plan=t['collector']['plan']) for t in turns],
         session=state['user_lifetime_conversation'])
+
+
+def fixture_question(family, step_id, language):
+    """Curated synthetic worker examples, never a production response shortcut."""
+    examples = {
+        'name-clue': [('What would you enjoy talking about?', '您想先聊些什么？'),
+                      ('What do you remember about growing up there?', '在那里长大，您还记得什么？'),
+                      ('What do you remember about tending the beans?', '您还记得怎样照料豆子吗？')],
+        'correction': [('What do you remember about the bicycle work?', '您还记得修自行车时的什么事？'),
+                       ('What do you remember about how your mother worked?', '您还记得母亲怎样干活吗？'),
+                       ('What tools did you bring her?', '您给她递了什么工具？')],
+        'emotional': [('What would feel comfortable to talk about next?', '接下来聊什么会让您觉得自在些？'),
+                      ('What do you remember about her careful work?', '您还记得她仔细干活时的什么事？'), (None,None)],
+        'switch-skip': [('What do you remember about planting the beans?', '您还记得种豆子时的什么事？'),
+                        ('What would you prefer to discuss?', '您更想聊些什么？'),
+                        ('What do you remember about school?', '您还记得上学时的什么事？'),
+                        ('What do you remember about walking with your sister?', '您还记得和姐姐一起走路上学时的什么事？')],
+        'photo-reference': [('Who supplied that caption?', '这段说明是谁写的？'),
+                            ('What personal memory would you like to discuss?', '您想聊自己的哪段回忆？')],
+        'resume-replay-rollback': [('What do you remember about growing beans together?', '您还记得一起种豆子时的什么事？'),
+                                  ('What do you remember about the labels?', '您还记得那些标签的什么事？'),
+                                  ('What do the blue labels bring to mind?', '蓝色标签让您想起什么？'),
+                                  ('What do you remember about that tin?', '您还记得那个铁盒的什么事？')],
+    }
+    ordinal = int(step_id.removeprefix('turn-'))-1
+    return examples[family][ordinal][language=='zh-CN']
 
 
 async def controlled_sequences(planned, directory):
@@ -79,7 +107,7 @@ async def controlled_sequences(planned, directory):
     save(directory / 'plan.json', planned)
     results = {r['row_id']:dict(row_id=r['row_id'], execution='unavailable', reason='not_run', evidence_mode='mock_only')
                for r in planned['rows']}
-    journal = dict(run_id=planned['run_id'], plan_sha256=planned['plan_sha256'], rows={}, seeds={})
+    journal = dict(run_id=planned['run_id'], plan_sha256=planned['plan_sha256'], rows={}, seeds={}, failures={})
     budget = Budget(planned['budgets']['max_skill_calls'], planned['budgets']['seconds'],
                     planned['budgets']['timeout'], time.monotonic)
     active_row = None
@@ -125,7 +153,8 @@ async def controlled_sequences(planned, directory):
                                     runtimes, resume, rolled_back = {}, {}, False
                                     for step in case['steps']:
                                         if step['action'] == 'rollback':
-                                            # Production configuration changes are outside this offline adapter.
+                                            # Explicit test-only policy changes live only inside
+                                            # offline_settings and the mocked worker transport.
                                             rolled_back = True
                                             continue
                                         if step['action'] == 'reopen':
@@ -144,7 +173,7 @@ async def controlled_sequences(planned, directory):
                                         for row in measured:
                                             active_row = row
                                             value = results[row['row_id']]
-                                            if rolled_back:
+                                            if rolled_back and not planned.get('controlled', {}).get('rollback'):
                                                 value['reason'] = 'future_rollback_configuration_adapter_unavailable'; persist(); continue
                                             if len(budget.calls) >= budget.maximum or time.monotonic() >= budget.deadline:
                                                 value['reason'] = 'skill_budget_or_deadline_exhausted'; persist(); continue
@@ -155,23 +184,55 @@ async def controlled_sequences(planned, directory):
                                             original = step if step['action']=='turn' else next(s for s in case['steps'] if s['id']==step['target'])
                                             text, language = original['text'], original['reply_language']
                                             excerpt = re.split(r'[?？]', text)[-1].strip() or text
-                                            packet_readbacks = []
+                                            packet_readbacks, request_envelopes, policy_readbacks, transport_observations = [], [], [], []
+                                            fault = planned.get('controlled', {}).get('faults', {}).get(row['row_id'])
+                                            fixture_policy = planned.get('controlled', {}).get('rollback')
+                                            requested_model = 'gpt-5.6-luna-pooled' if row['arm']=='baseline' or rolled_back else 'synthetic-byte-bpe'
                                             async def provider(request):
                                                 class Fixture:
                                                     async def call(self, packet):
+                                                        if fault=='timeout': raise TimeoutError('Controlled worker timeout')
+                                                        if fault=='malformed':
+                                                            return dict(output='{',response_id='fixture-'+str(uuid4()),model='controlled-application-fixture',usage=None)
                                                         proposal = extraction_proposal(language)
                                                         proposal['acknowledgement'] = ('您说：' if language=='zh-CN' else 'You said: ') + excerpt
                                                         proposal['plan']['work']['mode'] = original['work']
+                                                        if original['work']=='reply_only' and original['phase']=='first':
+                                                            proposal['plan']['work']['name'] = '韩凤江' if case['locale']=='zh-CN' else 'Joan'
+                                                        question = fixture_question(case['family'],original['id'],language)
+                                                        if question is None:
+                                                            proposal['stopped']=True
+                                                            proposal['plan'].update(candidates=[],chosen_id=None)
+                                                        else:
+                                                            proposal['plan']['candidates'][0]['question']=question
                                                         return dict(output=proposal, response_id='fixture-' + str(uuid4()), model='controlled-application-fixture', usage=None)
                                                 request_body = json.loads(request.content)
                                                 governed = json.loads(request_body['governed']['packet'])
-                                                packet_readbacks.append(dict(current=governed['current'],tail=governed['tail'],
-                                                    pinned=governed['pinned'],interview_context=request_body['interview_context'],
-                                                    actual_prompt_version=governed['prompt_version']))
+                                                # Independently query current SQL eligibility: a new
+                                                # privacy preference can withhold an older assistant
+                                                # reply without deleting it or the narrator's source.
+                                                session = focused_state(snapshot_case(sql,storage,places))['session'][0]
+                                                tail_readback = storage.lifetime_rpc('read_lifetime_tail',
+                                                    p_conversation_id=session['conversation_id'],
+                                                    p_policy_epoch=governed['current']['narrator']['policy_epoch'],
+                                                    p_after_sequence=0,p_through_sequence=governed['current']['sequence']-1)
+                                                packet_readbacks.append(dict(**profile.packet_projection(request_body),tail_readback=tail_readback))
+                                                policy_readbacks.append(dict(observed_request_model=request_body['model'],governed_model=governed['model']))
                                                 # Current source and previous replies travel through the real governed packet.
-                                                reply = await budget.dispatch(Fixture(), dict(item_id=row['item']['id'], input=request_body))
+                                                envelope = dict(item_id=row['item']['id'], input=request_body)
+                                                request_envelopes.append(deepcopy(envelope))
+                                                reply = await budget.dispatch(Fixture(), envelope)
                                                 for call in budget.calls[start:]: call.update(ctx, live_model_dispatch=False)
-                                                return worker_reply(request,dict(reply=json.dumps(reply['output'],ensure_ascii=False),thread_id='fixture-thread',artifacts=[]))
+                                                encoded = reply['output'] if isinstance(reply['output'],str) else json.dumps(reply['output'],ensure_ascii=False)
+                                                if fault=='disconnect':
+                                                    class Disconnected(httpx.AsyncByteStream):
+                                                        async def __aiter__(self):
+                                                            prefix=encoded.split('"plan"',1)[0]
+                                                            transport_observations.append('upstream_fragment_sent_then_disconnect')
+                                                            yield (json.dumps(dict(type='text_delta',text=prefix))+'\n').encode()
+                                                            raise httpx.ReadError('Controlled worker disconnect',request=request)
+                                                    return httpx.Response(200,headers={'Content-Type':'application/x-ndjson'},stream=Disconnected())
+                                                return worker_reply(request,dict(reply=encoded,thread_id='fixture-thread',artifacts=[]))
                                             # Keep the runtime instance until the explicit reopen action.
                                             transport = httpx.MockTransport(provider)
                                             if row['arm'] not in runtimes:
@@ -180,8 +241,15 @@ async def controlled_sequences(planned, directory):
                                             runtime = runtimes[row['arm']]
                                             runtime.worker_transport = transport
                                             observation = StreamObservation(excerpt)
+                                            real_rpc = storage.lifetime_rpc
+                                            def guarded_rpc(name,**arguments):
+                                                if name in {'commit_lifetime_turn','commit_lifetime_strategy_turn'}:
+                                                    raise RuntimeError('Controlled commit failure')
+                                                return real_rpc(name,**arguments)
                                             try:
-                                                with patch.dict('os.environ', {'MEMOIR_PUBLICATION_DATABASE_URL':sql.publication_dsn}):
+                                                environment = {'MEMOIR_PUBLICATION_DATABASE_URL':sql.publication_dsn}
+                                                if fixture_policy: environment['MEMORY_SPARK_COLLECTOR_MODEL']=requested_model
+                                                with patch.dict('os.environ', environment), (patch.object(storage,'lifetime_rpc',guarded_rpc) if fault=='save_failure' else nullcontext()):
                                                     async with asyncio.timeout(min(budget.timeout,budget.deadline-time.monotonic())):
                                                         delivered = await canonical_turn(runtime,storage,text,options=dict(project_id=spec['project_id'],
                                                             language=language,client_turn_id=str(uuid5(NAMESPACE_URL,
@@ -195,7 +263,12 @@ async def controlled_sequences(planned, directory):
                                                     output=output,dispatches=deepcopy(budget.calls[start:]),configuration=planned['variants'][row['arm']],
                                                     contracts={k:'pass' for k in profile.CONTRACTS},stream_observation=observation.receipt(),
                                                     matched_seed_sha256=seed_hash,pre_state_sha256=profile.digest(before),packet_readbacks=packet_readbacks,
+                                                    request_envelopes=request_envelopes,
                                                     resume=resume.pop(row['arm'],None))
+                                                if fixture_policy and row['action']!='replay':
+                                                    capture['controlled_policy']=dict(scope='isolated_mock_transport',requested_model=requested_model,
+                                                        **policy_readbacks[-1],saved_model=after['session'][0]['thread_model'],effective_provider_policy=None)
+                                                if rolled_back: capture['future_configuration']=deepcopy(planned['variants']['baseline'])
                                                 current = next(s for s in after['sources'] if s['id']==delivered['accepted_source_id'])
                                                 independent = dict(scope='controlled_disposable_application',database_removed=False,
                                                     item_id=row['item']['id'],task_sha256=profile.digest(row['item']['task']),output_sha256=profile.digest(output),
@@ -209,7 +282,13 @@ async def controlled_sequences(planned, directory):
                                                     stream_observation_sha256=profile.digest(observation.receipt()),provider_metrics={k:None for k in profile.PROVIDER_FIELDS})
                                             except Exception as error:
                                                 for call in budget.calls[start:]: call.update(ctx,live_model_dispatch=False)
-                                                value.update(execution='timed_out' if isinstance(error,TimeoutError) else 'failed',reason=type(error).__name__)
+                                                timed_out=isinstance(error,TimeoutError) or any(c.get('error_class')=='TimeoutError' for c in budget.calls[start:])
+                                                journal['failures'][row['row_id']]=dict(context=ctx,reason=type(error).__name__,
+                                                    before=before,after=focused_state(snapshot_case(sql,storage,places)),
+                                                    dispatches=deepcopy(budget.calls[start:]),stream_observation=observation.receipt(),
+                                                    transport_observations=transport_observations,request_envelopes=request_envelopes)
+                                                value.update(execution='timed_out' if timed_out else 'failed',reason=type(error).__name__,
+                                                    timings=observation.timings,stream_observation_sha256=profile.digest(observation.receipt()))
                                             persist()
                                 finally:
                                     candidate.client.close()

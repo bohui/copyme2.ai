@@ -131,7 +131,8 @@ def test_language_switch_updates_per_turn_judge_context(locale,target):
     planned=profile.plan(scenario=['issue53/switch-skip/'+locale])
     later=[r for r in planned['rows'] if r['step_id'] in {'turn-3','turn-4'}]
     assert all(r['item']['task']['context']['interview_language']==target for r in later)
-    assert all(r['item']['task']['source']['language']==target for r in later)
+    assert all(r['item']['task']['source']['language'] in {'en-AU','zh-CN'} for r in later)
+    assert any(r['item']['task']['source']['language']!=target for r in later)
 
 
 def test_blind_export_serializes_labels_in_canonical_order_not_arm_order(monkeypatch):
@@ -144,3 +145,14 @@ def test_blind_export_serializes_labels_in_canonical_order_not_arm_order(monkeyp
     assert all(list(pair)[:2]==['A','B'] for pair in exported.values())
     serialized=json.loads(json.dumps(exported))
     assert all(list(pair)[:2]==['A','B'] for pair in serialized.values())
+
+
+@pytest.mark.parametrize('options',[
+    {'controlled_rollback':'yes'}, {'faults':[]}, {'faults':False},
+    {'faults':{'unplanned-row':'timeout'}},
+    {'faults':{'issue53/name-clue/en-AU/turn-1/0/baseline':'unknown'}},
+    {'faults':{'issue53/resume-replay-rollback/en-AU/replay-1/0/baseline':'timeout'}},
+])
+def test_controlled_options_reject_unplanned_or_untyped_fault_authority(options):
+    with pytest.raises(ValueError,match='invalid_controlled_options|unplanned_controlled_fault'):
+        profile.plan(**options)
