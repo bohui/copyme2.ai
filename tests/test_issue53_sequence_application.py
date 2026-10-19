@@ -2,45 +2,123 @@
 import asyncio
 from copy import deepcopy
 import json
+from pathlib import Path
+import subprocess
 
 import pytest
 
 from scripts import issue53_profile_sequences as profile
 from scripts.issue53_sequence_application import controlled_sequences, StreamObservation
 
+IDENTITY=dict(project_id='project',client_turn_id='turn',accepted_source_id='source')
+REPLY='You remember blue labels.'
+
+
+def observation(**kwargs):
+    return StreamObservation('blue labels',**IDENTITY,**kwargs)
+
+
+def accepted(observer):
+    observer.observe({'type':'source_accepted','data':IDENTITY})
+
+
+def completed(reply=REPLY,**kwargs):
+    return {'type':'reply_complete','data':{**IDENTITY,'cached':False,'has_question':True,'reply':reply,**kwargs}}
+
 
 def test_public_milestones_ignore_headers_private_json_and_generic_filler():
-    ticks=iter(range(10))
-    observation=StreamObservation('blue labels',clock=lambda:next(ticks))
-    observation.observe({'type':'started'})
-    observation.observe({'type':'progress','data':{'id':'collector'}})
-    observation.observe({'type':'text_delta','text':'Thank you. '})
-    assert observation.timings['first_meaningful_text_s'] is None
-    observation.observe({'type':'text_delta','text':'You remember blue labels.'})
-    observation.observe({'type':'question_validated','data':{'has_question':True}})
-    observation.observe({'type':'reply_complete','data':{'cached':False,'has_question':True}})
-    observation.observe({'type':'conversation_saved','data':{'conversation_saved':True}})
-    assert list(observation.timings.values()) == [4,5,6,7]
+    ticks=iter(range(11));observer=observation(clock=lambda:next(ticks))
+    observer.observe({'type':'started'})
+    observer.observe({'type':'progress','data':{'id':'collector'}})
+    accepted(observer)
+    observer.observe({'type':'text_delta','text':'Thank you. '})
+    assert observer.timings['first_meaningful_text_s'] is None
+    observer.observe({'type':'text_delta','text':REPLY})
+    observer.observe({'type':'question_validated','data':{**IDENTITY,'has_question':True}})
+    observer.observe(completed('Thank you. '+REPLY))
+    observer.observe({'type':'conversation_saved','data':{**IDENTITY,'reply':'Thank you. '+REPLY,'conversation_saved':True}})
+    assert list(observer.timings.values()) == [5,6,7,8]
 
 
 def test_saved_replay_completion_uses_terminal_receipt_without_generation_milestones():
-    ticks=iter(range(4))
-    observation=StreamObservation('blue labels',clock=lambda:next(ticks))
-    observation.observe({'type':'result','data':{'cached':True,'conversation_saved':True,'reply':None}})
-    assert all(v is None for v in observation.timings.values())
-    observation.observe({'type':'result','data':{'cached':True,'conversation_saved':True,'reply':'The labels were blue.'}})
-    assert observation.timings['reply_complete_s']==2
-    assert all(observation.timings[k] is None for k in profile.MILESTONES if k!='reply_complete_s')
+    ticks=iter(range(4));observer=observation(replay=True,expected_reply=REPLY,clock=lambda:next(ticks))
+    observer.observe({'type':'result','data':{**IDENTITY,'cached':True,'conversation_saved':True,'reply':None}})
+    assert all(v is None for v in observer.timings.values())
+    observer.observe({'type':'result','data':{**IDENTITY,'cached':True,'conversation_saved':True,'reply':REPLY}})
+    assert observer.timings['reply_complete_s']==2
+    assert all(observer.timings[k] is None for k in profile.MILESTONES if k!='reply_complete_s')
 
 
 def test_duplicate_public_milestones_do_not_replace_first_receipt_time():
-    ticks=iter(range(6))
-    observation=StreamObservation('blue labels',clock=lambda:next(ticks))
-    for event in [{'type':'question_validated','data':{'has_question':True}},
-                  {'type':'reply_complete','data':{'cached':False,'has_question':True}}]*2:
-        observation.observe(event)
-    assert observation.timings['validated_question_s']==1
-    assert observation.timings['reply_complete_s']==2
+    ticks=iter(range(8));observer=observation(clock=lambda:next(ticks));accepted(observer)
+    observer.observe({'type':'text_delta','text':REPLY})
+    for event in [{'type':'question_validated','data':{**IDENTITY,'has_question':True}},completed()]*2:observer.observe(event)
+    assert observer.timings['validated_question_s']==3
+    assert observer.timings['reply_complete_s']==4
+
+
+@pytest.mark.parametrize('data',[None,[],{},dict(cached=False,has_question=True),
+    {**IDENTITY,'cached':False,'has_question':True},
+    {**IDENTITY,'cached':False,'has_question':True,'reply':None},
+    {**IDENTITY,'cached':0,'has_question':True,'reply':REPLY},
+    {**IDENTITY,'cached':False,'has_question':1,'reply':REPLY},
+    {**IDENTITY,'cached':False,'has_question':True,'reply':'Other reply'},
+    *[{**IDENTITY,key:'foreign','cached':False,'has_question':True,'reply':REPLY} for key in IDENTITY]])
+def test_malformed_or_foreign_completion_cannot_set_timing(data):
+    observer=observation();accepted(observer);observer.observe({'type':'text_delta','text':REPLY})
+    observer.observe({'type':'reply_complete','data':data})
+    assert observer.timings['reply_complete_s'] is None
+
+
+def test_premature_plausible_completion_is_revoked_when_more_text_arrives():
+    ticks=iter([0,.0001,.001,.002,2.322,2.334,3])
+    observer=observation(clock=lambda:next(ticks));accepted(observer)
+    observer.observe({'type':'text_delta','text':'You remember '});observer.observe(completed('You remember '))
+    observer.observe({'type':'text_delta','text':'blue labels.'})
+    assert observer.timings['reply_complete_s'] is None
+    observer.observe(completed());observer.observe(completed())
+    assert observer.timings['reply_complete_s']==2.334
+
+
+@pytest.mark.parametrize('change',[{'project_id':'foreign'},{'client_turn_id':'foreign'},
+    {'accepted_source_id':'foreign'},{'reply':'Other saved turn'},{'cached':1},{'conversation_saved':1}])
+def test_cached_completion_requires_expected_replay_identity_and_saved_reply(change):
+    observer=observation(replay=True,expected_reply=REPLY)
+    observer.observe({'type':'result','data':{**IDENTITY,'reply':REPLY,'cached':True,'conversation_saved':True,**change}})
+    assert observer.timings['reply_complete_s'] is None
+
+
+def test_generated_observation_cannot_be_completed_by_a_cached_result_or_unaccepted_marker():
+    observer=observation();observer.observe(completed())
+    observer.observe({'type':'question_validated','data':{**IDENTITY,'has_question':True}})
+    assert all(v is None for v in observer.timings.values())
+    accepted(observer);observer.observe({'type':'text_delta','text':REPLY})
+    observer.observe({'type':'result','data':{**IDENTITY,'reply':REPLY,'cached':True,'conversation_saved':True}})
+    assert observer.timings['reply_complete_s'] is None
+
+
+def test_error_closes_the_observation_and_retry_needs_its_own_clock():
+    observer=observation();accepted(observer);observer.observe({'type':'text_delta','text':REPLY})
+    observer.observe({'type':'error'});observer.observe(completed())
+    assert observer.timings['reply_complete_s'] is None
+
+
+def test_missing_saved_replay_prerequisite_retains_every_planned_row(tmp_path):
+    scenario='issue53/resume-replay-rollback/en-AU'
+    failed=scenario+'/turn-3/0/candidate';replay=scenario+'/replay/0/candidate'
+    planned=profile.plan(scenario=[scenario],max_skill_calls=8,faults={failed:'save_failure'})
+    rows,journal=asyncio.run(controlled_sequences(planned,tmp_path/'run'))
+    by_id={r['row_id']:r for r in rows}
+    assert len(rows)==len(planned['rows'])==10
+    assert by_id[failed]['execution']=='failed'
+    assert by_id[replay]['execution']=='unavailable'
+    assert by_id[replay]['reason']=='saved_replay_prerequisite_unavailable'
+    assert by_id[replay].get('timings',{})=={}
+    assert by_id[replay.replace('candidate','baseline')]['execution']=='completed'
+    assert journal['budget']['dispatched']==6
+    assert all(call['live_model_dispatch'] is False for call in journal['budget']['calls'])
+    report=profile.compare(planned,rows,journal,{},directory=tmp_path/'run')
+    assert len(report['rows'])==10 and report['release_accepted'] is False
 
 
 @pytest.fixture(scope='module')
@@ -71,6 +149,58 @@ def test_real_connected_bilingual_first_later_resume_and_saved_replay(native_pai
         if row['phase']=='replay':
             assert journal['rows'][row['row_id']]['dispatches']==[]
     assert journal['budget']['dispatched']==12
+
+
+def assert_mobile_streams(journal):
+    captures=[]
+    for capture in journal['rows'].values():
+        result=capture['output']['canonical_result']
+        source=next(s for s in capture['after']['sources'] if s['id']==result['accepted_source_id'])
+        captures.append(dict(projectId=result['project_id'],clientTurnId=source['client_turn_id'],
+            reply=result['reply'],cached=capture['output']['cached'],events=capture['stream_observation']['events']))
+    process=subprocess.run(['node','--import','tsx','tests/mobile-domain/helpers/consume-governed-stream.mts'],
+        input=json.dumps(captures),text=True,capture_output=True,timeout=30,cwd=Path(__file__).resolve().parents[1])
+    assert process.returncode==0,process.stdout+process.stderr
+
+
+def test_captured_native_streams_preserve_mobile_reply_and_save_contract(native_pair):
+    assert_mobile_streams(native_pair[2])
+
+
+@pytest.mark.parametrize('tamper',['bare_completion','premature_completion','foreign_replay','wrong_replay_text'])
+def test_resealed_early_completion_cannot_replace_bound_final_stream_receipt(native_pair,tmp_path,tamper):
+    import shutil
+    planned,rows,journal,directory=native_pair
+    local=tmp_path/'evidence';shutil.copytree(directory,local)
+    rows,changed=deepcopy(rows),deepcopy(journal)
+    replay=tamper in {'foreign_replay','wrong_replay_text'}
+    row=next(r for r in planned['rows'] if r['arm']=='candidate' and r['phase']==('replay' if replay else 'resumed'))
+    capture=changed['rows'][row['row_id']];observation=capture['stream_observation']
+    result=capture['output']['canonical_result']
+    source=next(s for s in capture['after']['sources'] if s['id']==result['accepted_source_id'])
+    binding={k:source[k] for k in ('project_id','client_turn_id')};binding['accepted_source_id']=source['id']
+    inserted={'type':'reply_complete'};index=1
+    if replay:
+        inserted={'type':'result','data':{**binding,'cached':True,'conversation_saved':True,'reply':'A different saved turn.'}}
+        if tamper=='foreign_replay':inserted['data'].update(project_id='foreign-project',accepted_source_id='foreign-source')
+    elif tamper=='premature_completion':
+        index=next(i+1 for i,e in enumerate(observation['events']) if e['type']=='question_validated')
+        prefix=''.join(e['text'] for e in observation['events'][:index] if e['type']=='text_delta')
+        inserted['data']={**binding,'cached':False,'has_question':True,'reply':prefix}
+    before=observation['events'][index-1]['elapsed_s'];after=observation['events'][index]['elapsed_s']
+    inserted['elapsed_s']=(before+after)/2
+    observation['events'].insert(index,inserted)
+    observation['timings']['reply_complete_s']=inserted['elapsed_s']
+    imported=next(r for r in rows if r['row_id']==row['row_id'])
+    imported['timings']=deepcopy(observation['timings']);imported['stream_observation_sha256']=profile.digest(observation)
+    body={k:v for k,v in capture.items() if k not in {'sequence_receipt_path','sequence_receipt_sha256'}}
+    (local/capture['sequence_receipt_path']).write_text(json.dumps(body));capture['sequence_receipt_sha256']=profile.digest(body)
+    report=profile.compare(planned,rows,changed,{},directory=local)
+    actual=next(r for r in report['rows'] if r['row_id']==row['row_id'])
+    assert actual['contracts']['status']=='fail'
+    assert actual['contracts']['reason']=='public_milestone_evidence_missing'
+    assert report['latency']['overall']['matched_complete_pairs']<8
+    assert report['release_accepted'] is False
 
 
 def test_replayed_rebound_receipts_and_lost_testimony_are_rejected(native_pair,tmp_path):

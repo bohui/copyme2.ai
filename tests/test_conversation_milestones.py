@@ -53,7 +53,7 @@ def test_commit_barrier_prevents_premature_question_completion_or_save(sql,tmp_p
         return real_rpc(name,**arguments)
     monkeypatch.setattr(storage,'lifetime_rpc',rpc)
     calls=[];runtime=controlled_runtime(tmp_path,calls);turn=str(uuid4())
-    observation=StreamObservation('tending beans')
+    observation=StreamObservation('tending beans',client_turn_id=turn)
     async def scenario():
         response=await lifetime_http_turn(runtime,storage,TEXT,accept='application/x-ndjson',options={'client_turn_id':turn})
         async def send(message):
@@ -75,13 +75,14 @@ def test_commit_barrier_prevents_premature_question_completion_or_save(sql,tmp_p
             assert all(observation.timings[k] is None for k in ('validated_question_s','reply_complete_s','durable_save_s'))
             assert sql('select count(*) from public.user_lifetime_reply;').stdout.strip()=='0'
             project=next(e['data']['project_id'] for e in observation.events if e['type']=='source_accepted')
+            retry_observation=StreamObservation('tending beans',client_turn_id=turn,project_id=project)
             retry_storage=PostgresRest(sql,OWNER).storage()
             try:
                 recovered=await canonical_turn(runtime,retry_storage,TEXT,
-                    options={'project_id':project,'client_turn_id':turn},on_event=observation.observe)
+                    options={'project_id':project,'client_turn_id':turn},on_event=retry_observation.observe)
             finally:retry_storage.client.close()
             assert recovered['conversation_saved'] and len(calls)==2
-            assert observation.timings['validated_question_s'] is not None and observation.timings['reply_complete_s'] is not None
+            assert retry_observation.timings['validated_question_s'] is not None and retry_observation.timings['reply_complete_s'] is not None
         else:
             assert kinds.index('question_validated')<kinds.index('reply_complete')<kinds.index('conversation_saved')<kinds.index('result')
             assert max(i for i,k in enumerate(kinds) if k=='text_delta')<kinds.index('reply_complete')
@@ -98,7 +99,7 @@ def test_disconnect_does_not_observe_queued_completion_and_saved_retry_is_idempo
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','0')
     calls=[];runtime=controlled_runtime(tmp_path,calls);turn=str(uuid4())
-    observation=StreamObservation('tending beans')
+    observation=StreamObservation('tending beans',client_turn_id=turn)
     async def scenario():
         response=await lifetime_http_turn(runtime,PostgresRest(sql,OWNER).storage(),TEXT,
             accept='application/x-ndjson',options={'client_turn_id':turn})
@@ -115,7 +116,10 @@ def test_disconnect_does_not_observe_queued_completion_and_saved_retry_is_idempo
         assert observation.timings['reply_complete_s'] is None and observation.timings['durable_save_s'] is None
         assert not any(e['type'] in {'reply_complete','conversation_saved'} for e in observation.events)
         project=next(e['data']['project_id'] for e in observation.events if e['type']=='source_accepted')
-        retry_observation=StreamObservation('tending beans')
+        saved=json.loads(sql('select collector from public.user_interview_turn;').stdout)
+        source=next(e['data']['accepted_source_id'] for e in observation.events if e['type']=='source_accepted')
+        retry_observation=StreamObservation('tending beans',client_turn_id=turn,project_id=project,
+            replay=True,accepted_source_id=source,expected_reply=saved['reply'])
         retry_storage=PostgresRest(sql,OWNER).storage()
         try:
             result=await canonical_turn(runtime,retry_storage,TEXT,

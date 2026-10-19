@@ -400,8 +400,9 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             await progress.update('save','Conversation memory saved','对话记忆已保存',status='completed')
             await progress.record_question_pool(validated['plan'])
             has_question=validated['plan']['chosen_id'] is not None
+            milestone_identity={'project_id':project_id,'client_turn_id':client_turn_id,'accepted_source_id':source['id']}
             if on_event and has_question:
-                await on_event({'type':'question_validated','data':{'has_question':True}})
+                await on_event({'type':'question_validated','data':{**milestone_identity,'has_question':True}})
             if on_delta:
                 prefix=validated.get('acknowledgement','') if visible.emitted else ''
                 await on_delta(validated['reply'][len(prefix):] if prefix and validated['reply'].startswith(prefix) else validated['reply'])
@@ -412,7 +413,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             if two_lane:
                 response['reply_id']=committed['memory'][0]['id']
             if on_event:
-                completion={'cached':False,'has_question':has_question}
+                completion={**milestone_identity,'reply':validated['reply'],'cached':False,'has_question':has_question}
                 if two_lane:completion={**response,**completion}  # Preserve the existing public two-lane envelope.
                 await on_event({'type':'reply_complete','data':completion})
             if on_event:await on_event({'type':'conversation_saved','data':response})

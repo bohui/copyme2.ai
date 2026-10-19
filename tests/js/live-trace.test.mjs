@@ -5,6 +5,21 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 const source=readMemoirClientSource();
 const extract = name => ['captureProjectScope', 'isCurrentProjectScope', 'currentWorkspaceMemoryFocus', 'workspaceTurnFocus', 'markWorkspaceFocusStarted', 'readBrowserValues', 'mergeChatHistoryCopies'].map(helper => source.match(new RegExp(`(?:async )?function ${helper}\\([^]*?\\n\}`))[0]).join('\n') + '\n' + (source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0]);
+for (const completion of [{cached:false,has_question:true},
+ {cached:false,has_question:true,reply:'A memory. What happened next?'},
+ {cached:false,has_question:true,reply:'A memory. What happened next?',conversation_saved:true}]) {
+ test(`reply completion without a save or terminal receipt rejects clean EOF: ${JSON.stringify(completion)}`,async()=>{
+  const events=[{type:'text_delta',text:'A memory. '},{type:'question_validated',data:{has_question:true}},
+    {type:'text_delta',text:'What happened next?'},{type:'reply_complete',data:completion}];
+  const body=new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(events.map(JSON.stringify).join('\n')+'\n'));controller.close();}});
+  const received=[];
+  const context=vm.createContext({fetch:async()=>({ok:true,status:200,body}),state:{supabase:{accessToken:'test'},project:{id:'p'}},
+    memoirApiPath:p=>p,readCookie:()=>'',TextDecoder,conversationLanguage:()=> 'en-AU',localizedErrorMessage:()=> 'Incomplete streaming response'});
+  vm.runInContext(extract('streamAgentTurn'),context);
+  await assert.rejects(context.streamAgentTurn('A memory',async text=>received.push(text),async()=>{}),/Incomplete streaming response/);
+  assert.deepEqual(received,['A memory. ','What happened next?']);
+ });
+}
 test('public milestone metadata cannot unlock the next answer before conversation save', async()=>{
  let controller;
  const body=new ReadableStream({start(value){controller=value;}});

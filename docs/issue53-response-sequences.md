@@ -149,7 +149,7 @@ done
 
 Run these groups separately so a slow native fixture cannot obscure the status
 of focused or fault checks. Both locale runs are needed to cover all 80 rows.
-Each runs all nine scenario/receipt checks and retains its own plan, results,
+Each runs all ten scenario/receipt checks and retains its own plan, results,
 comparison and cleanup receipt. Fresh fixed artifact directories avoid pytest's
 rotating temporary-directory cleanup; use a new check root for another campaign.
 The locale selector is test-only; the default
@@ -278,36 +278,62 @@ than being replaced by zero or synthetic worker counts.
 
 ## Governed public milestone observations
 
-This slice is stacked on the unchanged PR96 language-gate head
-`8315df3e7876374f699ac0ab07b8481659660606`; PR96 must merge first. The latest
-observed main is `7d12641357b69ef767a49e171cc188e23a039c72`. Its separate
-place-workspace changes are checked in a disposable integration checkout, rather
-than duplicated in the stacked PR. Check receipts and source hashes are retained
+This slice began stacked on the unchanged PR96 language-gate head
+`8315df3e7876374f699ac0ab07b8481659660606`. PR96 subsequently merged into main
+at `f185c1c5bba7cbed7030c59944be103ca7a17490`; PR97 is rebased and targets that
+main state. Earlier integration checks combined main
+`7d12641357b69ef767a49e171cc188e23a039c72`, PR96 and the task source in a
+disposable checkout, preserving main's separate place-workspace fix. The
+required regression target is also run on the rebased branch. Original
+stack receipts and source hashes are retained
 in `docs/test-evidence/issue53-stream-milestones-20261020.json`.
+The independent contract review of initial PR97 head `29d34eb` found three
+introduced defects that the initial matrix missed: malformed native completion
+payloads, normal web settlement at truncated EOF, and unbound/premature profiler
+completion receipts. The repair and its new red/green evidence are recorded in
+`docs/test-evidence/issue53-stream-contract-repair-20261020.json`; the earlier
+milestone report remains historical evidence, not proof that those defects were
+absent.
 
 After full proposal validation and required persistence, the backend sends a
-fenced `question_validated` event containing only `{"has_question":true}` when
-there is a chosen question. Its received timestamp is a **post-commit validation
+fenced `question_validated` event containing `has_question:true` and the public
+project/client-turn/accepted-source identity when there is a chosen question.
+These identifiers already appear in source acceptance. Its received timestamp is a **post-commit validation
 attestation**, not the internal validation finish or question-text delivery time.
 It reveals no chosen ID, candidate questions, work decision or private plan.
 Stopped replies emit no question milestone.
 
 Every generated path sends `reply_complete` after its final public text delta
-and before the existing save attestation. The default payload contains only
+and before the existing save attestation. The default payload includes the
+public `reply` required by native consumers, the same three identity fields,
 `cached:false` and `has_question`; the existing two-lane public response envelope
-and reply identity are preserved. This marks completed public reply text, not
+and reply identity are preserved. The native schema remains strict and its
+reducer retains the accumulated reply. This marks completed public reply text, not
 terminal-result delivery or completed background work. It does not replace the
-client's `conversation_saved` readiness check. JSON response bodies are unchanged.
+client's `conversation_saved` readiness check. Clean EOF after completion alone
+rejects for recovery; completion data cannot become a successful web result.
+JSON response bodies are unchanged.
 Both markers use the existing publication fence and are rejected without it.
 
-Saved replay produces no artificial generation or save events. A nonempty saved
-cached `result` supplies its observed reply-completion time; new-text, new-question
+Saved replay produces no artificial generation or save events. A cached `result`
+must match the expected project, client turn, accepted source and saved reply
+before supplying its observed reply-completion time; new-text, new-question
 and new-save timings are not applicable. Stopped turns also have no applicable
-question timing. Comparison derives these exclusions from the frozen planned
+question timing. If the target turn failed to save, its planned replay remains
+explicitly unavailable and consumes no generation dispatch; the campaign still
+retains every planned row. Comparison derives these exclusions from the frozen planned
 row, reports `not_applicable` separately from `unknown`, and leaves their paired
-deltas null. Raw observations remain available. The first received milestone
-wins if duplicated. The profiler still reads historical private-pool progress
-receipts, but this slice does not restore that server publication.
+deltas null. Raw observations remain available. A generated completion requires
+prior source acceptance, matching identity, strict flags and an exact match to
+the public text accumulated so far. Later text revokes a premature completion;
+the first qualifying final receipt wins over valid duplicates. Import also binds
+that text to the separately validated canonical saved reply and derives the
+client-turn identity from the frozen plan. Resealing a sequence capsule cannot
+promote a bare early marker or foreign/wrong-text cached result into eligible
+timing evidence while leaving native receipts and the runner ledger unchanged.
+Historical private-pool progress is read only with completed status and matching
+turn/project after source acceptance; server publication is not restored. Older
+unbound observations remain historical and cannot supply these strict timings.
 
 Native controlled tests cover normal and cold-resumed generated turns, stop,
 saved replay, two-lane and strategy paths. A blocked commit may coexist with an
@@ -316,7 +342,12 @@ A failed commit preserves the source for same-turn recovery. Disconnects at the
 question delta or completion send cannot fabricate received completion/save;
 retry returns the saved reply without another generation. Private plan readback,
 source/reply identity and expired leases remain checked. A client stream test
-also proves that the new metadata cannot unlock another answer before save.
+also proves that the new metadata cannot unlock another answer before save or
+settle a truncated stream normally. Captured real backend streams are consumed
+through the shipped native API client, event schema and domain reducer, including
+all 80 bilingual first/later/resumed/stop/replay rows. Mocked model output does
+not bypass these consumer contracts. Malformed/foreign/premature marker tests
+exercise the standalone observer and resealed current-run receipt imports.
 The bilingual matrix and upstream-failure cases remain synthetic contract
 evidence, not model-quality or production-latency measurements.
 

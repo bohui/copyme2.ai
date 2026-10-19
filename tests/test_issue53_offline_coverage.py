@@ -9,6 +9,7 @@ import pytest
 
 from scripts import issue53_profile_sequences as profile
 from scripts.issue53_sequence_application import controlled_sequences
+from test_issue53_sequence_application import assert_mobile_streams
 
 
 @pytest.fixture(scope='module')
@@ -85,15 +86,21 @@ def test_public_milestones_distinguish_generated_stop_and_saved_replay(full_nati
         assert kinds.count('question_validated')==(0 if stopped else 1)
         assert kinds.count('reply_complete')==kinds.count('conversation_saved')==1
         completion=next(e for e in events if e['type']=='reply_complete')
-        assert completion['data']=={'cached':False,'has_question':not stopped}
+        binding={k:capture['output']['canonical_result'][k] for k in ('project_id','accepted_source_id')}
+        binding['client_turn_id']=profile.client_turn_id(planned,row)
+        assert completion['data']=={**binding,'reply':observation['public_text'],'cached':False,'has_question':not stopped}
         assert max(i for i,k in enumerate(kinds) if k=='text_delta')<kinds.index('reply_complete')<kinds.index('conversation_saved')
         if stopped:
             assert observation['timings']['validated_question_s'] is None
         else:
             validated=next(e for e in events if e['type']=='question_validated')
-            assert validated['data']=={'has_question':True}
+            assert validated['data']=={**binding,'has_question':True}
             assert kinds.index('question_validated')<max(i for i,k in enumerate(kinds) if k=='text_delta')
             assert observation['timings']['validated_question_s'] is not None
+
+
+def test_all_captured_phases_and_stops_satisfy_mobile_consumer(full_native_manifest):
+    assert_mobile_streams(full_native_manifest[2])
 
 
 def test_current_policy_tail_eligibility_does_not_erase_saved_testimony(full_native_manifest):

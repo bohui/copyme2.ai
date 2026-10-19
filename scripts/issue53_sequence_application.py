@@ -14,7 +14,7 @@ import sys
 from pathlib import Path
 import time
 from unittest.mock import patch
-from uuid import uuid4, uuid5, NAMESPACE_URL
+from uuid import uuid4
 
 from scripts import issue53_profile_sequences as profile
 from scripts.memoir_skill_eval_suite import Budget
@@ -23,36 +23,75 @@ from scripts.run_memoir_live_skills import save
 
 class StreamObservation:
     """Measure only public events; missing milestone observations stay unknown."""
-    def __init__(self, meaningful_excerpt, *, clock=time.monotonic):
+    def __init__(self, meaningful_excerpt, *, client_turn_id, project_id=None, accepted_source_id=None,
+                 replay=False, expected_reply=None, clock=time.monotonic):
+        if not isinstance(client_turn_id,str) or not client_turn_id.strip():
+            raise ValueError('expected_client_turn_required')
+        if replay and not all(isinstance(v,str) and v.strip() for v in (project_id,accepted_source_id,expected_reply)):
+            raise ValueError('expected_saved_replay_required')
         self.clock, self.started = clock, clock()
         self.excerpt, self.public = meaningful_excerpt, ''
         self.events, self.timings = [], {key:None for key in profile.MILESTONES}
+        self.identity=dict(client_turn_id=client_turn_id,project_id=project_id,accepted_source_id=accepted_source_id)
+        self.replay,self.expected_reply=replay,expected_reply
+        self.active,self.finished=False,False
+        self.completion_reply,self.saved_reply=None,None
+
+    def bound(self, data):
+        return all(isinstance(value,str) and value.strip() and data.get(key)==value for key,value in self.identity.items())
+
+    def reply_matches(self, data):
+        reply=data.get('reply')
+        return (isinstance(reply,str) and bool(reply.strip())
+                and (self.expected_reply is None or reply==self.expected_reply)
+                and (self.replay or reply==self.public))
 
     def observe(self, event):
         elapsed = self.clock() - self.started
         self.events.append({**deepcopy(event), 'elapsed_s':elapsed})
         kind = event.get('type')
         data=event.get('data') if isinstance(event.get('data'),dict) else {}
+        if self.finished:return
         def mark(key):
             if self.timings[key] is None:self.timings[key]=elapsed
-        if kind == 'text_delta':
-            self.public += event.get('text', '')
+        if kind=='source_accepted' and not self.replay:
+            if all(isinstance(data.get(k),str) and data[k].strip() and (v is None or data[k]==v) for k,v in self.identity.items()):
+                self.identity={k:data[k] for k in self.identity}
+                self.active=True
+        if kind=='text_delta' and self.active and isinstance(event.get('text'),str) and event['text']:
+            # More public text invalidates a premature completion/save assertion.
+            if self.completion_reply is not None or self.saved_reply is not None:
+                self.timings['reply_complete_s']=self.timings['durable_save_s']=None
+                self.completion_reply=self.saved_reply=None
+            self.public += event['text']
             if self.excerpt and self.excerpt in self.public and self.timings['first_meaningful_text_s'] is None:
                 self.timings['first_meaningful_text_s'] = elapsed
         pool = data.get('question_pool')
-        if (kind=='question_validated' and data.get('has_question') is True
-            or kind=='progress' and isinstance(pool,dict) and pool.get('chosen_id')):
+        legacy_pool=(kind=='progress' and event.get('project_id')==self.identity['project_id']
+            and event.get('turn_id')==self.identity['client_turn_id'] and data.get('id')=='question-pool'
+            and data.get('status')=='completed' and isinstance(pool,dict)
+            and isinstance(pool.get('chosen_id'),str) and bool(pool['chosen_id']))
+        if (self.active and self.completion_reply is None and self.saved_reply is None
+            and (kind=='question_validated' and self.bound(data) and data.get('has_question') is True or legacy_pool)):
             mark('validated_question_s')
-        saved_replay=(data.get('cached') is True and data.get('conversation_saved') is True
-                      and isinstance(data.get('reply'),str) and bool(data['reply'].strip()))
-        if kind=='reply_complete' and data.get('cached') is not True or kind=='result' and saved_replay:
+        if (kind=='reply_complete' and self.active and self.bound(data) and self.saved_reply is None
+            and data.get('cached') is False and type(data.get('has_question')) is bool and self.reply_matches(data)):
             mark('reply_complete_s')
-        if kind=='conversation_saved' and data.get('conversation_saved') is True:
+            self.completion_reply=data['reply']
+        if (kind=='conversation_saved' and self.active and self.bound(data) and self.reply_matches(data)
+            and data.get('cached') is not True and data.get('conversation_saved') is True):
             mark('durable_save_s')
+            self.saved_reply=data['reply']
+        if (kind=='result' and self.bound(data) and self.reply_matches(data) and data.get('conversation_saved') is True
+            and (data.get('cached') is True if self.replay else self.active and data.get('cached') is not True)):
+            if self.replay:mark('reply_complete_s')
+            self.finished=True
+        if kind=='error':self.finished=True
 
     def receipt(self):
         return dict(timings=self.timings, meaningful_excerpt=self.excerpt,
-                    public_text=self.public, events=self.events, measurement='backend_HTTP_receipt_not_browser_paint')
+                    public_text=self.public, events=self.events,identity=self.identity,replay=self.replay,
+                    measurement='backend_HTTP_receipt_not_browser_paint')
 
 
 def focused_state(snapshot):
@@ -247,7 +286,16 @@ async def controlled_sequences(planned, directory):
                                                     worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=transport)
                                             runtime = runtimes[row['arm']]
                                             runtime.worker_transport = transport
-                                            observation = StreamObservation(excerpt)
+                                            turn_id=profile.client_turn_id(planned,row)
+                                            replay_source=next((s for s in before['sources'] if s['client_turn_id']==turn_id),None)
+                                            replay_reply=next((r['reply'] for r in before['replies'] if replay_source and r['source_id']==replay_source['id']),None)
+                                            if row['action']=='replay' and not replay_reply:
+                                                value['reason']='saved_replay_prerequisite_unavailable'
+                                                persist()
+                                                continue
+                                            observation = StreamObservation(excerpt,client_turn_id=turn_id,project_id=spec['project_id'],
+                                                replay=row['action']=='replay',accepted_source_id=replay_source['id'] if replay_source else None,
+                                                expected_reply=replay_reply)
                                             real_rpc = storage.lifetime_rpc
                                             def guarded_rpc(name,**arguments):
                                                 if name in {'commit_lifetime_turn','commit_lifetime_strategy_turn'}:
@@ -259,8 +307,7 @@ async def controlled_sequences(planned, directory):
                                                 with patch.dict('os.environ', environment), (patch.object(storage,'lifetime_rpc',guarded_rpc) if fault=='save_failure' else nullcontext()):
                                                     async with asyncio.timeout(min(budget.timeout,budget.deadline-time.monotonic())):
                                                         delivered = await canonical_turn(runtime,storage,text,options=dict(project_id=spec['project_id'],
-                                                            language=language,client_turn_id=str(uuid5(NAMESPACE_URL,
-                                                                planned['run_id']+case['id']+str(sample)+step['client_turn_key']))),
+                                                            language=language,client_turn_id=turn_id),
                                                             evaluation=dict(case_id=row['item']['id'],run_id=planned['run_id']), on_event=observation.observe)
                                                 after = focused_state(snapshot_case(sql,storage,places))
                                                 output = dict(canonical_result={k:delivered[k] for k in ('accepted_source_id','project_id','reply','conversation_saved')},

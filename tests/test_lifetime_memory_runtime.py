@@ -120,10 +120,11 @@ def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tm
         assert private_plan['candidates'][0]['question']=='What would you like to share?'
         assert private_plan['work']==output['plan']['work']
         if streaming:
+            binding={k:result[k] for k in ('project_id','client_turn_id','accepted_source_id')}
             assert next(e['data'] for e in events if e['type']=='progress' and e['data']['id']=='question-pool')==summary
             assert any(e['type']=='progress' and e['data']['id']=='tool-1' for e in events)
-            assert next(e['data'] for e in events if e['type']=='question_validated')=={'has_question':True}
-            assert next(e['data'] for e in events if e['type']=='reply_complete')=={'cached':False,'has_question':True}
+            assert next(e['data'] for e in events if e['type']=='question_validated')=={**binding,'has_question':True}
+            assert next(e['data'] for e in events if e['type']=='reply_complete')=={**binding,'reply':result['reply'],'cached':False,'has_question':True}
         payload['project_id']=result['project_id']
         monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
         retry=client.post('/v1/agent/turn',headers=headers,json=payload)

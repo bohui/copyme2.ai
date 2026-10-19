@@ -14,7 +14,7 @@ from pathlib import Path
 import statistics
 import subprocess
 import time
-from uuid import uuid4
+from uuid import uuid4,uuid5,NAMESPACE_URL
 
 from scripts import memoir_skill_eval_suite as suite
 from scripts.memoir_skill_eval_application import verify_witness
@@ -163,6 +163,12 @@ def check_plan(planned):
 def context(planned, row):
     return dict(run_id=planned['run_id'], source_revision=planned['provenance']['source_revision'],
         source_content_sha256=digest(planned['provenance']), invocation_id=row['invocation_id'])
+
+
+def client_turn_id(planned, row):
+    case=next(s for s in planned['scenarios'] if s['id']==row['scenario_id'])
+    step=next(s for s in case['steps'] if s['id']==row['step_id'])
+    return str(uuid5(NAMESPACE_URL,planned['run_id']+case['id']+str(row['sample'])+step['client_turn_key']))
 
 
 def packet_projection(request):
@@ -324,9 +330,13 @@ def verify_capture(planned, row, result, capture, directory, prior_capture=None,
         raise ValueError('invalid_stream_clock')
     from scripts.issue53_sequence_application import StreamObservation
     clock = iter([0, *elapsed])
-    replay = StreamObservation(observation['meaningful_excerpt'], clock=lambda:next(clock))
+    current=capture['output']['canonical_result']
+    replay = StreamObservation(observation['meaningful_excerpt'],client_turn_id=client_turn_id(planned,row),
+        project_id=capture['project_id'],accepted_source_id=current['accepted_source_id'],
+        replay=row['action']=='replay',expected_reply=current['reply'],clock=lambda:next(clock))
     for event in events: replay.observe({k:v for k,v in event.items() if k != 'elapsed_s'})
     if (replay.timings != observation['timings'] or replay.public != observation['public_text']
+        or replay.identity != observation.get('identity') or replay.replay != observation.get('replay')
         or row['action'] != 'replay' and replay.timings['durable_save_s'] is None):
         raise ValueError('public_milestone_evidence_missing')
     # A domain failure must not invent state loss on the next turn. Only after
