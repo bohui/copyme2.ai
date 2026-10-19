@@ -434,6 +434,25 @@ class WorkflowTests(unittest.TestCase):
             ('Chengde','Beijing street','','Chengde',False),
             ('Chengde','Willow trees','Beijing street','Chengde',False),
             ('Chengde','Willow trees','','Chengde',True),
+            ('China','Beijing street','','Beijing, China',True),
+            ('Hebei','Chengde street','','Chengde, Hebei, China',True),
+            ('Australia','Sydney street','','Sydney, Australia',True),
+            ('China','Sydney street','','Sydney, Australia',False),
+            ('Hebei','Beijing street','','Beijing, China',False),
+            ('China','Beijing street','','Chengde, Hebei, China',False),
+            ('Chengde','Beijing street','','Chengde, Hebei, China',False),
+            ('China','Beijing street, China 1983','','',True),
+            ('Hebei','Chengde street in Hebei 1983','','',True),
+            ('Australia','Sydney street, Australia 1983','','',True),
+            ('Chengde','Beijing street, Chengde 1983','','',False),
+            ('China','Beijing street','',{'name':'Beijing','address':{'addressCountry':'China'}},True),
+            ('Hebei','Chengde street','',{'name':'Chengde','address':{'addressRegion':'Hebei','addressCountry':'China'}},True),
+            ('Australia','Sydney street','',{'name':'Sydney','address':{'addressCountry':{'@type':'Country','name':'Australia'}}},True),
+            ('China','Chengde street','',{'name':'Chengde','containedInPlace':{'name':'Hebei','containedInPlace':{'name':'China'}}},True),
+            ('China','Sydney street','',{'name':'Sydney','address':{'addressCountry':'Australia'}},False),
+            ('Chengde','Beijing street','',{'name':'Chengde','address':{'addressLocality':'Beijing','addressCountry':'China'}},False),
+            ('Perth','Sydney street in Perth','','Perth, Scotland',False),
+            ('China','Beijing street in China','','Chengde, Hebei, China',False),
         ]
         for place,name,caption,location,accepted in cases:
             with self.subTest(place=place,name=name,caption=caption,location=location):
@@ -443,11 +462,12 @@ class WorkflowTests(unittest.TestCase):
                 p.write_text(self.run/'evidence.jsonl','')
                 p.write_text(self.run/'search_log.jsonl','')
                 record = {'@type':'Photograph','name':name,'caption':caption,'dateTaken':'1983-10-01',
-                          'contentLocation':{'name':location},'contentUrl':'https://images.example/photo.jpg'}
+                          'contentLocation':location if isinstance(location,dict) else {'name':location},
+                          'contentUrl':'https://images.example/photo.jpg'}
                 page = {'url':'https://archive.example/item','html':
-                        '<title>Chengde Mountain Resort photo gallery</title><script type="application/ld+json">'
+                        f'<title>{place} photo gallery</title><script type="application/ld+json">'
                         + json.dumps({'@type':'ImageGallery','itemListElement':[{'item':record}]}) + '</script>'}
-                card = {'source_url':page['url'],'text':'Chengde Mountain Resort 避暑山庄 承德市'}
+                card = {'source_url':page['url'],'text':f'{place} Chengde Mountain Resort 避暑山庄 承德市'}
                 with patch.object(p,'_crawl4ai_search_pages',return_value=[card]), \
                      patch.object(p,'_crawl4ai_source_page',return_value=page), \
                      patch.object(p,'public_addresses',return_value=['93.184.216.34']):

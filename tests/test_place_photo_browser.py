@@ -207,13 +207,32 @@ def test_descriptive_photo_uses_its_structured_location_and_capture_date(nested,
     ('Chengde','Beijing street','','Chengde',False),
     ('Chengde','Willow trees','Beijing street','Chengde',False),
     ('Chengde','Willow trees','','Chengde',True),
+    ('China','Beijing street','','Beijing, China',True),
+    ('Hebei','Chengde street','','Chengde, Hebei, China',True),
+    ('Australia','Sydney street','','Sydney, Australia',True),
+    ('China','Sydney street','','Sydney, Australia',False),
+    ('Hebei','Beijing street','','Beijing, China',False),
+    ('China','Beijing street','','Chengde, Hebei, China',False),
+    ('Chengde','Beijing street','','Chengde, Hebei, China',False),
+    ('China','Beijing street, China 1983','','',True),
+    ('Hebei','Chengde street in Hebei 1983','','',True),
+    ('Australia','Sydney street, Australia 1983','','',True),
+    ('Chengde','Beijing street, Chengde 1983','','',False),
+    ('China','Beijing street','',{'name':'Beijing','address':{'addressCountry':'China'}},True),
+    ('Hebei','Chengde street','',{'name':'Chengde','address':{'addressRegion':'Hebei','addressCountry':'China'}},True),
+    ('Australia','Sydney street','',{'name':'Sydney','address':{'addressCountry':{'@type':'Country','name':'Australia'}}},True),
+    ('China','Chengde street','',{'name':'Chengde','containedInPlace':{'name':'Hebei','containedInPlace':{'name':'China'}}},True),
+    ('China','Sydney street','',{'name':'Sydney','address':{'addressCountry':'Australia'}},False),
+    ('Chengde','Beijing street','',{'name':'Chengde','address':{'addressLocality':'Beijing','addressCountry':'China'}},False),
+    ('Perth','Sydney street in Perth','','Perth, Scotland',False),
+    ('China','Beijing street in China','','Chengde, Hebei, China',False),
 ])
 def test_photo_reconciles_item_caption_with_its_structured_city(place, name, caption, location, accepted):
     record = {'@type':'Photograph','name':name,'caption':caption,'dateTaken':'1983-10-01',
-              'contentLocation':{'name':location},
+              'contentLocation':location if isinstance(location,dict) else {'name':location},
               'license':'https://creativecommons.org/licenses/by/4.0/',
               'contentUrl':'https://archive.example/photo.jpg'}
-    page = ('<title>Chengde Mountain Resort photo gallery</title><script type="application/ld+json">'
+    page = (f'<title>{place} photo gallery</title><script type="application/ld+json">'
             + json.dumps({'@type':'ImageGallery','itemListElement':[{'item':record}]}) + '</script>')
     items = browser._source_items(page,'https://archive.example/chengde',place,'1980s')
     assert bool(items) is accepted

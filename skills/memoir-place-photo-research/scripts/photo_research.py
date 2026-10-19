@@ -556,14 +556,7 @@ def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches
             if any(value in {'ImageObject', 'Photograph', 'ImageGallery'}
                    for value in types if isinstance(value, str)):
                 titles.extend((node.get('name', ''),node.get('caption', '')))
-                location = node.get('contentLocation') or node.get('spatialCoverage')
-                if isinstance(location, dict):
-                    explicit.append(location.get('name') or location.get('addressLocality'))
-                    address = location.get('address')
-                    if isinstance(address, dict):
-                        explicit.append(address.get('addressLocality'))
-                elif isinstance(location, str):
-                    explicit.append(location)
+                explicit.append(_crawl4ai_photo_location(node))
             if '@graph' in node:
                 visit(node['@graph'], depth + 1)
     visit(page.get('json_ld', []))
@@ -577,10 +570,28 @@ def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches
                 return True
         return False
 
+    containment_claims = [claim for claim in explicit if isinstance(claim,str) and claim.strip()] or titles
+
+    def city_is_supported(aliases):
+        if named_city_in(place, aliases):
+            return True
+        # A city search still rejects other cities; broader searches need an item-level parent claim.
+        if any(named_city_in(place, city) for city in _CITY_ALIASES):
+            return False
+        for claim in containment_claims:
+            if not isinstance(claim, str):
+                continue
+            parts = re.split(r'[,，]|\s+(?:in|at)\s+', claim, flags=re.I)
+            if any(location_matches(parent, place)
+                   and any(named_city_in(child, aliases) for child in parts[:index])
+                   for index,parent in enumerate(parts) if index):
+                return True
+        return False
+
     for locality in explicit:
         if not isinstance(locality, str) or not locality.strip():
             continue
-        if any(named_city_in(locality, aliases) and not named_city_in(place, aliases)
+        if any(named_city_in(locality, aliases) and not city_is_supported(aliases)
                for aliases in _CITY_ALIASES):
             return True
         if not location_matches(locality, place):
@@ -593,7 +604,7 @@ def _crawl4ai_conflicting_item_locality(page: dict, place: str, location_matches
         for aliases in _CITY_ALIASES:
             if (any(re.match(re.escape(alias) + (r'\b' if alias.isascii() else ''),
                              cleaned, re.I) for alias in aliases)
-                    and not any(alias.casefold() in place.casefold() for alias in aliases)):
+                    and not city_is_supported(aliases)):
                 return True
     return False
 
@@ -851,11 +862,21 @@ def _crawl4ai_source_page(source_url: str) -> dict:
 
 def _crawl4ai_photo_location(photo: dict) -> str:
     location = photo.get('contentLocation') or photo.get('spatialCoverage')
-    if isinstance(location, dict):
-        address = location.get('address')
-        location = (location.get('name') or location.get('addressLocality')
-                    or (address.get('addressLocality') if isinstance(address, dict) else ''))
-    return _text(location) if isinstance(location, str) else ''
+    def labels(value, depth=0):
+        if depth > 5:
+            return []
+        if isinstance(value, str):
+            return [_text(value)]
+        if not isinstance(value, dict):
+            return []
+        result = labels(value.get('name'),depth+1)
+        for address in (value,value.get('address')):
+            if isinstance(address, dict):
+                for key in ('addressLocality','addressRegion','addressCountry'):
+                    result.extend(labels(address.get(key),depth+1))
+        result.extend(labels(value.get('containedInPlace'),depth+1))
+        return result
+    return ', '.join(dict.fromkeys(filter(None,labels(location))))
 
 
 def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]:

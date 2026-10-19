@@ -352,6 +352,21 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     pages[landmark_source] = ('<title>Chengde Mountain Resort gallery</title><script type="application/ld+json">'
                              + json.dumps({'@type':'ImageGallery','itemListElement':[
                                  {'item':wrong_city},{'item':resort_photo}]}) + '</script>')
+    containing_places = []
+    for name,city,hierarchy,granularity,location in (
+            ('China','Beijing',['Earth','China'],'country',
+             {'name':'Beijing','address':{'addressCountry':'China'}}),
+            ('Hebei','Chengde',['Earth','China','Hebei'],'region',{'name':'Chengde, Hebei, China'}),
+            ('Australia','Sydney',['Earth','Australia'],'country',
+             {'name':'Sydney','containedInPlace':{'name':'Australia'}})):
+        containing_places.append({'place':name,'hierarchy':hierarchy,'granularity':granularity,
+                                  'research_period':'1980s','research_year':1983})
+        source = f'https://archive.example/containing/{name.lower()}'
+        pages[place_photo_browser._search_url('google',name,'1980s')] = cse_html([source]).replace('Chengde',name)
+        record = {**resort_photo,'name':f'{city} street','contentLocation':location,
+                  'contentUrl':f'https://live.staticflickr.com/1/{name.lower()}.jpg'}
+        pages[source] = (f'<title>{name} archive</title><script type="application/ld+json">'
+                         + json.dumps(record) + '</script>')
     places = [
         {'place':'承德市','hierarchy':['Earth','中国','河北省','承德市'],'granularity':'city','latitude':40.97,'longitude':117.93},
         {'place':'悉尼','hierarchy':['Earth','澳大利亚','悉尼'],'granularity':'city','latitude':-33.86,'longitude':151.2},
@@ -454,6 +469,18 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         assert not final.get('failures')
         assert [item['title'] for item in final['items']] == ['Mountain Resort']
         assert final['items'][0]['date_expression'] == '1983-10-01'
+        for parent in containing_places:
+            response = conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
+                params={'place':parent['place'],'period':'1980s','context_year':1983},
+                headers={'Accept':'application/x-ndjson'})
+            assert response.status_code == 200,response.text
+            photos[parent['place']] = response.text
+            final = json.loads(response.text.splitlines()[-1])
+            assert final['status'] == 'PARTIAL',final
+            assert not final.get('failures')
+            expected_city = {'China':'Beijing','Hebei':'Chengde','Australia':'Sydney'}[parent['place']]
+            assert [item['title'] for item in final['items']] == [f'{expected_city} street']
+            assert final['items'][0]['date_expression'] == '1983-10-01'
         groups=[]
         public=[{key:place[key] for key in ('place','hierarchy','granularity','latitude','longitude')} for place in saved]
         for language in ('zh-CN','en-AU'):
@@ -472,7 +499,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         groups.append({'request':request,'response':response.json()})
         ready=progress(conversation)
         packet={'pending':pending,'ready':ready,'photos':photos,'groups':groups,
-                'provider_places':provider_places,'landmark':landmark}
+                'provider_places':provider_places,'landmark':landmark,'containing_places':containing_places}
         (tmp_path/'place-research-replay.json').write_text(json.dumps(packet,ensure_ascii=False))
         replay=Path(__file__).parent/'js/helpers/replay-place-research.mjs'
         result=subprocess.run(['node',str(replay)],input=json.dumps(packet),text=True,capture_output=True,timeout=20)
