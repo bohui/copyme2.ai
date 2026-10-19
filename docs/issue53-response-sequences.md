@@ -233,3 +233,14 @@ policy/usage attestor, so provider metrics remain null even when an imported
 JSON claims low effort, token usage or zero retries. Language-switch judge
 context uses each turn's requested reply language; report locale identifies the
 sequence's initial locale cohort.
+
+## Review follow-up: blinding and partial evidence
+
+Blind export serializes available labels in canonical A/B order, independent of
+host baseline/candidate insertion order. Each side now also has its own
+`packet_sha256`. A review may supply `side_packet_sha256: {"A": "...", "B": "..."}`
+to retain an independently bound side assessment when its mate later becomes
+missing, failed, timed out or unavailable. A full pair hash still binds paired
+preference. A missing mate or invalid preference cannot erase a valid critical
+side judgment. An unavailable/not-applicable human preference has no direction:
+a stray `preferred_side` is ignored, while valid critical evidence still blocks.

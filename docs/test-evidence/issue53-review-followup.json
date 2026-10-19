@@ -1,0 +1,79 @@
+{
+  "scope": "PR95 exact-14c462d review fixes; expanded offline coverage still in progress",
+  "reviewed_head": "14c462d1af0eb10ed7a34926bd0369aa2515a0b6",
+  "findings_fixed": [
+    "Canonical serialized A/B order hides host arm insertion order",
+    "Independently bound side critical judgments survive incomplete mates",
+    "Unavailable preference has no direction"
+  ],
+  "checks": [
+    {
+      "name": "review-red",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "-k",
+        "canonical_order or incomplete_pair or unavailable_human"
+      ],
+      "exit_code": 1,
+      "summary": "3 failed, 30 deselected in 23.44s",
+      "duration_seconds": 23.8,
+      "cleanup_verified": true,
+      "log_sha256": "54b6a9729b383c3537b64f5dcd382ff603e0f335fc4a0742faeab5b138ec3ee1"
+    },
+    {
+      "name": "review-green",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "exit_code": 0,
+      "summary": "66 passed in 28.66s",
+      "duration_seconds": 29.02,
+      "cleanup_verified": true,
+      "log_sha256": "772c90098f5a3c0e9865f7a6bc64d4ff073b7bdeaebd034ecaca36a54c23e8ae"
+    },
+    {
+      "name": "review-regressions-final",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py"
+      ],
+      "exit_code": 0,
+      "summary": "71 passed in 29.28s",
+      "duration_seconds": 29.61,
+      "cleanup_verified": true,
+      "log_sha256": "cbabf6a9b0fc6d03eec729500dde660c004dad3f4434a9c806805c2d04d5f030"
+    }
+  ],
+  "files_sha256": {
+    "scripts/issue53_profile_sequences.py": "35f98397c651ef69d7ded0acb0a1880a1b0b58a0e6d2c9c418499810074dc902",
+    "tests/test_issue53_profile_sequences.py": "e00a6508f61d0294ed250ef01f828200bb56ca5d0863861632b7adabe83d513f",
+    "tests/test_issue53_sequence_application.py": "3549a517680a1eca3cee1edb272a6f165d78261725462ec0d7039a03c361c3bf",
+    "docs/issue53-response-sequences.md": "73d43faa1f9612f051191ac7b63e87d608e430483f5861d4713a4acb9ba113ea"
+  },
+  "release_accepted": false,
+  "remaining_offline_work": [
+    "Full 12-sequence native matrix",
+    "Mock-only isolated configuration rollback continuity",
+    "Eight bilingual malformed/disconnect/timeout/save-failure cases"
+  ]
+}

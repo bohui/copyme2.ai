@@ -108,7 +108,8 @@ def test_critical_violation_and_missing_citations_remain_separate_from_latency(n
     assert any(r['semantic']['status']=='fail' for r in report['rows'])
     review['A']['critical_violations']=[];review['comparison']['citations']=['A.output']
     report=profile.compare(planned,rows,journal,{pair_id:review},directory=directory)
-    assert all(r['semantic']['status']=='unavailable' for r in report['rows'] if r['pair_id']==pair_id)
+    assert all(r['comparison']['status']=='unavailable' for r in report['rows'] if r['pair_id']==pair_id)
+    assert all(r['semantic']['status']=='pass' for r in report['rows'] if r['pair_id']==pair_id)
 
 
 @pytest.mark.parametrize('mode',['missing','stale_dispatch','clock','source','resume','replay'])
@@ -203,3 +204,65 @@ def test_imported_provider_metrics_cannot_be_promoted_to_observed_metrics(native
     assert row['imported_provider_metrics']['values']['effective_effort']=='low'
     assert row['runner_observations']['source']=='verified_controlled_runner_ledger'
     assert row['runner_observations']['calls'][0]['live_model_dispatch'] is False
+
+
+@pytest.mark.parametrize('mate_status',[None,'failed','timed_out','unavailable'])
+def test_incomplete_pair_preserves_bound_available_candidate_critical_judgment(native_pair,mate_status):
+    planned,rows,journal,directory=native_pair
+    candidate=next(r for r in planned['rows'] if r['arm']=='candidate' and r['phase']=='first')
+    baseline_id=next(r['row_id'] for r in planned['rows'] if r['pair_id']==candidate['pair_id'] and r['arm']=='baseline')
+    incomplete=[r for r in rows if r['row_id']!=baseline_id]
+    if mate_status is not None:
+        incomplete.append(dict(row_id=baseline_id,execution=mate_status,reason='controlled missing mate'))
+    pair=profile.blind_packets(planned,incomplete,journal)[candidate['pair_id']]
+    side=profile.blind_side(planned,candidate)
+    review=dict(packet_sha256=pair['packet_sha256'])
+    review[side]=judgment(critical=['lost_testimony'])
+    report=profile.compare(planned,incomplete,journal,{candidate['pair_id']:review},directory=directory)
+    result=next(r for r in report['rows'] if r['row_id']==candidate['row_id'])
+    assert result['semantic']['status']=='fail'
+    assert result['semantic']['critical_violations']==['lost_testimony']
+    assert report['status']=='failed' and not report['release_accepted']
+    assert next(r for r in report['rows'] if r['row_id']==baseline_id)['execution']==(mate_status or 'unavailable')
+
+
+def test_unavailable_human_preference_does_not_invent_a_regression(native_pair):
+    planned,rows,journal,directory=native_pair
+    baseline=next(r for r in planned['rows'] if r['arm']=='baseline' and r['phase']=='first')
+    pair=profile.blind_packets(planned,rows,journal)[baseline['pair_id']]
+    comparison=judgment(status='unavailable',citations=['A.output','B.output','task'])
+    # A stray side value on an abstention cannot be treated as an assessment.
+    comparison.update(preferred_side=profile.blind_side(planned,baseline),reviewer_kind='human')
+    review=dict(packet_sha256=pair['packet_sha256'],A=judgment(),B=judgment(),comparison=comparison)
+    report=profile.compare(planned,rows,journal,{baseline['pair_id']:review},directory=directory)
+    assert not any(r.get('semantic_regression') for r in report['rows'])
+    assert report['status']=='incomplete'
+    assert all('preferred_side' not in r.get('comparison',{}) for r in report['rows'])
+
+
+def test_individual_packet_binding_survives_loss_of_mate_after_review(native_pair):
+    planned,rows,journal,directory=native_pair
+    candidate=next(r for r in planned['rows'] if r['arm']=='candidate' and r['phase']=='first')
+    original_pair=profile.blind_packets(planned,rows,journal)[candidate['pair_id']]
+    baseline_id=next(r['row_id'] for r in planned['rows'] if r['pair_id']==candidate['pair_id'] and r['arm']=='baseline')
+    reduced=[r for r in rows if r['row_id']!=baseline_id]
+    side=profile.blind_side(planned,candidate)
+    review=dict(packet_sha256=original_pair['packet_sha256'],side_packet_sha256={side:original_pair[side]['packet_sha256']})
+    review[side]=judgment(critical=['ignored_stop'])
+    report=profile.compare(planned,reduced,journal,{candidate['pair_id']:review},directory=directory)
+    row=next(r for r in report['rows'] if r['row_id']==candidate['row_id'])
+    assert row['semantic']['status']=='fail'
+    assert row['comparison']['status']=='unavailable'
+    assert report['status']=='failed'
+
+
+def test_abstention_with_valid_critical_evidence_still_blocks_without_direction(native_pair):
+    planned,rows,journal,directory=native_pair
+    baseline=next(r for r in planned['rows'] if r['arm']=='baseline' and r['phase']=='first')
+    pair=profile.blind_packets(planned,rows,journal)[baseline['pair_id']]
+    comparison=judgment(status='unavailable',citations=['A.output','B.output','task'],critical=['unsupported_fact'])
+    comparison.update(preferred_side=profile.blind_side(planned,baseline),reviewer_kind='human')
+    review=dict(packet_sha256=pair['packet_sha256'],A=judgment(),B=judgment(),comparison=comparison)
+    report=profile.compare(planned,rows,journal,{baseline['pair_id']:review},directory=directory)
+    assert report['status']=='failed'
+    assert not any(r.get('semantic_regression') for r in report['rows'])

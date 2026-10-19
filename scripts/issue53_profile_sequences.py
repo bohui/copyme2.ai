@@ -276,8 +276,13 @@ def blind_packets(planned, results, journal=None):
             gold=row['item']['gold'], instructions=definition['compiled_text'],
             evaluator_sha256=definition['compiled_sha256'], publication=definition['publication'])
         packet['evidence'] = evidence
+        packet['packet_sha256'] = digest(packet)
         pairs.setdefault(row['pair_id'], {})[side] = packet
-    for pair in pairs.values():
+    for pair_id, available in list(pairs.items()):
+        # JSON preserves insertion order. Export label order, never host arm
+        # order, or the first serialized packet would reveal the baseline.
+        pair = {side:available[side] for side in ('A','B') if side in available}
+        pairs[pair_id] = pair
         pair['human_preference_contract'] = dict(kind='separate_blinded_human_annotation_not_model_prompt',
             required_fields=['status','citations','rationale','critical_violations','response_id','model','preferred_side','reviewer_kind'],
             preferred_side=['A','B','tie'], citations=['A.output','B.output','task'],
@@ -371,31 +376,46 @@ def compare(planned, results, journal, reviews, *, directory):
         review = reviews.get(row['pair_id'])
         if review and row['pair_id'] in packets and item['contracts']['status'] == 'pass':
             pair = packets[row['pair_id']]
+            side = blind_side(planned, row)
+            pair_rows = [r for r in planned['rows'] if r['pair_id'] == row['pair_id']]
+            evaluated_models = {c.get('model') for r in pair_rows for c in captures.get(r['row_id'], {}).get('dispatches', [])}
+            evaluated_models |= {index.get(r['row_id'], {}).get('provider_metrics', {}).get('model') for r in pair_rows}
+            pair_bound = isinstance(review, dict) and review.get('packet_sha256') == pair['packet_sha256']
             try:
-                if set(pair) != {'A','B','packet_sha256','human_preference_contract'} or review['packet_sha256'] != pair['packet_sha256']:
+                side_bound = review.get('side_packet_sha256', {}).get(side) == pair[side]['packet_sha256']
+                if not pair_bound and not side_bound:
                     raise ValueError('blind_packet_binding_mismatch')
-                side = blind_side(planned, row)
                 judged = review[side]
-                pair_rows = [r for r in planned['rows'] if r['pair_id'] == row['pair_id']]
-                evaluated_models = {c.get('model') for r in pair_rows for c in captures.get(r['row_id'], {}).get('dispatches', [])}
-                evaluated_models |= {index.get(r['row_id'], {}).get('provider_metrics', {}).get('model') for r in pair_rows}
                 if judged['model'] in evaluated_models or not judged['model']: raise ValueError('judge_not_independent')
                 item['semantic'] = suite.quality(judged, pair[side]['evidence'])
-                comparison = suite.quality(review['comparison'], {'A.output':pair['A']['evidence']['output'],
-                    'B.output':pair['B']['evidence']['output'], 'task':pair['A']['evidence']['task']})
-                item['comparison'] = comparison
-                if review['comparison'].get('reviewer_kind') != 'human':
-                    raise ValueError('separate_human_preference_annotation_required')
-                if review['comparison']['model'] in evaluated_models or not review['comparison']['model']:
-                    raise ValueError('comparison_not_independent')
-                if not {'A.output','B.output','task'} <= set(comparison['citations']): raise ValueError('paired_evidence_citations_required')
-                preferred = review['comparison']['preferred_side']
-                if preferred not in {'A','B','tie'}: raise ValueError('invalid_blind_preference')
-                item['comparison'] = {**comparison, 'preferred_side':preferred}
-                item['semantic_regression'] = row['arm'] == 'candidate' and preferred not in {side,'tie'}
-            except (KeyError, ValueError, TypeError) as error:
-                if item['semantic']['status'] != 'fail':
-                    item['semantic'] = suite.unavailable('invalid_paired_judgment_' + type(error).__name__)
+            except (KeyError, ValueError, TypeError, AttributeError) as error:
+                item['semantic'] = suite.unavailable('invalid_side_judgment_' + type(error).__name__)
+            # Missing mate/preference evidence must not erase an independently
+            # bound side judgment, particularly an already observed critical fail.
+            if not {'A','B'} <= pair.keys():
+                item['comparison'] = suite.unavailable('complete_matched_pair_required')
+            elif not pair_bound:
+                item['comparison'] = suite.unavailable('paired_review_binding_required')
+            else:
+                try:
+                    comparison = suite.quality(review['comparison'], {'A.output':pair['A']['evidence']['output'],
+                        'B.output':pair['B']['evidence']['output'], 'task':pair['A']['evidence']['task']})
+                    item['comparison'] = comparison
+                    if review['comparison'].get('reviewer_kind') != 'human':
+                        raise ValueError('separate_human_preference_annotation_required')
+                    if review['comparison']['model'] in evaluated_models or not review['comparison']['model']:
+                        raise ValueError('comparison_not_independent')
+                    # Abstentions and not-applicable annotations carry no
+                    # direction, even if a stray preferred_side was supplied.
+                    if review['comparison']['status'] not in {'unavailable','not_applicable'}:
+                        if not {'A.output','B.output','task'} <= set(comparison['citations']): raise ValueError('paired_evidence_citations_required')
+                        preferred = review['comparison']['preferred_side']
+                        if preferred not in {'A','B','tie'}: raise ValueError('invalid_blind_preference')
+                        item['comparison'] = {**comparison, 'preferred_side':preferred}
+                        item['semantic_regression'] = row['arm'] == 'candidate' and preferred not in {side,'tie'}
+                except (KeyError, ValueError, TypeError) as error:
+                    if item.get('comparison', {}).get('status') != 'fail':
+                        item['comparison'] = suite.unavailable('invalid_paired_judgment_' + type(error).__name__)
         rows.append(item)
     for pair_id in {r['pair_id'] for r in rows}:
         pair = [r for r in rows if r['pair_id']==pair_id]

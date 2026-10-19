@@ -132,3 +132,15 @@ def test_language_switch_updates_per_turn_judge_context(locale,target):
     later=[r for r in planned['rows'] if r['step_id'] in {'turn-3','turn-4'}]
     assert all(r['item']['task']['context']['interview_language']==target for r in later)
     assert all(r['item']['task']['source']['language']==target for r in later)
+
+
+def test_blind_export_serializes_labels_in_canonical_order_not_arm_order(monkeypatch):
+    planned=profile.plan()
+    # Force every pair to map baseline->B. Host insertion order must not reveal it.
+    monkeypatch.setattr(profile,'blind_side',lambda p,r:'B' if r['arm']=='baseline' else 'A')
+    rows=[dict(row_id=r['row_id'],execution='completed',output={'text':'Synthetic reply'}) for r in planned['rows']]
+    exported=profile.blind_packets(planned,rows)
+    assert len(exported)==40
+    assert all(list(pair)[:2]==['A','B'] for pair in exported.values())
+    serialized=json.loads(json.dumps(exported))
+    assert all(list(pair)[:2]==['A','B'] for pair in serialized.values())
