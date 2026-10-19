@@ -302,10 +302,11 @@ def validate(item, output):
         raise LookupError('missing_application_witness_adapter')
 
 
-def validate_workflow(item, output, witnesses, directory=None):
+def validate_workflow(item, output, witnesses, directory=None, *, application_context=None, application_dispatches=None):
     if witnesses.get('kind') == 'controlled_application':
         from scripts.memoir_skill_eval_application import verify_witness
-        verify_witness(item, output, witnesses, directory)
+        return verify_witness(item, output, witnesses, directory, expected_context=application_context,
+                              dispatches=application_dispatches)
     elif item['skill'] == 'memoir-composer':
         if witnesses.get('storage') != 'isolated_in_memory' or not output.get('checkpoints'):
             raise LookupError('composer_checkpoint_witness_missing')
@@ -414,6 +415,9 @@ def hosted_contract(item, output, binding, application_receipt):
     if len(matches) != 1: return unavailable('receipt_item_mismatch')
     expected = matches[0]
     if (expected.get('binding') != binding or binding.get('run_id') != application_receipt['run_id']
+        or not application_receipt.get('source_revision') or not application_receipt.get('source_content_sha256')
+        or binding.get('source_revision') != application_receipt['source_revision']
+        or binding.get('source_content_sha256') != application_receipt['source_content_sha256']
         or binding.get('item_id') != item['id'] or binding.get('dataset') != item['dataset']
         or binding.get('item_sha256') != item['content_sha256'] or binding.get('output_sha256') != digest(output)
         or binding.get('input_sha256') != digest(item['task'])
@@ -471,6 +475,7 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
     for item in planned['items']:
         receipt['results'].append(dict(case_id=item['id'], skill=item['skill'], phase=item['phase'], locale=item['locale'],
             execution='not_run', positive_case=item['positive_case'], positive_delivery=False,
+            canonical_delivery=False,
             evidence_mode='controlled_offline', live_delivery=False,
             contract=unavailable('not_run'), quality=unavailable('not_run'), reason='not_run'))
 
@@ -493,14 +498,26 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
             if len(json.dumps(item, ensure_ascii=False).encode()) > max_evidence_bytes:
                 raise LookupError('evidence_size_exhausted')
             output, completion, witnesses = None, None, None
+            application_context, application_dispatches, verified = None, None, None
             if item['skill'] == 'memoir-place-groups':
                 if clock() >= skill_budget.deadline: raise LookupError('skill_deadline_exhausted')
                 from apps.api.place_groups import resolve_place_groups
                 output = resolve_place_groups(deepcopy(item['task']['places']), allow_provider=False)
             elif application is not None and application.supports(item):
+                # Admission belongs to this runner, including for injected adapters.
+                if len(skill_budget.calls) >= skill_budget.maximum: raise LookupError('skill_budget_exhausted')
+                if clock() >= skill_budget.deadline: raise LookupError('skill_deadline_exhausted')
+                application_context = dict(run_id=receipt['run_id'], source_revision=receipt['source_revision'],
+                    source_content_sha256=receipt['source_content_sha256'], invocation_id=str(uuid4()))
+                row['application_context'] = deepcopy(application_context)
+                dispatch_start = len(skill_budget.calls)
                 output, witnesses = await application.execute(item, skill_budget, directory,
-                    dict(run_id=receipt['run_id'], source_revision=receipt['source_revision'],
-                         source_content_sha256=receipt['source_content_sha256']))
+                    deepcopy(application_context))
+                application_dispatches = deepcopy(skill_budget.calls[dispatch_start:])
+                if len(skill_budget.calls) > skill_budget.maximum: raise ValueError('application_dispatch_overrun')
+                if clock() >= skill_budget.deadline: raise LookupError('skill_deadline_exhausted')
+                if not isinstance(witnesses, dict) or witnesses.get('kind') != 'controlled_application':
+                    raise LookupError('independent_application_receipt_required')
             elif item['skill'] == 'memoir-historical-news-research' and history_provider is not None:
                 from scripts.memoir_skill_eval_workflows import history
                 output, witnesses = await history(item, history_provider, skill_budget)
@@ -532,7 +549,8 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
             row.update(execution='completed', output=output, completion=completion, reason='')
             try:
                 if witnesses is not None:
-                    validate_workflow(item, output, witnesses, directory)
+                    verified = validate_workflow(item, output, witnesses, directory,
+                        application_context=application_context, application_dispatches=application_dispatches)
                 else:
                     validate(item, output)
                 row['contract'] = dict(status='pass', evidence=['output', 'task'])
@@ -544,8 +562,7 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
             row['production_status'] = planned['inventory'][item['skill']]['status']
             row['canonical_delivery'] = False
             if witnesses and witnesses.get('kind') == 'controlled_application' and row['contract']['status'] == 'pass':
-                from scripts.memoir_skill_eval_application import verify_witness
-                row['canonical_delivery'] = verify_witness(item, output, witnesses, directory)['canonical_delivery']
+                row['canonical_delivery'] = verified['canonical_delivery']
                 row['evidence_mode'] = 'controlled_disposable_application'
             row['witnesses'] = witnesses
             row['binding'] = dict(run_id=receipt['run_id'], item_id=item['id'], item_sha256=item['content_sha256'],
@@ -555,6 +572,9 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
                 packet_sha256=skill_budget.calls[-1]['request_sha256'] if completion else None,
                 request_sha256s=[c['request_sha256'] for c in skill_budget.calls if c['item_id'] == item['id']],
                 witnesses_sha256=digest(witnesses))
+            if application_context:
+                row['binding'].update(application_invocation_id=application_context['invocation_id'],
+                    application_dispatches_sha256=digest(application_dispatches))
             row['positive_delivery'] = item['positive_case'] and row['contract']['status'] == 'pass'
             persist()  # Independent application receipt exists before any judge or hosted score.
             evidence = dict(output=output, task=item['task'], binding=row['binding'])
@@ -582,9 +602,10 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
                     except Exception as error:
                         row['quality'] = unavailable('invalid_or_failed_judgment_' + type(error).__name__)
         except LookupError as error:
-            row.update(execution='unavailable', reason=str(error), contract=unavailable(str(error)), quality=unavailable('execution_unavailable'))
+            row.update(execution='unavailable', positive_delivery=False, canonical_delivery=False,
+                reason=str(error), contract=unavailable(str(error)), quality=unavailable('execution_unavailable'))
         except Exception as error:
-            row.update(execution='unavailable', reason='skill_dispatch_' + type(error).__name__,
+            row.update(execution='unavailable', positive_delivery=False, canonical_delivery=False, reason='skill_dispatch_' + type(error).__name__,
                 contract=unavailable('execution_unavailable'), quality=unavailable('execution_unavailable'))
         except BaseException:
             receipt['status'] = 'incomplete'

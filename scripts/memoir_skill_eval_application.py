@@ -18,8 +18,13 @@ from uuid import uuid4
 from scripts.memoir_skill_eval_suite import Budget, ROOT, digest
 from scripts.run_memoir_live_skills import save
 
+APPLICATION_CONTEXT_KEYS = ('run_id', 'source_revision', 'source_content_sha256', 'invocation_id')
 
-def verify_witness(item, output, witnesses, directory):
+
+def verify_witness(item, output, witnesses, directory, *, expected_context, dispatches):
+    if not expected_context or any(not isinstance(expected_context.get(k), str) or not expected_context[k]
+                                   for k in APPLICATION_CONTEXT_KEYS):
+        raise ValueError('current_application_context_required')
     path = Path(directory) / witnesses['receipt_path']
     if path.is_symlink() or not path.resolve().is_relative_to(Path(directory).resolve()):
         raise ValueError('application_receipt_location')
@@ -34,9 +39,15 @@ def verify_witness(item, output, witnesses, directory):
         raise ValueError('application_identity_mismatch')
     if (value['context']['dataset_snapshot'] != item['dataset_snapshot']
         or value['context']['dataset'] != item['dataset']
-        or value['context']['item_sha256'] != item['content_sha256']
-        or value['context']['run_id'] != witnesses['run_id']):
+        or value['context']['item_sha256'] != item['content_sha256']):
         raise ValueError('application_version_binding_mismatch')
+    if (any(value['context'].get(k) != expected_context[k] for k in APPLICATION_CONTEXT_KEYS)
+        or witnesses.get('run_id') != expected_context['run_id']):
+        raise ValueError('application_current_context_mismatch')
+    if (not dispatches or value.get('dispatches') != dispatches
+        or any(c.get('item_id') != item['id'] or c.get('status') not in {'completed', 'failed'}
+               or any(c.get(k) != expected_context[k] for k in APPLICATION_CONTEXT_KEYS) for c in dispatches)):
+        raise ValueError('application_current_dispatch_receipt_required')
     sources = value['source_readbacks']
     if not sources or any(s['user_id'] != value['owner_id'] or s['project_id'] != value['project_id'] for s in sources):
         raise ValueError('application_source_scope')
@@ -89,6 +100,7 @@ class ControlledApplication:
             timeout=budget.timeout, max_bytes=budget.max_bytes, browser_url=self.browser_url,
             browser_executable=self.browser_executable)
         creation, process = None, None
+        dispatch_start = len(budget.calls)
         try:
             creation = asyncio.create_task(asyncio.create_subprocess_exec(sys.executable,
                 '-m', 'scripts.memoir_skill_eval_application', cwd=ROOT, env=environment,
@@ -122,7 +134,8 @@ class ControlledApplication:
             receipt_sha256=digest(independent), run_id=context['run_id'], persisted_canonical_state=True,
             browser_observed=bool((independent.get('game', {}).get('browser') or {}).get('verified')),
             readback=deepcopy(independent))
-        verify_witness(item, result['output'], witness, directory)
+        verify_witness(item, result['output'], witness, directory, expected_context=context,
+                       dispatches=budget.calls[dispatch_start:])
         return result['output'], witness
 
 
@@ -157,6 +170,7 @@ async def _execute(value):
     def save_calls():
         for call in budget.calls:
             call.update(evidence_mode='controlled_fixture', live_model_dispatch=False)
+            call.update({k: value['context'][k] for k in APPLICATION_CONTEXT_KEYS})
         save(folder / 'calls.json', budget.calls)
     budget.on_change = save_calls
     budget.on_change()
@@ -274,6 +288,7 @@ async def _execute(value):
                 witness['game'] = phase
                 witness['final_source_readbacks'] = sources()
             witness['output_sha256'] = digest(output)
+            witness['dispatches'] = deepcopy(budget.calls)
             save(folder / 'readback.json', witness)
             return dict(output=output)
 

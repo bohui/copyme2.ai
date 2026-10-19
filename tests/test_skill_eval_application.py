@@ -34,19 +34,20 @@ def test_canonical_turn_receipt_binds_exact_task_output_and_persisted_source(tmp
     row, = result['results']
     assert row['contract']['status'] == 'pass', row
     assert row['canonical_delivery'] and row['witnesses']['persisted_canonical_state']
-    assert verify_witness(planned['items'][0], row['output'], row['witnesses'], tmp_path)['verified']
+    context = dict(expected_context=row['application_context'], dispatches=result['budgets']['skill']['calls'])
+    assert verify_witness(planned['items'][0], row['output'], row['witnesses'], tmp_path, **context)['verified']
     assert row['witnesses']['readback']['source_readbacks'][0]['text'] == planned['items'][0]['task']['source']['text']
     rebound = deepcopy(planned['items'][0])
     rebound['dataset_snapshot'] = '2026-10-20T00:00:00Z'
-    with pytest.raises(ValueError): verify_witness(rebound, row['output'], row['witnesses'], tmp_path)
+    with pytest.raises(ValueError): verify_witness(rebound, row['output'], row['witnesses'], tmp_path, **context)
     forged = deepcopy(row['output'])
     forged['canonical_result']['accepted_source_id'] = 'forged-source'
-    with pytest.raises(ValueError): verify_witness(planned['items'][0], forged, row['witnesses'], tmp_path)
+    with pytest.raises(ValueError): verify_witness(planned['items'][0], forged, row['witnesses'], tmp_path, **context)
     receipt_path = tmp_path / row['witnesses']['receipt_path']
     readback = json.loads(receipt_path.read_text())
     readback['source_readbacks'][0]['text'] = 'Forged testimony'
     receipt_path.write_text(json.dumps(readback))
-    with pytest.raises(ValueError): verify_witness(planned['items'][0], row['output'], row['witnesses'], tmp_path)
+    with pytest.raises(ValueError): verify_witness(planned['items'][0], row['output'], row['witnesses'], tmp_path, **context)
 
 
 def test_application_budget_exhaustion_retains_every_item(tmp_path):

@@ -51,6 +51,13 @@ Its external worker/model replies and Auth identity are controlled synthetic
 fixtures; counted fixture dispatches explicitly record `live_model_dispatch=false`.
 The adapter binds a separate receipt to exact task, output, source readbacks,
 dataset snapshot and run identity, and verifies cluster removal before accepting it.
+Receipt verification receives the runner's current run/source identity directly,
+including a unique invocation ID, and requires an exact match to dispatch records
+consumed by that invocation. A prior passing receipt cannot be reused in a new
+run, even if its supplied run ID and hash are rewritten. The runner rejects zero
+dispatch allowance or expired deadlines before invoking an application adapter.
+Partial/failed native execution retains its consumed dispatch count. Historical
+receipts remain preserved but do not establish delivery in a new run.
 No fixture grants authority
 on a real account. Application behavior and configured model routes are unchanged.
 
@@ -164,6 +171,8 @@ Follow-up review/native/browser evidence is in
 [issue90-offline-followup-checks.json](test-evidence/issue90-offline-followup-checks.json).
 Selective PR93 integration and updated-main reruns are recorded in
 [issue90-integration-checks.json](test-evidence/issue90-integration-checks.json).
+The independent native receipt replay finding and its fix are recorded in
+[issue90-receipt-replay-checks.json](test-evidence/issue90-receipt-replay-checks.json).
 Check counts overlap between runs and must not be added into a campaign count.
 Task checks used an external-socket denial guard, the repository's isolated-check
 environment allowlist, task-owned outputs, and disposable native PostgreSQL Unix
