@@ -55,11 +55,6 @@ def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
     return all(any(parent == label for parent in parents) for label in reversed(labels[1:]))
 
 
-def _same_geoapify_location(first: dict, second: dict) -> bool:
-    return (abs(first['latitude'] - second['latitude']) <= 0.01
-            and abs(first['longitude'] - second['longitude']) <= 0.01)
-
-
 @lru_cache(maxsize=1024)
 def _geocode_record(provider: str, query: str, language: str | None = None):
     if provider == "google":
@@ -127,22 +122,24 @@ def _geocode_record(provider: str, query: str, language: str | None = None):
         rank = record.get('rank') or {}
         if not isinstance(rank, dict):
             raise ValueError("Geoapify geocoding returned invalid match metadata")
+        place_id = record.get('place_id')
+        identity = (place_id, record.get('result_type')) if isinstance(place_id, str) and place_id.strip() else None
+        partial_match = rank.get('match_type') != 'full_match'
         if not _geoapify_matches_query(record, rank, query):
-            # Geoapify localizes administrative labels for ``lang`` requests,
-            # while the saved hierarchy remains in its source language. Verify
-            # the original query once without localization and accept the
-            # translated record only when both responses identify the same map
-            # location.
+            # Translate only the same provider feature; nearby places can have different levels and identities.
             if not language or not _geoapify_trusted_fields(record, rank):
                 return None
             canonical = _geocode_record(provider, query, None)
-            if not canonical or not _same_geoapify_location(
-                    {'latitude': latitude, 'longitude': longitude}, canonical):
+            if not identity or not canonical or canonical.get('_geoapify_identity') != identity:
                 return None
-        partial_match = rank.get('match_type') != 'full_match'
+            latitude, longitude = canonical['latitude'], canonical['longitude']
+            partial_match = partial_match or canonical['partial_match']
         attribution = 'Geoapify / OpenStreetMap'
-    return {'latitude': latitude, 'longitude': longitude, 'city': city, 'region': region,
-            'country': country, 'partial_match': partial_match, 'attribution': attribution}
+    details = {'latitude': latitude, 'longitude': longitude, 'city': city, 'region': region,
+               'country': country, 'partial_match': partial_match, 'attribution': attribution}
+    if provider == 'geoapify':
+        details['_geoapify_identity'] = identity
+    return details
 
 
 def search_place(query: str):
@@ -160,7 +157,11 @@ search_place.cache_clear = _geocode_record.cache_clear
 def search_place_details(query: str, *, language: str | None = None):
     """Public administrative membership; partial results are not precise pins."""
     record = _geocode_record(geo_provider(), query, language)
-    return dict(record) if record else None
+    if not record:
+        return None
+    details = dict(record)
+    details.pop('_geoapify_identity', None)
+    return details
 
 
 def resolve_place_map(journey: dict, saved_places: list) -> dict:

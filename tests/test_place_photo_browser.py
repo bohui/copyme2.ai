@@ -161,6 +161,55 @@ def test_nested_array_typed_json_ld_photo_keeps_its_licence():
     assert all(item['allowed_actions']['embed'] is True for item in items)
 
 
+def test_explicit_primary_photo_can_read_its_nested_capture_metadata():
+    record = {'@type':['ImageObject','Photograph'], 'name':'Chengde street',
+              'dateTaken':'1983-10-01', 'license':'https://creativecommons.org/licenses/by/4.0/',
+              'contentUrl':'https://live.staticflickr.com/1/primary.jpg'}
+    page = ('<title>Chengde street</title>'
+            '<meta property="og:image" content="https://live.staticflickr.com/1/primary.jpg">'
+            '<script type="application/ld+json">' + json.dumps({'@graph':[record]}) + '</script>')
+    items = browser._source_items(page, 'https://www.flickr.com/photos/author/1/', 'Chengde', '1980s')
+    assert items
+    assert all(item['date_expression'] == '1983-10-01' for item in items)
+    assert all(item['allowed_actions']['embed'] is True for item in items)
+
+
+def test_nested_gallery_photos_keep_their_own_coordinates():
+    records = [{'@type':'Photograph', 'name':'Chengde street', 'dateTaken':'1983-10-01',
+                'license':'https://creativecommons.org/licenses/by/4.0/',
+                'contentUrl':f'https://archive.example/scene-{index}.jpg',
+                'contentLocation':{'geo':{'latitude':40.97 + index / 100,'longitude':117.93}}}
+               for index in (1,2)]
+    page = ('<title>Chengde photo gallery</title><script type="application/ld+json">'
+            + json.dumps({'@type':'ImageGallery','itemListElement':[{'item':record} for record in records]})
+            + '</script>')
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+    assert len(items) == 2
+    assert {item['image_url']:item.get('latitude') for item in items} == {
+        record['contentUrl']:record['contentLocation']['geo']['latitude'] for record in records}
+
+
+@pytest.mark.parametrize('kind', ['Photograph', ['ImageObject','Photograph']])
+@pytest.mark.parametrize('subject,accepted', [('Beijing street', False), ('Chengde street', True)])
+@pytest.mark.parametrize('shape', ['nested','root','graph'])
+@pytest.mark.parametrize('inherited', [False, True])
+def test_nested_gallery_photo_uses_its_own_relevance_not_the_page_title(kind, subject, accepted, shape, inherited):
+    record = {'@type': kind, 'name': subject, 'dateTaken': '1983-10-01',
+              'license': 'https://creativecommons.org/licenses/by/4.0/',
+              'contentUrl': 'https://archive.example/nested-street.jpg'}
+    document = {'nested': {'@type':'ImageGallery','itemListElement':[{'item':record}]},
+                'root': record, 'graph': {'@graph':[record]}}[shape]
+    page = ('<title>Chengde photo gallery</title>'
+            '<meta property="og:image" content="https://archive.example/nested-street.jpg">'
+            '<script type="application/ld+json">'
+            + json.dumps(document)
+            + '</script>')
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s',
+                                  location_context='Chengde album' if inherited else '')
+    assert bool(items) is accepted
+    assert all(item['allowed_actions']['embed'] is True for item in items)
+
+
 def test_separated_caption_does_not_date_a_previous_unrelated_image():
     page = ('<title>Chengde archive</title><img src="https://archive.example/logo.jpg">'
             '<p>Navigation and unrelated text</p><p class="img-desc">Chengde 1983</p>')

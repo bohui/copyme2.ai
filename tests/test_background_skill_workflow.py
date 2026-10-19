@@ -330,6 +330,16 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     pages[place_photo_browser._search_url('google','悉尼','')]='<div class="gs-no-results-result">No results</div>'
     for index,source in enumerate(cse_sources,1):
         pages[source]=photo_html(index, date=f'{1979+index}-10-01')
+        if index == 2:
+            local = {'@type':['ImageObject','Photograph'], 'name':'Chengde street',
+                     'dateTaken':f'{1979+index}-10-01', 'license':'https://creativecommons.org/licenses/by/4.0/',
+                     'contentLocation':{'geo':{'latitude':40.98,'longitude':117.94}},
+                     'contentUrl':f'https://live.staticflickr.com/1/{index}.jpg'}
+            wrong_city = {**local, 'name':'Beijing street', 'dateTaken':'1983-10-01',
+                          'contentUrl':'https://live.staticflickr.com/1/beijing.jpg'}
+            pages[source] = ('<title>Chengde photo gallery</title><script type="application/ld+json">'
+                             + json.dumps({'@type':'ImageGallery','itemListElement':[
+                                 {'item':wrong_city},{'item':local}]}) + '</script>')
     places = [
         {'place':'承德市','hierarchy':['Earth','中国','河北省','承德市'],'granularity':'city','latitude':40.97,'longitude':117.93},
         {'place':'悉尼','hierarchy':['Earth','澳大利亚','悉尼'],'granularity':'city','latitude':-33.86,'longitude':151.2},
@@ -401,6 +411,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
             assert not final.get('failures')
             if place['place']=='承德市':
                 assert all(item['providers']==['google','cse'] for item in final['items'])
+                assert not any('beijing' in item['image_url'] for item in final['items'])
                 assert final['items'][0]['date_expression']=='1983-10-01'
                 gaps=[abs(int(item['date_expression'][:4])-1983) for item in final['items']]
                 assert gaps==sorted(gaps)

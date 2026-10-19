@@ -34,6 +34,22 @@ test('unresolved children are not pinned at the city centre', () => {
   assert.deepEqual(groupMapPins(grouped).map(pin => pin.place), ['承德']);
 });
 
+test('translated city labels preserve city pins and still reject child pins at the city centre', () => {
+  const sydney = {place:'Sydney', hierarchy:['Earth','Australia','Sydney'], granularity:'city',
+    latitude:-33.8688, longitude:151.2093};
+  const display = {...sydney, place:'悉尼', hierarchy:['Earth','澳大利亚','新南威尔士州','悉尼']};
+  const cityKey = JSON.stringify(['澳大利亚','新南威尔士州','悉尼']);
+  const localized = {...sydney, map_city:display, map_city_key:cityKey, map_pin:sydney};
+  const child = {place:'Chatswood', hierarchy:[...sydney.hierarchy,'Chatswood'], granularity:'suburb',
+    latitude:sydney.latitude, longitude:sydney.longitude, map_city:display, map_city_key:cityKey, map_pin:null};
+  const group = groupPlaces([localized, child])[0];
+  assert.equal(group.city.place, '悉尼');
+  assert.deepEqual(groupMapPins(group).map(pin => [pin.place,pin.isChild]), [['Sydney',false]]);
+  assert.equal(groupMapFrame(group, null).pins[0].latitude, sydney.latitude);
+  const partial = groupPlaces([sydney, child]).find(item => item.key === cityKey);
+  assert.equal(partial.city.place, '悉尼', 'A pending city translation cannot erase a child response\'s localized label');
+});
+
 test('provider-confirmed city membership works without a city ancestor', () => {
   const groups = groupPlaces([
     {...district, hierarchy:['Earth','中国','双桥区'], map_city:city},

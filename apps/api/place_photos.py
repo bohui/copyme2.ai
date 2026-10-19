@@ -904,7 +904,7 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
     import sys
     import time
     from threading import Lock
-    from .place_photo_browser import _research, _source_items
+    from .place_photo_browser import _item_locality_matches, _research, _source_items
     from .place_photo_sources import discovery_queries
     from .place_photo_expansion import (
         EXPANDED_SEARCH_SECONDS, MAX_EXPANDED_SOURCE_PAGES,
@@ -959,16 +959,7 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
         )
         page_title = _text(page.get('title'))
         if location_context:
-            def matches_requested_locality(value, requested):
-                # Explicit source locality must retain the geographic anchor.
-                # For "离宫, 承德市", a generic "summer palace" landmark alias
-                # does not establish Chengde and must never admit Beijing.
-                groups = helper._crawl4ai_place_groups(requested)
-                if len(groups) > 1:
-                    return any(helper._crawl4ai_location_matches(value, anchor)
-                               for anchor in groups[-1])
-                return helper._crawl4ai_location_matches(value, requested)
-            if conflicting_item_locality(page, place, matches_requested_locality):
+            if conflicting_item_locality(page, place, _item_locality_matches):
                 return [], []
         photos = [{**item, 'providers': ['baidu' if engine == 'baidu' else 'google', 'serpapi'],
                    'discovery_engine': engine} for item in

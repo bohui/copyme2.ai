@@ -175,8 +175,11 @@ export function groupPlaces(places) {
     if (!groups.has(key)) groups.set(key, {key, city, members: []});
     const group = groups.get(key);
     // Retain saved coordinates while using the requested display language.
-    const savedCity = cities.find(item => cityGroupKey(item) === key);
-    if (savedCity) group.city = {...savedCity,...savedCity.map_city};
+    const savedCity = ancestors[0] || cities.find(item => (item.map_city_key || cityGroupKey(item)) === key);
+    if (savedCity) {
+      group.city = {...savedCity,...(savedCity.map_city || city)};
+      group.canonicalCity = savedCity;
+    }
     group.members.push(place);
   }
   return [...groups.values()];
@@ -186,7 +189,7 @@ export function groupMapPins(group) {
   const pins = group.members.flatMap(place => {
     const own = Object.hasOwn(place, 'map_pin') ? place.map_pin : place;
     if (!coordinates(own)) return [];
-    const isChild = cityGroupKey(place) !== cityGroupKey(group.city);
+    const isChild = cityGroupKey(place) !== cityGroupKey(group.canonicalCity || group.city);
     if (isChild && own.latitude === group.city.latitude && own.longitude === group.city.longitude) return [];
     return [{place: place.place, key: placeHistoryKey(place), latitude: own.latitude,
       longitude: own.longitude, granularity: place.granularity, isChild}];

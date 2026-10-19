@@ -49,6 +49,7 @@ def test_geoapify_localized_fields_are_checked_against_the_original_query(monkey
     calls = []
     localized = {
         'name': '承德市', 'city': '承德市', 'state': '河北省', 'country': '中国',
+        'place_id': 'chengde-city',
         'country_code': 'cn', 'result_type': 'city', 'lat': 40.97, 'lon': 117.93,
         'rank': {'match_type': 'full_match', 'confidence': 1.0, 'confidence_city_level': 1.0},
     }
@@ -66,6 +67,45 @@ def test_geoapify_localized_fields_are_checked_against_the_original_query(monkey
     assert len(calls) == 2
     assert calls[0]['lang'] == 'en'
     assert 'lang' not in calls[1]
+
+
+@pytest.mark.parametrize('localized_changes,canonical_changes,expected', [
+    ({'result_type': 'city', 'place_id': 'nearby-city'}, {}, 'rejected'),
+    ({'place_id': 'nearby-suburb'}, {}, 'rejected'),
+    ({'place_id': None}, {}, 'rejected'),
+    ({'result_type': 'city'}, {}, 'rejected'),
+    ({}, {'rank': {'match_type': 'inner_part', 'confidence': 1.0}}, 'partial'),
+    ({'rank': {'match_type': 'inner_part', 'confidence': 1.0}}, {}, 'partial'),
+    ({}, {}, 'full'),
+])
+def test_geoapify_translation_requires_identity_and_preserves_match_quality(
+        monkeypatch, localized_changes, canonical_changes, expected):
+    from apps.api.place_groups import resolve_place_groups
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER', 'geoapify')
+    monkeypatch.setenv('GEOAPIFY_API_KEY', 'synthetic-key')
+    canonical = {**GEOAPIFY_TOWN, 'place_id': 'dashimiao-suburb', 'name': 'Dashimiao',
+                 'suburb': 'Dashimiao', 'city': 'Chengde', 'state': 'Hebei', 'country': 'China',
+                 **canonical_changes}
+    localized = {**GEOAPIFY_TOWN, 'place_id': 'dashimiao-suburb',
+                 'lat': GEOAPIFY_TOWN['lat'] + 0.005, **localized_changes}
+
+    def get(url, **kwargs):
+        record = localized if 'lang' in kwargs['params'] else canonical
+        return httpx.Response(200, json={'results': [record]}, request=httpx.Request('GET', url))
+
+    monkeypatch.setattr(httpx, 'get', get)
+    query = 'Dashimiao, Chengde, Hebei, China'
+    details = geo.search_place_details(query, language='zh-CN')
+    if expected == 'rejected':
+        assert details is None
+    else:
+        assert details['city'] == '承德市'
+        assert details['partial_match'] is (expected == 'partial')
+        assert details['latitude'] == canonical['lat'], 'Translation must retain the validated coordinates'
+    child = {'place': 'Dashimiao', 'hierarchy': ['Earth','China','Hebei','Chengde','Dashimiao'],
+             'granularity': 'suburb'}
+    grouped = resolve_place_groups([child], language='zh-CN')['places'][0]
+    assert (grouped['pin'] is not None) is (expected == 'full')
 
 
 @pytest.mark.parametrize('overrides', [

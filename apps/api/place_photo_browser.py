@@ -108,11 +108,20 @@ def _json_ld_photo_records(value) -> list[dict]:
     return records
 
 
+def _item_locality_matches(value: str, requested: str) -> bool:
+    helper = _research()
+    groups = helper._crawl4ai_place_groups(requested)
+    # A landmark's generic alias cannot replace its containing city as the geographic anchor.
+    anchors = groups[-1] if len(groups) > 1 else [requested]
+    return any(helper._crawl4ai_location_matches(value, anchor) for anchor in anchors)
+
+
 def _source_items(source_html: str, source_url: str, place: str, period: str,
                   *, location_context: str = '') -> list[dict]:
     """Use source captions and capture metadata; page/upload dates cannot date photos."""
     from .place_photos import ANY_PHOTO_DATE, _coordinates, _date_matches, _google_license, _photo_period_bounds, _text
     from .place_photo_sources import source_registry_id, usage_permissions
+    from .place_photo_expansion import conflicting_item_locality
     helper = _research()
     any_date = period == ANY_PHOTO_DATE
     parser = helper.PageParser(source_url)
@@ -140,12 +149,16 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         return []
 
     photo_records = _json_ld_photo_records(page['json_ld'])
-    photo = photo_records[0] if photo_records else {}
+    # Nested gallery images are not primary unless the page explicitly selects their URL.
+    photo = next((item for document in page['json_ld']
+                  for item in (document if isinstance(document, list) else [document])
+                  if item in photo_records), {})
     photo_by_url = {}
     for record in photo_records:
         record_url = helper._crawl4ai_image_url(record.get('contentUrl') or record.get('url'))
         if record_url:
             photo_by_url[record_url] = record
+    photo = photo_by_url.get(helper._crawl4ai_image_url(meta.get('og:image'))) or photo
     taken = _text(photo.get('dateTaken') or photo.get('dateCreated'))
     if not taken:
         # Flickr exposes this separate from its "Uploaded on" timestamp.
@@ -231,7 +244,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         original = next((link['url'] for link in page['links']
                          if re.search(r'original file|原始文件', link['text'], re.I)), None)
         primary = original or primary
-    if primary and (scene_date or any_date):
+    if primary and (scene_date or any_date) and (is_flickr or mediawiki_file or location_context):
         image_urls.append((primary, title, scene_date))
     if not is_flickr and not mediawiki_file:
         images = helper._crawl4ai_source_images(
@@ -274,6 +287,9 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                 continue
         image_photo = photo_by_url.get(image)
         if image_photo is not None:
+            if conflicting_item_locality({'json_ld': [image_photo], 'title': image_photo.get('caption', '')},
+                                         place, _item_locality_matches):
+                continue
             image_licence_url = _text(image_photo.get('license')) or source_licence_url
         elif image == helper._crawl4ai_image_url(primary):
             image_licence_url = licence_url
@@ -282,6 +298,9 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         image_licence = _google_license({'license': image_licence_url})
         if image_licence_url and not image_licence:
             continue
+        image_point = _coordinates(image_photo or {})
+        if image_point is None and observed == primary:
+            image_point = point
         identifier = hashlib.sha256(f'{source_url}\n{image}'.encode()).hexdigest()[:24]
         items.append({
             'asset_id': 'crawl4ai-' + identifier, 'kind': 'image', 'title': _text(caption),
@@ -294,7 +313,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                 image_date['start'][:4] + '-' + image_date['end'][:4]),
             'scene_date_range': image_date,
             'date_basis': 'Source capture metadata or caption' if image_date else 'Unknown capture date',
-            **((point or {}) if observed == primary else {}),
+            **(image_point or {}),
             'license': image_licence[0] if image_licence else 'Unknown', 'license_url': image_licence_url,
             'source_registry_id': source_registry_id(source_url),
             'usage_permissions': usage_permissions(bool(image_licence)),

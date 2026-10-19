@@ -108,6 +108,12 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
     await Promise.all(loads);
     const selected=places.placeWorkspaceSelection();
     assert.equal(selected.place,['Chengde','承德市'].includes(choice[2])?'承德市':'悉尼');
+    const selectedHtml=places.workspaceMediaOverview();
+    const pins=JSON.parse((selectedHtml.match(/data-cesium-pins="([^"]*)"/)?.[1] || '[]')
+      .replaceAll('&quot;','"').replaceAll('&amp;','&'));
+    assert.deepEqual(pins.map(pin=>[pin.place,pin.latitude,pin.longitude,pin.isChild]),
+      [[selected.place,selected.latitude,selected.longitude,false]],
+      `The ${language} map must retain the selected city's pin after API localization`);
     assert.equal(photos.workspacePictureItems(selected).length,10,'Each selected place must retain its own photographs');
     if (selected.place==='承德市') {
       const gaps=photos.workspacePictureItems(selected).map(photo=>Math.abs(Number(photo.date_expression.slice(0,4))-1983));
