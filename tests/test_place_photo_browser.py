@@ -12,7 +12,7 @@ from apps.api import place_photo_browser as browser
 from apps.api import place_photos as photos
 
 
-def photo_html(index=1, *, date='1983-10-01', place='Chengde', licence=None):
+def photo_html(index=1, *, date='1983-10-01', place='Chengde', licence='https://creativecommons.org/licenses/by/4.0/'):
     record = {'@type': 'Photograph', 'name': f'{place} street', 'dateCreated': date,
               'contentLocation': {'geo': {'latitude': 40.98, 'longitude': 117.94}},
               'contentUrl': f'https://live.staticflickr.com/1/{index}.jpg',
@@ -144,6 +144,7 @@ def serpapi_sources(monkeypatch):
     monkeypatch.setattr(subprocess, 'run', run)
     monkeypatch.setattr(browser._research(), 'public_addresses', lambda *args: ['8.8.8.8'])
     monkeypatch.setattr(browser._research().Fetcher, 'fetch', fetch)
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint', lambda url: {})
     return data, sources, searches, fetched
 
 
@@ -286,7 +287,7 @@ def test_configured_google_images_key_reaches_the_app_provider(monkeypatch):
     monkeypatch.setenv('GOOGLE_CSE_ID', 'engine')
     monkeypatch.delenv('MEMORY_SPARK_PHOTO_WEB_SEARCH', raising=False)
     calls = []
-    def search(place, period):
+    def search(place, period, **kwargs):
         calls.append((place, period))
         return browser._source_items(photo_html(), 'https://archive.example/photo', place, period)
     monkeypatch.setattr(photos, '_google_serpapi', search, raising=False)
@@ -343,7 +344,7 @@ def test_cse_reads_originals_deduplicates_and_checks_source_robots(fake_crawler)
     assert len(result) == 1
     assert result[0]['image_url'] == 'https://live.staticflickr.com/1/1.jpg'
     assert result[0]['source_url'] == source and result[0]['memory_reference_only']
-    assert result[0]['license'] == 'Unknown'
+    assert result[0]['license'] == 'CC BY'
     assert result[0]['allowed_actions'] == {'embed': True, 'memory_reference': True,
                                          'download': False, 'print': False, 'publish': False}
     assert all(config.check_robots_txt for url, config in calls if 'cse.google.com' not in url)
@@ -359,7 +360,8 @@ def test_flickr_browses_public_search_and_ignores_upload_date(fake_crawler):
     pages[search + '&page=1'] = '<a href="/photos/author/123/">Chengde</a>'
     pages[source] = ('<title>Chengde street</title><meta property="og:image" '
                      'content="https://live.staticflickr.com/1/street.jpg">'
-                     '<p>Taken on October 1, 1983 Uploaded on October 1, 2025</p>')
+                     '<p>Taken on October 1, 1983 Uploaded on October 1, 2025</p>'
+                     '<a href="https://creativecommons.org/licenses/by/4.0/">Licence</a>')
     result = asyncio.run(browser._browse_query('flickr', 'Chengde', '1980s', search))
     assert len(result) == 1 and result[0]['date_expression'] == 'October 1, 1983'
     assert all(config.check_robots_txt for _, config in calls)
@@ -1045,6 +1047,8 @@ def test_expansion_cache_identity_tracks_server_provider_mode_not_credential_val
     monkeypatch.setenv('SERPAPI_KEY', 'private-two')
     assert search_key('Chengde', '1980s') == serpapi_key
     monkeypatch.setenv('GOOGLE_CSE_API_KEY', 'private-three')
+    assert search_key('Chengde', '1980s') == serpapi_key, 'SerpAPI remains the selected provider'
+    monkeypatch.delenv('SERPAPI_KEY')
     assert search_key('Chengde', '1980s') not in {browser_key, serpapi_key}
 
 
@@ -1154,6 +1158,7 @@ def test_album_landmark_alias_cannot_override_wrong_city_on_photo(
             '@type': 'Photograph', 'name': 'Willow trees',
             'contentLocation': {'name': 'Chengde'},
             'dateCreated': '1983-10-01',
+            'license': 'https://creativecommons.org/licenses/by/4.0/',
             'contentUrl': 'https://live.staticflickr.com/1/73.jpg',
         }) + '</script>')
 
@@ -1197,6 +1202,7 @@ def test_explicit_album_photo_locality_requires_city_anchor(
         '<script type="application/ld+json">' + json.dumps({
             '@type': 'Photograph', 'name': 'Marble Boat', 'dateCreated': '1983-10-01',
             'contentLocation': {'name': child_location},
+            'license': 'https://creativecommons.org/licenses/by/4.0/',
             'contentUrl': 'https://live.staticflickr.com/1/75.jpg',
         }) + '</script>')
 

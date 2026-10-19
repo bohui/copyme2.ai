@@ -110,7 +110,7 @@ test('the recall boundary keeps paid narration gated without mode controls', asy
   const source=readMemoirClientSource();
   const state={project:{id:'project'},supabase:{accessToken:'fixture'},recallStatus:{rounds_completed:20,payment_required:true},
     conversationPhase:{view:()=>({value:phase(),busy:false,notice:null})},privateDraft:{status:'ready',text:'Private draft remains gated'}};
-  const context=vm.createContext({state,workspaceMemoryFocusMarkup:()=>'',translate:key=>key});
+  const context=vm.createContext({state,workspaceMemoryFocusMarkup:()=>'',translate:key=>key,storyGameButton:()=>''});
   vm.runInContext(source.match(/function chatComposer\([^]*?\n\}/)[0],context);
   const html=context.chatComposer();
   assert.doesNotMatch(html,/data-phase-action/);

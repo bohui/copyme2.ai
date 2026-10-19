@@ -99,6 +99,32 @@ def begin(sql):
     return rpc(sql,'begin_user_historical_news',f"'project',{literal(h)}::jsonb,{literal(snapshot)}::jsonb")
 
 
+def test_chengde_and_different_selected_periods_have_independent_claims(sql):
+    accept(sql, '我在1980年代住在承德市。')
+    snapshot = rpc(sql, 'read_user_historical_news_basis', "'project'")['news_snapshot']
+    hypothesis = {'start': 1980, 'end': 1989, 'place': '承德, 中国', 'country': '中国',
+                  'granularity': 'city', 'tentative': True, 'time_basis': 'explicit_period', 'age_interval': None}
+    def claim(value):
+        return rpc(sql, 'begin_user_historical_news', f"'project',{literal(value)}::jsonb,{literal(snapshot)}::jsonb")
+    first = claim(hypothesis)
+    assert first['hypothesis'] == hypothesis
+    assert claim(hypothesis) is None
+    second = claim({**hypothesis, 'start': 1983, 'end': 1983})
+    assert second['id'] != first['id']
+
+
+def test_selected_place_news_waits_for_the_foreground_turn_lease(sql):
+    accept(sql, 'I was born in Boston in 1960.')
+    hypothesis = ready_context()['historical_news']['clues'][0]['relevance']
+    snapshot = rpc(sql, 'read_user_historical_news_basis', "'project'")['news_snapshot']
+    token = str(uuid4())
+    assert rpc(sql, 'acquire_user_agent_turn_lease', f"'{token}'") is True
+    arguments = f"'project',{literal(hypothesis)}::jsonb,{literal(snapshot)}::jsonb"
+    assert rpc(sql, 'begin_user_historical_news', arguments) is None
+    assert rpc(sql, 'release_user_agent_turn_lease', f"'{token}'") is True
+    assert rpc(sql, 'begin_user_historical_news', arguments)['hypothesis'] == hypothesis
+
+
 def finish(sql,job):
     clue=ready_context()['historical_news']['clues'][0]
     return rpc(sql,'finish_user_historical_news',f"'project','{job['id']}',{literal({'status':'ready','clues':[clue]})}::jsonb")

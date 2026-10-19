@@ -97,6 +97,29 @@ def test_two_product_home_devices_resolve_one_database_identity(sql, home_auth):
     assert projects == [identity(sql)['project_id']] * 2
 
 
+def test_project_load_and_photo_save_keep_each_places_research_period(sql, home_auth):
+    project = identity(sql)['project_id']
+    accepted = rpc(sql, 'accept_user_interview_turn',
+        f"'{project}','{uuid4()}','我现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'")
+    source = accepted['source']
+    places = [
+        {'schema_version':1,'place':'承德市','hierarchy':['Earth','中国','河北省','承德市'],'granularity':'city'},
+        {'schema_version':1,'place':'悉尼','hierarchy':['Earth','澳大利亚','悉尼'],'granularity':'city'},
+    ]
+    sql(f"insert into public.user_lifetime_place_journey(user_id,project_id,source_id,source_version,journeys) "
+        f"values('{OWNER}','{project}','{source['id']}',1,{literal(places)}::jsonb);")
+    with TestClient(main.create_app(MemoryStore())) as client:
+        loaded = client.post('/v1/projects', headers=headers(), json={})
+        assert loaded.status_code == 201, loaded.text
+        profile = loaded.json()['profile']
+        assert {p['place']:p['research_period'] for p in profile['memory_places']} == {'承德市':'1980s','悉尼':''}
+        profile['memory_places'][1]['pictures'] = [{'asset_id':'source-photo','title':'Sydney street'}]
+        saved = client.patch(f'/v1/projects/{project}', headers=headers(),
+            json={'profile':profile,'expected_revision':loaded.json()['revision']})
+        assert saved.status_code == 200, saved.text
+        assert {p['place']:p['research_period'] for p in saved.json()['profile']['memory_places']} == {'承德市':'1980s','悉尼':''}
+
+
 @pytest.mark.parametrize('projects', [('old',), ('old', 'new')])
 def test_home_mapping_required_preserves_all_legacy_ids_and_explicit_restoration(sql, home_auth, projects):
     originals = [rpc(sql, 'accept_user_interview_turn', f"'{project}','{uuid4()}','Original testimony'") for project in projects]

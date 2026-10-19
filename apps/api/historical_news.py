@@ -39,6 +39,7 @@ PUBLIC_PLACES = {
     ('New York State', 'USA'): 'region', ('Boston', 'USA'): 'city',
     ('Sydney', 'Australia'): 'city', ('Perth', 'Australia'): 'city',
     ('Melbourne', 'Australia'): 'city', ('Chengdu', 'China'): 'city',
+    ('Chengde', 'China'): 'city', ('承德', '中国'): 'city',
     ('Kunming', 'China'): 'city', ('Beijing', 'China'): 'city',
     ('成都', '中国'): 'city', ('昆明', '中国'): 'city', ('北京', '中国'): 'city',
     ('纽约', '美国'): 'unresolved', ('悉尼', '澳大利亚'): 'city',
@@ -288,13 +289,19 @@ class HistoricalResearch:
                 'clues':result,'accounting':account,'failures':sorted(set(failures))}
 
 
-def accepted_hypothesis(view, *, current_year=None):
+def accepted_hypothesis(view, *, current_year=None, selection=None):
     """Conservative local adapter for accepted first-person life context.
 
     Narrow explicit forms are intentional. Unknown forms wait for normal
     interviewing; there is no extra classifier, name inference, or raw query.
     """
     current_year=current_year or datetime.now(timezone.utc).year
+    if 'places' in view:
+        from .place_research import research_places, research_hypothesis
+        places = research_places(view['places'], view.get('sources', []))
+        return research_hypothesis(places, selection=selection, current_year=current_year)
+    if selection is not None:
+        return None
     births=[];birthplaces=[];locations=[];birth_clauses=[];unresolved_move=False
     for source in view.get('sources',[]):
         if source.get('status')!='active':continue
@@ -356,20 +363,20 @@ def ready_projection(state, *, enabled):
     return state
 
 
-async def enrich(storage, project_id, engine):
+async def enrich(storage, project_id, engine, *, selection=None):
     import asyncio
     from .background_skills import ServiceWork, SkillUnavailable, admit
     try:
-        admit('memoir-historical-news-research','delivered_context')
+        admit('memoir-historical-news-research','place_selection')
     except SkillUnavailable:
         return
     view=await asyncio.to_thread(storage.historical_news_basis,project_id)
     if not view:return
-    hypothesis=accepted_hypothesis(view)
+    hypothesis=accepted_hypothesis(view, selection=selection)
     if not hypothesis:return
     job=await asyncio.to_thread(storage.begin_historical_news,project_id,hypothesis,view['news_snapshot'])
     if not job:return
-    work=ServiceWork('memoir-historical-news-research','delivered_context',storage.user_id,project_id,job['id'],research_job_id=job['id'])
+    work=ServiceWork('memoir-historical-news-research','place_selection',storage.user_id,project_id,job['id'],research_job_id=job['id'])
     await work.update('running')
     try:
         result=await engine.run(hypothesis)

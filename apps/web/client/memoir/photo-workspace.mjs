@@ -180,6 +180,7 @@ export function createPhotoWorkspace({
   }
 
   function photoSearchPeriod(entry, focus) {
+    if (typeof entry?.research_period === "string") return entry.research_period;
     // Life-stage labels such as 青年时期 describe the memoir, not calendar
     // dates. Only a grounded year/range can restrict a historical photo search.
     if (/(?:18|19|20)\d{2}/.test(entry?.period || "")) return entry.period;

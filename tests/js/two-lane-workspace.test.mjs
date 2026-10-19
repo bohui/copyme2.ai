@@ -59,3 +59,14 @@ test('a policy revision discards old photo and grouping decorations even for the
   applyDerivedWorkspace(s,{...update([place('Hobart')],3),policy_epoch:2});
   assert.equal(s.project.profile.memory_places[0].pictures,undefined);
 });
+
+test('repeated background snapshots preserve photo search scope and completion',()=>{
+  const s=state();
+  const snapshot=update([place('Hobart')]);
+  applyDerivedWorkspace(s,snapshot);
+  Object.assign(s.project.profile.memory_places[0],{photo_search_period:'',photo_search_place:'Hobart',
+    photo_search_policy:'place-source-rights-v11',photo_search_complete:true,photo_search_at:123,
+    photo_next_cursor:null});
+  assert.equal(applyDerivedWorkspace(s,snapshot),false);
+  assert.equal(s.project.profile.memory_places[0].photo_search_complete,true);
+});

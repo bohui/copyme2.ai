@@ -24,6 +24,25 @@ def isolate_geocoding(monkeypatch):
     clear_cache()
 
 
+@pytest.mark.parametrize('provider,parameter,chinese,english', [
+    ('google', 'language', 'zh-CN', 'en'), ('geoapify', 'lang', 'zh', 'en'),
+])
+def test_display_language_is_sent_to_the_provider_and_scopes_its_cache(monkeypatch, provider, parameter, chinese, english):
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER', provider)
+    monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY' if provider == 'google' else 'GEOAPIFY_API_KEY', 'synthetic-key')
+    calls = []
+    def get(url, **kwargs):
+        calls.append(kwargs['params'][parameter])
+        record = ({'geometry':{'location':{'lat':40.97,'lng':117.93}},'address_components':[
+            {'long_name':'承德市','types':['locality']}, {'long_name':'中国','types':['country']}]}
+            if provider == 'google' else GEOAPIFY_TOWN)
+        return httpx.Response(200, json={'status':'OK','results':[record]}, request=httpx.Request('GET',url))
+    monkeypatch.setattr(httpx, 'get', get)
+    for language in ['zh-CN', 'en-AU', 'zh-CN']:
+        assert geo.search_place_details(TOWN_QUERY, language=language)
+    assert calls == [chinese, english]
+
+
 @pytest.mark.parametrize('overrides', [
     {'rank': {'match_type': 'full_match', 'confidence': 0.2}},
     {'rank': {'match_type': 'full_match', 'confidence': 1.0, 'confidence_city_level': 0.3}},

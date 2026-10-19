@@ -25,7 +25,7 @@ def album_page(request):
         if mode.startswith('unresolved'):
             place['map_pin']=None
         date = '2026-08-01' if mode == 'current' else '1983'
-        place.update(photo_search_period=place['period'], photo_search_policy='place-fallback-gps-time-v9',
+        place.update(photo_search_period=place['period'], photo_search_policy='place-source-rights-v11',
                      photo_search_place=place['place']+', 承德' if place['granularity']=='suburb' else place['place'],
                      photo_search_complete=state_mode not in ('loading', 'error','current'), photo_search_at=1,
                      photo_search_latitude=place['latitude'], photo_search_longitude=place['longitude'],

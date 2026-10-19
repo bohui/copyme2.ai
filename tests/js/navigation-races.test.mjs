@@ -225,7 +225,7 @@ function reentryHarness({anonymous = true, saved = 'a', denied = null, historyDe
     preserveConversationLocale: incoming => incoming, mergePlaces: places => places,
     refreshStageReadiness() {}, refreshPrivateDraft() {},
     startCodexConversation: async () => {starts.push(state.project?.id);},
-    renderStory() {}, conversationScroll: {mount() {}}, disposeCesiumPlaceJourney() {}, closeProfileMenu() {},
+    renderStory() {}, storyGameDialog:{sync() {}},conversationScroll: {mount() {}}, disposeCesiumPlaceJourney() {}, closeProfileMenu() {},
     persistChatHistory() {}, stopVoiceMode() {}, cancelDictation() {}, setLoading: value => {state.loading = value;},
     toast: value => notices.push(value), translate: String, escapeHtml: String,
     api: async (url, options = {}) => {

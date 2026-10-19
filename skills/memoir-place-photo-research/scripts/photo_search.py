@@ -60,13 +60,21 @@ def normalize_cards(cards, provider):
     return normalized
 
 
-def serpapi(query, *, refresh=False):
+def serpapi(query, *, refresh=False, engine='google_images'):
     p._crawl4ai_load_dotenv()
     key = os.environ.get("SERPAPI_KEY", "").strip()
     if not key:
         return {"status": "not_configured", "cards": [], "requests": 0}
-    options = {"engine": "google_images", "google_domain": "google.com", "hl": "zh-cn",
-               "gl": "us", "ijn": 0, "safe": "active", "q": query, "api_key": key}
+    if engine not in {'google_images', 'google', 'baidu'}:
+        return {"status": "error", "error": "unsupported_engine", "cards": [], "requests": 0}
+    options = {"engine": engine, "q": query, "api_key": key}
+    if engine == 'baidu':
+        options.update({'ct': 2, 'rn': 10, 'pn': 0})
+    else:
+        options.update({'google_domain': 'google.com', 'safe': 'active',
+                        'hl': 'zh-cn' if re.search(r'[\u3400-\u9fff]', query) else 'en'})
+        if engine == 'google_images':
+            options['ijn'] = 0
     if refresh:
         options['no_cache'] = 'true'
     try:
@@ -77,11 +85,20 @@ def serpapi(query, *, refresh=False):
         if len(body) > 4 * 1024 * 1024:
             return {"status": "error", "error": "response_limit", "cards": [], "requests": 1}
         data = json.loads(body)
+        if (data.get('error') in {"Google hasn't returned any results for this query.",
+                                  "Baidu hasn't returned any results for this query."}
+                and data.get('search_metadata', {}).get('status') == 'Success'):
+            return {"status": "success", "cards": [], "requests": 1}
         if data.get("error") or data.get("search_metadata", {}).get("status") not in (None, "Success"):
             return {"status": "error", "error": "provider_error", "cards": [], "requests": 1}
-        cards = [{"source_url": item.get("link"), "image_url": item.get("original"),
-                  "preview_url": item.get("thumbnail"), "title": item.get("title")}
-                 for item in data.get("images_results", []) if isinstance(item, dict)]
+        results = data.get('images_results' if engine == 'google_images' else 'organic_results', [])
+        if not isinstance(results, list):
+            return {"status": "error", "error": "invalid_response", "cards": [], "requests": 1}
+        cards = [{"source_url": item.get("link"),
+                  "image_url": item.get("original") if engine == 'google_images' else None,
+                  "preview_url": item.get("thumbnail"), "title": item.get("title"),
+                  "description": item.get('snippet')}
+                 for item in results if isinstance(item, dict)]
         return {"status": "success", "cards": normalize_cards(cards, "serpapi"), "requests": 1}
     except HTTPError as error:
         return {"status": "error", "error": f"http_{error.code}", "cards": [], "requests": 1}
@@ -242,7 +259,8 @@ def discover(run, search_url=None, *, max_search_pages=1, source_limit=24, provi
 
 def worker_main(provider, params):
     if provider == "serpapi":
-        return serpapi(params["query"], refresh=params.get("refresh", False))
+        return serpapi(params["query"], refresh=params.get("refresh", False),
+                       engine=params.get('engine', 'google_images'))
     if provider == "source":
         return {"status": "success", "page": p._crawl4ai_source_page(params["url"])}
     try:

@@ -87,6 +87,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                   *, location_context: str = '') -> list[dict]:
     """Use source captions and capture metadata; page/upload dates cannot date photos."""
     from .place_photos import ANY_PHOTO_DATE, _coordinates, _date_matches, _google_license, _photo_period_bounds, _text
+    from .place_photo_sources import source_registry_id, usage_permissions
     helper = _research()
     any_date = period == ANY_PHOTO_DATE
     parser = helper.PageParser(source_url)
@@ -190,6 +191,11 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
     creator = photo.get('creator') or photo.get('author') or {}
     attribution = _text(creator.get('name') if isinstance(creator, dict) else creator)
     licence_url = _text(photo.get('license') or meta.get('license'))
+    if not licence_url and mediawiki_file:
+        # Commons' hidden file licence is distinct from the page/footer licence.
+        match = re.search(r'<[^>]+class=["\'][^"\']*\blicensetpl_link\b[^"\']*["\'][^>]*>(.*?)</',
+                          source_html, re.I | re.S)
+        licence_url = _text(match[1]) if match else ''
     if not licence_url and is_flickr:
         licence_url = next((link['url'] for link in page['links']
             if urlsplit(link['url']).hostname == 'creativecommons.org'
@@ -258,8 +264,10 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             'date_basis': 'Source capture metadata or caption' if image_date else 'Unknown capture date',
             **((point or {}) if observed == primary else {}),
             'license': licence[0] if licence else 'Unknown', 'license_url': licence_url,
+            'source_registry_id': source_registry_id(source_url),
+            'usage_permissions': usage_permissions(bool(licence)),
             'memory_reference_only': True,
-            'allowed_actions': {'embed': True, 'memory_reference': True, 'download': False,
+            'allowed_actions': {'embed': bool(licence), 'memory_reference': True, 'download': False,
                                 'print': False, 'publish': False},
         })
     return items
@@ -335,6 +343,13 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                 raise PhotoResearchUnavailable(provider, 'verification_required')
             cards = (helper.parse_crawl4ai_image_results(result.html or '') if provider == 'google'
                      else _flickr_cards(result.html or '', url))
+            if provider == 'google' and not cards:
+                markup = result.html or ''
+                if not re.search(r'class=["\'][^"\']*\bgs-no-results-result\b', markup, re.I):
+                    if items:
+                        return items[:limit]
+                    reason = 'search_error' if re.search(r'class=["\'][^"\']*\bgs-error\b', markup, re.I) else 'widget_not_ready'
+                    raise PhotoResearchUnavailable(provider, reason)
             album_context = ''
             if album:
                 parser = helper.PageParser(url)
@@ -377,8 +392,9 @@ async def _browse_query(provider: str, place: str, period: str, search_url: str,
                             check_robots_txt=True, delay_before_return_html=0.2,
                         )), timeout=min(15, max(0.1, deadline - time.monotonic())))
                         if detail.success:
-                            found = _source_items(detail.html or '', source, place, source_period,
-                                                  location_context=album_context)
+                            found = [item for item in _source_items(
+                                detail.html or '', source, place, source_period,
+                                location_context=album_context) if item['allowed_actions']['embed']]
                             from .place_photo_fingerprints import image_fingerprint
                             for item in found:
                                 if time.monotonic() >= deadline:

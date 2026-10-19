@@ -15,7 +15,8 @@ schema, with no upgrade backfills or legacy import paths. After pulling this
 baseline replacement, reset your disposable database yourself with
 `supabase db reset --db-url "$SUPABASE_DB_URL" --yes`. Existing migration history
 is intentionally unsupported. `make migrate` still uses Supabase migration
-tracking for fresh databases and future migrations. See
+tracking for fresh databases. Until production deployment is explicitly announced,
+update this single baseline in place for every schema change. See
 [the database design](docs/Database_Design.md) for retained tables and indexes.
 
 ## Product URLs
@@ -584,13 +585,22 @@ Mocked account storage does not establish live Supabase/RLS acceptance.
 ### Test commands
 
 ```bash
-python3 -m pytest -q
+make test
+make test-place-research
 make browser-test
 make browser-localization-test
 make memoir-progressive-test
 python3 scripts/run_acceptance_evidence.py
 python3 scripts/audit_spec_routes.py
 ```
+
+`make test` includes the JavaScript workspace tests as well as Python. The focused
+`make test-place-research` also replays a Chinese interview mentioning Chengde
+in the 1980s and present-day Sydney: foreground reply, delayed place extraction,
+photo/news research, localized location buttons, selection and interview restore.
+It uses disposable PostgreSQL and controlled external provider responses; Node.js
+and local PostgreSQL tools are required. Separate browser commands cover layout
+and real browser interactions.
 
 For live evaluation against remote Supabase, use
 `make memoir-live-fifty-plan` to inspect the five distinct cases, then
@@ -646,6 +656,40 @@ The full implementation covers consent, invitations, resumable uploads, cue reac
 
 ### Historical photo search
 
+Photo and historical-news research share `place_selection` admission and the
+source-grounded period resolver in `apps/api/place_research.py`. A dated birth
+cue such as “born in Chengde in April 1983” supplies a **1980s research window**
+for that birthplace; it does not change the memoir's birth date or assign that
+period to a separately mentioned present home. Explicit remembered ranges take
+their own bounds. Restored place snapshots carry `research_period`, and selecting
+the photo gallery also registers news research under the same place/period.
+News retains its rollout switch, opt-out, reviewed public vocabulary, independent
+source verification and durable deduplication. It does not require another birth
+sentence, a stated country when the place is unambiguous, or a conversation-round
+milestone. Current-photo searches remain available for undated places.
+
+The V1 default is Wikimedia Commons plus server-side `SERPAPI_KEY` discovery.
+SerpAPI searches Google Images, Google web records and, for Chinese places,
+Baidu web records. A small source registry in
+[`apps/api/place_photo_sources.py`](apps/api/place_photo_sources.py) prioritises
+Chengde Municipal Archives and City of Sydney Archives for their localities;
+City of Sydney is not treated as the archive for every greater-Sydney suburb.
+The registry supplies search priorities, never item dates or reuse permission.
+The normal pass uses at most three searches and twelve original pages; optional
+`MEMOIR_PHOTO_EXPANSION=1` raises the limits to seven searches and 36 pages.
+Both modes share a 65-second discovery budget and publish eligible results as
+they arrive. Existing date/GPS fallback passes have their own bounded searches.
+Flickr and Library of Congress remain available in the legacy route when
+SerpAPI is not configured.
+
+Search results are leads: inspect the original photograph's location, capture
+date and licence before app display. An unknown licence does not allow embedding.
+Commons uses `DateTimeOriginal`, never the Imageinfo upload timestamp, and retains
+the file URL, source page, attribution, licence, dimensions and hash. Catalogue
+records keep separate `usage_permissions` for app display, ebook, print and game
+use; a compatible display licence leaves the other uses awaiting review. Public
+catalogue rows contain no family uploads, memoir text or private reactions.
+
 Set `MEMORY_SPARK_PHOTO_WEB_SEARCH=1` to add Responses-native LLM discovery
 alongside the existing catalogues. It reuses the server-only gateway URL, model
 and key and requires completed search receipts with source URLs; a plain model
@@ -657,7 +701,7 @@ The option is disabled by default and requires a gateway/model with actual
 unresolved reuse rights.
 
 The app's photo endpoint searches catalogues independently of local research
-runs. When `GOOGLE_CSE_API_KEY` is blank, it automatically browses the configured
+runs. Without `SERPAPI_KEY`, when `GOOGLE_CSE_API_KEY` is blank it browses the configured
 `GOOGLE_CSE_ID` or `GOOGLE_CSE_URL` with Crawl4AI, follows the visible image-result
 links, and extracts photographs from their public source pages. When
 `FLICKR_API_KEY` is blank, it browses Flickr's public search and item pages with
@@ -667,7 +711,10 @@ local Python server install `.[photo-browser]` and run
 Blocked pages or browser failures leave the other catalogues available.
 If none returns eligible photos and a provider fails, the endpoint reports
 `UNAVAILABLE` with safe provider/reason diagnostics, and the gallery offers a
-retry. It reports `NO_MATCH` only for completed, empty searches. Human verification
+retry. It reports `NO_MATCH` only for completed, empty searches. An unrendered or
+failed CSE widget is retryable, rather than a cacheable empty search. With both
+keys present SerpAPI takes precedence; an unavailable legacy Google JSON API
+falls back to the public CSE browser. Human verification
 and robots denials stop browser retries; they are not bypassed. Failed empty
 searches are not cached, and the client invalidates the older empty-result cache.
 The private `photo-worker` warms one Chromium process at startup and reuses it
@@ -696,7 +743,9 @@ selected coordinates. Reference selection happens before pagination: use all
 filters first, remove GPS/radius only for an empty result, then remove the time
 filter only if the GPS-relaxed result is also empty. Source-backed place,
 rights and attribution remain required; fallback photos carry explicit labels
-and preserve their actual dates or date uncertainty. Only the
+and preserve their actual dates or date uncertainty. A provider failure during
+dated research still allows the broader-date search; any provider failures stay
+reported and the incomplete search remains retryable. Only the
 trusted photo worker writes the cache with its server-side Supabase credential;
 no memoir text, user ID, project ID, cookies or credentials enter its rows.
 Apply the database baseline and configure
@@ -738,9 +787,9 @@ remaining sources are checked. Streamed results retain stable arrival order;
 ordinary JSON clients still receive completed pages. An expired cursor starts a new snapshot and
 retains/deduplicates visible photos. Robots and research budgets still limit
 coverage; scroll loading does not bypass them.
-Browser results retain source and capture-date metadata and are marked
+Eligible browser results retain source and capture-date metadata and are marked
 `memory_reference_only`, with download, publish and print disabled. Unresolved
-rights remain labelled unknown. Life-stage labels without years do not restrict
+rights remain research leads with embedding disabled. Life-stage labels without years do not restrict
 the automatic search; an explicit year/range still does.
 
 To use Flickr's API alongside Wikimedia Commons and the Library of Congress,
@@ -759,6 +808,13 @@ pagination. [Google's current documentation](https://developers.google.com/custo
 states that this API is closed to new customers and existing customers must
 transition by January 1, 2027. See [the API research notes](docs/Historical_Photo_API_Research.md)
 for sources, setup links and live coverage findings.
+
+If a gallery appears empty, inspect the actual place-photo request's `period`
+before testing a historical query. An empty period requests the preceding
+24-month capture window. Merely naming a childhood place does not supply a
+calendar year. The public CSE page also initially opens its Web tab; image
+discovery selects Image and waits for rendered result cards. A working public
+engine does not imply JSON API access or permission to display its results.
 
 Flickr API queries use capture dates, bilingual Chengde/承德 terms and up to three
 pages per term. API catalogues admit only supported CC BY, CC BY-SA, CC0 or public-domain-marked items

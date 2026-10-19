@@ -50,16 +50,20 @@ def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
 
 
 @lru_cache(maxsize=1024)
-def _geocode_record(provider: str, query: str):
+def _geocode_record(provider: str, query: str, language: str | None = None):
     if provider == "google":
         api_key = os.environ.get("GOOGLE_MAPS_GEOCODING_API_KEY", "").strip()
         url = os.environ.get("GOOGLE_MAPS_GEOCODING_URL", GOOGLE_GEOCODING_URL)
         params = {"address": query, "key": api_key}
+        if language:
+            params['language'] = 'zh-CN' if language == 'zh-CN' else 'en'
     elif provider == "geoapify":
         api_key = os.environ.get("GEOAPIFY_API_KEY", "").strip()
         url = os.environ.get("GEOAPIFY_GEOCODING_URL", GEOAPIFY_GEOCODING_URL)
         params = {"text": query, "format": "json", "limit": 1, "apiKey": api_key,
                   "bias": "countrycode:none"}
+        if language:
+            params['lang'] = 'zh' if language == 'zh-CN' else 'en'
     else:
         raise GeocodingUnavailable("MEMOIR_GEO_PROVIDER must be google or geoapify")
     if not api_key:
@@ -122,7 +126,7 @@ def _geocode_record(provider: str, query: str):
 
 def search_place(query: str):
     provider = geo_provider()
-    record = _geocode_record(provider, query)
+    record = _geocode_record(provider, query, None)
     if record and provider == 'geoapify' and record['partial_match']:
         return None
     return {'latitude': record['latitude'], 'longitude': record['longitude'],
@@ -132,9 +136,9 @@ def search_place(query: str):
 search_place.cache_clear = _geocode_record.cache_clear
 
 
-def search_place_details(query: str):
+def search_place_details(query: str, *, language: str | None = None):
     """Public administrative membership; partial results are not precise pins."""
-    record = _geocode_record(geo_provider(), query)
+    record = _geocode_record(geo_provider(), query, language)
     return dict(record) if record else None
 
 

@@ -54,6 +54,15 @@ class PhotoPages:
                 job['revision'] += 1
             if items:
                 save(False)
+        def discover(search_period):
+            try:
+                publish(search_place_photos(place, search_period, limit=None, on_items=publish))
+            except PhotoResearchUnavailable as error:
+                # A blocked dated source must not veto other catalogues' place references.
+                with self.lock:
+                    job['error'] = True
+                    job['failures'].extend(failure for failure in error.failures
+                                           if failure not in job['failures'])
         cached_complete = False
         try:
             cached = self.repository.load(place, period) if self.repository and not refresh else None
@@ -74,14 +83,13 @@ class PhotoPages:
                     job['cache_hit'] = True
                     return
             if not cached_complete:
-                publish(search_place_photos(place, ANY_PHOTO_DATE if job['time_relaxed'] else period,
-                                           limit=None, on_items=publish))
+                discover(ANY_PHOTO_DATE if job['time_relaxed'] else period)
             # Removing GPS accepts every source-backed locality match in the
             # dated pool. Only an empty dated pool needs another discovery pass.
-            if not job['items']:
+            if not job['items'] and not job['time_relaxed'] and period != ANY_PHOTO_DATE:
                 cached_complete = False
                 job['time_relaxed'] = True
-                publish(search_place_photos(place, ANY_PHOTO_DATE, limit=None, on_items=publish))
+                discover(ANY_PHOTO_DATE)
         except Exception as error:
             with self.lock:
                 job['error'] = True

@@ -297,6 +297,117 @@ def test_shared_place_pass_is_embedded_not_a_second_model_request(sql,tmp_path,m
         assert all(item['skill']!='memoir-family-tree' for item in steps)
 
 
+def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_path,monkeypatch,request):
+    import json
+    from pathlib import Path
+    import subprocess
+    import httpx
+    from apps.api import agent_routes, place_geocoding, place_photos
+    from apps.api.historical_news import HistoricalResearch
+    from test_place_workspace import photo_page
+    monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS', '1')
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '1')
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL', raising=False)
+    for key in ('SERPAPI_KEY','GOOGLE_CSE_API_KEY','GOOGLE_CSE_ID','GOOGLE_CSE_URL','MEMORY_SPARK_PHOTO_WEB_SEARCH'):
+        monkeypatch.delenv(key,raising=False)
+    monkeypatch.setenv('FLICKR_API_KEY','fixture')
+    monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY','fixture')
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER','google')
+    monkeypatch.setattr('apps.api.place_photo_fingerprints.image_fingerprint',lambda _: {})
+    place_geocoding.search_place.cache_clear()
+    request.addfinalizer(place_geocoding.search_place.cache_clear)
+    queries = []
+    places = [
+        {'place':'承德市','hierarchy':['Earth','中国','河北省','承德市'],'granularity':'city','latitude':40.97,'longitude':117.93},
+        {'place':'悉尼','hierarchy':['Earth','澳大利亚','悉尼'],'granularity':'city','latitude':-33.86,'longitude':151.2},
+    ]
+    def extract(packet):
+        return {**empty(packet), 'place_journeys': places}
+    def external_get(url,**kwargs):
+        params=kwargs['params']
+        if 'maps.googleapis.com' in url:
+            chinese=params.get('language')=='zh-CN'
+            chengde='承德' in params['address']
+            name,region,country=(('承德市','河北省','中国') if chengde else ('悉尼','新南威尔士州','澳大利亚')) if chinese else (
+                ('Chengde','Hebei','China') if chengde else ('Sydney','New South Wales','Australia'))
+            place=places[0 if chengde else 1]
+            result={'status':'OK','results':[{'geometry':{'location':{'lat':place['latitude'],'lng':place['longitude']}},
+                'address_components':[{'long_name':value,'types':[kind]} for value,kind in (
+                    (name,'locality'),(region,'administrative_area_level_1'),(country,'country'))]}]}
+        elif 'commons.wikimedia.org' in url:
+            query=params['gsrsearch']
+            queries.append(('photo',query))
+            chengde='Chengde' in query
+            pages=[]
+            if chengde or 'Sydney' in query:
+                current=place_photos.datetime.now(place_photos.ZoneInfo('Australia/Sydney')).date().isoformat()
+                for index in range(1,11):
+                    identifier=index+(0 if chengde else 10)
+                    page=photo_page(identifier,date='1983-04-01' if chengde else current,
+                        title=f'{"Chengde" if chengde else "Sydney"} street {identifier}.jpg')
+                    info=page['imageinfo'][0]
+                    filename=f'{"Chengde" if chengde else "Sydney"}_street_{identifier}.jpg'
+                    info['thumburl']=f'https://thumb.wikimedia.org/wikipedia/commons/thumb/a/ab/{filename}/640px-{filename}'
+                    info['extmetadata'].update(GPSLatitude={'value':str(places[0 if chengde else 1]['latitude'])},
+                        GPSLongitude={'value':str(places[0 if chengde else 1]['longitude'])})
+                    pages.append(page)
+            result={'query':{'pages':{str(page['pageid']):page for page in pages}}}
+        elif 'loc.gov' in url or 'flickr.com' in url:
+            result={}
+        else:
+            pytest.fail(f'Unexpected external request: {url.split("?")[0]}')
+        return httpx.Response(200,json=result,request=httpx.Request('GET',url))
+    monkeypatch.setattr(httpx,'get',external_get)
+    class Provider:
+        identity = 'synthetic-place-news'
+        async def discover(self, query, **kwargs):
+            queries.append(('news',query))
+            return {'receipt':{'status':'completed','response_id':'r','tool_call_id':'w','urls':[]},'events':[]}
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract)
+    agent_routes.runtime._news_engine = HistoricalResearch(Provider())
+    with conversation.client:
+        conversation.say('我现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院')
+        pending=progress(conversation)
+        assert pending['pending'] and pending['derived_workspace']['places']==[]
+        conversation.drain()
+        ready=progress(conversation)
+        saved = ready['derived_workspace']['places']
+        assert {p['place']:p['research_period'] for p in saved} == {'悉尼':'','承德市':'1980s'}
+        photos={}
+        for place in saved:
+            response = conversation.client.get(f'/v1/agent/places/{conversation.project}/photos',
+                params={'place':place['place'],'latitude':place['latitude'],'longitude':place['longitude']},
+                headers={'Accept':'application/x-ndjson'})
+            assert response.status_code == 200,response.text
+            photos[place['place']]=response.text
+            final=json.loads(response.text.splitlines()[-1])
+            assert final['status']=='READY',final
+            assert len(final['items'])==10
+            assert not final.get('failures')
+        assert any(q[0]=='photo' and 'Chengde' in q[1] and '1980' in q[1] and '1989' in q[1] for q in queries)
+        assert any(q[0]=='photo' and 'Sydney' in q[1] for q in queries)
+        assert any(q[0]=='news' and q[1].startswith('承德, 中国 1980–1989') for q in queries)
+        steps = progress(conversation)['skill_progress']['items']
+        assert any(s['skill']=='memoir-historical-news-research' and s['status']=='saved' for s in steps)
+        assert any(s['skill']=='memoir-place-photo-research' and s['status']=='completed' for s in steps)
+        groups=[]
+        public=[{key:place[key] for key in ('place','hierarchy','granularity','latitude','longitude')} for place in saved]
+        for language in ('zh-CN','en-AU'):
+            for ordered in (public,list(reversed(public))):
+                request={'places':ordered,'language':language}
+                response=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json=request)
+                assert response.status_code==200,response.text
+                expected=['承德市','悉尼'] if language=='zh-CN' else ['Chengde','Sydney']
+                assert {item['city']['place'] for item in response.json()['places']}==set(expected)
+                groups.append({'request':request,'response':response.json()})
+        ready=progress(conversation)
+        packet={'pending':pending,'ready':ready,'photos':photos,'groups':groups}
+        (tmp_path/'place-research-replay.json').write_text(json.dumps(packet,ensure_ascii=False))
+        replay=Path(__file__).parent/'js/helpers/replay-place-research.mjs'
+        result=subprocess.run(['node',str(replay)],input=json.dumps(packet),text=True,capture_output=True,timeout=20)
+        assert result.returncode==0,result.stdout+result.stderr
+
+
 def test_shared_place_pass_reports_skipped_when_no_place_was_derived(sql,tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     conversation=Conversation(sql,tmp_path,monkeypatch,empty)

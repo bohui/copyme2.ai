@@ -35,7 +35,7 @@ def _coordinates(place):
                for value in (lat, lon)) and -90 <= lat <= 90 and -180 <= lon <= 180
 
 
-def resolve_place_groups(places, *, allow_provider=True):
+def resolve_place_groups(places, *, allow_provider=True, language=None):
     cities = [place for place in places if place['granularity'] == 'city']
     records, lookups, provider_available = [], 0, True
     for index, place in enumerate(places):
@@ -50,19 +50,22 @@ def resolve_place_groups(places, *, allow_provider=True):
                               and place.get('longitude') == city.get('longitude'))
         pin = {**deepcopy(place), 'accuracy': 'approximate'} if own_coordinates and not same_as_parent else None
         details = None
-        if allow_provider and (not city or not pin) and lookups < MAX_LOOKUPS and provider_available:
+        if allow_provider and (not city or not pin or language) and lookups < MAX_LOOKUPS and provider_available:
             lookups += 1
             try:
-                details = search_place_details(', '.join(reversed(_path(place))))
+                query = ', '.join(reversed(_path(place)))
+                details = search_place_details(query, language=language) if language else search_place_details(query)
             except (GeocodingUnavailable, httpx.HTTPError, ValueError, TypeError):
                 provider_available = False
         if details:
             if details.get('city'):
                 resolved_city = {'place': details['city'], 'hierarchy': ['Earth', *filter(None,
                     (details.get('country'), details.get('region'), details['city']))], 'granularity': 'city'}
-                if city is None or _key(city) != _key(resolved_city):
+                if language or city is None or _key(city) != _key(resolved_city):
                     city = resolved_city
-            if not details.get('partial_match'):
+            if language and own_coordinates:
+                pass  # Translating labels must retain an already known source pin.
+            elif not details.get('partial_match'):
                 pin = {**deepcopy(place), 'latitude': details['latitude'], 'longitude': details['longitude'],
                        'accuracy': 'public-map', 'attribution': details.get('attribution', 'Public map')}
             else:

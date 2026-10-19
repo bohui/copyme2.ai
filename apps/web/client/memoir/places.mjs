@@ -174,9 +174,9 @@ export function groupPlaces(places) {
     const key = place.map_city_key || cityGroupKey(city);
     if (!groups.has(key)) groups.set(key, {key, city, members: []});
     const group = groups.get(key);
-    // Prefer the storyteller's saved city name and coordinates for the title.
+    // Retain saved coordinates while using the requested display language.
     const savedCity = cities.find(item => cityGroupKey(item) === key);
-    if (savedCity) group.city = savedCity;
+    if (savedCity) group.city = {...savedCity,...savedCity.map_city};
     group.members.push(place);
   }
   return [...groups.values()];

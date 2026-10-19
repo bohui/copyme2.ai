@@ -1,3 +1,15 @@
+# Database migrations
+
+Until the user explicitly announces production deployment, keep all schema
+changes in `supabase/migrations/202610180001_initial_schema.sql`. Update that
+single fresh-install baseline in place instead of adding migration files.
+
+# Regression checks
+
+For place/photo/news research or workspace localization changes, run
+`make test-place-research` before reporting completion. Keep its API-to-client
+replay covering the reported failure; `python3 -m pytest` alone omits web tests.
+
 # Prompt governance
 
 Before creating or changing any model prompt, including shared components, read

@@ -610,6 +610,8 @@ def _project_public_response(project: dict[str, Any], *, status_code: int = 200,
                 from .place_identity import place_identity
                 saved = {place_identity(place): place for place in project['profile'].get('memory_places', [])}
                 journeys = service.lifetime_rpc('read_lifetime_place_journeys', p_project_id=project['id'])
+                if journeys and callable(getattr(service, 'research_places', None)):
+                    journeys = service.research_places(project['id'], journeys)
                 profile['memory_places'] = [{**saved.get(place_identity(place), {}), **place} for place in journeys]
             return build(_project_response(project,
                 authoritative_profile=profile))
@@ -2512,7 +2514,7 @@ def create_app(
         places = [validate_place_journey(place) for place in raw_places]
         if any(place is None for place in places):
             raise HTTPException(status_code=422, detail='Invalid place group input')
-        return await group_places(_account_id(x_account_id),project_id,places)
+        return await group_places(_account_id(x_account_id),project_id,places,language=payload.get('language'))
 
     from .place_photo_pages import PhotoPages
     photo_pages = PhotoPages()
