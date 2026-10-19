@@ -120,8 +120,14 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         for item in records:
             if isinstance(item, dict):
                 objects.extend(item.get('@graph', [item]))
-    photo = next((item for item in objects if isinstance(item, dict)
-                  and item.get('@type') in ('Photograph', 'ImageObject')), {})
+    photo_records = [item for item in objects if isinstance(item, dict)
+                     and item.get('@type') in ('Photograph', 'ImageObject')]
+    photo = photo_records[0] if photo_records else {}
+    photo_by_url = {}
+    for record in photo_records:
+        record_url = helper._crawl4ai_image_url(record.get('contentUrl') or record.get('url'))
+        if record_url:
+            photo_by_url[record_url] = record
     taken = _text(photo.get('dateTaken') or photo.get('dateCreated'))
     if not taken:
         # Flickr exposes this separate from its "Uploaded on" timestamp.
@@ -190,19 +196,17 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                 scene_date = {'start': start, 'end': end}
     creator = photo.get('creator') or photo.get('author') or {}
     attribution = _text(creator.get('name') if isinstance(creator, dict) else creator)
-    licence_url = _text(photo.get('license') or meta.get('license'))
-    if not licence_url and mediawiki_file:
+    source_licence_url = _text(meta.get('license'))
+    if not source_licence_url and mediawiki_file:
         # Commons' hidden file licence is distinct from the page/footer licence.
         match = re.search(r'<[^>]+class=["\'][^"\']*\blicensetpl_link\b[^"\']*["\'][^>]*>(.*?)</',
                           source_html, re.I | re.S)
-        licence_url = _text(match[1]) if match else ''
-    if not licence_url and is_flickr:
-        licence_url = next((link['url'] for link in page['links']
+        source_licence_url = _text(match[1]) if match else ''
+    if not source_licence_url and is_flickr:
+        source_licence_url = next((link['url'] for link in page['links']
             if urlsplit(link['url']).hostname == 'creativecommons.org'
             and urlsplit(link['url']).path.startswith('/licenses/')), '')
-    licence = _google_license({'license': licence_url})
-    if licence_url and not licence:
-        return []
+    licence_url = _text(photo.get('license')) or source_licence_url
     image_urls = []
     primary = photo.get('contentUrl') or meta.get('og:image')
     if mediawiki_file:
@@ -250,6 +254,16 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         if is_flickr:
             if not re.fullmatch(r'(?:live|farm\d+)\.staticflickr\.com', urlsplit(image).hostname or ''):
                 continue
+        image_photo = photo_by_url.get(image)
+        if image_photo is not None:
+            image_licence_url = _text(image_photo.get('license')) or source_licence_url
+        elif image == helper._crawl4ai_image_url(primary):
+            image_licence_url = licence_url
+        else:
+            image_licence_url = source_licence_url
+        image_licence = _google_license({'license': image_licence_url})
+        if image_licence_url and not image_licence:
+            continue
         identifier = hashlib.sha256(f'{source_url}\n{image}'.encode()).hexdigest()[:24]
         items.append({
             'asset_id': 'crawl4ai-' + identifier, 'kind': 'image', 'title': _text(caption),
@@ -263,11 +277,11 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             'scene_date_range': image_date,
             'date_basis': 'Source capture metadata or caption' if image_date else 'Unknown capture date',
             **((point or {}) if observed == primary else {}),
-            'license': licence[0] if licence else 'Unknown', 'license_url': licence_url,
+            'license': image_licence[0] if image_licence else 'Unknown', 'license_url': image_licence_url,
             'source_registry_id': source_registry_id(source_url),
-            'usage_permissions': usage_permissions(bool(licence)),
+            'usage_permissions': usage_permissions(bool(image_licence)),
             'memory_reference_only': True,
-            'allowed_actions': {'embed': bool(licence), 'memory_reference': True, 'download': False,
+            'allowed_actions': {'embed': bool(image_licence), 'memory_reference': True, 'download': False,
                                 'print': False, 'publish': False},
         })
     return items

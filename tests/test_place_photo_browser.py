@@ -121,6 +121,30 @@ def test_google_source_reads_explicit_sibling_captions_not_article_dates():
     assert items[0]['date_expression'] == '1980-1989'
 
 
+@pytest.mark.parametrize('licences,expected', [
+    ((None, 'https://creativecommons.org/licenses/by/4.0/'), (False, True)),
+    (('https://creativecommons.org/licenses/by/4.0/', None), (True, False)),
+])
+def test_json_ld_sibling_licences_are_evaluated_per_image(licences, expected):
+    records = []
+    for index, licence in enumerate(licences, 1):
+        record = {'@type': 'Photograph', 'name': f'Chengde street {index}',
+                  'dateTaken': '1983-10-01',
+                  'contentUrl': f'https://archive.example/photo-{index}.jpg'}
+        if licence:
+            record['license'] = licence
+        records.append(record)
+    page = ('<title>Chengde photo gallery</title>'
+            '<script type="application/ld+json">'
+            + json.dumps({'@graph': records})
+            + '</script>')
+
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+    by_url = {item['image_url']: item for item in items}
+    assert tuple(by_url[f'https://archive.example/photo-{index}.jpg']['allowed_actions']['embed']
+                 for index in (1, 2)) == expected
+
+
 def test_separated_caption_does_not_date_a_previous_unrelated_image():
     page = ('<title>Chengde archive</title><img src="https://archive.example/logo.jpg">'
             '<p>Navigation and unrelated text</p><p class="img-desc">Chengde 1983</p>')

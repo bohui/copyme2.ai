@@ -19,6 +19,37 @@ def same_research_place(first, second):
     return bool(set(place_aliases(first)) & set(place_aliases(second)))
 
 
+def _country_key(value):
+    label = geographic_label(value)
+    return {
+        '中国': 'china', 'china': 'china',
+        '澳大利亚': 'australia', 'australia': 'australia',
+        '美国': 'usa', 'usa': 'usa', 'us': 'usa', 'united states': 'usa',
+        '英国': 'uk', 'uk': 'uk', 'united kingdom': 'uk',
+    }.get(label, label)
+
+
+def _research_country(place, public_places):
+    known_countries = {_country_key(country) for _, country in public_places}
+    hierarchy = place.get('hierarchy') or []
+    hierarchy_countries = {_country_key(label) for label in hierarchy
+                           if _country_key(label) in known_countries}
+    if len(hierarchy_countries) == 1:
+        return hierarchy_countries.pop()
+    country = _country_key(place.get('country')) if place.get('country') else None
+    return country if country in known_countries else None
+
+
+def _research_pair(place, public_places):
+    country = _research_country(place, public_places)
+    if not country:
+        return None
+    matches = [pair for pair in public_places
+               if geographic_label(pair[0]) == geographic_label(place['place'])
+               and _country_key(pair[1]) == country]
+    return matches[0] if len(matches) == 1 else None
+
+
 def _named(clause, place):
     return any(re.search((r'(?<![a-z])' if alias.isascii() else '') + re.escape(alias)
                          + (r'(?![a-z])' if alias.isascii() else ''), clause, re.I)
@@ -70,8 +101,7 @@ def research_hypothesis(places, *, selection=None, current_year=None):
         if not period or selection and (not same_research_place(place['place'], selection['place'])
                                         or period != selection['period']):
             continue
-        pair = next((pair for pair in PUBLIC_PLACES
-                     if geographic_label(pair[0]) == geographic_label(place['place'])), None)
+        pair = _research_pair(place, PUBLIC_PLACES)
         if not pair:
             continue
         years = [int(year) for year in re.findall(r'(?:18|19|20)\d{2}', period)]

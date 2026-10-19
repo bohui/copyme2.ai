@@ -34,6 +34,24 @@ def test_birth_decade_is_shared_research_context_without_dating_current_home():
     assert '医院' not in str(news.public_queries(hypothesis))
 
 
+def test_historical_hypothesis_requires_the_saved_country_hierarchy():
+    from apps.api.place_research import research_hypothesis
+
+    perth_scotland = {
+        'place': 'Perth',
+        'hierarchy': ['Earth', 'United Kingdom', 'Scotland', 'Perth'],
+        'granularity': 'city',
+        'research_period': '1982–1985',
+        'research_period_basis': 'explicit_period',
+    }
+    assert research_hypothesis([perth_scotland], current_year=2026) is None
+
+    perth_australia = {**perth_scotland,
+                       'hierarchy': ['Earth', 'Australia', 'Western Australia', 'Perth']}
+    hypothesis = research_hypothesis([perth_australia], current_year=2026)
+    assert hypothesis['place'] == 'Perth, Australia'
+
+
 @pytest.mark.parametrize('text,expected', [
     ('我在1980年代住在承德市。现在住在悉尼。', '1980s'),
     ('I lived in Chengde in the 1980s.', '1980s'),

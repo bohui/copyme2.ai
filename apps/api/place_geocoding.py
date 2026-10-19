@@ -49,6 +49,11 @@ def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
     return all(any(parent == label for parent in parents) for label in reversed(labels[1:]))
 
 
+def _same_geoapify_location(first: dict, second: dict) -> bool:
+    return (abs(first['latitude'] - second['latitude']) <= 0.01
+            and abs(first['longitude'] - second['longitude']) <= 0.01)
+
+
 @lru_cache(maxsize=1024)
 def _geocode_record(provider: str, query: str, language: str | None = None):
     if provider == "google":
@@ -117,7 +122,17 @@ def _geocode_record(provider: str, query: str, language: str | None = None):
         if not isinstance(rank, dict):
             raise ValueError("Geoapify geocoding returned invalid match metadata")
         if not _geoapify_matches_query(record, rank, query):
-            return None
+            # Geoapify localizes administrative labels for ``lang`` requests,
+            # while the saved hierarchy remains in its source language. Verify
+            # the original query once without localization and accept the
+            # translated record only when both responses identify the same map
+            # location.
+            if not language:
+                return None
+            canonical = _geocode_record(provider, query, None)
+            if not canonical or not _same_geoapify_location(
+                    {'latitude': latitude, 'longitude': longitude}, canonical):
+                return None
         partial_match = rank.get('match_type') != 'full_match'
         attribution = 'Geoapify / OpenStreetMap'
     return {'latitude': latitude, 'longitude': longitude, 'city': city, 'region': region,

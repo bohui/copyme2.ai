@@ -61,6 +61,8 @@ def resolve_place_groups(places, *, allow_provider=True, language=None):
             if details.get('city'):
                 resolved_city = {'place': details['city'], 'hierarchy': ['Earth', *filter(None,
                     (details.get('country'), details.get('region'), details['city']))], 'granularity': 'city'}
+                if city and _coordinates(city):
+                    resolved_city['latitude'], resolved_city['longitude'] = city['latitude'], city['longitude']
                 if language or city is None or _key(city) != _key(resolved_city):
                     city = resolved_city
             if language and own_coordinates:

@@ -3315,6 +3315,10 @@ window.addEventListener("pagehide", () => persistChatHistory());
 window.addEventListener("copyme2:ui-locale-change", () => {
   closeProfileMenu();
   render();
+  const place = typeof placeWorkspaceSelection === "function"
+    ? placeWorkspaceSelection({allowUnmapped: true}) || state.placeJourney
+    : state.placeJourney;
+  if (place && typeof resolvePlaceMap === "function") resolvePlaceMap(place);
 });
 window.addEventListener("click", (event) => {
   const menu = $("[data-profile-menu]");

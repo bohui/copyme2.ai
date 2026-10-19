@@ -109,6 +109,22 @@ def test_provider_city_centre_does_not_turn_into_child_pin(monkeypatch):
     assert result['places'][1]['pin_status'] == 'UNRESOLVED'
 
 
+def test_localized_grouping_preserves_city_coordinates_for_unresolved_children(monkeypatch):
+    child = {key: value for key, value in DISTRICT.items() if key not in ('latitude', 'longitude')}
+
+    def lookup(query, *, language=None):
+        return {'latitude': CITY['latitude'], 'longitude': CITY['longitude'],
+                'city': 'Chengde', 'country': 'China', 'region': 'Hebei',
+                'partial_match': False}
+
+    monkeypatch.setattr(groups, 'search_place_details', lookup)
+    result = groups.resolve_place_groups([CITY, child], language='en-AU')
+
+    assert result['places'][0]['city']['latitude'] == CITY['latitude']
+    assert result['places'][0]['city']['longitude'] == CITY['longitude']
+    assert result['places'][1]['pin'] is None
+
+
 def test_missing_region_does_not_split_the_same_city_or_merge_conflicting_regions(monkeypatch):
     monkeypatch.setattr(groups, 'search_place_details', lambda query: None)
     short = {'place': '悉尼', 'hierarchy': ['Earth', '澳大利亚', '悉尼'], 'granularity': 'city',
