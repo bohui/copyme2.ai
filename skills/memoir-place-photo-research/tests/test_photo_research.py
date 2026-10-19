@@ -424,6 +424,121 @@ class WorkflowTests(unittest.TestCase):
         images = p._crawl4ai_source_images(page, card, request)
         self.assertEqual([item["image_url"] for item in images], ["https://images.example/historical.jpg"])
 
+    def test_discovery_prefers_source_geography_to_caption(self):
+        cases = [
+            ('Chengde Mountain Resort','Mountain Resort','','Chengde',True),
+            ('离宫, 承德市','避暑山庄','','承德市',True),
+            ('Chengde Mountain Resort','Willow trees','Mountain Resort','Chengde',True),
+            ('Chengde Mountain Resort','Chengde street','','Chengde',False),
+            ('Chengde Mountain Resort','Mountain Resort','','Beijing',False),
+            ('Chengde','Beijing street','','Chengde',True),
+            ('Chengde','Willow trees','Beijing street','Chengde',True),
+            ('Chengde','Willow trees','','Chengde',True),
+            ('China','Beijing street','','Beijing, China',True),
+            ('Hebei','Chengde street','','Chengde, Hebei, China',True),
+            ('Australia','Sydney street','','Sydney, Australia',True),
+            ('China','Sydney street','','Sydney, Australia',False),
+            ('Hebei','Beijing street','','Beijing, China',False),
+            ('China','Beijing street','','Chengde, Hebei, China',True),
+            ('Chengde','Beijing street','','Chengde, Hebei, China',True),
+            # Captions are secondary evidence when structured image geography is absent.
+            ('China','Beijing street, China 1983','','',True),
+            ('Hebei','Chengde street in Hebei 1983','','',True),
+            ('Australia','Sydney street, Australia 1983','','',True),
+            ('Chengde','Beijing street, Chengde 1983','','',True),
+            ('China','Beijing street','',{'name':'Beijing','address':{'addressCountry':'China'}},True),
+            ('Hebei','Chengde street','',{'name':'Chengde','address':{'addressRegion':'Hebei','addressCountry':'China'}},True),
+            ('Australia','Sydney street','',{'name':'Sydney','address':{'addressCountry':{'@type':'Country','name':'Australia'}}},True),
+            ('China','Chengde street','',{'name':'Chengde','containedInPlace':{'name':'Hebei','containedInPlace':{'name':'China'}}},True),
+            ('China','Sydney street','',{'name':'Sydney','address':{'addressCountry':'Australia'}},False),
+            ('Chengde','Beijing street','',{'name':'Chengde','address':{'addressLocality':'Beijing','addressCountry':'China'}},False),
+            ('Perth','Sydney street in Perth','','Perth, Scotland',True),
+            ('China','Beijing street in China','','Chengde, Hebei, China',True),
+            ('Perth','Sydney city centre in Perth','','',False),
+            ('Hobart','Sydney city centre in Hobart','','',False),
+            ('Canberra','Sydney city centre in Canberra','','',False),
+            ('Oxford','Sydney waterfront, Oxford','','',True),
+            ('Perth','Sydney street','',{'@type':'City','name':'Perth'},True),
+            ('Perth','Sydney street','',{'@type':'AdministrativeArea','name':'Perth'},True),
+            ('China','Beijing street','',{'@type':'Country','name':'China'},True),
+            ('Hebei','Chengde street','',{'@type':'AdministrativeArea','name':'Hebei'},True),
+            ('Hebei','Chengde street','',{'@type':'State','name':'Hebei'},True),
+            ('Australia','Sydney street','',{'@type':'Country','name':'Australia'},True),
+            ('Canada','Sydney waterfront','',{'@type':'Country','name':'Canada'},True),
+            ('New South Wales','Sydney street','',{'@type':'State','name':'New South Wales'},True),
+            ('Nova Scotia','Sydney waterfront','',{'name':'Sydney','address':{'addressRegion':'Nova Scotia','addressCountry':'Canada'}},True),
+            ('China','Beijing street','',{'@type':'Country','name':'Australia'},False),
+            ('China','Beijing street','',{'name':'China','address':{'addressLocality':'Beijing','addressCountry':'China'}},True),
+            ('Hebei','Chengde street','',{'name':'Hebei','address':{'addressLocality':'Chengde','addressRegion':'Hebei','addressCountry':'China'}},True),
+            ('Australia','Sydney street','',{'name':'Australia','address':{'addressLocality':'Sydney','addressCountry':'Australia'}},True),
+            ('Bergen','Oslo street','',{'@type':'City','name':'Bergen'},True),
+            ('Lisbon','Porto waterfront','',{'@type':'City','name':'Lisbon'},True),
+            ('Northbridge','Southport city centre in Northbridge','','',False),
+            ('Firstland','Secondville street','',{'@type':'Country','name':'Firstland',
+                'address':{'addressLocality':'Firstville','addressCountry':'Firstland'}},True),
+            ('Firstland','Firstville street','',{'name':'Firstland',
+                'address':{'addressLocality':'Firstville','addressCountry':'Firstland'}},True),
+            ('Firstshire','Firstville street','',{'@type':'State','name':'Firstshire'},True),
+            ('Firstshire','Firstville street','',{'name':'Firstville',
+                'containedInPlace':{'@type':'AdministrativeArea','name':'Firstshire'}},True),
+            ('Wien','Vienna street','',{'@type':'City','name':'Wien','alternateName':'Vienna'},True),
+            ('長野市','松本市街景','',{'@type':'City','name':'長野市'},True),
+            ('Brighton and Hove','Brighton and Hove street','',{'@type':'City','name':'Brighton and Hove'},True),
+            ('Firstville, Firstland','Secondville street','',{'@type':'City','name':'Secondville',
+                'address':{'addressCountry':'Firstland'}},False),
+            ('Firstville, Firstland','Firstville street','',{'@type':'City','name':'Firstville',
+                'address':{'addressCountry':'Firstland'}},True),
+            ('Chengde','Beijing Summer Palace','','Chengde',True),
+            ('Chengde','Sydney Opera House','','Chengde',True),
+            ('Lisbon','Porto Opera House','',{'@type':'City','name':'Lisbon'},True),
+            ('Chengde','Chengde Summer Palace','','Chengde',True),
+            ('Chengde','Summer Palace','','Chengde',True),
+            ('Firstville','Royal Opera House','','Firstville',True),
+            ('Firstville','Imperial Summer Palace','','Firstville',True),
+            ('Firstville','Firstville Royal Palace','','Firstville',True),
+            ('Firstville','Beijing Royal Palace','','Firstville',True),
+            ('Chengde','Main Street','','Chengde',True),
+            ('Chengde','Main street','','Chengde',True),
+            ('Chengde','George Street','','Chengde',True),
+            ('Chengde','Willow trees','Taken in 1983','Chengde',True),
+            ('Chengde','Willow trees','Taken in October 1983','Chengde',True),
+            ('Chengde','Willow trees','Taken in Beijing in 1983','Chengde',True),
+            ('Brighton and Hove','Brighton and Hove street','','Brighton and Hove',True),
+            ('Brighton and Hove','Brighton and Hove street','',{'@type':'Place','name':'Brighton and Hove'},True),
+            ('Brighton and Hove','Brighton and Hove street','',{'address':{'addressLocality':'Brighton and Hove'}},True),
+            ('Chengde','Willow trees','','Chengde and Beijing',False),
+            ('Chengde','Chengde street','','Beijing',False),
+            ('Chengde','Location: Beijing','','',False),
+            ('Chengde','Location: Chengde','','',True),
+        ]
+        for place,name,caption,location,accepted in cases:
+            with self.subTest(place=place,name=name,caption=caption,location=location):
+                self.req.update(place=place,temporal=p.normalize_period('1980s',ASOF),count=1)
+                p.write_json(self.run/'request.json',self.req)
+                p.write_json(self.run/'candidates.json',[])
+                p.write_text(self.run/'evidence.jsonl','')
+                p.write_text(self.run/'search_log.jsonl','')
+                record = {'@type':'Photograph','name':name,'caption':caption,'dateTaken':'1983-10-01',
+                          'contentLocation':location if isinstance(location,dict) else {'name':location},
+                          'contentUrl':'https://images.example/photo.jpg'}
+                page = {'url':'https://archive.example/item','html':
+                        f'<title>{place} photo gallery</title><script type="application/ld+json">'
+                        + json.dumps({'@type':'ImageGallery','itemListElement':[{'item':record}]}) + '</script>'}
+                card = {'source_url':page['url'],'text':f'{place} Chengde Mountain Resort 避暑山庄 承德市'}
+                with patch.object(p,'_crawl4ai_search_pages',return_value=[card]), \
+                     patch.object(p,'_crawl4ai_source_page',return_value=page), \
+                     patch.object(p,'public_addresses',return_value=['93.184.216.34']):
+                    summary = p.crawl4ai_discover(self.run,'https://cse.google.com/cse?cx=test')
+                self.assertEqual(summary['qualifying'],int(accepted))
+                candidates = p.read_json(self.run/'candidates.json')
+                self.assertEqual(len(candidates),int(accepted))
+                if accepted:
+                    self.assertEqual(candidates[0]['place']['match'],'exact')
+                    self.assertEqual(candidates[0]['scene_date']['start'],'1983-10-01')
+                    evidence = p.read_jsonl(self.run/'evidence.jsonl')
+                    self.assertTrue(p._crawl4ai_location_matches(
+                        next(item['excerpt'] for item in evidence if item['kind']=='place'),place))
+
     def test_crawl4ai_image_url_upgrades_observed_http_cdn(self):
         observed = "http://k.sinaimg.cn/n/sinacn/w550h329/20180116/photo.png/w700d1q75cms.jpg"
         self.assertEqual(

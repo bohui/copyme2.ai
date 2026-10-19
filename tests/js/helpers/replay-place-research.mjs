@@ -54,8 +54,8 @@ const api=async(path,options)=>{
   }
   assert.equal(url.pathname,`/v1/agent/places/${projectId}/photos`);
   const place=url.searchParams.get('place'),period=url.searchParams.get('period');
-  assert.equal(period,place==='承德市'?'1980s':'','Each place must retain its own research period');
-  assert.equal(url.searchParams.get('context_year'),place==='承德市'?'1983':null,
+  assert.equal(period,place==='悉尼'?'':'1980s','Each place must retain its own research period');
+  assert.equal(url.searchParams.get('context_year'),place==='悉尼'?null:'1983',
     'The original context year must survive the containing-decade search');
   assert.ok(Object.hasOwn(packet.photos,place),`Unexpected photo lookup ${place}`);
   photoCalls.push([place,period]);
@@ -125,6 +125,14 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
     if (selected.place==='承德市') {
       const gaps=photos.workspacePictureItems(selected).map(photo=>Math.abs(Number(photo.date_expression.slice(0,4))-1983));
       assert.deepEqual(gaps,[...gaps].sort((a,b)=>a-b),'The gallery must preserve the API relevance order');
+      assert.ok(photos.workspacePictureItems(selected).some(photo=>photo.title==='Main Street'),
+        'A street title must not be mistaken for a conflicting city');
+      assert.ok(photos.workspacePictureItems(selected).some(photo=>photo.image_url.endsWith('/4.jpg')),
+        'A temporal capture caption must survive the location filter');
+      assert.ok(photos.workspacePictureItems(selected).some(photo=>photo.image_url.endsWith('/3.jpg')),
+        'A conflicting caption must not override matching image geography');
+      assert.doesNotMatch(selectedHtml,/Beijing Summer Palace|Sydney Opera House|sydney-opera\.jpg/,
+        'Photographs with conflicting image geography must stay out of the gallery');
       const willow=photos.workspacePictureItems(selected).find(photo=>photo.title==='Willow trees');
       assert.equal(willow?.attribution,'Alice Example');
       assert.match(selectedHtml,/Alice Example/,'The gallery must display the source creator credit');
@@ -174,4 +182,30 @@ const parramatta=cityChoices.find(choice=>choice[2]==='Parramatta');
 cityWorkspace.selectPlace(parramatta[1].replaceAll('&quot;','"').replaceAll('&amp;','&'));
 assert.equal(cityWorkspace.placeWorkspaceSelection().place,'Parramatta');
 assert.equal(cityLoads.at(-1),'Parramatta');
+
+const landmark=packet.landmark;
+state.project.profile.memory_places=[landmark];state.placeJourney=landmark;
+await context.loadPlacePictures(landmark,projectId);
+const landmarkPhotos=photos.workspacePictureItems(state.project.profile.memory_places[0]);
+assert.deepEqual(landmarkPhotos.map(photo=>photo.title),['Mountain Resort'],
+  'The landmark caption and structured city must survive API-to-client filtering');
+assert.equal(landmarkPhotos[0].date_expression,'1983-10-01');
+const landmarkWall=photos.pictureWall(landmarkPhotos,landmark);
+assert.match(landmarkWall,/resort\.jpg/);
+assert.doesNotMatch(landmarkWall,/Beijing|beijing\.jpg/);
+for (const parent of packet.containing_places) {
+  state.project.profile.memory_places=[parent];state.placeJourney=parent;
+  await context.loadPlacePictures(parent,projectId);
+  const items=photos.workspacePictureItems(state.project.profile.memory_places[0]);
+  assert.deepEqual(items.map(photo=>photo.title),[packet.containing_titles[parent.place]],
+    `The ${parent.place} gallery must retain its source-confirmed photograph`);
+  assert.equal(items[0].date_expression,'1983-10-01');
+  assert.match(photos.pictureWall(items,parent),new RegExp(`${parent.place.toLowerCase().replaceAll(' ','-')}\\.jpg`));
+}
+for (const city of packet.rejected_city_places) {
+  state.project.profile.memory_places=[city];state.placeJourney=city;
+  await context.loadPlacePictures(city,projectId);
+  const items=photos.workspacePictureItems(state.project.profile.memory_places[0]);
+  assert.deepEqual(items,[],`${city.place} must not display a conflicting city photograph`);
+}
 console.log('Place regression replay passed: delayed extraction, two searches, localized buttons, selection and restore.');
