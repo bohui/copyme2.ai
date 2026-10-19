@@ -84,7 +84,7 @@ def repo(tmp_path, monkeypatch):
     git(root, 'remote', 'add', 'origin', str(origin))
     git(root, 'push', '-u', 'origin', 'main')
     client = Client()
-    monkeypatch.setattr(publication, 'prompt_registry', lambda root: {NAME: TARGET})
+    monkeypatch.setattr(publication, 'prompt_registry', lambda root, **kwargs: {NAME: TARGET})
     monkeypatch.setattr(publication, 'prompt_client', lambda *args: client)
     return root, origin, client
 

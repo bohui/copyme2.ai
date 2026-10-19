@@ -17,6 +17,12 @@ from apps.api.place_journey import extract_place_journeys
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def scenario_cases():
+    """Stable task fixtures for the complete inventory; no application prompts/gold in packets."""
+    from scripts.memoir_skill_scenarios import build_cases
+    return build_cases()
+
+
 def eval_fragment(name):
     return load_prompt_artifact(prompt_path(f'memoir/evaluation/live-skills/{name}'))
 

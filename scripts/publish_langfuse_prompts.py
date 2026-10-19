@@ -30,7 +30,7 @@ def git(root: Path, *args: str) -> str:
 def main_revision(root: Path) -> str:
     if git(root, "branch", "--show-current") != "main":
         raise ValueError("Prompt publication requires main; merge the PR and pull main first")
-    receipts = {path + ".langfuse.json" for path in prompt_registry(root).values()}
+    receipts = {path + ".langfuse.json" for path in prompt_registry(root, include_unpublished=True).values()}
     changed = set(git(root, "diff", "--name-only", "-z", "HEAD").split("\0")) - {""}
     if changed - receipts:
         raise ValueError("Commit or set aside local edits before publishing merged main prompts")
@@ -65,7 +65,7 @@ def publish(client, *, root: Path, revision: str, check: bool = False) -> list[d
     if main_revision(root) != revision:
         raise ValueError("Git main changed before publication; retry after pulling main")
     plan = []
-    for name, target in prompt_registry(root).items():
+    for name, target in prompt_registry(root, include_unpublished=True).items():
         text = git(root, "show", f"{revision}:{target}")
         if not text.strip() or (root / target).read_text(encoding="utf-8") != text:
             raise ValueError(f"Prompt differs from committed main: {target}")
