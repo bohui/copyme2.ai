@@ -170,7 +170,7 @@ test('collapsing a ready workspace also hides the life-stage strip', () => {
   assert.doesNotMatch(html, /workspace-media-overview|life-stage-navigator/);
 });
 
-test('workspace visibility follows the selected map availability and collapse preference', () => {
+test('an activated workspace survives a later unresolved location and respects collapse and project scope', () => {
   let target = {place: 'Chengde', latitude: 40.95, longitude: 117.96};
   const state = {
     project: {id: 'project'},
@@ -192,8 +192,8 @@ test('workspace visibility follows the selected map availability and collapse pr
 
   assert.equal(context.workspaceIsVisible(), true);
   target = null;
-  assert.equal(context.workspaceIsVisible(), false, 'an unresolved selected location must hide the workspace');
-  assert.equal(context.workspaceHasContent(), false);
+  assert.equal(context.workspaceIsVisible(), true, 'a later unresolved location must not close the workspace');
+  assert.equal(context.workspaceHasContent(), true);
 
   target = {place: 'Chengde', latitude: 40.95, longitude: 117.96};
   assert.equal(context.workspaceIsVisible(), true);

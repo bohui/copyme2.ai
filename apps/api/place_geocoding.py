@@ -47,7 +47,12 @@ def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
     if len(labels) > 1 and labels[-1] not in {
             geographic_label(record.get('country', '')), geographic_label(record.get('country_code', ''))}:
         return False
-    if labels[0] not in {geographic_label(record.get(field, '')) for field in target_fields}:
+    targets = {geographic_label(record.get(field, '')) for field in target_fields}
+    # A qualified source label may omit 镇; its containing city must still match.
+    containing_city = {geographic_label(record[field]) for field in ('city', 'municipality') if record.get(field)}
+    if containing_city.intersection(labels[1:-1]) and record.get('result_type') == 'suburb':
+        targets.update(label[:-1] for label in list(targets) if label.endswith('镇'))
+    if labels[0] not in targets:
         return False
     # Match every supplied parent, in order, so a same-name place cannot jump regions.
     parents = iter(geographic_label(record.get(field, ''))

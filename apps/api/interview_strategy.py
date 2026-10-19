@@ -13,7 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel,ConfigDict,Field
 from .interview_plan import PhotoAssociation,TurnWorkPlan
-from .two_lane_memory import PreparedQuestion
+from .two_lane_memory import PreparedQuestion, pending_confirmation
 from .prompt_composition import render_prompt_artifact
 from .prompt_artifact import prompt_path
 from .stage_readiness import LIFE_STAGES
@@ -107,7 +107,10 @@ def selector_schema(context=None):
     context=context or {}
     constraints=current_constraints((context.get('source') or {}).get('text',''))
     candidates=((context.get('strategy_context') or {}).get('plan') or {}).get('candidates',[])
-    identities=[] if constraints else [candidate['id'] for candidate in candidates]
+    confirmation = pending_confirmation(context)
+    if confirmation:
+        candidates = [confirmation, *candidates]
+    identities=[] if constraints else list(dict.fromkeys(candidate['id'] for candidate in candidates))
     schema['properties']['selected_candidate_id']['enum']=[None,*identities]
     schema['properties']['question']['description']=(
         'One immediate question, or null. Null requires selection_reason pause or direct_answer '
@@ -178,6 +181,9 @@ def adapt_selection(raw,context):
     state=context.get('strategy_context') or {};plan=state.get('plan') or {}
     constraints=current_constraints((context.get('source') or {}).get('text',''))
     available={c['id']:c for c in plan.get('candidates',[])}
+    confirmation = pending_confirmation(context)
+    if confirmation:
+        available[confirmation['id']] = confirmation
     if item.question is not None and (not item.question.strip() or item.question.count('?')+item.question.count('？')>1):
         raise ValueError('Only one immediate question is allowed')
     if item.stopped and item.question is not None:raise ValueError('A stop cannot force a question')

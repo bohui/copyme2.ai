@@ -27,11 +27,14 @@ test('failed, empty delta, stale and other-project results cannot clear the last
   assert.equal(s.project.profile.memory_places[0].place,'Hobart');
 });
 test('an authoritative privacy revocation removes inaccessible places',()=>{
-  const s=state();applyDerivedWorkspace(s,update([place('Hobart')],3));
+  const s=state();s.workspaceActivatedProjectId='p';s.placeWorkspaceMap={projectId:'p',key:'old'};
+  applyDerivedWorkspace(s,update([place('Hobart')],3));
   assert.equal(applyDerivedWorkspace(s,{...update([],4),policy_epoch:2}),true);
   assert.equal(s.placeJourney,null);
   assert.equal(s.project.profile.memory_places.length,0);
   assert.equal(s.recording,true);
+  assert.equal(s.workspaceActivatedProjectId,null);
+  assert.equal(s.placeWorkspaceMap,null);
 });
 test('a first accepted background place activates only the place state',()=>{
   const s=state();s.project.profile.memory_places=[];s.placeJourney=null;s.selectedPlace=null;

@@ -24,7 +24,7 @@ def database():
 def enable_only_disposable_database_rollout(sql):
     # This fixture owns a fresh local PostgreSQL cluster. Never configure a
     # shared service, deploy a migration, or activate a production flag here.
-    sql('update public.lifetime_two_lane_rollout set enabled=true;')
+    sql('update public.lifetime_two_lane_rollout set enabled=true,strategy_enabled=false,strategy_shadow=true;')
 
 
 TEXT = 'I grew up in Hobart and walked by the river.'
@@ -114,6 +114,52 @@ def test_background_places_candidates_and_events_share_one_fenced_page(sql):
     assert service(sql,'commit_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}',0,{literal(result)}")=={'status':'page_saved','replayed':True}
     service(sql,'complete_lifetime_memoir_lane',f"'{lane_id}','{page['token']}'")
     assert rpc(sql,'read_lifetime_prepared_questions',f"'{identity['conversation_id']}'",owner=OTHER,check=False).returncode!=0
+
+
+def test_confirmations_rank_first_and_survive_the_ordinary_hint_expiry(sql):
+    identity, accepted = accept(sql)
+    lane_id = lane(sql, identity)
+    page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+    confirmation = {**QUESTION, 'question': 'Did you mean Hobart in Tasmania?', 'requires_confirmation': True}
+    result = {'events': [], 'place_journeys': [], 'prepared_questions': [QUESTION, confirmation]}
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}',0,{literal(result)}")
+    assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")[0]['requires_confirmation']
+    for _ in range(3):
+        rpc(sql, 'accept_user_narrator_source', f"{literal(identity['project_id'])},'{uuid4()}','I remember another walk.'")
+    pending = rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
+    assert [q['question'] for q in pending] == [confirmation['question']]
+    rpc(sql, 'change_user_narrator_source',
+        f"{literal(identity['project_id'])},'{accepted['source']['id']}',1,'withdraw',null")
+    assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == []
+
+
+def test_confirmation_from_an_earlier_source_window_stays_queued(sql):
+    identity, _ = accept(sql, text=TEXT + ' More memories.' * 300)
+    lane_id = lane(sql, identity)
+    page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+    question = {**QUESTION, 'requires_confirmation': True}
+    result = {'events': [], 'place_journeys': [], 'prepared_questions': [question]}
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}',0,{literal(result)}")
+    second = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}'")
+    assert second['source']['id'] == page['source']['id']
+    assert second['source']['char_start'] > 0
+    result['prepared_questions'] = []
+    service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane_id}','{page['token']}',{second['page_number']},{literal(result)}")
+    pending = rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
+    assert [q['question'] for q in pending] == [QUESTION['question']]
+
+
+@pytest.mark.parametrize('flag', ['true', 1, None])
+def test_sql_rejects_untyped_confirmation_flags(sql, flag):
+    identity, _ = accept(sql)
+    lane_id = lane(sql, identity)
+    page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+    result = {'events': [], 'place_journeys': [],
+              'prepared_questions': [{**QUESTION, 'requires_confirmation': flag}]}
+    with pytest.raises(AssertionError):
+        service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}',0,{literal(result)}")
+    assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == []
 
 
 @pytest.mark.parametrize('change',['policy','source','generation','lease','rollout'])
@@ -288,7 +334,8 @@ def test_background_checkpoint_is_bounded_resumable_and_keeps_composer_fragment_
     assert sql('select count(*) from public.user_lifetime_checkpoint;').stdout.strip()=='0'
 
 
-def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_deduplicates(sql,tmp_path,monkeypatch):
+@pytest.mark.parametrize('requires_confirmation', [False, True])
+def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_deduplicates(sql,tmp_path,monkeypatch,requires_confirmation):
     from types import SimpleNamespace
     from apps.api import agent_routes
     from apps.api.codex_runtime import CodexRuntime
@@ -299,6 +346,9 @@ def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_d
     from fastapi.testclient import TestClient
     from memoir_postgres_workflow import PostgresRest
     monkeypatch.setenv('MEMOIR_TWO_LANES','1');monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
+    question = {**QUESTION, 'requires_confirmation': requires_confirmation}
+    if requires_confirmation:
+        question['question'] = 'Did you mean Hobart in Tasmania?'
     packets=[]
     def provider(request):
         body=json.loads(request.content);context=body['interview_context'];packets.append(json.loads(body['governed']['packet']))
@@ -307,7 +357,9 @@ def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_d
         if len(packets)>1:
             assert context['prepared_questions'][0]['source_id']==packets[0]['current']['narrator']['source_id']
             candidate=context['prepared_questions'][0]
-            output['plan']['candidates'][0]['id']=candidate['id'];output['plan']['chosen_id']=candidate['id']
+            assert candidate.get('requires_confirmation', False) == requires_confirmation
+            if not requires_confirmation:
+                output['plan']['candidates'][0]['id']=candidate['id'];output['plan']['chosen_id']=candidate['id']
         return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'a-'+str(len(packets)),'artifacts':[]})
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
     monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path,worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
@@ -325,7 +377,7 @@ def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_d
             if phase=='profile':
                 return httpx.Response(200,json={'reply':'{"profile_patch":[]}','thread_id':'profile','artifacts':[]})
             assert phase=='extract'
-            return httpx.Response(200,json={'reply':json.dumps({'events':[],'place_journeys':[PLACE],'prepared_questions':[QUESTION]}),'thread_id':'b','artifacts':[]})
+            return httpx.Response(200,json={'reply':json.dumps({'events':[],'place_journeys':[PLACE],'prepared_questions':[question]}),'thread_id':'b','artifacts':[]})
         worker=SimpleNamespace(broker=Broker(),worker_url='http://controlled.invalid',worker_secret='synthetic',
             worker_transport=httpx.MockTransport(background),lane_publisher=LanePublication(sql.publication_dsn,authenticated_owner=OWNER))
         settled=asyncio.run(execute_lifetime_lane(page,worker))
@@ -336,6 +388,7 @@ def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_d
         turn=str(uuid4());payload={'project_id':project,'client_turn_id':turn,'text':'I remember the water.'}
         second=client.post('/v1/agent/turn',json=payload)
         assert second.status_code==200,second.text
+        assert second.json()['reply'].endswith(question['question'])
         retry=client.post('/v1/agent/turn',json=payload)
         assert retry.status_code==200,retry.text
         assert retry.json()['reply_id']==second.json()['reply_id'] and retry.json()['cached']

@@ -88,7 +88,7 @@ test(`a failed conversational save restores ${previous ? 'the confirmed workspac
   await context.agentTurn('Sydney');
   assert.equal(context.state.placeJourney, previous);
   assert.equal(context.state.selectedPlace, previous?.place || null);
-  assert.equal(visibility[0], false, 'an unresolved streamed preview must stay hidden');
+  assert.equal(visibility[0], Boolean(previous), 'an unresolved preview must retain prior workspace availability');
   assert.equal(visibility.at(-1), Boolean(previous), 'failed previews must restore prior workspace availability');
 });
 }

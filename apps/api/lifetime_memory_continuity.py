@@ -230,6 +230,9 @@ def validate_governed_collector_result(raw, context):
     value = json.loads(raw) if isinstance(raw, str) else raw
     if not isinstance(value, dict):
         raise ValueError('Collector result must be an object')
+    if context.get('prepared_questions'):
+        from .two_lane_memory import prioritize_confirmation
+        value = prioritize_confirmation(value, context)
     outcome=None
     if context.get('strategy_selector'):
         from .interview_strategy import adapt_selection

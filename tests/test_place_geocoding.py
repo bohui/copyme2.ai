@@ -13,6 +13,19 @@ GEOAPIFY_TOWN = {'name': '大石庙镇', 'lat': 40.921285, 'lon': 117.961817, 'r
 TOWN_QUERY = '大石庙镇, 承德, 河北, 中国'
 
 
+def test_a_qualified_bare_town_name_matches_its_administrative_suffix(monkeypatch):
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER', 'geoapify')
+    monkeypatch.setenv('GEOAPIFY_API_KEY', 'synthetic-key')
+    monkeypatch.setattr(httpx, 'get', lambda url, **kwargs: httpx.Response(200,
+        json={'results': [GEOAPIFY_TOWN]}, request=httpx.Request('GET', url)))
+    assert geo.search_place('大石庙, 承德, 河北, 中国') == {
+        'latitude': GEOAPIFY_TOWN['lat'], 'longitude': GEOAPIFY_TOWN['lon'],
+        'attribution': 'Geoapify / OpenStreetMap'}
+    assert geo.search_place('大石庙, 南京, 江苏, 中国') is None
+    assert geo.search_place('大石庙, 河北, 中国') is None
+    assert geo.search_place('大石庙') is None, 'A bare alias still needs its containing hierarchy'
+
+
 @pytest.fixture(autouse=True)
 def isolate_geocoding(monkeypatch):
     for key in ('MEMOIR_GEO_PROVIDER', 'GOOGLE_MAPS_GEOCODING_API_KEY', 'GOOGLE_MAPS_GEOCODING_URL',

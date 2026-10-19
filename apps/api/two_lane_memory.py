@@ -24,6 +24,8 @@ class PreparedQuestion(BaseModel):
     question: str = Field(min_length=1, max_length=800)
     topic: str = Field(min_length=1, max_length=120)
     quote: str = Field(min_length=1, max_length=500)
+    requires_confirmation: bool = Field(default=False,
+        description='Whether this question needs narrator confirmation before continuing the interview.')
 
 
 class DerivedHints(_Places):
@@ -34,6 +36,9 @@ def extraction_contract(*, strategy=False, attribution=False):
     from .memory_events import extraction_instructions, extraction_schema
     schema=extraction_schema()
     extension=DerivedHints.model_json_schema()
+    question = extension['$defs']['PreparedQuestion']
+    question['required'] = list(question['properties'])
+    question['properties']['requires_confirmation'].pop('default', None)
     extension['$defs']['_PlaceJourney']['required']=list(extension['$defs']['_PlaceJourney']['properties'])
     for field in ('latitude','longitude'):
         extension['$defs']['_PlaceJourney']['properties'][field].pop('default',None)
@@ -78,8 +83,29 @@ def derived_hints(raw, page):
             raise ValueError('Prepared hint contains multiple questions')
         if item.question.casefold() in {q['question'].casefold() for q in questions}:
             raise ValueError('Prepared questions must be distinct')
-        questions.append(item.model_dump())
+        questions.append(item.model_dump(exclude_defaults=True))
     return {'place_journeys':places,'prepared_questions':questions}
+
+
+def pending_confirmation(context):
+    from .interview_strategy import current_constraints
+    if current_constraints((context.get('source') or {}).get('text', '')):
+        return None
+    return next((q for q in context.get('prepared_questions', [])
+                 if q.get('requires_confirmation') is True), None)
+
+
+def prioritize_confirmation(value, context):
+    """The persisted B queue owns the next question; narrator controls still win."""
+    question = pending_confirmation(context)
+    if not question or value.get('stopped') or (context.get('strategy_selector') and value.get('question') is None):
+        return value
+    if context.get('strategy_selector'):
+        return {**value, 'question': question['question'], 'selected_candidate_id': question['id'],
+                'selection_reason': 'prepared_candidate'}
+    return {**value, 'plan': {**value['plan'], 'chosen_id': question['id'], 'active_event_id': None,
+        'candidates': [{'id': question['id'], 'question': question['question'], 'order': 0, 'bridge': '',
+                        'context': {'event_id': None, 'photo_id': None, 'life_stage': None, 'year': None}}]}}
 
 
 class RuntimeCapacity:

@@ -19,7 +19,11 @@ quoted instruction also needs one neutral unanswered question unless the narrato
 has asked to stop or has a direct question to answer. Do not repeat a discarded
 person or date as current fact; record only the supported corrected identity in
 person continuity, never the negated alternative.
-Select only an exact ID from strategy_context.plan.candidates, or null. When no
+After those current narrator controls, the first prepared_questions entry with
+requires_confirmation=true takes priority over ordinary strategy candidates and
+new follow-ups. Use its exact question and ID with selection_reason
+"prepared_candidate"; proposed answers remain uncertain until the narrator replies.
+Select only an exact ID from that pending confirmation or strategy_context.plan.candidates, or null. When no
 candidate is selected, never use "prepared_candidate" or "adapted_candidate".
 Choose work.mode from the ENTIRE current narrator message. Use "reply_only" only
 for a name-only introduction, greeting, farewell or similarly minimal reply with

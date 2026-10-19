@@ -129,9 +129,6 @@ export function createPlaceWorkspace({
 
   function placeWorkspaceSelection({allowUnmapped = false} = {}) {
     if (!state.placeJourney) return null;
-    if (state.placeJourney.preview && state.selectedPlace === placeHistoryKey(state.placeJourney)) {
-      return allowUnmapped || placeMapAvailable(state.placeJourney) ? state.placeJourney : null;
-    }
     const places = mergePlaces(profile().memory_places || [], profile(), state.chat || []);
     const matching = state.lifeStage === "all"
       ? places
@@ -139,19 +136,22 @@ export function createPlaceWorkspace({
     const explicitlySelected = state.selectedPlace
       ? matching.find(item => placeHistoryKey(item) === state.selectedPlace)
       : null;
-    if (explicitlySelected) return allowUnmapped || placeMapAvailable(explicitlySelected) ? explicitlySelected : null;
-    if (state.selectedPlace) {
+    let selected = state.placeJourney.preview && state.selectedPlace === placeHistoryKey(state.placeJourney)
+      ? state.placeJourney : explicitlySelected;
+    if (!selected && state.selectedPlace) {
       const group = workspacePlaceGroups(matching).find(item => placeHistoryKey(item.city) === state.selectedPlace);
       const member = group?.members.find(item => placeMapAvailable(item)) || (allowUnmapped ? group?.members.at(-1) : null);
-      if (member) return member;
+      if (member) selected = member;
     }
     const current = matching.find(item => placeHistoryKey(item) === placeHistoryKey(state.placeJourney));
-    if (current) return allowUnmapped || placeMapAvailable(current) ? current : null;
-    const selected = matching.filter((item) => placeMapAvailable(item));
-    if (selected.length) {
-      return selected.at(-1);
-    }
-    return allowUnmapped || placeMapAvailable(state.placeJourney) ? state.placeJourney : null;
+    selected ||= current || matching.filter(item => placeMapAvailable(item)).at(-1) || state.placeJourney;
+    if (allowUnmapped) return selected;
+    const previous = state.placeWorkspaceMap?.projectId === state.project?.id
+      ? places.find(item => placeHistoryKey(item) === state.placeWorkspaceMap.key && placeMapAvailable(item)) : null;
+    const mapped = placeMapAvailable(selected) ? selected
+      : previous || matching.filter(item => placeMapAvailable(item)).at(-1) || places.find(item => placeMapAvailable(item));
+    if (mapped) state.placeWorkspaceMap = {projectId:state.project?.id, key:placeHistoryKey(mapped)};
+    return mapped || null;
   }
 
   function placeMapTarget(journey) {

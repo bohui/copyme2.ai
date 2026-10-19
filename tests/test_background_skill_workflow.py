@@ -21,6 +21,36 @@ def progress(conversation):
     return response.json()
 
 
+@pytest.mark.parametrize('strategy', [None, 'shadow', 'explore'])
+def test_lane_b_confirmation_preempts_the_next_question_and_is_consumed_once(sql,tmp_path,monkeypatch,strategy):
+    from test_shared_memory_events_postgres import rpc, literal
+    question = {'question': '您说的大石庙是承德双桥区的大石庙镇吗？',
+                'topic': '大石庙位置', 'quote': '大石庙', 'requires_confirmation': True}
+    def extract(packet):
+        return {**empty(packet), 'prepared_questions': [question] if '大石庙' in packet['sources'][0]['text'] else []}
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract,strategy='explore' if strategy == 'explore' else None)
+    if strategy == 'shadow':
+        sql('update public.lifetime_two_lane_rollout set strategy_enabled=true,strategy_shadow=true;')
+    with conversation.client:
+        conversation.say('小时候我住在大石庙，后来搬到了双桥区。')
+        conversation.drain()
+        identity = rpc(sql, 'resolve_lifetime_conversation', literal(conversation.project))
+        queue = lambda: rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
+        pending = queue()
+        assert pending[0]['requires_confirmation'] is True
+        if strategy == 'explore':
+            conversation.say('Please stop.')
+            conversation.drain()
+            assert queue()[0]['id'] == pending[0]['id'], 'A pause and a newer strategy plan must preserve the confirmation'
+        turn = str(uuid4())
+        response = conversation.say('放假的时候我会坐爸爸的通勤车回去。', turn=turn)
+        assert response['reply'].endswith(question['question'])
+        assert queue() == []
+        replay = conversation.say('放假的时候我会坐爸爸的通勤车回去。', turn=turn)
+        assert replay['cached'] and replay['reply_id'] == response['reply_id']
+        assert queue() == []
+
+
 def test_readiness_reports_saved_skill_with_actual_turn_and_source_coverage(sql,tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     conversation = Conversation(sql,tmp_path,monkeypatch,
