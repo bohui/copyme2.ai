@@ -4,8 +4,7 @@
   "main_head": "d4c6f58d15450df69742342d1b6104bdf04f4772",
   "finding": {
     "priority": "P1",
-    "description": "A prior native receipt could pass in a fresh run, including with zero dispatch allowance.",
-    "reviewer_task": "https://chatgpt.com/c/01a15322-76e7-703b-973f-9588399e4037"
+    "description": "A prior native receipt could pass in a fresh run, including with zero dispatch allowance."
   },
   "fixes": [
     "Runner-owned current run, Git revision, source-content hash and unique invocation ID are mandatory verifier inputs.",
@@ -420,5 +419,6 @@
     "inherited_failures": "Eleven failures previously reproduced on unchanged main remain documented; no related production files changed.",
     "upstream_photo_issues": "Unrelated inherited capture/city-label behavior remains outside this fix.",
     "full_issue_acceptance": false
-  }
+  },
+  "fix_code_commit": "a9724f7ed51423b5131c7690ab2e049d5c80b3be"
 }
