@@ -170,30 +170,32 @@ def test_photo_ranking_uses_merged_production_year_and_gps_order(tmp_path, local
     with pytest.raises(ValueError): suite.validate_workflow(item, changed, row['witnesses'])
 
 
-@pytest.mark.parametrize('contradictory', [False, True])
-def test_upstream_photo_locality_gaps_remain_visible_without_inflating_delivery(tmp_path, contradictory):
+@pytest.mark.parametrize('mode', ['compound-query', 'foreign-image-geography', 'caption-versus-image-geography'])
+def test_updated_main_locality_uses_source_roles_without_inflating_delivery(tmp_path, mode):
     import json
-    case = 'wrong-place' if contradictory else 'configured-discovery'
+    foreign = mode == 'foreign-image-geography'
+    case = 'wrong-place' if foreign else 'configured-discovery'
     planned = suite.plan(case=[f'memoir-place-photo-research/{case}/zh-CN'])
     item, = planned['items']
-    item['task']['public_query']['place'] = 'Chengde' if contradictory else '离宫, 承德市'
+    item['task']['public_query']['place'] = '离宫, 承德市' if mode == 'compound-query' else 'Chengde'
     class LocalitySource:
         async def call(self, request):
             if request['kind'] == 'discovery':
                 output = dict(provider='configured_catalogue', status='completed', urls=['https://archive.example/chengde'])
             else:
-                photo = dict(**{'@type': 'Photograph'}, name='Beijing street' if contradictory else 'Mountain Resort',
-                    dateCreated='1983-10-01', contentLocation=dict(name='Chengde'),
+                photo = dict(**{'@type': 'Photograph'}, name='Beijing street' if mode == 'caption-versus-image-geography' else 'Mountain Resort',
+                    dateCreated='1983-10-01', contentLocation=dict(name='Beijing' if foreign else 'Chengde'),
                     contentUrl='https://images.example/resort.jpg', license='https://creativecommons.org/licenses/by/4.0/')
                 output = dict(url=request['input']['url'], html='<title>Chengde Mountain Resort</title>'
                     '<script type="application/ld+json">' + json.dumps(photo) + '</script>')
             return dict(output=output, response_id=None, model=None, usage=None)
     receipt = asyncio.run(suite.run(planned, tmp_path, photo_provider=LocalitySource()))
     row, = receipt['results']
-    assert not row['positive_delivery']
-    assert row['contract']['status'] == ('pass' if contradictory else 'fail')
+    assert row['positive_delivery'] is not foreign
+    assert row['contract']['status'] == 'pass'
     assert len(receipt['upstream_dependencies']) == 2
-    assert row['witnesses']['standalone_diagnostics'][0]['candidates'] == (1 if contradictory else 0)
+    assert all(d['status'] == 'integrated_prerequisite' for d in receipt['upstream_dependencies'])
+    assert row['witnesses']['standalone_diagnostics'][0]['candidates'] == (0 if foreign else 1)
     assert 'photo-locality' in (tmp_path / 'report.md').read_text()
 
 

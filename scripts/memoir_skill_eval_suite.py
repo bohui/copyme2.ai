@@ -29,15 +29,15 @@ KNOWN = frozenset('memoir-' + name for name in (
     'place-journey', 'place-groups', 'place-photo-research', 'historical-news-research', 'story-game'))
 PHASES = ('interview', 'extract', 'progressive', 'proposal', 'integration', 'review', 'group', 'discover', 'publish', 'play')
 JUDGES = ROOT / 'tests/evaluation/prompts/skill-judges'
-UPSTREAM_PHOTO_GAPS = [
-    dict(id='photo-locality-compound-query', upstream_head='9b795a019d5ace594e95d706e8c573c4638d3505',
+PHOTO_UPSTREAM_DEPENDENCIES = [
+    dict(id='photo-locality-compound-query', upstream_head='d4c6f58d15450df69742342d1b6104bdf04f4772',
          scope='photo_research.py:_crawl4ai_source_images', affects='issue90/story19',
-         status='known_upstream_failure',
-         behavior='Valid Chengde Mountain Resort capture with contentLocation Chengde is omitted for query 离宫, 承德市.'),
-    dict(id='photo-locality-contradictory-title', upstream_head='9b795a019d5ace594e95d706e8c573c4638d3505',
+         status='integrated_prerequisite',
+         behavior='Compound landmark/city queries require source-backed containing geography.'),
+    dict(id='photo-locality-image-geography', upstream_head='d4c6f58d15450df69742342d1b6104bdf04f4772',
          scope='photo_research.py:_crawl4ai_source_images', affects='issue90/story19',
-         status='known_upstream_failure',
-         behavior='Standalone helper accepts Beijing street with contentLocation Chengde; API source parsing rejects it.'),
+         status='integrated_prerequisite',
+         behavior='Explicit image geography governs locality; reject foreign image geography and do not infer geography from caption wording.'),
 ]
 
 
@@ -141,7 +141,7 @@ def plan(*, skill=None, phase=None, locale=None, case=None):
         expected_output=dict(human_label=None, human_reviewed=False, critical_violation_label=None))
         for s in catalog for split in ('development', 'holdout')]
     return dict(schema_version='memoir-skill-evaluation/3', inventory=catalog, selected_skills=selected,
-        upstream_dependencies=deepcopy(UPSTREAM_PHOTO_GAPS) if 'memoir-place-photo-research' in selected else [],
+        upstream_dependencies=deepcopy(PHOTO_UPSTREAM_DEPENDENCIES) if 'memoir-place-photo-research' in selected else [],
         items=selected_items, catalog_items=items,
         datasets=[*all_datasets.values(), 'memoir/evaluation/workflows', 'memoir/evaluation/judge-calibration'],
         dataset_snapshot=snapshot, dataset_snapshot_kind='local_plan_timestamp',
@@ -435,11 +435,11 @@ def report(receipt):
         lines.append('| ' + ' | '.join((row['case_id'], row['execution'], row['contract']['status'],
             str(row['positive_delivery']), row['quality']['status'], row.get('reason', ''))) + ' |')
     for dependency in receipt.get('upstream_dependencies', []):
-        lines += ['', 'Known upstream dependency ' + dependency['id'] + ': ' + dependency['behavior']]
+        lines += ['', 'Upstream dependency ' + dependency['id'] + ' (' + dependency['status'] + '): ' + dependency['behavior']]
     lines += ['', 'Remaining gates: merged-main prompt publication; installed Langfuse evaluator/rule interface verification;',
         'disabled synthetic-only rules and hosted score readbacks; live provider delivery; full-scenario persisted-state/browser witnesses;',
         'human-reviewed calibration development labels and separate held-out labels. Family canonical execution is unwired.',
-        'PR88 is integrated; its known locality gaps remain visible. This report does not establish full issue acceptance.', '']
+        'PR88 and PR94 are integrated prerequisites. This report does not establish full issue acceptance.', '']
     return '\n'.join(lines)
 
 
