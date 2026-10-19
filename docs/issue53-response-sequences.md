@@ -1,0 +1,235 @@
+# Issue 53: additive offline conversation profiles
+
+This prerequisite extends the existing profiler with connected synthetic
+conversation scenarios and paired result ingestion. It reuses the merged PR92
+framework, rather than introducing another dataset publisher, judge, receipt
+validator or budget implementation. **It does not establish preserved model
+quality or authorize a release.** No production optimization is included.
+
+Base: `bb31f44ac8cb1c31baad8db418157b96dbe0eee0` (PR92 merge).
+Reviewed framework code: `0fe69a5b66fc2b17da35398b1f79e192febc188c`, including
+current-run receipt fix `a9724f7ed51423b5131c7690ab2e049d5c80b3be`.
+The planner rejects changes to the pinned shared evaluator/receipt core until
+that dependency is reviewed. No PR92 shared file is changed here.
+
+## Reused interfaces
+
+- `memoir_skill_eval_suite.plan`, `judge_definition`, `quality`, `Budget`,
+  `digest` and `unavailable` own existing catalog, rubrics and scoring contracts.
+- `memoir_skill_eval_application.verify_witness` validates current-run native
+  receipts against the runner's independently retained dispatch ledger. The
+  receipt capsule cannot supply its own dispatch authority.
+- `controlled_native_state.open_case` / `snapshot_case` clone an initial SQL
+  state into separate disposable baseline/candidate branches.
+- `canonical_turn` consumes the normal backend streaming HTTP/ASGI reply and
+  persistence path. `profile_canonical_controlled.offline_settings` strips
+  inherited service authority. Its old hard-coded experimental variants and
+  stop-on-first-failure campaign are not used.
+
+The versioned manifest references stable PR92 interviewer IDs and the existing
+`conversation_phase_cases.json` rubrics. The latter's mocked replies and obsolete
+prompt-description metadata are not baseline model-quality evidence.
+
+## Scenarios and actual witnesses
+
+`tests/evaluation/response_sequences.json` contains six paired scenario families
+in `en-AU` and `zh-CN`: 12 connected sequences, 80 planned application rows
+across two arms at one sample, including four saved-result replay rows. It covers
+name-only and name-plus-story introductions, short birthplace extraction clues,
+long emotional narration, corrections, already-answered facts, stop, skip,
+language switching, photo-caption versus pixel evidence, public-reference versus
+personal testimony, persisted resume, saved replay and future-turn rollback.
+
+Each resumed turn follows two saved turns and an explicit close/reopen action.
+The controlled adapter closes storage and replaces the runtime, reads the same
+persisted project, checks original source IDs and prior replies, and captures the
+actual governed request's current source and prior exchanges. It does not label
+a one-turn supplied-history fixture as a resumed execution. Saved replay uses the
+same client-turn identity and must preserve both source and reply while consuming
+zero generation dispatches.
+
+The native regression executes both locale versions of the resume/replay
+sequence: 16 completed fixture rows, 12 mocked worker dispatches, and four
+retained unavailable future-turn rollback rows. It observes real SQL persistence,
+stream publication and fresh-runtime context recovery. Its worker outputs are
+synthetic fixtures, so these are deterministic integration witnesses only.
+Background extraction/composition is not drained by this adapter; accepted
+source durability does not establish semantic extraction or derived-artifact
+quality. Other manifest families currently have planning and rubric coverage;
+they are not claimed as completed native or live semantic acceptance.
+
+Rollback remains a genuine evidence requirement in the manifest. The controlled
+adapter does not change model/provider/collector settings and explicitly leaves
+the future rollback turn unavailable. There is no claim of verified route
+rollback. It refuses non-null provider configuration descriptors, so a fixture
+cannot attest that an unexecuted route actually ran.
+
+## Offline commands
+
+```sh
+# Default: no client, account, database, model or hosted writes.
+python scripts/profile_first_reply.py > /tmp/issue53-plan.json
+python scripts/profile_first_reply.py plan \
+  --scenario issue53/resume-replay-rollback/en-AU --samples 1
+
+# Import synthetic application results plus the separate host runner receipts.
+# Paths inside receipts resolve within that receipt directory; symlinks and
+# escaping paths are rejected. These commands do not dispatch a judge.
+python scripts/profile_first_reply.py blind --plan-file /tmp/issue53-plan.json \
+  --results /tmp/run/results.json --receipts /tmp/run/receipts.json \
+  > /tmp/issue53-blind-packets.json
+python scripts/profile_first_reply.py compare --plan-file /tmp/issue53-plan.json \
+  --results /tmp/run/results.json --receipts /tmp/run/receipts.json \
+  --reviews /tmp/blinded-review.json > /tmp/issue53-comparison.json
+```
+
+Comparison intentionally exits 1 and always returns `release_accepted=false`.
+A missing result or judge/receipt remains unavailable, never silently removed.
+Malformed, duplicate or unplanned inputs fail closed. The legacy explicit
+`first-turn` command remains a dispatching diagnostic; it was not run here.
+There is no sequence live-execution switch.
+
+The native adapter is an explicit **test-only** callable, not a new live
+harness. Run its tests through the existing isolated supervisor, with native
+`initdb`, `pg_ctl`, `psql` and the repository test dependencies available:
+
+```sh
+python scripts/run_isolated_check.py --root "$PWD" \
+  --output-dir /tmp/issue53-checks --name sequence-regressions --timeout 180 -- \
+  python -m pytest -q tests/test_issue53_profile_sequences.py \
+  tests/test_issue53_sequence_application.py tests/test_first_reply_profiler.py \
+  tests/test_skill_eval_interviewer.py tests/test_skill_eval_receipt_replay.py
+```
+
+The adapter admits only mocked worker transports, strips service credentials,
+blocks external sockets, and allocates/removes its own native PostgreSQL
+clusters. All database writes are synthetic and disposable. No configured
+application database or running app is used.
+
+## Frozen plan, evidence and comparisons
+
+Plans freeze application source bytes, prompt sources and publication receipts,
+configuration source files, dataset/rubric content, profiler/adapter bytes,
+PR92 evaluator source and the complete planned judge definition. They record the
+Git revision, fresh run ID, separate arm invocation IDs, sample count via the
+planned rows, and explicit skill/judge/time/deadline budgets. Inherited runtime
+settings are not inspected. Optional allowlisted variant descriptors retain
+unknown model/effort/provider policy as null. A requested effort or a route name
+is not evidence of effective provider policy.
+
+Runner budget records acquire unique dispatch IDs, row IDs and current context
+before awaiting transport; failed calls consume allowance. Comparison validates
+the root ledger against the current plan and passes exact independent row slices
+to PR92's native verifier. Rewritten receipt files, incomplete/tampered ledgers,
+old run IDs and fabricated resumed/replay state cannot pass those checks. The
+separate sequence receipt binds before/after readbacks and public-stream clocks.
+As with other offline artifact ingestion, a user-authored replacement for the
+entire trusted runner ledger is not proof of real provider execution. Imported
+artifacts remain advisory and cannot certify release.
+
+Each branch begins from an independently checked identical SQL seed, then
+continues its own saved replies. Later histories can diverge. Seed/prestate
+hashes and `paired_prestate_equal` / `context_confound` are retained in the
+report; a connected candidate history is not claimed as an identical later
+prestate. A later authorized study may use the existing snapshot helper for
+additional per-turn, identical-prestate comparisons, clearly labelled separately
+from connected-sequence results.
+
+Blind A/B packets hide arm, route, effort and timing labels and reuse PR92's
+single-output interviewer policy/rubric. They include sequence requirements and
+actual saved sources, replies and supplied model context. The packet hash binds
+imported judgments to the frozen evaluator and evidence. Both arms' evaluated
+model identities are excluded from independent assessment. PR92's categorical
+judgment shape remains unchanged: `status`, `citations`, `rationale`,
+`critical_violations`, `response_id`, `model`. A/B citations use existing evidence
+keys such as `output`, `task`, `binding`, `witnesses`.
+
+A **separate blinded human preference annotation**, exported as
+`human_preference_contract`, is additionally required for paired interpretation.
+It is not another model prompt or judge. For each pair, imported reviews have:
+
+```json
+{
+  "<pair_id>": {
+    "packet_sha256": "<exact exported pair hash>",
+    "A": "<existing PR92 judgment object>",
+    "B": "<existing PR92 judgment object>",
+    "comparison": {
+      "status": "pass",
+      "citations": ["A.output", "B.output", "task"],
+      "rationale": "Specific supplied facts and public-response evidence",
+      "critical_violations": [],
+      "response_id": "<independent review receipt>",
+      "model": "human:<reviewer-pseudonym>",
+      "reviewer_kind": "human",
+      "preferred_side": "tie"
+    }
+  }
+}
+```
+
+`preferred_side` is A, B or tie; incomplete evidence requires unavailable.
+Critical violations force failure, including unsupported facts, ignored stops
+and lost testimony. A malformed or missing preference annotation cannot erase
+an already validated critical side judgment. Scores/annotations remain advisory
+pending the separate bilingual human-heldout acceptance process. There are no
+invented human labels in this change.
+
+Deterministic public validation, source fidelity, language provenance metadata,
+ownership, idempotency, save and continuity contracts stay separate from
+semantic quality and latency. The seven adapter contract labels describe this
+controlled application's observations; they do not certify the linguistic
+quality or factual adequacy of its fixture replies.
+
+Reports retain every planned row and failure reason and include overall,
+locale, phase and joint locale/phase views. Only complete, witnessed pairs enter
+paired timing summaries. Counts, unknown observations, raw samples and
+candidate-minus-baseline deltas remain visible. No absolute latency SLA,
+acceptable quality loss, small-sample p95 or production percentile is invented.
+A faster failed response cannot improve acceptance status.
+
+Public timings distinguish an annotated meaningful excerpt in received
+`text_delta`, the validated question-pool event, `reply_complete`, and
+`conversation_saved` plus independent durable readback. Headers, private model
+JSON, progress and generic filler do not satisfy the excerpt observation. The
+excerpt's semantic adequacy still requires review. Unemitted milestones remain
+null; a cached replay need not emit a new save event. Browser paint is not
+measured. Actual prompt metadata in the governed packet is retained separately
+from requested descriptors. Provider usage/cache tokens, policy, internal
+attempts/retries and load observations remain unknown when unavailable, rather
+than being replaced by zero or synthetic worker counts.
+
+## Remaining acceptance and bounded live work
+
+Current authorized live/provider/hosted budget: **zero**. Nothing here dispatches
+live calls, publishes datasets/prompts, enables hosted rules, changes credentials,
+changes configured databases, merges or deploys.
+
+A later explicitly authorized pilot can start with the two locale resume
+sequences: six baseline/candidate generated-turn pairs (12 foreground generation
+attempts total), plus four saved replay requests that must make no generation
+attempt. Predeclare a 12-attempt hard foreground ceiling, count retries and
+corrective proposals against it, use the existing 120-second per-call/600-second
+campaign bounds, and leave any exhausted rows visible. Judge calls need their
+own at-most-12-attempt ceiling. These are budget ceilings, not latency objectives
+or authorization to run. Background extraction/research/composition fanout needs
+its own inspected and approved bound before any live execution; it is not
+silently funded by the foreground allowance.
+
+Before release consideration: verify actual provider policy and complete route/
+prompt/configuration provenance; exercise the full bilingual manifest including
+rollback, failed-save/stop/ownership contracts and derived testimony handling;
+perform the blinded comparisons through the existing evaluator; obtain disjoint
+native-speaker development and heldout review with agreed calibration criteria;
+and review every locale/phase quality or completion/save regression. No quality
+loss is authorized by aggregate latency improvements. Hosted publication and
+PR92's remaining human/live acceptance are separate gates.
+
+Raw imported provider metrics are retained under `imported_provider_metrics`
+with `source=unverified_import`; they are not promoted into observed provider
+metrics. The verified controlled runner ledger reports fixture completion
+identities separately as `runner_observations`. This slice has no live-provider
+policy/usage attestor, so provider metrics remain null even when an imported
+JSON claims low effort, token usage or zero retries. Language-switch judge
+context uses each turn's requested reply language; report locale identifies the
+sequence's initial locale cohort.
