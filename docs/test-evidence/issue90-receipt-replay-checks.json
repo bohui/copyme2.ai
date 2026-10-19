@@ -1,0 +1,424 @@
+{
+  "scope": "offline P1 native receipt replay fix; independent re-review pending",
+  "reviewed_head": "d1e595e49406a766eb129ac0889e336ee953539e",
+  "main_head": "d4c6f58d15450df69742342d1b6104bdf04f4772",
+  "finding": {
+    "priority": "P1",
+    "description": "A prior native receipt could pass in a fresh run, including with zero dispatch allowance."
+  },
+  "fixes": [
+    "Runner-owned current run, Git revision, source-content hash and unique invocation ID are mandatory verifier inputs.",
+    "Native readbacks must match the current invocation dispatch records consumed from the skill budget.",
+    "Zero allowance and expired deadline are checked by the runner before invoking any injected application adapter.",
+    "Rewritten receipt context, missing/partial/tampered dispatch records and unwitnessed proposals cannot establish canonical delivery.",
+    "Hosted contract bindings must also match independently loaded receipt-root source identities.",
+    "Partial native execution keeps its consumed dispatches; failed/unavailable paths clear delivery claims."
+  ],
+  "checks": [
+    {
+      "name": "receipt-replay-red",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_receipt_replay.py",
+        "--junitxml=/workspace/issue90-evidence/receipt-replay-red.xml"
+      ],
+      "base_head": "d1e595e49406a766eb129ac0889e336ee953539e",
+      "tree": "5460866b159c5bca0b702b7fb97533cded34a3f4",
+      "exit_code": 1,
+      "status": "completed",
+      "duration_seconds": 4.42,
+      "classification": "tdd_red",
+      "cleanup_verified": true,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/receipt-replay-red.json",
+          "sha256": "f326254f74bb433b13b7a6153926301747ee16f4682fe8f84ba369095881937c"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/receipt-replay-red.log",
+          "sha256": "bf2eaed2975d90a655ef427def0a56629560ddc94b8d7c53887d14fc23d96fdc"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/receipt-replay-red.xml",
+          "sha256": "5884ed6de5fb25182ca26a9ece9a90025c5a7dfd9cdf87c6c0c7cfc7470513dc"
+        }
+      },
+      "tests": {
+        "total": 5,
+        "passed": 0,
+        "failure": 5,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_ids": [
+        "tests.test_skill_eval_receipt_replay::test_replayed_or_rebound_native_receipt_cannot_pass_a_fresh_run[0-False]",
+        "tests.test_skill_eval_receipt_replay::test_replayed_or_rebound_native_receipt_cannot_pass_a_fresh_run[8-False]",
+        "tests.test_skill_eval_receipt_replay::test_replayed_or_rebound_native_receipt_cannot_pass_a_fresh_run[8-True]",
+        "tests.test_skill_eval_receipt_replay::test_hosted_contract_rejects_receipt_root_source_tampering[source_revision]",
+        "tests.test_skill_eval_receipt_replay::test_hosted_contract_rejects_receipt_root_source_tampering[source_content_sha256]"
+      ]
+    },
+    {
+      "name": "receipt-replay-green-1",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_receipt_replay.py",
+        "--junitxml=/workspace/issue90-evidence/receipt-replay-green-1.xml"
+      ],
+      "base_head": "d1e595e49406a766eb129ac0889e336ee953539e",
+      "tree": "5460866b159c5bca0b702b7fb97533cded34a3f4",
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 3.97,
+      "classification": "passed",
+      "cleanup_verified": true,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/receipt-replay-green-1.json",
+          "sha256": "6feae1b50a230ae4179f854cc00330f255797544f25d650ebb969837f85dbf83"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/receipt-replay-green-1.log",
+          "sha256": "9473c4d66152e140c26689f83abbd2fea331c0d5a9e2d365c1f4545b436bf096"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/receipt-replay-green-1.xml",
+          "sha256": "8e449c53fc0984ef81ae87e6cfb15b7f86ae80f45a017ae4c209f20cfe2533a2"
+        }
+      },
+      "tests": {
+        "total": 5,
+        "passed": 5,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_ids": []
+    },
+    {
+      "name": "receipt-replay-green-2",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_receipt_replay.py",
+        "--junitxml=/workspace/issue90-evidence/receipt-replay-green-2.xml"
+      ],
+      "base_head": "d1e595e49406a766eb129ac0889e336ee953539e",
+      "tree": "5460866b159c5bca0b702b7fb97533cded34a3f4",
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 7.02,
+      "classification": "passed",
+      "cleanup_verified": true,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/receipt-replay-green-2.json",
+          "sha256": "669132ede2498ca2164e8a317ea9a3e3cd991d460a35b2907243f600e1386008"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/receipt-replay-green-2.log",
+          "sha256": "59371414cb866265c3858272dcb50a4be3b0f836313a33cff29270a9d7cc4c36"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/receipt-replay-green-2.xml",
+          "sha256": "d5c6cc80a6378170a6f84e0a0035f6307a88e3e927a652c19e15e2f8c60b5047"
+        }
+      },
+      "tests": {
+        "total": 14,
+        "passed": 14,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_ids": []
+    },
+    {
+      "name": "receipt-fix-core",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_suite.py",
+        "tests/test_skill_eval_assets.py",
+        "tests/test_skill_eval_workflows.py",
+        "tests/test_skill_eval_review_regressions.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_sdk_readback.py",
+        "tests/test_skill_eval_receipt_replay.py",
+        "tests/test_prompt_artifact.py",
+        "tests/test_prompt_composition.py",
+        "tests/test_prompt_publication.py",
+        "tests/test_memoir_skill_evaluation.py",
+        "tests/test_memoir_live_skills.py",
+        "--junitxml=/workspace/issue90-evidence/receipt-fix-core.xml"
+      ],
+      "base_head": "d1e595e49406a766eb129ac0889e336ee953539e",
+      "tree": "5460866b159c5bca0b702b7fb97533cded34a3f4",
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 27.01,
+      "classification": "passed",
+      "cleanup_verified": true,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/receipt-fix-core.json",
+          "sha256": "e9d0f4ff3e642f0f01100e1e2277bc1b54ab2ef75522080072c5b86a6aac8093"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/receipt-fix-core.log",
+          "sha256": "9c727557521af7ea6973f53d0cbe80b726a3621549981edc889579bad5421652"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/receipt-fix-core.xml",
+          "sha256": "94f93571b44fb219b87b85b000508284d2cc0a3e3d76545bfaacdaea3de2ab00"
+        }
+      },
+      "tests": {
+        "total": 247,
+        "passed": 247,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_ids": []
+    },
+    {
+      "name": "receipt-fix-native-browser",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_application.py",
+        "tests/browser_skill_eval_application.py",
+        "--junitxml=/workspace/issue90-evidence/receipt-fix-native-browser.xml"
+      ],
+      "base_head": "d1e595e49406a766eb129ac0889e336ee953539e",
+      "tree": "5460866b159c5bca0b702b7fb97533cded34a3f4",
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 99.64,
+      "classification": "passed",
+      "cleanup_verified": true,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/receipt-fix-native-browser.json",
+          "sha256": "f222c8afd17c97cf39b3b0c20339de694547f13e1d232c529ffebb84383b2875"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/receipt-fix-native-browser.log",
+          "sha256": "e6cbd079d678b950134629fde3365f761b71d5f547dd392b4153484fdad3ef4f"
+        },
+        "xml": {
+          "path": "/workspace/issue90-evidence/receipt-fix-native-browser.xml",
+          "sha256": "73c36446d21ee202764c4fdf762193e4defcc1168a60afab131231f6a049cb79"
+        }
+      },
+      "tests": {
+        "total": 21,
+        "passed": 21,
+        "failure": 0,
+        "error": 0,
+        "skipped": 0
+      },
+      "failed_ids": []
+    },
+    {
+      "name": "receipt-fix-place-research",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "make",
+        "test-place-research"
+      ],
+      "base_head": "d1e595e49406a766eb129ac0889e336ee953539e",
+      "tree": "5460866b159c5bca0b702b7fb97533cded34a3f4",
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 26.53,
+      "classification": "passed",
+      "cleanup_verified": true,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/receipt-fix-place-research.json",
+          "sha256": "49a78897eebbacac31e708d6072ec9357f37f62689cce061325a3df8401333b3"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/receipt-fix-place-research.log",
+          "sha256": "0107eda31924d5d1492248096f1404cec9443df1a417f7ad2c77807116fef52d"
+        }
+      },
+      "reported_checks": {
+        "javascript_passed": 577,
+        "pytest_passed": 384,
+        "unittest_passed": 95,
+        "failed": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "name": "receipt-fix-cli-plan",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "/workspace/issue90-evidence/compare_probe.py"
+      ],
+      "base_head": "d1e595e49406a766eb129ac0889e336ee953539e",
+      "tree": "5460866b159c5bca0b702b7fb97533cded34a3f4",
+      "exit_code": 0,
+      "status": "completed",
+      "duration_seconds": 0.42,
+      "classification": "passed",
+      "cleanup_verified": true,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/receipt-fix-cli-plan.json",
+          "sha256": "b250b02c4eb0f0a6e8b31e829eaff0ee313c954ef2204add321e7d0ebd0906fc"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/receipt-fix-cli-plan.log",
+          "sha256": "ed4dbfc39b13e1a0aeb9fbfb0e7962d38267d319718851a3a7adc2cc0afaa65e"
+        }
+      }
+    },
+    {
+      "name": "receipt-fix-cli-incomplete",
+      "command": [
+        "env",
+        "PYTHONPATH=/workspace/issue90-offline-guard:/workspace/issue90-deps:/workspace/issue90",
+        "LANGFUSE_TRACING_ENABLED=false",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "scripts/run_memoir_skill_evaluation.py",
+        "--execute",
+        "--max-skill-calls",
+        "0",
+        "--max-judge-calls",
+        "0",
+        "--output-root",
+        "/workspace/issue90-evidence/receipt-fix-incomplete-run"
+      ],
+      "base_head": "d1e595e49406a766eb129ac0889e336ee953539e",
+      "tree": "5460866b159c5bca0b702b7fb97533cded34a3f4",
+      "exit_code": 1,
+      "status": "completed",
+      "duration_seconds": 0.98,
+      "classification": "expected_incomplete",
+      "cleanup_verified": true,
+      "artifacts": {
+        "json": {
+          "path": "/workspace/issue90-evidence/receipt-fix-cli-incomplete.json",
+          "sha256": "298a1928e766edc5a85f2f5dda378abafa1fc1377c1303e8bf9cfbd0a4af4456"
+        },
+        "log": {
+          "path": "/workspace/issue90-evidence/receipt-fix-cli-incomplete.log",
+          "sha256": "8458b453c2d07f6eb7c57a56f67fe449cbbf58681b36f4296328bfde3ad2bcfc"
+        }
+      }
+    }
+  ],
+  "source_sha256": {
+    "apps/api/place_photo_browser.py": "c254ec8cf489017f10d0890fed0b997d9e1a91b232a31b664fc779762f40074d",
+    "apps/api/place_photo_expansion.py": "20f8ad9863252a087d5d0e51eb7758d5355fda5321fafb407b160230d3cbc8ad",
+    "apps/api/place_photos.py": "d909752a70d163259a6383288cd3d12bee880e72780dae6107838ddd72c37155",
+    "scripts/controlled_lifecycle.py": "4e15eea749e6bfbd807d2ced76cb0dabbb097d91dfe192929a0261b0ccda1be8",
+    "scripts/memoir_live_skill_cases.py": "bab674c2696bedacd3172b5e37e8089d84bb972f2021d3c4cdcbf5bc0317ab9f",
+    "scripts/memoir_skill_eval_application.py": "34ec8b78628227385acc6d114a28426a7bdffd5f21e9bc527e3fe98796b62e8a",
+    "scripts/memoir_skill_eval_assets.py": "456685b5109ca3b2c33d2f9751eae98a9c423316f2c09b502e194919b4e15eb9",
+    "scripts/memoir_skill_eval_browser.py": "8fa4da82dd1ea5c663720678d7f64b45ceebf0345fb9067c87fded8ec9028747",
+    "scripts/memoir_skill_eval_suite.py": "3aab640e8ff60bc30f0cbc65b199446148aef3a01f8f2f2bbe051f6d573ca8f6",
+    "scripts/memoir_skill_eval_workflows.py": "1f7d805e925c175215e8183ff0e56ee6c8bda31c5cefce197a68ed910e6f43cf",
+    "scripts/memoir_skill_scenarios.py": "57b766df51d463b0442f8dc4c27a717f6965de9723ec82fcb484eeb1c0839df9",
+    "scripts/prompt_registry.py": "f1fa45475884012d3d6adeb1ed09116876d82d6558cf8edfa6d491e288cb8516",
+    "scripts/publish_langfuse_prompts.py": "b88e1c371d77bc7cd943b62762f824fdcfd0e5651974925d94e087fcd1f02100",
+    "scripts/run_isolated_check.py": "4aa336510f3d2d301bcf9bd17e9143abd8cd696ea728f2304d686ccb1108229c",
+    "scripts/run_memoir_skill_evaluation.py": "019aef28ea21b90938cfdb59a41c0a1a9150a6ccf59c6bf340b3aaad228d15ce",
+    "skills/memoir-place-photo-research/scripts/photo_research.py": "e504b55af307f169ff75df07b62c0e72c81ac8fae95f17fa3a5c80e327e544a5",
+    "tests/browser_skill_eval_application.py": "225a8705e11c6ad98f720a37d3a24bddea28bbfa3dd66b1dee2ac14b05abec7f",
+    "tests/evaluation/prompts/skill-judges/memoir-author-timeline.md": "8988996834a0225f4803d814c6f98fe1ce65cbde9e7edb98975a8cfd49029897",
+    "tests/evaluation/prompts/skill-judges/memoir-composer.md": "705c405b971edbf6c25f0fdb36af426dff03c5159e61ef62eeeaa2ccb3314031",
+    "tests/evaluation/prompts/skill-judges/memoir-family-tree.md": "5282ab0846d4440713800a9fc7cb2dab4e24eca2de63ac7de5c6a195718353ca",
+    "tests/evaluation/prompts/skill-judges/memoir-historical-news-research.md": "a8c5a1ce06c75e655656567649b7b08a224a7874d665b6e01e74e0e576a6433d",
+    "tests/evaluation/prompts/skill-judges/memoir-interviewer.md": "79a295bf91bf40e99bd30e12ff9440bfc4c6c38d6bb22c304ef9a3e7f148509f",
+    "tests/evaluation/prompts/skill-judges/memoir-memory-context.md": "ce4ba4b18e11dcfc6d477bd975d2a8316df3dcbe1e2580373fabf3cf4cb561e7",
+    "tests/evaluation/prompts/skill-judges/memoir-place-groups.md": "e63c3c0092bc764e3f67dffe754828f6b5441dd459325ab876f2866e88fdb6d8",
+    "tests/evaluation/prompts/skill-judges/memoir-place-journey.md": "e4c28969702ac1887cd68c34e9f790ada3f0a8181239f4e0e9d8cb9631e651bf",
+    "tests/evaluation/prompts/skill-judges/memoir-place-photo-research.md": "e96ef7343aa76df44a97eddde6cd79bcb55fc468342c9e037930ee21cdeb79d0",
+    "tests/evaluation/prompts/skill-judges/memoir-story-game.md": "2590dcbd5c36b38583c2faccb04b00a367dd7892ee64d61a785e46e1badb2070",
+    "tests/evaluation/prompts/skill-judges/policy.md": "8be3e0ed026c79f19b4737d906173e823471cf0b5ad61c93352976515f8fa3ba",
+    "tests/memoir_postgres_workflow.py": "ef0431e8d714d9b4d454f069dc9cb2f70156c1b23cf0fa91d252909c24f07fd3",
+    "tests/test_conversation_attribution.py": "ac52836aa000b02273462cc4ef15ea1345fdfcd50b21d30cb1d232c586e82b29",
+    "tests/test_memoir_skill_evaluation.py": "a54055db37380352a5da8257953af0a9f00544da7f0bde648efea666126e3fef",
+    "tests/test_prompt_publication.py": "b1aaf83c3ec55bf683be28b316dd031e3518e32aafba8541be8f4f3f799babdc",
+    "tests/test_skill_eval_application.py": "42df1c2f59b37059571c7599d01b32c90efcb5c58fdd8cc297dd031ccbd39d8f",
+    "tests/test_skill_eval_assets.py": "1d9a7269d4f693d6e6135f76c33f852edac2d982aeec52af92e02cbc81d71bd7",
+    "tests/test_skill_eval_interviewer.py": "31c07f18fbe64d93aca2ca648dc80931246c90ad947c40455b59d4c60c6b022d",
+    "tests/test_skill_eval_review_regressions.py": "8ba900b3435bb858ad30ee6e1ca39fcf669a8f73e204d22f3eac151e2b4f7967",
+    "tests/test_skill_eval_sdk_readback.py": "f4b055485bc7c0dd148f1752756aa4bad7706bfd5913ccd47d471cb4e7e8e41d",
+    "tests/test_skill_eval_suite.py": "1dd6706b8087e7741a0301caf9e8d3942b51866d01366e6445a6a5a9da605557",
+    "tests/test_skill_eval_workflows.py": "981755bb868079aeef90c8cd02863858f73d1e7274831234bdde267bfdb1c1be",
+    "tests/test_story_game_runtime_postgres.py": "f915acfaac860b97abdfd3b2d9f549048b5dbd8a59d8e875d7bf8e56627ad03a",
+    "tests/test_skill_eval_receipt_replay.py": "7c2cd1e7622b0061189422747cb3e31fbee05eaf2ac7351240d5de6a70a6c6df"
+  },
+  "cli": {
+    "planned_items": 160,
+    "status": "incomplete",
+    "skill_dispatches": 0,
+    "judge_dispatches": 0,
+    "canonical_delivery": 0,
+    "artifacts": [
+      {
+        "path": "/workspace/issue90-evidence/receipt-fix-incomplete-run/receipt.json",
+        "sha256": "4ae24e01e49892005ef28581abb0644b2136125f015233a5a6c2322d69fbd44f"
+      },
+      {
+        "path": "/workspace/issue90-evidence/receipt-fix-incomplete-run/report.md",
+        "sha256": "b7afdb00560607f749b18d31468312465c1e05465bc18adcf0a7a76a1319adae"
+      }
+    ]
+  },
+  "cleanup": {
+    "origin": "http://127.0.0.1:56961",
+    "frontend_pid": 98265,
+    "launcher_pid": 98261,
+    "stopped": true,
+    "dependency_symlink_removed": true
+  },
+  "remaining": {
+    "independent_fix_review": "pending",
+    "live_providers": "not_run_user_boundary",
+    "hosted_publication": "not_run_user_boundary",
+    "human_calibration": "pending",
+    "inherited_failures": "Eleven failures previously reproduced on unchanged main remain documented; no related production files changed.",
+    "upstream_photo_issues": "Unrelated inherited capture/city-label behavior remains outside this fix.",
+    "full_issue_acceptance": false
+  },
+  "fix_code_commit": "a9724f7ed51423b5131c7690ab2e049d5c80b3be"
+}

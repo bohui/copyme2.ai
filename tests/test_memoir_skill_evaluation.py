@@ -109,7 +109,7 @@ def test_case_from_another_phase_is_rejected_before_service_allocation(tmp_path,
         '--case', case, '--env-file', str(env),
         '--output-root', str(tmp_path / 'results'), *(['--execute'] if execute else [])])
     try:
-        status = evaluation.main()
+        status = evaluation.legacy_main()
     except SystemExit as error:
         status = error.code
     assert status == 2, 'A phase selecting zero cases must not report success'
@@ -137,7 +137,7 @@ def test_an_empty_experiment_cannot_report_passed(tmp_path, monkeypatch):
     output = tmp_path / 'results'
     monkeypatch.setattr(sys, 'argv', ['run_memoir_skill_evaluation.py', '--execute', '--phase', 'triggers',
         '--env-file', str(env), '--output-root', str(output)])
-    assert evaluation.main() == 1
+    assert evaluation.legacy_main() == 1
     receipt, = output.glob('*/receipt.json')
     result = json.loads(receipt.read_text())
     assert result['status'] == 'incomplete'

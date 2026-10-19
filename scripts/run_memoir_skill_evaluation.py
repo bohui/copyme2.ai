@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate all Memoir skill triggers and deliveries from pinned Langfuse datasets."""
+"""Plan and evaluate all ten Memoir skills; retain historical v2 helpers."""
 from __future__ import annotations
 
 import argparse
@@ -249,7 +249,7 @@ def readback(client, experiment_id, expected_count, started_at):
                 items=len(items), scored_items=scored, expected_items=expected_count)
 
 
-def main():
+def legacy_main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute', action='store_true', help='Publish missing datasets and execute; default is a zero-call plan')
     parser.add_argument('--phase', choices=('all', 'triggers', 'deliveries'), default='all')
@@ -386,6 +386,13 @@ def main():
     print(json.dumps(dict(status=receipt['status'], directory=str(directory),
                           experiments=receipt['experiments']), indent=2), flush=True)
     return 0 if receipt['status'] == 'passed' else 1
+
+
+def main(argv=None, *, services=None):
+    # Preserve the historical v2 builders/results while the existing CLI adopts
+    # complete coverage. No legacy publication path is invoked by this command.
+    from scripts.memoir_skill_eval_suite import main as suite_main
+    return suite_main(argv, services=services)
 
 
 if __name__ == '__main__':
