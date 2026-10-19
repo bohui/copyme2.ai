@@ -6,7 +6,7 @@ The stable synthetic 160-item catalog is unchanged.
 """
 from copy import deepcopy
 
-from apps.api.interview_strategy import stage_breadth_checkpoint
+from apps.api.interview_strategy import current_constraints, stage_breadth_checkpoint
 from scripts.memoir_skill_eval_suite import digest
 
 DATASET = 'memoir/evaluation/conversations/memoir-interviewer'
@@ -29,12 +29,16 @@ def conversation_cases(template, sources, turns):
     if not originals or len({s['project_id'] for s in originals}) != 1:
         raise ValueError('one_selected_conversation_required')
     saved = {t['source_id']: t for t in turns if (t.get('collector') or {}).get('reply')}
+    def exchange(source):
+        turn = saved.get(source['id'], {})
+        reply = (turn.get('collector') or {}).get('reply')
+        if turn.get('source_version', source['version']) != source['version']:
+            reply = None
+        return dict(source_id=source['id'], source_version=source['version'], narrator=source['text'],
+            assistant_reply=reply, assistant_is_testimony=False, assistant_delivery_verified=False)
     rows = []
     for source in originals:
-        history = [dict(source_id=s['id'], source_version=s['version'], narrator=s['text'],
-            assistant_reply=saved[s['id']]['collector']['reply'], assistant_is_testimony=False,
-            assistant_delivery_verified=False)
-            for s in originals if s['sequence'] < source['sequence'] and s['id'] in saved]
+        history = [exchange(s) for s in originals if s['sequence'] < source['sequence']]
         row = deepcopy(template)
         case = 'conversation-' + source['id']
         row.update(id='memoir-interviewer/' + case + '/' + source['language'], case=case,
@@ -48,8 +52,12 @@ def conversation_cases(template, sources, turns):
             has_accepted_narration=bool(history), interview_language=source['language'],
             recent_dialogue=history, breadth_checkpoint=None)
         c['strategy_context'] = dict(mode='active', plan=None, prior_delivered_question=None)
-        row['gold']['facts'] = dict(stopped=False, question=True, selection_reason=None)
-        row['gold']['required'] = ['One useful unanswered question; preserve continuity and narrator agency.',
+        constraints = current_constraints(source['text'])
+        stopped = bool(constraints.get('no_question'))
+        row['gold']['facts'] = dict(stopped=stopped, question=not stopped,
+            selection_reason='pause' if stopped else constraints.get('override'))
+        row['gold']['required'] = ['Respect the stop with no question and no transition invitation.'] if stopped else [
+            'One useful unanswered question; preserve continuity and narrator agency.',
             REQUIREMENTS.get(source['sequence'], 'Follow the latest detail using only the supplied original prefix.')]
         row['gold']['forbidden'] = ['Invent a personal fact, repeat an answered question, treat assistant text as testimony.']
         row['origin'] = dict(kind='observed_conversation_prefix', synthetic=False,
@@ -79,9 +87,7 @@ def conversation_cases(template, sources, turns):
         row = deepcopy(last)
         row.update(id='memoir-interviewer/' + case + '/' + row['locale'], case=case)
         c = row['task']['context']
-        c['recent_dialogue'].append(dict(source_id=c['source']['id'], source_version=c['source']['version'],
-            narrator=c['source']['text'], assistant_reply=(saved.get(originals[-1]['id'], {}).get('collector') or {}).get('reply'),
-            assistant_is_testimony=False, assistant_delivery_verified=False))
+        c['recent_dialogue'].append(exchange(originals[-1]))
         source = dict(c['source'], id='counterfactual-' + digest(row['id'])[:20], text=text,
                       char_end=len(text), original_length=len(text))
         c.update(source=source, sources=[source], breadth_checkpoint=stage_breadth_checkpoint([

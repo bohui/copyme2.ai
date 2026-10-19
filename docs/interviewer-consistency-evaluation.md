@@ -6,6 +6,10 @@ continuity. The selector's schema and validator now require the current-intent
 reason and a follow-up question for a redirect, correction or pacing request.
 A real direct question can still receive an answer without an interview question;
 reported or quoted questions do not relax that constraint. Stop remains dominant.
+The output schema retains a pause alternative even when the literal matcher finds
+a correction or pacing request; the validator never forces a question over an
+explicit stopped outcome. Common English and Chinese stop instructions are also
+recognised before those overrides.
 
 The interview context includes at most seven stage-coverage counts. A distinct
 active canonical event counts only when it has a title, primary/stage evidence
@@ -25,6 +29,10 @@ Both the compact collector and strategy selector consume this shared guidance.
 `scripts/interviewer_conversation_cases.py` builds one exact prefix per active
 source from an explicitly selected local export, plus eight labelled
 counterfactual probes. The observed prefixes contain no future turns. Saved
+replies are optional: an accepted original remains in later prefixes when its
+response failed or was never saved. Observed stop turns have no-question gold
+and a stop-specific requirement, rather than inheriting story-follow-up gold.
+Saved
 assistant replies are context, not personal testimony or verified delivery
 receipts. The additional dataset is
 `memoir/evaluation/conversations/memoir-interviewer`; it is separate from the

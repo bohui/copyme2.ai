@@ -1,8 +1,40 @@
 """Real-prefix builders cannot leak later answers or mislabel gate fixtures."""
 from copy import deepcopy
+import pytest
 
 from scripts import memoir_skill_eval_suite as suite
 from scripts.interviewer_conversation_cases import conversation_cases
+
+
+def minimal_template():
+    return dict(skill='memoir-interviewer', task=dict(context={}), gold=dict(facts={}, required=[], forbidden=[]))
+
+
+def original(n, text):
+    return dict(id='s' + str(n), version=1, sequence=n, project_id='selected-project', status='active',
+                text=text, language='en-AU', kind='narrator_chat')
+
+
+def test_unsaved_reply_cannot_remove_accepted_narration_from_the_next_prefix():
+    sources = [original(1, 'My father repaired bicycles.'), original(2, 'I meant my mother.'),
+               original(3, 'She worked in our shed.')]
+    turns = [dict(source_id='s1', collector=dict(reply='Where did he work?'))]
+    rows = conversation_cases(minimal_template(), sources, turns)
+    second = rows[1]['task']['context']
+    third = rows[2]['task']['context']
+    assert [s['narrator'] for s in third['recent_dialogue']] == [s['text'] for s in sources[:2]]
+    assert third['recent_dialogue'][1]['assistant_reply'] is None
+    assert second['opening_turn'] is False and third['opening_turn'] is False
+    first_missing = conversation_cases(minimal_template(), sources, [])
+    assert first_missing[1]['task']['context']['opening_turn'] is False
+    assert first_missing[1]['task']['context']['has_accepted_narration'] is True
+
+
+@pytest.mark.parametrize('text', ['Not today. Stop here.', 'I meant my mother. Please stop.', '今天先到这里。'])
+def test_observed_stop_gold_does_not_require_a_followup(text):
+    row = conversation_cases(minimal_template(), [original(1, text)], [])[0]
+    assert row['gold']['facts'] == dict(stopped=True, question=False, selection_reason='pause')
+    assert not any('unanswered question' in requirement for requirement in row['gold']['required'])
 
 
 def test_prefixes_are_exact_and_counterfactuals_are_separate():

@@ -65,3 +65,29 @@ def test_real_direct_question_remains_optional_but_a_reported_question_is_not_cu
     c['source']['text'] = 'Please take it slowly. He asked, what happens to the old text?'
     with pytest.raises(ValidationError):
         validate(good, governed_collector_schema(c))
+
+
+@pytest.mark.parametrize('text', [
+    'I meant my mother, not my father. Please stop.',
+    'Please take it slowly. No more questions.',
+    '我说错了，是母亲不是父亲。请不要再问了。',
+])
+def test_current_stop_wins_over_correction_and_pacing_in_schema_and_validator(text):
+    from apps.api.lifetime_memory_continuity import governed_collector_schema, validate_governed_collector_result
+    c = {**context(text=text), 'two_lane_memory': True}
+    output = wire(question=None, selected_candidate_id=None, selection_reason='pause', stopped=True)
+    validate(output, governed_collector_schema(c))
+    result = validate_governed_collector_result(output, c)
+    assert result['stopped'] is True and result['strategy_outcome']['question_delivered'] is None
+    with pytest.raises(ValidationError):
+        validate(wire(selection_reason='current_correction'), governed_collector_schema(c))
+
+
+def test_model_detected_stop_is_not_overridden_by_the_literal_followup_rule():
+    from apps.api.lifetime_memory_continuity import governed_collector_schema, validate_governed_collector_result
+    c = {**context(text='I meant my mother. I need to leave for my appointment.'), 'two_lane_memory': True}
+    output = wire(question=None, selection_reason='pause', stopped=True)
+    validate(output, governed_collector_schema(c))
+    assert validate_governed_collector_result(output, c)['stopped'] is True
+    with pytest.raises(ValueError):
+        validate_governed_collector_result({**output, 'stopped': False}, c)
