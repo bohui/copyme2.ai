@@ -768,6 +768,15 @@ def _crawl4ai_source_page(source_url: str) -> dict:
     return _crawl4ai_run(fetch())
 
 
+def _crawl4ai_photo_location(photo: dict) -> str:
+    location = photo.get('contentLocation') or photo.get('spatialCoverage')
+    if isinstance(location, dict):
+        address = location.get('address')
+        location = (location.get('name') or location.get('addressLocality')
+                    or (address.get('addressLocality') if isinstance(address, dict) else ''))
+    return _text(location) if isinstance(location, str) else ''
+
+
 def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]:
     source_url = page["url"]
     parsed = PageParser(source_url)
@@ -775,8 +784,7 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     record = parsed.output()
     title = record.get("title") or page.get("title", "")
     excerpt = record.get("text_excerpt") or page.get("text", "")
-    if not _crawl4ai_location_matches(" ".join([title, excerpt[:2000]]), request["place"]):
-        return []
+    page_matches = _crawl4ai_location_matches(" ".join([title, excerpt[:2000]]), request["place"])
     images = []
     for item in page.get("media", []) if isinstance(page.get("media"), list) else []:
         if isinstance(item, dict):
@@ -785,7 +793,7 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
     for item in record["image_candidates"]:
         for url in item["candidate_urls"]:
             images.append({"url": url, "alt": item["alt"], "description": item["figure_text"]})
-    capture_metadata = {}
+    capture_metadata, location_metadata = {}, {}
     def visit(node, depth=0):
         if depth > 10:
             return
@@ -797,6 +805,9 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
             if set(kinds).intersection({"Photograph", "ImageObject"}):
                 url = _crawl4ai_image_url(node.get("contentUrl"))
                 taken = node.get("dateTaken") or node.get("dateCreated")
+                location = _crawl4ai_photo_location(node)
+                if url and location:
+                    location_metadata.setdefault(url, []).append(location)
                 if url and (isinstance(taken, str) or request['temporal'].get('mode') == 'any_time'):
                     if isinstance(taken, str):
                         capture_metadata[url] = taken
@@ -818,10 +829,17 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
         if not url: continue
         alt, caption = _text(image.get("alt")), _text(image.get("description"))
         if NON_PHOTO.search(" ".join([alt, caption])): continue
-        if alt and not (_crawl4ai_location_matches(alt, request["place"]) or _crawl4ai_scene_date(alt, request["temporal"])):
-            continue
-        if not alt and caption and not (_crawl4ai_location_matches(caption, request["place"]) or _crawl4ai_scene_date(caption, request["temporal"])):
-            continue
+        locations = location_metadata.get(url)
+        if locations:
+            if not all(_crawl4ai_location_matches(location, request['place']) for location in locations):
+                continue
+        else:
+            if not page_matches:
+                continue
+            if alt and not (_crawl4ai_location_matches(alt, request["place"]) or _crawl4ai_scene_date(alt, request["temporal"])):
+                continue
+            if not alt and caption and not (_crawl4ai_location_matches(caption, request["place"]) or _crawl4ai_scene_date(caption, request["temporal"])):
+                continue
         # Repeated article-title alt text is not an image-specific date assertion.
         assertion = capture_metadata.get(url) or " ".join(value for value in (alt, caption) if value and value != title)
         scene = _crawl4ai_scene_date(assertion, request["temporal"])
@@ -836,7 +854,8 @@ def _crawl4ai_source_images(page: dict, card: dict, request: dict) -> list[dict]
                 continue
         if scene and url in capture_metadata: scene["basis"] = "provider_date_taken"
         unique[url] = {"image_url": url, "observed_image_url": observed, "title": (alt or caption or title)[:1000],
-                       "scene_date": scene, "source_excerpt": ("Place: " + title + "; Image capture assertion: " + assertion)[:1200]}
+                       "scene_date": scene, "source_excerpt": ("Place: " + ("; ".join(locations) if locations else title)
+                       + "; Image capture assertion: " + assertion)[:1200]}
     return list(unique.values())
 
 

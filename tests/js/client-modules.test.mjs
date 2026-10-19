@@ -113,6 +113,36 @@ test('unstaged background places remain selectable during the default childhood 
   assert.deepEqual(searched,['承德市','悉尼']);
 });
 
+test('provider-confirmed Parramatta remains a separate selectable city from its saved Sydney ancestor', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const {state, dependencies} = setup(t);
+  const sydney = {place:'Sydney', hierarchy:['Earth','Australia','Sydney'], granularity:'city',
+    latitude:-33.86, longitude:151.2};
+  const parramatta = {place:'Parramatta', hierarchy:[...sydney.hierarchy,'Parramatta'], granularity:'suburb',
+    latitude:-33.815, longitude:151.002};
+  const confirmed = {...parramatta, granularity:'city', hierarchy:['Earth','Australia','New South Wales','Parramatta']};
+  state.project.profile.memory_places = [sydney,parramatta];
+  state.placeJourney = parramatta;
+  let places;
+  const photos = createPhotoWorkspace({...dependencies, placeMapTarget:entry=>places.placeMapTarget(entry)});
+  const loaded = [];
+  places = createPlaceWorkspace({...dependencies, photos, loadPlacePictures:entry=>loaded.push(entry.place),
+    saveProfileUpdates() {}, recordWorkspaceSkillProgress() {}, workspaceHasContent:()=>true,
+    supabaseApi:async (path, options)=>({places:JSON.parse(options.body).places.map((place,index)=>{
+      const city = place.place === 'Parramatta' ? confirmed : sydney;
+      return {index,city,city_key:groupPlaces([city])[0].key,pin:place};
+    })})});
+  places.resolvePlaceMap(parramatta);
+  await new Promise(resolve=>setImmediate(resolve));
+  const html = places.workspaceMediaOverview();
+  const buttons = [...html.matchAll(/data-place-choice="([^"]*)"[^>]*><span>([^<]+)<\/span>/g)];
+  assert.deepEqual(buttons.map(button=>button[2]), ['Sydney','Parramatta']);
+  const key = buttons.find(button=>button[2] === 'Parramatta')[1].replaceAll('&quot;','"');
+  places.selectPlace(key);
+  assert.equal(places.placeWorkspaceSelection().place, 'Parramatta');
+  assert.equal(loaded.at(-1), 'Parramatta');
+});
+
 test('a failed map renderer preserves the place workspace and its coordinates', async t => {
   const {state, dependencies} = setup(t);
   const place = {place:'Chengde', latitude:40.95, longitude:117.96};

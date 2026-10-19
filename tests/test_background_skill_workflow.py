@@ -331,9 +331,10 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     for index,source in enumerate(cse_sources,1):
         pages[source]=photo_html(index, date=f'{1979+index}-10-01')
         if index == 2:
-            local = {'@type':['ImageObject','Photograph'], 'name':'Chengde street',
+            local = {'@type':['ImageObject','Photograph'], 'name':'Willow trees',
                      'dateTaken':f'{1979+index}-10-01', 'license':'https://creativecommons.org/licenses/by/4.0/',
-                     'contentLocation':{'geo':{'latitude':40.98,'longitude':117.94}},
+                     'creator':{'name':'Alice Example'},
+                     'contentLocation':{'name':'Chengde','geo':{'latitude':40.98,'longitude':117.94}},
                      'contentUrl':f'https://live.staticflickr.com/1/{index}.jpg'}
             wrong_city = {**local, 'name':'Beijing street', 'dateTaken':'1983-10-01',
                           'contentUrl':'https://live.staticflickr.com/1/beijing.jpg'}
@@ -344,6 +345,8 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         {'place':'承德市','hierarchy':['Earth','中国','河北省','承德市'],'granularity':'city','latitude':40.97,'longitude':117.93},
         {'place':'悉尼','hierarchy':['Earth','澳大利亚','悉尼'],'granularity':'city','latitude':-33.86,'longitude':151.2},
     ]
+    parramatta = {'place':'Parramatta','hierarchy':[*places[1]['hierarchy'],'Parramatta'],
+                  'granularity':'suburb','latitude':-33.815,'longitude':151.002}
     def extract(packet):
         return {**empty(packet), 'place_journeys': places}
     def external_get(url,**kwargs):
@@ -354,6 +357,9 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
             name,region,country=(('承德市','河北省','中国') if chengde else ('悉尼','新南威尔士州','澳大利亚')) if chinese else (
                 ('Chengde','Hebei','China') if chengde else ('Sydney','New South Wales','Australia'))
             place=places[0 if chengde else 1]
+            if 'Parramatta' in params['address']:
+                name,region,country='Parramatta','New South Wales','Australia'
+                place=parramatta
             result={'status':'OK','results':[{'geometry':{'location':{'lat':place['latitude'],'lng':place['longitude']}},
                 'address_components':[{'long_name':value,'types':[kind]} for value,kind in (
                     (name,'locality'),(region,'administrative_area_level_1'),(country,'country'))]}]}
@@ -412,6 +418,9 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
             if place['place']=='承德市':
                 assert all(item['providers']==['google','cse'] for item in final['items'])
                 assert not any('beijing' in item['image_url'] for item in final['items'])
+                credited=next(item for item in final['items'] if item['image_url'].endswith('/2.jpg'))
+                assert credited['title']=='Willow trees'
+                assert credited['attribution']=='Alice Example'
                 assert final['items'][0]['date_expression']=='1983-10-01'
                 gaps=[abs(int(item['date_expression'][:4])-1983) for item in final['items']]
                 assert gaps==sorted(gaps)
@@ -433,8 +442,14 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
                 expected=['承德市','悉尼'] if language=='zh-CN' else ['Chengde','Sydney']
                 assert {item['city']['place'] for item in response.json()['places']}==set(expected)
                 groups.append({'request':request,'response':response.json()})
+        provider_places=[next(place for place in public if place['place']=='悉尼'),parramatta]
+        request={'places':list(reversed(provider_places)),'language':'en-AU'}
+        response=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json=request)
+        assert response.status_code==200,response.text
+        assert {item['city']['place'] for item in response.json()['places']}=={'Sydney','Parramatta'}
+        groups.append({'request':request,'response':response.json()})
         ready=progress(conversation)
-        packet={'pending':pending,'ready':ready,'photos':photos,'groups':groups}
+        packet={'pending':pending,'ready':ready,'photos':photos,'groups':groups,'provider_places':provider_places}
         (tmp_path/'place-research-replay.json').write_text(json.dumps(packet,ensure_ascii=False))
         replay=Path(__file__).parent/'js/helpers/replay-place-research.mjs'
         result=subprocess.run(['node',str(replay)],input=json.dumps(packet),text=True,capture_output=True,timeout=20)

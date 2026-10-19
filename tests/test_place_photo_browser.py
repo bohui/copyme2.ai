@@ -161,6 +161,43 @@ def test_nested_array_typed_json_ld_photo_keeps_its_licence():
     assert all(item['allowed_actions']['embed'] is True for item in items)
 
 
+@pytest.mark.parametrize('primary', [False,True])
+def test_nested_gallery_preserves_each_photo_creator_without_inheriting_sibling_credit(primary):
+    records = [{'@type':'Photograph', 'name':'Chengde street', 'dateTaken':'1983-10-01',
+                'license':'https://creativecommons.org/licenses/by/4.0/',
+                'contentUrl':f'https://archive.example/credit-{index}.jpg', **creator}
+               for index,creator in enumerate(({'creator':{'name':'Alice Example'}},
+                                               {'author':{'name':'Bob Example'}}, {}),1)]
+    page = ('<title>Chengde archive</title>'
+            + ('<meta property="og:image" content="https://archive.example/credit-1.jpg">' if primary else '')
+            + '<script type="application/ld+json">'
+            + json.dumps({'@type':'ImageGallery','itemListElement':[{'item':record} for record in records]})
+            + '</script>')
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+    assert {item['image_url']:item['attribution'] for item in items} == {
+        records[0]['contentUrl']:'Alice Example', records[1]['contentUrl']:'Bob Example',
+        records[2]['contentUrl']:'archive.example'}
+
+
+@pytest.mark.parametrize('nested', [False,True])
+@pytest.mark.parametrize('location,accepted', [('Chengde',True),('Beijing',False)])
+@pytest.mark.parametrize('heading', ['Chengde archive','Willow trees'])
+def test_descriptive_photo_uses_its_structured_location_and_capture_date(nested, location, accepted, heading):
+    record = {'@type':'Photograph', 'name':'Willow trees', 'dateTaken':'1983-10-01',
+              'contentLocation':{'name':location}, 'creator':{'name':'Alice Example'},
+              'license':'https://creativecommons.org/licenses/by/4.0/',
+              'contentUrl':'https://archive.example/willows.jpg'}
+    document = {'@type':'ImageGallery','itemListElement':[{'item':record}]} if nested else record
+    page = (f'<title>{heading}</title><script type="application/ld+json">'
+            + json.dumps(document) + '</script>')
+    items = browser._source_items(page, 'https://archive.example/chengde', 'Chengde', '1980s')
+    assert bool(items) is accepted
+    if accepted:
+        assert items[0]['date_expression'] == '1983-10-01'
+        assert items[0]['attribution'] == 'Alice Example'
+        assert items[0]['allowed_actions']['embed'] is True
+
+
 def test_explicit_primary_photo_can_read_its_nested_capture_metadata():
     record = {'@type':['ImageObject','Photograph'], 'name':'Chengde street',
               'dateTaken':'1983-10-01', 'license':'https://creativecommons.org/licenses/by/4.0/',

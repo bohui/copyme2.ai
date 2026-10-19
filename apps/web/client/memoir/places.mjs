@@ -175,7 +175,8 @@ export function groupPlaces(places) {
     if (!groups.has(key)) groups.set(key, {key, city, members: []});
     const group = groups.get(key);
     // Retain saved coordinates while using the requested display language.
-    const savedCity = ancestors[0] || cities.find(item => (item.map_city_key || cityGroupKey(item)) === key);
+    const savedCity = [...ancestors,...cities].find(item =>
+      (item.map_city_key || cityGroupKey(item.map_city || item)) === key);
     if (savedCity) {
       group.city = {...savedCity,...(savedCity.map_city || city)};
       group.canonicalCity = savedCity;

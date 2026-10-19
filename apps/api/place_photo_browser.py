@@ -145,8 +145,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                                  urlsplit(link['url']).path)))
     # An unrelated item on a relevant search page is still unrelated.
     location_evidence = ' '.join((context, item_location, location_context)).strip()
-    if not helper._crawl4ai_location_matches(location_evidence, place):
-        return []
+    page_matches = helper._crawl4ai_location_matches(location_evidence, place)
 
     photo_records = _json_ld_photo_records(page['json_ld'])
     # Nested gallery images are not primary unless the page explicitly selects their URL.
@@ -244,7 +243,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         original = next((link['url'] for link in page['links']
                          if re.search(r'original file|原始文件', link['text'], re.I)), None)
         primary = original or primary
-    if primary and (scene_date or any_date) and (is_flickr or mediawiki_file or location_context):
+    if primary and (scene_date or any_date) and page_matches and (is_flickr or mediawiki_file or location_context):
         image_urls.append((primary, title, scene_date))
     if not is_flickr and not mediawiki_file:
         images = helper._crawl4ai_source_images(
@@ -301,12 +300,19 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
         image_point = _coordinates(image_photo or {})
         if image_point is None and observed == primary:
             image_point = point
+        image_creator = (image_photo or {}).get('creator') or (image_photo or {}).get('author') or ''
+        creators = image_creator if isinstance(image_creator, list) else [image_creator]
+        image_attribution = ', '.join(filter(None, (_text(creator.get('name') if isinstance(creator, dict) else creator)
+                                                    for creator in creators)))
+        if not image_attribution and image == helper._crawl4ai_image_url(primary):
+            image_attribution = attribution
+        image_location = helper._crawl4ai_photo_location(image_photo or {})
         identifier = hashlib.sha256(f'{source_url}\n{image}'.encode()).hexdigest()[:24]
         items.append({
             'asset_id': 'crawl4ai-' + identifier, 'kind': 'image', 'title': _text(caption),
             'source_url': source_url, 'image_url': image, 'original_url': image,
-            'location': place, 'attribution': attribution or urlsplit(source_url).hostname,
-            'location_evidence': location_evidence,
+            'location': place, 'attribution': image_attribution or urlsplit(source_url).hostname,
+            'location_evidence': ' '.join(filter(None, (location_evidence, image_location, _text(caption)))),
             'date_expression': taken if is_flickr and taken else (
                 '' if image_date is None else image_date['start'] if image_date['start'] == image_date['end'] else
                 image_date['start'][:4] if image_date['start'][:4] == image_date['end'][:4] else

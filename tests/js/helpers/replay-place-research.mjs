@@ -16,7 +16,7 @@ const state = {project:{id:projectId,profile:{}},projectPrincipalId:'owner',
   lifeStage:'childhood',chat:[],people:[],relationships:[],timeline:[],sources:[],storyPlans:[]};
 const plain = value => JSON.parse(JSON.stringify(value));
 const settle = () => new Promise(resolve => setImmediate(resolve));
-const timers = new Map(), photoCalls = [], loads = [], groups = [], steps = [];
+const timers = new Map(), photoCalls = [], loads = [], groups = [], steps = [], memoryWrites = [];
 let now = Date.now(), sequence = 0;
 const schedule = (callback, delay) => {const id=++sequence;timers.set(id,{callback,at:now+delay});return id;};
 const values = new Map();
@@ -45,6 +45,13 @@ context.storyApi=async()=>{
 };
 const api=async(path,options)=>{
   const url=new URL(path,'https://memoir.test');
+  if (url.pathname === `/v1/projects/${projectId}/photo-memories`) {
+    const body=JSON.parse(options.body);
+    assert.equal(body.action,'favorite');
+    assert.equal(body.photo.attribution,'Alice Example');
+    memoryWrites.push(body);
+    return {favorites:[{...body.photo,key:body.photo.original_url || body.photo.image_url}],selected:null};
+  }
   assert.equal(url.pathname,`/v1/agent/places/${projectId}/photos`);
   const place=url.searchParams.get('place'),period=url.searchParams.get('period');
   assert.equal(period,place==='承德市'?'1980s':'','Each place must retain its own research period');
@@ -118,6 +125,21 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
     if (selected.place==='承德市') {
       const gaps=photos.workspacePictureItems(selected).map(photo=>Math.abs(Number(photo.date_expression.slice(0,4))-1983));
       assert.deepEqual(gaps,[...gaps].sort((a,b)=>a-b),'The gallery must preserve the API relevance order');
+      const willow=photos.workspacePictureItems(selected).find(photo=>photo.title==='Willow trees');
+      assert.equal(willow?.attribution,'Alice Example');
+      assert.match(selectedHtml,/Alice Example/,'The gallery must display the source creator credit');
+      if (!memoryWrites.length) {
+        const reference=[...selectedHtml.matchAll(/data-photo-reference="([^"]*)"/g)]
+          .map(match=>JSON.parse(match[1].replaceAll('&quot;','"').replaceAll('&amp;','&')))
+          .find(photo=>photo.title==='Willow trees');
+        let click;
+        const button={dataset:{photoMemory:'favorite',photoReference:JSON.stringify(reference)},
+          addEventListener:(name,handler)=>{if(name==='click')click=handler;}};
+        photos.bindPhotoMemoryActions({querySelectorAll:selector=>selector==='[data-photo-memory]'?[button]:[]});
+        click();
+        await state.photoMemoryTask.done;
+        assert.equal(state.project.profile.photo_memories[projectId].favorites[0].attribution,'Alice Example');
+      }
     }
   }
 }
@@ -135,4 +157,21 @@ state.selectedPlace=placeHistoryKey(chengde);state.lifeStage='all';
 const single=places.workspaceMediaOverview();
 assert.equal((single.match(/data-place-choice=/g)||[]).length,1,'One city must still have a location button');
 assert.doesNotMatch(single,/place-journey-heading/);
+assert.equal(memoryWrites.length,1,'The real favorite action must preserve the original creator credit');
+
+state.project.profile.memory_places=packet.provider_places;
+state.placeJourney=packet.provider_places[1];
+state.selectedPlace=placeHistoryKey(state.placeJourney);state.lifeStage='all';
+document.documentElement.lang='en-AU';
+const cityLoads=[];
+const cityWorkspace=createPlaceWorkspace({...dependencies,photos,loadPlacePictures:entry=>cityLoads.push(entry.place)});
+cityWorkspace.resolvePlaceMap(state.placeJourney);
+await settle();
+const cityHtml=cityWorkspace.workspaceMediaOverview();
+const cityChoices=[...cityHtml.matchAll(/data-place-choice="([^"]*)"[^>]*><span>([^<]+)<\/span>/g)];
+assert.deepEqual(cityChoices.map(choice=>choice[2]).sort(),['Parramatta','Sydney']);
+const parramatta=cityChoices.find(choice=>choice[2]==='Parramatta');
+cityWorkspace.selectPlace(parramatta[1].replaceAll('&quot;','"').replaceAll('&amp;','&'));
+assert.equal(cityWorkspace.placeWorkspaceSelection().place,'Parramatta');
+assert.equal(cityLoads.at(-1),'Parramatta');
 console.log('Place regression replay passed: delayed extraction, two searches, localized buttons, selection and restore.');
