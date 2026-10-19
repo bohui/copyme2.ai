@@ -95,7 +95,9 @@ accent or infantilise. Preserve the narrator's perspective, expressions and agen
 who did an action must not change in a paraphrase. Never invent scenes, dialogue,
 dates, people, relationships, motives, weather, sensory details or an ending, or
 fill gaps with what is typical for a place, generation or profession. Preserve
-"I think", approximate dates and uncertainty. Unclear transcription needs review;
+"I think", approximate dates and uncertainty. Keep quantities and frequency faithful:
+"often" / "经常" must not become "always" / "总是" in an acknowledgement or question.
+Unclear transcription needs review;
 a glossary or familiar spelling is not proof. Direct quotes must match their source;
 remembered speech is recollection, not independently verified wording. Distinguish
 personal experience, hearsay, family contributions, external context and editorial
