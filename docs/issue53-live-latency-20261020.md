@@ -158,7 +158,8 @@ unspecified-sibling case: the negative-topic turn rendered first text at 4.276
 seconds and saved at 5.190 seconds after one native attempt; the redirect saved
 at 4.543 seconds. The translation reply used neutral `姐妹` wording and saved
 at 7.645 seconds. Evidence is retained in
-`var/issue53-negation-probe-20261020g`.
+`var/issue53-negation-probe-20261020g`. The focused collector, engine, and
+continuity suite passes **235 checks**, including explicit-offset rejection.
 
 Follow-up checks covered existing sessions in both locales: resumed turns,
 saved replay, deliberate rollback, and long sources all saved in the retained
