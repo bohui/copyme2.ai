@@ -37,10 +37,12 @@ def test_healthy_background_provider_setup_survives_normal_database_latency(monk
 
 @pytest.mark.parametrize('unavailable',[False,True])
 def test_activation_setup_can_wait_briefly_but_still_rejects_unavailable_authority(monkeypatch,unavailable):
+    statements=[]
     class Connection:
         closed=False
 
         async def execute(self,statement,parameters=None):
+            statements.append(statement)
             await asyncio.sleep(.55)
             if 'lock_lifetime_provider_activation' in statement and unavailable:
                 raise psycopg.errors.SerializationFailure('activation unavailable')
@@ -67,4 +69,5 @@ def test_activation_setup_can_wait_briefly_but_still_rejects_unavailable_authori
             await publish()
             assert entered==[True]
         assert connection.closed and publisher.send_timeout==2
+        assert len(statements)==2, 'Activation must batch its session settings before checking authority'
     asyncio.run(scenario())

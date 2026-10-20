@@ -8,6 +8,88 @@ The canonical controlled profiler uses a simulated model; use the HTTP profiler
 for provider-inclusive timings. The historical `collector` and `conversation`
 commands below are no longer supported.
 
+## Current runtime profile — 20 October 2026
+
+Four fresh synthetic first turns through the running web proxy all saved a
+reply. These are HTTP receipt times after submitting the turn; signup, project
+creation and browser paint are outside the measurement. Each row has one sample,
+so neither the range nor the slowest row estimates a production percentile.
+
+| Opening | First visible text | Complete reply | Conversation saved |
+| --- | ---: | ---: | ---: |
+| English, name only | 8.457 s | 10.683 s | 10.855 s |
+| Chinese, name only | 15.207 s | 17.675 s | 17.838 s |
+| English, childhood story | 23.410 s | 27.231 s | 27.387 s |
+| Chinese, childhood story | 24.679 s | 69.262 s | 69.410 s |
+
+The collector-start event arrived after 1.645–3.198 s. The worker/model interval
+dominates the remaining wait. Worker diagnostics show two completed app-server
+attempts for the long Chinese story request: 24.211 s and 39.776 s. The bounded
+collector retries rejected output in a fresh execution while preserving any
+already-streamed acknowledgement. Uncorrelated warning lines in the same log
+window report `SCHEMA_FIELD_continuity_updates`; they do not prove the exact
+rejection reason for this request. Removing validation or its retry would trade
+quality for latency and is excluded from this change.
+
+The running API and worker select `gpt-5.6-luna-pooled`, requested effort `low`,
+and `two-lane-v1`, with two lanes, interview strategy and thinking steps enabled.
+Effective gateway effort was not independently verified. Mounted source files
+matched the checkout before edits, but that does not attest the running Python
+process's already-imported code or prompts. No `question_validated` event was
+observed, so its timing remains unavailable. These running-service measurements
+are not a frozen PR #97 release-quality campaign.
+
+### Implemented optimization
+
+`TransactionalPublication` and the worker's `ActivationPublication` now send
+their transaction-local role, verified owner and lock-timeout settings in one
+SQL statement. Setup plus the mandatory fence/authority query takes two
+application execute calls instead of four. Fresh connections, per-send fence
+checks, lock ownership through actual send, cancellation cleanup, timeouts and
+provider-activation checks remain in place. Model requests, prompt bytes,
+reasoning settings, acknowledgement handling and output validation are unchanged.
+
+Six alternating baseline/candidate pairs used the actual original and patched
+`TransactionalPublication` implementations, the configured database, and one
+fresh synthetic account's live lease. The send callback was a no-op and no model
+was called. Median guard readiness, including connection setup, fell from
+**147.061 ms to 123.808 ms**, approximately **15.8%**. Median paired saving was
+25.178 ms per guarded send. This is a component benchmark, not a measured
+end-to-end response gain. A preceding six-pair query-coalescing experiment
+measured 155.596 ms versus 128.954 ms and remains separately labelled in the
+evidence.
+
+The source change is prepared in Git and has not been loaded into the shared
+running services. Those services were not restarted for this investigation.
+
+### Verification and limits
+
+The two publication query-count regressions and the activation query-count
+regressions failed with four execute calls before the fix. On merged PR #97
+(`37cc655`) plus this patch, **178 checks passed** against disposable local
+PostgreSQL, covering real authenticated session settings, stale/foreign fences,
+policy blocking, disconnect/cancellation, replay, saved identity and milestones,
+collector activation, HTTP transport and interview strategy. The focused command
+and source hashes are retained in the
+[redacted evidence](test-evidence/first-response-profile-20261020.json).
+
+On the original `07440ad` working branch, **43 focused checks passed**. A broader run was
+interrupted after 53 passes and 62 failures: existing `background-memory.md`
+content does not match its published receipt, preventing fresh runtime imports
+and causing downstream stream failures. A separate initial mixed run recorded
+44 passes and 23 failures. No prompt text or receipt was repaired or published
+as part of this latency work. The isolated PR #97 run avoids that pre-existing
+prompt-publication issue; it is not a passing claim for that branch's
+full suite.
+
+No model/prompt quality experiment, browser-paint measurement, effective-effort
+audit or deployed candidate comparison was run. The transport optimization
+preserves generation inputs and existing validation; these measurements do not
+establish bilingual semantic-quality acceptance. Larger latency improvements
+require reducing model wait or the rate of rejected output in a separately
+reviewed, matched quality/latency campaign. Four conversation accounts and two
+guard-probe accounts were created; only synthetic data was written and retained.
+
 ## Prompt publication cleanup — 19 October 2026
 
 At the user's request, 17 canceled optimization/rollback versions were backed

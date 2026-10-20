@@ -1,0 +1,720 @@
+{
+  "schema_version": "memoir-first-response-diagnostic/1",
+  "kind": "exploratory_diagnostic_not_release_acceptance",
+  "release_accepted": false,
+  "created_at": "2026-10-19T23:40:42.087843+00:00",
+  "timezone": "Australia/Sydney",
+  "local_date": "2026-10-20",
+  "pull_request": "https://github.com/bohui/copyme2.ai/pull/97",
+  "working_revision": "07440ad7e56cb649d1e1d64364881a1412109e1b",
+  "measurement": {
+    "origin": "http://127.0.0.1:3010",
+    "boundary": "HTTP POST dispatch through conversation_saved",
+    "excluded": [
+      "signup",
+      "project_creation",
+      "browser_paint"
+    ],
+    "samples_per_case": 1,
+    "foreground_turns": 4,
+    "upstream_attempt_count": "not independently established",
+    "runtime_imported_revision": null,
+    "question_validated_observed": false,
+    "runtime_settings": {
+      "model": "gpt-5.6-luna-pooled",
+      "requested_effort": "low",
+      "effective_effort": null,
+      "prompt_version": "two-lane-v1",
+      "two_lanes": true,
+      "interview_strategy": true,
+      "thinking_steps": true
+    }
+  },
+  "http_samples": [
+    {
+      "language": "zh-CN",
+      "case": "name",
+      "user_id": "3f190aa6-76de-4641-9def-d55275a596b5",
+      "project_id": "lifetime-093c0c04-3562-4e8e-8bb6-dad69727f17a",
+      "capture_source": "tool_stdout",
+      "timings": {
+        "headers_s": 0.264,
+        "source_accepted": 1.785,
+        "progress:memory-context:running": 1.943,
+        "progress:memory-context:completed": 2.483,
+        "progress:collector-call:running": 2.687,
+        "first_visible_text_s": 15.207,
+        "progress:collector-call:completed": 16.474,
+        "progress:save:running": 16.641,
+        "progress:save:completed": 17.051,
+        "progress:question-pool:completed": 17.333,
+        "reply_complete": 17.675,
+        "conversation_saved": 17.838
+      }
+    },
+    {
+      "language": "en-AU",
+      "case": "story",
+      "user_id": "5e48e3d2-680b-4183-8fdb-45e94245df55",
+      "project_id": "lifetime-116ccd0f-5a51-4f55-863b-03d632a089dc",
+      "capture_source": "tool_stdout",
+      "timings": {
+        "headers_s": 0.207,
+        "source_accepted": 1.353,
+        "progress:memory-context:running": 1.5,
+        "progress:memory-context:completed": 3.039,
+        "progress:collector-call:running": 3.198,
+        "first_visible_text_s": 23.41,
+        "progress:collector-call:completed": 26.127,
+        "progress:save:running": 26.285,
+        "progress:save:completed": 26.733,
+        "progress:question-pool:completed": 26.907,
+        "reply_complete": 27.231,
+        "conversation_saved": 27.387
+      }
+    },
+    {
+      "kind": "first_turn_summary",
+      "language": "en-AU",
+      "case": "name",
+      "timings": {
+        "headers_s": 0.158,
+        "started": 0.158,
+        "source_accepted": 1.011,
+        "progress:memory-context:running": 1.187,
+        "progress:memory-context:completed": 1.49,
+        "progress:collector-call:running": 1.645,
+        "first_visible_text_s": 8.457,
+        "text_delta": 8.457,
+        "progress:collector-call:completed": 9.385,
+        "progress:save:running": 9.546,
+        "progress:save:completed": 10.17,
+        "progress:question-pool:completed": 10.295,
+        "reply_complete": 10.683,
+        "conversation_saved": 10.855
+      },
+      "measurement": "HTTP events received; browser paint is not measured",
+      "user_id": "d055f6fe-141d-4e9f-9e74-f60054c2b3ea",
+      "project_id": "lifetime-6b507d2b-2f24-4c99-b187-dddbc7e58a06",
+      "capture_source": "var/first-reply-baseline-en-name-20261020.jsonl"
+    },
+    {
+      "kind": "first_turn_summary",
+      "language": "zh-CN",
+      "case": "story",
+      "timings": {
+        "headers_s": 0.207,
+        "started": 0.207,
+        "source_accepted": 1.07,
+        "progress:memory-context:running": 1.245,
+        "progress:memory-context:completed": 1.768,
+        "progress:collector-call:running": 1.929,
+        "heartbeat": 11.947,
+        "first_visible_text_s": 24.679,
+        "text_delta": 24.679,
+        "progress:collector-call:completed": 68.079,
+        "progress:save:running": 68.227,
+        "progress:save:completed": 68.779,
+        "progress:question-pool:completed": 68.942,
+        "reply_complete": 69.262,
+        "conversation_saved": 69.41
+      },
+      "measurement": "HTTP events received; browser paint is not measured",
+      "user_id": "79a2ac82-0a5e-4955-8748-e68e5c7bfd8b",
+      "project_id": "lifetime-d56d0f97-0b02-4df6-9313-396e3915eb3f",
+      "capture_source": "var/first-reply-baseline-zh-story-20261020.jsonl"
+    }
+  ],
+  "worker_diagnostics": {
+    "captured_at": "2026-10-19T23:38:25.417674+00:00",
+    "rows": [
+      {
+        "event": "worker_turn_start",
+        "request_id": "0a3d9c9a-4e65-4127-9df1-9606169208d9",
+        "agent_role": "collector",
+        "model": "gpt-5.6-luna-pooled"
+      },
+      {
+        "event": "appserver_turn_start",
+        "request_id": "0a3d9c9a-4e65-4127-9df1-9606169208d9"
+      },
+      {
+        "event": "appserver_turn_admitted",
+        "request_id": "0a3d9c9a-4e65-4127-9df1-9606169208d9",
+        "elapsed_ms": 234
+      },
+      {
+        "event": "appserver_first_delta",
+        "request_id": "0a3d9c9a-4e65-4127-9df1-9606169208d9",
+        "elapsed_ms": 9163
+      },
+      {
+        "event": "appserver_message_complete",
+        "request_id": "0a3d9c9a-4e65-4127-9df1-9606169208d9",
+        "elapsed_ms": 10110,
+        "call_type": "final_answer"
+      },
+      {
+        "event": "appserver_turn_terminal",
+        "request_id": "0a3d9c9a-4e65-4127-9df1-9606169208d9",
+        "elapsed_ms": 10378,
+        "status": "completed"
+      },
+      {
+        "event": "worker_turn_terminal",
+        "request_id": "0a3d9c9a-4e65-4127-9df1-9606169208d9",
+        "agent_role": "collector",
+        "model": "gpt-5.6-luna-pooled",
+        "elapsed_ms": 13009,
+        "status": "completed"
+      },
+      {
+        "event": "worker_turn_start",
+        "request_id": "16e1e36d-d964-4abf-906f-2b68c39ba389",
+        "agent_role": "collector",
+        "model": "gpt-5.6-luna-pooled"
+      },
+      {
+        "event": "appserver_turn_start",
+        "request_id": "16e1e36d-d964-4abf-906f-2b68c39ba389"
+      },
+      {
+        "event": "appserver_turn_admitted",
+        "request_id": "16e1e36d-d964-4abf-906f-2b68c39ba389",
+        "elapsed_ms": 189
+      },
+      {
+        "event": "appserver_first_delta",
+        "request_id": "16e1e36d-d964-4abf-906f-2b68c39ba389",
+        "elapsed_ms": 18791
+      },
+      {
+        "event": "appserver_message_complete",
+        "request_id": "16e1e36d-d964-4abf-906f-2b68c39ba389",
+        "elapsed_ms": 21400,
+        "call_type": "final_answer"
+      },
+      {
+        "event": "appserver_turn_terminal",
+        "request_id": "16e1e36d-d964-4abf-906f-2b68c39ba389",
+        "elapsed_ms": 21666,
+        "status": "completed"
+      },
+      {
+        "event": "worker_turn_terminal",
+        "request_id": "16e1e36d-d964-4abf-906f-2b68c39ba389",
+        "agent_role": "collector",
+        "model": "gpt-5.6-luna-pooled",
+        "elapsed_ms": 23441,
+        "status": "completed"
+      },
+      {
+        "event": "worker_turn_start",
+        "request_id": "a0b4cbce-e5b9-4096-992d-89ee7803ba26",
+        "agent_role": "collector",
+        "model": "gpt-5.6-luna-pooled"
+      },
+      {
+        "event": "appserver_turn_start",
+        "request_id": "a0b4cbce-e5b9-4096-992d-89ee7803ba26"
+      },
+      {
+        "event": "appserver_turn_admitted",
+        "request_id": "a0b4cbce-e5b9-4096-992d-89ee7803ba26",
+        "elapsed_ms": 165
+      },
+      {
+        "event": "appserver_first_delta",
+        "request_id": "a0b4cbce-e5b9-4096-992d-89ee7803ba26",
+        "elapsed_ms": 5633
+      },
+      {
+        "event": "appserver_message_complete",
+        "request_id": "a0b4cbce-e5b9-4096-992d-89ee7803ba26",
+        "elapsed_ms": 6586,
+        "call_type": "final_answer"
+      },
+      {
+        "event": "appserver_turn_terminal",
+        "request_id": "a0b4cbce-e5b9-4096-992d-89ee7803ba26",
+        "elapsed_ms": 6676,
+        "status": "completed"
+      },
+      {
+        "event": "worker_turn_terminal",
+        "request_id": "a0b4cbce-e5b9-4096-992d-89ee7803ba26",
+        "agent_role": "collector",
+        "model": "gpt-5.6-luna-pooled",
+        "elapsed_ms": 7440,
+        "status": "completed"
+      },
+      {
+        "event": "worker_turn_start",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "agent_role": "collector",
+        "model": "gpt-5.6-luna-pooled"
+      },
+      {
+        "event": "appserver_turn_start",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913"
+      },
+      {
+        "event": "appserver_turn_admitted",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "elapsed_ms": 178
+      },
+      {
+        "event": "appserver_first_delta",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "elapsed_ms": 21401
+      },
+      {
+        "event": "appserver_message_complete",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "elapsed_ms": 24027,
+        "call_type": "final_answer"
+      },
+      {
+        "event": "appserver_turn_terminal",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "elapsed_ms": 24211,
+        "status": "completed"
+      },
+      {
+        "event": "appserver_turn_start",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913"
+      },
+      {
+        "event": "appserver_turn_admitted",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "elapsed_ms": 158
+      },
+      {
+        "event": "appserver_first_delta",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "elapsed_ms": 36025
+      },
+      {
+        "event": "appserver_message_complete",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "elapsed_ms": 39205,
+        "call_type": "final_answer"
+      },
+      {
+        "event": "appserver_turn_terminal",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "elapsed_ms": 39776,
+        "status": "completed"
+      },
+      {
+        "event": "worker_turn_terminal",
+        "request_id": "6a78e937-ded3-4a73-a0a4-b0490098d913",
+        "agent_role": "collector",
+        "model": "gpt-5.6-luna-pooled",
+        "elapsed_ms": 65754,
+        "status": "completed"
+      }
+    ],
+    "allowlisted_rejection_reasons_in_log_window": [
+      "SCHEMA_FIELD_continuity_updates",
+      "SCHEMA_FIELD_continuity_updates"
+    ]
+  },
+  "worker_to_case_correlation": "collector request order and matching timings; no independently frozen turn-to-request ledger",
+  "guard_exploratory_probe": {
+    "measurement": "actual_remote_transactional_guard_with_noop_send",
+    "user_id": "7e7676de-9aee-406e-94b1-56db94dc5cf6",
+    "project_id": "lifetime-6395218e-a2e8-45f7-84f7-7be495f385d8",
+    "model_calls": 0,
+    "rows": [
+      {
+        "sample": 0,
+        "variant": "baseline",
+        "query_s": [
+          0.022994,
+          0.016121,
+          0.01135,
+          0.029315
+        ],
+        "connect_s": 0.210127,
+        "guard_ready_s": 0.299004,
+        "close_s": 0.000156,
+        "total_s": 0.299307
+      },
+      {
+        "sample": 0,
+        "variant": "batched",
+        "query_s": [
+          0.027147,
+          0.021165
+        ],
+        "connect_s": 0.075404,
+        "guard_ready_s": 0.123967,
+        "close_s": 0.000483,
+        "total_s": 0.124714
+      },
+      {
+        "sample": 1,
+        "variant": "batched",
+        "query_s": [
+          0.026195,
+          0.02074
+        ],
+        "connect_s": 0.081667,
+        "guard_ready_s": 0.128999,
+        "close_s": 0.000177,
+        "total_s": 0.12931
+      },
+      {
+        "sample": 1,
+        "variant": "baseline",
+        "query_s": [
+          0.026638,
+          0.012628,
+          0.011624,
+          0.027043
+        ],
+        "connect_s": 0.083931,
+        "guard_ready_s": 0.162047,
+        "close_s": 0.000241,
+        "total_s": 0.162474
+      },
+      {
+        "sample": 2,
+        "variant": "baseline",
+        "query_s": [
+          0.024368,
+          0.013895,
+          0.01176,
+          0.019598
+        ],
+        "connect_s": 0.078831,
+        "guard_ready_s": 0.148785,
+        "close_s": 0.000231,
+        "total_s": 0.149212
+      },
+      {
+        "sample": 2,
+        "variant": "batched",
+        "query_s": [
+          0.02989,
+          0.020766
+        ],
+        "connect_s": 0.077871,
+        "guard_ready_s": 0.128909,
+        "close_s": 0.000264,
+        "total_s": 0.129372
+      },
+      {
+        "sample": 3,
+        "variant": "batched",
+        "query_s": [
+          0.024167,
+          0.021548
+        ],
+        "connect_s": 0.077619,
+        "guard_ready_s": 0.123666,
+        "close_s": 0.000128,
+        "total_s": 0.123901
+      },
+      {
+        "sample": 3,
+        "variant": "baseline",
+        "query_s": [
+          0.025467,
+          0.011803,
+          0.011432,
+          0.021766
+        ],
+        "connect_s": 0.089288,
+        "guard_ready_s": 0.159931,
+        "close_s": 0.000146,
+        "total_s": 0.160259
+      },
+      {
+        "sample": 4,
+        "variant": "baseline",
+        "query_s": [
+          0.025594,
+          0.012149,
+          0.012001,
+          0.024286
+        ],
+        "connect_s": 0.072959,
+        "guard_ready_s": 0.14715,
+        "close_s": 0.000161,
+        "total_s": 0.147442
+      },
+      {
+        "sample": 4,
+        "variant": "batched",
+        "query_s": [
+          0.025364,
+          0.022135
+        ],
+        "connect_s": 0.082772,
+        "guard_ready_s": 0.130449,
+        "close_s": 0.000233,
+        "total_s": 0.130955
+      },
+      {
+        "sample": 5,
+        "variant": "batched",
+        "query_s": [
+          0.023746,
+          0.021227
+        ],
+        "connect_s": 0.090593,
+        "guard_ready_s": 0.1359,
+        "close_s": 0.00023,
+        "total_s": 0.1363
+      },
+      {
+        "sample": 5,
+        "variant": "baseline",
+        "query_s": [
+          0.024848,
+          0.012722,
+          0.010939,
+          0.023145
+        ],
+        "connect_s": 0.079255,
+        "guard_ready_s": 0.151261,
+        "close_s": 0.000298,
+        "total_s": 0.1518
+      }
+    ],
+    "source_sha256": "f23210cf3a45b7e2784824f41fa2e549224e9abeb2977c9bd3dd9145435a41c3",
+    "median_guard_ready_s": {
+      "baseline": 0.155596,
+      "batched": 0.128954
+    }
+  },
+  "guard_actual_patch_comparison": {
+    "measurement": "actual_remote_transactional_guard_with_noop_send",
+    "user_id": "58424a3e-b5ac-4077-8986-e7fd4ae21963",
+    "project_id": "lifetime-7e2131dd-6786-4d10-a373-686b1ac620c3",
+    "model_calls": 0,
+    "rows": [
+      {
+        "sample": 0,
+        "variant": "baseline",
+        "query_s": [
+          0.025781,
+          0.012248,
+          0.011718,
+          0.021732
+        ],
+        "connect_s": 0.103795,
+        "guard_ready_s": 0.175536,
+        "close_s": 0.000151,
+        "total_s": 0.175794
+      },
+      {
+        "sample": 0,
+        "variant": "batched",
+        "query_s": [
+          0.024321,
+          0.024683
+        ],
+        "connect_s": 0.073742,
+        "guard_ready_s": 0.122882,
+        "close_s": 0.000128,
+        "total_s": 0.123114
+      },
+      {
+        "sample": 1,
+        "variant": "batched",
+        "query_s": [
+          0.027198,
+          0.021446
+        ],
+        "connect_s": 0.075964,
+        "guard_ready_s": 0.124734,
+        "close_s": 0.000125,
+        "total_s": 0.124962
+      },
+      {
+        "sample": 1,
+        "variant": "baseline",
+        "query_s": [
+          0.023719,
+          0.013023,
+          0.012211,
+          0.020499
+        ],
+        "connect_s": 0.075299,
+        "guard_ready_s": 0.144894,
+        "close_s": 0.000142,
+        "total_s": 0.145142
+      },
+      {
+        "sample": 2,
+        "variant": "baseline",
+        "query_s": [
+          0.024941,
+          0.012795,
+          0.011462,
+          0.02027
+        ],
+        "connect_s": 0.080044,
+        "guard_ready_s": 0.149644,
+        "close_s": 0.000132,
+        "total_s": 0.149871
+      },
+      {
+        "sample": 2,
+        "variant": "batched",
+        "query_s": [
+          0.024655,
+          0.020593
+        ],
+        "connect_s": 0.069872,
+        "guard_ready_s": 0.115237,
+        "close_s": 0.000141,
+        "total_s": 0.115471
+      },
+      {
+        "sample": 3,
+        "variant": "batched",
+        "query_s": [
+          0.025916,
+          0.021025
+        ],
+        "connect_s": 0.078254,
+        "guard_ready_s": 0.125316,
+        "close_s": 0.000124,
+        "total_s": 0.125527
+      },
+      {
+        "sample": 3,
+        "variant": "baseline",
+        "query_s": [
+          0.024999,
+          0.013219,
+          0.013158,
+          0.020252
+        ],
+        "connect_s": 0.074349,
+        "guard_ready_s": 0.14612,
+        "close_s": 0.000102,
+        "total_s": 0.146343
+      },
+      {
+        "sample": 4,
+        "variant": "baseline",
+        "query_s": [
+          0.024744,
+          0.012311,
+          0.012342,
+          0.020047
+        ],
+        "connect_s": 0.077966,
+        "guard_ready_s": 0.147569,
+        "close_s": 0.000127,
+        "total_s": 0.147785
+      },
+      {
+        "sample": 4,
+        "variant": "batched",
+        "query_s": [
+          0.023909,
+          0.019506
+        ],
+        "connect_s": 0.074607,
+        "guard_ready_s": 0.118132,
+        "close_s": 0.000165,
+        "total_s": 0.11842
+      },
+      {
+        "sample": 5,
+        "variant": "batched",
+        "query_s": [
+          0.029751,
+          0.019719
+        ],
+        "connect_s": 0.076042,
+        "guard_ready_s": 0.125634,
+        "close_s": 0.000156,
+        "total_s": 0.125908
+      },
+      {
+        "sample": 5,
+        "variant": "baseline",
+        "query_s": [
+          0.023193,
+          0.013575,
+          0.012232,
+          0.021735
+        ],
+        "connect_s": 0.075607,
+        "guard_ready_s": 0.146552,
+        "close_s": 0.000119,
+        "total_s": 0.146761
+      }
+    ],
+    "baseline_source_sha256": "f23210cf3a45b7e2784824f41fa2e549224e9abeb2977c9bd3dd9145435a41c3",
+    "candidate_source_sha256": "932c3684207198f5a9ce22b0ca228901c6d73c44411b4f2ce0bfc995399a2696",
+    "median_guard_ready_s": {
+      "baseline": 0.14706049999999998,
+      "batched": 0.123808
+    }
+  },
+  "guard_driver": {
+    "path": "var/profile-publication-20261020.py",
+    "sha256": "70fcd3f3d5b33fb08d85625b6d3e3546adda63ed53033505e76b349254d08782",
+    "tracked": false,
+    "baseline_revision": "37cc655df536b8424399756b1afde1c03ac12e98",
+    "samples_per_arm": 6,
+    "send": "noop",
+    "model_calls": 0
+  },
+  "source_hashes": {
+    "baseline": {
+      "apps/api/lifetime_memory_publication.py": "f23210cf3a45b7e2784824f41fa2e549224e9abeb2977c9bd3dd9145435a41c3",
+      "apps/api/lifetime_memory_activation.py": "467b0d7979f976afb3011951113264ab1a8012b88eb3ffea6ed0b768db46d8f1",
+      "scripts/profile_first_reply.py": "d8046cc0433d46c66e99a1aef838087db133901d78c64dea9150916fc9a60654",
+      "tests/test_first_reply_profiler.py": "6e8a4b73bf2d54f6d4fa425443f11b533d27d436ecf1b577f7a1b87b80f08023",
+      "tests/test_lifetime_publication_setup.py": "a735275f2639ebc3f3b37f99a489b277d01ef93c4fe0d00db1f553b6e7677d46",
+      "tests/test_lifetime_activation_setup.py": "099a3b3961891064b9dc00404e7a0ef01d86adb4466251c13e8ea3ec1a6c3111",
+      "tests/test_lifetime_memory_publication.py": "678cfa9385e57ab60f83c36c665ff2fcab767c0535073e62b81cee88f2687669"
+    },
+    "candidate": {
+      "apps/api/lifetime_memory_publication.py": "932c3684207198f5a9ce22b0ca228901c6d73c44411b4f2ce0bfc995399a2696",
+      "apps/api/lifetime_memory_activation.py": "506897d9a465aa0ec1bfa66dc4755fa3b533b1805d49e9d9cde0154fb4a0cdfa",
+      "scripts/profile_first_reply.py": "8d80437af0b8c0417ff257912bcca93390b5cd876cb39118137132b419f730ac",
+      "tests/test_first_reply_profiler.py": "471df68d02b63b9300c0eb06aa6a616926b7247b031467d79d6f3fc58a11c55c",
+      "tests/test_lifetime_publication_setup.py": "2b550415abb6519605f013cb8f2c85cecfdedfe6fb1380e41560cd461725f2cb",
+      "tests/test_lifetime_activation_setup.py": "064986744ce5588ea37893c4f06aabee22bfd8c22961c81a3189baa8e8b6dc92",
+      "tests/test_lifetime_memory_publication.py": "16f963d89164e484e0f254e0fa15dc9995eea312ff6c84c51f48ab1d699e83c2"
+    }
+  },
+  "verification": {
+    "isolated_base": "37cc655df536b8424399756b1afde1c03ac12e98",
+    "isolated_command": "python3 -m pytest -q tests/test_lifetime_publication_setup.py tests/test_lifetime_activation_setup.py tests/test_lifetime_realtime_clearance.py tests/test_lifetime_memory_transport.py tests/test_first_reply_profiler.py tests/test_lifetime_memory_publication.py tests/test_conversation_milestones.py tests/test_lifetime_memory_runtime.py tests/test_lifetime_policy_engine.py tests/test_lifetime_outer_publication.py tests/test_interview_strategy.py --tb=short -x",
+    "isolated_result": "178 passed in 79.24s",
+    "current_focused_command": "python3 -m pytest -q tests/test_lifetime_publication_setup.py tests/test_lifetime_activation_setup.py::test_activation_setup_can_wait_briefly_but_still_rejects_unavailable_authority tests/test_lifetime_memory_transport.py tests/test_first_reply_profiler.py --tb=short",
+    "current_focused_result": "43 passed in 5.37s",
+    "current_initial_mixed_result": "44 passed, 23 failed; invalid background-memory.md receipt",
+    "current_broader_result": "53 passed, 62 failed, 3 warnings; interrupted after 85.25s",
+    "current_broader_blocker": "Existing unpublished background-memory.md causes failed fresh imports and downstream stream failures; no full current-branch pass is claimed",
+    "preexisting_prompt_artifact": {
+      "path": "skills/memoir-interviewer/prompts/background-memory.md",
+      "content_sha256": "ecfdd4445927cb6b405b0b4aa0085c0a1721ed13b02c0df283454d36a3d6861d",
+      "published_receipt": {
+        "name": "memoir/skills/memoir-interviewer/background-memory",
+        "version": 1,
+        "sha256": "0f7eabd9480847aefc73c4799e498fd744d50272a8db17284cae16409ac8de91"
+      }
+    }
+  },
+  "limitations": [
+    "Four HTTP samples cannot estimate production percentiles or semantic quality",
+    "No live end-to-end candidate A/B",
+    "No change to model, prompts, reasoning settings, validation or retry policy",
+    "No shared service restart or deployment",
+    "Mounted file hashes cannot attest already-imported Python code",
+    "Uncorrelated rejection warning lines cannot prove the exact cause of the story retry"
+  ],
+  "retained_synthetic_accounts": 6
+}

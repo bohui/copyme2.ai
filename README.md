@@ -348,16 +348,23 @@ and project:
 
 ```sh
 python3 scripts/profile_first_reply.py first-turn --origin http://localhost:3010 --timeout 120
+python3 scripts/profile_first_reply.py first-turn --language en-AU --case story --origin http://localhost:3010 --timeout 120
 ```
 
 Use `--origin http://localhost:8010` to measure the API directly, without the web proxy.
-This sends one synthetic introduction through the configured model and saves the
-test conversation. JSON output includes response headers, first nonempty text,
+Each invocation sends one synthetic introduction through the configured model
+and saves the test conversation. `--language en-AU|zh-CN` selects its language;
+`--case name|story` selects a name-only or story-rich opening. Defaults retain
+the original Chinese name-only probe. JSON output includes the case, language,
+response headers, first nonempty text,
 reply completion, and conversation-save timings, without reply text or credentials.
 Timing starts when the turn request is sent, after signup and project creation.
 The account/project identifiers are printed for later cleanup. Browser paint is
 not measured. `scripts/profile_canonical_controlled.py` remains available for
 controlled backend measurements with a simulated model.
+See the [20 October measurements](docs/collector-latency-rollout.md#current-runtime-profile--20-october-2026)
+for the measured worker retry tail and a database setup optimization that keeps
+the current prompts, models and validation.
 
 ### Versioned prompt artifacts
 
