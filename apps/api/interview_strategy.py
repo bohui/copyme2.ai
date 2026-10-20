@@ -173,12 +173,34 @@ def _direct_narrator_text(text):
     return '\n'.join(direct)
 
 
+_NEGATED_TOPIC_PREFIX = re.compile(
+    r'(?:暂时不|并不|不太|不大|不再|不是(?:很)?|不怎么|不一定|未必|无意|不要|'
+    r'从不|没(?:有|怎么)?|未|不想|不|别|'
+    r"(?:do not|don't|don’t|does not|doesn't|doesn’t|did not|didn't|didn’t|"
+    r"would not|wouldn't|wouldn’t)"
+    r'\s+(?:really\s+)?want\s+to|not\s+trying\s+to)\s*$', re.IGNORECASE)
+
+_TOPIC_REDIRECT = re.compile(
+    r"let[’']s\s+(?:talk|discuss)|change\s+(?:the\s+)?(?:subject|topic)|"
+    r'换个话题|改变话题|想(?:要)?(?:再)?(?:聊|谈|說|说)|想(?:要)?换个话题', re.IGNORECASE)
+
+
+def _positive_topic_redirect(text):
+    """Match a direct topic redirect without its negated forms."""
+    for match in _TOPIC_REDIRECT.finditer(text):
+        if _NEGATED_TOPIC_PREFIX.search(text[:match.start()]):
+            continue
+        return True
+    return False
+
+
 def current_constraints(text):
     value = _direct_narrator_text(text)
     if re.search(r'\b(?:not today|stop here|pause here|finished today)\b|今天不聊|今天先到这里|先停一停',value,re.I):return {'no_question':True}
     if re.search(r'(?m)^\s*(?:(?:please\s+)?stop(?:\s+(?:now|the interview|asking questions))?|no more questions(?:\s+(?:please|today|for now))?|(?:请|請)?(?:停一下|停止提问|停止提問|不要再问了|不要再問了|别再问了|別再問了))\s*[.!?。！？;；]*\s*$',value,re.I):
         return {'no_question':True}
-    if re.search(r"let[’']s (?:talk|discuss)|change (?:the )?(?:subject|topic)|换个话题|(?<!不)想聊",value,re.I):return {'override':'user_redirect'}
+    if _positive_topic_redirect(value):
+        return {'override':'user_redirect'}
     if re.search(r'\b(?:I meant|got that wrong|correction)\b|(?:我(?:说|說)错)|更正',value,re.I):return {'override':'current_correction'}
     if re.search(r'\b(?:lighter question|keep it gentle|take it slowly)\b|轻松|慢慢聊',value,re.I):return {'override':'pacing'}
     return {}

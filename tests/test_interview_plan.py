@@ -63,6 +63,7 @@ def test_unpunctuated_acknowledgement_questions_are_withheld_before_validation(a
 
 @pytest.mark.parametrize('acknowledgement', [
     '您想起了那段日子呢。', '您想从哪段说起都可以。',
+    '您想起什么都可以慢慢说呢。', '您想起哪段经历都很珍贵呢。',
     'What you remember matters.', 'We can pause here.',
 ])
 def test_statement_acknowledgements_remain_visible(acknowledgement):
@@ -76,6 +77,10 @@ def test_statement_acknowledgements_remain_visible(acknowledgement):
     ('My older sister walked to school with me.', '和姐姐一起走路上学，是一段共同的校园记忆。', True),
     ('My sister is older than me.', '和姐姐一起走路上学，是一段共同的校园记忆。', True),
     ('My sister was younger than me.', '和妹妹一起走路上学，是一段共同的校园记忆。', True),
+    ('My sister is three years older than me.', '和姐姐一起走路上学，是一段共同的校园记忆。', True),
+    ('My brother was 2 years younger than me.', '和弟弟一起走路上学，是一段共同的校园记忆。', True),
+    ('I am ten years younger than my sister.', '和姐姐一起走路上学，是一段共同的校园记忆。', True),
+    ('My sister is older by three years.', '和姐姐一起走路上学，是一段共同的校园记忆。', True),
     ('My sister walked to school with me.', '和姐姐一起走路上学，是一段共同的校园记忆。', False),
 ])
 def test_chinese_translation_cannot_add_sibling_age(source, acknowledgement, allowed):
@@ -95,6 +100,22 @@ def test_chinese_translation_cannot_add_sibling_age(source, acknowledgement, all
     else:
         with pytest.raises(ValueError, match=TRANSLATION_GROUNDING_ERROR):
             validate_collector_result(p, context)
+
+
+def test_work_guidance_distinguishes_exchange_stop_from_temporary_topic_pause():
+    from apps.api.interview_plan import TurnWorkPlan
+    from apps.api.prompt_artifact import prompt_path
+
+    description = TurnWorkPlan.model_fields['mode'].description
+    shared = prompt_path('memoir/skills/memoir-interviewer/guidance').read_text(encoding='utf-8')
+    collector = prompt_path('memoir/skills/memoir-interviewer/collector-plan').read_text(encoding='utf-8')
+    selector = prompt_path('memoir/skills/memoir-interviewer/strategy/selection').read_text(encoding='utf-8')
+    for guidance in (description, shared, collector, selector):
+        assert ('stopping today' in guidance.lower()
+                or 'stopping the entire exchange today' in guidance.lower()
+                or 'stop for today' in guidance.lower())
+        assert 'named topic' in guidance.lower() or 'specific topic' in guidance.lower()
+        assert 'extract' in guidance.lower()
 
 
 @pytest.mark.parametrize('mutation', ['foreign_photo','foreign_event','wrong_source_version','fabricated_quote','pixels_not_seen','extra_question','missing_chosen','duplicate_question','too_many','unfounded_year'])

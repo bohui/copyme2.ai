@@ -57,17 +57,29 @@ class QuestionContext(StrictModel):
 
 
 TRANSLATION_GROUNDING = ('Preserve unspecified relationships when translating: sister alone does not '
-    'establish older/younger (姐姐/妹妹); use neutral wording rather than adding that detail.')
+    'establish older/younger (姐姐/妹妹); use neutral wording rather than adding that detail. '
+    'An explicit comparison, including a quantified age difference, may be translated faithfully.')
 TRANSLATION_GROUNDING_ERROR = (
     'Translation adds an unspecified sibling age; use a neutral sibling term unless the current source '
     'explicitly states older or younger.')
 
 _SIBLING_SOURCE_PATTERN = re.compile(r'\b(?:sister|brother)\b', re.IGNORECASE)
+_SIBLING_AGE_QUANTITY = (
+    r'(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|'
+    r'a\s+few|several)')
 _EXPLICIT_SIBLING_AGE_PATTERN = re.compile(
     r'\b(?:older|elder|big|younger|little)\s+(?:sister|brother)s?\b'
     r'|\b(?:sister|brother)s?\s+(?:who\s+is\s+)?(?:older|elder|younger|little)\b'
     r'|\b(?:sister|brother)s?\s+(?:is|was|has\s+been|had\s+been)\s+'
-    r'(?:much\s+)?(?:older|elder|younger|little)\b',
+    r'(?:much\s+)?(?:older|elder|younger|little)\b'
+    rf'|\b(?:sister|brother)s?\b[^.!?]{{0,60}}\b{_SIBLING_AGE_QUANTITY}'
+    r'\s+(?:years?|yrs?)\s+(?:older|elder|younger|junior|senior)\b'
+    rf'|\b{_SIBLING_AGE_QUANTITY}\s+(?:years?|yrs?)\s+'
+    r'(?:older|elder|younger|junior|senior)\b[^.!?]{0,60}'
+    r'\b(?:sister|brother)s?\b'
+    rf'|\b(?:sister|brother)s?\b[^.!?]{{0,60}}\b'
+    r'(?:older|elder|younger|junior|senior)\s+by\s+'
+    rf'{_SIBLING_AGE_QUANTITY}\s+(?:years?|yrs?)\b',
     re.IGNORECASE)
 _AGE_SPECIFIC_SIBLING_TRANSLATION = re.compile(
     r'(?:姐姐|妹妹|姊姊|大姐|小妹|哥哥|弟弟|兄长|大哥|小弟)')
@@ -107,7 +119,7 @@ class QuestionCandidate(StrictModel):
 
 class TurnWorkPlan(StrictModel):
     mode: Literal['reply_only', 'extract'] = Field(description=
-        'Decide from new information in the ENTIRE CURRENT message, not earlier story details. Use reply_only for a name-only introduction, greeting, farewell, or conversational pause/stop without new story facts. Current distress about recounting alone (such as 这让我难受) is reply_only, not a new life event. Stopping today (今天就到这里 or 先停一下) is conversational control, not a lasting topic exclusion. Do not re-extract earlier memories on a pause. Use extract for new memory clues, corrections, lasting topic/privacy exclusions, language/profile changes, or photo discussion. If new story facts precede a stop, use extract while stopped=true with no question.')
+        'Decide from new information in the ENTIRE CURRENT message, not earlier story details. Use reply_only for a name-only introduction, greeting, farewell, or a conversational pause/stop without new story facts. Current distress about recounting alone (such as 这让我难受) is reply_only, not a new life event. Stopping the entire exchange today (今天就到这里 or 先停一下) is conversational control, not a lasting topic exclusion. Setting aside a named topic temporarily (such as 先不聊厨房 or set the kitchen aside for now) is a topic/privacy update and requires extract. Do not re-extract earlier memories on a whole-exchange pause. Use extract for new memory clues, corrections, topic/privacy exclusions or pauses, language/profile changes, or photo discussion. If new story facts precede a stop, use extract while stopped=true with no question.')
     name: str | None = Field(max_length=120)
 
 
@@ -199,6 +211,11 @@ def _acknowledgement_has_question(value):
         direct=re.search(r'(?:^|[，,])\s*(?:那(?:么)?[，,]?\s*)?(?:您|你)(?:现在|当时|还|更|最|先|通常)*(?:想|愿意|希望|记得|觉得|知道|会|能|可以)',text)
         if direct and (text.endswith('吗') or (text.endswith('呢')
                 and re.search(r'哪|谁|什么|怎么|如何|为何|为什么|是否',text))):
+            # Indefinite constructions such as “什么都可以” and “哪段经历
+            # 都很珍贵” are declarative reassurance, even when they end in
+            # the sentence-final 呢. They do not ask the narrator to choose.
+            if re.search(r'(?:哪|谁|什么|怎么|如何)[^。.!！?？]*?(?:都|也|可以|能够|能|无论)', text):
+                continue
             return True
     return False
 

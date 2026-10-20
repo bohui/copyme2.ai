@@ -152,3 +152,30 @@ def test_topic_exclusion_before_a_positive_redirect_keeps_the_new_followup():
         selection_reason='user_redirect',work={'mode':'extract','name':None}),c)
     assert result['plan']['candidates'][0]['question']=='您想先聊花园里的哪件事？'
     assert result['continuity_updates'][0]['data']['source_refs'][0]['quote']=='我不想聊厨房'
+
+
+@pytest.mark.parametrize('text', [
+    '我不太想聊厨房。',
+    '我暂时不想聊厨房。',
+    '我并不想聊厨房。',
+    '我没想聊厨房。',
+    '我不想再聊厨房。',
+    '我不怎么想聊厨房。',
+    '我未必想聊厨房。',
+    '我不一定想聊厨房。',
+    '我不是很想聊厨房。',
+    '我不想换个话题。',
+    'I do not want to change the topic.',
+    'I don’t want to change the subject.',
+    '我不愿意聊厨房。',
+])
+def test_negative_adverbs_never_become_positive_topic_redirects(text):
+    from apps.api.interview_strategy import current_constraints
+
+    assert current_constraints(text) != {'override': 'user_redirect'}
+
+
+def test_negative_topic_followed_by_positive_redirect_still_uses_positive_redirect():
+    from apps.api.interview_strategy import current_constraints
+
+    assert current_constraints('我不太想聊厨房。我想聊花园。') == {'override': 'user_redirect'}
