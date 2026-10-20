@@ -56,8 +56,13 @@ class QuestionContext(StrictModel):
         'Null only when no referenced narrator passage is available; unanchored wording cannot consume another hint.'))
 
 
+TRANSLATION_GROUNDING = ('Preserve unspecified relationships when translating: sister alone does not '
+    'establish older/younger (姐姐/妹妹); use neutral wording rather than adding that detail.')
+
+
 QUESTION_DESCRIPTION = ('One answerable follow-up grounded in the narrator’s facts and current focus. '
-    'Match the requested pace; when distressed, offer skip/continue without probing painful details.')
+    'Match the requested pace; when distressed, offer skip/continue without probing painful details. '
+    + TRANSLATION_GROUNDING)
 
 
 class QuestionCandidate(StrictModel):
@@ -101,7 +106,8 @@ class PhotoAssociation(StrictModel):
 ACKNOWLEDGEMENT_DESCRIPTION = (
     'A brief statement using only the narrator’s stated facts or intent. Do not add assumed '
     'times, relationships or events. Do not ask or invite a question here, '
-    'including a question without a question mark. Put the single chosen question in the question/plan fields.')
+    'including a question without a question mark. Put the single chosen question in the question/plan fields. '
+    + TRANSLATION_GROUNDING)
 
 
 class CollectorResult(StrictModel):
