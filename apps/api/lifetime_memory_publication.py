@@ -48,9 +48,10 @@ class TransactionalPublication:
             try:
                 async with asyncio.timeout(self.lock_timeout):
                     connection = await AsyncConnection.connect(self._dsn, connect_timeout=2)
-                    await connection.execute('set local role authenticated')
-                    await connection.execute("select set_config('request.jwt.claim.sub',%s,true)", (str(self.owner),))
-                    await connection.execute("select set_config('lock_timeout',%s,true)", (f'{int(self.lock_timeout*1000)}ms',))
+                    # Apply transaction-local settings in one database round trip.
+                    await connection.execute("select set_config('role','authenticated',true),"
+                        "set_config('request.jwt.claim.sub',%s,true),set_config('lock_timeout',%s,true)",
+                        (str(self.owner), f'{int(self.lock_timeout*1000)}ms'))
                     lease_started = asyncio.get_running_loop().time()
                     result = await connection.execute('select public.lock_lifetime_publication(%s)', (Jsonb(snapshot),))
                     remaining = float((await result.fetchone())[0])

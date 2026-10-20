@@ -95,6 +95,30 @@ def test_owner_and_snapshot_are_not_supplied_by_the_client(sql):
     asyncio.run(scenario())
 
 
+def test_batched_settings_keep_the_authenticated_owner_and_local_lock_timeout(sql, monkeypatch):
+    import psycopg
+    _, _, fence, dsn = setup(sql)
+    connections = []
+    original_connect = psycopg.AsyncConnection.connect
+
+    async def connect(*args, **kwargs):
+        connection = await original_connect(*args, **kwargs)
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(psycopg.AsyncConnection, 'connect', connect)
+
+    async def scenario():
+        publisher = TransactionalPublication(dsn, authenticated_owner=OWNER)
+        async with publisher.guard(fence):
+            result = await connections[-1].execute("select current_user,"
+                "current_setting('request.jwt.claim.sub'),current_setting('lock_timeout')")
+            assert await result.fetchone() == ('authenticated', OWNER, '5s')
+        assert connections[-1].closed
+
+    asyncio.run(scenario())
+
+
 def test_direct_preference_write_and_project_first_acceptance_do_not_deadlock(sql):
     import psycopg
     identity,source,fence,dsn = setup(sql)

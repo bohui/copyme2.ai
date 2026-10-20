@@ -53,9 +53,9 @@ class ActivationPublication:
             try:
                 async with asyncio.timeout(self.lock_timeout):
                     connection=await AsyncConnection.connect(self._dsn,connect_timeout=2)
-                    await connection.execute('set local role authenticated')
-                    await connection.execute("select set_config('request.jwt.claim.sub',%s,true)",(str(self._owner),))
-                    await connection.execute("select set_config('lock_timeout',%s,true)",(f'{int(self.lock_timeout*1000)}ms',))
+                    await connection.execute("select set_config('role','authenticated',true),"
+                        "set_config('request.jwt.claim.sub',%s,true),set_config('lock_timeout',%s,true)",
+                        (str(self._owner), f'{int(self.lock_timeout*1000)}ms'))
                     await self._lock(connection)
             except (Error, TimeoutError):
                 raise CanonicalActivationUnavailable() from None
