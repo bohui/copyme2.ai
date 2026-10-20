@@ -95,16 +95,11 @@ def pending_confirmation(context):
                  if q.get('requires_confirmation') is True), None)
 
 
-def prioritize_confirmation(value, context):
-    """The persisted B queue owns the next question; narrator controls still win."""
+def prioritize_confirmation(value, context, *, selection_reason):
+    """Prioritize B only after validating the original plan and current intent."""
     question = pending_confirmation(context)
-    if not question or value.get('stopped') or (context.get('strategy_selector') and value.get('question') is None):
+    if not question or value['stopped'] or selection_reason in {'current_correction', 'user_redirect', 'pacing'}:
         return value
-    if context.get('strategy_selector'):
-        if value.get('selection_reason') in {'current_correction', 'user_redirect', 'pacing', 'pause', 'direct_answer'}:
-            return value
-        return {**value, 'question': question['question'], 'selected_candidate_id': question['id'],
-                'selection_reason': 'prepared_candidate'}
     return {**value, 'plan': {**value['plan'], 'chosen_id': question['id'], 'active_event_id': None,
         'candidates': [{'id': question['id'], 'question': question['question'], 'order': 0, 'bridge': '',
                         'context': {'event_id': None, 'photo_id': None, 'life_stage': None, 'year': None}}]}}

@@ -116,7 +116,7 @@ def selector_schema(context=None):
         'One immediate question, or null. Null requires selection_reason pause or direct_answer '
         'and selected_candidate_id null.')
     schema['properties']['selection_reason']['description']=(
-        'Use pause or direct_answer when question is null. A direct acknowledgement of a narrator '
+        'Use pause or direct_answer only when question is null. A direct acknowledgement of a narrator '
         'instruction without a follow-up uses direct_answer. Prepared/adapted requires a current candidate ID.')
     if not identities:
         schema['properties']['selection_reason']['enum']=[reason for reason in
@@ -187,6 +187,8 @@ def adapt_selection(raw,context):
     if item.question is not None and (not item.question.strip() or item.question.count('?')+item.question.count('？')>1):
         raise ValueError('Only one immediate question is allowed')
     if item.stopped and item.question is not None:raise ValueError('A stop cannot force a question')
+    if item.selection_reason in {'pause','direct_answer'} and item.question is not None:
+        raise ValueError('A pause or direct answer requires no question')
     if constraints.get('no_question') and item.question is not None:raise ValueError('Current pause requires no question')
     if constraints.get('override') and not direct_question(context) and not item.stopped:
         if item.question is None or item.selection_reason != constraints['override']:

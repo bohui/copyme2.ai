@@ -353,6 +353,7 @@ def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_d
     def provider(request):
         body=json.loads(request.content);context=body['interview_context'];packets.append(json.loads(body['governed']['packet']))
         output=proposal(mode='extract',name=None,question=QUESTION['question'])
+        output['selection_reason']='latest_story'
         output['plan']['conversation_phase']='explore'
         if len(packets)>1:
             assert context['prepared_questions'][0]['source_id']==packets[0]['current']['narrator']['source_id']

@@ -10,8 +10,9 @@ Return acknowledgement, zero or one immediate question, selected_candidate_id or
 null, selection_reason, used_strategy and work.mode/work.name.
 When question is null, selected_candidate_id must be null and selection_reason
 must be "pause" or "direct_answer". Use "direct_answer" for the narrator's own
-question or an administrative request that needs no interview follow-up. A request
-for slower pacing still needs one short, easy question, with reason "pacing".
+question or an administrative request that needs no interview follow-up. Use a
+nonterminal reason for a non-null question. A request for slower pacing still
+needs one short, easy question, with reason "pacing".
 A correction normally needs a brief acknowledgement and one useful question using
 the corrected fact, with reason "current_correction". Do not merely promise to ask
 a question later. An uncertain date, caption-only discussion or rejection of a
