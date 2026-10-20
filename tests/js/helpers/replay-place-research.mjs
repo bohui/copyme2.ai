@@ -179,6 +179,22 @@ assert.match(workspace,/workspace-media-overview/);
 assert.doesNotMatch(workspace,/private-draft-status|retry-private-draft|data-draft-locale/,
   'A real pending/failed draft response must not add draft controls to the place/photo workspace');
 
+for (const name of ['workspaceContentAvailable','workspaceHasContent','workspaceIsVisible']) {
+  vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
+}
+Object.assign(context,{placeWorkspaceSelection:places.placeWorkspaceSelection,placeMapTarget:places.placeMapTarget});
+state.workspaceCollapsed=false;
+assert.equal(context.workspaceIsVisible(),true);
+const previousSelection=places.placeWorkspaceSelection();
+const unknown={place:'未确定地点',hierarchy:['Earth','未确定地点'],granularity:'suburb',preview:true};
+state.placeJourney=unknown;state.selectedPlace=placeHistoryKey(unknown);
+assert.equal(context.workspaceIsVisible(),true,'A later failed lookup must not close an activated workspace');
+assert.equal(places.placeWorkspaceSelection().place,previousSelection.place,'Keep the last authorized map and photos');
+assert.match(context.workspaceDetail(),/workspace-media-overview/);
+state.workspaceCollapsed=true;
+assert.equal(context.workspaceIsVisible(),false,'The narrator can still collapse the workspace');
+state.workspaceCollapsed=false;
+
 const chengde=state.project.profile.memory_places.find(place=>place.place==='承德市');
 state.project.profile.memory_places=[chengde];state.placeJourney=chengde;
 state.selectedPlace=placeHistoryKey(chengde);state.lifeStage='all';

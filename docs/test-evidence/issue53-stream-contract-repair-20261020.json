@@ -1,0 +1,726 @@
+{
+  "scope": "PR97 independent-review repair: native completion DTO, truncated web EOF and bound ordered profiler receipts",
+  "supersedes_initial_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+  "client_date": "2026-10-20",
+  "client_timezone": "Australia/Sydney",
+  "dependency": {
+    "pr": 96,
+    "head": "8315df3e7876374f699ac0ab07b8481659660606",
+    "unchanged": true,
+    "state_at_check": "merged",
+    "merge_commit": "f185c1c5bba7cbed7030c59944be103ca7a17490"
+  },
+  "latest_main": "f185c1c5bba7cbed7030c59944be103ca7a17490",
+  "files_sha256": {
+    "apps/api/lifetime_memory_runtime.py": "66771379f54e030caf384b9b87200a33929378c1f86c9718ba4e93ebc96eaf1d",
+    "apps/web/client/memoir/client.js": "109ef2f50b2c89fa536c5bd5aa7e7b53b1c99bfc522c3ba71ba76e40b0441422",
+    "docs/issue53-response-sequences.md": "4060fbb81beb7fc5a909d172e8aa0842aefd65d7c6a4e8e105ebc3bef01d349e",
+    "scripts/issue53_profile_sequences.py": "8f5e0aa6fb9d9a31a63c777d2f5390edec6953393ce70a6cff364a37329c7442",
+    "scripts/issue53_sequence_application.py": "b58c4b89824107175ce698c8616576f21f8a219d3447dbc8f357b5c3ed9f37f3",
+    "tests/js/live-trace.test.mjs": "10478852a9feff695f80a7f877db3b2b507a97d09864db594678928a428aee41",
+    "tests/mobile-domain/helpers/consume-governed-stream.mts": "2a5fe1ff8e036fc64a6bb544138fd64ab2d2011037260feb7d2099647307b9b2",
+    "tests/test_conversation_milestones.py": "5e07508a08053ed674b90a3f41e66b47f7562a1437114bc89d67af4ff0787854",
+    "tests/test_issue53_offline_coverage.py": "98188b76e1778a26aef64459ee5fe1a0caa55b9f481f7068c43ff417bdbd932d",
+    "tests/test_issue53_sequence_application.py": "9c594f66ba864dd92553fa52e616cd35bc24990436f70015148a267d4534b255",
+    "tests/test_lifetime_memory_runtime.py": "ae24480f8a14083141dc2a46e241ead823ce4084d22ec297bb3d42725e608949"
+  },
+  "unchanged_consumer_contract_sha256": {
+    "packages/contracts/src/index.ts": "46ac15bfe137a221c7463e7bdd406d849ab654d24611fd5746c85ee10345f1f2",
+    "packages/api-client/src/index.ts": "684636ea2de5ac9b1f4cba8990ab039904db888068c46747ed73a2c5c52efd5b",
+    "packages/api-client/src/ndjson.ts": "555105ea9bd33fbbe08e98b45532a70869f5ef6f90f7a7940966020470c49282",
+    "packages/memoir-domain/src/turn.ts": "81112db36104b407ca234a266bef45bdaa1a8ca75e8eeb6f5b12baf578443ef1"
+  },
+  "checks": [
+    {
+      "name": "consumer-profiler-red",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-red",
+        "tests/test_issue53_sequence_application.py",
+        "-k",
+        "captured_native_streams or resealed_early_completion"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 1,
+      "summary": [
+        "5 failed, 34 deselected in 27.40s"
+      ],
+      "duration_seconds": 27.71,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/consumer-profiler-red.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/consumer-profiler-red.log",
+      "receipt_sha256": "8555c3dad4f3119f067ef25a160b6421b6172b963a52b6267d80a9e6ff89456b",
+      "log_sha256": "d9be55487d8d23ac426a875de5b696c93134e6773e83a8faa5ab63062d6d5c35"
+    },
+    {
+      "name": "web-eof-red",
+      "command": [
+        "node",
+        "--test",
+        "--test-name-pattern",
+        "without a save or terminal receipt",
+        "tests/js/live-trace.test.mjs"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 1,
+      "summary": [
+        "ℹ tests 3",
+        "ℹ pass 0",
+        "ℹ fail 3"
+      ],
+      "duration_seconds": 0.14,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/web-eof-red.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/web-eof-red.log",
+      "receipt_sha256": "4c20998843b9cda6d66cc745b158cbf28f01f358c3fdafb724376658b44780b3",
+      "log_sha256": "1aa9c053cd5d1e8cf4b980069ec34644d353a8a1959eac21fc847a8bb53a3fbc"
+    },
+    {
+      "name": "consumers-profiler-green",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-green",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_conversation_milestones.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "tests/test_lifetime_memory_transport.py"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 1,
+      "summary": [
+        "1 failed, 123 passed in 52.98s"
+      ],
+      "duration_seconds": 53.54,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/consumers-profiler-green.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/consumers-profiler-green.log",
+      "receipt_sha256": "52ba8d4060c8607f7066f9b62aa061e10481de3ec7e4e7bf9a6c1ea0bf33bf87",
+      "log_sha256": "f5a44453805eb932b6197f2147fd75b0ed6733f5b18aca7abf96136756037f00"
+    },
+    {
+      "name": "web-native-green",
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "tests/js/live-trace.test.mjs",
+        "tests/mobile-domain/api.test.ts",
+        "tests/mobile-domain/domain.test.ts"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 0,
+      "summary": [
+        "ℹ tests 36",
+        "ℹ pass 36",
+        "ℹ fail 0"
+      ],
+      "duration_seconds": 0.39,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/web-native-green.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/web-native-green.log",
+      "receipt_sha256": "a232184f019c12026220f338a088109f3a1023526e22f296c921d56c5dbdfb12",
+      "log_sha256": "0dbb772d80dd839637deb13ebf78dbd6a1a2793ad6d97b190b520387be04f515"
+    },
+    {
+      "name": "focused-final",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-focused",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_saved_plan.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py",
+        "tests/test_conversation_milestones.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "tests/test_lifetime_memory_transport.py",
+        "tests/test_interview_strategy_runtime.py",
+        "tests/test_two_lane_memory.py::test_actual_ndjson_a_is_saved_while_b_provider_is_blocked_or_failed[failed]"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 0,
+      "summary": [
+        "232 passed in 130.61s (0:02:10)"
+      ],
+      "duration_seconds": 131.35,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/focused-final.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/focused-final.log",
+      "receipt_sha256": "95b1b6baeb4ed9acbae176a1b328e5320c1c03c74031adc976ca86ea42bd4253",
+      "log_sha256": "d52f46099b5ceecba76bc11a382aab434ba65d15183b060403ac6d8d87668a89"
+    },
+    {
+      "name": "matrix-en-AU",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=en-AU",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-matrix-en-AU",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 0,
+      "summary": [
+        "10 passed, 8 deselected in 107.69s (0:01:47)"
+      ],
+      "duration_seconds": 108.16,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/matrix-en-AU.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/matrix-en-AU.log",
+      "receipt_sha256": "4f4e75f9358500f16ea6228df81e3402ee3f865b834d2044ff1e9937d58f6076",
+      "log_sha256": "5b12ae47c856af81f4c887df4e987281fd37556a778598e6297ece7115000b70"
+    },
+    {
+      "name": "matrix-zh-CN",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=zh-CN",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-matrix-zh-CN",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 0,
+      "summary": [
+        "10 passed, 8 deselected in 108.31s (0:01:48)"
+      ],
+      "duration_seconds": 108.71,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/matrix-zh-CN.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/matrix-zh-CN.log",
+      "receipt_sha256": "556ee8eba668ac2017cda05fe4fcfa44260e0a9e05272c18f3b5db4fba237aa7",
+      "log_sha256": "d3e3d23306f2dabbc6b5471cf77ca1cde004314437efefc4234965b4fed03bdb"
+    },
+    {
+      "name": "place-research-final",
+      "command": [
+        "env",
+        "NODE_PATH=/workspace/copyme2.ai/apps/web/node_modules",
+        "PYTEST_ADDOPTS=--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-place",
+        "make",
+        "test-place-research"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 0,
+      "summary": [
+        "ℹ pass 587",
+        "ℹ fail 0",
+        "384 passed in 16.10s",
+        "Ran 95 tests in 0.284s",
+        "OK"
+      ],
+      "duration_seconds": 25.7,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/place-research-final.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/place-research-final.log",
+      "receipt_sha256": "1e598824f273f5f12a38b1faf6438e5468064ecf152091c70eed6cd53729928e",
+      "log_sha256": "71a525740bd03ef53b4d3baa92ad4baa7c573cf9e6dcdf8d0418cefc01b0babf"
+    },
+    {
+      "name": "faults-final",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-faults",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "negative_streams"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 0,
+      "summary": [
+        "8 passed, 10 deselected in 104.20s (0:01:44)"
+      ],
+      "duration_seconds": 104.64,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/faults-final.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/faults-final.log",
+      "receipt_sha256": "f1a996713deae99edd191232056cdcc608fd172b55c10a93c505acb2ecba0503",
+      "log_sha256": "ca1d456db563923fcc0cda412ce753e4c10f0e7dcc193685db6b8f1ea1841d94"
+    },
+    {
+      "name": "integration-final",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-integration",
+        "tests/test_conversation_milestones.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "-k",
+        "commit_barrier or disconnect_does or real_governed_http_save_cold or streamed_language_directive"
+      ],
+      "base_head": "7d12641357b69ef767a49e171cc188e23a039c72",
+      "head_tree_at_launch": "fe9d51a41d2200af611ce5cf2d7a5effacbe69da",
+      "exit_code": 0,
+      "summary": [
+        "10 passed, 23 deselected in 15.59s"
+      ],
+      "duration_seconds": 16.21,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/integration-final.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/integration-final.log",
+      "receipt_sha256": "89655c3a0e60cbdb96117127f6bdb85c8840b514b5244f54b1d13d8d9a8562ce",
+      "log_sha256": "2691d86f3cf922a49e795bac065b2606c5038366e313b888f91b04e323b4c960"
+    },
+    {
+      "name": "integration-web-native",
+      "command": [
+        "node",
+        "--import",
+        "tsx",
+        "--test",
+        "tests/js/live-trace.test.mjs",
+        "tests/mobile-domain/api.test.ts",
+        "tests/mobile-domain/domain.test.ts"
+      ],
+      "base_head": "7d12641357b69ef767a49e171cc188e23a039c72",
+      "head_tree_at_launch": "fe9d51a41d2200af611ce5cf2d7a5effacbe69da",
+      "exit_code": 0,
+      "summary": [
+        "ℹ tests 36",
+        "ℹ pass 36",
+        "ℹ fail 0"
+      ],
+      "duration_seconds": 0.39,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/integration-web-native.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/integration-web-native.log",
+      "receipt_sha256": "984b92a1d2e2159cd51f1d770bb185ae41e66e7a547ad0082b9e0d511bbb3844",
+      "log_sha256": "158e76f9c79c309cce8e1fc97e8039c04f6fbeda9e921c8cc7f17de62e69a52c"
+    },
+    {
+      "name": "replay-prerequisite-red",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-prerequisite-red",
+        "tests/test_issue53_sequence_application.py",
+        "-k",
+        "missing_saved_replay_prerequisite"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 1,
+      "summary": [
+        "1 failed, 60 deselected in 14.25s"
+      ],
+      "duration_seconds": 14.6,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/replay-prerequisite-red.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/replay-prerequisite-red.log",
+      "receipt_sha256": "f51d0161b647b3717f06bd0e1fd58a2fa79aa5c5214206b730dab1110df1d35f",
+      "log_sha256": "414391f79fbb10ea1fb2e262df71009a89efb347f1f2eb8f791bd11f77ae6a5b"
+    },
+    {
+      "name": "final-source-focused",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-final-focused",
+        "tests/test_issue53_sequence_application.py",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_saved_plan.py",
+        "tests/test_first_reply_profiler.py",
+        "tests/test_skill_eval_interviewer.py",
+        "tests/test_skill_eval_receipt_replay.py",
+        "tests/test_conversation_milestones.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "tests/test_lifetime_memory_transport.py",
+        "tests/test_interview_strategy_runtime.py",
+        "tests/test_two_lane_memory.py::test_actual_ndjson_a_is_saved_while_b_provider_is_blocked_or_failed[failed]"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 0,
+      "summary": [
+        "233 passed in 131.72s (0:02:11)"
+      ],
+      "duration_seconds": 132.34,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/final-source-focused.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/final-source-focused.log",
+      "receipt_sha256": "0d7455c2d8a508f946a3ad88512e8397c9b2745366f1837bbbd06bb647082265",
+      "log_sha256": "9aeb3c32043d80a62c27c65ab43e68e430f501dca731551b90bcd3a278cb3067"
+    },
+    {
+      "name": "final-source-en-AU",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=en-AU",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-final-en-AU",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 0,
+      "summary": [
+        "10 passed, 8 deselected in 95.06s (0:01:35)"
+      ],
+      "duration_seconds": 95.59,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/final-source-en-AU.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/final-source-en-AU.log",
+      "receipt_sha256": "e6a60bc22ab4757ea16e944e98126d0893ef4b03449350ef9c479b499408c59e",
+      "log_sha256": "302606ded48eb42d8b5de89cd41d8ab4aeefb45f6e61f235628e1b6230d50c74"
+    },
+    {
+      "name": "final-source-zh-CN",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=zh-CN",
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-final-zh-CN",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head": "29d34eb1fa9aea7c5e25ba06053803b4bbf261c0",
+      "head_tree_at_launch": "bde2b56a6dee57d5cdd00fb255693d0220838255",
+      "exit_code": 0,
+      "summary": [
+        "10 passed, 8 deselected in 95.36s (0:01:35)"
+      ],
+      "duration_seconds": 95.77,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/final-source-zh-CN.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/final-source-zh-CN.log",
+      "receipt_sha256": "09368d0d846b951a6da53b2e274f5d0e30f669b96e0111a5e314aa4f2b247d4f",
+      "log_sha256": "cf5074b0b87c6d3643e56f3eacda633326fb2ec821e669e67ed527ec34521a4e"
+    },
+    {
+      "name": "integration-final-source",
+      "command": [
+        "/workspace/copyme2.ai/.venv/bin/python",
+        "-m",
+        "pytest",
+        "-q",
+        "--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-final-integration",
+        "tests/test_conversation_milestones.py",
+        "tests/test_lifetime_memory_runtime.py",
+        "-k",
+        "commit_barrier or disconnect_does or real_governed_http_save_cold or streamed_language_directive"
+      ],
+      "base_head": "7d12641357b69ef767a49e171cc188e23a039c72",
+      "head_tree_at_launch": "fe9d51a41d2200af611ce5cf2d7a5effacbe69da",
+      "exit_code": 0,
+      "summary": [
+        "10 passed, 23 deselected in 11.96s"
+      ],
+      "duration_seconds": 12.92,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/integration-final-source.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/integration-final-source.log",
+      "receipt_sha256": "3ad5c95aca9e6d4be685d7dbef3c52b2db9e0b10840d741172015282ef584143",
+      "log_sha256": "f7e70420d2d7221c56cdf50c5dbb857156d3b750684c565245c2294d2e6af2fc"
+    },
+    {
+      "name": "rebased-place-research",
+      "command": [
+        "env",
+        "NODE_PATH=/workspace/copyme2.ai/apps/web/node_modules",
+        "PYTEST_ADDOPTS=--basetemp=/tmp/issue53-milestone-repair-evidence/pytest-rebased-place",
+        "make",
+        "test-place-research"
+      ],
+      "base_head": "c7652a5a0a2ddb5351794a0edf12f21b30674307",
+      "head_tree_at_launch": "efff475b1e1332797050b718dec497623ed3e38b",
+      "exit_code": 0,
+      "summary": [
+        "ℹ pass 588",
+        "ℹ fail 0",
+        "384 passed in 10.47s",
+        "Ran 95 tests in 0.250s",
+        "OK"
+      ],
+      "duration_seconds": 17.1,
+      "cleanup_verified": true,
+      "receipt_path": "/tmp/issue53-milestone-repair-evidence/rebased-place-research.json",
+      "log_path": "/tmp/issue53-milestone-repair-evidence/rebased-place-research.log",
+      "receipt_sha256": "1359fae2af68d7567256fbbfb9a962856ef5d6e19116592d743823a4bfd530c1",
+      "log_sha256": "89f3bb5289d4c38dac7684cb20434b99a0ede896b4e7e846191f82f34154678c"
+    }
+  ],
+  "cohorts": [
+    {
+      "locale": "en-AU",
+      "directory": "/tmp/issue53-milestone-repair-evidence/pytest-final-en-AU/issue53-full-manifest0",
+      "run_id": "d2c35f34-0120-44b4-b284-799a401d66f1",
+      "plan_sha256": "0249c8f006b6a29911f9983dc0883a89e31f96802db06f7ea070d4f78738cd2c",
+      "artifacts_sha256": {
+        "plan.json": "049cdf3ad3c03248e98d571b72f44cd5ed2d1d4585d35a1dc9920152b9c858c5",
+        "results.json": "cbdb362e9a290156034b2b322c12d139d5795793c8967c4495623e1831ccdf08",
+        "receipts.json": "946e1b4475c49110e4c80aa02aa3f948a7801d704ffcb733ca535228ba6c026d",
+        "comparison.json": "bcfa400b5495165738a0e0fc033fa88d728cf53beaf8b516e4e895a6fda8979c"
+      },
+      "rows": 40,
+      "contract_pass": 40,
+      "mobile_consumer_streams": 40,
+      "mocked_dispatches": 38,
+      "matched_complete_pairs": 20,
+      "milestones": {
+        "first_meaningful_text_s": {
+          "baseline": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          },
+          "candidate": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          }
+        },
+        "validated_question_s": {
+          "baseline": {
+            "observed": 18,
+            "unknown": 0,
+            "not_applicable": 2
+          },
+          "candidate": {
+            "observed": 18,
+            "unknown": 0,
+            "not_applicable": 2
+          }
+        },
+        "reply_complete_s": {
+          "baseline": {
+            "observed": 20,
+            "unknown": 0,
+            "not_applicable": 0
+          },
+          "candidate": {
+            "observed": 20,
+            "unknown": 0,
+            "not_applicable": 0
+          }
+        },
+        "durable_save_s": {
+          "baseline": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          },
+          "candidate": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          }
+        }
+      },
+      "status": "incomplete",
+      "release_accepted": false,
+      "all_frozen_source_bytes_match_rebased_head": true,
+      "verified_frozen_group_file_counts": {
+        "application": 146,
+        "prompts": 216,
+        "configuration_sources": 3,
+        "evaluator": 6,
+        "profiler": 3
+      },
+      "frozen_implementation": {
+        "apps/api/lifetime_memory_runtime.py": "66771379f54e030caf384b9b87200a33929378c1f86c9718ba4e93ebc96eaf1d",
+        "scripts/issue53_sequence_application.py": "b58c4b89824107175ce698c8616576f21f8a219d3447dbc8f357b5c3ed9f37f3",
+        "scripts/issue53_profile_sequences.py": "8f5e0aa6fb9d9a31a63c777d2f5390edec6953393ce70a6cff364a37329c7442"
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "directory": "/tmp/issue53-milestone-repair-evidence/pytest-final-zh-CN/issue53-full-manifest0",
+      "run_id": "58d10ffb-e593-439d-9d98-1be06ac45d3b",
+      "plan_sha256": "6339002b7ef3aacbb953a8e27f833b3fa622170fe93bcfacf4f005c015ed75d2",
+      "artifacts_sha256": {
+        "plan.json": "2b14482b08cb20e214400012f9e64c1cb7ded1287529e18b58e9190772b4a211",
+        "results.json": "c4c41f775b7565b0a173617769976a9f70a9b840ed6f769c43b84e4f71601d27",
+        "receipts.json": "358baab02c6969e0c7fc1207d23316e157b098775c88e74641712e6940dc9ecb",
+        "comparison.json": "47fe8dc6ef7c5bf064b9e18070614cdb54de489525e94095b23c82761850dd2e"
+      },
+      "rows": 40,
+      "contract_pass": 40,
+      "mobile_consumer_streams": 40,
+      "mocked_dispatches": 38,
+      "matched_complete_pairs": 20,
+      "milestones": {
+        "first_meaningful_text_s": {
+          "baseline": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          },
+          "candidate": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          }
+        },
+        "validated_question_s": {
+          "baseline": {
+            "observed": 18,
+            "unknown": 0,
+            "not_applicable": 2
+          },
+          "candidate": {
+            "observed": 18,
+            "unknown": 0,
+            "not_applicable": 2
+          }
+        },
+        "reply_complete_s": {
+          "baseline": {
+            "observed": 20,
+            "unknown": 0,
+            "not_applicable": 0
+          },
+          "candidate": {
+            "observed": 20,
+            "unknown": 0,
+            "not_applicable": 0
+          }
+        },
+        "durable_save_s": {
+          "baseline": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          },
+          "candidate": {
+            "observed": 19,
+            "unknown": 0,
+            "not_applicable": 1
+          }
+        }
+      },
+      "status": "incomplete",
+      "release_accepted": false,
+      "all_frozen_source_bytes_match_rebased_head": true,
+      "verified_frozen_group_file_counts": {
+        "application": 146,
+        "prompts": 216,
+        "configuration_sources": 3,
+        "evaluator": 6,
+        "profiler": 3
+      },
+      "frozen_implementation": {
+        "apps/api/lifetime_memory_runtime.py": "66771379f54e030caf384b9b87200a33929378c1f86c9718ba4e93ebc96eaf1d",
+        "scripts/issue53_sequence_application.py": "b58c4b89824107175ce698c8616576f21f8a219d3447dbc8f357b5c3ed9f37f3",
+        "scripts/issue53_profile_sequences.py": "8f5e0aa6fb9d9a31a63c777d2f5390edec6953393ce70a6cff364a37329c7442"
+      }
+    }
+  ],
+  "reported_defects_and_fix": [
+    {
+      "priority": "P1",
+      "defect": "Metadata-only reply_complete violates required native reply:string; real API client raises STREAM_INTERRUPTED before save.",
+      "fix": "Emit the actual public reply plus project/client-turn/source identity. Keep the strict native schema and domain reducer unchanged.",
+      "red": "Captured genuine native sequence streams fail through shipped API client; final native consumers pass all80 rows."
+    },
+    {
+      "priority": "P2",
+      "defect": "Web clean EOF after reply_complete resolves truthy accumulated metadata without save or terminal result.",
+      "fix": "Reject EOF unless a recognized save or terminal response has already settled readiness.",
+      "red": "All3 metadata/full-reply/two-lane-like completion-only truncation cases failed before fix, pass after. Successful save/result handling remains exercised."
+    },
+    {
+      "priority": "P2",
+      "defect": "Bare/premature completion and foreign/wrong-text cached result can replace timing while only sequence capsule is resealed.",
+      "fix": "Require source acceptance and expected identity for generated receipts; require exact current public reply, strict flags, and revoke completion if further text arrives. Replay requires expected saved identity and exact saved text; cached results cannot complete generated rows. Import derives client-turn ID from frozen plan and checks against validated canonical SQL reply.",
+      "red": "All4 resealed bare/premature/foreign/wrong-text imports falsely passed before fix; all fail closed after fix without changing native receipts or dispatch ledger."
+    }
+  ],
+  "intermediate_authoring_note": "The first green native run passed123 checks and failed one test due to a misplaced test-variable assignment. Corrected without a production workaround; the final232-check run covers the corrected case and passes. Earlier red and intermediate receipts/logs are retained.",
+  "provenance_note": "Supervisor base_head/tree identify HEAD at launch, not dirty source. Native capsules freeze actual application/profiler bytes; this manifest binds tests, web client and docs. Integration used unchanged main7d plus PR96 and task bytes; temporary-index snapshot captures its actual working source after checks. Final-source cohorts were refreshed after the late guard, then every frozen application/prompt/config/evaluator/profiler file was checked byte-for-byte against the rebased head. The rebased required target ran against a clean tracked functional tree.",
+  "integration": {
+    "worktree": "/workspace/issue53-milestone-integration",
+    "base_main": "7d12641357b69ef767a49e171cc188e23a039c72",
+    "dependency": "8315df3e7876374f699ac0ab07b8481659660606",
+    "actual_working_tree_snapshot": "fa260fffa68fe49a249c217e07196c668f268e99",
+    "implementation_sha256": {
+      "apps/api/lifetime_memory_runtime.py": "66771379f54e030caf384b9b87200a33929378c1f86c9718ba4e93ebc96eaf1d",
+      "apps/web/client/memoir/client.js": "109ef2f50b2c89fa536c5bd5aa7e7b53b1c99bfc522c3ba71ba76e40b0441422",
+      "scripts/issue53_profile_sequences.py": "8f5e0aa6fb9d9a31a63c777d2f5390edec6953393ce70a6cff364a37329c7442",
+      "scripts/issue53_sequence_application.py": "b58c4b89824107175ce698c8616576f21f8a219d3447dbc8f357b5c3ed9f37f3"
+    },
+    "native_checks": 10,
+    "web_native_checks": 36,
+    "effective_main_after_pr96_merge": "f185c1c5bba7cbed7030c59944be103ca7a17490"
+  },
+  "test_dependencies": {
+    "scope": "Test-only temporary tools and ignored worktree symlinks; repository package manifests/lockfiles unchanged",
+    "tools_directory": "/tmp/issue53-mobile-tools",
+    "versions": {
+      "tsx": "^4.23.15",
+      "zod": "^4.6.5"
+    }
+  },
+  "baseline_and_limits": {
+    "previous_broader_run": "Historical228passed/5failed; same5 failures reproduced on unchanged PR96. New final focused run233passed. No aggregate full-suite pass claimed.",
+    "baseline_evidence": "docs/test-evidence/issue53-stream-milestones-20261020.json",
+    "remaining_baseline_failures": "Existing two-lane background strategy-proposal/stale-page cases remain unresolved; final focused run includes the relevant two-lane failed-background stream compatibility test, not the entire background suite.",
+    "independent_re_review": "pending new pushed head",
+    "release_accepted": false,
+    "semantic_quality": "not_established",
+    "bilingual_human_heldout": "pending",
+    "production_latency_improvement": "not_measured",
+    "live_provider_calls": 0,
+    "hosted_publication": 0,
+    "provider_metrics": "unknown",
+    "not_run": [
+      "real model/provider outputs",
+      "browser paint timing",
+      "full mobile UI/typecheck/build/integration suite",
+      "live fault/rollback campaign",
+      "derived-artifact semantic evaluation",
+      "bilingual calibrated human-heldout acceptance",
+      "merge/deployment/production migration"
+    ]
+  },
+  "rebased_functional_head": "c7652a5a0a2ddb5351794a0edf12f21b30674307",
+  "pr_base": "main",
+  "late_guard_note": "Final audit reproduced an uncaught missing saved-replay prerequisite after a controlled save failure. The added guard retains that replay as unavailable with zero dispatch instead of aborting the campaign. Its red test is retained and the final233-check run includes its passing test. Both80-row combined cohorts were refreshed after the guard; earlier232-check/matrix/fault results remain separately staged historical evidence. Runtime/web consumer bytes are unchanged by that offline guard."
+}

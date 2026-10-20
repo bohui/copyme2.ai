@@ -54,6 +54,18 @@ def test_empty_ingestion_keeps_every_planned_row_and_is_incomplete():
     assert {'first', 'later', 'resumed', 'replay'} <= set(report['latency']['by_phase'])
 
 
+def test_not_applicable_stop_or_replay_milestones_are_not_unknown_or_zero():
+    pair=[dict(pair_id='synthetic',arm=arm,execution='completed',contracts={'status':'pass'},
+        timings={'reply_complete_s':.1},not_applicable_milestones=['validated_question_s'])
+        for arm in ('baseline','candidate')]
+    stats=profile._latency(pair)
+    for arm in ('baseline','candidate'):
+        assert stats['milestones']['validated_question_s'][arm]==dict(observed=0,unknown=0,
+            not_applicable=1,median_s=None,samples_s=[],p95_s=None)
+        assert stats['milestones']['durable_save_s'][arm]['unknown']==1
+    assert stats['paired_deltas'][0]['candidate_minus_baseline_s']['validated_question_s'] is None
+
+
 def test_missing_or_mock_only_evidence_cannot_certify_release():
     planned = profile.plan()
     rows = [dict(row_id=r['row_id'], execution='completed', evidence_mode='controlled_fixture',

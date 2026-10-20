@@ -21,6 +21,10 @@ export function applyDerivedWorkspace(state, update) {
       || decorations.includes(key) || key.startsWith('photo_search_') || key === 'photo_next_cursor'));
   });
   state.derivedWorkspace = {project_id:update.project_id, policy_epoch:update.policy_epoch, source_revision:update.source_revision};
+  if (!places.length) {
+    state.workspaceActivatedProjectId = null;
+    state.placeWorkspaceMap = null;
+  }
   if (JSON.stringify(previousPlaces) === JSON.stringify(places)
       && (!state.placeJourney || places.some(p => placeHistoryKey(p) === placeHistoryKey(state.placeJourney)))) return false;
   state.project = {...state.project,profile:{...state.project.profile,memory_places:places}};

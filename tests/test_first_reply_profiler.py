@@ -67,3 +67,30 @@ def test_http_profiler_does_not_retry_failed_signup(monkeypatch, capsys):
     output = capsys.readouterr().out
     assert '403' in output and 'Private backend detail' not in output
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize('language', ['en-AU', 'zh-CN'])
+@pytest.mark.parametrize('case', ['name', 'story'])
+def test_http_profiler_covers_bilingual_synthetic_openings(monkeypatch, capsys, language, case):
+    from scripts.profile_first_reply import TEST_CASES
+    client_class = httpx.AsyncClient
+
+    def handle(request):
+        if request.url.path.endswith('/config'):
+            return httpx.Response(200, json={'supabase_url': 'https://auth.example',
+                'supabase_publishable_key': 'public-fixture'})
+        if request.url.path == '/auth/v1/signup':
+            return httpx.Response(200, json={'access_token': 'private-fixture-token',
+                'user': {'id': 'fresh-user'}})
+        payload = json.loads(request.content)
+        if request.url.path.endswith('/projects'):
+            assert payload['language'] == language
+            return httpx.Response(201, json={'id': 'project_fresh'})
+        assert payload['text'] == TEST_CASES[language][case]
+        return httpx.Response(200, content=json.dumps({'type': 'conversation_saved'}))
+
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs:
+        client_class(transport=httpx.MockTransport(handle), **kwargs))
+    asyncio.run(first_turn('http://localhost:3010', 10, language=language, case=case))
+    summary = json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert summary['language'] == language and summary['case'] == case

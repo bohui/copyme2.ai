@@ -9,6 +9,7 @@ import pytest
 
 from scripts import issue53_profile_sequences as profile
 from scripts.issue53_sequence_application import controlled_sequences
+from test_issue53_sequence_application import assert_mobile_streams
 
 
 @pytest.fixture(scope='module')
@@ -68,6 +69,38 @@ def test_name_work_stop_skip_and_correction_contracts_are_observable(full_native
         if '/name-clue/' in row['scenario_id'] and row['phase']=='first':
             assert saved['work']['name']==('韩凤江' if row['locale']=='zh-CN' else 'Joan')
         assert all(p['current']['narrator']['original']==row['item']['task']['source']['text'] for p in capture['packet_readbacks'])
+
+
+def test_public_milestones_distinguish_generated_stop_and_saved_replay(full_native_manifest):
+    planned,rows,journal,report,folder=full_native_manifest
+    for row in planned['rows']:
+        capture=journal['rows'][row['row_id']]
+        observation=capture['stream_observation'];events=observation['events']
+        kinds=[e['type'] for e in events]
+        assert observation['timings']['reply_complete_s'] is not None
+        if row['action']=='replay':
+            assert not any(k in kinds for k in ['question_validated','reply_complete','conversation_saved'])
+            assert all(observation['timings'][k] is None for k in profile.MILESTONES if k!='reply_complete_s')
+            continue
+        stopped=row['item']['gold']['facts']['stopped']
+        assert kinds.count('question_validated')==(0 if stopped else 1)
+        assert kinds.count('reply_complete')==kinds.count('conversation_saved')==1
+        completion=next(e for e in events if e['type']=='reply_complete')
+        binding={k:capture['output']['canonical_result'][k] for k in ('project_id','accepted_source_id')}
+        binding['client_turn_id']=profile.client_turn_id(planned,row)
+        assert completion['data']=={**binding,'reply':observation['public_text'],'cached':False,'has_question':not stopped}
+        assert max(i for i,k in enumerate(kinds) if k=='text_delta')<kinds.index('reply_complete')<kinds.index('conversation_saved')
+        if stopped:
+            assert observation['timings']['validated_question_s'] is None
+        else:
+            validated=next(e for e in events if e['type']=='question_validated')
+            assert validated['data']=={**binding,'has_question':True}
+            assert kinds.index('question_validated')<max(i for i,k in enumerate(kinds) if k=='text_delta')
+            assert observation['timings']['validated_question_s'] is not None
+
+
+def test_all_captured_phases_and_stops_satisfy_mobile_consumer(full_native_manifest):
+    assert_mobile_streams(full_native_manifest[2])
 
 
 def test_current_policy_tail_eligibility_does_not_erase_saved_testimony(full_native_manifest):
@@ -143,7 +176,9 @@ def test_negative_streams_retain_failed_rows_and_durable_original_without_false_
     proof=journal['failures'][row_id]
     assert len(proof['after']['sources'])==1 and proof['after']['replies']==[]
     assert proof['after']['sources'][0]['text']==planned['rows'][0]['item']['task']['source']['text']
-    assert not any(e['type']=='conversation_saved' for e in proof['stream_observation']['events'])
+    assert not any(e['type'] in {'question_validated','reply_complete','conversation_saved'} for e in proof['stream_observation']['events'])
+    assert failed['timings']['validated_question_s'] is None
+    assert failed['timings']['reply_complete_s'] is None
     assert failed['timings']['durable_save_s'] is None
     if fault=='save_failure':
         assert proof['stream_observation']['public_text']
