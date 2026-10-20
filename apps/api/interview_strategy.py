@@ -120,7 +120,7 @@ def selector_schema(context=None):
         candidates = [confirmation, *candidates]
     identities=[] if constraints else list(dict.fromkeys(candidate['id'] for candidate in candidates))
     schema['properties']['selected_candidate_id']['enum']=[None,*identities]
-    schema['properties']['question']['description']=(
+    schema['properties']['question']['description']=(QUESTION_DESCRIPTION + ' '
         'One immediate question, or null. Null requires selection_reason pause or direct_answer '
         'and selected_candidate_id null.')
     schema['properties']['selection_reason']['description']=(
