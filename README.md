@@ -179,19 +179,26 @@ Apple Container's visible progress, limited to `linux/arm64`. Pulls time out aft
 five minutes, before any running services are removed. Mocker service startup is
 limited to three minutes per command.
 Local Python services use the Containerfiles' `runtime` targets with read-only application and
-skill mounts, so Python, prompt, and skill edits do not rebuild those images.
+skill mounts, so Python, prompt, and skill edits do not rebuild those images;
+their affected services restart to load the new mounted files.
 Dependency manifests, Containerfiles, build arguments, or local image changes
-still trigger builds. The frontend rebuilds when its source changes, preserving
-Next's compiler cache and shipping only its standalone runtime files.
-It builds the shared backend image once, then recreates all six local services on
-every run with the current checkout, Compose settings, and environment values.
+still trigger builds, with Apple Container reusing unchanged dependency layers.
+The frontend rebuilds when its source changes, preserving Next's compiler cache
+and shipping only its standalone runtime files.
+Changes in `.env` stay in Compose runtime configuration, so they restart app
+services without invalidating image layers.
+Completed image builds are recorded before service startup, so a later health
+check failure can retry without rebuilding the dependency-heavy runtimes.
+Unchanged containers are reused; only services affected by an image, Compose
+configuration, or checkout-mount change are recreated.
 Named volumes, including Temporal history, are preserved. Startup refreshes
 service aliases from Apple Container's live addresses before waiting for health;
 Mocker's cached inspection addresses are not used. Running conversations and
 background tasks may be interrupted during startup. Worktrees share the `memory-spark` Compose project;
 running startup from a worktree changes the backend used by the main checkout.
 The first run establishes a
-local cache in `var/container-startup.json` after all health checks pass.
+startup cache in `var/container-startup.json` after all health checks pass and
+an image-build cache in `var/container-build.json` after each build succeeds.
 Use `make up CONTAINER_REBUILD=1` to rebuild all app images with cached build layers.
 Startup uses `SUPABASE_DB_URL` for the publication guard when
 `MEMOIR_PUBLICATION_DATABASE_URL` is unset; an explicit publication connection wins.
@@ -271,8 +278,10 @@ saves the place after the conversation commit. Ambiguous or ungrounded places
 produce no preview, and project/turn ordering guards reject late results.
 
 There are **six local Compose services**: `web`, `api`, `codex-worker`, `photo-worker`,
-`worker`, and `temporal`. `container-up` rebuilds changed images, recreates every service,
-and verifies the full stack. The API, background worker, and photo worker
+`worker`, and `temporal`. `container-up` rebuilds changed images with cached layers,
+reuses healthy unchanged services, recreates stale or missing services, and verifies
+the full stack.
+The API, background worker, and photo worker
 share the backend image; Temporal uses its upstream image. API and worker Python
 sources and all service skills are bind-mounted. The default `app` Containerfile
 targets still bake application files into self-contained images for other deployments.

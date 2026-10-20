@@ -60,7 +60,7 @@ services:
 ''')
     command = tmp_path / 'mocker'
     command.write_text(f'''#!{sys.executable}
-import json, sys
+import hashlib, json, os, sys
 from pathlib import Path
 p = Path(__file__).parent
 args = sys.argv[1:]
@@ -73,10 +73,15 @@ containers = json.loads(containers_file.read_text()) if containers_file.exists()
 tags = {{'api': 'localhost/memory-spark:dev', 'codex-worker': 'localhost/memory-spark-codex-worker:dev', 'web': 'localhost/copyme2-web:dev'}}
 external_image = {TEMPORAL_IMAGE!r}
 if args[:2] == ['compose', 'config']:
+    compose_path = p / args[3] if len(args) > 3 and args[2] == '-f' else p / 'compose.yml'
+    config_inputs = compose_path.read_bytes() + repr(sorted(
+        (key, value) for key, value in os.environ.items()
+        if key.startswith(('MEMOIR_', 'MEMORY_SPARK_', 'SUPABASE_')))).encode()
     print('services:')
     for service, tag in {{**tags, 'temporal': external_image}}.items():
         print('  ' + service + ':\\n    image: ' + tag)
     print('    environment:\\n      - SECRET=synthetic-do-not-print')
+    print('    config-fingerprint: ' + hashlib.sha256(config_inputs).hexdigest())
 if args[:2] == ['image', 'inspect']:
     if args[2] not in images: sys.exit(1)
     print(images[args[2]])
@@ -225,7 +230,22 @@ def test_up_resolves_publication_database_before_starting_services(stack, explic
     up(*([] if env_kind == 'default' else ['ENV_FILE=' + (str(config) if env_kind == 'absolute_spaced' else filename)]))
 
 
-def test_repeat_up_skips_builds_and_recreates_every_service_before_alias_refresh(stack):
+def test_environment_change_restarts_app_services_without_restarting_temporal(stack):
+    root, up, calls = stack
+    up()
+    calls()
+    (root / '.env').write_text('MEMORY_SPARK_MODE=connected\n')
+
+    up('ENV_FILE=.env')
+
+    commands = calls()
+    assert not builds(commands)
+    assert recreates(commands) == [['rm', '-f', *[
+        'memory-spark-' + service + '-1'
+        for service in ('api', 'worker', 'web', 'codex-worker', 'photo-worker')]]]
+
+
+def test_repeat_up_skips_builds_and_reuses_every_service(stack):
     _, up, calls = stack
     up()
     first = calls()
@@ -234,14 +254,12 @@ def test_repeat_up_skips_builds_and_recreates_every_service_before_alias_refresh
     up()
     repeated = calls()
     assert not builds(repeated)
-    assert recreates(repeated) == [['rm', '-f', *[
-        'memory-spark-' + service + '-1'
-        for service in ('temporal', 'api', 'worker', 'web', 'codex-worker', 'photo-worker')]]]
-    removal = next(i for i, c in enumerate(repeated) if c[0] == 'rm')
+    assert not recreates(repeated)
     start = next(i for i, c in enumerate(repeated) if c[:2] == ['compose', 'up'] and '--wait' not in c)
     refresh = repeated.index(['refresh-aliases'])
     ready = next(i for i, c in enumerate(repeated) if '--wait' in c)
-    assert removal < start < refresh < ready
+    assert start < refresh < ready
+    assert all('--no-recreate' in c for c in repeated if c[:2] == ['compose', 'up'])
     assert not any('--volumes' in c or c[:2] == ['compose', 'down'] for c in repeated)
 
 
@@ -261,11 +279,11 @@ def test_up_restores_current_checkout_after_another_worktree_takes_over(stack):
     commands = calls()
     assert not builds(commands)
     assert len(recreates(commands)) == 1
-    assert set(recreates(commands)[0][2:]) == set(containers)
+    assert set(recreates(commands)[0][2:]) == set(containers) - {'memory-spark-temporal-1'}
     restored = json.loads(file.read_text())
     assert all(restored[container][0]['source'] == str(root / 'apps/api') for container in foreign)
     up()
-    assert recreates(calls())
+    assert not recreates(calls())
 
 
 def test_failed_inventory_leaves_containers_and_cache_untouched(stack):
@@ -287,7 +305,7 @@ def test_failed_inventory_leaves_containers_and_cache_untouched(stack):
     ('apps/web/app/page.tsx', ['web']),
     ('pyproject.toml', ['api', 'codex-worker']),
 ])
-def test_changed_inputs_rebuild_only_affected_images(stack, path, services):
+def test_changed_inputs_rebuild_and_restart_only_affected_services(stack, path, services):
     root, up, calls = stack
     up()
     calls()
@@ -296,9 +314,11 @@ def test_changed_inputs_rebuild_only_affected_images(stack, path, services):
     changed = calls()
     assert builds(changed) == ([['compose', 'build', '-f', 'compose.yml', *services]] if services else [])
     recreated = recreates(changed)
-    assert len(recreated) == 1
-    assert set(recreated[0][2:]) == {'memory-spark-' + s + '-1' for s in
-        ('temporal', 'api', 'worker', 'web', 'codex-worker', 'photo-worker')}
+    expected_services = ({'web'} if services == ['web'] else
+                         {'api', 'worker', 'photo-worker', 'codex-worker'})
+    assert len(recreated) == (1 if expected_services else 0)
+    if expected_services:
+        assert set(recreated[0][2:]) == {'memory-spark-' + s + '-1' for s in expected_services}
     up()
     assert not builds(calls())
 
@@ -342,7 +362,8 @@ def test_failed_startup_does_not_record_success(stack, failure):
     calls()
     (root / failure).unlink()
     up()
-    assert builds(calls())[0][-1:] == ['web']
+    expected_build = [['compose', 'build', '-f', 'compose.yml', 'web']] if failure == 'fail-build' else []
+    assert builds(calls()) == expected_build
 
 
 def test_changed_build_argument_invalidates_codex_image(stack):
@@ -380,6 +401,7 @@ def test_replaced_image_and_invalid_cache_are_rebuilt(stack):
     up()
     assert builds(calls())[0][-1:] == ['web']
     (root / 'var/container-startup.json').write_text('{"version":1,"images":[]}')
+    (root / 'var/container-build.json').unlink()
     up()
     assert builds(calls())[0][-3:] == ['api', 'codex-worker', 'web']
 
