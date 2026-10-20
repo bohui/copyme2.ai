@@ -4467,16 +4467,13 @@ begin
    return result||jsonb_build_object('policy_changed',true);
  end if;
  next_revision:=current_revision+1;
- select coalesce(jsonb_agg(q||jsonb_build_object('id','bq-'||encode(sha256(convert_to((page->'source'->>'id')||':'||
-   (page->'source'->>'version')||':'||(q->>'question'),'UTF8')),'hex'))),'[]') into candidates from jsonb_array_elements(p_result->'prepared_questions') q
- where not exists(select 1 from public.lifetime_delivered_questions(snap.user_id,snap.project_id) asked
-   where asked.question_id='bq-'||encode(sha256(convert_to((page->'source'->>'id')||':'||
-     (page->'source'->>'version')||':'||(q->>'question'),'UTF8')),'hex')
-     or (asked.source_id=(page->'source'->>'id')::uuid and asked.source_version=(page->'source'->>'version')::bigint
-       and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
- and not exists(select 1 from public.lifetime_resolved_questions(snap.user_id,snap.project_id) resolved
-   where resolved.question_id='bq-'||encode(sha256(convert_to((page->'source'->>'id')||':'||
-     (page->'source'->>'version')||':'||(q->>'question'),'UTF8')),'hex'));
+ with consumed as materialized (select * from public.lifetime_consumed_question_ids(snap.user_id,snap.project_id))
+ select coalesce(jsonb_agg(q||jsonb_build_object('id',public.lifetime_question_id(
+   (page->'source'->>'id')::uuid,(page->'source'->>'version')::bigint,q)) order by hint_position),'[]') into candidates
+ from (select public.lifetime_question_hint(page->'source',hint) q,hint_position
+   from jsonb_array_elements(p_result->'prepared_questions') with ordinality hints(hint,hint_position)) normalized
+ where not exists(select 1 from consumed
+   where consumed.question_id=public.lifetime_question_id((page->'source'->>'id')::uuid,(page->'source'->>'version')::bigint,q));
  select coalesce(jsonb_agg(jsonb_build_object('id',e.id,'revision',e.revision)),'[]') into manifest from public.user_memory_event e
    where e.user_id=snap.user_id and e.project_id=snap.project_id and proposal->'focus_event_ids' @> to_jsonb(e.id);
  select checkpoint_id into checkpoint from public.user_lifetime_conversation where user_id=snap.user_id and conversation_id=snap.conversation_id;
@@ -4626,7 +4623,7 @@ CREATE FUNCTION public.commit_lifetime_memoir_lane_page_before_strategy(p_lane_i
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
-declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb; result jsonb; q jsonb;
+declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb; result jsonb; questions jsonb;
 begin
  -- Preserve the canonical disabled path without duplicate page preparation.
  -- Its own lock/digest/receipt checks still fence every commit and replay.
@@ -4645,19 +4642,13 @@ begin
      or octet_length((p_result->'prepared_questions')::text)>6000
      or exists(select 1 from jsonb_object_keys(p_result) k where k not in ('events','place_journeys','prepared_questions')) then
      raise exception 'bounded derived hints required' using errcode='22023';end if;
-   if (select count(*) from jsonb_array_elements(p_result->'prepared_questions')) is distinct from
-     (select count(distinct lower(btrim(candidate.value->>'question'))) from jsonb_array_elements(p_result->'prepared_questions') candidate(value)) then
+   select coalesce(jsonb_agg(public.lifetime_question_hint(page->'source',q)),'[]') into questions
+     from jsonb_array_elements(p_result->'prepared_questions') q;
+   if (select count(*) from jsonb_array_elements(questions)) is distinct from
+     (select count(distinct public.lifetime_question_id((page->'source'->>'id')::uuid,
+       (page->'source'->>'version')::bigint,q)) from jsonb_array_elements(questions) q) then
      raise exception 'prepared questions must be distinct' using errcode='22023';end if;
    perform public.validate_two_lane_places(page->'source'->>'text',p_result->'place_journeys');
-   for q in select * from jsonb_array_elements(p_result->'prepared_questions') loop
-     if jsonb_typeof(q)<>'object' or exists(select 1 from jsonb_object_keys(q) k where k not in ('question','topic','quote','requires_confirmation'))
-       or (q ? 'requires_confirmation' and jsonb_typeof(q->'requires_confirmation') is distinct from 'boolean')
-       or jsonb_typeof(q->'question') is distinct from 'string' or length(q->>'question') not between 1 and 800
-       or jsonb_typeof(q->'topic') is distinct from 'string' or length(q->>'topic') not between 1 and 120
-       or jsonb_typeof(q->'quote') is distinct from 'string' or length(q->>'quote') not between 1 and 500
-       or strpos(page->'source'->>'text',q->>'quote')=0
-       or length(regexp_replace(q->>'question','[^?？]','','g'))>1 then raise exception 'grounded question hints required' using errcode='22023';end if;
-   end loop;
    if page->'two_lane'->>'work_mode'='reply_only' and (jsonb_array_length(p_result->'events')>0
      or jsonb_array_length(p_result->'place_journeys')>0 or jsonb_array_length(p_result->'prepared_questions')>0) then
      raise exception 'reply only work cannot create derived facts' using errcode='22023';end if;
@@ -4677,20 +4668,21 @@ begin
    insert into public.user_lifetime_prepared_question values(snap.user_id,snap.project_id,(page->'source'->>'id')::uuid,
      (page->'source'->>'version')::bigint,snap.source_high_water,snap.policy_epoch,snap.preference_revision,
      (page->'two_lane'->>'execution_generation')::bigint,(page->'two_lane'->>'phase_revision')::bigint,snap.id,p_page_digest,
-     (select coalesce(jsonb_agg(hint.value),'[]') from jsonb_array_elements(p_result->'prepared_questions') hint(value)
+     (select coalesce(jsonb_agg(hint.value),'[]') from jsonb_array_elements(questions) hint(value)
        where page->'two_lane'->>'strategy_mode' is null or hint.value->'requires_confirmation'='true'::jsonb))
    on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,source_revision=excluded.source_revision,
      policy_epoch=excluded.policy_epoch,preference_revision=excluded.preference_revision,execution_generation=excluded.execution_generation,
      phase_revision=excluded.phase_revision,snapshot_id=excluded.snapshot_id,page_digest=excluded.page_digest,
      questions=(select coalesce(jsonb_agg(hint.value order by hint.position),'[]') from (
-       select distinct on (lower(btrim(item.value->>'question'))) item.value,item.position
+       select distinct on (public.lifetime_question_id((page->'source'->>'id')::uuid,
+         (page->'source'->>'version')::bigint,item.value)) item.value,item.position
        from jsonb_array_elements((case when user_lifetime_prepared_question.source_version=excluded.source_version
          and user_lifetime_prepared_question.policy_epoch=excluded.policy_epoch
          and user_lifetime_prepared_question.preference_revision=excluded.preference_revision
          and user_lifetime_prepared_question.execution_generation=excluded.execution_generation
          then jsonb_path_query_array(user_lifetime_prepared_question.questions,'$[*] ? (@.requires_confirmation == true)')
          else '[]'::jsonb end)||excluded.questions) with ordinality item(value,position)
-       order by lower(btrim(item.value->>'question')),
+       order by public.lifetime_question_id((page->'source'->>'id')::uuid,(page->'source'->>'version')::bigint,item.value),
          (item.value->'requires_confirmation'='true'::jsonb) desc nulls last,item.position
      ) hint);
    perform public.prune_lifetime_question_pool(snap.user_id,snap.project_id,(page->'source'->>'id')::uuid);
@@ -6843,17 +6835,49 @@ CREATE FUNCTION public.lifetime_source_attribution_summary(p_owner uuid, p_proje
  from (select distinct char_start,char_end,disposition from public.lifetime_source_attribution_rows(p_owner,p_project,p_source)) passages
 $$;
 
--- Delivery, not a saved plan, owns whether a question has actually been asked.
--- Both collector modes use this same ledger and retain the original reply.
--- Background IDs own their original context, not the later delivery turn.
--- Wording fallback is only safe for foreground questions on the same source/version.
+CREATE FUNCTION public.lifetime_question_hint(p_source jsonb, p_hint jsonb) RETURNS jsonb
+    LANGUAGE plpgsql IMMUTABLE SET search_path TO '' AS $$
+declare lo integer; hi integer; base integer:=coalesce((p_source->>'char_start')::integer,0);
+ text text:=p_source->>'text'; quote text:=p_hint->>'quote'; position integer;
+begin
+ if jsonb_typeof(p_hint) is distinct from 'object'
+   or exists(select 1 from jsonb_object_keys(p_hint) k where k not in ('question','topic','quote','requires_confirmation','char_start','char_end'))
+   or (p_hint ? 'requires_confirmation' and jsonb_typeof(p_hint->'requires_confirmation') is distinct from 'boolean')
+   or jsonb_typeof(p_hint->'question') is distinct from 'string' or length(p_hint->>'question') not between 1 and 800
+   or jsonb_typeof(p_hint->'topic') is distinct from 'string' or length(p_hint->>'topic') not between 1 and 120
+   or jsonb_typeof(p_hint->'quote') is distinct from 'string' or length(quote) not between 1 and 500
+   or strpos(text,quote)=0 or length(regexp_replace(p_hint->>'question','[^?？]','','g'))>1 then
+   raise exception 'grounded question hints required' using errcode='22023';end if;
+ if coalesce(p_hint->'char_start','null')='null' and coalesce(p_hint->'char_end','null')='null' then
+   position:=strpos(text,quote);
+   if strpos(substring(text from position+1),quote)>0 then
+     raise exception 'ambiguous question evidence requires exact offsets' using errcode='22023';end if;
+   lo:=base+position-1;hi:=lo+length(quote);
+ else
+   if jsonb_typeof(p_hint->'char_start') is distinct from 'number' or jsonb_typeof(p_hint->'char_end') is distinct from 'number' then
+     raise exception 'typed question evidence offsets required' using errcode='22023';end if;
+   lo:=(p_hint->>'char_start')::integer;hi:=(p_hint->>'char_end')::integer;
+   if lo<base or hi>base+length(text) or hi-lo<>length(quote)
+     or substring(text from lo-base+1 for hi-lo) is distinct from quote then
+     raise exception 'question evidence span must match the referenced passage' using errcode='22023';end if;
+ end if;
+ return p_hint||jsonb_build_object('char_start',lo,'char_end',hi);
+end $$;
+
+CREATE FUNCTION public.lifetime_question_id(p_source uuid, p_version bigint, p_hint jsonb) RETURNS text
+    LANGUAGE sql IMMUTABLE SET search_path TO '' AS $$
+ select 'bq-'||encode(sha256(convert_to(jsonb_build_array(p_source,p_version,lower(btrim(p_hint->>'question')),
+   p_hint->'char_start',p_hint->'char_end',p_hint->>'quote')::text,'UTF8')),'hex')
+$$;
+
+-- Delivery owns asking; exact evidence owns identity, never wording or the delivery turn.
 CREATE FUNCTION public.lifetime_delivered_questions(p_owner uuid, p_project text)
 RETURNS TABLE(source_id uuid, source_version bigint, client_turn_id uuid, reply_id uuid,
-              turn_sequence bigint, question_id text, question text)
+              turn_sequence bigint, question_id text, question text, evidence jsonb)
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO ''
     AS $$
- select d.source_id,d.source_version,d.client_turn_id,d.reply_id,t.sequence,q->>'id',q->>'question'
+ select d.source_id,d.source_version,d.client_turn_id,d.reply_id,t.sequence,q->>'id',q->>'question',q->'context'->'evidence'
  from public.user_memory_delivered_context d
  join public.user_interview_turn t on t.user_id=d.user_id and t.project_id=d.project_id
    and t.client_turn_id=d.client_turn_id and t.source_id=d.source_id and t.source_version=d.source_version
@@ -6879,7 +6903,7 @@ CREATE FUNCTION public.lifetime_question_dialogue(p_owner uuid, p_project text, 
    select q.turn_sequence,jsonb_build_object('status',case when answer.id is null then 'asked' else 'responded' end,
      'question',jsonb_build_object('id',q.question_id,'text',q.question,'role','assistant','personal_testimony',false,
        'client_turn_id',q.client_turn_id,'reply_id',q.reply_id,'sequence',q.turn_sequence,'delivered',true,
-       'source_id',q.source_id,'source_version',q.source_version),
+       'source_id',q.source_id,'source_version',q.source_version,'evidence',q.evidence),
      'response',case when answer.id is null then null else jsonb_build_object('id',answer.id,'version',answer.version,
        'sequence',answer.sequence,'text',left(answer.text,512),'role','user','kind',answer.kind,
        'char_start',0,'char_end',least(length(answer.text),512),'complete',length(answer.text)<=512) end) item
@@ -6919,33 +6943,36 @@ CREATE FUNCTION public.lifetime_resolved_questions(p_owner uuid, p_project text)
  where t.user_id=p_owner and t.project_id=p_project
 $$;
 
+CREATE FUNCTION public.lifetime_consumed_question_ids(p_owner uuid, p_project text) RETURNS TABLE(question_id text)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+ with delivered as materialized (select * from public.lifetime_delivered_questions(p_owner,p_project))
+ select question_id from delivered
+ union
+ select public.lifetime_question_id(original.id,original.version,jsonb_build_object('question',d.question,
+   'quote',d.evidence->>'quote','char_start',d.evidence->'char_start','char_end',d.evidence->'char_end'))
+ from delivered d join public.user_narrator_source original on original.user_id=p_owner and original.project_id=p_project
+   and original.id=(d.evidence->>'source_id')::uuid and original.version=(d.evidence->>'version')::bigint and original.status='active'
+ where d.evidence->>'char_start' is not null and d.evidence->>'char_end' is not null
+ union select question_id from public.lifetime_resolved_questions(p_owner,p_project)
+$$;
+
 CREATE FUNCTION public.prune_lifetime_question_pool(p_owner uuid, p_project text, p_source uuid DEFAULT NULL::uuid) RETURNS void
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO ''
     AS $$
- with asked as materialized (select * from public.lifetime_delivered_questions(p_owner,p_project)),
-      resolved as materialized (select * from public.lifetime_resolved_questions(p_owner,p_project))
+ with consumed as materialized (select * from public.lifetime_consumed_question_ids(p_owner,p_project))
  update public.user_lifetime_prepared_question pool set questions=(
    select coalesce(jsonb_agg(q order by position),'[]')
    from jsonb_array_elements(pool.questions) with ordinality pending(q,position)
-   where not exists(select 1 from asked
-     where asked.question_id='bq-'||encode(sha256(convert_to(pool.source_id::text||':'||pool.source_version||':'||(q->>'question'),'UTF8')),'hex')
-       or (asked.source_id=pool.source_id and asked.source_version=pool.source_version
-         and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
-     and not exists(select 1 from resolved
-       where resolved.question_id='bq-'||encode(sha256(convert_to(pool.source_id::text||':'||pool.source_version||':'||(q->>'question'),'UTF8')),'hex')))
+   where not exists(select 1 from consumed
+     where consumed.question_id=public.lifetime_question_id(pool.source_id,pool.source_version,q)))
  where pool.user_id=p_owner and pool.project_id=p_project and pool.questions<>'[]'::jsonb
    and (p_source is null or pool.source_id=p_source);
- with asked as materialized (select * from public.lifetime_delivered_questions(p_owner,p_project)),
-      resolved as materialized (select * from public.lifetime_resolved_questions(p_owner,p_project))
+ with consumed as materialized (select * from public.lifetime_consumed_question_ids(p_owner,p_project))
  update public.user_lifetime_interview_strategy pool set data=jsonb_set(data,'{candidates}',(
    select coalesce(jsonb_agg(q order by position),'[]')
    from jsonb_array_elements(pool.data->'candidates') with ordinality pending(q,position)
-   where not exists(select 1 from asked
-     where asked.question_id=q->>'id' or (asked.source_id=pool.source_id and asked.source_version=pool.source_version
-       and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
-     and not exists(select 1 from resolved
-       where resolved.question_id=q->>'id')))
+   where not exists(select 1 from consumed where consumed.question_id=q->>'id')))
  where pool.user_id=p_owner and pool.project_id=p_project and not pool.shadow and pool.data->'candidates'<>'[]'::jsonb
    and (p_source is null or pool.source_id=p_source)
 $$;
@@ -9539,8 +9566,9 @@ begin
  pins:=public.read_lifetime_pinned(p_conversation_id);
  if not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) then return '[]'::jsonb;end if;
  select * into identity from public.user_lifetime_conversation where user_id=auth.uid() and conversation_id=p_conversation_id;
+ with consumed as materialized (select * from public.lifetime_consumed_question_ids(auth.uid(),identity.project_id))
  select coalesce(jsonb_agg(item),'[]') into result from (
-   select q||jsonb_build_object('id','bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex'),
+   select q||jsonb_build_object('id',public.lifetime_question_id(d.source_id,d.source_version,q),
      'source_id',d.source_id,'source_version',d.source_version,'creation_revision',d.source_revision,
      'snapshot_id',d.snapshot_id,'policy_epoch',d.policy_epoch,'task_version','two-lane-v1',
      'invalidation',case when q->'requires_confirmation'='true'::jsonb then 'source/policy/preference/generation/delivered question'
@@ -9553,12 +9581,8 @@ begin
      and d.preference_revision=identity.preference_revision and d.execution_generation=identity.execution_generation
      and (q->'requires_confirmation'='true'::jsonb or d.source_revision>=p.source_sequence-1)
      -- Defense against delayed B publication; only actual delivery consumes a question.
-     and not exists(select 1 from public.lifetime_delivered_questions(d.user_id,d.project_id) asked
-       where asked.question_id='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex')
-         or (asked.source_id=d.source_id and asked.source_version=d.source_version
-           and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
-     and not exists(select 1 from public.lifetime_resolved_questions(d.user_id,d.project_id) resolved
-       where resolved.question_id='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex'))
+     and not exists(select 1 from consumed
+       where consumed.question_id=public.lifetime_question_id(d.source_id,d.source_version,q))
    order by case when q->'requires_confirmation'='true'::jsonb then 0 else 1 end,
      case when q->'requires_confirmation'='true'::jsonb then s.sequence end,
      s.sequence desc,d.source_id,position limit 3
@@ -10115,12 +10139,11 @@ begin
      where m.user_id=auth.uid() and m.project_id=identity.project_id and m.id=e->>'id' and m.revision::text=e->>'revision' and m.status='active')) then
    return jsonb_build_object('mode',rollout,'plan',null,'planned_strategy_hint',hint,'invalid_plan_revision',planned.plan_revision)||delivery;
  end if;
- select coalesce(jsonb_agg(q),'[]') into candidates from jsonb_array_elements(data->'candidates') q
-   where not exists(select 1 from public.lifetime_delivered_questions(auth.uid(),identity.project_id) asked
-     where asked.question_id=q->>'id' or (asked.source_id=planned.source_id and asked.source_version=planned.source_version
-       and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
-     and not exists(select 1 from public.lifetime_resolved_questions(auth.uid(),identity.project_id) resolved
-       where resolved.question_id=q->>'id');
+ with consumed as materialized (select * from public.lifetime_consumed_question_ids(auth.uid(),identity.project_id))
+ select coalesce(jsonb_agg(q order by hint_position),'[]') into candidates
+ from jsonb_array_elements(data->'candidates') with ordinality hints(q,hint_position)
+   where not exists(select 1 from consumed
+     where consumed.question_id=q->>'id');
  data:=jsonb_set(data,'{candidates}',candidates);
  return jsonb_build_object('mode',rollout,'plan',data,'planned_strategy_hint',hint)||delivery;
 end $$;
@@ -11350,8 +11373,43 @@ begin
       exists(select 1 from jsonb_object_keys(candidate) k where k not in ('id','question','context','order','bridge')) or length(coalesce(candidate->>'id','')) not between 1 and 128 or
       length(btrim(coalesce(candidate->>'question',''))) not between 1 and 2000 or jsonb_typeof(context) is distinct from 'object' or
       length(coalesce(candidate->>'bridge',''))>2000 or
-      exists(select 1 from jsonb_object_keys(context) k where k not in ('event_id','photo_id','life_stage','year','historical_clue_id')) or (candidate->>'order')::integer not between 0 and 100 then
+      exists(select 1 from jsonb_object_keys(context) k where k not in ('event_id','photo_id','life_stage','year','historical_clue_id','evidence')) or (candidate->>'order')::integer not between 0 and 100 then
       raise exception 'invalid interview plan candidate' using errcode='22023'; end if;
+    if coalesce(context->'evidence','null')<>'null'::jsonb then
+      evidence:=context->'evidence';
+      if jsonb_typeof(evidence) is distinct from 'object'
+        or exists(select 1 from jsonb_object_keys(evidence) k where k not in ('source_id','version','quote','char_start','char_end','attribution'))
+        or jsonb_typeof(evidence->'source_id') is distinct from 'string' or jsonb_typeof(evidence->'version') is distinct from 'number'
+        or jsonb_typeof(evidence->'quote') is distinct from 'string' or length(evidence->>'quote') not between 1 and 2000
+        or jsonb_typeof(evidence->'char_start') is distinct from 'number' or jsonb_typeof(evidence->'char_end') is distinct from 'number'
+        or (evidence ? 'attribution' and jsonb_typeof(evidence->'attribution') not in ('string','null'))
+        or length(coalesce(evidence->>'attribution',''))>200 then
+        raise exception 'typed question evidence required' using errcode='22023';end if;
+      select * into current_source from public.user_narrator_source where user_id=v_owner and project_id=p_project_id
+        and id=(evidence->>'source_id')::uuid and version=(evidence->>'version')::bigint and status='active'
+        and kind in ('narrator_chat','narrator_transcript');
+      if not found or (evidence->>'char_start')::integer<0 or (evidence->>'char_end')::integer>length(current_source.text)
+        or (evidence->>'char_end')::integer-(evidence->>'char_start')::integer<>length(evidence->>'quote')
+        or substring(current_source.text from (evidence->>'char_start')::integer+1
+          for (evidence->>'char_end')::integer-(evidence->>'char_start')::integer) is distinct from evidence->>'quote' then
+        raise exception 'question evidence span must match the referenced passage' using errcode='22023';end if;
+      if current_source.id is distinct from turn.source_id or candidate->>'id' ~ '^bq-[0-9a-f]{64}$' then
+        select conversation_id into conversation from public.user_lifetime_conversation where user_id=v_owner and project_id=p_project_id;
+        if not exists(select 1 from (
+          select q->>'source_id' source_id,q->>'source_version' version,q from jsonb_array_elements(public.read_lifetime_prepared_questions(conversation)) q
+          union all
+          select plan->>'source_id',plan->>'source_version',q from (select public.read_lifetime_strategy_context(conversation)->'plan' plan) state
+            cross join lateral jsonb_array_elements(coalesce(plan->'candidates','[]')) q
+        ) supplied where supplied.source_id=evidence->>'source_id' and supplied.version=evidence->>'version'
+          and supplied.q->>'quote'=evidence->>'quote' and supplied.q->'char_start'=evidence->'char_start'
+          and supplied.q->'char_end'=evidence->'char_end'
+          and (candidate->>'id' !~ '^bq-[0-9a-f]{64}$' or supplied.q->>'id'=candidate->>'id')) then
+          raise exception 'question candidate cannot change its referenced passage' using errcode='22023';end if;
+      end if;
+    end if;
+    if candidate->>'id' ~ '^bq-[0-9a-f]{64}$' and coalesce(context->'evidence','null')='null'::jsonb then
+      raise exception 'queued question requires its referenced passage' using errcode='22023';
+    end if;
     if context->>'historical_clue_id' is not null then
       if context->>'year' is not null or context->>'life_stage' is not null or context->>'event_id' is not null or context->>'photo_id' is not null
         or (select count(*) from jsonb_array_elements(p_plan->'candidates') c where c->'context'->>'historical_clue_id' is not null)>1
@@ -13346,6 +13404,9 @@ revoke all on function public.lifetime_source_attribution_rows(uuid, text, uuid)
 revoke all on function public.lifetime_source_attribution_summary(uuid, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_source_context(uuid, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_delivered_questions(uuid, text) from public,anon,authenticated,service_role;
+revoke all on function public.lifetime_question_hint(jsonb, jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.lifetime_question_id(uuid, bigint, jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.lifetime_consumed_question_ids(uuid, text) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_resolved_questions(uuid, text) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_question_dialogue(uuid, text, uuid, bigint) from public,anon,authenticated,service_role;
 revoke all on function public.prune_lifetime_question_pool(uuid, text, uuid) from public,anon,authenticated,service_role;

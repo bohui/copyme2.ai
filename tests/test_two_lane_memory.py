@@ -33,6 +33,15 @@ PLACE = {'place':'Hobart','hierarchy':['Earth','Australia','Tasmania','Hobart'],
 QUESTION = {'question':'What do you remember about those walks?', 'topic':'river walks', 'quote':'walked by the river'}
 
 
+def anchor_question(output, source, quote, start=None, end=None):
+    evidence = {'source_id': source['id'], 'version': source['version'], 'quote': quote,
+                'char_start': start, 'char_end': end, 'attribution': None}
+    if 'plan' in output:
+        output['plan']['candidates'][0]['context']['evidence'] = evidence
+    else:
+        output['question_evidence'] = evidence
+
+
 def test_two_lane_extraction_includes_place_skill_without_conflicting_output_instruction():
     from apps.api.two_lane_memory import extraction_contract
     instructions, schema = extraction_contract()
@@ -175,6 +184,8 @@ def test_late_background_confirmation_does_not_repeat_an_answered_question(
         else:
             output = proposal(mode='extract', name=None, question=question)
             output.update(acknowledgement='明白了。', selection_reason='latest_story')
+        if len(calls) == 1:
+            anchor_question(output, body['interview_context']['source'], texts[0])
         if paraphrased and len(calls) == 3:
             context = body['interview_context']
             answer = next(item['response'] for item in context['recent_dialogue']
@@ -299,6 +310,8 @@ def test_identical_clarification_wording_remains_available_for_a_different_memor
         else:
             output = {**proposal(mode='extract', name=None, question=wording),
                       'selection_reason': 'latest_story' if selected else reason}
+        if school_turn:
+            anchor_question(output, context['source'], school_story)
         return worker_reply(request, {'reply': json.dumps(output), 'thread_id': 'different-groups', 'artifacts': []})
 
     with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
@@ -365,6 +378,83 @@ def test_identical_clarification_wording_remains_available_for_a_different_memor
 
 
 @pytest.mark.parametrize('strategy_selector', [False, True])
+@pytest.mark.parametrize('anchored', [False, True])
+@pytest.mark.parametrize('repeated_quote', [False, True])
+def test_same_message_clarifications_keep_their_referenced_passages(
+        sql, tmp_path, monkeypatch, strategy_selector, anchored, repeated_quote):
+    from test_interview_strategy_runtime import client_fixture
+    from test_interview_strategy import wire
+    from controlled_collector import worker_reply
+
+    school = 'At school, we played cricket.'
+    work = 'At work, we travelled together.'
+    text = school + ' ' + work
+    question = 'Who do you mean by “we”?'
+    quotes = ['we', 'we'] if repeated_quote else [school, work]
+    starts = [text.index(quotes[0]), len(school) + 1 + work.index(quotes[1])]
+    def provider(request):
+        output = (wire(question=question, selection_reason='latest_story') if strategy_selector else
+                  {**proposal(mode='extract', name=None, question=question), 'selection_reason': 'latest_story'})
+        if anchored:
+            source = json.loads(request.content)['interview_context']['source']
+            anchor_question(output, source, quotes[0], starts[0], starts[0] + len(quotes[0]))
+        return worker_reply(request, {'reply': json.dumps(output), 'thread_id': 'two-passages', 'artifacts': []})
+    with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
+        if not strategy_selector:
+            monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY', '0')
+            sql('update public.lifetime_two_lane_rollout set strategy_enabled=false;')
+        response = client.post('/v1/agent/turn', json={'text': text, 'client_turn_id': str(uuid4())})
+        assert response.status_code == 200, response.text
+        identity = rpc(sql, 'resolve_lifetime_conversation', literal(response.json()['project_id']))
+        lane_id = lane(sql, identity)
+        page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+        result = {'events': [], 'place_journeys': [], 'prepared_questions': [{
+            'question': question, 'topic': topic, 'quote': quote, 'requires_confirmation': True,
+            'char_start': start, 'char_end': start + len(quote)}
+            for topic, quote, start in zip(('school group', 'work group'), quotes, starts)]}
+        if strategy_selector:
+            result['strategy_proposal'] = {'strategy': 'explore', 'objective': 'follow_story', 'focus_event_ids': []}
+        service(sql, 'commit_lifetime_memoir_lane_page',
+                f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+        pending = rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
+        expected = starts[1:] if anchored else starts
+        assert [item['char_start'] for item in pending] == expected
+        assert len({item['id'] for item in pending}) == len(expected)
+        if strategy_selector:
+            state = rpc(sql, 'read_lifetime_strategy_context', f"'{identity['conversation_id']}'")
+            assert [item['char_start'] for item in state['plan']['candidates']] == expected
+
+
+def test_database_cannot_retarget_a_hint_id_to_a_different_passage(sql):
+    question = 'Who do you mean by we?'
+    school, work = 'At school we played.', 'At work we travelled.'
+    turn = str(uuid4())
+    identity, accepted = accept(sql, text=school + ' ' + work, turn=turn)
+    lane_id = lane(sql, identity)
+    page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+    result = {'events': [], 'place_journeys': [], 'prepared_questions': [
+        {'question': question, 'topic': topic, 'quote': quote, 'requires_confirmation': True}
+        for topic, quote in (('school', school), ('work', work))]}
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}',0,{literal(result)}")
+    pending = rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
+    work_hint = next(item for item in pending if item['topic'] == 'work')
+    evidence = {'source_id': accepted['source']['id'], 'version': 1,
+                'quote': school, 'char_start': 0, 'char_end': len(school)}
+    plan = {'candidates': [{'id': work_hint['id'], 'question': question, 'order': 0,
+                           'bridge': '', 'context': {'evidence': evidence}}],
+            'chosen_id': work_hint['id'], 'active_event_id': None}
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    def save(check=True):
+        return rpc(sql, 'save_user_interview_plan', f"{literal(identity['project_id'])},'{turn}',"
+            f"{literal(plan)},'[]','{OLD}',{literal(question)},'[]','passage-test'", check=check)
+    rejected = save(check=False)
+    assert rejected.returncode != 0 and 'cannot change its referenced passage' in rejected.stderr
+    assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == pending
+    evidence.update(quote=work, char_start=len(school) + 1, char_end=len(school) + 1 + len(work))
+    assert save()['plan']['candidates'][0]['context']['evidence'] == evidence
+
+
+@pytest.mark.parametrize('strategy_selector', [False, True])
 @pytest.mark.parametrize('hint_after_failure', [False, True])
 def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_identity(
         sql, tmp_path, monkeypatch, strategy_selector, hint_after_failure):
@@ -390,6 +480,8 @@ def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_id
         else:
             output = proposal(mode='extract', name=None, question=text)
             output['selection_reason'] = 'latest_story'
+        if hint_after_failure and len(calls) == 2:
+            anchor_question(output, body['interview_context']['source'], narration)
         return worker_reply(request, {'reply': json.dumps(output), 'thread_id': 'delivery-retry', 'artifacts': []})
 
     with client_fixture(sql, tmp_path, monkeypatch, provider) as client:

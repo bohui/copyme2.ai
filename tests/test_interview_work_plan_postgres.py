@@ -68,3 +68,20 @@ def test_returning_user_can_save_multiple_candidates_on_first_project_turn(sql):
     saved = save(sql, validated['plan'])
     assert saved['plan'] == validated['plan']
     assert len(saved['plan']['candidates']) == 2
+
+
+@pytest.mark.parametrize('invalid', [None, 'version', 'span', 'source', 'untyped'])
+def test_question_passage_is_independently_validated_at_the_database(sql, invalid):
+    turn = accept(sql, 'At school we played. At work we travelled.')
+    value = plan('extract', None)
+    evidence = {'source_id': turn['source']['id'], 'version': 1, 'quote': 'we', 'char_start': 10, 'char_end': 12}
+    if invalid == 'version': evidence['version'] = 2
+    elif invalid == 'span': evidence['char_end'] = 13
+    elif invalid == 'source': evidence['source_id'] = '00000000-0000-4000-8000-000000000099'
+    elif invalid == 'untyped': evidence['char_start'] = '10'
+    value['candidates'][0]['context']['evidence'] = evidence
+    if invalid:
+        assert save(sql, value, check=False).returncode != 0
+        assert rpc(sql, 'read_user_interview_turn', f"'project','{TURN}'")['reply'] is None
+    else:
+        assert save(sql, value)['plan']['candidates'][0]['context']['evidence'] == evidence

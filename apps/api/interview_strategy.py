@@ -15,6 +15,8 @@ from pydantic import BaseModel,ConfigDict,Field
 from .interview_plan import PhotoAssociation,TurnWorkPlan
 from .two_lane_memory import PreparedQuestion, pending_confirmation
 from .interview_questions import QuestionResolution, resolution_schema
+from .interview_questions import hint_evidence, question_evidence_schema
+from .memory_events import EvidenceRef
 from .prompt_composition import render_prompt_artifact
 from .prompt_artifact import prompt_path
 from .stage_readiness import LIFE_STAGES
@@ -68,6 +70,10 @@ class ImmediateSelection(BaseModel):
     associations:list[PhotoAssociation]=Field(max_length=20)
     response_photo_ids:list[str]=Field(max_length=5)
     stopped:bool
+    question_evidence:EvidenceRef|None=Field(default=None, description=(
+        'Exact current narrator passage the immediate question refers to; null offsets are allowed for a unique quote. '
+        'Distinguish separate groups within one message; for a queued candidate its recorded evidence is retained. '
+        'Null only for a question without referenced narrator evidence.'))
     resolved_questions:list[QuestionResolution]=Field(default_factory=list,max_length=5)
 
 
@@ -129,7 +135,7 @@ def selector_schema(context=None):
     elif constraints.get('override') and not direct_question(context):
         # Literal intent matching cannot enumerate every natural request to stop.
         schema['properties']['selection_reason']['enum']=[constraints['override'], 'pause']
-    return resolution_schema(schema, context)
+    return question_evidence_schema(resolution_schema(schema, context))
 
 
 def direct_question(context):
@@ -207,6 +213,10 @@ def adapt_selection(raw,context):
     candidate_id=item.selected_candidate_id or 'immediate-'+(context.get('source') or {}).get('id','fallback')
     candidates=[] if item.question is None else [{'id':candidate_id,'question':item.question,
         'context':{'event_id':None,'photo_id':None,'life_stage':None,'year':None},'order':0,'bridge':''}]
+    if candidates:
+        evidence = hint_evidence(available[item.selected_candidate_id], context) if item.selected_candidate_id else item.question_evidence
+        if evidence is not None:
+            candidates[0]['context']['evidence'] = evidence.model_dump() if hasattr(evidence, 'model_dump') else evidence
     legacy={'acknowledgement':item.acknowledgement,'plan':{'candidates':candidates,
         'chosen_id':candidate_id if candidates else None,'active_event_id':None,'work':item.work.model_dump()},
         'associations':[a.model_dump() for a in item.associations],'response_photo_ids':item.response_photo_ids,

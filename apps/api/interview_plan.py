@@ -16,7 +16,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .memory_events import EvidenceRef
-from .interview_questions import QuestionResolution, resolution_schema, validate_resolutions
+from .interview_questions import (QuestionResolution, resolution_schema, validate_resolutions,
+    validate_question_evidence, question_evidence_schema, question_candidates, hint_evidence)
 from .stage_readiness import LIFE_STAGES
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
@@ -49,6 +50,10 @@ class QuestionContext(StrictModel):
     life_stage: str | None
     year: int | None
     historical_clue_id: str | None = Field(default=None, max_length=128)
+    evidence: EvidenceRef | None = Field(default=None, description=(
+        'Exact narrator passage this question refers to, not the whole message when it contains several topics. '
+        'Use current source or the selected queued hint; include absolute offsets for repeated wording. '
+        'Null only when no referenced narrator passage is available; unanchored wording cannot consume another hint.'))
 
 
 class QuestionCandidate(StrictModel):
@@ -107,6 +112,7 @@ def collector_schema(context=None):
     question_context = schema['$defs']['QuestionContext']
     question_context['required'] = list(question_context['properties'])
     question_context['properties']['historical_clue_id'].pop('default', None)
+    question_context['properties']['evidence'].pop('default', None)
     if context is not None:
         events=[e for e in context.get('events',[]) if e.get('status')=='active']
         pointers={
@@ -120,7 +126,7 @@ def collector_schema(context=None):
         plan['properties']['active_event_id']['enum']=list(dict.fromkeys([None,*pointers['event_id']]))
     if (context or {}).get('historical_news', {}).get('clues'):
         schema['properties']['acknowledgement']['enum'] = sorted(historical_acknowledgements(context))
-    return resolution_schema(schema, context, plan=True)
+    return question_evidence_schema(resolution_schema(schema, context, plan=True))
 
 
 def collector_instructions(context):
@@ -155,8 +161,7 @@ def validate_collector_result(value, context):
     if plan.chosen_id in resolved:
         raise ValueError('An answered question cannot also be chosen')
     ids = [item.id for item in plan.candidates]
-    questions = [item.question.strip().casefold() for item in plan.candidates]
-    if len(ids) != len(set(ids)) or len(questions) != len(set(questions)):
+    if len(ids) != len(set(ids)):
         raise ValueError('Question candidates must be distinct')
     if result.stopped:
         if plan.candidates or plan.chosen_id is not None:
@@ -192,8 +197,22 @@ def validate_collector_result(value, context):
     chosen = None
     historical_context = None
     news_count = 0
+    questions = []
+    queued = {item['id']: item for item in question_candidates(context)}
     for candidate in plan.candidates:
         c = candidate.context
+        expected = hint_evidence(queued[candidate.id], context) if candidate.id in queued else None
+        if re.fullmatch(r'bq-[0-9a-f]{64}', candidate.id) and candidate.id not in queued:
+            raise ValueError('Question candidate is outside the supplied hints')
+        if c.evidence is None and expected:
+            c.evidence = EvidenceRef.model_validate(expected)
+        if c.evidence is not None:
+            c.evidence = validate_question_evidence(c.evidence, context)
+            if expected and any(getattr(c.evidence, key) != expected[key]
+                    for key in ('source_id', 'version', 'quote', 'char_start', 'char_end')):
+                raise ValueError('Question candidate cannot change its referenced passage')
+        questions.append((candidate.question.strip().casefold(), None if c.evidence is None else
+            (c.evidence.source_id, c.evidence.version, c.evidence.char_start, c.evidence.char_end)))
         if c.historical_clue_id is not None:
             from .historical_news import authorized_clue, public_clue
             clue = authorized_clue(context, c.historical_clue_id)
@@ -228,6 +247,8 @@ def validate_collector_result(value, context):
             chosen = candidate
             if previous_active and c.event_id and c.event_id != previous_active and not candidate.bridge.strip():
                 raise ValueError('Returning to another event needs a conversational bridge')
+    if len(questions) != len(set(questions)):
+        raise ValueError('Question candidates must be distinct')
     for association in result.associations:
         if association.photo_id not in photos:
             raise ValueError('Unknown association photo')
@@ -262,6 +283,8 @@ def validate_collector_result(value, context):
     for candidate in saved_plan['candidates']:
         if candidate['context']['historical_clue_id'] is None:
             candidate['context'].pop('historical_clue_id')
+        if candidate['context']['evidence'] is None:
+            candidate['context'].pop('evidence')
     if plan.work is None:
         saved_plan.pop('work')  # Older collectors retain normal extraction behavior.
     return {'reply': reply, 'acknowledgement': result.acknowledgement,
