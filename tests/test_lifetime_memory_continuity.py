@@ -27,7 +27,7 @@ def reply(updates=None):
     result = {'acknowledgement': 'We can continue at your pace.',
         'plan': {'candidates': [{'id': 'q1', 'question': 'What comes to mind?',
             'context': {'event_id': None, 'photo_id': None, 'life_stage': None,
-                        'year': None, 'historical_clue_id': None}, 'order': 0, 'bridge': ''}],
+                        'year': None, 'historical_clue_id': None, 'evidence': None}, 'order': 0, 'bridge': ''}],
             'chosen_id': 'q1', 'active_event_id': None, 'work': None},
         'associations': [], 'response_photo_ids': [], 'stopped': False}
     if updates is not None:
