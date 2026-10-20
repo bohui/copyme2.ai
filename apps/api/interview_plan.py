@@ -88,7 +88,8 @@ class PhotoAssociation(StrictModel):
 
 
 ACKNOWLEDGEMENT_DESCRIPTION = (
-    'A brief statement responding to the narrator. Do not ask or invite a question here, '
+    'A brief statement using only the narrator’s stated facts or intent. Do not add assumed '
+    'times, relationships or events. Do not ask or invite a question here, '
     'including a question without a question mark. Put the single chosen question in the question/plan fields.')
 
 
