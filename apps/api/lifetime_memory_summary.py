@@ -92,7 +92,8 @@ def summary_packet(fence):
     state=fence['memory_summary']
     return {'source':deepcopy(fence['source']),'prior':deepcopy(state['prior']),
         'maintenance_id':state['maintenance_id'],'revision':state['revision'],
-        'coverage_end':state['through_sequence'],'selective':True}
+        'coverage_end':state['through_sequence'],'selective':True,
+        'recent_dialogue':deepcopy((fence.get('attribution_context') or {}).get('recent_dialogue', []))}
 
 
 def validate_summary(raw,page):

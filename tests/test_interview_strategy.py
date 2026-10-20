@@ -15,7 +15,8 @@ def context(strategy='shape',text="Let's talk about my garden."):
 def wire(question='What do you enjoy growing?',**changes):
     return {'acknowledgement':'We can follow the garden.','question':question,'selected_candidate_id':None,
         'selection_reason':'user_redirect','used_strategy':'explore','work':{'mode':'extract','name':None},
-        'associations':[],'response_photo_ids':[],'stopped':False,'continuity_updates':[],**changes}
+        'associations':[],'response_photo_ids':[],'stopped':False,'continuity_updates':[],
+        'resolved_questions':[],**changes}
 
 
 def test_shared_core_plus_one_active_module_without_legacy_shape_gate():

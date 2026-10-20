@@ -97,7 +97,9 @@ def pending_confirmation(context):
 
 def prioritize_confirmation(value, context, *, selection_reason):
     """Prioritize B only after validating the original plan and current intent."""
-    question = pending_confirmation(context)
+    resolved = {item['question_id'] for item in value['plan'].get('resolved_questions', [])}
+    question = pending_confirmation({**context, 'prepared_questions': [
+        item for item in context.get('prepared_questions', []) if item['id'] not in resolved]})
     if not question or value['stopped'] or selection_reason in {'current_correction', 'user_redirect', 'pacing'}:
         return value
     return {**value, 'plan': {**value['plan'], 'chosen_id': question['id'], 'active_event_id': None,

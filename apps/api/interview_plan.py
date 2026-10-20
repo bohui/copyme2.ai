@@ -16,6 +16,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .memory_events import EvidenceRef
+from .interview_questions import QuestionResolution, resolution_schema, validate_resolutions
 from .stage_readiness import LIFE_STAGES
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
@@ -74,6 +75,7 @@ class InterviewPlan(StrictModel):
     chosen_id: str | None
     active_event_id: str | None
     work: TurnWorkPlan | None = None
+    resolved_questions: list[QuestionResolution] = Field(default_factory=list, max_length=5)
 
 
 class PhotoAssociation(StrictModel):
@@ -118,7 +120,7 @@ def collector_schema(context=None):
         plan['properties']['active_event_id']['enum']=list(dict.fromkeys([None,*pointers['event_id']]))
     if (context or {}).get('historical_news', {}).get('clues'):
         schema['properties']['acknowledgement']['enum'] = sorted(historical_acknowledgements(context))
-    return schema
+    return resolution_schema(schema, context, plan=True)
 
 
 def collector_instructions(context):
@@ -149,6 +151,9 @@ def validate_collector_result(value, context):
     if _questions(result.acknowledgement):
         raise ValueError('Acknowledgement cannot contain a question')
     plan = result.plan
+    resolved = validate_resolutions([item.model_dump() for item in plan.resolved_questions], context)
+    if plan.chosen_id in resolved:
+        raise ValueError('An answered question cannot also be chosen')
     ids = [item.id for item in plan.candidates]
     questions = [item.question.strip().casefold() for item in plan.candidates]
     if len(ids) != len(set(ids)) or len(questions) != len(set(questions)):
@@ -251,6 +256,8 @@ def validate_collector_result(value, context):
     # Always present an accepted cue, even when its topic is deferred.
     display = list(dict.fromkeys(result.response_photo_ids + [p['photo_id'] for p in context.get('photo_context', [])]))[:5]
     saved_plan = plan.model_dump()
+    if not saved_plan['resolved_questions']:
+        saved_plan.pop('resolved_questions')
 
     for candidate in saved_plan['candidates']:
         if candidate['context']['historical_clue_id'] is None:

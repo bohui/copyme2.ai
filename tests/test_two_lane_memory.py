@@ -151,8 +151,9 @@ def test_confirmation_from_an_earlier_source_window_stays_queued(sql):
 
 
 @pytest.mark.parametrize('strategy_selector', [False, True])
+@pytest.mark.parametrize('paraphrased', [False, True])
 def test_late_background_confirmation_does_not_repeat_an_answered_question(
-        sql, tmp_path, monkeypatch, strategy_selector):
+        sql, tmp_path, monkeypatch, strategy_selector, paraphrased):
     from test_interview_strategy_runtime import client_fixture
     from test_interview_strategy import wire
     from controlled_collector import worker_reply
@@ -174,6 +175,15 @@ def test_late_background_confirmation_does_not_repeat_an_answered_question(
         else:
             output = proposal(mode='extract', name=None, question=question)
             output.update(acknowledgement='明白了。', selection_reason='latest_story')
+        if paraphrased and len(calls) == 3:
+            context = body['interview_context']
+            answer = next(item['response'] for item in context['recent_dialogue']
+                          if item['question']['text'] == confirmation)
+            resolved = [{'question_id': context['prepared_questions'][0]['id'],
+                'source_id': answer['id'], 'source_version': answer['version'],
+                'char_start': 0, 'char_end': len(answer['text']), 'quote': answer['text']}]
+            target = output if strategy_selector else output['plan']
+            target['resolved_questions'] = resolved
         return worker_reply(request, {'reply': json.dumps(output, ensure_ascii=False),
                                       'thread_id': 'confirmation-replay', 'artifacts': []})
 
@@ -191,20 +201,32 @@ def test_late_background_confirmation_does_not_repeat_an_answered_question(
                                                    'client_turn_id': str(uuid4())})
         assert second.status_code == 200, second.text
         assert second.json()['reply'].endswith(questions[1])
+        identity = rpc(sql, 'resolve_lifetime_conversation', literal(project))
+        context = rpc(sql, 'read_lifetime_interview_context', f"'{identity['conversation_id']}'")
+        exchange = next(item for item in context['recent_dialogue']
+                        if item['question']['text'] == confirmation)
+        assert exchange['question']['personal_testimony'] is False
+        assert exchange['question']['delivered'] is True
+        assert exchange['response']['text'] == '是的'
+        assert exchange['response']['id'] == second.json()['accepted_source_id']
+        assert exchange['status'] == 'responded'
 
         # Background extraction finishes after the narrator has already answered
         # the foreground question, so its source-derived ID is different.
-        identity = rpc(sql, 'resolve_lifetime_conversation', literal(project))
         lane_id = lane(sql, identity)
         page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+        assert any(item['question']['text'] == confirmation and item['response']['text'] == '是的'
+                   for item in page['attribution_context']['recent_dialogue'])
         result = {'events': [], 'place_journeys': [], 'prepared_questions': [{
-            'question': confirmation, 'topic': '林姨的身份',
+            'question': '林姨是陈小明的母亲，对吗？' if paraphrased else confirmation, 'topic': '林姨的身份',
             'quote': page['source']['text'], 'requires_confirmation': True}]}
         if strategy_selector:
             result['strategy_proposal'] = {'strategy': 'shape', 'objective': 'clarify_identity',
                                            'focus_event_ids': []}
         service(sql, 'commit_lifetime_memoir_lane_page',
                 f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+        if not paraphrased:
+            assert json.loads(sql('select questions from public.user_lifetime_prepared_question;').stdout) == []
 
         third = client.post('/v1/agent/turn', json={**payload, 'text': texts[2],
                                                   'client_turn_id': str(uuid4())})
@@ -212,7 +234,10 @@ def test_late_background_confirmation_does_not_repeat_an_answered_question(
         replies = [response.json()['reply'] for response in (first, second, third)]
         assert sum(confirmation in reply for reply in replies) == 1, replies
         assert replies[-1].endswith(questions[-1])
-        assert calls[-1]['interview_context']['prepared_questions'] == []
+        assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == []
+        assert json.loads(sql('select questions from public.user_lifetime_prepared_question;').stdout) == []
+        if not paraphrased:
+            assert calls[-1]['interview_context']['prepared_questions'] == []
         assert len(calls) == 3
 
 
@@ -243,6 +268,141 @@ def test_unasked_foreground_alternative_remains_an_eligible_confirmation(sql, tm
             f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
     pending = rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
     assert [candidate['question'] for candidate in pending] == [question['question']]
+
+
+@pytest.mark.parametrize('strategy_selector', [False, True])
+def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_identity(
+        sql, tmp_path, monkeypatch, strategy_selector):
+    from apps.api.codex_runtime import CodexRuntime
+    from apps.api.lifetime_memory_runtime import lifetime_http_turn
+    from memoir_postgres_workflow import PostgresRest
+    from test_interview_strategy_runtime import client_fixture
+    from test_interview_strategy import wire
+    from controlled_collector import worker_reply
+
+    calls = []
+    question = {**QUESTION, 'question': 'Did you mean Hobart in Tasmania?', 'requires_confirmation': True}
+
+    def provider(request):
+        body = json.loads(request.content)
+        calls.append(body)
+        pending = body['interview_context']['prepared_questions']
+        text = pending[0]['question'] if pending else 'What do you remember about the river?'
+        if strategy_selector:
+            output = wire(question=text, selected_candidate_id=pending[0]['id'] if pending else None,
+                          selection_reason='prepared_candidate' if pending else 'latest_story')
+        else:
+            output = proposal(mode='extract', name=None, question=text)
+            output['selection_reason'] = 'latest_story'
+        return worker_reply(request, {'reply': json.dumps(output), 'thread_id': 'delivery-retry', 'artifacts': []})
+
+    with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
+        if not strategy_selector:
+            monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY', '0')
+            sql('update public.lifetime_two_lane_rollout set strategy_enabled=false;')
+        first = client.post('/v1/agent/turn', json={'text': TEXT, 'client_turn_id': str(uuid4())})
+        assert first.status_code == 200, first.text
+        project = first.json()['project_id']
+        identity = rpc(sql, 'resolve_lifetime_conversation', literal(project))
+        lane_id = lane(sql, identity)
+        page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+        result = {'events': [], 'place_journeys': [], 'prepared_questions': [question]}
+        if strategy_selector:
+            result['strategy_proposal'] = {'strategy': 'shape', 'objective': 'clarify_identity', 'focus_event_ids': []}
+        service(sql, 'commit_lifetime_memoir_lane_page',
+                f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+        turn = str(uuid4())
+        options = {'project_id': project, 'client_turn_id': turn}
+        runtime = CodexRuntime(home_root=tmp_path, worker_url='http://controlled.invalid',
+            worker_secret='synthetic', worker_transport=httpx.MockTransport(provider))
+
+        async def failed_send():
+            response = await lifetime_http_turn(runtime, PostgresRest(sql, OWNER).storage(),
+                'Please go on.', accept='application/json', options=options)
+            assert [q['question'] for q in rpc(sql, 'read_lifetime_prepared_questions',
+                f"'{identity['conversation_id']}'")] == [question['question']]
+            async def receive(): return {'type': 'http.disconnect'}
+            async def send(message):
+                if message['type'] == 'http.response.body': raise OSError('synthetic closed socket')
+            with pytest.raises(OSError):
+                await response({'type': 'http', 'asgi': {'spec_version': '2.4'}}, receive, send)
+            assert not response.delivered
+
+        asyncio.run(failed_send())
+        assert sql(f"select count(*) from public.user_memory_delivered_context where client_turn_id='{turn}';").stdout.strip() == '0'
+        retry = client.post('/v1/agent/turn', json={**options, 'text': 'Please go on.'})
+        assert retry.status_code == 200 and retry.json()['cached'], retry.text
+        assert retry.json()['reply'].endswith(question['question'])
+        assert len(calls) == 2
+        assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == []
+        assert json.loads(sql('select questions from public.user_lifetime_prepared_question;').stdout) == []
+        assert sql(f"select count(*) from public.user_memory_delivered_context where client_turn_id='{turn}';").stdout.strip() == '1'
+
+
+def test_pending_hint_recovers_an_older_answer_and_withdrawal_invalidates_it(sql, tmp_path, monkeypatch):
+    from test_interview_strategy_runtime import client_fixture
+    from controlled_collector import worker_reply
+
+    confirmation = 'Did you mean Hobart in Tasmania?'
+    calls = []
+    def provider(request):
+        calls.append(request)
+        context = json.loads(request.content)['interview_context']
+        output = proposal(mode='extract', name=None, question=confirmation if len(calls) == 1
+                          else f'What do you recall about detail {len(calls)}?')
+        output['selection_reason'] = 'latest_story'
+        if context['prepared_questions']:
+            answer = next(item['response'] for item in context['recent_dialogue']
+                          if item['question']['text'] == confirmation)
+            output['plan']['resolved_questions'] = [{'question_id': context['prepared_questions'][0]['id'],
+                'source_id': answer['id'], 'source_version': answer['version'],
+                'char_start': 0, 'char_end': 4, 'quote': 'Yes.'}]
+        return worker_reply(request, {'reply': json.dumps(output), 'thread_id': 'old-dialogue', 'artifacts': []})
+
+    with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
+        monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY', '0')
+        sql('update public.lifetime_two_lane_rollout set strategy_enabled=false;')
+        first = client.post('/v1/agent/turn', json={'text': TEXT, 'client_turn_id': str(uuid4())})
+        assert first.status_code == 200, first.text
+        project = first.json()['project_id']
+        identity = rpc(sql, 'resolve_lifetime_conversation', literal(project))
+        answer = client.post('/v1/agent/turn', json={'project_id': project, 'text': 'Yes.', 'client_turn_id': str(uuid4())})
+        assert answer.status_code == 200, answer.text
+        for n in range(9):
+            later = client.post('/v1/agent/turn', json={'project_id': project,
+                'text': f'Another memory about detail {n}.', 'client_turn_id': str(uuid4())})
+            assert later.status_code == 200, later.text
+
+    recent = json.loads(sql(f"select public.lifetime_question_dialogue('{OWNER}',{literal(project)});").stdout)
+    assert all(item['question']['text'] != confirmation for item in recent)
+    lane_id = lane(sql, identity)
+    page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+    result = {'events': [], 'place_journeys': [], 'prepared_questions': [{**QUESTION,
+        'question': 'Was that Hobart, Tasmania?', 'requires_confirmation': True}]}
+    service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+    context = rpc(sql, 'read_lifetime_interview_context', f"'{identity['conversation_id']}'")
+    exchange = next(item for item in context['recent_dialogue'] if item['question']['text'] == confirmation)
+    assert exchange['response']['id'] == answer.json()['accepted_source_id']
+    assert exchange['response']['text'] == 'Yes.'
+    sequences = [item['question']['sequence'] for item in context['recent_dialogue']]
+    assert sequences == sorted(sequences)
+    assert len(context['recent_dialogue']) <= 14
+    assert rpc(sql, 'read_lifetime_interview_context', f"'{identity['conversation_id']}'", owner=OTHER, check=False).returncode != 0
+    cold_client = client_fixture(sql, tmp_path, monkeypatch, provider)
+    monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY', '0')
+    sql('update public.lifetime_two_lane_rollout set strategy_enabled=false;')
+    with cold_client:
+        continued = cold_client.post('/v1/agent/turn', json={'project_id': project,
+            'text': 'The riverbank was sandy.', 'client_turn_id': str(uuid4())})
+        assert continued.status_code == 200, continued.text
+        assert 'Was that Hobart' not in continued.json()['reply']
+    assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == []
+
+    rpc(sql, 'change_user_narrator_source',
+        f"{literal(project)},'{answer.json()['accepted_source_id']}',1,'withdraw',null")
+    changed = rpc(sql, 'read_lifetime_interview_context', f"'{identity['conversation_id']}'")
+    assert all(item['question']['text'] != confirmation for item in changed['recent_dialogue'])
 
 
 @pytest.mark.parametrize('flag', ['true', 1, None])

@@ -3808,7 +3808,7 @@ begin
    and sequence<new.sequence order by sequence desc limit 1;
  insert into public.user_memory_reply_context
  select new.user_id,new.project_id,new.id,new.version,d.source_id from public.user_memory_delivered_context d
- where d.user_id=new.user_id and d.project_id=new.project_id and d.source_id=prior and d.event_id is not null
+ where d.user_id=new.user_id and d.project_id=new.project_id and d.source_id=prior
  on conflict do nothing;
  return new;
 end $$;
@@ -4085,6 +4085,7 @@ begin
  insert into public.user_memory_delivered_context values(auth.uid(),project,source.id,source.version,p_client_turn_id,p_reply_id,
    (p_fence->>'policy_epoch')::bigint,(p_fence->>'execution_generation')::bigint,(p_fence->>'preference_revision')::bigint,event.id,event.revision)
  on conflict do nothing;
+ perform public.prune_lifetime_question_pool(auth.uid(),project);
  return true;
 end $$;
 
@@ -4467,7 +4468,12 @@ begin
  end if;
  next_revision:=current_revision+1;
  select coalesce(jsonb_agg(q||jsonb_build_object('id','bq-'||encode(sha256(convert_to((page->'source'->>'id')||':'||
-   (page->'source'->>'version')||':'||(q->>'question'),'UTF8')),'hex'))),'[]') into candidates from jsonb_array_elements(p_result->'prepared_questions') q;
+   (page->'source'->>'version')||':'||(q->>'question'),'UTF8')),'hex'))),'[]') into candidates from jsonb_array_elements(p_result->'prepared_questions') q
+ where not exists(select 1 from public.lifetime_delivered_questions(snap.user_id,snap.project_id) asked
+   where lower(btrim(asked.question))=lower(btrim(q->>'question')))
+ and not exists(select 1 from public.lifetime_resolved_questions(snap.user_id,snap.project_id) resolved
+   where resolved.question_id='bq-'||encode(sha256(convert_to((page->'source'->>'id')||':'||
+     (page->'source'->>'version')||':'||(q->>'question'),'UTF8')),'hex'));
  select coalesce(jsonb_agg(jsonb_build_object('id',e.id,'revision',e.revision)),'[]') into manifest from public.user_memory_event e
    where e.user_id=snap.user_id and e.project_id=snap.project_id and proposal->'focus_event_ids' @> to_jsonb(e.id);
  select checkpoint_id into checkpoint from public.user_lifetime_conversation where user_id=snap.user_id and conversation_id=snap.conversation_id;
@@ -4684,6 +4690,7 @@ begin
        order by lower(btrim(item.value->>'question')),
          (item.value->'requires_confirmation'='true'::jsonb) desc nulls last,item.position
      ) hint);
+   perform public.prune_lifetime_question_pool(snap.user_id,snap.project_id,(page->'source'->>'id')::uuid);
  end if;
  return result;
 end $$;
@@ -5167,6 +5174,7 @@ begin
    (next_fence->>'policy_epoch')::bigint,(next_fence->>'source_revision')::bigint,(next_fence->>'execution_generation')::bigint,
    (next_fence->>'phase_revision')::bigint,(next_fence->>'preference_revision')::bigint,p_model,p_prompt_version)
    on conflict do nothing;
+ perform public.prune_lifetime_question_pool(owner,project);
  update public.user_lifetime_conversation set thread_schema_version=1,thread_id=p_thread_id,thread_model=p_model,thread_prompt_version=p_prompt_version,
    thread_policy_epoch=(next_fence->>'policy_epoch')::bigint where user_id=owner and conversation_id=conversation;
  return jsonb_build_object('memory',memory,'interview',interview,'fence',next_fence);
@@ -6830,6 +6838,109 @@ CREATE FUNCTION public.lifetime_source_attribution_summary(p_owner uuid, p_proje
    'withheld_passages',count(*) filter(where disposition='withheld'),
    'retrieval','/v1/story/sources/'||p_project||'/'||p_source||'/attribution')
  from (select distinct char_start,char_end,disposition from public.lifetime_source_attribution_rows(p_owner,p_project,p_source)) passages
+$$;
+
+-- Delivery, not a saved plan, owns whether a question has actually been asked.
+-- Both collector modes use this same ledger and retain the original reply.
+CREATE FUNCTION public.lifetime_delivered_questions(p_owner uuid, p_project text)
+RETURNS TABLE(source_id uuid, source_version bigint, client_turn_id uuid, reply_id uuid,
+              turn_sequence bigint, question_id text, question text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ select d.source_id,d.source_version,d.client_turn_id,d.reply_id,t.sequence,q->>'id',q->>'question'
+ from public.user_memory_delivered_context d
+ join public.user_interview_turn t on t.user_id=d.user_id and t.project_id=d.project_id
+   and t.client_turn_id=d.client_turn_id and t.source_id=d.source_id and t.source_version=d.source_version
+ join public.user_narrator_source s on s.user_id=d.user_id and s.project_id=d.project_id
+   and s.id=d.source_id and s.version=d.source_version and s.status='active'
+ join public.user_lifetime_conversation c on c.user_id=d.user_id and c.project_id=d.project_id
+   and c.execution_generation=d.execution_generation and c.preference_revision=d.preference_revision
+ join public.user_memoir_project p on p.user_id=d.user_id and p.project_id=d.project_id and p.policy_epoch=d.policy_epoch
+ join public.user_lifetime_reply r on r.user_id=d.user_id and r.conversation_id=c.conversation_id
+   and r.client_turn_id=d.client_turn_id and r.memory_id=d.reply_id and r.policy_epoch=d.policy_epoch
+   and r.execution_generation=d.execution_generation and r.preference_revision=d.preference_revision
+ cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'candidates','[]')) q
+ where d.user_id=p_owner and d.project_id=p_project and q->>'id'=t.collector->'plan'->>'chosen_id'
+   and length(coalesce(q->>'question',''))>0 and strpos(t.collector->>'reply',q->>'question')>0
+$$;
+
+CREATE FUNCTION public.lifetime_question_dialogue(p_owner uuid, p_project text, p_source uuid DEFAULT NULL::uuid,
+                                                p_through_sequence bigint DEFAULT NULL::bigint) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ select coalesce(jsonb_agg(item order by turn_sequence),'[]') from (
+   select q.turn_sequence,jsonb_build_object('status',case when answer.id is null then 'asked' else 'responded' end,
+     'question',jsonb_build_object('id',q.question_id,'text',q.question,'role','assistant','personal_testimony',false,
+       'client_turn_id',q.client_turn_id,'reply_id',q.reply_id,'sequence',q.turn_sequence,'delivered',true,
+       'source_id',q.source_id,'source_version',q.source_version),
+     'response',case when answer.id is null then null else jsonb_build_object('id',answer.id,'version',answer.version,
+       'sequence',answer.sequence,'text',left(answer.text,512),'role','user','kind',answer.kind,
+       'char_start',0,'char_end',least(length(answer.text),512),'complete',length(answer.text)<=512) end) item
+   from public.lifetime_delivered_questions(p_owner,p_project) q
+   join public.user_narrator_source question_source on question_source.user_id=p_owner and question_source.project_id=p_project
+     and question_source.id=q.source_id and (p_through_sequence is null or question_source.sequence<=p_through_sequence)
+   left join lateral (
+     select s.* from public.user_memory_reply_context link
+     join public.user_narrator_source s on s.user_id=link.user_id and s.project_id=link.project_id
+       and s.id=link.source_id and s.version=link.source_version and s.status='active'
+     where link.user_id=p_owner and link.project_id=p_project and link.prior_source_id=q.source_id
+       and (p_through_sequence is null or s.sequence<=p_through_sequence)
+     order by s.sequence limit 1
+   ) answer on true
+   where p_source is null or q.source_id=p_source or answer.id=p_source
+   order by q.turn_sequence desc limit 8
+ ) bounded
+$$;
+
+CREATE FUNCTION public.lifetime_resolved_questions(p_owner uuid, p_project text) RETURNS TABLE(question_id text)
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ select distinct resolution->>'question_id'
+ from public.user_interview_turn t
+ join public.user_narrator_source original on original.user_id=t.user_id and original.project_id=t.project_id
+   and original.id=t.source_id and original.version=t.source_version and original.status='active'
+ join public.user_lifetime_conversation c on c.user_id=t.user_id and c.project_id=t.project_id
+ join public.user_memoir_project p on p.user_id=t.user_id and p.project_id=t.project_id
+ join public.user_lifetime_reply r on r.user_id=t.user_id and r.conversation_id=c.conversation_id
+   and r.client_turn_id=t.client_turn_id and r.policy_epoch=p.policy_epoch
+   and r.execution_generation=c.execution_generation and r.preference_revision=c.preference_revision
+ cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'resolved_questions','[]')) resolution
+ join public.user_narrator_source answer on answer.user_id=t.user_id and answer.project_id=t.project_id
+   and answer.id=(resolution->>'source_id')::uuid and answer.version=(resolution->>'source_version')::bigint
+   and answer.status='active'
+ where t.user_id=p_owner and t.project_id=p_project
+$$;
+
+CREATE FUNCTION public.prune_lifetime_question_pool(p_owner uuid, p_project text, p_source uuid DEFAULT NULL::uuid) RETURNS void
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ with asked as materialized (select * from public.lifetime_delivered_questions(p_owner,p_project)),
+      resolved as materialized (select * from public.lifetime_resolved_questions(p_owner,p_project))
+ update public.user_lifetime_prepared_question pool set questions=(
+   select coalesce(jsonb_agg(q order by position),'[]')
+   from jsonb_array_elements(pool.questions) with ordinality pending(q,position)
+   where not exists(select 1 from asked
+     where asked.question_id='bq-'||encode(sha256(convert_to(pool.source_id::text||':'||pool.source_version||':'||(q->>'question'),'UTF8')),'hex')
+       or lower(btrim(asked.question))=lower(btrim(q->>'question')))
+     and not exists(select 1 from resolved
+       where resolved.question_id='bq-'||encode(sha256(convert_to(pool.source_id::text||':'||pool.source_version||':'||(q->>'question'),'UTF8')),'hex')))
+ where pool.user_id=p_owner and pool.project_id=p_project and pool.questions<>'[]'::jsonb
+   and (p_source is null or pool.source_id=p_source);
+ with asked as materialized (select * from public.lifetime_delivered_questions(p_owner,p_project)),
+      resolved as materialized (select * from public.lifetime_resolved_questions(p_owner,p_project))
+ update public.user_lifetime_interview_strategy pool set data=jsonb_set(data,'{candidates}',(
+   select coalesce(jsonb_agg(q order by position),'[]')
+   from jsonb_array_elements(pool.data->'candidates') with ordinality pending(q,position)
+   where not exists(select 1 from asked
+     where asked.question_id=q->>'id' or lower(btrim(asked.question))=lower(btrim(q->>'question')))
+     and not exists(select 1 from resolved
+       where resolved.question_id=q->>'id')))
+ where pool.user_id=p_owner and pool.project_id=p_project and not pool.shadow and pool.data->'candidates'<>'[]'::jsonb
+   and (p_source is null or pool.source_id=p_source)
 $$;
 
 CREATE FUNCTION public.lifetime_source_context(p_owner uuid, p_project text, p_source uuid) RETURNS jsonb
@@ -8616,7 +8727,7 @@ CREATE FUNCTION public.read_lifetime_interview_context(p_conversation_id uuid) R
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
-declare owner uuid:=auth.uid(); project text; plan jsonb; events jsonb; coverage jsonb;
+declare owner uuid:=auth.uid(); project text; plan jsonb; events jsonb; coverage jsonb; dialogue jsonb;
 begin
  select project_id into project from public.user_lifetime_conversation where user_id=owner and conversation_id=p_conversation_id;
  if not found then raise exception 'conversation unavailable'; end if;
@@ -8649,7 +8760,19 @@ begin
  ) select coalesce(jsonb_agg(row),'[]') into coverage from (
    select life_stage,count(*) grounded_events,max(last_sequence) last_source_sequence
    from grounded group by life_stage order by life_stage) row;
+ -- Keep bounded recent exchanges plus the original exchanges behind at most
+ -- three pending hints. Old answered facts remain available after compaction.
+ select coalesce(jsonb_agg(pair order by (pair->'question'->>'sequence')::bigint),'[]') into dialogue from (
+   select distinct on (pair->'question'->>'reply_id') pair from (
+     select pair from jsonb_array_elements(public.lifetime_question_dialogue(owner,project)) pair
+     union all
+     select pair from jsonb_array_elements(public.read_lifetime_prepared_questions(p_conversation_id)) pending
+       cross join lateral jsonb_array_elements(public.lifetime_question_dialogue(owner,project,
+         (pending->>'source_id')::uuid)) pair
+   ) exchanges order by pair->'question'->>'reply_id'
+ ) bounded;
  return jsonb_build_object('plan',plan,'events',events,'stage_coverage',coverage,'photos','[]'::jsonb,'photo_associations','[]'::jsonb,
+   'recent_dialogue',dialogue,
    'historical_context_complete',false,'historical_news',public.read_user_historical_news(project),
    'has_accepted_narration',public.conversation_has_narration(owner,project));
 end $$;
@@ -8675,18 +8798,20 @@ CREATE FUNCTION public.read_lifetime_memoir_lane_page(p_lane_id uuid, p_token uu
 declare page jsonb; source public.user_narrator_source%rowtype; name text; context jsonb; inputs jsonb; coverage jsonb; events jsonb;
 begin
  page:=public.read_lifetime_memoir_lane_page_before_attribution(p_lane_id,p_token);
- if page->>'skill'='timeline' and page ? 'two_lane' and coalesce(page->'memory_summary','null')='null' then
+ if page->>'skill'='timeline' and page ? 'two_lane' and page->'source'<>'null'::jsonb then
    select * into source from public.user_narrator_source where user_id=(page->>'user_id')::uuid
      and project_id=page->>'project_id' and id=(page->'source'->>'id')::uuid;
    select t.collector->'plan'->'work'->>'name' into name from public.user_interview_turn t
      where t.user_id=source.user_id and t.project_id=source.project_id and t.source_id=source.id and t.source_version=source.version;
    context:=public.lifetime_attribution_decision(source.text,name)||jsonb_build_object('delivered_event',
-     public.lifetime_source_context(source.user_id,source.project_id,source.id));
+     public.lifetime_source_context(source.user_id,source.project_id,source.id),
+     'recent_dialogue',public.lifetime_question_dialogue(source.user_id,source.project_id,source.id,
+       (page->>'source_high_water')::bigint));
    page:=page||jsonb_build_object('attribution_context',context);
    page:=jsonb_set(page,'{events}',coalesce((select jsonb_agg(candidate||coalesce(ctx,'{}'))
      from jsonb_array_elements(page->'events') candidate cross join lateral (select public.lifetime_attribution_event_context(
        source.user_id,source.project_id,candidate->>'id') ctx) bounded),'[]'));
-   if page->'two_lane'->>'work_mode'<>'pending' then
+   if coalesce(page->'memory_summary','null')='null' and page->'two_lane'->>'work_mode'<>'pending' then
      page:=jsonb_set(page,'{two_lane,work_mode}',to_jsonb(case when context->>'decision'='extract' then 'extract' else 'reply_only' end));
    end if;
    page:=page-'input_digest'-'page_digest';
@@ -9420,14 +9545,12 @@ begin
    where d.user_id=auth.uid() and d.project_id=identity.project_id and d.policy_epoch=p.policy_epoch
      and d.preference_revision=identity.preference_revision and d.execution_generation=identity.execution_generation
      and (q->'requires_confirmation'='true'::jsonb or d.source_revision>=p.source_sequence-1)
-     -- A foreground question can be asked before B creates its source-derived ID.
-     -- Match only the chosen candidate, so unasked alternatives remain eligible.
-     and not exists(select 1 from public.user_interview_turn t
-       cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'candidates','[]')) asked
-       where t.user_id=d.user_id and t.project_id=d.project_id
-         and asked->>'id'=t.collector->'plan'->>'chosen_id'
-         and (asked->>'id'='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex')
-           or lower(btrim(asked->>'question'))=lower(btrim(q->>'question'))))
+     -- Defense against delayed B publication; only actual delivery consumes a question.
+     and not exists(select 1 from public.lifetime_delivered_questions(d.user_id,d.project_id) asked
+       where asked.question_id='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex')
+         or lower(btrim(asked.question))=lower(btrim(q->>'question')))
+     and not exists(select 1 from public.lifetime_resolved_questions(d.user_id,d.project_id) resolved
+       where resolved.question_id='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex'))
    order by case when q->'requires_confirmation'='true'::jsonb then 0 else 1 end,
      case when q->'requires_confirmation'='true'::jsonb then s.sequence end,
      s.sequence desc,d.source_id,position limit 3
@@ -9985,13 +10108,10 @@ begin
    return jsonb_build_object('mode',rollout,'plan',null,'planned_strategy_hint',hint,'invalid_plan_revision',planned.plan_revision)||delivery;
  end if;
  select coalesce(jsonb_agg(q),'[]') into candidates from jsonb_array_elements(data->'candidates') q
-   where not exists(select 1 from public.user_lifetime_strategy_outcome o where o.user_id=auth.uid() and o.project_id=identity.project_id
-     and o.delivered and (o.selected_candidate_id=q->>'id' or lower(btrim(o.question_delivered))=lower(btrim(q->>'question'))))
-   and not exists(select 1 from public.user_interview_turn t cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'candidates','[]')) c
-     where t.user_id=auth.uid() and t.project_id=identity.project_id and c->>'id'=t.collector->'plan'->>'chosen_id'
-       and not exists(select 1 from public.user_lifetime_strategy_outcome o where o.user_id=t.user_id
-         and o.project_id=t.project_id and o.client_turn_id=t.client_turn_id)
-       and (c->>'id'=q->>'id' or lower(btrim(c->>'question'))=lower(btrim(q->>'question'))));
+   where not exists(select 1 from public.lifetime_delivered_questions(auth.uid(),identity.project_id) asked
+     where asked.question_id=q->>'id' or lower(btrim(asked.question))=lower(btrim(q->>'question')))
+     and not exists(select 1 from public.lifetime_resolved_questions(auth.uid(),identity.project_id) resolved
+       where resolved.question_id=q->>'id');
  data:=jsonb_set(data,'{candidates}',candidates);
  return jsonb_build_object('mode',rollout,'plan',data,'planned_strategy_hint',hint)||delivery;
 end $$;
@@ -11106,7 +11226,7 @@ CREATE FUNCTION public.save_lifetime_interview_plan_core(p_snapshot_fence jsonb,
     AS $$
 declare v_owner uuid:=auth.uid(); project public.user_memoir_project%rowtype; turn public.user_interview_turn%rowtype;
   candidate jsonb; context jsonb; proposal jsonb; evidence jsonb; current_source public.user_narrator_source%rowtype;
-  inserted integer; changed boolean:=false; response_cards jsonb:='[]'; photo_identifier text;
+  inserted integer; changed boolean:=false; response_cards jsonb:='[]'; photo_identifier text; resolution jsonb; conversation uuid;
 begin
   if v_owner is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   select * into project from public.user_memoir_project where user_id=v_owner and project_id=p_project_id for update;
@@ -11141,9 +11261,47 @@ begin
   end loop;
   if jsonb_typeof(p_plan) is distinct from 'object' or octet_length(p_plan::text)>32000 or
     jsonb_typeof(p_plan->'candidates') is distinct from 'array' or jsonb_array_length(p_plan->'candidates')>5 or
-    exists(select 1 from jsonb_object_keys(p_plan) k where k not in ('candidates','chosen_id','active_event_id','work')) or
+    exists(select 1 from jsonb_object_keys(p_plan) k where k not in ('candidates','chosen_id','active_event_id','work','resolved_questions')) or
     jsonb_typeof(p_associations) is distinct from 'array' or jsonb_array_length(p_associations)>20 or
     octet_length(p_associations::text)>32000 then raise exception 'invalid interview plan' using errcode='22023'; end if;
+  if p_plan ? 'resolved_questions' then
+    if jsonb_typeof(p_plan->'resolved_questions') is distinct from 'array' or jsonb_array_length(p_plan->'resolved_questions')>5
+      or (select count(*)<>count(distinct r->>'question_id') from jsonb_array_elements(p_plan->'resolved_questions') r) then
+      raise exception 'invalid question resolutions' using errcode='22023';end if;
+    select conversation_id into conversation from public.user_lifetime_conversation where user_id=v_owner and project_id=p_project_id;
+    context:=public.read_lifetime_interview_context(conversation);
+    for resolution in select * from jsonb_array_elements(p_plan->'resolved_questions') loop
+      if jsonb_typeof(resolution) is distinct from 'object' or not(resolution ?& array[
+          'question_id','source_id','source_version','char_start','char_end','quote'])
+        or jsonb_typeof(resolution->'question_id') is distinct from 'string'
+        or jsonb_typeof(resolution->'source_id') is distinct from 'string'
+        or jsonb_typeof(resolution->'quote') is distinct from 'string'
+        or jsonb_typeof(resolution->'source_version') is distinct from 'number'
+        or jsonb_typeof(resolution->'char_start') is distinct from 'number'
+        or jsonb_typeof(resolution->'char_end') is distinct from 'number'
+        or exists(select 1 from jsonb_object_keys(resolution) k where k not in (
+          'question_id','source_id','source_version','char_start','char_end','quote'))
+        or resolution->>'question_id' is not distinct from p_plan->>'chosen_id'
+        or not exists(select 1 from (
+          select q->>'id' id from jsonb_array_elements(public.read_lifetime_prepared_questions(conversation)) q
+          union all
+          select q->>'id' from jsonb_array_elements(coalesce(public.read_lifetime_strategy_context(conversation)->'plan'->'candidates','[]')) q
+        ) queued where queued.id=resolution->>'question_id') then
+        raise exception 'question resolution requires a current queued question' using errcode='22023';end if;
+      select * into current_source from public.user_narrator_source where user_id=v_owner and project_id=p_project_id
+        and id=(resolution->>'source_id')::uuid and version=(resolution->>'source_version')::bigint and status='active'
+        and kind in ('narrator_chat','narrator_transcript');
+      if not found or length(coalesce(resolution->>'quote','')) not between 1 and 512
+        or (resolution->>'char_start')::integer<0 or (resolution->>'char_end')::integer>length(current_source.text)
+        or (resolution->>'char_end')::integer-(resolution->>'char_start')::integer<>length(resolution->>'quote')
+        or substring(current_source.text from (resolution->>'char_start')::integer+1
+          for (resolution->>'char_end')::integer-(resolution->>'char_start')::integer) is distinct from resolution->>'quote'
+        or (current_source.id is distinct from turn.source_id and not exists(select 1 from jsonb_array_elements(
+          context->'recent_dialogue') pair where pair->'response'->>'id'=current_source.id::text
+          and pair->'response'->>'complete'='true')) then
+        raise exception 'question resolution requires an exact narrator answer span' using errcode='22023';end if;
+    end loop;
+  end if;
   if p_plan ? 'work' then
     if jsonb_typeof(p_plan->'work') is distinct from 'object' or
       (p_plan->'work'->>'mode') is null or (p_plan->'work'->>'mode') not in ('reply_only','extract') or
@@ -13178,6 +13336,10 @@ revoke all on function public.lifetime_profile_due_round(bigint) from public,ano
 revoke all on function public.lifetime_source_attribution_rows(uuid, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_source_attribution_summary(uuid, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_source_context(uuid, text, uuid) from public,anon,authenticated,service_role;
+revoke all on function public.lifetime_delivered_questions(uuid, text) from public,anon,authenticated,service_role;
+revoke all on function public.lifetime_resolved_questions(uuid, text) from public,anon,authenticated,service_role;
+revoke all on function public.lifetime_question_dialogue(uuid, text, uuid, bigint) from public,anon,authenticated,service_role;
+revoke all on function public.prune_lifetime_question_pool(uuid, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.link_lifetime_optional_artifact(jsonb, text, text, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.lock_formal_memoir_context(uuid, text) from public,anon,authenticated,service_role;
 revoke all on function public.lock_formal_memoir_run(uuid, uuid, boolean) from public,anon,authenticated,service_role;

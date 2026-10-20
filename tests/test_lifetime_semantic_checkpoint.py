@@ -115,6 +115,10 @@ def test_semantic_summary_retry_carries_only_fixed_feedback(sql,tmp_path,monkeyp
     assert asyncio.run(_summarize(page,summary_worker(sql,provider)))=={'items':[]}
     assert len(calls)==2
     first=json.loads(calls[0]['packet'])['payload'];second=json.loads(calls[1]['packet'])['payload']
+    dialogue=page['attribution_context']['recent_dialogue']
+    assert dialogue[0]['question']['personal_testimony'] is False
+    assert dialogue[0]['response']['text']=='Original recollection number 2.'
+    assert first['recent_dialogue']==dialogue
     assert second.pop('retry_reason')=='SUMMARY_EVIDENCE'
     assert second==first and calls[0]['fence']==calls[1]['fence']
     from apps.api.lifetime_memory_lane_engine import build_bounded_lane_input

@@ -156,6 +156,7 @@ def test_legacy_schema_requests_intent_without_changing_the_single_lane_contract
     value = {**proposal(mode='extract', name=None, question='What do you remember about Perth?'),
              'continuity_updates': [], 'selection_reason': 'current_correction'}
     value['plan']['candidates'][0]['context']['historical_clue_id'] = None
+    value['plan']['resolved_questions'] = []
     schema = governed_collector_schema(context)
     validate(value, schema)
     with pytest.raises(ValidationError):
