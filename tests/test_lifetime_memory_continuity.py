@@ -270,6 +270,44 @@ def test_null_spanned_overwide_literal_control_is_canonicalized():
     assert rows == literal_continuity_updates(ctx)
 
 
+@pytest.mark.parametrize('kind', ['person', 'unresolved_reference'])
+def test_required_offsets_cannot_be_manufactured_for_person_or_reference(kind):
+    ctx = context()
+    item = update(ctx, kind)
+    item.pop('char_start')
+    item.pop('char_end')
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
+def test_explicit_wrong_span_cannot_be_canonicalized_as_a_control():
+    ctx = context("Skip. Don't discuss my school.")
+    quote = "Skip. Don't discuss my school"
+    item = update(ctx, 'excluded_topic', quote=quote, char_start=1, char_end=1 + len(quote))
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
+def test_missing_offsets_cannot_be_canonicalized_as_a_control():
+    ctx = context("Don't discuss my school")
+    item = update(ctx, 'excluded_topic')
+    item.pop('char_start')
+    item.pop('char_end')
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
+@pytest.mark.parametrize('text', [
+    "Skip. Don't discuss my school. Don't mention my workplace.",
+    "Skip. Don't discuss my school. I'll return to the garden later.",
+])
+def test_ambiguous_overwide_control_quote_is_rejected(text):
+    ctx = context(text)
+    item = update(ctx, 'excluded_topic', quote=ctx['source']['text'], char_start=None, char_end=None)
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
 @pytest.mark.parametrize('changes', [
     {'source_id': str(UUID(int=999))},
     {'source_version': 2},

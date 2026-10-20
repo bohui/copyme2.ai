@@ -284,7 +284,8 @@ def validate_governed_collector_result(raw, context):
             is_overwide = False
             if isinstance(item, dict):
                 start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
-                locate = start is None and end is None
+                locate = ('char_start' in item and 'char_end' in item
+                          and start is None and end is None)
                 explicit = type(start) is int and start >= 0 and type(end) is int and end >= 1
                 needs_repair = (locate or (explicit and source and isinstance(quote, str)
                                            and source['text'][start:end] != quote))
@@ -293,11 +294,14 @@ def validate_governed_collector_result(raw, context):
                     unique = (original_start >= 0
                               and source['text'].find(quote, original_start + 1) < 0)
                     if unique:
+                        matching_literals = [direct for direct in literal
+                            if direct.quote in quote and direct.quote != quote]
                         is_overwide = (
-                            item.get('assertion') == 'asserted'
+                            locate
+                            and item.get('assertion') == 'asserted'
                             and item.get('kind') in _DIRECT_KINDS
-                            and any(direct.kind == item.get('kind') and direct.quote in quote
-                                    and direct.quote != quote for direct in literal))
+                            and len(matching_literals) == 1
+                            and matching_literals[0].kind == item.get('kind'))
                         # Validate the raw proposal with a temporary exact span
                         # before a host-owned over-wide control can be removed.
                         candidate = dict(item)
