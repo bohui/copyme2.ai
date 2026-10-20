@@ -355,7 +355,8 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         return _admission(publisher, json.loads(fence_snapshot))
     # Snapshot validation-only data before awaiting provider work.
     interview_context = deepcopy(interview_context)
-    from .interview_plan import CollectorVisibleStream, historical_acknowledgement_allowed
+    from .interview_plan import (CollectorVisibleStream, historical_acknowledgement_allowed,
+        translation_grounding_violation, TRANSLATION_GROUNDING_ERROR)
     visible = CollectorVisibleStream()
     streamed_acknowledgement = None
 
@@ -363,7 +364,8 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         nonlocal streamed_acknowledgement
         value = visible.feed(chunk)
         if (value and historical_acknowledgement_allowed(value, interview_context)
-                and (acknowledgement is None or value == acknowledgement)):
+            and not translation_grounding_violation(value, interview_context)
+            and (acknowledgement is None or value == acknowledgement)):
             streamed_acknowledgement = value
             # Only the complete validated acknowledgement crosses this boundary.
             await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
@@ -421,6 +423,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'Current pause requires no question',
                 'A stop cannot force a question',
                 'Correction cannot replace the streamed acknowledgement',
+                TRANSLATION_GROUNDING_ERROR,
             }
             reason = str(error) if str(error) in reasons else 'SCHEMA_OR_OTHER_CONTRACT'
             if isinstance(error,json.JSONDecodeError):reason='INVALID_JSON'

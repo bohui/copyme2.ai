@@ -3,7 +3,7 @@ import json
 import pytest
 
 from apps.api.interview_plan import (CollectorVisibleStream, validate_collector_result,
-    collector_instructions, collector_schema)
+    collector_instructions, collector_schema, TRANSLATION_GROUNDING_ERROR)
 
 SOURCE = {'id':'source-1','version':1,'status':'active','text':'小时候还经常去离宫，这张照片就是丽正门的照片'}
 PHOTO = {'photo_id':'reference:one','kind':'public_reference','title':'Generic source title','image_url':'https://images.example/one.jpg'}
@@ -69,6 +69,30 @@ def test_statement_acknowledgements_remain_visible(acknowledgement):
     p=proposal();p['acknowledgement']=acknowledgement
     assert CollectorVisibleStream().feed(json.dumps(p,ensure_ascii=False))==acknowledgement
     assert validate_collector_result(p,CONTEXT)['reply'].startswith(acknowledgement)
+
+
+@pytest.mark.parametrize('source,acknowledgement,allowed', [
+    ('My sister walked to school with me.', '和姐妹一起走路上学，是一段共同的校园记忆。', True),
+    ('My older sister walked to school with me.', '和姐姐一起走路上学，是一段共同的校园记忆。', True),
+    ('My sister walked to school with me.', '和姐姐一起走路上学，是一段共同的校园记忆。', False),
+])
+def test_chinese_translation_cannot_add_sibling_age(source, acknowledgement, allowed):
+    p = proposal()
+    p['acknowledgement'] = acknowledgement
+    p['associations'] = []
+    p['response_photo_ids'] = []
+    p['plan']['candidates'] = [{
+        'id': 'sibling', 'question': '那段一起上学的路上，您最记得哪件小事？',
+        'context': {'event_id': None, 'photo_id': None, 'life_stage': None, 'year': None},
+        'order': 0, 'bridge': ''}]
+    p['plan']['chosen_id'] = 'sibling'
+    context = {'source': {'id': 'sibling-source', 'version': 1, 'status': 'active', 'text': source},
+        'interview_language': 'zh-CN', 'events': [], 'photo_context': [], 'sources': []}
+    if allowed:
+        assert validate_collector_result(p, context)['acknowledgement'] == acknowledgement
+    else:
+        with pytest.raises(ValueError, match=TRANSLATION_GROUNDING_ERROR):
+            validate_collector_result(p, context)
 
 
 @pytest.mark.parametrize('mutation', ['foreign_photo','foreign_event','wrong_source_version','fabricated_quote','pixels_not_seen','extra_question','missing_chosen','duplicate_question','too_many','unfounded_year'])

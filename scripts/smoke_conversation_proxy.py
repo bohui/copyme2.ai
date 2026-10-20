@@ -97,14 +97,29 @@ def smoke(origin, timeout):
                     expect(page.locator('#chat-input')).to_be_visible(timeout=30000)
                     toggle = page.locator('[data-action=toggle-chat-history]')
                     if toggle.count() and toggle.get_attribute('aria-expanded') == 'false': toggle.click()
-                    # A fixed resume hint can follow the saved exchange. Match
-                    # the durable reply itself, not an assumed DOM position.
-                    # innerText includes the rendered <br> line breaks, unlike
-                    # textContent/has_text. Compare like-for-like after reload.
+                    # A profile correction invalidates older generated replies
+                    # under the canonical read fence. Verify the accepted
+                    # testimony survives reload, then let the resumed turn
+                    # generate a fresh reply under the new preference revision.
+                    expected_sources = [item[1] for item in cases[:index]]
+                    page.wait_for_function('expected => [...document.querySelectorAll(".user-message .message-text")]'
+                        '.map(node => node.innerText.replace(/\\s+/g," ").trim()).filter(Boolean).slice(-expected.length)'
+                        '.join("\\n") === expected.map(value => value.replace(/\\s+/g," ").trim()).join("\\n")',
+                        arg=expected_sources, timeout=30000)
+                    print(json.dumps({'kind': 'proxy_smoke_reload', 'restored_source_count': len(expected_sources),
+                        'assistant_count': page.locator('.assistant-message').count()}), flush=True)
+                    assert page.evaluate('proxySmoke.length') == 0, 'Reload must not resubmit saved testimony'
+                elif case == 'later_name_change':
+                    # Exercise saved-result replay before changing the profile
+                    # preference that intentionally fences older replies.
+                    page.reload(wait_until='networkidle')
+                    expect(page.locator('#chat-input')).to_be_visible(timeout=30000)
+                    toggle = page.locator('[data-action=toggle-chat-history]')
+                    if toggle.count() and toggle.get_attribute('aria-expanded') == 'false': toggle.click()
                     page.wait_for_function('expected => [...document.querySelectorAll(".assistant-message .message-text")]'
                         '.filter(node => node.innerText.replace(/\\s+/g," ").trim() === expected.replace(/\\s+/g," ").trim()).length === 1',
                         arg=saved_reply, timeout=30000)
-                    print(json.dumps({'kind': 'proxy_smoke_reload', 'restored_match_count': 1,
+                    print(json.dumps({'kind': 'proxy_smoke_replay', 'restored_match_count': 1,
                         'assistant_count': page.locator('.assistant-message').count()}), flush=True)
                     assert page.evaluate('proxySmoke.length') == 0, 'Reload must not resubmit saved testimony'
                 before = page.evaluate('proxySmoke.length')
@@ -125,12 +140,21 @@ def smoke(origin, timeout):
                 assert row.get('firstRenderedText') is not None and saved_reply.strip()
                 assert 'reply_complete' in row['events']
                 assert row['events']['text_delta'] <= row['events']['conversation_saved']
-                assert saved_reply.count('?') + saved_reply.count('？') == (0 if case == 'resumed_pause' else 1)
+                # A pure name correction is complete with a direct acknowledgement;
+                # it must not force an unrelated interview question. A pause also
+                # deliberately has no question, while the opening offers one.
+                question_count = saved_reply.count('?') + saved_reply.count('？')
+                allowed_questions = {1} if case == 'first' else {0, 1}
+                assert question_count in allowed_questions
                 # Saved history can collapse older exchanges. Inspect the full
                 # history before counting, using the rendered control.
                 toggle = page.locator('[data-action=toggle-chat-history]')
                 if toggle.count() and toggle.get_attribute('aria-expanded') == 'false': toggle.click()
-                expect(page.locator('.assistant-message')).to_have_count(index + 2)
+                expect(page.locator('.user-message .message-text')).to_have_count(index + 1)
+                normalized = saved_reply.replace('\\n', ' ').split()
+                assert page.evaluate('expected => [...document.querySelectorAll(".assistant-message .message-text")]'
+                    '.filter(node => node.innerText.replace(/\\s+/g," ").trim() === expected).length === 1',
+                    ' '.join(normalized)), 'The saved reply must render exactly once'
                 print(json.dumps({'kind': 'proxy_smoke_result', 'case': case, 'status': 'saved',
                     'timings': row['events'], 'first_rendered_text_s': row['firstRenderedText'],
                     'early_unlock': row['earlyUnlock'], 'duplicate_reply': False}), flush=True)

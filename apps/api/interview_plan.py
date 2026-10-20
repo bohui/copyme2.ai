@@ -58,6 +58,36 @@ class QuestionContext(StrictModel):
 
 TRANSLATION_GROUNDING = ('Preserve unspecified relationships when translating: sister alone does not '
     'establish older/younger (姐姐/妹妹); use neutral wording rather than adding that detail.')
+TRANSLATION_GROUNDING_ERROR = (
+    'Translation adds an unspecified sibling age; use a neutral sibling term unless the current source '
+    'explicitly states older or younger.')
+
+_SIBLING_SOURCE_PATTERN = re.compile(r'\b(?:sister|brother)\b', re.IGNORECASE)
+_EXPLICIT_SIBLING_AGE_PATTERN = re.compile(
+    r'\b(?:older|elder|big|younger|little)\s+(?:sister|brother)s?\b'
+    r'|\b(?:sister|brother)s?\s+(?:who\s+is\s+)?(?:older|elder|younger|little)\b',
+    re.IGNORECASE)
+_AGE_SPECIFIC_SIBLING_TRANSLATION = re.compile(
+    r'(?:姐姐|妹妹|姊姊|大姐|小妹|哥哥|弟弟|兄长|大哥|小弟)')
+
+
+def translation_grounding_violation(value, context):
+    """Reject an age-specific Chinese sibling term absent source support.
+
+    The model may translate an English relationship into a Chinese term that
+    silently adds older/younger status. Keep this check narrow: it applies only
+    to a Chinese interview, only to the current English source, and allows an
+    explicit source qualifier such as ``older sister``.
+    """
+    if (context or {}).get('interview_language') != 'zh-CN':
+        return False
+    source = (context or {}).get('source') or {}
+    source_text = source.get('text', '') if isinstance(source, dict) else ''
+    if (not isinstance(source_text, str)
+            or not _SIBLING_SOURCE_PATTERN.search(source_text)
+            or _EXPLICIT_SIBLING_AGE_PATTERN.search(source_text)):
+        return False
+    return bool(_AGE_SPECIFIC_SIBLING_TRANSLATION.search(value or ''))
 
 
 QUESTION_DESCRIPTION = ('One answerable follow-up grounded in the narrator’s facts and current focus. '
@@ -188,6 +218,10 @@ def validate_collector_result(value, context):
     result = CollectorResult.model_validate(raw)
     if not historical_acknowledgement_allowed(result.acknowledgement, context):
         raise ValueError('Historical context cannot supply personal acknowledgement facts')
+    visible = result.acknowledgement + '\n' + '\n'.join(
+        candidate.question + '\n' + candidate.bridge for candidate in result.plan.candidates)
+    if translation_grounding_violation(visible, context):
+        raise ValueError(TRANSLATION_GROUNDING_ERROR)
     if _acknowledgement_has_question(result.acknowledgement):
         raise ValueError('Acknowledgement cannot contain a question')
     plan = result.plan
