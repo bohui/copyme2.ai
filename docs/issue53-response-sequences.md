@@ -30,6 +30,13 @@ The versioned manifest references stable PR92 interviewer IDs and the existing
 `conversation_phase_cases.json` rubrics. The latter's mocked replies and obsolete
 prompt-description metadata are not baseline model-quality evidence.
 
+The 20 October live review found stale work expectations for topic exclusions
+and explicit language changes. The published `collector-plan` contract requires
+normal extraction for privacy requests and other workspace/profile actions.
+Those four manifest steps now expect `extract`; pure stops and name-only replies
+still expect `reply_only`. Earlier frozen plans and their outcomes are retained;
+the corrected expectations apply to the next frozen comparison.
+
 ## Scenarios and actual witnesses
 
 `tests/evaluation/response_sequences.json` contains six paired scenario families

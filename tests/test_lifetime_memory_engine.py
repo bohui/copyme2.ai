@@ -398,8 +398,9 @@ def test_invalid_private_continuity_retries_without_repeating_streamed_acknowled
     assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances}) == 1
 
 
-@pytest.mark.parametrize('invalid_ack', ['An unvalidated question?', '', 'x' * 2001],
-                         ids=['question', 'empty', 'oversized'])
+@pytest.mark.parametrize('invalid_ack', ['An unvalidated question?', '', 'x' * 2001,
+    '好的，我们跳过厨房。您想从哪段经历聊起呢','What would you like to remember.'],
+                         ids=['question', 'empty', 'oversized','bare-chinese-question','bare-english-question'])
 def test_invalid_acknowledgements_stay_hidden_during_bounded_retry(tmp_path, invalid_ack):
     from apps.api.interview_plan import CollectorVisibleStream
     invalid = json.loads(valid_reply())

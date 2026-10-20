@@ -59,7 +59,8 @@ class QuestionCandidate(StrictModel):
 
 
 class TurnWorkPlan(StrictModel):
-    mode: Literal['reply_only', 'extract']
+    mode: Literal['reply_only', 'extract'] = Field(description=
+        'Use the whole current message. reply_only is for a name-only greeting, farewell or pure stop without new memory details or workspace actions. Factual clues, corrections, privacy/topic boundaries, language/profile changes and photo discussion require extract, even in a short message.')
     name: str | None = Field(max_length=120)
 
 
@@ -86,9 +87,14 @@ class PhotoAssociation(StrictModel):
     provenance: Literal['narrator_metadata']
 
 
+ACKNOWLEDGEMENT_DESCRIPTION = (
+    'A brief statement responding to the narrator. Do not ask or invite a question here, '
+    'including a question without a question mark. Put the single chosen question in the question/plan fields.')
+
+
 class CollectorResult(StrictModel):
     # First field deliberately precedes all private planning in the JSON stream.
-    acknowledgement: str = Field(min_length=1, max_length=2000)
+    acknowledgement: str = Field(min_length=1, max_length=2000,description=ACKNOWLEDGEMENT_DESCRIPTION)
     plan: InterviewPlan
     associations: list[PhotoAssociation] = Field(max_length=20)
     response_photo_ids: list[str] = Field(max_length=5)
@@ -129,6 +135,23 @@ def _questions(value):
     return len(re.findall(r'[?？]', value))
 
 
+def _acknowledgement_has_question(value):
+    if _questions(value):
+        return True
+    # Direct questions also occur without punctuation, especially before 呢/吗.
+    for sentence in re.split(r'[。.!！\n]', value):
+        text=sentence.strip()
+        if re.match(r'^(?:(?:what|why|how|who|where|when|which)\s+)?'
+                r'(?:would|could|can|will|do|did|are|have)\s+you\b'
+                r'|^what\s+(?:comes to mind|stands out)\s+when\s+you\b',text,re.I):
+            return True
+        direct=re.search(r'(?:^|[，,])\s*(?:那(?:么)?[，,]?\s*)?(?:您|你)(?:现在|当时|还|更|最|先|通常)*(?:想|愿意|希望|记得|觉得|知道|会|能|可以)',text)
+        if direct and (text.endswith('吗') or (text.endswith('呢')
+                and re.search(r'哪|谁|什么|怎么|如何|为何|为什么|是否',text))):
+            return True
+    return False
+
+
 def authorized_photos(context):
     photos = {}
     for photo in context.get('photo_context', []) + context.get('photos', []):
@@ -146,7 +169,7 @@ def validate_collector_result(value, context):
     result = CollectorResult.model_validate(raw)
     if not historical_acknowledgement_allowed(result.acknowledgement, context):
         raise ValueError('Historical context cannot supply personal acknowledgement facts')
-    if _questions(result.acknowledgement):
+    if _acknowledgement_has_question(result.acknowledgement):
         raise ValueError('Acknowledgement cannot contain a question')
     plan = result.plan
     ids = [item.id for item in plan.candidates]
@@ -288,7 +311,7 @@ class CollectorVisibleStream:
             value, _ = json.JSONDecoder().raw_decode(self.buffer[prefix.end():])
         except json.JSONDecodeError:
             return ''
-        if not isinstance(value, str) or not value or len(value) > 2000 or _questions(value):
+        if not isinstance(value, str) or not value or len(value) > 2000 or _acknowledgement_has_question(value):
             self.rejected = True
             return ''
         self.emitted = True

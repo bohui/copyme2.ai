@@ -46,6 +46,31 @@ def test_simple_assent_streams_and_renders_without_requiring_a_restatement(text,
     assert validate_collector_result(p, context)['reply'] == f'{acknowledgement}\n\n{question}'
 
 
+@pytest.mark.parametrize('acknowledgement', [
+    '好的，我们跳过厨房。您想从哪段经历聊起呢',
+    '您还记得当时的事吗',
+    'What would you like to remember.',
+    'Can you tell me more',
+    'What comes to mind when you look at this photo.',
+])
+def test_unpunctuated_acknowledgement_questions_are_withheld_before_validation(acknowledgement):
+    p=proposal();p['acknowledgement']=acknowledgement
+    raw=json.dumps(p,ensure_ascii=False);stream=CollectorVisibleStream()
+    assert ''.join(stream.feed(raw[i:i+3]) for i in range(0,len(raw),3))==''
+    with pytest.raises(ValueError,match='Acknowledgement cannot contain a question'):
+        validate_collector_result(p,CONTEXT)
+
+
+@pytest.mark.parametrize('acknowledgement', [
+    '您想起了那段日子呢。', '您想从哪段说起都可以。',
+    'What you remember matters.', 'We can pause here.',
+])
+def test_statement_acknowledgements_remain_visible(acknowledgement):
+    p=proposal();p['acknowledgement']=acknowledgement
+    assert CollectorVisibleStream().feed(json.dumps(p,ensure_ascii=False))==acknowledgement
+    assert validate_collector_result(p,CONTEXT)['reply'].startswith(acknowledgement)
+
+
 @pytest.mark.parametrize('mutation', ['foreign_photo','foreign_event','wrong_source_version','fabricated_quote','pixels_not_seen','extra_question','missing_chosen','duplicate_question','too_many','unfounded_year'])
 def test_untrusted_collector_cannot_forge_scope_evidence_or_visible_questions(mutation):
     p=proposal()
@@ -63,7 +88,7 @@ def test_untrusted_collector_cannot_forge_scope_evidence_or_visible_questions(mu
 
 
 def test_photo_only_action_can_ask_without_fabricating_testimony():
-    p=proposal();p['associations']=[];p['acknowledgement']='What comes to mind when you look at this photo.'
+    p=proposal();p['associations']=[];p['acknowledgement']='That photo can be a starting point.'
     context={**CONTEXT,'source':None,'sources':[]}
     assert validate_collector_result(p,context)['associations']==[]
     p['associations']=proposal()['associations']

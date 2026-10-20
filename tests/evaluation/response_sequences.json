@@ -505,8 +505,8 @@
           "text": "Skip that question. I do not want to discuss the kitchen.",
           "reply_language": "en-AU",
           "client_turn_key": "turn-2",
-          "work": "reply_only",
-          "requirement": "Do not repeat the skipped question or probe the excluded kitchen topic.",
+          "work": "extract",
+          "requirement": "Do not repeat the skipped question or probe the excluded kitchen topic. Preserve normal privacy extraction work.",
           "rubric_refs": [
             "memoir-interviewer/redirect/en-AU",
             "phase-skip-en-AU"
@@ -527,8 +527,8 @@
           "text": "Please reply in Chinese from now on. 我想聊上学的事。",
           "reply_language": "zh-CN",
           "client_turn_key": "turn-3",
-          "work": "reply_only",
-          "requirement": "Respect the explicit new conversation language and current school topic.",
+          "work": "extract",
+          "requirement": "Respect the explicit new conversation language and current school topic. Preserve the language/profile update work.",
           "rubric_refs": [
             "memoir-interviewer/redirect/en-AU"
           ],
@@ -603,8 +603,8 @@
           "text": "跳过这个问题。我不想聊厨房。",
           "reply_language": "zh-CN",
           "client_turn_key": "turn-2",
-          "work": "reply_only",
-          "requirement": "Do not repeat the skipped question or probe the excluded kitchen topic.",
+          "work": "extract",
+          "requirement": "Do not repeat the skipped question or probe the excluded kitchen topic. Preserve normal privacy extraction work.",
           "rubric_refs": [
             "memoir-interviewer/redirect/zh-CN",
             "phase-skip-zh-CN"
@@ -625,8 +625,8 @@
           "text": "接下来请用英语回答。I want to talk about school.",
           "reply_language": "en-AU",
           "client_turn_key": "turn-3",
-          "work": "reply_only",
-          "requirement": "Respect the explicit new conversation language and current school topic.",
+          "work": "extract",
+          "requirement": "Respect the explicit new conversation language and current school topic. Preserve the language/profile update work.",
           "rubric_refs": [
             "memoir-interviewer/redirect/zh-CN"
           ],
