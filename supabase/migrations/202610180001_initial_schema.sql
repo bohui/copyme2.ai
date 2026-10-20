@@ -4470,7 +4470,10 @@ begin
  select coalesce(jsonb_agg(q||jsonb_build_object('id','bq-'||encode(sha256(convert_to((page->'source'->>'id')||':'||
    (page->'source'->>'version')||':'||(q->>'question'),'UTF8')),'hex'))),'[]') into candidates from jsonb_array_elements(p_result->'prepared_questions') q
  where not exists(select 1 from public.lifetime_delivered_questions(snap.user_id,snap.project_id) asked
-   where lower(btrim(asked.question))=lower(btrim(q->>'question')))
+   where asked.question_id='bq-'||encode(sha256(convert_to((page->'source'->>'id')||':'||
+     (page->'source'->>'version')||':'||(q->>'question'),'UTF8')),'hex')
+     or (asked.source_id=(page->'source'->>'id')::uuid and asked.source_version=(page->'source'->>'version')::bigint
+       and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
  and not exists(select 1 from public.lifetime_resolved_questions(snap.user_id,snap.project_id) resolved
    where resolved.question_id='bq-'||encode(sha256(convert_to((page->'source'->>'id')||':'||
      (page->'source'->>'version')||':'||(q->>'question'),'UTF8')),'hex'));
@@ -6842,6 +6845,8 @@ $$;
 
 -- Delivery, not a saved plan, owns whether a question has actually been asked.
 -- Both collector modes use this same ledger and retain the original reply.
+-- Background IDs own their original context, not the later delivery turn.
+-- Wording fallback is only safe for foreground questions on the same source/version.
 CREATE FUNCTION public.lifetime_delivered_questions(p_owner uuid, p_project text)
 RETURNS TABLE(source_id uuid, source_version bigint, client_turn_id uuid, reply_id uuid,
               turn_sequence bigint, question_id text, question text)
@@ -6925,7 +6930,8 @@ CREATE FUNCTION public.prune_lifetime_question_pool(p_owner uuid, p_project text
    from jsonb_array_elements(pool.questions) with ordinality pending(q,position)
    where not exists(select 1 from asked
      where asked.question_id='bq-'||encode(sha256(convert_to(pool.source_id::text||':'||pool.source_version||':'||(q->>'question'),'UTF8')),'hex')
-       or lower(btrim(asked.question))=lower(btrim(q->>'question')))
+       or (asked.source_id=pool.source_id and asked.source_version=pool.source_version
+         and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
      and not exists(select 1 from resolved
        where resolved.question_id='bq-'||encode(sha256(convert_to(pool.source_id::text||':'||pool.source_version||':'||(q->>'question'),'UTF8')),'hex')))
  where pool.user_id=p_owner and pool.project_id=p_project and pool.questions<>'[]'::jsonb
@@ -6936,7 +6942,8 @@ CREATE FUNCTION public.prune_lifetime_question_pool(p_owner uuid, p_project text
    select coalesce(jsonb_agg(q order by position),'[]')
    from jsonb_array_elements(pool.data->'candidates') with ordinality pending(q,position)
    where not exists(select 1 from asked
-     where asked.question_id=q->>'id' or lower(btrim(asked.question))=lower(btrim(q->>'question')))
+     where asked.question_id=q->>'id' or (asked.source_id=pool.source_id and asked.source_version=pool.source_version
+       and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
      and not exists(select 1 from resolved
        where resolved.question_id=q->>'id')))
  where pool.user_id=p_owner and pool.project_id=p_project and not pool.shadow and pool.data->'candidates'<>'[]'::jsonb
@@ -9548,7 +9555,8 @@ begin
      -- Defense against delayed B publication; only actual delivery consumes a question.
      and not exists(select 1 from public.lifetime_delivered_questions(d.user_id,d.project_id) asked
        where asked.question_id='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex')
-         or lower(btrim(asked.question))=lower(btrim(q->>'question')))
+         or (asked.source_id=d.source_id and asked.source_version=d.source_version
+           and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
      and not exists(select 1 from public.lifetime_resolved_questions(d.user_id,d.project_id) resolved
        where resolved.question_id='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex'))
    order by case when q->'requires_confirmation'='true'::jsonb then 0 else 1 end,
@@ -10109,7 +10117,8 @@ begin
  end if;
  select coalesce(jsonb_agg(q),'[]') into candidates from jsonb_array_elements(data->'candidates') q
    where not exists(select 1 from public.lifetime_delivered_questions(auth.uid(),identity.project_id) asked
-     where asked.question_id=q->>'id' or lower(btrim(asked.question))=lower(btrim(q->>'question')))
+     where asked.question_id=q->>'id' or (asked.source_id=planned.source_id and asked.source_version=planned.source_version
+       and asked.question_id !~ '^bq-[0-9a-f]{64}$' and lower(btrim(asked.question))=lower(btrim(q->>'question'))))
      and not exists(select 1 from public.lifetime_resolved_questions(auth.uid(),identity.project_id) resolved
        where resolved.question_id=q->>'id');
  data:=jsonb_set(data,'{candidates}',candidates);

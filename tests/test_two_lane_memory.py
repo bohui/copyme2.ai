@@ -271,8 +271,103 @@ def test_unasked_foreground_alternative_remains_an_eligible_confirmation(sql, tm
 
 
 @pytest.mark.parametrize('strategy_selector', [False, True])
+@pytest.mark.parametrize('pending_before_delivery', [False, True])
+def test_identical_clarification_wording_remains_available_for_a_different_memory(
+        sql, tmp_path, monkeypatch, strategy_selector, pending_before_delivery):
+    from test_interview_strategy_runtime import client_fixture
+    from test_interview_strategy import wire
+    from controlled_collector import worker_reply
+
+    question = 'Who do you mean by “we”?'
+    school_story = ('I would prefer to talk about school. ' if pending_before_delivery else '') + 'At school, we played cricket after class.'
+    work_story = ('At work, we travelled together.' if pending_before_delivery else
+                  'My classmates Ben and Mia. Years later at work, we travelled together.')
+    calls = []
+
+    def provider(request):
+        context = json.loads(request.content)['interview_context']
+        calls.append(context)
+        pending = context['prepared_questions']
+        school_turn = context['source']['text'] == school_story
+        selected = pending[0] if pending and not school_turn else None
+        wording = question if school_turn or selected else 'What stood out about those trips?'
+        reason = ('user_redirect' if school_turn and pending_before_delivery else
+                  'prepared_candidate' if selected else 'latest_story')
+        if strategy_selector:
+            output = wire(question=wording, selected_candidate_id=selected['id'] if selected else None,
+                          selection_reason=reason)
+        else:
+            output = {**proposal(mode='extract', name=None, question=wording),
+                      'selection_reason': 'latest_story' if selected else reason}
+        return worker_reply(request, {'reply': json.dumps(output), 'thread_id': 'different-groups', 'artifacts': []})
+
+    with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
+        if not strategy_selector:
+            monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY', '0')
+            sql('update public.lifetime_two_lane_rollout set strategy_enabled=false;')
+        first = client.post('/v1/agent/turn', json={'text': work_story if pending_before_delivery else school_story,
+                                                 'client_turn_id': str(uuid4())})
+        assert first.status_code == 200, first.text
+        project = first.json()['project_id']
+        identity = rpc(sql, 'resolve_lifetime_conversation', literal(project))
+        lane_id = lane(sql, identity)
+
+        def publish(page, topic):
+            result = {'events': [], 'place_journeys': [], 'prepared_questions': [{
+                'question': question, 'topic': topic, 'quote': page['source']['text'], 'requires_confirmation': True}]}
+            if strategy_selector:
+                result['strategy_proposal'] = {'strategy': 'explore', 'objective': 'follow_story', 'focus_event_ids': []}
+            service(sql, 'commit_lifetime_memoir_lane_page',
+                    f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+
+        if pending_before_delivery:
+            page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+            publish(page, 'work group')
+        second = client.post('/v1/agent/turn', json={'project_id': project,
+            'text': school_story if pending_before_delivery else work_story, 'client_turn_id': str(uuid4())})
+        assert second.status_code == 200, second.text
+        school, work = (second, first) if pending_before_delivery else (first, second)
+        if not pending_before_delivery:
+            page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+            publish(page, 'school group')
+            assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == []
+            page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}'")
+            publish(page, 'work group')
+
+        pending = rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
+        stored = json.loads(sql(f"select questions from public.user_lifetime_prepared_question "
+            f"where source_id='{work.json()['accepted_source_id']}';").stdout)
+        assert [item['question'] for item in stored] == [question]
+        assert [(item['question'], item['source_id']) for item in pending] == [(question, work.json()['accepted_source_id'])]
+        if strategy_selector:
+            state = rpc(sql, 'read_lifetime_strategy_context', f"'{identity['conversation_id']}'")
+            assert [item['question'] for item in state['plan']['candidates']] == [question]
+        continued = client.post('/v1/agent/turn', json={'project_id': project,
+            'text': 'At university, we joined a choir.', 'client_turn_id': str(uuid4())})
+        assert continued.status_code == 200, continued.text
+        assert school.json()['reply'].endswith(question) and continued.json()['reply'].endswith(question)
+        assert calls[-1]['prepared_questions'][0]['source_id'] == work.json()['accepted_source_id']
+        assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == []
+        assert sql("select count(*) from public.user_lifetime_prepared_question where questions<>'[]'::jsonb;").stdout.strip() == '0'
+
+        # The old work hint was delivered on the university turn. Its delivery
+        # source must not become the identity of an unrelated university hint.
+        service(sql, 'complete_lifetime_memoir_lane', f"'{lane_id}','{page['token']}'")
+        page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+        if pending_before_delivery:
+            assert page['source']['id'] == school.json()['accepted_source_id']
+            publish(page, 'school group')
+            page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}'")
+        assert page['source']['id'] == continued.json()['accepted_source_id']
+        publish(page, 'university group')
+        pending = rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
+        assert [(item['question'], item['source_id']) for item in pending] == [(question, continued.json()['accepted_source_id'])]
+
+
+@pytest.mark.parametrize('strategy_selector', [False, True])
+@pytest.mark.parametrize('hint_after_failure', [False, True])
 def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_identity(
-        sql, tmp_path, monkeypatch, strategy_selector):
+        sql, tmp_path, monkeypatch, strategy_selector, hint_after_failure):
     from apps.api.codex_runtime import CodexRuntime
     from apps.api.lifetime_memory_runtime import lifetime_http_turn
     from memoir_postgres_workflow import PostgresRest
@@ -282,12 +377,13 @@ def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_id
 
     calls = []
     question = {**QUESTION, 'question': 'Did you mean Hobart in Tasmania?', 'requires_confirmation': True}
+    narration = 'The river walks near Hobart were in summer.'
 
     def provider(request):
         body = json.loads(request.content)
         calls.append(body)
         pending = body['interview_context']['prepared_questions']
-        text = pending[0]['question'] if pending else 'What do you remember about the river?'
+        text = question['question'] if len(calls) == 2 else 'What do you remember about the river?'
         if strategy_selector:
             output = wire(question=text, selected_candidate_id=pending[0]['id'] if pending else None,
                           selection_reason='prepared_candidate' if pending else 'latest_story')
@@ -304,13 +400,24 @@ def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_id
         assert first.status_code == 200, first.text
         project = first.json()['project_id']
         identity = rpc(sql, 'resolve_lifetime_conversation', literal(project))
-        lane_id = lane(sql, identity)
-        page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
-        result = {'events': [], 'place_journeys': [], 'prepared_questions': [question]}
-        if strategy_selector:
-            result['strategy_proposal'] = {'strategy': 'shape', 'objective': 'clarify_identity', 'focus_event_ids': []}
-        service(sql, 'commit_lifetime_memoir_lane_page',
-                f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+
+        def publish_confirmation():
+            lane_id = lane(sql, identity)
+            page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+            result = {'events': [], 'place_journeys': [], 'prepared_questions': []}
+            if strategy_selector:
+                result['strategy_proposal'] = {'strategy': 'shape', 'objective': 'clarify_identity', 'focus_event_ids': []}
+            if hint_after_failure:
+                service(sql, 'commit_lifetime_memoir_lane_page',
+                        f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+                page = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}'")
+                assert page['source']['text'] == narration
+            result['prepared_questions'] = [{**question, 'quote': page['source']['text']}]
+            service(sql, 'commit_lifetime_memoir_lane_page',
+                    f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+
+        if not hint_after_failure:
+            publish_confirmation()
         turn = str(uuid4())
         options = {'project_id': project, 'client_turn_id': turn}
         runtime = CodexRuntime(home_root=tmp_path, worker_url='http://controlled.invalid',
@@ -318,9 +425,9 @@ def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_id
 
         async def failed_send():
             response = await lifetime_http_turn(runtime, PostgresRest(sql, OWNER).storage(),
-                'Please go on.', accept='application/json', options=options)
+                narration, accept='application/json', options=options)
             assert [q['question'] for q in rpc(sql, 'read_lifetime_prepared_questions',
-                f"'{identity['conversation_id']}'")] == [question['question']]
+                f"'{identity['conversation_id']}'")] == ([] if hint_after_failure else [question['question']])
             async def receive(): return {'type': 'http.disconnect'}
             async def send(message):
                 if message['type'] == 'http.response.body': raise OSError('synthetic closed socket')
@@ -330,12 +437,16 @@ def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_id
 
         asyncio.run(failed_send())
         assert sql(f"select count(*) from public.user_memory_delivered_context where client_turn_id='{turn}';").stdout.strip() == '0'
-        retry = client.post('/v1/agent/turn', json={**options, 'text': 'Please go on.'})
+        if hint_after_failure:
+            publish_confirmation()
+        assert [q['question'] for q in rpc(sql, 'read_lifetime_prepared_questions',
+            f"'{identity['conversation_id']}'")] == [question['question']]
+        retry = client.post('/v1/agent/turn', json={**options, 'text': narration})
         assert retry.status_code == 200 and retry.json()['cached'], retry.text
         assert retry.json()['reply'].endswith(question['question'])
         assert len(calls) == 2
         assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == []
-        assert json.loads(sql('select questions from public.user_lifetime_prepared_question;').stdout) == []
+        assert sql("select count(*) from public.user_lifetime_prepared_question where questions<>'[]'::jsonb;").stdout.strip() == '0'
         assert sql(f"select count(*) from public.user_memory_delivered_context where client_turn_id='{turn}';").stdout.strip() == '1'
 
 
