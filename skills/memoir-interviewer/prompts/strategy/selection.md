@@ -27,10 +27,16 @@ new follow-ups. Use its exact question and ID with selection_reason
 Select only an exact ID from that pending confirmation or strategy_context.plan.candidates, or null. When no
 candidate is selected, never use "prepared_candidate" or "adapted_candidate".
 Choose work.mode from the ENTIRE current narrator message. Use "reply_only" only
-for a name-only introduction, greeting, farewell or similarly minimal reply with
-no new memory details or workspace actions. Use "extract" when the message adds
+for a name-only introduction, greeting, farewell or a conversational pause/stop
+without new memory details. Current distress about recounting alone (for example,
+"This is upsetting. Stop here for today" or "这让我难受，今天就到这里，请停下")
+is conversational control, not a new life event or a request to pause/exclude a specific topic.
+Do not re-extract earlier memories on a pause. Use "extract" when the message adds
 a birthplace, residence, date, person, activity or event, even in one brief opening
-sentence. Corrections, privacy requests and photo discussion also need "extract".
+sentence. Corrections, requests to pause/exclude a specific topic, other privacy controls,
+language/profile changes and photo discussion also need "extract". If new story facts precede a request
+to stop, keep "extract" for those new facts while setting stopped=true and
+question=null.
 This hint routes background memory/place work; keeping extraction out of this
 foreground response does not mean choosing "reply_only" for a story. Do not use
 message length, strategy or turn count as an extraction gate. For "reply_only",
