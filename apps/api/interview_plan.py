@@ -175,7 +175,7 @@ def collector_schema(context=None):
         plan['properties']['active_event_id']['enum']=list(dict.fromkeys([None,*pointers['event_id']]))
     if (context or {}).get('historical_news', {}).get('clues'):
         schema['properties']['acknowledgement']['enum'] = sorted(historical_acknowledgements(context))
-    return question_evidence_schema(resolution_schema(schema, context, plan=True))
+    return question_evidence_schema(resolution_schema(schema, context, plan=True), context)
 
 
 def collector_instructions(context):

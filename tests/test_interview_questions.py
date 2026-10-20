@@ -148,3 +148,69 @@ def test_unique_question_quote_resolves_offsets_without_accepting_a_wrong_explic
     evidence.update(char_start=12,char_end=52)
     with pytest.raises(ValueError,match='Question evidence span must match'):
         validate_governed_collector_result(output,value)
+
+
+@pytest.mark.parametrize('selector', [False, True])
+def test_question_schema_only_offers_current_and_queued_narrator_sources(selector):
+    from jsonschema import ValidationError, validate
+    from apps.api.lifetime_memory_continuity import governed_collector_schema
+
+    value = context(text='We caught beetles by the river.')
+    value.update(two_lane_memory=True, strategy_selector=selector)
+    queued_source = '00000000-0000-4000-8000-000000000002'
+    strategy_source = '00000000-0000-4000-8000-000000000003'
+    value['prepared_questions'] = [dict(id='queued-river', question='Who joined you?',
+        source_id=queued_source, source_version=2, quote='river', char_start=8, char_end=13)]
+    value['strategy_context']['plan'].update(source_id=strategy_source, source_version=1)
+    value['strategy_context']['plan']['candidates'][0].update(char_start=4, char_end=10)
+    schema = governed_collector_schema(value)['$defs']['EvidenceRef']
+    evidence = dict(source_id=value['source']['id'], version=1, quote='beetles',
+        char_start=None, char_end=None, attribution=None)
+    for source_id in (value['source']['id'], queued_source, strategy_source):
+        validate({**evidence, 'source_id': source_id}, schema)
+    with pytest.raises(ValidationError):
+        validate({**evidence, 'source_id': '00000000-0000-4000-8000-000000000004'}, schema)
+
+
+@pytest.mark.parametrize('selector', [False, True])
+@pytest.mark.parametrize('source', [None,
+    dict(id='withdrawn', version=1, text='An old story.', status='withdrawn'),
+    dict(id='assistant', version=1, text='A generated reply.', status='active', kind='assistant')])
+def test_question_schema_without_narrator_sources_only_allows_null_evidence(selector, source):
+    from jsonschema import ValidationError, validate
+    from apps.api.lifetime_memory_continuity import governed_collector_schema
+
+    value = {**context(), 'source': source, 'strategy_selector': selector, 'strategy_context': {}}
+    schema = governed_collector_schema(value)['$defs']['EvidenceRef']
+    validate(None, schema)
+    with pytest.raises(ValidationError):
+        validate(dict(source_id='unavailable', version=1, quote='An old story.',
+            char_start=0, char_end=13, attribution=None), schema)
+
+
+def test_an_unselected_earlier_source_candidate_is_rejected_by_the_model_schema():
+    from jsonschema import ValidationError, validate
+    from apps.api.lifetime_memory_continuity import governed_collector_schema
+    from test_name_only_opening import proposal
+
+    value = context(text='We caught beetles by the river.')
+    value.update(two_lane_memory=True, strategy_selector=False, strategy_context={})
+    previous = dict(id='00000000-0000-4000-8000-000000000002', version=1,
+        text='We played in the garden.', status='active')
+    value['sources'] = [value['source'], previous]
+    output = proposal(mode='extract', name=None, question='Which insects did you catch?')
+    output.update(selection_reason='latest_story', continuity_updates=[])
+    chosen = output['plan']['candidates'][0]
+    chosen['context'].update(historical_clue_id=None, evidence=dict(
+        source_id=value['source']['id'], version=1, quote='beetles',
+        char_start=None, char_end=None, attribution=None))
+    schema = governed_collector_schema(value)
+    validate(output, schema)
+    deferred = deepcopy(chosen)
+    deferred.update(id='earlier-garden', order=1, question='Who played in the garden?')
+    deferred['context']['evidence'].update(source_id=previous['id'], quote='garden', char_start=17, char_end=23)
+    output['plan']['candidates'].append(deferred)
+    with pytest.raises(ValidationError):
+        validate(output, schema)
+    with pytest.raises(ValueError, match='Question evidence is outside the supplied narrator passages'):
+        validate_governed_collector_result(output, value)

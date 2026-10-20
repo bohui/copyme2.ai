@@ -135,7 +135,7 @@ def selector_schema(context=None):
     elif constraints.get('override') and not direct_question(context):
         # Literal intent matching cannot enumerate every natural request to stop.
         schema['properties']['selection_reason']['enum']=[constraints['override'], 'pause']
-    return question_evidence_schema(resolution_schema(schema, context))
+    return question_evidence_schema(resolution_schema(schema, context), context)
 
 
 def direct_question(context):

@@ -255,18 +255,22 @@ def test_continuity_validation_diagnostic_names_fixed_reason_without_private_val
     assert 'PRIVATE NARRATOR VALUE' not in caplog.text
 
 
-def test_question_evidence_repair_names_fixed_reason_without_private_values(tmp_path, caplog, monkeypatch):
+@pytest.mark.parametrize('source_id,reason', [
+    (str(UUID(int=4)), 'Question evidence span must match the referenced passage'),
+    (str(UUID(int=5)), 'Question evidence is outside the supplied narrator passages'),
+])
+def test_question_evidence_repair_names_fixed_reason_without_private_values(tmp_path, caplog, monkeypatch, source_id, reason):
     import apps.api.lifetime_memory_engine as engine
     monkeypatch.setattr(engine, 'diagnostic_logger', logging.getLogger(__name__))
     caplog.set_level(logging.INFO)
     value=json.loads(valid_reply())
-    value['plan']['candidates'][0]['context']['evidence']=dict(source_id=str(UUID(int=4)),
+    value['plan']['candidates'][0]['context']['evidence']=dict(source_id=source_id,
         version=1,quote='blue umbrella',char_start=13,char_end=26,attribution=None)
     FakeConnection.reply=json.dumps(value)
     with pytest.raises(engine.CollectorOutputInvalid) as failure:
         run(tmp_path)
-    assert failure.value.reason=='Question evidence span must match the referenced passage'
-    assert 'Question evidence span must match the referenced passage' in caplog.text
+    assert failure.value.reason==reason
+    assert reason in caplog.text
     assert 'blue umbrella' not in caplog.text
 
 
