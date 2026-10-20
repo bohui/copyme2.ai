@@ -111,6 +111,8 @@ class AttributionContext(Contract):
     decision: Literal['extract', 'non_story', 'unresolved', 'withheld']
     reason: Literal['new_testimony', 'conversation_control', 'profile_introduction', 'ambiguous_context', 'privacy_withheld']
     delivered_event: dict[str, Any] | None = None
+    recent_dialogue: list[dict[str, Any]] | None = Field(default=None, max_length=8,
+        exclude_if=lambda value: value is None)
 
 
 class MemorySummaryFence(Contract):

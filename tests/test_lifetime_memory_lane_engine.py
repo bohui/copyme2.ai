@@ -45,6 +45,27 @@ def fence_for(current):
     return LaneFence.model_validate({k:v for k,v in current.items() if k in LaneFence.model_fields})
 
 
+def test_question_answer_context_is_bounded_and_bound_to_the_extraction_page():
+    current = page()
+    exchange = {'status': 'responded', 'question': {'text': 'Was that his mother?',
+        'role': 'assistant', 'personal_testimony': False}, 'response': {
+            'id': 'answer-source', 'version': 1, 'text': 'Yes.', 'role': 'user',
+            'kind': 'narrator_chat', 'char_start': 0, 'char_end': 4, 'complete': True}}
+    current['attribution_context'] = {'decision': 'extract', 'reason': 'new_testimony',
+        'delivered_event': None, 'recent_dialogue': [exchange]}
+    fence = fence_for(current)
+    packet = lane_extraction_packet(fence)
+    assert packet['interview_context']['recent_dialogue'] == [exchange]
+    build_bounded_lane_input(current, phase='extract', packet=packet, budget=BUDGET)
+    altered = deepcopy(packet)
+    altered['interview_context']['recent_dialogue'][0]['response']['text'] = 'No.'
+    with pytest.raises(ValueError, match='authoritative page evidence'):
+        build_bounded_lane_input(current, phase='extract', packet=altered, budget=BUDGET)
+    current['attribution_context']['recent_dialogue'] *= 9
+    with pytest.raises(ValueError):
+        fence_for(current)
+
+
 def packet_for(current,phase):
     from apps.api.memoir_preview import skill_operation
     fence=fence_for(current)

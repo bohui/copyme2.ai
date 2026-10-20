@@ -17,7 +17,8 @@ def test_lane_b_preserves_a_grounded_confirmation_in_the_question_pool():
     question = {key: value for key, value in CONFIRMATION.items() if key != 'id'}
     result = derived_hints({'place_journeys': [], 'prepared_questions': [question]},
                            {'source': {'text': '我小时候住在大石庙。'}})
-    assert result['prepared_questions'] == [question]
+    start = '我小时候住在大石庙。'.index('大石庙')
+    assert result['prepared_questions'] == [{**question, 'char_start': start, 'char_end': start + len('大石庙')}]
 
 
 @pytest.mark.parametrize('selector', [False, True])
@@ -156,6 +157,8 @@ def test_legacy_schema_requests_intent_without_changing_the_single_lane_contract
     value = {**proposal(mode='extract', name=None, question='What do you remember about Perth?'),
              'continuity_updates': [], 'selection_reason': 'current_correction'}
     value['plan']['candidates'][0]['context']['historical_clue_id'] = None
+    value['plan']['candidates'][0]['context']['evidence'] = None
+    value['plan']['resolved_questions'] = []
     schema = governed_collector_schema(context)
     validate(value, schema)
     with pytest.raises(ValidationError):
