@@ -1335,6 +1335,26 @@
       ],
       "last_timestamped_matching_error_utc": "2026-10-20T03:13:39Z",
       "limitation": "Mixed service traffic; pattern occurrences are not request counts or Memoir-only metrics. No raw request content or credentials retained in this summary."
+    },
+    "bounded_generation_recheck": {
+      "plan": {
+        "purpose": "one bounded generation-availability recheck after failed live gates",
+        "maximum_http_requests": 1,
+        "timeout_seconds": 20,
+        "retries": 0,
+        "model": "gpt-5.6-luna-memoir-low",
+        "max_output_tokens": 4096,
+        "store": false,
+        "prompt_sha256": "a3ead5e1d7c122c163d7481cb612c2899ecefbd9890a106a6f89a951462feb00"
+      },
+      "plan_sha256": "3269381f74f66abc514473a039db05af97b731fd44047494b4ccaf667ec4e9c1",
+      "status": "stream_ended_without_terminal",
+      "http_requests": 1,
+      "first_output_delta_s": null,
+      "terminal_event": null,
+      "output_characters": 0,
+      "http_status": 200,
+      "elapsed_s": 9.204
     }
   },
   "checks": [

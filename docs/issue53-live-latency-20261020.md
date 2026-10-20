@@ -73,7 +73,10 @@ probe also returned HTTP 502. These failures are retained and are not counted as
 successful latency observations. Health and model-list endpoints returning 200
 do not establish generation availability. Read-only gateway logs corroborate
 upstream `stream_incomplete` / WebSocket failures; their mixed traffic cannot
-supply Memoir-only request counts.
+supply Memoir-only request counts. One subsequent bounded availability request
+returned HTTP 200 but ended after 9.204 seconds without an observed output
+delta or terminal completion event. It does not establish healthy generation;
+no new full live campaign was started.
 
 ## Checks and remaining gates
 
