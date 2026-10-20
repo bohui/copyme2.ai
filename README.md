@@ -173,8 +173,12 @@ make container-logs SERVICE=api
 make container-down
 ```
 
-`make up` (also `make container-up`) validates every repository skill. Local Python
-services use the Containerfiles' `runtime` targets with read-only application and
+`make up` (also `make container-up`) validates every repository skill. Startup
+first checks external images such as Temporal and pulls missing ones with
+Apple Container's visible progress, limited to `linux/arm64`. Pulls time out after
+five minutes, before any running services are removed. Mocker service startup is
+limited to three minutes per command.
+Local Python services use the Containerfiles' `runtime` targets with read-only application and
 skill mounts, so Python, prompt, and skill edits do not rebuild those images.
 Dependency manifests, Containerfiles, build arguments, or local image changes
 still trigger builds. The frontend rebuilds when its source changes, preserving

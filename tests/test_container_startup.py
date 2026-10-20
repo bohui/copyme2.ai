@@ -10,6 +10,7 @@ import pytest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+TEMPORAL_IMAGE = 'temporalio/temporal@sha256:' + 'b' * 64
 
 
 @pytest.fixture
@@ -34,7 +35,7 @@ def stack(tmp_path):
         file.write_text(name)
     (tmp_path / '.dockerignore').write_text('__pycache__\n*.py[cod]\nnode_modules\n**/node_modules\n**/.next\n')
     (tmp_path / 'apps/web/.dockerignore').write_text('node_modules\n.next\n')
-    (tmp_path / 'compose.yml').write_text('''name: memory-spark
+    (tmp_path / 'compose.yml').write_text(f'''name: memory-spark
 services:
   api:
     build:
@@ -54,6 +55,8 @@ services:
       dockerfile: Containerfile
       args:
         MEMORY_SPARK_API_ORIGIN: http://api:8000
+  temporal:
+    image: {TEMPORAL_IMAGE}
 ''')
     command = tmp_path / 'mocker'
     command.write_text(f'''#!{sys.executable}
@@ -68,9 +71,19 @@ images = json.loads(images_file.read_text()) if images_file.exists() else {{}}
 containers_file = p / 'containers.json'
 containers = json.loads(containers_file.read_text()) if containers_file.exists() else {{}}
 tags = {{'api': 'localhost/memory-spark:dev', 'codex-worker': 'localhost/memory-spark-codex-worker:dev', 'web': 'localhost/copyme2-web:dev'}}
+external_image = {TEMPORAL_IMAGE!r}
+if args[:2] == ['compose', 'config']:
+    print('services:')
+    for service, tag in {{**tags, 'temporal': external_image}}.items():
+        print('  ' + service + ':\\n    image: ' + tag)
+    print('    environment:\\n      - SECRET=synthetic-do-not-print')
 if args[:2] == ['image', 'inspect']:
     if args[2] not in images: sys.exit(1)
     print(images[args[2]])
+if args[:2] == ['image', 'pull']:
+    if (p / 'fail-pull').exists(): sys.exit(12)
+    images[args[-1]] = 'sha256:' + 'b' * 64
+    images_file.write_text(json.dumps(images))
 if args[:2] == ['compose', 'build']:
     if (p / 'fail-build').exists(): sys.exit(8)
     services = [a for a in args[2:] if a in tags] or list(tags) + ['api', 'api']
@@ -80,6 +93,7 @@ if args[:2] == ['compose', 'build']:
         images[tag] = 'sha256:' + format(version, '064x')
     images_file.write_text(json.dumps(images))
 if args[:2] == ['compose', 'up']:
+    if external_image not in images: sys.exit(11)
     if (p / 'fail-up').exists(): sys.exit(9)
     for service in ['api', 'worker', 'photo-worker', 'codex-worker', 'web', 'temporal']:
         if service in args:
@@ -126,6 +140,71 @@ def builds(commands):
 
 def recreates(commands):
     return [c for c in commands if c[:1] == ['rm']]
+
+
+def test_missing_external_image_is_pulled_once_before_building_or_recreating(stack):
+    _, up, calls = stack
+    result = up()
+    commands = calls()
+    pull = ['image', 'pull', '--platform', 'linux/arm64', '--progress', 'plain', TEMPORAL_IMAGE]
+    assert [c for c in commands if c[:2] == ['image', 'pull']] == [pull]
+    assert commands.index(pull) < commands.index(builds(commands)[0])
+    assert 'synthetic-do-not-print' not in result.stdout + result.stderr
+    up()
+    assert not any(c[:2] == ['image', 'pull'] for c in calls())
+
+
+def test_failed_external_pull_preserves_running_containers_and_startup_cache(stack):
+    root, up, calls = stack
+    up()
+    calls()
+    containers = (root / 'containers.json').read_bytes()
+    cache = (root / 'var/container-startup.json').read_bytes()
+    images_file = root / 'images.json'
+    images = json.loads(images_file.read_text())
+    del images[TEMPORAL_IMAGE]
+    images_file.write_text(json.dumps(images))
+    (root / 'fail-pull').touch()
+
+    up(success=False)
+
+    commands = calls()
+    assert any(c[:2] == ['image', 'pull'] for c in commands)
+    assert not builds(commands) and not recreates(commands)
+    assert not any(c[:2] == ['compose', 'up'] for c in commands)
+    assert (root / 'containers.json').read_bytes() == containers
+    assert (root / 'var/container-startup.json').read_bytes() == cache
+
+
+@pytest.mark.parametrize('phase,seconds', [('pull', 300), ('start', 180)])
+def test_startup_timeouts_are_bounded_and_do_not_expose_captured_output(stack, monkeypatch, capsys, phase, seconds):
+    from scripts import start_container_stack as startup
+
+    root, _, calls = stack
+    command = str(root / 'mocker')
+    run = subprocess.run
+
+    def timeout_command(args, **kwargs):
+        prefix = [command, 'image', 'pull'] if phase == 'pull' else [command, 'compose', 'up']
+        if args[:3] == prefix:
+            assert kwargs['timeout'] == seconds
+            raise subprocess.TimeoutExpired(args, seconds, output='synthetic-do-not-print')
+        return run(args, **kwargs)
+
+    monkeypatch.chdir(root)
+    monkeypatch.setenv('MAKEFLAGS', '')
+    monkeypatch.setattr(sys, 'argv', ['start_container_stack.py', '--mocker', command,
+        '--apple-container', command, '--', 'true'])
+    monkeypatch.setattr(startup.subprocess, 'run', timeout_command)
+
+    assert startup.main() == 1
+    output = capsys.readouterr()
+    assert 'timed out' in output.out
+    assert 'synthetic-do-not-print' not in output.out + output.err
+    if phase == 'pull':
+        assert not builds(calls())
+    assert not (root / 'containers.json').exists()
+    assert not (root / 'var/container-startup.json').exists()
 
 
 @pytest.mark.parametrize('explicit', [False, True])
