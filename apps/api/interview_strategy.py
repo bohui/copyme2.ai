@@ -178,7 +178,7 @@ def current_constraints(text):
     if re.search(r'\b(?:not today|stop here|pause here|finished today)\b|今天不聊|今天先到这里|先停一停',value,re.I):return {'no_question':True}
     if re.search(r'(?m)^\s*(?:(?:please\s+)?stop(?:\s+(?:now|the interview|asking questions))?|no more questions(?:\s+(?:please|today|for now))?|(?:请|請)?(?:停一下|停止提问|停止提問|不要再问了|不要再問了|别再问了|別再問了))\s*[.!?。！？;；]*\s*$',value,re.I):
         return {'no_question':True}
-    if re.search(r"let[’']s (?:talk|discuss)|change (?:the )?(?:subject|topic)|换个话题|想聊",value,re.I):return {'override':'user_redirect'}
+    if re.search(r"let[’']s (?:talk|discuss)|change (?:the )?(?:subject|topic)|换个话题|(?<!不)想聊",value,re.I):return {'override':'user_redirect'}
     if re.search(r'\b(?:I meant|got that wrong|correction)\b|(?:我(?:说|說)错)|更正',value,re.I):return {'override':'current_correction'}
     if re.search(r'\b(?:lighter question|keep it gentle|take it slowly)\b|轻松|慢慢聊',value,re.I):return {'override':'pacing'}
     return {}
