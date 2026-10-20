@@ -149,6 +149,17 @@ replies found 19 English and 19 Chinese outputs, 38 durable saves, and four
 expected no-question stop/exclusion replies. Human semantic review of every
 public exchange remains required before enabling the candidate.
 
+The narrow continuity fix at `6c105704` canonicalizes an asserted, null-spanned
+control quote when the model includes a preceding pacing sentence. This keeps
+the deterministic host-owned literal and avoids a repair retry after text has
+already streamed. A fresh candidate-only native replay passed the former
+Chinese negative-topic outlier, a Chinese redirect, and the translated
+unspecified-sibling case: the negative-topic turn rendered first text at 4.276
+seconds and saved at 5.190 seconds after one native attempt; the redirect saved
+at 4.543 seconds. The translation reply used neutral `姐妹` wording and saved
+at 7.645 seconds. Evidence is retained in
+`var/issue53-negation-probe-20261020g`.
+
 Follow-up checks covered existing sessions in both locales: resumed turns,
 saved replay, deliberate rollback, and long sources all saved in the retained
 `var/issue53-existing-sessions-20261020e` evidence. That runner stopped before
@@ -174,5 +185,8 @@ stream and storage audit had no failures.
 PR 101 remains a draft and the candidate remains disabled. The first-response
 latency improvement is substantial and the current browser/native structural
 gates pass, but release acceptance still needs a human bilingual semantic
-review of the held-out public replies and a decision on the single complete
-reply outlier. No production or shared-service configuration was changed.
+review of the held-out public replies and broader confirmation of the patched
+complete-reply path. The 80-row cohort still contains the pre-fix outlier in
+its recorded metrics; the targeted post-fix replay is not a replacement for a
+full rerun or a production percentile. No production or shared-service
+configuration was changed.

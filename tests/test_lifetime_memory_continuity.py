@@ -270,6 +270,14 @@ def test_null_spanned_overwide_literal_control_is_canonicalized():
     assert rows == literal_continuity_updates(ctx)
 
 
+def test_explicit_overwide_literal_control_still_fails_closed():
+    ctx = context('跳过这个问题。我不想聊厨房。')
+    item = update(ctx, 'excluded_topic', ctx['source']['text'],
+                  char_start=0, char_end=len(ctx['source']['text']))
+    with pytest.raises(ValueError, match='Privacy and commitment'):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
 def test_old_worker_phase_cannot_become_a_saved_preference():
     ctx = context('My brother Ming moved to Perth.')
     ctx['conversation_phase'] = {'phase':'shape','selection':'explicit','preferred_phase':'shape'}

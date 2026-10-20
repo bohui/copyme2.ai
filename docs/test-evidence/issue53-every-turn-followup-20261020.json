@@ -4,7 +4,7 @@
   "pr": 101,
   "preferred_seconds": 5,
   "fallback_seconds": 10,
-  "latest_source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+  "latest_source_revision": "6c105704c184c01a7cc0ab53bc54aa5458f0828a",
   "release_accepted": false,
   "shared_app_candidate_enabled": false,
   "policy": {
@@ -1317,7 +1317,7 @@
     "direct_gateway_probe": "valid greeting request returned HTTP 502",
     "remaining": [
       "human bilingual semantic review of every current candidate public reply",
-      "decision on the one complete-reply pause outlier above ten seconds",
+      "broader matched confirmation of the post-fix complete-reply outlier path",
       "controlled activation only after those quality gates"
     ],
     "gateway_read_only_log_observation": {
@@ -1387,9 +1387,9 @@
       },
       "release_accepted": false
     },
-    "current_gate": "Current native, existing-session, background, and browser structural checks pass; candidate remains disabled pending human bilingual review and the complete-reply outlier decision.",
+    "current_gate": "The targeted post-fix native replay passes the former Chinese negative-topic outlier; candidate remains disabled pending human bilingual review and broader confirmation.",
     "published_followup": "PR104 merged with user approval, normal main-only publication succeeded, all 81 exact prompt pins verified. H stopped on the Chinese negative-topic intent bug; code and persistence regressions fixed at 2725650 and 703795c.",
-    "current_source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4"
+    "current_source_revision": "6c105704c184c01a7cc0ab53bc54aa5458f0828a"
   },
   "checks": [
     {
@@ -1485,9 +1485,20 @@
     },
     {
       "command": "focused semantic-guard and lifetime regression suite",
-      "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
-      "passed": 233,
+      "source_revision": "6c105704c184c01a7cc0ab53bc54aa5458f0828a",
+      "passed": 235,
       "exit_code": 0
+    },
+    {
+      "command": "targeted post-fix native negative-topic, redirect, and translation replay",
+      "source_revision": "6c105704c184c01a7cc0ab53bc54aa5458f0828a",
+      "receipt_dir": "var/issue53-negation-probe-20261020g",
+      "receipt_sha256": "51cd23e2f7ef73eba373d031f168693239fb2cdf01a9c2a72ed8ffa7cfb823e8",
+      "plan_sha256": "66a5510bd44bdc2e4afb0eb311d5265d7afec4b7268723a6a7ca7e274091b80c",
+      "cases_passed": 3,
+      "native_attempts": 3,
+      "application_failures": 0,
+      "temporary_homes_removed": true
     }
   ],
   "limitations": [
@@ -1496,9 +1507,9 @@
     "Gateway load is shared and uncontrolled; no provider-internal attempt count was available.",
     "Semantic review was by the coding agent, not a blinded human preference study.",
     "Unrelated legacy tests on main reference removed runtime helpers; reproduced separately on clean main.",
-    "Current native candidate complete/save timing has one pause-route outlier above ten seconds despite first text at 3.453 seconds.",
     "The current public-reply semantic review is a bounded contract audit, not a blinded human bilingual study.",
-    "The isolated browser smoke observed optional readiness 500s; turn streaming, durable save, and storage audits remained clean."
+    "The isolated browser smoke observed optional readiness 500s; turn streaming, durable save, and storage audits remained clean.",
+    "The 80-row native cohort contains one pre-fix complete/save outlier above ten seconds; the post-fix candidate-only replay passed that path, but it is not a full cohort rerun or production percentile."
   ],
   "shared_app_configuration_observed": {
     "services": [
@@ -2691,7 +2702,7 @@
       "passed": 193,
       "elapsed_s": 57.29
     },
-    "native_regression_status": "passed in the fresh native negative/translation probe F; held-out bilingual semantic review remains pending",
+    "native_regression_status": "Passed in the fresh native negative/translation probes, including the post-fix zh-CN replay at 6c105704; held-out bilingual semantic review remains pending",
     "release_accepted": false
   },
   "current_acceptance_run": {
@@ -2850,5 +2861,44 @@
     "canonical_fence_observation": "one stale older reply was hidden after a preference revision; accepted testimony and later valid replies remained visible",
     "optional_readiness_500s": true,
     "storage_failures": 0
+  },
+  "outlier_followup": {
+    "source_revision": "6c105704c184c01a7cc0ab53bc54aa5458f0828a",
+    "receipt_dir": "var/issue53-negation-probe-20261020g",
+    "status": "passed",
+    "scope": "Fresh isolated PostgreSQL and real private worker; candidate route only; three bounded synthetic zh-CN cases.",
+    "native_attempts": 3,
+    "application_failures": [],
+    "temporary_homes_removed": true,
+    "cases": [
+      {
+        "case": "privacy",
+        "source": "跳过这个问题。我不想聊厨房。",
+        "first_public_text_s": 4.276,
+        "reply_complete_s": 5.183,
+        "conversation_saved_s": 5.19,
+        "continuity": "canonical excluded_topic persisted",
+        "quality": "no question"
+      },
+      {
+        "case": "redirect",
+        "source": "我不想聊厨房。我想聊花园。",
+        "first_public_text_s": 3.322,
+        "reply_complete_s": 4.535,
+        "conversation_saved_s": 4.543,
+        "continuity": "excluded topic persisted",
+        "quality": "redirect question excluded kitchen"
+      },
+      {
+        "case": "translation",
+        "source": "My sister walked to school with me.",
+        "first_public_text_s": 6.023,
+        "reply_complete_s": 7.64,
+        "conversation_saved_s": 7.645,
+        "quality": "Chinese reply preserved neutral 姐妹 wording"
+      }
+    ],
+    "former_outlier": "The prior Chinese negative-topic row streamed at 3.453 seconds but completed at 13.62 seconds after three bounded repair attempts.",
+    "limitation": "This targeted replay confirms the repaired path; the complete 80-row cohort has not been rerun at this revision and the 5-second first-text target is not universal for every translation case."
   }
 }
