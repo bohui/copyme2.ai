@@ -2,7 +2,7 @@
 import re
 from .conversation_text import original_conversation_text
 
-LIFE_STAGES = ('baby', 'toddler', 'childhood', 'adolescence', 'young_adulthood', 'midlife', 'later_life')
+LIFE_STAGES = ('baby', 'childhood', 'adolescence', 'young_adulthood', 'midlife', 'later_life')
 HAN = re.compile(r'[\u3400-\u4dbf\u4e00-\u9fff\U00020000-\U0002fa1f]')
 WORDS = re.compile(r"[^\W_]+(?:['’\-][^\W_]+)*", re.UNICODE)
 

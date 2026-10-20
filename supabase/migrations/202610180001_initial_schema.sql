@@ -26,7 +26,7 @@ CREATE TABLE public.user_memory_event (
     data jsonb NOT NULL,
     change_sequence bigint NOT NULL,
     CONSTRAINT user_memory_event_kind_check CHECK ((kind = ANY (ARRAY['event'::text, 'period'::text]))),
-    CONSTRAINT user_memory_event_life_stage_check CHECK ((life_stage = ANY (ARRAY['baby'::text, 'toddler'::text, 'childhood'::text, 'adolescence'::text, 'young_adulthood'::text, 'midlife'::text, 'later_life'::text, 'unplaced'::text]))),
+    CONSTRAINT user_memory_event_life_stage_check CHECK ((life_stage = ANY (ARRAY['baby'::text, 'childhood'::text, 'adolescence'::text, 'young_adulthood'::text, 'midlife'::text, 'later_life'::text, 'unplaced'::text]))),
     CONSTRAINT user_memory_event_status_check CHECK ((status = ANY (ARRAY['active'::text, 'unresolved'::text, 'withdrawn'::text])))
 );
 
@@ -1189,16 +1189,15 @@ CREATE TABLE public.user_memory (
     life_stage_order smallint GENERATED ALWAYS AS (
 CASE life_stage
     WHEN 'baby'::text THEN 0
-    WHEN 'toddler'::text THEN 1
-    WHEN 'childhood'::text THEN 2
-    WHEN 'adolescence'::text THEN 3
-    WHEN 'young_adulthood'::text THEN 4
-    WHEN 'midlife'::text THEN 5
-    WHEN 'later_life'::text THEN 6
-    ELSE 7
+    WHEN 'childhood'::text THEN 1
+    WHEN 'adolescence'::text THEN 2
+    WHEN 'young_adulthood'::text THEN 3
+    WHEN 'midlife'::text THEN 4
+    WHEN 'later_life'::text THEN 5
+    ELSE 6
 END) STORED,
     CONSTRAINT user_memory_kind_check CHECK ((kind = ANY (ARRAY['agent'::text, 'memoir'::text, 'agent_greeting'::text]))),
-    CONSTRAINT user_memory_life_stage_check CHECK ((life_stage = ANY (ARRAY['baby'::text, 'toddler'::text, 'childhood'::text, 'adolescence'::text, 'young_adulthood'::text, 'midlife'::text, 'later_life'::text, 'unplaced'::text])))
+    CONSTRAINT user_memory_life_stage_check CHECK ((life_stage = ANY (ARRAY['baby'::text, 'childhood'::text, 'adolescence'::text, 'young_adulthood'::text, 'midlife'::text, 'later_life'::text, 'unplaced'::text])))
 );
 
 CREATE TABLE public.user_memory_attribution_receipt (
@@ -3010,7 +3009,7 @@ begin
       continue;
     end if;
     event_stage:=coalesce(proposal->>'life_stage',current_event.life_stage,'unplaced');
-    if event_stage not in ('baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life','unplaced') then
+    if event_stage not in ('baby','childhood','adolescence','young_adulthood','midlife','later_life','unplaced') then
       raise exception 'invalid life stage' using errcode='22023';
     end if;
     event_data:=(coalesce(current_event.data,'{"temporal":{"expression":"unknown","precision":"unknown"},"visibility":"private","include_in_print":false}'::jsonb)-'reconciliation_source_ids') ||
@@ -5433,7 +5432,7 @@ begin
     raise exception 'event revision conflict; reload the event' using errcode='PT409';
   end if;
   if p_patch ? 'life_stage' and (p_patch->>'life_stage' is null or p_patch->>'life_stage' not in
-    ('baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life','unplaced')) then
+    ('baby','childhood','adolescence','young_adulthood','midlife','later_life','unplaced')) then
     raise exception 'invalid life stage' using errcode='22023';
   end if;
   if p_patch ? 'temporal' and (pg_catalog.jsonb_typeof(p_patch->'temporal') is distinct from 'object' or
@@ -9927,7 +9926,7 @@ begin
        and n.client_turn_id=v.client_turn_id and n.status='withdrawn') group by v.life_stage
  ), counts as (
    select stage,coalesce(sum(v.words),0) words
-   from unnest(array['baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life']) stage
+   from unnest(array['baby','childhood','adolescence','young_adulthood','midlife','later_life']) stage
    left join volumes v on v.life_stage=stage group by stage
  )
  select jsonb_build_object('stages',jsonb_object_agg(stage,jsonb_build_object('word_equivalents',words,
@@ -10413,7 +10412,7 @@ begin
  if jsonb_typeof(p_focus)<>'object' then raise exception 'invalid workspace task' using errcode='22023';end if;
  if p_focus->>'kind'='add_memory' then
    stage:=p_focus->>'life_stage';
-   if stage is null or stage not in ('baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life','unplaced')
+   if stage is null or stage not in ('baby','childhood','adolescence','young_adulthood','midlife','later_life','unplaced')
      or (select count(*) from jsonb_object_keys(p_focus))<>2 then raise exception 'invalid life stage' using errcode='22023';end if;
    return jsonb_build_object('kind','add_memory','life_stage',stage);
  elsif p_focus->>'kind'='explore_memory' then
@@ -11358,7 +11357,7 @@ begin
  if p_expected_revision is null or coalesce(doc.revision,0)<>p_expected_revision then raise exception 'collection revision conflict' using errcode='PT409';end if;
  if p_ready is null or jsonb_typeof(p_periods) is distinct from 'object' or octet_length(p_periods::text)>200000 then raise exception 'invalid collection periods';end if;
  for item in select key,value from jsonb_each(p_periods) loop
-  if item.key not in ('baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life')
+  if item.key not in ('baby','childhood','adolescence','young_adulthood','midlife','later_life')
    or jsonb_typeof(item.value) is distinct from 'object' or item.value- array['status','memory_ids','note']<>'{}'::jsonb
    or jsonb_typeof(item.value->'status') is distinct from 'string' or item.value->>'status' not in ('recorded','skipped','not_applicable')
    or jsonb_typeof(item.value->'memory_ids') is distinct from 'array' or jsonb_array_length(item.value->'memory_ids')>1000
@@ -11368,10 +11367,10 @@ begin
    raise exception 'invalid collection period';end if;
  end loop;
  select coalesce(array_agg(selected order by first_position),'{}') into ids from (
-  select v.value::uuid selected,min(array_position(array['baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life'],p.key)*1001+v.n) first_position
+  select v.value::uuid selected,min(array_position(array['baby','childhood','adolescence','young_adulthood','midlife','later_life'],p.key)*1001+v.n) first_position
   from jsonb_each(p_periods)p cross join lateral jsonb_array_elements_text(p.value->'memory_ids') with ordinality v(value,n)
   group by v.value::uuid) ordered_selection;
- if cardinality(ids)>1000 or (p_ready and ((select count(*) from jsonb_each(p_periods))<>7 or cardinality(ids)=0)) then
+ if cardinality(ids)>1000 or (p_ready and ((select count(*) from jsonb_each(p_periods))<>6 or cardinality(ids)=0)) then
   raise exception 'collection selection limit or readiness incomplete';end if;
  if exists(select 1 from unnest(ids) selected where not exists(select 1 from public.user_narrator_source s
    where s.user_id=owner and s.project_id=p_project_id and s.id=selected and s.status='active' and s.kind in ('narrator_chat','narrator_transcript'))) then

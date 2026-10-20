@@ -198,7 +198,6 @@ const ASSISTANT_STREAM_DELAY_MS = 12;
 
 const LIFE_STAGES = [
   { id: "baby", icon: "baby", scale: 0.68 },
-  { id: "toddler", icon: "toddler", scale: 0.76 },
   { id: "childhood", icon: "childhood", scale: 0.84 },
   { id: "adolescence", icon: "adolescence", scale: 0.9 },
   { id: "young_adulthood", icon: "youngAdulthood", scale: 0.96 },
@@ -2384,7 +2383,7 @@ function lifeStageEvidence(stageId) {
 }
 
 function lifeStageIllustration(stage) {
-  const asset = { baby: "baby", toddler: "toddler", childhood: "child", adolescence: "adolescent", young_adulthood: "young_adult", midlife: "middle_aged", later_life: "senior" }[stage.id];
+  const asset = { baby: "baby", childhood: "child", adolescence: "adolescent", young_adulthood: "young_adult", midlife: "middle_aged", later_life: "senior" }[stage.id];
   // Artwork is a presentation choice, not an inferred gender identity.
   const style = profile().avatar_style === "female" ? "female" : "male";
   return `<img src="/static/timeline_avatar_${asset}_${style}.png" alt="" aria-hidden="true" />`;

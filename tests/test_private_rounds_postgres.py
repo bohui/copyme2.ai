@@ -26,7 +26,7 @@ def test_round_and_outbox_are_atomic_idempotent_and_owner_scoped(sql):
     first=json.loads(sql(as_user(commit())).stdout.splitlines()[-1])
     repeated=json.loads(sql(as_user(commit())).stdout.splitlines()[-1])
     assert first==repeated
-    assert first[0]['life_stage']=='unplaced' and first[0]['life_stage_order']==7
+    assert first[0]['life_stage']=='unplaced' and first[0]['life_stage_order']==6
     assert sql('select count(*) from public.user_memory;').stdout.strip()=='1'
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='1'
     assert sql('select count(*) from public.user_private_draft_outbox;').stdout.strip()=='1'
@@ -38,7 +38,7 @@ def test_round_and_outbox_are_atomic_idempotent_and_owner_scoped(sql):
 def test_known_stage_commits_atomically_and_retries_keep_original_assignment(sql):
     tagged=commit().replace('true);', "true,'childhood');")
     saved=json.loads(sql(as_user(tagged)).stdout.splitlines()[-1])
-    assert saved[0]['life_stage']=='childhood' and saved[0]['life_stage_order']==2
+    assert saved[0]['life_stage']=='childhood' and saved[0]['life_stage_order']==1
     assert json.loads(sql(as_user(commit())).stdout.splitlines()[-1])==saved
     assert sql('select count(*) from public.user_private_draft_outbox;').stdout.strip()=='1'
     invalid=commit(2).replace('true);', "true,'invented');")

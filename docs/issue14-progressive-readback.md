@@ -7,7 +7,7 @@ evaluation, authenticate a readback, prove persistence, or grant live admission.
 ## Exact bounded input
 
 `scripts/issue14_progressive_readback.py` verifies the unchanged Issue 6 dataset
-SHA-256 `bea8a31f8d4ab0539e2f1c99e08978acbcb4d60ffc25bf36579f04c8a27392c7`.
+SHA-256 `491fd085f5ed6f478c89d1f33c92096680a3df4631e7f7b832ba7e1f6a1880c3`.
 Only `chapters.transitions.en-AU` and `chapters.transitions.zh-CN` are accepted.
 Each has 15 original narrator turns and saved-draft checkpoints at 5, 10 and 15.
 Acknowledgements count as turns but need not create events or prose citations.

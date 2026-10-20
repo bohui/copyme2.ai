@@ -14,12 +14,11 @@ export const isCoarsePlace = place => Boolean(place?.place
   && isCoarseLabel(place.place) && (place.hierarchy || []).slice(1).every(isCoarseLabel));
 const LIFE_STAGE_ORDER = new Map([
   ['baby', 0],
-  ['toddler', 1],
-  ['childhood', 2],
-  ['adolescence', 3],
-  ['young_adulthood', 4],
-  ['midlife', 5],
-  ['later_life', 6],
+  ['childhood', 1],
+  ['adolescence', 2],
+  ['young_adulthood', 3],
+  ['midlife', 4],
+  ['later_life', 5],
 ]);
 const path = place => {
   const labels = (place.hierarchy || []).filter(label => !['earth', '地球'].includes(normalize(label))).map(geographicLabel);
@@ -55,7 +54,7 @@ const placeMatchesProfileValue = (place, value) => {
 const profileChronologyStage = (place, profile) => {
   const parts = profilePlaceParts(profile);
   if (placeMatchesProfileValue(place, parts.birth)) return 0;
-  if (placeMatchesProfileValue(place, profile?.childhood_place)) return 2;
+  if (placeMatchesProfileValue(place, profile?.childhood_place)) return 1;
   if (placeMatchesProfileValue(place, parts.current)) return LIFE_STAGE_ORDER.size;
   return null;
 };

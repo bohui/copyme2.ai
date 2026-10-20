@@ -22,14 +22,14 @@ identity and rubric version. Dataset names share `memoir/issue6/20261008-v1/`.
 | Dimension | Items | Scope |
 |---|---:|---|
 | `event-grounding` | 8 | English/Chinese acknowledgements, leading assistant questions, multiple events and distinct recurring events |
-| `temporal-placement` | 14 | All seven stages, exact and approximate dates, ages with/without birth evidence, periods and competing accounts |
+| `temporal-placement` | 14 | All six stages, exact and approximate dates, ages with/without birth evidence, periods and competing accounts |
 | `chapter-continuity` | 2 | One 15-round story workflow in each locale, with private draft checkpoints at 5/10/15 |
 | `bilingual-consistency` | 4 | Paired outcomes from the same source/dataset/model/run cohort; no additional model calls |
 
 Original source language stays separate from output locale. Long periods remain
 one interval; unknown dates stay unknown; capture timestamps do not become story
 dates. A chapter may group several events around a supported transition. Neither
-one chapter per event nor seven stage chapters is the expected answer.
+one chapter per event nor six stage chapters is the expected answer.
 
 The gold labels and human rubric are proposed review material, not calibrated
 human judgments. Language pairs express equivalent synthetic facts, without

@@ -26,7 +26,7 @@ conflicting accounts retain attribution and uncertainty rather than a winner.
 Propose new or changed events; use unchanged saved facts as context. An
 acknowledgement with no new personal evidence returns an empty event list.
 
-Stages are baby, toddler, childhood, adolescence, young_adulthood, midlife,
+Stages are baby, childhood, adolescence, young_adulthood, midlife,
 later_life and unplaced. Stage placement requires original `stage_evidence`.
 Temporal placement retains its original expression, precision, optional supported
 year/range and exact evidence basis. Preserve “around 1970”, “十二岁” and unknown
