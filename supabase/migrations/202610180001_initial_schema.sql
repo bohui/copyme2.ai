@@ -5111,7 +5111,8 @@ begin
        raise exception 'prepared candidate text changed' using errcode='22023';end if;
    elsif p_outcome->>'selection_reason' in ('prepared_candidate','adapted_candidate') then raise exception 'candidate identity required' using errcode='22023';end if;
  end if;
- result:=public.commit_lifetime_turn(p_fence,p_client_turn_id,p_plan,p_associations,p_reply,p_response_photo_ids,p_thread_id,p_prompt_version,p_model,p_continuity_updates);
+ result:=public.commit_lifetime_turn(p_fence,p_client_turn_id,p_plan,p_associations,p_reply,p_response_photo_ids,p_thread_id,p_prompt_version,p_model,p_continuity_updates,
+   (p_outcome->>'plan_revision_seen')::bigint);
  insert into public.user_lifetime_strategy_outcome(user_id,project_id,client_turn_id,reply_id,source_id,source_sequence,
    plan_revision_seen,selected_candidate_id,selection_reason,used_strategy,question_delivered,work_hint)
  values(auth.uid(),project,p_client_turn_id,(result->'memory'->0->>'id')::uuid,accepted.source_id,
@@ -5125,7 +5126,7 @@ begin
      where o.user_id=auth.uid() and o.project_id=project and o.delivered and o.client_turn_id<>p_client_turn_id and o.question_delivered is not null)));
 end $$;
 
-CREATE FUNCTION public.commit_lifetime_turn(p_fence jsonb, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_reply text, p_response_photo_ids jsonb, p_thread_id text, p_prompt_version text, p_model text, p_continuity_updates jsonb DEFAULT '[]'::jsonb) RETURNS jsonb
+CREATE FUNCTION public.commit_lifetime_turn(p_fence jsonb, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_reply text, p_response_photo_ids jsonb, p_thread_id text, p_prompt_version text, p_model text, p_continuity_updates jsonb DEFAULT '[]'::jsonb, p_plan_revision bigint DEFAULT NULL::bigint) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
@@ -5152,7 +5153,7 @@ begin
    and version=accepted.source_version and status='active';
  if not found then raise exception 'active exact narrator source required'; end if;
  interview:=public.save_lifetime_interview_plan(p_fence,project,p_client_turn_id,p_plan,p_associations,(p_fence->>'lease_token')::uuid,
-   p_reply,p_response_photo_ids,p_thread_id);
+   p_reply,p_response_photo_ids,p_thread_id,p_plan_revision);
  if p_plan->'work'->>'mode'='reply_only' and p_plan->'work'->>'name' is not null then
    -- Retain exact source/version authority and preserve independent settings.
    perform public.persist_lifetime_chosen_name(conversation,source.id,source.version,p_plan->'work'->>'name');
@@ -11242,17 +11243,17 @@ begin
 end;
 $memoir$;
 
-CREATE FUNCTION public.save_lifetime_interview_plan(p_snapshot_fence jsonb, p_project_id text, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_lease_token uuid, p_reply text DEFAULT NULL::text, p_response_photo_ids jsonb DEFAULT '[]'::jsonb, p_thread_id text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.save_lifetime_interview_plan(p_snapshot_fence jsonb, p_project_id text, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_lease_token uuid, p_reply text DEFAULT NULL::text, p_response_photo_ids jsonb DEFAULT '[]'::jsonb, p_thread_id text DEFAULT NULL::text, p_plan_revision bigint DEFAULT NULL::bigint) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
 begin
  return public.save_lifetime_interview_plan_core(p_snapshot_fence,p_project_id,p_client_turn_id,p_plan,
-   p_associations,p_lease_token,p_reply,p_response_photo_ids,p_thread_id);
+   p_associations,p_lease_token,p_reply,p_response_photo_ids,p_thread_id,p_plan_revision);
 end
 $$;
 
-CREATE FUNCTION public.save_lifetime_interview_plan_core(p_snapshot_fence jsonb, p_project_id text, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_lease_token uuid, p_reply text DEFAULT NULL::text, p_response_photo_ids jsonb DEFAULT '[]'::jsonb, p_thread_id text DEFAULT NULL::text) RETURNS jsonb
+CREATE FUNCTION public.save_lifetime_interview_plan_core(p_snapshot_fence jsonb, p_project_id text, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_lease_token uuid, p_reply text DEFAULT NULL::text, p_response_photo_ids jsonb DEFAULT '[]'::jsonb, p_thread_id text DEFAULT NULL::text, p_plan_revision bigint DEFAULT NULL::bigint) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
@@ -11317,7 +11318,7 @@ begin
         or not exists(select 1 from (
           select q->>'id' id from jsonb_array_elements(public.read_lifetime_prepared_questions(conversation)) q
           union all
-          select q->>'id' from jsonb_array_elements(coalesce(public.read_lifetime_strategy_context(conversation)->'plan'->'candidates','[]')) q
+          select q->>'id' from jsonb_array_elements(coalesce(public.read_lifetime_strategy_context_at(conversation,p_plan_revision)->'plan'->'candidates','[]')) q
         ) queued where queued.id=resolution->>'question_id') then
         raise exception 'question resolution requires a current queued question' using errcode='22023';end if;
       select * into current_source from public.user_narrator_source where user_id=v_owner and project_id=p_project_id
@@ -11398,7 +11399,8 @@ begin
         if not exists(select 1 from (
           select q->>'source_id' source_id,q->>'source_version' version,q from jsonb_array_elements(public.read_lifetime_prepared_questions(conversation)) q
           union all
-          select plan->>'source_id',plan->>'source_version',q from (select public.read_lifetime_strategy_context(conversation)->'plan' plan) state
+          -- Match the same revision A used; a newer optional B plan is not revocation.
+          select plan->>'source_id',plan->>'source_version',q from (select public.read_lifetime_strategy_context_at(conversation,p_plan_revision)->'plan' plan) state
             cross join lateral jsonb_array_elements(coalesce(plan->'candidates','[]')) q
         ) supplied where supplied.source_id=evidence->>'source_id' and supplied.version=evidence->>'version'
           and supplied.q->>'quote'=evidence->>'quote' and supplied.q->'char_start'=evidence->'char_start'
@@ -13324,7 +13326,7 @@ revoke all on function public.commit_lifetime_profile_page(uuid, uuid, text, jso
 revoke all on function public.commit_lifetime_profile_page_before_skills(uuid, uuid, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.commit_lifetime_strategy_delivery(jsonb, uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.commit_lifetime_strategy_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, jsonb) from public,anon,authenticated,service_role;
-revoke all on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, bigint) from public,anon,authenticated,service_role;
 revoke all on function public.commit_user_agent_turn(uuid, text, text, text[], bigint, text, uuid, boolean, text) from public,anon,authenticated,service_role;
 revoke all on function public.commit_user_agent_turn_before_photos(uuid, text, text, text[], bigint, text, uuid, boolean, text) from public,anon,authenticated,service_role;
 revoke all on function public.commit_user_agent_turn_legacy(uuid, text, text, text[], bigint) from public,anon,authenticated,service_role;
@@ -13566,8 +13568,8 @@ revoke all on function public.retry_user_memoir_lane(text, text) from public,ano
 revoke all on function public.revalidate_user_historical_news(text, jsonb, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.rewrite_merged_context(jsonb, uuid, uuid, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.save_lifetime_continuity(uuid, text, text, bigint, bigint, uuid, jsonb) from public,anon,authenticated,service_role;
-revoke all on function public.save_lifetime_interview_plan(jsonb, text, uuid, jsonb, jsonb, uuid, text, jsonb, text) from public,anon,authenticated,service_role;
-revoke all on function public.save_lifetime_interview_plan_core(jsonb, text, uuid, jsonb, jsonb, uuid, text, jsonb, text) from public,anon,authenticated,service_role;
+revoke all on function public.save_lifetime_interview_plan(jsonb, text, uuid, jsonb, jsonb, uuid, text, jsonb, text, bigint) from public,anon,authenticated,service_role;
+revoke all on function public.save_lifetime_interview_plan_core(jsonb, text, uuid, jsonb, jsonb, uuid, text, jsonb, text, bigint) from public,anon,authenticated,service_role;
 revoke all on function public.save_memoir_checkpoint(uuid, uuid, text, text, jsonb, text) from public,anon,authenticated,service_role;
 revoke all on function public.save_memoir_checkpoint_before_batches(uuid, uuid, text, text, jsonb, text) from public,anon,authenticated,service_role;
 revoke all on function public.save_memoir_checkpoint_before_lifetime_pages(uuid, uuid, text, text, jsonb) from public,anon,authenticated,service_role;
@@ -13665,8 +13667,8 @@ grant EXECUTE on function public.commit_lifetime_strategy_delivery(jsonb, uuid, 
 grant EXECUTE on function public.commit_lifetime_strategy_delivery(jsonb, uuid, uuid) to service_role;
 grant EXECUTE on function public.commit_lifetime_strategy_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, jsonb) to authenticated;
 grant EXECUTE on function public.commit_lifetime_strategy_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, jsonb) to service_role;
-grant EXECUTE on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb) to authenticated;
-grant EXECUTE on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb) to service_role;
+grant EXECUTE on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, bigint) to authenticated;
+grant EXECUTE on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, bigint) to service_role;
 grant EXECUTE on function public.commit_user_agent_turn(uuid, text, text, text[], bigint, text, uuid, boolean, text) to authenticated;
 grant EXECUTE on function public.commit_user_agent_turn(uuid, text, text, text[], bigint, text, uuid, boolean, text) to service_role;
 grant EXECUTE on function public.commit_user_agent_turn_before_photos(uuid, text, text, text[], bigint, text, uuid, boolean, text) to service_role;
