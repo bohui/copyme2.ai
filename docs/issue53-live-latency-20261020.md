@@ -52,13 +52,13 @@ observable.
 
 Review found an unpunctuated Chinese question in an acknowledgement, an assumed
 school morning absent from testimony, and a distress follow-up that needed a
-clearer pacing choice. The current source
-`743546c138c2672be1c71b7aed22f1987849b369` adds pre-stream rejection for the
+clearer pacing choice. Source
+`743546c138c2672be1c71b7aed22f1987849b369` added pre-stream rejection for the
 observed extra-question form and schema guidance for grounding and gentle
 pacing. It also clarifies the existing exact `text == quote` continuity contract
 to prevent unnecessary repair attempts. Existing validation and bounded repair
-remain in place. Managed prompt Markdown and publication receipts were not
-changed.
+remain in place. Those quality fixes did not change managed prompt Markdown or receipts. The
+main integration below reuses an already-published receipt for merged content.
 
 Four work-mode expectations in the sequence manifest were inconsistent with the
 published collector contract for privacy and language/profile actions. They now
@@ -75,23 +75,42 @@ do not establish generation availability. Read-only gateway logs corroborate
 upstream `stream_incomplete` / WebSocket failures; their mixed traffic cannot
 supply Memoir-only request counts. One subsequent bounded availability request
 returned HTTP 200 but ended after 9.204 seconds without an observed output
-delta or terminal completion event. It does not establish healthy generation;
-no new full live campaign was started.
+delta or terminal completion event. It did not establish healthy generation at that time.
 
-## Checks and remaining gates
+## Latest main integration and checks
 
-Required `make test-place-research` passed on the current source: 588 web tests,
-432 Python tests and 95 skill tests. The final collector, continuity,
-real-SQL HTTP, strategy and configuration group passed all 309 checks on that
-source, with isolated database cleanup verified. The canonical mock
-matrix was rerun on that source: both isolated locale checks passed, covering
-all 80 rows and 76 mocked native dispatches with cleanup verified. All 80 new
-captured streams also passed the mobile consumer. Mock results establish
-contracts, not live semantic quality.
-Unrelated legacy tests reference removed runtime helpers and also fail on clean
-main; this report does not claim the entire repository is green.
+Latest main `4c1a53af9ba878e1991297f6b81521e474b6720a` merged cleanly at
+`89c9d2f1e39126dd5948718186e488342a583d48`, bringing delivered-question
+tracking and the toddler-stage removal. Review found two compatibility updates:
+the continuity fixture needed the new required nullable question-evidence field,
+and the changed timeline instructions needed their generated version 2 receipt.
+The latter was copied from the primary main checkout and verified against
+Langfuse; its staged work was left untouched. No feature-branch publication ran.
 
-Before acceptance, the latest source still needs a bounded matched live run and
+At `4d52604`, all **421** combined collector, continuity, strategy,
+question-identity, real-SQL HTTP and two-lane regression checks passed, with
+cleanup verified. Required `make test-place-research` passed **588 web, 432
+Python and 95 skill tests**. `make prompt-check` verified all **81** published
+pins. Before these fixes, the checks retained 13 combined and ten place Python
+failures; a clean latest-main checkout independently reproduced a background
+failure. This does not claim every repository test is green.
+
+The earlier 80-row canonical matrix and mobile replay passed at source
+`743546c1`; the updated-main workload still needs its own full comparison.
+
+## Recovered generation and remaining gates
+
+After the user confirmed gateway recovery, comparison F at `c4611030` executed
+30 planned turns with 30 native invocations and no background dispatch. All
+produced durable public replies, but the pure-stop candidate incorrectly chose
+`extract` rather than `reply_only`. Its public reply correctly stopped without
+a question. The frozen failure condition stopped the campaign, retaining 29
+passing rows, that contract failure, and 50 unrun rows. Worker homes were removed.
+Generation availability is no longer the blocker; work-decision correctness and
+verification on the updated main remain open.
+
+Before acceptance, the latest source needs the pure-stop work fix, its full
+bilingual contract matrix, a bounded matched live run and
 review of every public reply, genuine pre-rollout session continuation and
 rollback, long-source retention and independent extraction readback, and the
 small real web-proxy/browser smoke. Provider failures must remain in the final

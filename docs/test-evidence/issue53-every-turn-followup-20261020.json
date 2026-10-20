@@ -4,7 +4,7 @@
   "pr": 101,
   "preferred_seconds": 5,
   "fallback_seconds": 10,
-  "latest_source_revision": "743546c138c2672be1c71b7aed22f1987849b369",
+  "latest_source_revision": "4d5260448951ee5abfd6ee2604a5e5a427621513",
   "release_accepted": false,
   "shared_app_candidate_enabled": false,
   "policy": {
@@ -1316,11 +1316,11 @@
     "probe_e": "both first turns timed out; two app-server invocations; homes removed",
     "direct_gateway_probe": "valid greeting request returned HTTP 502",
     "remaining": [
-      "post-fix matched live quality/latency gate",
+      "pure-stop work decision correction",
+      "post-main full bilingual contract/matched live quality and latency gates",
       "genuine pre-rollout session continuation and rollback",
-      "14 KB source stress comparison",
-      "independent extraction readback",
-      "real web proxy/browser smoke",
+      "long-source retention and independent extraction readback",
+      "bounded real web proxy/browser smoke",
       "controlled activation after acceptance"
     ],
     "gateway_read_only_log_observation": {
@@ -1355,7 +1355,42 @@
       "output_characters": 0,
       "http_status": 200,
       "elapsed_s": 9.204
-    }
+    },
+    "recovered_comparison_f": {
+      "source_revision": "c4611030c0fb7fa51d9eb27b1bed05b9bdab03ad",
+      "planned_rows": 80,
+      "executed_rows": 30,
+      "contract_passed_rows": 29,
+      "contract_failed_rows": 1,
+      "unrun_rows": 50,
+      "native_invocations": 30,
+      "background_invocations": 0,
+      "temporary_homes_removed": true,
+      "provider_generation_recovered": true,
+      "remaining_failure": "Pure-stop work decision was extract, expected reply_only; the saved public reply correctly stopped with no question.",
+      "failed_row": {
+        "row_id": "issue53/emotional/en-AU/turn-3/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "status": "failed",
+        "failure_class": "AssertionError",
+        "error_code": null,
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.242,
+          "first_public_text_s": 3.142,
+          "reply_complete_s": 3.48,
+          "conversation_saved_s": 3.488
+        },
+        "saved_reply": "Of course. We’ll stop here for today.",
+        "saved_work_mode": "extract",
+        "expected_work_mode": "reply_only"
+      },
+      "release_accepted": false
+    },
+    "current_gate": "Fix the pure-stop work decision and verify the updated main source across the remaining live acceptance workload."
   },
   "checks": [
     {
@@ -1430,5 +1465,32 @@
     "prompt_version": "two-lane-v1",
     "candidate_enabled": false,
     "method": "Read-only allowlisted environment readback from each running service; no secrets or configuration changes."
+  },
+  "main_integration": {
+    "main_revision": "4c1a53af9ba878e1991297f6b81521e474b6720a",
+    "merge_revision": "89c9d2f1e39126dd5948718186e488342a583d48",
+    "compatibility_revision": "4d5260448951ee5abfd6ee2604a5e5a427621513",
+    "textual_conflicts": false,
+    "updates": [
+      "Add the new required nullable question-evidence field to the continuity schema fixture.",
+      "Reuse the generated timeline instruction receipt from main; exact published version 2 verified, no feature-branch publication."
+    ],
+    "published_prompt_pins_verified": 81,
+    "before_fixes": {
+      "combined_failed": 13,
+      "combined_passed": 408,
+      "place_python_failed": 10,
+      "place_python_passed": 422,
+      "clean_main_background_failure_reproduced": true
+    },
+    "after_fixes": {
+      "combined_passed": 421,
+      "combined_seconds": 236.99,
+      "native_cleanup_verified": true,
+      "place_web_passed": 588,
+      "place_python_passed": 432,
+      "place_skill_passed": 95
+    },
+    "primary_checkout_staged_work": "left untouched"
   }
 }
