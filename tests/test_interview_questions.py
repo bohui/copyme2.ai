@@ -128,3 +128,23 @@ def test_a_background_candidate_cannot_be_retargeted_to_another_passage():
         source_id=value['source']['id'], version=1, quote='we', char_start=29, char_end=31)
     with pytest.raises(ValueError, match='cannot change its referenced passage'):
         validate_collector_result(output, value)
+
+
+@pytest.mark.parametrize('selector', [False, True])
+def test_unique_question_quote_resolves_offsets_without_accepting_a_wrong_explicit_span(selector):
+    from test_name_only_opening import proposal
+    text='I am Joan. My father repaired bicycles in our shed. We lived in Hobart.'
+    value=context(text=text)
+    value.update(two_lane_memory=True,strategy_selector=selector)
+    quote='My father repaired bicycles in our shed.'
+    evidence=dict(source_id=value['source']['id'],version=1,quote=quote,
+        char_start=None,char_end=None,attribution=None)
+    output=(wire(question='What do you remember about the shed?', selection_reason='latest_story', question_evidence=evidence)
+        if selector else {**proposal(mode='extract',name=None), 'selection_reason':'latest_story'})
+    if not selector:output['plan']['candidates'][0]['context']['evidence']=evidence
+    saved=validate_governed_collector_result(output,value)
+    ref=saved['plan']['candidates'][0]['context']['evidence']
+    assert ref['char_start']==text.index(quote) and ref['char_end']==text.index(quote)+len(quote)
+    evidence.update(char_start=12,char_end=52)
+    with pytest.raises(ValueError,match='Question evidence span must match'):
+        validate_governed_collector_result(output,value)

@@ -51,6 +51,11 @@ def question_evidence_schema(schema):
         ref['required'] = list(ref['properties'])
         for field in ref['properties'].values():
             field.pop('default', None)
+        for name in ('char_start','char_end'):
+            ref['properties'][name]['description']=(
+                'For a current-source quote occurring exactly once, use null for BOTH offsets; '
+                'the application finds and validates its exact span. For repeated wording, supply '
+                'exact absolute Unicode character offsets. For a queued hint, copy its supplied offsets.')
     return schema
 
 
