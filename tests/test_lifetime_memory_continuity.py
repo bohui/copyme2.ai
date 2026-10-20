@@ -270,6 +270,26 @@ def test_null_spanned_overwide_literal_control_is_canonicalized():
     assert rows == literal_continuity_updates(ctx)
 
 
+@pytest.mark.parametrize('changes', [
+    {'source_id': str(UUID(int=999))},
+    {'source_version': 2},
+    {'text': 'fabricated wording', 'quote': 'fabricated wording'},
+])
+def test_overwide_literal_fallback_validates_source_metadata_and_quote(changes):
+    ctx = context('跳过这个问题。我不想聊厨房。')
+    item = update(ctx, 'excluded_topic', ctx['source']['text'], char_start=None, char_end=None)
+    item.update(changes)
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
+def test_overwide_literal_fallback_cannot_bypass_update_limit():
+    ctx = context('跳过这个问题。我不想聊厨房。')
+    item = update(ctx, 'excluded_topic', ctx['source']['text'], char_start=None, char_end=None)
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([deepcopy(item) for _ in range(9)]), ctx)
+
+
 def test_explicit_overwide_literal_control_still_fails_closed():
     ctx = context('跳过这个问题。我不想聊厨房。')
     item = update(ctx, 'excluded_topic', ctx['source']['text'],

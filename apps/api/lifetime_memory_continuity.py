@@ -277,48 +277,52 @@ def validate_governed_collector_result(raw, context):
     updates = value.get('continuity_updates', [])
     if isinstance(updates, list):
         updates = [dict(item) if isinstance(item, dict) else item for item in updates]
+        overwide = []
+        structurally_validated = []
         for item in updates:
-            if not source or not isinstance(item, dict):
-                continue
-            start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
-            locate = ('char_start' in item and 'char_end' in item and start is None and end is None)
-            explicit = type(start) is int and start >= 0 and type(end) is int and end >= 1
-            if (not (locate or explicit)
-                    or not isinstance(quote, str) or not 0 < len(quote) <= 500
-                    or item.get('source_id') != source['id']
-                    or type(item.get('source_version')) is not int or item['source_version'] != source['version']):
-                continue
-            if (locate and item.get('kind') in _DIRECT_KINDS
-                    and any(direct.kind == item.get('kind') and direct.quote in quote
-                            and direct.quote != quote for direct in literal)):
-                # Leave a null-spanned over-wide direct proposal untouched so
-                # the normalization below can replace it with the deterministic
-                # host-owned literal row.
-                continue
-            if locate or source['text'][start:end] != quote:
-                original_start = source['text'].find(quote)
-                if original_start >= 0 and source['text'].find(quote, original_start + 1) < 0:
-                    # Resolve a unique exact quote before typed span validation.
-                    item['char_start'] = original_start
-                    item['char_end'] = original_start + len(quote)
-    # Privacy and commitment controls are host-owned literals. A model can
-    # occasionally quote the whole control sentence plus a preceding pacing
-    # sentence (with null offsets), which is semantically safe but cannot pass
-    # the exact-span check. Canonicalize only this asserted, null-spanned,
-    # unambiguous over-wide form; inferred, explicit-offset, reported, and
-    # ambiguous proposals continue through the fail-closed validator.
-    if isinstance(updates, list):
-        normalized = []
+            candidate = item
+            is_overwide = False
+            if isinstance(item, dict):
+                start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
+                locate = start is None and end is None
+                explicit = type(start) is int and start >= 0 and type(end) is int and end >= 1
+                needs_repair = (locate or (explicit and source and isinstance(quote, str)
+                                           and source['text'][start:end] != quote))
+                if needs_repair and source and isinstance(quote, str):
+                    original_start = source['text'].find(quote)
+                    unique = (original_start >= 0
+                              and source['text'].find(quote, original_start + 1) < 0)
+                    if unique:
+                        is_overwide = (
+                            item.get('assertion') == 'asserted'
+                            and item.get('kind') in _DIRECT_KINDS
+                            and any(direct.kind == item.get('kind') and direct.quote in quote
+                                    and direct.quote != quote for direct in literal))
+                        # Validate the raw proposal with a temporary exact span
+                        # before a host-owned over-wide control can be removed.
+                        candidate = dict(item)
+                        candidate['char_start'] = original_start
+                        candidate['char_end'] = original_start + len(quote)
+                        if not is_overwide:
+                            item['char_start'] = candidate['char_start']
+                            item['char_end'] = candidate['char_end']
+            structurally_validated.append(candidate)
+            overwide.append(is_overwide)
+        # This runs before normalization, so invalid metadata, fabricated
+        # quotes, and over-limit arrays cannot disappear through fallback.
+        _Updates.model_validate({'continuity_updates': structurally_validated})
+        if updates and source is None:
+            raise ValueError('Continuity requires exact current narrator evidence')
         for item in updates:
-            if isinstance(item, dict) and item.get('kind') in _DIRECT_KINDS:
-                quote = item.get('quote')
-                if (item.get('assertion') == 'asserted'
-                        and item.get('char_start') is None and item.get('char_end') is None
-                        and isinstance(quote, str)
-                        and any(direct.kind == item.get('kind') and direct.quote in quote
-                                and direct.quote != quote for direct in literal)):
-                    continue
-            normalized.append(item)
+            if (item['source_id'] != source['id']
+                    or item['source_version'] != source['version']):
+                raise ValueError('Continuity requires exact current narrator evidence')
+        # Privacy and commitment controls are host-owned literals. A model can
+        # occasionally quote the whole control sentence plus a preceding pacing
+        # sentence (with null offsets), which is semantically safe but cannot pass
+        # the exact-span check. Canonicalize only this asserted, null-spanned,
+        # unambiguous over-wide form after the complete raw list is validated.
+        normalized = [item for item, is_overwide in zip(updates, overwide) if not is_overwide]
     else:
         normalized = updates
     proposed = _Updates.model_validate({'continuity_updates': normalized}).continuity_updates

@@ -73,11 +73,16 @@ def smoke(origin, timeout):
     paths = ['apps/web/client/memoir/client.js', 'apps/api/codex_runtime.py',
         'apps/api/codex_worker_service.py', 'apps/api/interview_plan.py',
         'apps/api/conversation_locale.py', 'scripts/smoke_conversation_proxy.py']
+    # Keep the receipt budget tied to the turns this verifier actually submits.
+    cases = [('first', 'I love walking along the harbour near my home.'),
+        ('later_replay', 'I also like tending herbs on weekends.'),
+        ('later_name_change', 'Please call me Rowan instead.'),
+        ('resumed_pause', 'I would like to pause here. Please do not ask another question.')]
     print(json.dumps({'kind': 'frozen_proxy_smoke', 'revision': subprocess.check_output(
-        ['git', 'rev-parse', 'HEAD'], text=True).strip(), 'foreground_generation_budget': 3,
+        ['git', 'rev-parse', 'HEAD'], text=True).strip(), 'foreground_generation_budget': len(cases),
         'source_sha256': hashlib.sha256(b''.join((root / path).read_bytes() for path in paths)).hexdigest(),
         'per_generation_timeout_s': timeout,
-        'cases': ['first', 'later_replay', 'later_name_change', 'resumed_pause'],
+        'cases': [case for case, _ in cases],
         'measurement': 'Browser render + real proxy event receipt; normal service configuration'}), flush=True)
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
@@ -92,10 +97,6 @@ def smoke(origin, timeout):
             # Keep the opening turn profile-neutral so its saved reply is
             # eligible for replay before the later name correction advances
             # the canonical preference revision and fences older replies.
-            cases = [('first', 'I love walking along the harbour near my home.'),
-                ('later_replay', 'I also like tending herbs on weekends.'),
-                ('later_name_change', 'Please call me Rowan instead.'),
-                ('resumed_pause', 'I would like to pause here. Please do not ask another question.')]
             saved_reply = None
             for index, (case, text) in enumerate(cases):
                 if case == 'resumed_pause':
@@ -160,8 +161,12 @@ def smoke(origin, timeout):
                 # it must not force an unrelated interview question. A pause also
                 # deliberately has no question, while the opening offers one.
                 question_count = saved_reply.count('?') + saved_reply.count('？')
-                allowed_questions = {1} if case == 'first' else {0, 1}
-                assert question_count in allowed_questions
+                if case == 'resumed_pause':
+                    assert question_count == 0, 'An explicit stop must not be followed by another question'
+                elif case == 'first':
+                    assert question_count == 1
+                else:
+                    assert question_count in {0, 1}
                 # Saved history can collapse older exchanges. Inspect the full
                 # history before counting, using the rendered control.
                 toggle = page.locator('[data-action=toggle-chat-history]')

@@ -74,6 +74,8 @@ def test_statement_acknowledgements_remain_visible(acknowledgement):
 @pytest.mark.parametrize('source,acknowledgement,allowed', [
     ('My sister walked to school with me.', '和姐妹一起走路上学，是一段共同的校园记忆。', True),
     ('My older sister walked to school with me.', '和姐姐一起走路上学，是一段共同的校园记忆。', True),
+    ('My sister is older than me.', '和姐姐一起走路上学，是一段共同的校园记忆。', True),
+    ('My sister was younger than me.', '和妹妹一起走路上学，是一段共同的校园记忆。', True),
     ('My sister walked to school with me.', '和姐姐一起走路上学，是一段共同的校园记忆。', False),
 ])
 def test_chinese_translation_cannot_add_sibling_age(source, acknowledgement, allowed):

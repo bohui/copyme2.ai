@@ -65,7 +65,9 @@ TRANSLATION_GROUNDING_ERROR = (
 _SIBLING_SOURCE_PATTERN = re.compile(r'\b(?:sister|brother)\b', re.IGNORECASE)
 _EXPLICIT_SIBLING_AGE_PATTERN = re.compile(
     r'\b(?:older|elder|big|younger|little)\s+(?:sister|brother)s?\b'
-    r'|\b(?:sister|brother)s?\s+(?:who\s+is\s+)?(?:older|elder|younger|little)\b',
+    r'|\b(?:sister|brother)s?\s+(?:who\s+is\s+)?(?:older|elder|younger|little)\b'
+    r'|\b(?:sister|brother)s?\s+(?:is|was|has\s+been|had\s+been)\s+'
+    r'(?:much\s+)?(?:older|elder|younger|little)\b',
     re.IGNORECASE)
 _AGE_SPECIFIC_SIBLING_TRANSLATION = re.compile(
     r'(?:姐姐|妹妹|姊姊|大姐|小妹|哥哥|弟弟|兄长|大哥|小弟)')
