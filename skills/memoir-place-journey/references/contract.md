@@ -56,7 +56,7 @@ The API response from `POST /v1/agent/turn` contains:
 When the current extraction explicitly ties a calendar period to a place, its confirmed record also carries `period` for project photo research. Other places in the same turn receive an empty period for current photos; the profile’s date must not date unrelated places. The user-level journey row keeps geographic fields only; project history retains the photo period.
 
 Each confirmed record also carries a server-assigned `life_stage`, using the
-seven supported stages or `null` when the association is unknown. The runtime
+six supported stages or `null` when the association is unknown. The runtime
 attaches the current extraction's stage to the unique place matched by
 `story_focus.where`. A single-place continuation can retain the response's
 stage when the focus omits `where`; mixed-place turns with missing or ambiguous

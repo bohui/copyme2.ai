@@ -286,7 +286,7 @@ rejection and cN validation/metadata stripping assertions intact.
 
 For the later five-by-fifty phase, secure approved credentials/configuration
 first, then verify actual invocation/output coverage for all seven memoir
-skills, all life stages, browser behavior and durable Langfuse readback on
+skills, all six life stages, browser behavior and durable Langfuse readback on
 synthetic isolated data. Do not invent a judge endpoint/model/configuration.
 The existing five-case runner defaults its `--env-file` to `.env`; when using
 secure environment injection, pass `--env-file /dev/null` to prevent reading an

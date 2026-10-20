@@ -7,7 +7,7 @@
    stage; a populated timeline alone never triggers book organisation. Existing
    Family-package gates remain unchanged. `app-auto-localization` is a development
    skill supporting the product's UI, not a separate storytelling agent.
-2. The user reviews seven life periods. Each is recorded with selected saved
+2. The user reviews six life periods. Each is recorded with selected saved
    memories, explicitly skipped with a reason, or marked not yet applicable.
    At least one recorded period and explicit confirmation are required.
 3. The organiser starts a separate Codex thread with the confirmed sources. It

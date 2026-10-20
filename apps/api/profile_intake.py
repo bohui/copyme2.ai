@@ -19,7 +19,7 @@ PROFILE_FIELDS = {
     "birth_place": 160,
     "childhood_place": 160,
 }
-LIFE_STAGES = {"baby", "toddler", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"}
+LIFE_STAGES = {"baby", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"}
 STORY_FOCUS_FIELDS = {"who": 500, "where": 300, "when": 160, "what": 1000}
 EXPLICIT_MIDLIFE_CUE = re.compile(r"三十岁(?:以后|之后)")
 EXPLICIT_MIDLIFE_NEGATION = re.compile(
@@ -32,7 +32,7 @@ EXPLICIT_CORRECTION = re.compile(
 )
 CHINESE_STAGE_BOUNDARY = re.compile(
     r"(?:三十岁(?:以后|之后)|四十岁(?:以后|之后)|五十岁(?:以后|之后)|"
-    r"中年|童年|小时候|幼儿时期|童年时|少年时期|青春期|"
+    r"中年|童年|小时候|很小的时候|童年时|少年时期|青春期|"
     r"(?:\d{1,2}|[一二三四五六七八九十百两〇零○]+)岁)"
 )
 CHINESE_NON_AUTHOR_SUBJECT = re.compile(
@@ -82,7 +82,7 @@ def _author_stage_evidence(text: str) -> str | None:
             source,
         )
         or re.search(
-            r"\b(?:when\s+i\s+was|as\s+a)\s+(?:baby|toddler|child|teenager|teen)\b",
+            r"\b(?:when\s+i\s+was|as\s+a)\s+(?:baby|very\s+young\s+child|child|teenager|teen)\b",
             source,
         )
         or _chinese_author_earlier_evidence(text)
@@ -138,7 +138,7 @@ def _later_stage_correction_rejects_prior_midlife(text: str) -> bool:
             continue
         tail = text[correction.start():]
         if re.search(
-            r"(?:小时候|幼儿时期|童年|少年时期|青春期|"
+            r"(?:小时候|很小的时候|童年|少年时期|青春期|"
             rf"{CHINESE_EARLIER_AGE})",
             tail,
         ):
@@ -152,7 +152,7 @@ def _chinese_author_earlier_evidence(text: str) -> bool:
     ]
     return any(
         re.search(
-            r"(?:童年|小时候|幼儿时期|童年时|少年时期|青春期|"
+            r"(?:童年|小时候|很小的时候|童年时|少年时期|青春期|"
             r"(?:[0-2]?\d|[一二三四五六七八九十百两〇零○]+)岁)",
             sentence,
         )

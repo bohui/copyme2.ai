@@ -209,7 +209,7 @@ def main():
                 expect(dialog).to_have_count(0)
                 assert not startup['unexpected'], startup['unexpected']
                 assert not startup['browser_errors'], startup['browser_errors']
-                print(f'PASS {locale}: explicit confirmation, seven periods, source selection, queued result, download')
+                print(f'PASS {locale}: explicit confirmation, six periods, source selection, queued result, download')
             context.close()
         browser.close()
 

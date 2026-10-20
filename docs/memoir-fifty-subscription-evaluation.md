@@ -290,7 +290,7 @@ The campaign uses exactly the original ordered `memoir-five-case/1` inputs:
 
 Each case has its original 50 distinct narrator inputs. No 15-round dataset is
 extended or repeated. Input bytes are pinned to SHA-256
-`e7f705bc4a96537b01cb5cde7d412972bdd929de49d339bc6b1a95bc9cb43927`.
+`3e33b6cf869f29a7a2b96506835a1045eeb7e421307485d338711b7392b9e744`.
 Hidden truth, expected answers and judge prompts are never added to runtime
 inputs. Run-derived UUID5 owners/projects are fresh for each run and differ from
 the historical profile's namespace; dataset fixture project IDs are not used.

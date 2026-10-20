@@ -14,7 +14,7 @@ through the normal application/runtime boundary. The run is **not a semantic
 pass**: deterministic evaluation found 77 failures and 13 unavailable rounds,
 and no separate semantic judge was configured.
 
-| Case | Rounds | Pass | Deterministic fail | Unavailable | All seven stages |
+| Case | Rounds | Pass | Deterministic fail | Unavailable | All six stages |
 |---|---:|---:|---:|---:|---|
 | `harbour-copper-notebook` | 50/50 | 25 | 21 | 4 | yes |
 | `chengdu-tea-ledger` | 50/50 | 34 | 15 | 1 | yes |
@@ -66,16 +66,16 @@ directory.
 ## Stage coverage
 
 Counts are observed persisted stage assignments, not merely words in the
-prompt. Column order is `baby / toddler / childhood / adolescence /
-young_adulthood / midlife / later_life`.
+prompt. Column order is `baby / childhood / adolescence / young_adulthood /
+midlife / later_life`.
 
 | Case | Observed stage counts |
 |---|---|
-| Harbour | 3 / 4 / 10 / 5 / 8 / 8 / 12 |
-| Chengdu | 4 / 4 / 8 / 7 / 7 / 8 / 12 |
-| Perth | 4 / 4 / 8 / 7 / 7 / 8 / 12 |
-| Kunming | 3 / 2 / 10 / 7 / 8 / 7 / 13 |
-| Sydney | 3 / 5 / 11 / 4 / 7 / 8 / 12 |
+| Harbour | 7 / 10 / 5 / 8 / 8 / 12 |
+| Chengdu | 8 / 8 / 7 / 7 / 8 / 12 |
+| Perth | 8 / 8 / 7 / 7 / 8 / 12 |
+| Kunming | 5 / 10 / 7 / 8 / 7 / 13 |
+| Sydney | 8 / 11 / 4 / 7 / 8 / 12 |
 
 ## Seven-skill grades
 

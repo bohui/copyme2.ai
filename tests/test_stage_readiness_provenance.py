@@ -118,7 +118,7 @@ def test_bounded_large_history_readiness_query_plan(sql, tmp_path, monkeypatch, 
         from public.user_memory where user_id='{OWNER}' and project_id={project};
       insert into public.user_memory_event(user_id,project_id,id,kind,life_stage,status,data,change_sequence)
       select user_id,project_id,'cost-event-'||sequence,'event',
-        (array['baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life'])[1+(sequence%7)::int],
+        (array['baby','childhood','adolescence','young_adulthood','midlife','later_life'])[1+(sequence%6)::int],
         'active',jsonb_build_object('title','Synthetic cost event','stage_evidence',
           (select jsonb_agg(jsonb_build_object('source_id',s.id,'version',s.version,'char_start',offset_value,
              'char_end',offset_value+600,'quote',substring(s.text from offset_value+1 for 600)))
@@ -135,7 +135,7 @@ def test_bounded_large_history_readiness_query_plan(sql, tmp_path, monkeypatch, 
       analyze public.user_lifetime_stage_volume;""")
     view = rpc(sql, 'read_lifetime_stage_readiness', project)
     assert sum(value['word_equivalents'] for value in view['stages'].values()) == size * word_equivalents(('memory '*512)[:1200])
-    assert len(view['stages']) == 7 and view['pending'] is False
+    assert len(view['stages']) == 6 and view['pending'] is False
     plans = []
     for _ in range(3):
         result = sql(as_user("set statement_timeout='20s'; explain (analyze,buffers,format json) "

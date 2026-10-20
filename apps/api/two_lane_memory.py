@@ -10,6 +10,7 @@ import os
 from pydantic import BaseModel, ConfigDict, Field
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .lifetime_memory_continuity import _Places
+from .interview_questions import question_span, hint_evidence
 
 
 def two_lanes_enabled():
@@ -23,7 +24,10 @@ class PreparedQuestion(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     question: str = Field(min_length=1, max_length=800)
     topic: str = Field(min_length=1, max_length=120)
-    quote: str = Field(min_length=1, max_length=500)
+    quote: str = Field(min_length=1, max_length=500,
+        description='Exact narrator passage this question refers to, not the whole message when it contains several topics.')
+    char_start: int | None = Field(default=None, ge=0, description='Absolute start of the referenced quote; null only for an unambiguous quote.')
+    char_end: int | None = Field(default=None, ge=1, description='Absolute exclusive end of the referenced quote; null only for an unambiguous quote.')
     requires_confirmation: bool = Field(default=False,
         description='Whether this question needs narrator confirmation before continuing the interview.')
 
@@ -39,6 +43,8 @@ def extraction_contract(*, strategy=False, attribution=False):
     question = extension['$defs']['PreparedQuestion']
     question['required'] = list(question['properties'])
     question['properties']['requires_confirmation'].pop('default', None)
+    for field in ('char_start', 'char_end'):
+        question['properties'][field].pop('default', None)
     extension['$defs']['_PlaceJourney']['required']=list(extension['$defs']['_PlaceJourney']['properties'])
     for field in ('latitude','longitude'):
         extension['$defs']['_PlaceJourney']['properties'][field].pop('default',None)
@@ -77,11 +83,11 @@ def derived_hints(raw, page):
     places=grounded_place_journeys([place for place in places if place],page['source']['text'])
     questions=[]
     for item in hints.prepared_questions:
-        if item.quote not in page['source']['text']:
-            raise ValueError('Prepared question lacks exact source evidence')
+        item.char_start, item.char_end = question_span(page['source'], item.quote, item.char_start, item.char_end)
         if item.question.count('?')+item.question.count('？')>1:
             raise ValueError('Prepared hint contains multiple questions')
-        if item.question.casefold() in {q['question'].casefold() for q in questions}:
+        if (item.question.strip().casefold(), item.char_start, item.char_end) in {
+                (q['question'].strip().casefold(), q['char_start'], q['char_end']) for q in questions}:
             raise ValueError('Prepared questions must be distinct')
         questions.append(item.model_dump(exclude_defaults=True))
     return {'place_journeys':places,'prepared_questions':questions}
@@ -97,12 +103,16 @@ def pending_confirmation(context):
 
 def prioritize_confirmation(value, context, *, selection_reason):
     """Prioritize B only after validating the original plan and current intent."""
-    question = pending_confirmation(context)
+    resolved = {item['question_id'] for item in value['plan'].get('resolved_questions', [])}
+    question = pending_confirmation({**context, 'prepared_questions': [
+        item for item in context.get('prepared_questions', []) if item['id'] not in resolved]})
     if not question or value['stopped'] or selection_reason in {'current_correction', 'user_redirect', 'pacing'}:
         return value
+    evidence = hint_evidence(question, context)
     return {**value, 'plan': {**value['plan'], 'chosen_id': question['id'], 'active_event_id': None,
         'candidates': [{'id': question['id'], 'question': question['question'], 'order': 0, 'bridge': '',
-                        'context': {'event_id': None, 'photo_id': None, 'life_stage': None, 'year': None}}]}}
+                        'context': {'event_id': None, 'photo_id': None, 'life_stage': None, 'year': None,
+                                    **({'evidence': evidence} if evidence else {})}}]}}
 
 
 class RuntimeCapacity:

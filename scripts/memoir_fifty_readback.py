@@ -18,7 +18,7 @@ from scripts.issue14_progressive_readback import (
 
 
 DATASET_PATH = Path(__file__).resolve().parents[1] / 'tests/evaluation/memoir_five_case_inputs.json'
-DATASET_SHA256 = 'e7f705bc4a96537b01cb5cde7d412972bdd929de49d339bc6b1a95bc9cb43927'
+DATASET_SHA256 = '3e33b6cf869f29a7a2b96506835a1045eeb7e421307485d338711b7392b9e744'
 DATASET_VERSION = 'memoir-five-case/1'
 CASE_IDS = ('harbour-copper-notebook', 'chengdu-tea-ledger',
             'perth-workshop-compass', 'kunming-garden-lanterns',

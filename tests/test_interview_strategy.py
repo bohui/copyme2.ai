@@ -15,7 +15,8 @@ def context(strategy='shape',text="Let's talk about my garden."):
 def wire(question='What do you enjoy growing?',**changes):
     return {'acknowledgement':'We can follow the garden.','question':question,'selected_candidate_id':None,
         'selection_reason':'user_redirect','used_strategy':'explore','work':{'mode':'extract','name':None},
-        'associations':[],'response_photo_ids':[],'stopped':False,'continuity_updates':[],**changes}
+        'associations':[],'response_photo_ids':[],'stopped':False,'continuity_updates':[],
+        'resolved_questions':[],'question_evidence':None,**changes}
 
 
 def test_shared_core_plus_one_active_module_without_legacy_shape_gate():
@@ -100,6 +101,20 @@ def test_quoted_controls_and_short_answers_do_not_infer_a_preference_or_discomfo
 def test_unknown_or_reused_candidates_cannot_be_selected():
     from apps.api.lifetime_memory_continuity import validate_governed_collector_result
     with pytest.raises(ValueError):validate_governed_collector_result(wire(selected_candidate_id='cross-project',selection_reason='prepared_candidate'),context(text='Please go on.'))
+
+
+@pytest.mark.parametrize('padding',[' \n\t','\u00a0\u3000'])
+def test_prepared_candidate_allows_edge_trimming_but_not_changed_words(padding):
+    from apps.api.lifetime_memory_continuity import validate_governed_collector_result
+    value=context(text='Please go on.')
+    candidate=value['strategy_context']['plan']['candidates'][0]
+    original=candidate['question']
+    candidate['question']=padding+original+padding
+    output=wire(question=original,selected_candidate_id=candidate['id'],selection_reason='prepared_candidate')
+    assert validate_governed_collector_result(output,value)['reply'].endswith(original)
+    output['question']='Was that after the move?'
+    with pytest.raises(ValueError,match='Prepared candidate text changed'):
+        validate_governed_collector_result(output,value)
 
 
 def test_prompt_has_no_user_selected_mode_policy():

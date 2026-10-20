@@ -39,7 +39,7 @@ def test_explicit_fifty_plan_preserves_original_dataset_order_and_checkpoints(mo
     assert p['execution_started'] is False and p['upstream_cancellation_verified'] is False
     assert p['hard_token_cap_verified'] is p['hard_dollar_cap_verified'] is False
     assert p['dataset_version'] == 'memoir-five-case/1'
-    assert p['dataset_sha256'] == 'e7f705bc4a96537b01cb5cde7d412972bdd929de49d339bc6b1a95bc9cb43927'
+    assert p['dataset_sha256'] == '3e33b6cf869f29a7a2b96506835a1045eeb7e421307485d338711b7392b9e744'
 
 
 @pytest.mark.parametrize('changes', [

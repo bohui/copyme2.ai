@@ -31,7 +31,7 @@ The original web welcome/conversation fixture could not be visually captured in 
 | MOB-023 | Native labels, large targets, two catalogs                  | VoiceOver/TalkBack/max-scale and human bilingual sign-off     |
 | MOB-030 | Place list and canonical historical photo endpoint          | Source-backed native visual/fallback/pagination QA            |
 | MOB-031 | People list and timeline correction CAS                     | Portrait mutations and device conflict review                 |
-| MOB-032 | Independent draft reader, all seven collection stages       | Real shared-worker 5/10/15/20 milestone acceptance            |
+| MOB-032 | Independent draft reader, all six collection stages         | Real shared-worker 5/10/15/20 milestone acceptance            |
 | MOB-033 | Read-only draft/source view                                 | Durable protected manuscript editing and artefact delivery    |
 | MOB-040 | Existing server entitlement consumption                     | Store products/receipt/restore integration and approvals      |
 | MOB-041 | No print order mutation                                     | Approved supplier/quote/proof/payment implementation          |

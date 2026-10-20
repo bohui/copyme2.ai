@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 INPUTS_PATH = 'tests/evaluation/memoir_five_case_inputs.json'
-INPUTS_SHA256 = 'e7f705bc4a96537b01cb5cde7d412972bdd929de49d339bc6b1a95bc9cb43927'
+INPUTS_SHA256 = '3e33b6cf869f29a7a2b96506835a1045eeb7e421307485d338711b7392b9e744'
 REQUIRED_CLEANUP = ('postgres_removal_verified', 'temporal_closed',
     'gateway_guard_finished', 'gateway_resources_finished', 'gateway_bridge_finished',
     'remote_actor_absence_verified')

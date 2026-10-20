@@ -13,7 +13,7 @@ test('life-stage navigation pauses auto-follow before workspace reflow', () => {
   const calls = [];
   const context = vm.createContext({
     state: {lifeStage: 'childhood', selectedPlace: 'saved-place'},
-    LIFE_STAGES: [{id: 'childhood'}, {id: 'toddler'}],
+    LIFE_STAGES: [{id: 'childhood'}, {id: 'baby'}],
     conversationScroll: {pause: () => { following = false; calls.push('pause'); }},
     // renderStory follows the new bottom unless the reading controller was
     // paused. Model the observed 0 -> 642 reflow without a user scroll event.
@@ -23,9 +23,9 @@ test('life-stage navigation pauses auto-follow before workspace reflow', () => {
     }})},
   });
   vm.runInContext(selectLifeStage, context);
-  context.selectLifeStage('toddler', true);
+  context.selectLifeStage('baby', true);
   assert.equal(scrollTop, 0);
-  assert.equal(context.state.lifeStage, 'toddler');
+  assert.equal(context.state.lifeStage, 'baby');
   assert.equal(context.state.selectedPlace, null);
   assert.deepEqual(calls, ['pause', 'render', 'focus']);
 });
@@ -94,7 +94,7 @@ test('real controller preserves queued reflow and streaming position, then resum
   let renders = 0;
   const context = vm.createContext({
     state: {lifeStage: 'childhood', selectedPlace: 'saved-place'},
-    LIFE_STAGES: [{id: 'childhood'}, {id: 'toddler'}],
+    LIFE_STAGES: [{id: 'childhood'}, {id: 'baby'}],
     conversationScroll: controller,
     document: {querySelector: () => ({focus() {}})},
     render: () => {
@@ -110,7 +110,7 @@ test('real controller preserves queued reflow and streaming position, then resum
   });
   vm.runInContext(selectLifeStage, context);
   controller.refresh();
-  context.selectLifeStage('toddler', true);
+  context.selectLifeStage('baby', true);
   flush();
   assert.equal(current.scrollTop, 0);
   assert.equal(controller.following(), false);

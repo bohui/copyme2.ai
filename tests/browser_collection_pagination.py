@@ -11,7 +11,7 @@ SECOND='11111111-1111-4111-8111-111111111102'
 JOB='11111111-1111-4111-8111-111111111199'
 OLDER='11111111-1111-4111-8111-111111111198'
 ROOT='22222222-2222-4222-8222-222222222222:1'
-STAGES=['baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life']
+STAGES=['baby','childhood','adolescence','young_adulthood','midlife','later_life']
 
 
 def main():

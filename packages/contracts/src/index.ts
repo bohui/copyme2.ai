@@ -5,7 +5,6 @@ export const LocaleSchema = z.enum(["en-AU", "zh-CN"]);
 export type Locale = z.infer<typeof LocaleSchema>;
 export const LIFE_STAGES = [
   "baby",
-  "toddler",
   "childhood",
   "adolescence",
   "young_adulthood",

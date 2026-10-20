@@ -1,6 +1,6 @@
 import { translate } from '../i18n.js';
 
-const stages = ['baby', 'toddler', 'childhood', 'adolescence', 'young_adulthood', 'midlife', 'later_life'];
+const stages = ['baby', 'childhood', 'adolescence', 'young_adulthood', 'midlife', 'later_life'];
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
 const t = (key) => escape(translate(`Collection.${key}`));
 

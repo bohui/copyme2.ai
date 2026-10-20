@@ -18,7 +18,7 @@ from scripts.memoir_checkpoint_readback import (
 )
 
 
-DATASET_SHA256 = 'bea8a31f8d4ab0539e2f1c99e08978acbcb4d60ffc25bf36579f04c8a27392c7'
+DATASET_SHA256 = '491fd085f5ed6f478c89d1f33c92096680a3df4631e7f7b832ba7e1f6a1880c3'
 DATASET_PATH = Path(__file__).resolve().parents[1] / 'tests/evaluation/issue6_semantic_datasets.json'
 CASE_IDS = ('chapters.transitions.en-AU', 'chapters.transitions.zh-CN')
 

@@ -6,7 +6,7 @@ This additive migration and code path are inactive until explicitly adopted. Thi
 
 Mapped accounts use canonical selected-source jobs. Unmapped accounts retain the existing collection queue and organiser. A request can explicitly select at most 1,000 distinct source IDs; this is a per-job resource bound, not a limit on lifetime history. Exceeding it fails validation rather than selecting a prefix. The job manifest freezes owner, project, conversation, source versions/hashes/order, policy epoch, preference revision, edition locale and chosen title. Source text remains in the canonical source table, not copied into job manifests.
 
-Confirmation retains all seven period records and their notes. The organiser requires the exact ready collection revision, current source fingerprint and verified paid entitlement. Period traversal order and within-period selected order are retained. As in the legacy organiser, period notes are readable but are not testimony or a model grouping instruction. A confirmed document is not publication approval.
+Confirmation retains all six period records and their notes. The organiser requires the exact ready collection revision, current source fingerprint and verified paid entitlement. Period traversal order and within-period selected order are retained. As in the legacy organiser, period notes are readable but are not testimony or a model grouping instruction. A confirmed document is not publication approval.
 
 ## Bounded processing and complete coverage
 
@@ -55,7 +55,7 @@ python tests/browser_collection_review.py --base-url http://127.0.0.1:3010
 python tests/browser_collection_pagination.py --base-url http://127.0.0.1:3010
 ```
 
-Both fixtures intercept configuration, profile, collection and task requests with synthetic responses. The server's fallback API origin is an unused loopback port, not a live backend. The legacy fixture checks explicit confirmation, all seven periods, source selection, a queued result and download. The canonical fixture checks English and Chinese, unloaded selections, selected order, independent source/task pagination, explicit retry without duplicate requests, proposed hierarchical metadata, full paginated download and dismissal. Download contents are parsed and asserted before success is printed.
+Both fixtures intercept configuration, profile, collection and task requests with synthetic responses. The server's fallback API origin is an unused loopback port, not a live backend. The legacy fixture checks explicit confirmation, all six periods, source selection, a queued result and download. The canonical fixture checks English and Chinese, unloaded selections, selected order, independent source/task pagination, explicit retry without duplicate requests, proposed hierarchical metadata, full paginated download and dismissal. Download contents are parsed and asserted before success is printed.
 
 Successful runs print one `PASS` line per locale and write screenshots below `output/playwright/`: `collection-en-AU.png`, `collection-zh-CN.png`, `collection-pagination-en-AU.png` and `collection-pagination-zh-CN.png`. Record the tested commit/tree, commands, exit codes and screenshots in the review evidence. Stop the local server after verification.
 

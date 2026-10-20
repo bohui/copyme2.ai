@@ -364,13 +364,8 @@
       "lifeStages": {
         "baby": {
           "label": "婴儿时期",
-          "description": "关于最初岁月的家庭故事",
-          "prompt": "家人是否分享过您婴儿时期的照片或故事？"
-        },
-        "toddler": {
-          "label": "幼儿时期",
-          "description": "最初熟悉的地方和新鲜的小发现",
-          "prompt": "小时候，有哪些地方、物件或日常习惯，您至今还记得？"
+          "description": "从出生到最早记忆的家庭故事",
+          "prompt": "家人是否分享过您出生到最早记忆开始之间的照片或故事？"
         },
         "childhood": {
           "label": "童年",

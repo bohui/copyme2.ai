@@ -129,7 +129,7 @@ read-only clients; no rejected inspection was retried indirectly.
    metadata persisted. Null/malformed claims remain controlled deterministic
    tests rather than asking a live model to emit malformed output.
 5. Run five fresh synthetic datasets of exactly 50 accepted conversation
-   rounds each: Harbour, Chengdu, Perth, Kunming and Sydney. Verify all seven
+   rounds each: Harbour, Chengdu, Perth, Kunming and Sydney. Verify all six
    life stages and seven skills, positive/negative invocation and output
    grades, entitlement/project boundaries, grounded places/dates/relationships,
    photo source/rights labels, canonical corrections/revocations, private draft
