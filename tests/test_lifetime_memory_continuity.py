@@ -262,6 +262,14 @@ def test_model_and_literal_fallback_deduplicate_same_control():
     assert len(rows) == 1
 
 
+def test_null_spanned_overwide_literal_control_is_canonicalized():
+    from apps.api.lifetime_memory_continuity import literal_continuity_updates
+    ctx = context('跳过这个问题。我不想聊厨房。')
+    item = update(ctx, 'excluded_topic', ctx['source']['text'], char_start=None, char_end=None)
+    rows = validate_governed_collector_result(reply([item]), ctx)['continuity_updates']
+    assert rows == literal_continuity_updates(ctx)
+
+
 def test_old_worker_phase_cannot_become_a_saved_preference():
     ctx = context('My brother Ming moved to Perth.')
     ctx['conversation_phase'] = {'phase':'shape','selection':'explicit','preferred_phase':'shape'}

@@ -273,6 +273,7 @@ def validate_governed_collector_result(raw, context):
                            'selection_reason': 'prepared_candidate', 'question_delivered': chosen['question']}
     if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
     source = _current_source(context)
+    literal = _literal_directives(source) if source else []
     updates = value.get('continuity_updates', [])
     if isinstance(updates, list):
         updates = [dict(item) if isinstance(item, dict) else item for item in updates]
@@ -287,16 +288,42 @@ def validate_governed_collector_result(raw, context):
                     or item.get('source_id') != source['id']
                     or type(item.get('source_version')) is not int or item['source_version'] != source['version']):
                 continue
+            if (locate and item.get('kind') in _DIRECT_KINDS
+                    and any(direct.kind == item.get('kind') and direct.quote in quote
+                            and direct.quote != quote for direct in literal)):
+                # Leave a null-spanned over-wide direct proposal untouched so
+                # the normalization below can replace it with the deterministic
+                # host-owned literal row.
+                continue
             if locate or source['text'][start:end] != quote:
                 original_start = source['text'].find(quote)
                 if original_start >= 0 and source['text'].find(quote, original_start + 1) < 0:
                     # Resolve a unique exact quote before typed span validation.
                     item['char_start'] = original_start
                     item['char_end'] = original_start + len(quote)
-    proposed = _Updates.model_validate({'continuity_updates': updates}).continuity_updates
+    # Privacy and commitment controls are host-owned literals. A model can
+    # occasionally quote the whole control sentence plus a preceding pacing
+    # sentence (with null offsets), which is semantically safe but cannot pass
+    # the exact-span check. Canonicalize only this asserted, null-spanned,
+    # unambiguous over-wide form; inferred, explicit-offset, reported, and
+    # ambiguous proposals continue through the fail-closed validator.
+    if isinstance(updates, list):
+        normalized = []
+        for item in updates:
+            if isinstance(item, dict) and item.get('kind') in _DIRECT_KINDS:
+                quote = item.get('quote')
+                if (item.get('assertion') == 'asserted'
+                        and item.get('char_start') is None and item.get('char_end') is None
+                        and isinstance(quote, str)
+                        and any(direct.kind == item.get('kind') and direct.quote in quote
+                                and direct.quote != quote for direct in literal)):
+                    continue
+            normalized.append(item)
+    else:
+        normalized = updates
+    proposed = _Updates.model_validate({'continuity_updates': normalized}).continuity_updates
     if proposed and source is None:
         raise ValueError('Continuity requires exact current narrator evidence')
-    literal = _literal_directives(source) if source else []
     seen = set()
     for item in proposed:
         if (item.source_id != source['id'] or item.source_version != source['version']
