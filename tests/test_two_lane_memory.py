@@ -150,6 +150,101 @@ def test_confirmation_from_an_earlier_source_window_stays_queued(sql):
     assert [q['question'] for q in pending] == [QUESTION['question']]
 
 
+@pytest.mark.parametrize('strategy_selector', [False, True])
+def test_late_background_confirmation_does_not_repeat_an_answered_question(
+        sql, tmp_path, monkeypatch, strategy_selector):
+    from test_interview_strategy_runtime import client_fixture
+    from test_interview_strategy import wire
+    from controlled_collector import worker_reply
+
+    confirmation = '您说的“林姨”，就是前面提到的陈小明的妈妈吗？'
+    questions = [confirmation, '您说的“我们”具体是指哪些孩子？',
+                 '您和陈小明、李小刚平时都玩些什么？']
+    texts = ['小时候，陈小明的妈妈林姨会编小笼子，我们一起玩。', '是的',
+             '有，8个孩子，我和陈小明、李小刚是最好的朋友。']
+    calls = []
+
+    def provider(request):
+        body = json.loads(request.content)
+        calls.append(body)
+        question = questions[len(calls) - 1]
+        if strategy_selector:
+            output = wire(question=question, acknowledgement='明白了。',
+                          selection_reason='latest_story', used_strategy='explore')
+        else:
+            output = proposal(mode='extract', name=None, question=question)
+            output.update(acknowledgement='明白了。', selection_reason='latest_story')
+        return worker_reply(request, {'reply': json.dumps(output, ensure_ascii=False),
+                                      'thread_id': 'confirmation-replay', 'artifacts': []})
+
+    client = client_fixture(sql, tmp_path, monkeypatch, provider)
+    if not strategy_selector:
+        monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY', '0')
+        sql('update public.lifetime_two_lane_rollout set strategy_enabled=false;')
+    with client:
+        first = client.post('/v1/agent/turn', json={'text': texts[0], 'language': 'zh-CN',
+                                                 'client_turn_id': str(uuid4())})
+        assert first.status_code == 200, first.text
+        project = first.json()['project_id']
+        payload = {'project_id': project, 'language': 'zh-CN'}
+        second = client.post('/v1/agent/turn', json={**payload, 'text': texts[1],
+                                                   'client_turn_id': str(uuid4())})
+        assert second.status_code == 200, second.text
+        assert second.json()['reply'].endswith(questions[1])
+
+        # Background extraction finishes after the narrator has already answered
+        # the foreground question, so its source-derived ID is different.
+        identity = rpc(sql, 'resolve_lifetime_conversation', literal(project))
+        lane_id = lane(sql, identity)
+        page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+        result = {'events': [], 'place_journeys': [], 'prepared_questions': [{
+            'question': confirmation, 'topic': '林姨的身份',
+            'quote': page['source']['text'], 'requires_confirmation': True}]}
+        if strategy_selector:
+            result['strategy_proposal'] = {'strategy': 'shape', 'objective': 'clarify_identity',
+                                           'focus_event_ids': []}
+        service(sql, 'commit_lifetime_memoir_lane_page',
+                f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+
+        third = client.post('/v1/agent/turn', json={**payload, 'text': texts[2],
+                                                  'client_turn_id': str(uuid4())})
+        assert third.status_code == 200, third.text
+        replies = [response.json()['reply'] for response in (first, second, third)]
+        assert sum(confirmation in reply for reply in replies) == 1, replies
+        assert replies[-1].endswith(questions[-1])
+        assert calls[-1]['interview_context']['prepared_questions'] == []
+        assert len(calls) == 3
+
+
+def test_unasked_foreground_alternative_remains_an_eligible_confirmation(sql, tmp_path, monkeypatch):
+    from test_interview_strategy_runtime import client_fixture
+    from controlled_collector import worker_reply
+
+    question = {**QUESTION, 'question': 'Did you mean Hobart in Tasmania?', 'requires_confirmation': True}
+    output = proposal(mode='extract', name=None, question=QUESTION['question'])
+    output['plan']['candidates'].append({**output['plan']['candidates'][0],
+        'id': 'unasked-alternative', 'question': question['question'], 'order': 1})
+
+    def provider(request):
+        return worker_reply(request, {'reply': json.dumps(output), 'thread_id': 'unasked', 'artifacts': []})
+
+    client = client_fixture(sql, tmp_path, monkeypatch, provider)
+    monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY', '0')
+    sql('update public.lifetime_two_lane_rollout set strategy_enabled=false;')
+    with client:
+        response = client.post('/v1/agent/turn', json={'text': TEXT, 'client_turn_id': str(uuid4())})
+        assert response.status_code == 200, response.text
+        assert question['question'] not in response.json()['reply']
+    identity = rpc(sql, 'resolve_lifetime_conversation', literal(response.json()['project_id']))
+    lane_id = lane(sql, identity)
+    page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+    result = {'events': [], 'place_journeys': [], 'prepared_questions': [question]}
+    service(sql, 'commit_lifetime_memoir_lane_page',
+            f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+    pending = rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
+    assert [candidate['question'] for candidate in pending] == [question['question']]
+
+
 @pytest.mark.parametrize('flag', ['true', 1, None])
 def test_sql_rejects_untyped_confirmation_flags(sql, flag):
     identity, _ = accept(sql)
@@ -352,7 +447,8 @@ def test_complete_vertical_slice_background_hint_consumed_next_turn_and_replay_d
     packets=[]
     def provider(request):
         body=json.loads(request.content);context=body['interview_context'];packets.append(json.loads(body['governed']['packet']))
-        output=proposal(mode='extract',name=None,question=QUESTION['question'])
+        output=proposal(mode='extract',name=None,question=(
+            QUESTION['question'] if len(packets)>1 else 'What do you remember about Hobart?'))
         output['selection_reason']='latest_story'
         output['plan']['conversation_phase']='explore'
         if len(packets)>1:

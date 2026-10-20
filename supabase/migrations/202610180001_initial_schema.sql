@@ -9420,8 +9420,14 @@ begin
    where d.user_id=auth.uid() and d.project_id=identity.project_id and d.policy_epoch=p.policy_epoch
      and d.preference_revision=identity.preference_revision and d.execution_generation=identity.execution_generation
      and (q->'requires_confirmation'='true'::jsonb or d.source_revision>=p.source_sequence-1)
-     and not exists(select 1 from public.user_interview_turn t where t.user_id=d.user_id and t.project_id=d.project_id
-       and t.collector->'plan'->>'chosen_id'='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex'))
+     -- A foreground question can be asked before B creates its source-derived ID.
+     -- Match only the chosen candidate, so unasked alternatives remain eligible.
+     and not exists(select 1 from public.user_interview_turn t
+       cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'candidates','[]')) asked
+       where t.user_id=d.user_id and t.project_id=d.project_id
+         and asked->>'id'=t.collector->'plan'->>'chosen_id'
+         and (asked->>'id'='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex')
+           or lower(btrim(asked->>'question'))=lower(btrim(q->>'question'))))
    order by case when q->'requires_confirmation'='true'::jsonb then 0 else 1 end,
      case when q->'requires_confirmation'='true'::jsonb then s.sequence end,
      s.sequence desc,d.source_id,position limit 3
