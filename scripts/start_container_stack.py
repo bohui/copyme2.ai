@@ -127,6 +127,24 @@ def compose_container_ids(mocker, compose_file, services):
     return ids
 
 
+def prepare_external_images(mocker, apple_container, compose_file):
+    # Mocker 0.9.3 ignores config's --images/--format flags; capture its secret-bearing YAML.
+    config = subprocess.run([mocker, 'compose', 'config', '-f', compose_file],
+                            capture_output=True, text=True, check=True, timeout=30)
+    references = re.findall(r'(?m)^    image: (\S+)[ \t]*$', config.stdout)
+    if not references:
+        raise ValueError('Compose configuration did not list service images')
+    local_tags = {definition['tag'] for definition in IMAGES.values()}
+    for reference in dict.fromkeys(references):
+        if reference in local_tags or image_id(mocker, reference):
+            continue
+        print('Pulling missing external image for linux/arm64: ' + reference, flush=True)
+        subprocess.run([apple_container, 'image', 'pull', '--platform', 'linux/arm64',
+                        '--progress', 'plain', reference], check=True, timeout=300)
+        if not image_id(mocker, reference):
+            raise ValueError('Pulled image was not found in the local image store')
+
+
 def start(args):
     root = Path.cwd()
     compose_file = Path(args.compose_file).resolve()
@@ -135,6 +153,7 @@ def start(args):
     saved = previous.get('images', {})
     current = {}
     changed = []
+    prepare_external_images(args.mocker, args.apple_container, args.compose_file)
     for name, definition in IMAGES.items():
         build_args = {'CODEX_VERSION': os.environ.get('MEMORY_SPARK_CODEX_VERSION') or '0.156.1'} \
             if name == 'codex-worker' else {}
@@ -165,13 +184,14 @@ def start(args):
         subprocess.run([args.mocker, 'rm', '-f', *ids], check=True)
 
     # Start fresh processes with current mounts/config, then repair aliases before waiting.
+    print('Starting services from local images (timeout: 180s).', flush=True)
     subprocess.run([*compose, 'up', '-f', args.compose_file, '--no-build', '--no-deps',
-        '--detach', *services], check=True)
+        '--detach', *services], check=True, timeout=180)
     subprocess.run(['python3', 'scripts/refresh_mocker_compose_hosts.py',
         '--mocker', args.mocker, '--apple-container', args.apple_container,
         '--compose-file', args.compose_file], check=True)
     subprocess.run([*compose, 'up', '-f', args.compose_file, '--no-build', '--no-recreate',
-        '--no-deps', '--detach', '--wait', '--wait-timeout', '120', *services], check=True)
+        '--no-deps', '--detach', '--wait', '--wait-timeout', '120', *services], check=True, timeout=180)
     subprocess.run(args.health_command, check=True)
 
     state_file.parent.mkdir(parents=True, exist_ok=True)
@@ -208,6 +228,9 @@ def main():
             subprocess.run(args.health_command, check=True)
             return 0
         start(args)
+    except subprocess.TimeoutExpired:
+        print('Container startup timed out; the successful startup cache was not updated.', flush=True)
+        return 1
     except (OSError, ValueError, subprocess.SubprocessError):
         # Subprocess commands and Compose inspect/config output can contain secrets.
         print('Container startup failed; the successful startup cache was not updated.', flush=True)
