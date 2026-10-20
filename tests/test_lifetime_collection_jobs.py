@@ -105,7 +105,7 @@ def test_selected_job_crash_reclaims_only_unfinished_pages(sql):
 def test_selection_confirmation_is_current_and_owner_scoped(sql):
     project = resolve(sql)['project_id']; original = source(sql, project)
     periods = {name:{'status':'skipped','memory_ids':[],'note':'Not covered'} for name in
-        ('baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life')}
+        ('baby','childhood','adolescence','young_adulthood','midlife','later_life')}
     periods['childhood'] = {'status':'recorded','memory_ids':[original['id']],'note':''}
     arguments = f"{literal(project)},0,{literal(periods)}::jsonb,true"
     selected = rpc(sql,'set_lifetime_collection',arguments)
@@ -122,7 +122,7 @@ def paid(sql):
 
 def confirm(sql, project, sources):
     periods = {name:{'status':'skipped','memory_ids':[],'note':'Not covered'} for name in
-        ('baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life')}
+        ('baby','childhood','adolescence','young_adulthood','midlife','later_life')}
     periods['childhood'] = {'status':'recorded','memory_ids':[row['id'] for row in sources],'note':''}
     return rpc(sql,'set_lifetime_collection',f"{literal(project)},0,{literal(periods)}::jsonb,true")
 
@@ -275,7 +275,7 @@ def test_worker_only_clearance_deferral_avoids_generation_failure(monkeypatch, c
 def test_sql_confirmation_rejects_null_and_untyped_status(sql,bad_status):
     project=resolve(sql)['project_id']; original=source(sql,project)
     periods={name:{'status':'skipped','memory_ids':[],'note':'Skip'} for name in
-        ('baby','toddler','childhood','adolescence','young_adulthood','midlife','later_life')}
+        ('baby','childhood','adolescence','young_adulthood','midlife','later_life')}
     periods['childhood']={'status':bad_status,'memory_ids':[original['id']],'note':'Recorded'}
     assert rpc(sql,'set_lifetime_collection',f"{literal(project)},0,{literal(periods)}::jsonb,true",check=False).returncode!=0
 

@@ -46,7 +46,7 @@ Read the shared MemoryEvent table with canonical IDs, original evidence, approxi
 
 Build a chronological order from explicit dates and before/after relationships. Overlapping uncertain intervals do not imply a precise order. Keep that uncertainty in period labels; choose a readable provisional sequence with a review note rather than invent dates. Any ordering cycle becomes a review issue.
 
-Group events by coherent transition, not a predetermined life-stage template. The seven-stage life navigator can remain a UI index while the actual book has four, nine or another justified number of chapters.
+Group events by coherent transition, not a predetermined life-stage template. The six-stage life navigator can remain a UI index while the actual book has four, nine or another justified number of chapters.
 
 Each outline entry should answer: what period is covered, what makes this stretch meaningful, which events support it, what title fits, which photographs might help, and whether the draft can be written now. Titles must not imply unsupported events or emotions. A plain accurate title is preferable to a memorable invented one.
 

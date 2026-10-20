@@ -371,8 +371,7 @@ class CaseStorage:
 
 
 FIXTURE_STAGE_BANDS = (
-    (1, 2, "baby"),
-    (3, 7, "toddler"),
+    (1, 7, "baby"),
     (8, 15, "childhood"),
     (16, 22, "adolescence"),
     (23, 30, "young_adulthood"),
@@ -594,7 +593,7 @@ def _has_timeline_cue(text: str) -> bool:
     )
     period_statement = bool(re.search(r"\b(?:that|this|the)\s+(?:late|early|mid|uncertain|adolescent|teenage)[^.!?\n]{0,80}\b(?:belongs|period|winter|season)\b", lowered))
     contextual_event = bool(
-        re.search(r"(?:童年|幼儿|青春期|成年|晚年)[^。！？\n]{0,40}(?:搬家|搬动|发生|住过|工作|课程|考试)", text)
+        re.search(r"(?:童年|很小|最早的岁月|青春期|成年|晚年)[^。！？\n]{0,40}(?:搬家|搬动|发生|住过|工作|课程|考试)", text)
     )
     correction_event = bool(
         re.search(r"\bcorrection\b", lowered)

@@ -4,7 +4,6 @@
   "required_rounds": 50,
   "life_stages": [
     "baby",
-    "toddler",
     "childhood",
     "adolescence",
     "young_adulthood",
@@ -12,8 +11,7 @@
     "later_life"
   ],
   "stage_bands": {
-    "baby": [1, 2],
-    "toddler": [3, 7],
+    "baby": [1, 7],
     "childhood": [8, 15],
     "adolescence": [16, 22],
     "young_adulthood": [23, 30],
@@ -32,7 +30,7 @@
   "case_expectations": [
     {
       "id": "harbour-copper-notebook",
-      "stage_rounds": {"1": "baby", "4": "toddler", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "young_adulthood", "39": "later_life"},
+      "stage_rounds": {"1": "baby", "4": "baby", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "young_adulthood", "39": "later_life"},
       "family_enabled": {"default": true},
       "required_family_rounds": [3, 5, 6, 9, 10, 11, 15, 18, 19, 26, 27, 31, 32, 34, 35, 40],
       "required_timeline_rounds": [1, 4, 5, 11, 14, 16, 17, 18, 20, 21, 23, 24, 25, 26, 27, 29, 30, 31, 33, 34, 48],
@@ -60,7 +58,7 @@
     },
     {
       "id": "chengdu-tea-ledger",
-      "stage_rounds": {"1": "baby", "4": "toddler", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "midlife", "38": "later_life"},
+      "stage_rounds": {"1": "baby", "4": "baby", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "midlife", "38": "later_life"},
       "family_enabled": {"before": 16, "default": true},
       "required_family_rounds": [2, 3, 4, 5, 7, 9, 10, 11, 15, 17, 19, 26, 27, 31, 33, 34, 36, 43],
       "required_timeline_rounds": [1, 4, 5, 6, 11, 13, 14, 16, 17, 18, 20, 23, 24, 25, 27, 29, 30, 31, 32, 36, 39, 48],
@@ -90,7 +88,7 @@
     },
     {
       "id": "perth-workshop-compass",
-      "stage_rounds": {"1": "baby", "4": "toddler", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "midlife", "38": "later_life"},
+      "stage_rounds": {"1": "baby", "4": "baby", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "midlife", "38": "later_life"},
       "family_enabled": {"default": true},
       "required_family_rounds": [1, 3, 5, 7, 9, 11, 15, 18, 19, 26, 31, 33, 34, 39, 43],
       "required_timeline_rounds": [1, 4, 5, 13, 14, 17, 20, 21, 23, 25, 26, 27, 29, 30, 32, 33, 36, 37, 39, 48],
@@ -119,7 +117,7 @@
     },
     {
       "id": "kunming-garden-lanterns",
-      "stage_rounds": {"1": "baby", "4": "toddler", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "midlife", "38": "later_life"},
+      "stage_rounds": {"1": "baby", "4": "baby", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "midlife", "38": "later_life"},
       "family_enabled": {"before": 16, "default": true},
       "required_family_rounds": [1, 2, 3, 9, 10, 11, 17, 26, 29, 31, 34, 36, 42, 43],
       "required_timeline_rounds": [1, 4, 6, 10, 11, 14, 16, 17, 20, 23, 24, 25, 27, 29, 30, 31, 32, 36, 38, 39, 48],
@@ -150,7 +148,7 @@
     },
     {
       "id": "sydney-platform-letters",
-      "stage_rounds": {"1": "baby", "4": "toddler", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "midlife", "38": "later_life"},
+      "stage_rounds": {"1": "baby", "4": "baby", "8": "childhood", "16": "adolescence", "23": "young_adulthood", "30": "midlife", "38": "later_life"},
       "family_enabled": {"default": true},
       "required_family_rounds": [3, 4, 9, 10, 11, 18, 19, 26, 31, 33, 34, 39],
       "required_timeline_rounds": [1, 4, 5, 9, 14, 16, 17, 20, 21, 23, 25, 26, 27, 29, 32, 36, 48],

@@ -272,7 +272,7 @@ def test_workspace_extraction_drops_model_timeline_marker_for_explicit_negative_
 
 
 @pytest.mark.parametrize('text', [
-    'Please preserve the difference between what June remembers and what I directly remember from toddlerhood.',
+    'Please preserve the difference between what June remembers and what I directly remember from my earliest years.',
     'I am unsure whether Ben left the neighbourhood before or after my final school year.',
 ])
 def test_workspace_extraction_suppresses_timeline_marker_for_advisory_without_author_event(monkeypatch, text):
@@ -365,10 +365,10 @@ def test_workspace_extraction_suppresses_disclaimed_third_party_family_story(mon
     'I am unsure whether Ben left the neighbourhood before or after my final school year. I had moved to Hobart in 1985.',
     'In later life I sometimes repair a small object just to remember the patience of the old bench. I retired in 2012.',
     '晚年我有时只记录一片叶子的颜色，这种回望没有可靠日期。我在2012年退休。',
-    'Please preserve the difference between what June remembers and what I directly remember from toddlerhood. I moved to Hobart during childhood.',
+    'Please preserve the difference between what June remembers and what I directly remember from my earliest years. I moved to Hobart during childhood.',
     'I retired in 2012, but in later life I sometimes repair a small object just to remember the patience of the old bench.',
     'In later life I sometimes repair a small object just to remember the patience of the old bench. I gave birth to my daughter in 1990.',
-    'Please preserve the difference between what June remembers and what I directly remember from toddlerhood. I was born in 1980.',
+    'Please preserve the difference between what June remembers and what I directly remember from my earliest years. I was born in 1980.',
     'In 1990 I gave birth to my daughter.',
     'In 1980 I was born in Hobart.',
     'I bought my first house in 1990.',

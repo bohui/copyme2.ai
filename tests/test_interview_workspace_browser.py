@@ -223,7 +223,7 @@ def test_workspace_navigation_preserves_chat_reading_position(interview):
     scroll = interview.locator("#chat-scroll")
     scroll.evaluate("el => { el.style.scrollBehavior = 'auto'; el.scrollTop = 100; }")
     before = scroll.evaluate("el => el.scrollTop")
-    interview.get_by_role("button", name=re.compile(r'^Toddler:')).click()
+    interview.get_by_role("button", name=re.compile(r'^Childhood:')).click()
     interview.wait_for_timeout(500)
     assert abs(scroll.evaluate("el => el.scrollTop") - before) < 2
 

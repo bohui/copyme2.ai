@@ -26,7 +26,7 @@ from uuid import uuid4
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_SCHEMA = 'memoir-fifty-browser-config/1'
-LIFE_STAGES = ('baby', 'toddler', 'childhood', 'adolescence', 'young_adulthood', 'midlife', 'later_life')
+LIFE_STAGES = ('baby', 'childhood', 'adolescence', 'young_adulthood', 'midlife', 'later_life')
 # These are the exact versioned visualization URLs in the reviewed frontend.
 # Optional fonts, maps, photos, telemetry, and authentication CDNs stay blocked.
 PUBLIC_ASSETS = (
@@ -340,7 +340,7 @@ const fs = require("fs"), path = require("path"), crypto = require("crypto");
 const c = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
 const {chromium} = require(c.playwright_module);
 const sha = x => crypto.createHash("sha256").update(x).digest("hex");
-const stages = ["baby", "toddler", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"];
+const stages = ["baby", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"];
 const report = {schema_version:"memoir-fifty-browser-observation/1", case_id:c.case_id,
   project_id:c.project_id, ordinal:c.turn?.ordinal || null, mode:c.turn ? "ui_original_turn" : "saved_readback",
   status:"started", original_turn_submission:c.turn ? "browser_form" : "not_performed",

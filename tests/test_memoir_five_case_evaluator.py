@@ -50,7 +50,7 @@ def test_stage_contract_uses_sparse_case_anchors_not_global_bands():
     case_expected = next(item for item in EXPECTED["case_expectations"] if item["id"] == "chengdu-tea-ledger")
     assert expected_round(EXPECTED, case_expected, 1)["life_stage"] == "baby"
     assert expected_round(EXPECTED, case_expected, 3)["life_stage"] is None
-    assert expected_round(EXPECTED, case_expected, 4)["life_stage"] == "toddler"
+    assert expected_round(EXPECTED, case_expected, 4)["life_stage"] == "baby"
 
 
 def test_round_thirty_boundary_oracle_matches_its_band_without_changing_runtime_schema():

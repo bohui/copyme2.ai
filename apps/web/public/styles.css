@@ -477,7 +477,7 @@ h3 { line-height: 1.1; }
 .timeline-dot { width: 9px; height: 9px; flex: 0 0 auto; margin: 4px 3px 0; border-radius: 50%; background: var(--coral); box-shadow: 0 0 0 4px #fae7e0; }
 
 .life-stage-navigator { flex: 0 0 auto; padding: 18px 24px 20px; border-top: 1px solid var(--line); background: rgba(255,253,248,.96); box-shadow: 0 -10px 28px rgba(62,46,28,.06); }
-.life-stage-tabs { position: relative; display: grid; grid-template-columns: repeat(7, minmax(58px, 1fr)); gap: 2px; margin: 0; overflow-x: auto; padding: 8px 4px 4px; }
+.life-stage-tabs { position: relative; display: grid; grid-template-columns: repeat(6, minmax(58px, 1fr)); gap: 2px; margin: 0; overflow-x: auto; padding: 8px 4px 4px; }
 .life-stage-tabs::before { content: ""; position: absolute; left: 7%; right: 7%; top: 33px; height: 2px; background: var(--paper-deep); }
 .life-stage-tab { position: relative; z-index: 1; display: grid; justify-items: center; gap: 5px; min-width: 58px; padding: 0 3px 4px; border: 0; background: transparent; color: var(--muted); text-align: center; }
 .life-stage-tab:hover { color: var(--green-dark); }
@@ -536,7 +536,7 @@ h3 { line-height: 1.1; }
   .workspace-detail { height: min(720px, calc(100vh - 65px)); max-height: min(720px, calc(100vh - 65px)); min-height: 360px; }
   .workspace-detail-top { padding-top: 22px; }
   .life-stage-navigator { padding-left: 17px; padding-right: 17px; }
-  .life-stage-tabs { grid-template-columns: repeat(7, minmax(70px, 1fr)); overflow-x: auto; }
+  .life-stage-tabs { grid-template-columns: repeat(6, minmax(70px, 1fr)); overflow-x: auto; }
   .story-plan-grid { grid-template-columns: 1fr; }
   .story-plan-card { min-height: auto; }
 }

@@ -11,7 +11,7 @@ a correction or pacing request; the validator never forces a question over an
 explicit stopped outcome. Common English and Chinese stop instructions are also
 recognised before those overrides.
 
-The interview context includes at most seven stage-coverage counts. A distinct
+The interview context includes at most six stage-coverage counts. A distinct
 active canonical event counts only when it has a title, primary/stage evidence
 from a current active original, no stale source dependencies and no source
 exclusion. Raw turn counts and unplaced events do not advance this checkpoint.

@@ -364,13 +364,8 @@
       "lifeStages": {
         "baby": {
           "label": "Baby",
-          "description": "Family stories from your earliest days",
-          "prompt": "Are there photographs or stories your family shared about when you were a baby?"
-        },
-        "toddler": {
-          "label": "Toddler",
-          "description": "The first places and small discoveries",
-          "prompt": "What small place, object, or routine comes back to you from those early years?"
+          "description": "Family stories from birth to your earliest memories",
+          "prompt": "What photographs or family stories do you have from birth through the time your own memories begin?"
         },
         "childhood": {
           "label": "Childhood",

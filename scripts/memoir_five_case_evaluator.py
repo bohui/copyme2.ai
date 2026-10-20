@@ -26,7 +26,6 @@ SKILLS = (
 )
 LIFE_STAGES = (
     "baby",
-    "toddler",
     "childhood",
     "adolescence",
     "young_adulthood",

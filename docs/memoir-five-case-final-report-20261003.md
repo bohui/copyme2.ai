@@ -15,7 +15,8 @@ preserved:
 1. The immutable baseline `live-five-case-shared-20261003` completed exactly
    50 rounds for each of five fictional biographies: **250/250 rounds**, with
    **160 pass, 77 deterministic failures, and 13 unavailable**. All five
-   cases observed all seven life stages.
+   cases covered all six current life stages after the retired early-years
+   bucket was merged into `baby`.
 2. The post-fix `live-five-case-final-low-kinship-v4-20261003` also completed
    exactly 50 rounds for each case, but its bounded provider/worker path became
    unavailable late in Kunming and Sydney. It records **165 pass, 7 failures,
@@ -86,11 +87,11 @@ Run artifacts:
 
 ## Stage and skill evidence
 
-The checked-in biographies cover `baby`, `toddler`, `childhood`,
-`adolescence`, `young_adulthood`, `midlife`, and `later_life`. The immutable
-baseline observed all seven in all five cases. The v4 receipt observed all
-seven in Harbour, Chengdu, and Perth; the late worker failures prevent that
-claim for Kunming and Sydney.
+The checked-in biographies cover `baby`, `childhood`, `adolescence`,
+`young_adulthood`, `midlife`, and `later_life`. The immutable baseline covered
+all six current stages in all five cases after the retired early-years bucket
+was merged into `baby`. The v4 receipt covered all six in Harbour, Chengdu,
+and Perth; the late worker failures prevent that claim for Kunming and Sydney.
 
 The corrected-oracle regrade skill totals below combine required positive scenarios
 and explicit negative/unnecessary-call scenarios. A required positive call is

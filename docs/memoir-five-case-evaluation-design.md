@@ -19,8 +19,8 @@ address, photograph, rights claim, or customer identity is used.
 ## Case coverage
 
 The checked-in dataset will contain five coherent fictional lives, split across
-`en-AU` and `zh-CN`. Every case supplies grounded material for all seven
-supported life stages: `baby`, `toddler`, `childhood`, `adolescence`,
+`en-AU` and `zh-CN`. Every case supplies grounded material for all six
+supported life stages: `baby`, `childhood`, `adolescence`,
 `young_adulthood`, `midlife`, and `later_life`. The round plan makes the stage
 explicit in the storyteller's words, while still including ambiguous/corrective
 rounds where the expected result is `unplaced` or a preserved uncertainty.
@@ -41,7 +41,7 @@ Round bands are stable across cases so aggregation is comparable:
 
 | Rounds | Coverage | Expected high-level behavior |
 | --- | --- | --- |
-| 1–7 | baby/toddler | establish language and earliest memories; accept only explicit places/stages |
+| 1–7 | baby | establish language and earliest memories; accept only explicit places/stages |
 | 8–15 | childhood | places, routines, family detail, and approximate childhood dates |
 | 16–22 | adolescence | family-tree and author-timeline work when entitled; corrections remain grounded |
 | 23–30 | young adulthood | moves, place groups, historical/current public-photo distinctions, uncertainty |

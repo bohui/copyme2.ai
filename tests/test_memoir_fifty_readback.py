@@ -17,7 +17,7 @@ REVISION = '9895006f0aaec8425abb21a99f88e39a3a982c2f'
 ORIGINAL_IDS = ('harbour-copper-notebook', 'chengdu-tea-ledger',
                 'perth-workshop-compass', 'kunming-garden-lanterns',
                 'sydney-platform-letters')
-ORIGINAL_HASH = 'e7f705bc4a96537b01cb5cde7d412972bdd929de49d339bc6b1a95bc9cb43927'
+ORIGINAL_HASH = '3e33b6cf869f29a7a2b96506835a1045eeb7e421307485d338711b7392b9e744'
 
 
 def bridge(case_id=ORIGINAL_IDS[0], run_id=RUN_ID):
