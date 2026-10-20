@@ -105,6 +105,7 @@ def test_provider_reply_must_be_one_completed_schema_document(monkeypatch, bad):
     def transport(request):
         sent = json.loads(request.content)
         assert sent['store'] is False and sent['text']['format']['strict'] is True
+        assert sent['metadata'] == {'generation_name': 'memoir-story-game', 'trace_name': 'memoir-story-game'}
         assert 'p_expected_digest' not in sent
         return httpx.Response(200, json=response)
     monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=httpx.MockTransport(transport), **kwargs))

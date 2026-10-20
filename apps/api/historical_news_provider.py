@@ -108,7 +108,9 @@ class GatewayHistoricalProvider:
         prompt = load_prompt_artifact(prompt_path('memoir/skills/memoir-historical-news-research/discovery')).replace('{{query}}', query)
         body={'model':model,'input':prompt,'tools':[{'type':'web_search'}],'tool_choice':'required',
             'include':['web_search_call.action.sources'],'reasoning':{'effort':'low'},
-            'max_output_tokens':3000,'store':False}
+            'max_output_tokens':3000,'store':False,
+            'metadata':{'generation_name':'memoir-historical-news-research',
+                'trace_name':'memoir-historical-news-research'}}
         async def request(client):
             try:
                 async with client.stream('POST',base+'/responses',json=body,

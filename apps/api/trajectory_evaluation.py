@@ -221,6 +221,8 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         "evaluation_skill_hash": "skill_hash",
         "generation_name": "generation_name",
         "evaluation_generation_name": "generation_name",
+        "trace_name": "trace_name",
+        "langfuse_trace_name": "trace_name",
         "evaluator_version": "evaluator_version",
         "evaluation_version": "evaluator_version",
         "dataset_version": "dataset_version",

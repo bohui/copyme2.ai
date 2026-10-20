@@ -171,6 +171,7 @@ class CodexConnection:
                 if key in {
                     'run_id', 'case_id', 'dataset', 'dataset_version',
                     'application_revision', 'skill_hash', 'generation_name',
+                    'trace_name',
                     'evaluator_version', 'rubric_version', 'judge_rubric_version',
                     'model', 'requested_model', 'provider', 'variant',
                     'round_id',

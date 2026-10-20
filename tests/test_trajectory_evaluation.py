@@ -339,6 +339,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api(routed):
                 "case_id": "case-1",
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
+                "trace_name": "memoir-interviewer",
                 "request_id": "diag-test-1",
                 **({'model': 'collector-route', 'requested_model': 'legacy-route'} if routed else {}),
             }
@@ -364,6 +365,7 @@ def test_codex_turn_forwards_evaluation_metadata_to_responses_api(routed):
                 "case_id": "case-1",
                 "skill_hash": "skill-sha",
                 "generation_name": "memoir-agent-evaluation",
+                "trace_name": "memoir-interviewer",
                 "request_id": "diag-test-1",
                 **({'model': 'collector-route', 'requested_model': 'legacy-route'} if routed else {}),
             },

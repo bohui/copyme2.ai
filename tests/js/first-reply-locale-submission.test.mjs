@@ -51,7 +51,7 @@ function harness({profile = {}, preference = null, cookie = '', uiLocale = 'en-A
   });
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'profile', 'conversationLanguage',
     'preserveConversationLocale', 'mergePrivateProfile', 'hydrateConversationProfile',
-    'sendChatMessage', 'agentTurn', 'streamAgentTurn']) vm.runInContext(extract(name), context);
+    'refreshOpeningMessageLocale', 'sendChatMessage', 'agentTurn', 'streamAgentTurn']) vm.runInContext(extract(name), context);
   vm.runInContext(localeSource.slice(localeSource.indexOf('export const UI_LOCALES')).replace(/^export /gm, ''), context);
   vm.runInContext(`
     Object.assign(globalThis, createUiLocale({captureProjectScope, isCurrentProjectScope, preserveConversationLocale,
@@ -267,6 +267,16 @@ for (const locale of ['en-AU', 'zh-CN']) test(`automatic mode still detects and 
   assert.equal(h.requests[0].body.first_reply_localization, true);
   assert.equal(h.context.uiPreferenceSession.preference.source, 'first_reply');
   assert.equal(h.context.uiPreferenceSession.preference.locale, locale);
+});
+
+test('automatic first-reply localization updates the fixed opening message', async () => {
+  const h = harness({text:opposite('en-AU')});
+  h.state.chat = [{id:'opening', role:'assistant', text:'English opening', productCopy:'opening', streaming:false}];
+  h.context.conversationMessage = () => h.context.uiLocale === 'zh-CN' ? 'Chinese opening' : 'English opening';
+  h.context.persistChatHistory = () => {};
+  await h.context.sendChatMessage();
+  assert.equal(h.state.chat[0].text, 'Chinese opening');
+  assert.equal(h.state.chat[0].streaming, false);
 });
 
 test('a manual change superseding in-flight automatic localization reaches the backend', async () => {

@@ -700,6 +700,8 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     await validate_lane_payload(bounded)
     role = ('memory_context' if bounded.phase == 'profile' else
         'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer')
+    skill_name = {'memory_context': 'memoir-memory-context',
+        'author_timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}[role]
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
     fence_json = serialize_packet(bounded.fence.model_dump(mode='json'))
@@ -722,6 +724,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
                 'model':model,'approvalPolicy':'never','sandbox':'read-only','baseInstructions':instructions},
             identity={'owner_id':str(fence.user_id),'conversation_id':str(fence.conversation_id)})
         reply = await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
-            **({'effort':effort} if effort else {}))
+            **({'effort':effort} if effort else {}),
+            responsesapi_client_metadata={'generation_name': skill_name, 'trace_name': skill_name})
         _object(reply)  # Semantic/evidence validation and fenced commit remain with the lane owner.
     return {'thread_id':opened['thread_id'],'reply':reply,'artifacts':[]}

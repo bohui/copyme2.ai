@@ -256,7 +256,7 @@ def conversation_history(storage, project_id, limit, cursor):
         source = by_turn.get(row.get('client_turn_id') or row['id'])
         narrator, reply = visible_exchange(row, source)
         if conversation_id is not None:
-            governed = storage.lifetime_rpc('read_lifetime_reply',
+            governed = storage.lifetime_rpc('read_lifetime_history_reply',
                 p_conversation_id=conversation_id, p_client_turn_id=row.get('client_turn_id') or row['id'])
             reply = governed.get('reply') if governed else None
         from .interview_plan import public_interview_fields

@@ -79,6 +79,8 @@ def test_job_engine_is_fresh_private_and_fenced(tmp_path,phase):
     connection=Connection.instances[0]
     assert connection.requests[0][0]=='thread/start' and connection.requests[0][1]['ephemeral']
     assert connection.turns[0][1]==bounded.packet and result['artifacts']==[]
+    assert connection.turns[0][2]['responsesapi_client_metadata'] == {
+        'generation_name':'memoir-composer','trace_name':'memoir-composer'}
     assert publisher.snapshots==[bounded.fence.model_dump(mode='json')]*2
     config=tomllib.loads((connection.home/'config.toml').read_text())
     assert config['memories']=={'generate_memories':False,'use_memories':False}

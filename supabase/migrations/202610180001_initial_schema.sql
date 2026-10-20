@@ -5135,7 +5135,7 @@ CREATE FUNCTION public.commit_lifetime_turn(p_fence jsonb, p_client_turn_id uuid
     AS $$
 declare owner uuid:=auth.uid(); conversation uuid:=(p_fence->'identity'->>'conversation_id')::uuid;
  project text; accepted public.user_interview_turn%rowtype; source public.user_narrator_source%rowtype;
- interview jsonb; memory jsonb; next_fence jsonb; prior public.user_lifetime_reply%rowtype;
+ interview jsonb; memory jsonb; next_fence jsonb; pins jsonb; prior public.user_lifetime_reply%rowtype;
 begin
  select project_id into project from public.user_lifetime_conversation where user_id=owner and conversation_id=conversation;
  if not found then raise exception 'conversation unavailable'; end if;
@@ -5167,6 +5167,11 @@ begin
  -- All locks stay held, so no external correction/preference/source can intervene.
  next_fence:=public.capture_lifetime_fence(conversation,(p_fence->>'lease_token')::uuid);
  if next_fence-'phase_revision'-'preference_revision' is distinct from p_fence-'phase_revision'-'preference_revision' then raise exception 'unexpected execution mutation'; end if;
+ pins:=public.read_lifetime_pinned(conversation);
+ update public.user_interview_turn set collector=collector||jsonb_build_object('history_privacy_digest',
+   encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics','paused_topics',pins->'paused_topics',
+     'privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex'))
+   where user_id=owner and project_id=project and client_turn_id=p_client_turn_id;
  memory:=public.commit_lifetime_interview_memory(next_fence,(p_fence->>'lease_token')::uuid,p_thread_id,
    'Storyteller: '||source.text||E'\nMemory Spark: '||p_reply,'{}'::text[],null,project,p_client_turn_id,true,'unplaced');
  insert into public.user_lifetime_reply values(owner,conversation,p_client_turn_id,(memory->0->>'id')::uuid,
@@ -9874,6 +9879,34 @@ begin
     from public.user_lifetime_conversation where user_id=auth.uid() and (p_project_id is null or project_id=p_project_id) and product='memoir');
 end $$;
 
+CREATE FUNCTION public.read_lifetime_history_reply(p_conversation_id uuid, p_client_turn_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'auth'
+    AS $$
+declare owner uuid:=auth.uid(); identity public.user_lifetime_conversation%rowtype;
+ saved public.user_lifetime_reply%rowtype; source public.user_narrator_source%rowtype;
+ interview public.user_interview_turn%rowtype; epoch bigint; pins jsonb; privacy_hash text; valid boolean;
+begin
+ select * into identity from public.user_lifetime_conversation where user_id=owner and conversation_id=p_conversation_id;
+ if not found then raise exception 'conversation unavailable'; end if;
+ select policy_epoch into epoch from public.user_memoir_project where user_id=owner and project_id=identity.project_id for share;
+ pins:=public.read_lifetime_pinned(p_conversation_id);
+ select * into identity from public.user_lifetime_conversation where user_id=owner and conversation_id=p_conversation_id;
+ select * into saved from public.user_lifetime_reply where user_id=owner and conversation_id=p_conversation_id and client_turn_id=p_client_turn_id;
+ if not found then return null; end if;
+ select * into interview from public.user_interview_turn where user_id=owner and project_id=identity.project_id and client_turn_id=p_client_turn_id;
+ select * into source from public.user_narrator_source where user_id=owner and project_id=identity.project_id and id=interview.source_id;
+ privacy_hash:=encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics','paused_topics',pins->'paused_topics',
+   'privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex');
+ -- Profile enrichment changes execution context, not the saved conversation.
+ valid:=source.status='active' and source.version=interview.source_version
+   and saved.policy_epoch=epoch and saved.execution_generation=identity.execution_generation
+   and pins->'privacy_complete'='true'::jsonb
+   and (saved.preference_revision=identity.preference_revision or interview.collector->>'history_privacy_digest'=privacy_hash
+     or (not (interview.collector ? 'history_privacy_digest') and pins->'excluded_topics'='[]'::jsonb and pins->'paused_topics'='[]'::jsonb));
+ return jsonb_build_object('reply',case when valid then interview.collector->>'reply' else null end);
+end $$;
+
 CREATE FUNCTION public.read_lifetime_reply(p_conversation_id uuid, p_client_turn_id uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
@@ -13523,6 +13556,7 @@ revoke all on function public.read_lifetime_private_draft_page(text, uuid, text,
 revoke all on function public.read_lifetime_profile_automation() from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_profile_page(uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_project_identity(text) from public,anon,authenticated,service_role;
+revoke all on function public.read_lifetime_history_reply(uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_reply(uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_skill_progress(text, text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_source_attribution(text, uuid, uuid, integer) from public,anon,authenticated,service_role;
@@ -13839,6 +13873,8 @@ grant EXECUTE on function public.read_lifetime_profile_automation() to service_r
 grant EXECUTE on function public.read_lifetime_profile_page(uuid, uuid) to service_role;
 grant EXECUTE on function public.read_lifetime_project_identity(text) to authenticated;
 grant EXECUTE on function public.read_lifetime_project_identity(text) to service_role;
+grant EXECUTE on function public.read_lifetime_history_reply(uuid, uuid) to authenticated;
+grant EXECUTE on function public.read_lifetime_history_reply(uuid, uuid) to service_role;
 grant EXECUTE on function public.read_lifetime_reply(uuid, uuid) to authenticated;
 grant EXECUTE on function public.read_lifetime_reply(uuid, uuid) to service_role;
 grant EXECUTE on function public.read_lifetime_skill_progress(text, text) to authenticated;

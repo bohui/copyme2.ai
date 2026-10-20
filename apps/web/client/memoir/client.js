@@ -1306,6 +1306,7 @@ async function streamAssistantMessage(text, metadata = {}) {
   const characters = Array.from(value);
   for (let index = 0; index < characters.length; index += ASSISTANT_STREAM_CHUNK_SIZE) {
     if (!current()) return null;
+    if (message.productCopy === "opening" && !message.streaming) return message;
     message.text = characters.slice(0, index + ASSISTANT_STREAM_CHUNK_SIZE).join("");
     updateStreamingAssistantMessage(message);
     if (index + ASSISTANT_STREAM_CHUNK_SIZE < characters.length) await waitForAssistantStream();
@@ -1315,6 +1316,18 @@ async function streamAssistantMessage(text, metadata = {}) {
   message.streaming = false;
   render();
   return message;
+}
+
+function refreshOpeningMessageLocale() {
+  const opening = state.chat.find(message => message.role === "assistant" && message.productCopy === "opening");
+  if (!opening) return false;
+  const localized = conversationMessage("opening");
+  if (opening.text === localized && !opening.streaming) return false;
+  opening.text = localized;
+  opening.streaming = false;
+  persistChatHistory();
+  render();
+  return true;
 }
 
 async function refreshFamilyEntitlement() {
@@ -1359,6 +1372,7 @@ async function startCodexConversation({ resume = false } = {}) {
     try {
       await streamAssistantMessage(conversationMessage("opening"), {
         scope,
+        productCopy: "opening",
         trace: simulatedLoopTrace(
           ["conversation.start", "memory.search"],
           translate("Memoir.trace.opening"),
@@ -2060,9 +2074,10 @@ function normalizeHistoryOpening(messages) {
   const normalize = text => text.replace(/\s+/g, " ").trim();
   const openings = new Set(openingMessages.map(normalize));
   const isOpening = message => message.role === "assistant" && openings.has(normalize(message.text));
-  const opening = messages.find(isOpening) || {
+  const existing = messages.find(isOpening);
+  const opening = { ...(existing || {
     id: "history-opening", role: "assistant", text: conversationMessage("opening"),
-  };
+  }), productCopy: "opening" };
   return [opening, ...messages.filter(message => !isOpening(message))];
 }
 
@@ -3130,7 +3145,8 @@ async function sendChatMessage({ voiceTurn = false } = {}) {
       ? firstReplyLanguage(messageText)
       : undefined;
     if (detectedFirstReplyLanguage) {
-      await applyFirstReplyLocalization(detectedFirstReplyLanguage);
+      const uiLocaleChanged = await applyFirstReplyLocalization(detectedFirstReplyLanguage);
+      if (uiLocaleChanged) refreshOpeningMessageLocale();
       if (!await settleUiLocale()) throw new Error(localizedErrorMessage());
     }
     if (!current()) return;

@@ -243,7 +243,7 @@ def test_governed_routes_capture_before_read_and_use_final_send_guard(recovery, 
         if name == 'capture_lifetime_read_fence':
             assert all(call.url.path == '/auth/v1/user' for call in calls)
             return fence
-        assert name == 'read_lifetime_reply'
+        assert name == ('read_lifetime_history_reply' if kind == 'history' else 'read_lifetime_reply')
         assert self.lifetime_read_identity['conversation_id'] == CONVERSATION
         return {'reply': 'Current governed reply'}
     monkeypatch.setattr(UserStorage, 'lifetime_rpc', rpc)

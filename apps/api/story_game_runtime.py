@@ -89,6 +89,7 @@ async def propose_game(packet, *, token):
         prompt_path('memoir/skills/memoir-story-game/proposal'))
     body = dict(model=model, instructions=instructions, input=json.dumps(packet, ensure_ascii=False),
         store=False, max_output_tokens=2500, reasoning={'effort': 'low'},
+        metadata={'generation_name': 'memoir-story-game', 'trace_name': 'memoir-story-game'},
         text={'format': {'type': 'json_schema', 'name': 'memoir_game_proposal', 'strict': True,
                          'schema': GameProposal.model_json_schema()}})
     content = json.dumps(body, ensure_ascii=False).encode('utf-8')

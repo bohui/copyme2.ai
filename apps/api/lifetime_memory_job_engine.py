@@ -343,6 +343,7 @@ async def run_bounded_job(*,command,home_root,base_url,api_key,model,bounded_job
                 'approvalPolicy':'never','sandbox':'read-only','baseInstructions':instructions},
             identity={'owner_id':str(fence.user_id),'conversation_id':str(fence.conversation_id)})
         reply=await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
-            **({'effort':effort} if effort else {}))
+            **({'effort':effort} if effort else {}),
+            responsesapi_client_metadata={'generation_name':'memoir-composer','trace_name':'memoir-composer'})
         validate_job_result(fence,reply)
     return {'thread_id':opened['thread_id'],'reply':reply,'artifacts':[]}

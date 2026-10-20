@@ -391,7 +391,11 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             **({'on_delta':model_delta} if on_delta else {}),
             **({'on_event':on_event} if on_event else {}),
             **({'effort':effort} if effort else {}),
-            responsesapi_client_metadata=responsesapi_client_metadata or {})
+            responsesapi_client_metadata={
+                **(responsesapi_client_metadata or {}),
+                'generation_name': 'memoir-interviewer',
+                'trace_name': 'memoir-interviewer',
+            })
         try:
             validated = validate_governed_collector_result(reply, interview_context)
             expected = acknowledgement if acknowledgement is not None else streamed_acknowledgement

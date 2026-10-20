@@ -35,6 +35,8 @@ def main() -> None:
         automatic_page.get_by_role("button", name="Send message").click()
 
         expect(automatic_page.locator("html")).to_have_attribute("lang", "zh-CN", timeout=15000)
+        expect(automatic_page.locator(".assistant-message .message-text").first).to_contain_text("你好，我是 Mira，很高兴认识你。")
+        expect(automatic_page.locator(".assistant-message .message-text").first).not_to_contain_text("Hi, I’m Mira.")
         expect(automatic_page.get_by_text("我会陪你慢慢回忆。")).to_be_visible(timeout=15000)
         assert automatic_requests[-1].get("language") == "zh-CN"
         assert automatic_requests[-1].get("first_reply_localization") is True
