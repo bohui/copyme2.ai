@@ -1,0 +1,1414 @@
+{
+  "schema_version": "memoir-issue53-latency-followup/1",
+  "issue": 53,
+  "pr": 101,
+  "preferred_seconds": 5,
+  "fallback_seconds": 10,
+  "latest_source_revision": "743546c138c2672be1c71b7aed22f1987849b369",
+  "release_accepted": false,
+  "shared_app_candidate_enabled": false,
+  "policy": {
+    "read_mode": "checkpointed_sqlite_read_only",
+    "route_policy": [
+      {
+        "alias": "gpt-5.6-luna-pooled",
+        "configured_model": "openai/gpt-5.6-luna",
+        "configured_effort": "max",
+        "exact_key_policy_matched": true,
+        "policy": {
+          "enforced_model": "gpt-5.6-luna",
+          "enforced_reasoning_effort": "max",
+          "enforced_service_tier": null,
+          "traffic_class": "foreground",
+          "is_active": 1
+        }
+      },
+      {
+        "alias": "gpt-5.6-luna-memoir-low",
+        "configured_model": "openai/gpt-5.6-luna",
+        "configured_effort": "low",
+        "exact_key_policy_matched": true,
+        "policy": {
+          "enforced_model": "gpt-5.6-luna",
+          "enforced_reasoning_effort": "low",
+          "enforced_service_tier": null,
+          "traffic_class": "foreground",
+          "is_active": 1
+        }
+      }
+    ]
+  },
+  "measured_cohort": {
+    "source_revision": "a864bc50c06f6b03c2336919b95b436c8f0ef73c",
+    "plan_sha256": "be5c4266827a08de6bab0271ecb78b877378206394316441490a7d64e49c05a9",
+    "rows": 80,
+    "generated_rows": 76,
+    "cached_replays": 4,
+    "native_turn_invocations": 76,
+    "corrective_invocations": 0,
+    "application_failures": 0,
+    "scope": "real isolated PostgreSQL, canonical HTTP/ASGI and Linux private worker; synthetic narration; existing gateway",
+    "metrics": {
+      "baseline": {
+        "matched_generated_turns": 36,
+        "metrics": {
+          "first_public_text_s": {
+            "observed": 36,
+            "median_s": 19.0435,
+            "min_s": 4.857,
+            "max_s": 56.197,
+            "within_5s": 1,
+            "within_10s": 5
+          },
+          "question_validated_s": {
+            "observed": 34,
+            "median_s": 22.859,
+            "min_s": 5.533,
+            "max_s": 59.141,
+            "within_5s": 0,
+            "within_10s": 2
+          },
+          "reply_complete_s": {
+            "observed": 36,
+            "median_s": 21.143500000000003,
+            "min_s": 5.544,
+            "max_s": 59.163,
+            "within_5s": 0,
+            "within_10s": 4
+          },
+          "conversation_saved_s": {
+            "observed": 36,
+            "median_s": 21.1535,
+            "min_s": 5.549,
+            "max_s": 59.17,
+            "within_5s": 0,
+            "within_10s": 4
+          }
+        },
+        "public_rows": [
+          {
+            "id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "My name is Joan.",
+            "public_reply": "Thanks, Joan.\n\nWhat would you like to talk about today?",
+            "work_mode": "reply_only",
+            "timings": {
+              "first_public_text_s": 11.831,
+              "question_validated_s": 12.962,
+              "reply_complete_s": 12.975,
+              "conversation_saved_s": 12.982
+            }
+          },
+          {
+            "id": "issue53/name-clue/en-AU/turn-2/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "I was born in Hobart.",
+            "public_reply": "That gives us a place to begin.\n\nWhat comes to mind when you think of Hobart?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 6.34,
+              "question_validated_s": 7.401,
+              "reply_complete_s": 7.431,
+              "conversation_saved_s": 7.442
+            }
+          },
+          {
+            "id": "issue53/name-clue/en-AU/turn-3/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "We grew beans beside the kitchen.",
+            "public_reply": "That gives us a clear detail to follow.\n\nWho was growing the beans with you beside the kitchen?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 31.522,
+              "question_validated_s": 33.31,
+              "reply_complete_s": 33.322,
+              "conversation_saved_s": 33.328
+            }
+          },
+          {
+            "id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。",
+            "public_reply": "您好，韩凤江。\n\n您愿意从哪段生活聊起？",
+            "work_mode": "reply_only",
+            "timings": {
+              "first_public_text_s": 4.857,
+              "question_validated_s": 5.533,
+              "reply_complete_s": 5.544,
+              "conversation_saved_s": 5.549
+            }
+          },
+          {
+            "id": "issue53/name-clue/zh-CN/turn-2/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "我出生在霍巴特。",
+            "public_reply": "谢谢您告诉我这点。\n\n想到霍巴特，您最先想起的是什么？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 10.834,
+              "question_validated_s": 11.859,
+              "reply_complete_s": 11.873,
+              "conversation_saved_s": 11.879
+            }
+          },
+          {
+            "id": "issue53/name-clue/zh-CN/turn-3/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "我们在厨房旁种豆子。",
+            "public_reply": "厨房旁种豆子，是一个很具体的日常片段。\n\n您说的“我们”是指谁呢？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 9.606,
+              "question_validated_s": 11.372,
+              "reply_complete_s": 11.382,
+              "conversation_saved_s": 11.388
+            }
+          },
+          {
+            "id": "issue53/correction/en-AU/turn-1/0/baseline",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "I am Joan. My father repaired bicycles in our shed. We lived in Hobart.",
+            "public_reply": "Thank you, Joan.\n\nWhat do you remember most clearly about the shed where your father repaired bicycles?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 13.112,
+              "question_validated_s": 15.132,
+              "reply_complete_s": 15.144,
+              "conversation_saved_s": 15.149
+            }
+          },
+          {
+            "id": "issue53/correction/en-AU/turn-2/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "I was mistaken: Mother repaired the bicycles, not Father.",
+            "public_reply": "Thanks for correcting that.\n\nWhat do you remember most clearly about your mother repairing the bicycles?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 24.785,
+              "question_validated_s": 26.56,
+              "reply_complete_s": 26.573,
+              "conversation_saved_s": 26.58
+            }
+          },
+          {
+            "id": "issue53/correction/en-AU/turn-3/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "As I said, our home was in Hobart. I brought Mother the tools.",
+            "public_reply": "Right—I’m following.\n\nWhat do you remember Mother doing with the tools?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 39.865,
+              "question_validated_s": 42.243,
+              "reply_complete_s": 42.353,
+              "conversation_saved_s": 42.376
+            }
+          },
+          {
+            "id": "issue53/correction/zh-CN/turn-1/0/baseline",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。父亲在棚屋里修自行车。我们住在霍巴特。",
+            "public_reply": "谢谢您从这里说起。\n\n说到父亲在棚屋里修自行车，您最先想起什么？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 19.4,
+              "question_validated_s": 21.604,
+              "reply_complete_s": 21.655,
+              "conversation_saved_s": 21.662
+            }
+          },
+          {
+            "id": "issue53/correction/zh-CN/turn-2/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "我说错了，修自行车的是母亲，不是父亲。",
+            "public_reply": "好的，修自行车的是母亲，不是父亲。\n\n说到母亲在棚屋里修自行车，您最先想起什么？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 22.099,
+              "question_validated_s": 24.372,
+              "reply_complete_s": 24.386,
+              "conversation_saved_s": 24.393
+            }
+          },
+          {
+            "id": "issue53/correction/zh-CN/turn-3/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "我说过，我们住在霍巴特。我给母亲递工具。",
+            "public_reply": "明白，您当时给母亲递工具。\n\n您还记得当时递给母亲的是哪一种工具吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 22.955,
+              "question_validated_s": 24.888,
+              "reply_complete_s": 24.958,
+              "conversation_saved_s": 25.021
+            }
+          },
+          {
+            "id": "issue53/emotional/en-AU/turn-1/0/baseline",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "My name is Joan. When the workshop closed, Mother packed the tools into a blue box. I carried it to the bus while she waited in the rain. I do not remember the year. We said very little. I was proud to help, but I was frightened about leaving. I still keep the small spanner, and telling this is difficult. Please take it gently.",
+            "public_reply": "I’ll take it gently, Joan.\n\nIf it feels manageable, what does the small spanner mean to you now?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 30.864,
+              "question_validated_s": 33.628,
+              "reply_complete_s": 33.678,
+              "conversation_saved_s": 33.688
+            }
+          },
+          {
+            "id": "issue53/emotional/en-AU/turn-2/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "The small spanner reminds me of how carefully she worked.",
+            "public_reply": "That helps me understand why the small spanner matters.\n\nWhat kind of work do you remember her doing so carefully?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 56.197,
+              "question_validated_s": 59.141,
+              "reply_complete_s": 59.163,
+              "conversation_saved_s": 59.17
+            }
+          },
+          {
+            "id": "issue53/emotional/en-AU/turn-3/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "This is upsetting. Stop here for today.",
+            "public_reply": "Of course. We can stop here for today.",
+            "work_mode": "reply_only",
+            "timings": {
+              "first_public_text_s": 6.137,
+              "reply_complete_s": 6.567,
+              "conversation_saved_s": 6.573
+            }
+          },
+          {
+            "id": "issue53/emotional/zh-CN/turn-1/0/baseline",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。工房关闭时，母亲把工具装进蓝盒子。我把盒子搬到公交车旁，她在雨里等着。我不记得是哪一年。我们都没怎么说话。能帮上忙我很自豪，可离开又让我害怕。我还留着那把小扳手，说起这些很难受。请慢慢聊。",
+            "public_reply": "您既为能帮上忙感到自豪，也害怕离开；我们慢慢来，不急着碰最难受的部分。\n\n如果您愿意，您想先从那把小扳手说起什么？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 25.762,
+              "question_validated_s": 27.647,
+              "reply_complete_s": 27.674,
+              "conversation_saved_s": 27.681
+            }
+          },
+          {
+            "id": "issue53/emotional/zh-CN/turn-2/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "那把小扳手让我想起她干活时多么仔细。",
+            "public_reply": "好，我们先留在这把小扳手上，慢慢来。\n\n如果您愿意，您最先想到她做事时的哪个细节？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 22.482,
+              "question_validated_s": 24.419,
+              "reply_complete_s": 24.437,
+              "conversation_saved_s": 24.445
+            }
+          },
+          {
+            "id": "issue53/emotional/zh-CN/turn-3/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "这让我难受，今天就到这里，请停下。",
+            "public_reply": "好的，今天就先到这里。",
+            "work_mode": "reply_only",
+            "timings": {
+              "first_public_text_s": 5.812,
+              "reply_complete_s": 6.15,
+              "conversation_saved_s": 6.158
+            }
+          },
+          {
+            "id": "issue53/switch-skip/en-AU/turn-1/0/baseline",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "I am Joan. We planted beans beside our old kitchen.",
+            "public_reply": "Thank you, Joan.\n\nWho was planting the beans with you?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 16.117,
+              "question_validated_s": 18.137,
+              "reply_complete_s": 18.152,
+              "conversation_saved_s": 18.159
+            }
+          },
+          {
+            "id": "issue53/switch-skip/en-AU/turn-2/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "Skip that question. I do not want to discuss the kitchen.",
+            "public_reply": "Understood. We can leave that aside.\n\nWhat happened to the beans after you planted them?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 17.252,
+              "question_validated_s": 18.974,
+              "reply_complete_s": 19.0,
+              "conversation_saved_s": 19.007
+            }
+          },
+          {
+            "id": "issue53/switch-skip/en-AU/turn-3/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "Please reply in Chinese from now on. 我想聊上学的事。",
+            "public_reply": "好的，我们用中文聊。\n\n那我们先从上学这段生活聊起。 上学时，您最先想聊哪一段经历？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 13.479,
+              "question_validated_s": 15.225,
+              "reply_complete_s": 15.287,
+              "conversation_saved_s": 15.298
+            }
+          },
+          {
+            "id": "issue53/switch-skip/en-AU/turn-4/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "My sister walked to school with me.",
+            "public_reply": "姐姐陪您走去学校，我们就从她说起。\n\n和姐姐一起走去学校的那段日子里，您最记得姐姐的哪一点？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 43.145,
+              "question_validated_s": 47.992,
+              "reply_complete_s": 48.045,
+              "conversation_saved_s": 48.095
+            }
+          },
+          {
+            "id": "issue53/switch-skip/zh-CN/turn-1/0/baseline",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。我们在老厨房旁种豆子。",
+            "public_reply": "好的。\n\n在老厨房旁种豆子时，和您一起的“我们”还有谁？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 16.994,
+              "question_validated_s": 19.258,
+              "reply_complete_s": 19.288,
+              "conversation_saved_s": 19.299
+            }
+          },
+          {
+            "id": "issue53/switch-skip/zh-CN/turn-2/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "跳过这个问题。我不想聊厨房。",
+            "public_reply": "好，我们换个方向。\n\n您想从哪段生活说起？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 22.472,
+              "question_validated_s": 24.114,
+              "reply_complete_s": 24.132,
+              "conversation_saved_s": 24.142
+            }
+          },
+          {
+            "id": "issue53/switch-skip/zh-CN/turn-3/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "接下来请用英语回答。I want to talk about school.",
+            "public_reply": "Of course.\n\nWhat would you like to tell me about school?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 10.168,
+              "question_validated_s": 11.445,
+              "reply_complete_s": 11.466,
+              "conversation_saved_s": 11.474
+            }
+          },
+          {
+            "id": "issue53/switch-skip/zh-CN/turn-4/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "姐姐陪我走路上学。",
+            "public_reply": "Your sister walked with you to school.\n\nDo you remember whether your sister walked with you every day or only at certain times?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 32.631,
+              "question_validated_s": 34.681,
+              "reply_complete_s": 34.707,
+              "conversation_saved_s": 34.714
+            }
+          },
+          {
+            "id": "issue53/photo-reference/en-AU/turn-1/0/baseline",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "I am Joan. The caption calls this photograph our shed. You have not seen the pixels.",
+            "public_reply": "Understood. I won't treat the caption as visual evidence.\n\nWhat do you remember about the shed in that photograph?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 22.737,
+              "question_validated_s": 24.655,
+              "reply_complete_s": 24.669,
+              "conversation_saved_s": 24.675
+            }
+          },
+          {
+            "id": "issue53/photo-reference/en-AU/turn-2/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "An archive page says the town had a bicycle factory. I never said I worked there or lived by it.",
+            "public_reply": "Understood. I won’t treat the archive page as evidence that you worked there or lived by it.\n\nWhat, if anything, do you personally remember about the town, apart from what the archive page says?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 49.702,
+              "question_validated_s": 53.965,
+              "reply_complete_s": 54.045,
+              "conversation_saved_s": 54.059
+            }
+          },
+          {
+            "id": "issue53/photo-reference/zh-CN/turn-1/0/baseline",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。照片说明把这里叫作我们的棚屋。你没有看过图像。",
+            "public_reply": "韩凤江，明白了。我目前没有看到图像，只能依据您说的照片说明来继续。\n\n照片说明里的“我们的棚屋”，是您亲自生活过的地方吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 25.489,
+              "question_validated_s": 27.463,
+              "reply_complete_s": 27.479,
+              "conversation_saved_s": 27.486
+            }
+          },
+          {
+            "id": "issue53/photo-reference/zh-CN/turn-2/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "档案网页说镇上有自行车厂。我没说过我在那里工作，也没说住在附近。",
+            "public_reply": "明白了。我会把档案网页关于自行车厂的说法与您的个人经历分开，不把它记成您在那里工作或住在附近。\n\n接下来您想继续澄清这条自行车厂的档案信息，还是回到照片说明里的“我们的棚屋”？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 48.469,
+              "question_validated_s": 51.496,
+              "reply_complete_s": 51.582,
+              "conversation_saved_s": 51.636
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/en-AU/turn-1/0/baseline",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "I am Joan. My sister and I planted beans beside our old kitchen.",
+            "public_reply": "Thank you, Joan. That’s a clear place to begin.\n\nWhat happened to the beans after you and your sister planted them?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 17.773,
+              "question_validated_s": 19.757,
+              "reply_complete_s": 19.796,
+              "conversation_saved_s": 19.812
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/en-AU/turn-2/0/baseline",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "My sister labelled every row. This happened in Hobart.",
+            "public_reply": "That gives the garden a clear setting in Hobart, and the row labels are a useful detail to keep with it.\n\nWhat did your sister put on the labels for each row?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 18.687,
+              "question_validated_s": 20.54,
+              "reply_complete_s": 20.632,
+              "conversation_saved_s": 20.645
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/en-AU/turn-3/0/baseline",
+            "locale": "en-AU",
+            "phase": "resumed",
+            "source": "Can we continue the beans memory? I remember the labels were blue.",
+            "public_reply": "Of course—we can stay with the beans memory.\n\nDo you remember whether anything was written on the blue labels?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 14.158,
+              "question_validated_s": 16.404,
+              "reply_complete_s": 16.45,
+              "conversation_saved_s": 16.462
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/zh-CN/turn-1/0/baseline",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。小时候我和姐姐在老厨房旁种豆子。",
+            "public_reply": "好的，韩凤江。\n\n您和姐姐当时是怎么种豆子的？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 13.624,
+              "question_validated_s": 16.025,
+              "reply_complete_s": 16.043,
+              "conversation_saved_s": 16.049
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/zh-CN/turn-2/0/baseline",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "姐姐给每行都写了标签。这件事发生在霍巴特。",
+            "public_reply": "霍巴特这个地点也让这段回忆更具体了。\n\n姐姐给每行写的标签上，您还记得写了些什么吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 30.1,
+              "question_validated_s": 32.455,
+              "reply_complete_s": 32.479,
+              "conversation_saved_s": 32.487
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/zh-CN/turn-3/0/baseline",
+            "locale": "zh-CN",
+            "phase": "resumed",
+            "source": "我们接着聊种豆子吧。我记得标签是蓝色的。",
+            "public_reply": "蓝色这个细节很清楚。\n\n您还记得那些蓝色标签是用来区分什么的吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 18.17,
+              "question_validated_s": 19.329,
+              "reply_complete_s": 19.371,
+              "conversation_saved_s": 19.377
+            }
+          }
+        ]
+      },
+      "candidate": {
+        "matched_generated_turns": 36,
+        "metrics": {
+          "first_public_text_s": {
+            "observed": 36,
+            "median_s": 4.5275,
+            "min_s": 2.919,
+            "max_s": 7.035,
+            "within_5s": 24,
+            "within_10s": 36
+          },
+          "question_validated_s": {
+            "observed": 34,
+            "median_s": 5.923,
+            "min_s": 3.901,
+            "max_s": 9.13,
+            "within_5s": 6,
+            "within_10s": 34
+          },
+          "reply_complete_s": {
+            "observed": 36,
+            "median_s": 5.952,
+            "min_s": 3.916,
+            "max_s": 9.483,
+            "within_5s": 7,
+            "within_10s": 36
+          },
+          "conversation_saved_s": {
+            "observed": 36,
+            "median_s": 5.994,
+            "min_s": 3.922,
+            "max_s": 9.499,
+            "within_5s": 7,
+            "within_10s": 36
+          }
+        },
+        "public_rows": [
+          {
+            "id": "issue53/name-clue/en-AU/turn-1/0/candidate",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "My name is Joan.",
+            "public_reply": "Nice to meet you, Joan.\n\nWhat would you like to talk about today?",
+            "work_mode": "reply_only",
+            "timings": {
+              "first_public_text_s": 2.919,
+              "question_validated_s": 3.901,
+              "reply_complete_s": 3.916,
+              "conversation_saved_s": 3.922
+            }
+          },
+          {
+            "id": "issue53/name-clue/en-AU/turn-2/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "I was born in Hobart.",
+            "public_reply": "Thanks for sharing that.\n\nWhat comes to mind when you think of Hobart?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.187,
+              "question_validated_s": 4.837,
+              "reply_complete_s": 4.848,
+              "conversation_saved_s": 4.855
+            }
+          },
+          {
+            "id": "issue53/name-clue/en-AU/turn-3/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "We grew beans beside the kitchen.",
+            "public_reply": "That sounds like a small part of everyday life that stayed with you.\n\nWhat do you remember about growing the beans beside the kitchen?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 3.726,
+              "question_validated_s": 4.701,
+              "reply_complete_s": 4.718,
+              "conversation_saved_s": 4.725
+            }
+          },
+          {
+            "id": "issue53/name-clue/zh-CN/turn-1/0/candidate",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。",
+            "public_reply": "很高兴认识您，韩凤江。\n\n您现在最想从哪段生活或经历聊起？",
+            "work_mode": "reply_only",
+            "timings": {
+              "first_public_text_s": 3.003,
+              "question_validated_s": 4.046,
+              "reply_complete_s": 4.059,
+              "conversation_saved_s": 4.068
+            }
+          },
+          {
+            "id": "issue53/name-clue/zh-CN/turn-2/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "我出生在霍巴特。",
+            "public_reply": "谢谢您告诉我。\n\n提到霍巴特，您最先想起哪段与这个地方有关的往事？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 3.761,
+              "question_validated_s": 4.917,
+              "reply_complete_s": 4.93,
+              "conversation_saved_s": 4.936
+            }
+          },
+          {
+            "id": "issue53/name-clue/zh-CN/turn-3/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "我们在厨房旁种豆子。",
+            "public_reply": "厨房旁种豆子，这个画面很具体。\n\n你们当时为什么会在厨房旁种豆子？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 3.788,
+              "question_validated_s": 5.614,
+              "reply_complete_s": 5.636,
+              "conversation_saved_s": 5.643
+            }
+          },
+          {
+            "id": "issue53/correction/en-AU/turn-1/0/candidate",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "I am Joan. My father repaired bicycles in our shed. We lived in Hobart.",
+            "public_reply": "Thank you, Joan.\n\nWhat do you remember about your father repairing bicycles in the shed?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 3.465,
+              "question_validated_s": 4.839,
+              "reply_complete_s": 4.852,
+              "conversation_saved_s": 4.858
+            }
+          },
+          {
+            "id": "issue53/correction/en-AU/turn-2/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "I was mistaken: Mother repaired the bicycles, not Father.",
+            "public_reply": "Thanks for correcting that—the bicycles were repaired by your mother, not your father.\n\nWhat do you remember about how bicycle repairs fitted into family life?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 5.766,
+              "question_validated_s": 7.348,
+              "reply_complete_s": 7.362,
+              "conversation_saved_s": 7.369
+            }
+          },
+          {
+            "id": "issue53/correction/en-AU/turn-3/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "As I said, our home was in Hobart. I brought Mother the tools.",
+            "public_reply": "That gives a glimpse of how you helped your mother with the repairs.\n\nWhat do you remember about bringing your mother the tools?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 5.736,
+              "question_validated_s": 7.171,
+              "reply_complete_s": 7.19,
+              "conversation_saved_s": 7.198
+            }
+          },
+          {
+            "id": "issue53/correction/zh-CN/turn-1/0/candidate",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。父亲在棚屋里修自行车。我们住在霍巴特。",
+            "public_reply": "谢谢您告诉我这些。\n\n您还记得父亲在棚屋里修自行车时的情景吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 3.666,
+              "question_validated_s": 5.171,
+              "reply_complete_s": 5.194,
+              "conversation_saved_s": 5.208
+            }
+          },
+          {
+            "id": "issue53/correction/zh-CN/turn-2/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "我说错了，修自行车的是母亲，不是父亲。",
+            "public_reply": "明白了，修自行车的是母亲，不是父亲。\n\n您记得母亲修自行车时，最清楚的是哪一幕？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 5.257,
+              "question_validated_s": 6.75,
+              "reply_complete_s": 6.786,
+              "conversation_saved_s": 6.802
+            }
+          },
+          {
+            "id": "issue53/correction/zh-CN/turn-3/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "我说过，我们住在霍巴特。我给母亲递工具。",
+            "public_reply": "我记下了。\n\n您记得自己当时递给母亲的是什么工具吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 6.194,
+              "question_validated_s": 7.534,
+              "reply_complete_s": 7.549,
+              "conversation_saved_s": 7.558
+            }
+          },
+          {
+            "id": "issue53/emotional/en-AU/turn-1/0/candidate",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "My name is Joan. When the workshop closed, Mother packed the tools into a blue box. I carried it to the bus while she waited in the rain. I do not remember the year. We said very little. I was proud to help, but I was frightened about leaving. I still keep the small spanner, and telling this is difficult. Please take it gently.",
+            "public_reply": "Thank you for trusting me with this difficult memory.\n\nWhat did leaving mean for you at that point?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.265,
+              "question_validated_s": 5.81,
+              "reply_complete_s": 5.878,
+              "conversation_saved_s": 5.886
+            }
+          },
+          {
+            "id": "issue53/emotional/en-AU/turn-2/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "The small spanner reminds me of how carefully she worked.",
+            "public_reply": "That small tool carries a sense of her care and precision.\n\nWhat do you remember about the way she worked?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.424,
+              "question_validated_s": 5.636,
+              "reply_complete_s": 5.652,
+              "conversation_saved_s": 5.66
+            }
+          },
+          {
+            "id": "issue53/emotional/en-AU/turn-3/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "This is upsetting. Stop here for today.",
+            "public_reply": "Of course. We’ll stop here for today.",
+            "work_mode": "reply_only",
+            "timings": {
+              "first_public_text_s": 3.808,
+              "reply_complete_s": 4.532,
+              "conversation_saved_s": 4.59
+            }
+          },
+          {
+            "id": "issue53/emotional/zh-CN/turn-1/0/candidate",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。工房关闭时，母亲把工具装进蓝盒子。我把盒子搬到公交车旁，她在雨里等着。我不记得是哪一年。我们都没怎么说话。能帮上忙我很自豪，可离开又让我害怕。我还留着那把小扳手，说起这些很难受。请慢慢聊。",
+            "public_reply": "我会慢慢听。那段离开让您害怕，说起来也很难受。\n\n如果您愿意，您还记得那把小扳手对您有什么特别的意义吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.086,
+              "question_validated_s": 5.857,
+              "reply_complete_s": 5.871,
+              "conversation_saved_s": 5.879
+            }
+          },
+          {
+            "id": "issue53/emotional/zh-CN/turn-2/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "那把小扳手让我想起她干活时多么仔细。",
+            "public_reply": "听起来，那把小扳手也留住了她做事时的样子。\n\n您还记得她用这把小扳手做过什么吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 7.035,
+              "question_validated_s": 9.018,
+              "reply_complete_s": 9.062,
+              "conversation_saved_s": 9.088
+            }
+          },
+          {
+            "id": "issue53/emotional/zh-CN/turn-3/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "这让我难受，今天就到这里，请停下。",
+            "public_reply": "好的，我们今天就到这里。谢谢您告诉我。",
+            "work_mode": "reply_only",
+            "timings": {
+              "first_public_text_s": 4.861,
+              "reply_complete_s": 9.483,
+              "conversation_saved_s": 9.499
+            }
+          },
+          {
+            "id": "issue53/switch-skip/en-AU/turn-1/0/candidate",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "I am Joan. We planted beans beside our old kitchen.",
+            "public_reply": "That garden memory opens a small scene.\n\nWhat happened after you planted the beans?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.509,
+              "question_validated_s": 5.817,
+              "reply_complete_s": 5.861,
+              "conversation_saved_s": 5.868
+            }
+          },
+          {
+            "id": "issue53/switch-skip/en-AU/turn-2/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "Skip that question. I do not want to discuss the kitchen.",
+            "public_reply": "Of course—we’ll leave that aside.\n\nWhat would you like to talk about instead?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 5.313,
+              "question_validated_s": 6.789,
+              "reply_complete_s": 6.802,
+              "conversation_saved_s": 6.808
+            }
+          },
+          {
+            "id": "issue53/switch-skip/en-AU/turn-3/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "Please reply in Chinese from now on. 我想聊上学的事。",
+            "public_reply": "没问题。\n\n您最先想聊学校里的哪段经历？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 5.169,
+              "question_validated_s": 6.248,
+              "reply_complete_s": 6.311,
+              "conversation_saved_s": 6.404
+            }
+          },
+          {
+            "id": "issue53/switch-skip/en-AU/turn-4/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "My sister walked to school with me.",
+            "public_reply": "听起来，姐姐曾陪您一起走去学校。\n\n和姐姐一起走去学校时，您最清楚记得学校里的什么？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.546,
+              "question_validated_s": 6.039,
+              "reply_complete_s": 6.148,
+              "conversation_saved_s": 6.154
+            }
+          },
+          {
+            "id": "issue53/switch-skip/zh-CN/turn-1/0/candidate",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。我们在老厨房旁种豆子。",
+            "public_reply": "谢谢您告诉我。\n\n在老厨房旁种豆子时，您通常怎么照料这些豆子？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 6.472,
+              "question_validated_s": 9.13,
+              "reply_complete_s": 9.204,
+              "conversation_saved_s": 9.221
+            }
+          },
+          {
+            "id": "issue53/switch-skip/zh-CN/turn-2/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "跳过这个问题。我不想聊厨房。",
+            "public_reply": "好的，我们跳过厨房。您想从哪段经历聊起呢\n\n您现在更愿意聊哪段经历？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 5.447,
+              "question_validated_s": 7.377,
+              "reply_complete_s": 7.426,
+              "conversation_saved_s": 7.44
+            }
+          },
+          {
+            "id": "issue53/switch-skip/zh-CN/turn-3/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "接下来请用英语回答。I want to talk about school.",
+            "public_reply": "Of course.\n\nWhat would you most like to remember about school?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.01,
+              "question_validated_s": 5.275,
+              "reply_complete_s": 5.335,
+              "conversation_saved_s": 5.342
+            }
+          },
+          {
+            "id": "issue53/switch-skip/zh-CN/turn-4/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "姐姐陪我走路上学。",
+            "public_reply": "That gives us a glimpse of your school mornings.\n\nWhat stands out most when you remember walking to school with your sister?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.683,
+              "question_validated_s": 6.246,
+              "reply_complete_s": 6.262,
+              "conversation_saved_s": 6.268
+            }
+          },
+          {
+            "id": "issue53/photo-reference/en-AU/turn-1/0/candidate",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "I am Joan. The caption calls this photograph our shed. You have not seen the pixels.",
+            "public_reply": "Thanks, Joan. I’ll treat “our shed” as the caption’s wording, not as something I can verify from the photograph.\n\nWhat do you remember most clearly about your shed?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 3.719,
+              "question_validated_s": 5.131,
+              "reply_complete_s": 5.153,
+              "conversation_saved_s": 5.165
+            }
+          },
+          {
+            "id": "issue53/photo-reference/en-AU/turn-2/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "An archive page says the town had a bicycle factory. I never said I worked there or lived by it.",
+            "public_reply": "Understood—I won’t treat that archive claim as something you said about your own life.\n\nWhat, if anything, do you remember about the bicycle factory or the town around it?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.845,
+              "question_validated_s": 6.326,
+              "reply_complete_s": 6.343,
+              "conversation_saved_s": 6.35
+            }
+          },
+          {
+            "id": "issue53/photo-reference/zh-CN/turn-1/0/candidate",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。照片说明把这里叫作我们的棚屋。你没有看过图像。",
+            "public_reply": "谢谢您说明。\n\n既然还没有看到图像，您愿意先说说记忆中的那间棚屋吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.418,
+              "question_validated_s": 6.311,
+              "reply_complete_s": 6.332,
+              "conversation_saved_s": 6.352
+            }
+          },
+          {
+            "id": "issue53/photo-reference/zh-CN/turn-2/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "档案网页说镇上有自行车厂。我没说过我在那里工作，也没说住在附近。",
+            "public_reply": "明白了，档案网页的说法不能当作您的亲身经历。\n\n关于镇上的自行车厂，您实际记得或听说过什么？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.632,
+              "question_validated_s": 6.172,
+              "reply_complete_s": 6.197,
+              "conversation_saved_s": 6.219
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/en-AU/turn-1/0/candidate",
+            "locale": "en-AU",
+            "phase": "first",
+            "source": "I am Joan. My sister and I planted beans beside our old kitchen.",
+            "public_reply": "That garden beside the old kitchen sounds like a vivid place to begin.\n\nWhat do you remember most about planting those beans with your sister?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 3.398,
+              "question_validated_s": 5.722,
+              "reply_complete_s": 5.861,
+              "conversation_saved_s": 5.948
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/en-AU/turn-2/0/candidate",
+            "locale": "en-AU",
+            "phase": "later",
+            "source": "My sister labelled every row. This happened in Hobart.",
+            "public_reply": "That detail about Hobart gives us another thread to follow.\n\nWhat did the labels on the rows help your sister keep track of?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 5.959,
+              "question_validated_s": 7.326,
+              "reply_complete_s": 7.342,
+              "conversation_saved_s": 7.35
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/en-AU/turn-3/0/candidate",
+            "locale": "en-AU",
+            "phase": "resumed",
+            "source": "Can we continue the beans memory? I remember the labels were blue.",
+            "public_reply": "The blue labels are another useful detail to hold onto.\n\nWhat did the labels on the rows help your sister keep track of?",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 4.682,
+              "question_validated_s": 5.729,
+              "reply_complete_s": 5.781,
+              "conversation_saved_s": 5.844
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/zh-CN/turn-1/0/candidate",
+            "locale": "zh-CN",
+            "phase": "first",
+            "source": "我叫韩凤江。小时候我和姐姐在老厨房旁种豆子。",
+            "public_reply": "谢谢您，凤江。\n\n小时候，您和姐姐在老厨房旁种豆子时，通常是怎么种的？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 3.647,
+              "question_validated_s": 5.524,
+              "reply_complete_s": 5.541,
+              "conversation_saved_s": 5.548
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/zh-CN/turn-2/0/candidate",
+            "locale": "zh-CN",
+            "phase": "later",
+            "source": "姐姐给每行都写了标签。这件事发生在霍巴特。",
+            "public_reply": "明白了，这件事发生在霍巴特。\n\n姐姐给每行写的标签，您还记得大概是些什么吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 6.069,
+              "question_validated_s": 7.725,
+              "reply_complete_s": 7.743,
+              "conversation_saved_s": 7.751
+            }
+          },
+          {
+            "id": "issue53/resume-replay-rollback/zh-CN/turn-3/0/candidate",
+            "locale": "zh-CN",
+            "phase": "resumed",
+            "source": "我们接着聊种豆子吧。我记得标签是蓝色的。",
+            "public_reply": "蓝色这个细节先记下了。\n\n您还记得蓝色标签上写了什么吗？",
+            "work_mode": "extract",
+            "timings": {
+              "first_public_text_s": 5.217,
+              "question_validated_s": 5.989,
+              "reply_complete_s": 6.026,
+              "conversation_saved_s": 6.04
+            }
+          }
+        ]
+      }
+    },
+    "rollback_excluded_from_both_latency_arms": true,
+    "provider_internal_attempts": null,
+    "browser_rendering_measured": false,
+    "lifecycle": "A stock test-database stop command timed out after all rows saved; an independent completion audit verified no remaining task database containers and removed worker homes.",
+    "quality_findings": [
+      "One Chinese acknowledgement included an unpunctuated question before the chosen question. A pre-stream guard and schema guidance now cover it.",
+      "One reply assumed school mornings, absent from the source. Grounding guidance now explicitly forbids assumed times, relationships and events.",
+      "An English distress reply probed leaving without an explicit pacing choice. Question schema guidance now repeats the published gentle-pacing contract."
+    ],
+    "semantic_acceptance": "not accepted as release evidence; follow-up source fixes require live verification",
+    "phase_and_locale_metrics": {
+      "baseline": {
+        "phase": {
+          "first": {
+            "turns": 12,
+            "first_public_text_s": {
+              "median_s": 17.383,
+              "max_s": 30.864
+            },
+            "reply_complete_s": {
+              "median_s": 19.542,
+              "max_s": 33.678
+            },
+            "conversation_saved_s": {
+              "median_s": 19.556,
+              "max_s": 33.688
+            }
+          },
+          "later": {
+            "turns": 22,
+            "first_public_text_s": {
+              "median_s": 22.477,
+              "max_s": 56.197
+            },
+            "reply_complete_s": {
+              "median_s": 24.412,
+              "max_s": 59.163
+            },
+            "conversation_saved_s": {
+              "median_s": 24.419,
+              "max_s": 59.17
+            }
+          },
+          "resumed": {
+            "turns": 2,
+            "first_public_text_s": {
+              "median_s": 16.164,
+              "max_s": 18.17
+            },
+            "reply_complete_s": {
+              "median_s": 17.91,
+              "max_s": 19.371
+            },
+            "conversation_saved_s": {
+              "median_s": 17.919,
+              "max_s": 19.377
+            }
+          }
+        },
+        "locale": {
+          "en-AU": {
+            "turns": 18,
+            "first_public_text_s": {
+              "median_s": 18.23,
+              "max_s": 56.197
+            },
+            "reply_complete_s": {
+              "median_s": 20.214,
+              "max_s": 59.163
+            },
+            "conversation_saved_s": {
+              "median_s": 20.229,
+              "max_s": 59.17
+            }
+          },
+          "zh-CN": {
+            "turns": 18,
+            "first_public_text_s": {
+              "median_s": 20.749,
+              "max_s": 48.469
+            },
+            "reply_complete_s": {
+              "median_s": 22.894,
+              "max_s": 51.582
+            },
+            "conversation_saved_s": {
+              "median_s": 22.902,
+              "max_s": 51.636
+            }
+          }
+        }
+      },
+      "candidate": {
+        "phase": {
+          "first": {
+            "turns": 12,
+            "first_public_text_s": {
+              "median_s": 3.692,
+              "max_s": 6.472
+            },
+            "reply_complete_s": {
+              "median_s": 5.701,
+              "max_s": 9.204
+            },
+            "conversation_saved_s": {
+              "median_s": 5.708,
+              "max_s": 9.221
+            }
+          },
+          "later": {
+            "turns": 22,
+            "first_public_text_s": {
+              "median_s": 4.853,
+              "max_s": 7.035
+            },
+            "reply_complete_s": {
+              "median_s": 6.327,
+              "max_s": 9.483
+            },
+            "conversation_saved_s": {
+              "median_s": 6.377,
+              "max_s": 9.499
+            }
+          },
+          "resumed": {
+            "turns": 2,
+            "first_public_text_s": {
+              "median_s": 4.95,
+              "max_s": 5.217
+            },
+            "reply_complete_s": {
+              "median_s": 5.903,
+              "max_s": 6.026
+            },
+            "conversation_saved_s": {
+              "median_s": 5.942,
+              "max_s": 6.04
+            }
+          }
+        },
+        "locale": {
+          "en-AU": {
+            "turns": 18,
+            "first_public_text_s": {
+              "median_s": 4.466,
+              "max_s": 5.959
+            },
+            "reply_complete_s": {
+              "median_s": 5.861,
+              "max_s": 7.362
+            },
+            "conversation_saved_s": {
+              "median_s": 5.877,
+              "max_s": 7.369
+            }
+          },
+          "zh-CN": {
+            "turns": 18,
+            "first_public_text_s": {
+              "median_s": 4.657,
+              "max_s": 7.035
+            },
+            "reply_complete_s": {
+              "median_s": 6.229,
+              "max_s": 9.483
+            },
+            "conversation_saved_s": {
+              "median_s": 6.244,
+              "max_s": 9.499
+            }
+          }
+        }
+      }
+    }
+  },
+  "manifest_correction": {
+    "steps": 4,
+    "reason": "Published collector-plan requires extraction for privacy and workspace/profile actions; prior manifest expected reply_only for exclusions and language changes. Original frozen plans were retained."
+  },
+  "latest_live_status": {
+    "comparison_d": "aborted after 10 rows; upstream WebSocket failures and a timeout affected both routes",
+    "probe_e": "both first turns timed out; two app-server invocations; homes removed",
+    "direct_gateway_probe": "valid greeting request returned HTTP 502",
+    "remaining": [
+      "post-fix matched live quality/latency gate",
+      "genuine pre-rollout session continuation and rollback",
+      "14 KB source stress comparison",
+      "independent extraction readback",
+      "real web proxy/browser smoke",
+      "controlled activation after acceptance"
+    ],
+    "gateway_read_only_log_observation": {
+      "services": [
+        "codex-lb",
+        "litellm"
+      ],
+      "observed_errors": [
+        "upstream WebSocket closed before response.completed",
+        "stream_incomplete",
+        "HTTP 502"
+      ],
+      "last_timestamped_matching_error_utc": "2026-10-20T03:13:39Z",
+      "limitation": "Mixed service traffic; pattern occurrences are not request counts or Memoir-only metrics. No raw request content or credentials retained in this summary."
+    }
+  },
+  "checks": [
+    {
+      "command": "isolated collector/continuity/real-SQL HTTP/strategy/configuration regressions",
+      "passed": 309,
+      "source_revision": "743546c138c2672be1c71b7aed22f1987849b369",
+      "elapsed_seconds": 105.42,
+      "exit_code": 0
+    },
+    {
+      "command": "make test-place-research",
+      "web_passed": 588,
+      "python_passed": 432,
+      "skill_passed": 95
+    },
+    {
+      "command": "full canonical matrix, isolated per locale, latest source",
+      "pytest_passed": 2,
+      "rows_passed": 80,
+      "mock_native_dispatches": 76,
+      "cohorts": [
+        {
+          "locale": "en-AU",
+          "rows": 40,
+          "mock_native_dispatches": 38,
+          "pytest_checks": 1,
+          "plan_sha256": "43dca1e3d2e9308044ef627da9e76e4b1582987fcc977229d42329344e59ae13",
+          "source_revision": "743546c138c2672be1c71b7aed22f1987849b369",
+          "duration_seconds": 302.14,
+          "cleanup_verified": true,
+          "comparison_file_sha256": "2f84331c4fed66a9268d5fe66ced79437c80014415480ae7ee512bd347618a92",
+          "semantic_release_accepted": false
+        },
+        {
+          "locale": "zh-CN",
+          "rows": 40,
+          "mock_native_dispatches": 38,
+          "pytest_checks": 1,
+          "plan_sha256": "ee6d639782f4843ad9536894effb0a6d7e5ef02e805fca8688023b3ccf4963be",
+          "source_revision": "743546c138c2672be1c71b7aed22f1987849b369",
+          "duration_seconds": 304.08,
+          "cleanup_verified": true,
+          "comparison_file_sha256": "eab23bf814b7960fd2b5c2d6baf55b5f3b7b75ca3aa5a7d4cf71a6bd8c1ac289",
+          "semantic_release_accepted": false
+        }
+      ],
+      "limitation": "Mocked model outputs; not live quality or provider-policy acceptance."
+    },
+    {
+      "command": "mobile consumer replay",
+      "captured_streams": 80,
+      "exit_code": 0,
+      "source_revision": "743546c138c2672be1c71b7aed22f1987849b369",
+      "notes": "Both newly captured 40-row cohorts replayed through the shipped mobile consumer."
+    }
+  ],
+  "limitations": [
+    "No production p95; one sample per scenario.",
+    "Later arm histories naturally diverge after different generated replies.",
+    "Gateway load is shared and uncontrolled; no provider-internal attempt count was available.",
+    "Semantic review was by the coding agent, not a blinded human preference study.",
+    "Unrelated legacy tests on main reference removed runtime helpers; reproduced separately on clean main."
+  ],
+  "shared_app_configuration_observed": {
+    "services": [
+      "api",
+      "codex-worker",
+      "worker"
+    ],
+    "collector_model": "gpt-5.6-luna-pooled",
+    "requested_effort": "low",
+    "prompt_version": "two-lane-v1",
+    "candidate_enabled": false,
+    "method": "Read-only allowlisted environment readback from each running service; no secrets or configuration changes."
+  }
+}

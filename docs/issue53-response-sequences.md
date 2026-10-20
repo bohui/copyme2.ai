@@ -363,11 +363,15 @@ two-lane background tests. The exact PR96 baseline reproduces all five, involvin
 strategy-proposal expectations and a stale background page. They remain visible
 in the evidence; this slice does not claim the entire aggregate is green.
 
-## Remaining acceptance and bounded live work
+## Historical offline acceptance and live-work proposal
 
-Current authorized live/provider/hosted budget: **zero**. Nothing here dispatches
-live calls, publishes datasets/prompts, enables hosted rules, changes credentials,
-changes configured databases, merges or deploys.
+The following budget recorded the original offline prerequisite. The user later
+authorized the bounded optimization work described in
+[the 20 October live follow-up](issue53-live-latency-20261020.md).
+
+At that offline stage, the authorized live/provider/hosted budget was **zero**.
+That prerequisite did not dispatch live calls, publish datasets/prompts, enable
+hosted rules, change credentials or configured databases, merge, or deploy.
 
 A later explicitly authorized pilot can start with the two locale resume
 sequences: six baseline/candidate generated-turn pairs (12 foreground generation
