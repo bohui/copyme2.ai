@@ -12,7 +12,7 @@ import time
 from typing import Literal
 
 from pydantic import BaseModel,ConfigDict,Field
-from .interview_plan import ACKNOWLEDGEMENT_DESCRIPTION,PhotoAssociation,TurnWorkPlan
+from .interview_plan import ACKNOWLEDGEMENT_DESCRIPTION,QUESTION_DESCRIPTION,PhotoAssociation,TurnWorkPlan
 from .two_lane_memory import PreparedQuestion, pending_confirmation
 from .prompt_composition import render_prompt_artifact
 from .prompt_artifact import prompt_path
@@ -59,7 +59,7 @@ class InterviewStrategyPlan(BaseModel):
 class ImmediateSelection(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True)
     acknowledgement:str=Field(min_length=1,max_length=2000,description=ACKNOWLEDGEMENT_DESCRIPTION)
-    question:str|None=Field(max_length=800)
+    question:str|None=Field(max_length=800,description=QUESTION_DESCRIPTION)
     selected_candidate_id:str|None=Field(max_length=128)
     selection_reason:SelectionReason
     used_strategy:Strategy

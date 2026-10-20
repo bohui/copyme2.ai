@@ -50,9 +50,13 @@ class QuestionContext(StrictModel):
     historical_clue_id: str | None = Field(default=None, max_length=128)
 
 
+QUESTION_DESCRIPTION = ('One answerable follow-up grounded in the narrator’s facts and current focus. '
+    'Match the requested pace; when distressed, offer skip/continue without probing painful details.')
+
+
 class QuestionCandidate(StrictModel):
     id: str = Field(min_length=1, max_length=128)
-    question: str = Field(min_length=1, max_length=800)
+    question: str = Field(min_length=1, max_length=800,description=QUESTION_DESCRIPTION)
     context: QuestionContext
     order: int = Field(ge=0, le=100)
     bridge: str = Field(max_length=500)
