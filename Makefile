@@ -1,6 +1,8 @@
 MOCKER ?= mocker
 APPLE_CONTAINER_BIN ?= /opt/homebrew/bin/container
 COMPOSE_FILE ?= compose.yml
+.DEFAULT_GOAL := help
+
 CONTAINER_REBUILD ?= 0
 API_PORT ?= 8010
 WEB_PORT ?= 3010
@@ -56,7 +58,7 @@ TUNNEL_LABEL := com.cloudflare.cloudflared.copyme2
 SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
 SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
-.PHONY: help check migrate reset db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval prompt-export prompt-check prompt-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
+.PHONY: help check migrate db-reset db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval prompt-export prompt-check prompt-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 .PHONY: _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
 .PHONY: prompt-sync prompt-sync-check prompt-sync-install
@@ -109,7 +111,7 @@ migrate: ## Apply the consolidated Supabase migration using tracked migration hi
 	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before running migrations."; exit 1; }; \
 	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes
 
-reset: ## Reset the disposable Supabase database from the consolidated baseline without seeding.
+db-reset: ## Reset the disposable Supabase database from the consolidated baseline without seeding.
 	@set -a; \
 	if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; \
 	set +a; \
