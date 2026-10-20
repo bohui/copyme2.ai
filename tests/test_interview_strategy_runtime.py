@@ -295,3 +295,31 @@ def test_active_selector_finishes_actual_send_while_planner_transport_is_stalled
             if not job.done():job.cancel()
             await asyncio.gather(job,return_exceptions=True)
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('text,language,topic',[
+    ('Skip that question. I do not want to discuss the kitchen.','en-AU','kitchen'),
+    ('跳过这个问题。我不想聊厨房。','zh-CN','厨房'),
+])
+def test_exclusion_acknowledgement_saves_privacy_work_without_forcing_a_redirect(sql,tmp_path,monkeypatch,text,language,topic):
+    calls=[]
+    def provider(request):
+        body=json.loads(request.content);calls.append(body)
+        assert json.loads(body['governed']['packet'])['current']['narrator']['original']==text
+        return httpx.Response(200,json={'reply':json.dumps(wire(acknowledgement='Understood.',question=None,
+            selection_reason='direct_answer',work={'mode':'extract','name':None})),
+            'thread_id':'exclusion','artifacts':[]})
+    with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
+        response=client.post('/v1/agent/turn',json={'text':text,'language':language,'client_turn_id':str(uuid4())},
+            headers={'accept':'application/x-ndjson'})
+        assert response.status_code==200,response.text
+        events=[json.loads(line) for line in response.text.splitlines()]
+        assert not any(event['type']=='error' for event in events)
+        assert [event['type'] for event in events].count('conversation_saved')==1
+        saved=events[-1]['data'];assert saved['conversation_saved'] and saved['reply']=='Understood.'
+    identity=rpc(sql,'resolve_lifetime_conversation',literal(saved['project_id']))
+    pins=rpc(sql,'read_lifetime_pinned',literal(identity['conversation_id']))
+    assert topic in json.dumps(pins['excluded_topics'],ensure_ascii=False)
+    assert sql('select text from public.user_narrator_source;').stdout.strip()==text
+    assert sql("select collector->'plan'->'work'->>'mode' from public.user_interview_turn;").stdout.strip()=='extract'
+    assert len(calls)==1
