@@ -70,7 +70,7 @@ class QuestionCandidate(StrictModel):
 
 class TurnWorkPlan(StrictModel):
     mode: Literal['reply_only', 'extract'] = Field(description=
-        'Use the whole current message. reply_only is for a name-only greeting, farewell or pure stop without new memory details or workspace actions. Factual clues, corrections, privacy/topic boundaries, language/profile changes and photo discussion require extract, even in a short message.')
+        'Use the whole current message. reply_only is for a name-only greeting, farewell or conversational pause/stop, including current distress, without new memory details or workspace actions. A request to stop for today is not a lasting privacy/topic exclusion. Factual clues, corrections, lasting privacy/topic exclusions, language/profile changes and photo discussion require extract, even in a short message or a story ending with a request to stop.')
     name: str | None = Field(max_length=120)
 
 

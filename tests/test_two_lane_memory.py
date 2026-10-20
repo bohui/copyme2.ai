@@ -1024,6 +1024,10 @@ def test_database_rollout_guard_cannot_be_enabled_by_an_authenticated_rpc_caller
     ('Please continue in English. 我记得花园。','en-AU','extract',None,False),
     ('What happens to my memories?','en-AU','reply_only',None,False),
     ('I would like to pause here. Please do not ask another question.','en-AU','reply_only',None,True),
+    ('This is upsetting. Stop here for today.','en-AU','reply_only',None,True),
+    ('这让我很难受。今天就到这里吧。','zh-CN','reply_only',None,True),
+    ('My father repaired bicycles in Hobart. Stop here for today.','en-AU','extract',None,True),
+    ('我父亲在霍巴特修自行车。今天就到这里吧。','zh-CN','extract',None,True),
     ("Don't discuss my school. I meant my mother, not my sister.",'en-AU','extract',None,False),
 ])
 def test_flag_on_single_collector_work_question_and_language_contract(sql,tmp_path,monkeypatch,text,language,mode,name,stopped):
@@ -1057,3 +1061,7 @@ def test_flag_on_single_collector_work_question_and_language_contract(sql,tmp_pa
         assert response.json()['conversation_saved']
         assert len(calls)==1
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='1'
+    assert sql("select collector->'plan'->'work'->>'mode' from public.user_interview_turn;").stdout.strip()==mode
+    if stopped:
+        plan=json.loads(sql("select collector->'plan' from public.user_interview_turn;").stdout.strip())
+        assert plan['candidates']==[] and plan['chosen_id'] is None
