@@ -4,7 +4,7 @@
   "pr": 101,
   "preferred_seconds": 5,
   "fallback_seconds": 10,
-  "latest_source_revision": "06515028e25f9ebf9a49362074256889518b9677",
+  "latest_source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
   "release_accepted": false,
   "shared_app_candidate_enabled": false,
   "policy": {
@@ -1316,11 +1316,9 @@
     "probe_e": "both first turns timed out; two app-server invocations; homes removed",
     "direct_gateway_probe": "valid greeting request returned HTTP 502",
     "remaining": [
-      "current-source full bilingual live quality and latency comparison, including translation ambiguity, retained failures and >10-second outliers",
-      "genuine pre-rollout session continuation and rollback",
-      "long-source retention and independent extraction readback",
-      "bounded real web proxy/browser smoke",
-      "controlled activation after acceptance"
+      "human bilingual semantic review of every current candidate public reply",
+      "decision on the one complete-reply pause outlier above ten seconds",
+      "controlled activation only after those quality gates"
     ],
     "gateway_read_only_log_observation": {
       "services": [
@@ -1389,8 +1387,9 @@
       },
       "release_accepted": false
     },
-    "current_gate": "Diagnose local publication delivery after the backend lock is available, then run the fixed current-source acceptance workload.",
-    "published_followup": "PR104 merged with user approval, normal main-only publication succeeded, all 81 exact prompt pins verified. H stopped on the Chinese negative-topic intent bug; code and persistence regressions fixed at 2725650 and 703795c."
+    "current_gate": "Current native, existing-session, background, and browser structural checks pass; candidate remains disabled pending human bilingual review and the complete-reply outlier decision.",
+    "published_followup": "PR104 merged with user approval, normal main-only publication succeeded, all 81 exact prompt pins verified. H stopped on the Chinese negative-topic intent bug; code and persistence regressions fixed at 2725650 and 703795c.",
+    "current_source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4"
   },
   "checks": [
     {
@@ -1445,6 +1444,50 @@
       "exit_code": 0,
       "source_revision": "743546c138c2672be1c71b7aed22f1987849b369",
       "notes": "Both newly captured 40-row cohorts replayed through the shipped mobile consumer."
+    },
+    {
+      "command": "current native matched acceptance plus independent completion audit",
+      "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+      "rows": 80,
+      "saved_rows": 80,
+      "generated_rows": 76,
+      "cached_replays": 4,
+      "candidate_first_text_median_s": 4.294,
+      "candidate_first_text_within_10_s": "36/36",
+      "candidate_complete_median_s": 5.487,
+      "candidate_complete_within_10_s": "35/36",
+      "background_dispatches": 0,
+      "cleanup_verified": true,
+      "semantic_review_pending": true
+    },
+    {
+      "command": "existing-session continuation, replay, rollback, and long-source follow-up",
+      "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+      "recorded_rows": 16,
+      "saved_rows": 16,
+      "row_failures": 0,
+      "cleanup_verified": true
+    },
+    {
+      "command": "candidate background acceptance",
+      "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+      "cases_passed": 2,
+      "failures": 0,
+      "cleanup_verified_by_post_process_audit": true
+    },
+    {
+      "command": "isolated real-proxy browser smoke",
+      "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+      "turns_passed": 4,
+      "stream_and_save_contract_passed": true,
+      "canonical_fence_checked": true,
+      "storage_failures": 0
+    },
+    {
+      "command": "focused semantic-guard and lifetime regression suite",
+      "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+      "passed": 233,
+      "exit_code": 0
     }
   ],
   "limitations": [
@@ -1452,7 +1495,10 @@
     "Later arm histories naturally diverge after different generated replies.",
     "Gateway load is shared and uncontrolled; no provider-internal attempt count was available.",
     "Semantic review was by the coding agent, not a blinded human preference study.",
-    "Unrelated legacy tests on main reference removed runtime helpers; reproduced separately on clean main."
+    "Unrelated legacy tests on main reference removed runtime helpers; reproduced separately on clean main.",
+    "Current native candidate complete/save timing has one pause-route outlier above ten seconds despite first text at 3.453 seconds.",
+    "The current public-reply semantic review is a bounded contract audit, not a blinded human bilingual study.",
+    "The isolated browser smoke observed optional readiness 500s; turn streaming, durable save, and storage audits remained clean."
   ],
   "shared_app_configuration_observed": {
     "services": [
@@ -2632,7 +2678,7 @@
     "current_blocker": "Another local make up operation holds the existing backend lock; native and browser rechecks wait for it. Independent disposable-database connection diagnostics use no shared services and no model calls."
   },
   "translation_grounding_followup": {
-    "source_revision": "06515028e25f9ebf9a49362074256889518b9677",
+    "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
     "observed_failure": {
       "row": "issue53/switch-skip/en-AU/turn-4/0/candidate",
       "current_source": "My sister walked to school with me.",
@@ -2645,7 +2691,164 @@
       "passed": 193,
       "elapsed_s": 57.29
     },
-    "native_regression_status": "prepared; not yet executed",
+    "native_regression_status": "passed in the fresh native negative/translation probe F; held-out bilingual semantic review remains pending",
     "release_accepted": false
+  },
+  "current_acceptance_run": {
+    "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+    "run_dir": "var/issue53-worker-profile-20261020i",
+    "plan_run_id": "815723c6-40b8-4e06-bf0e-b7b239574f11",
+    "status": "completed",
+    "planned_rows": 80,
+    "saved_rows": 80,
+    "application_failures": [],
+    "background_dispatches": 0,
+    "temporary_homes_removed": true,
+    "candidate_route_rows": 38,
+    "deliberate_rollback_rows": 2,
+    "completion_audit": {
+      "path": "var/issue53-worker-profile-20261020i/completion-audit.json",
+      "sha256": "841f34e10b5d5cf15fbe669218c36db1cfe75bc087e03c3ffb03313b80bb0c7f",
+      "measurement_complete": true,
+      "generated": 76,
+      "cached_replays": 4,
+      "native_calls": 78,
+      "source_and_history_wire_fidelity": true,
+      "other_roles_dispatched": 0,
+      "cleanup_reconciled": true,
+      "semantic_acceptance": "manual bilingual review pending"
+    },
+    "fair_comparison_excludes": "two deliberate turn-4 rollback rows routed to the pooled baseline route",
+    "metrics": {
+      "baseline": {
+        "first_public_text_s": {
+          "n": 36,
+          "median": 13.332,
+          "maximum": 47.376,
+          "within_5": 0,
+          "within_10": 9
+        },
+        "reply_complete_s": {
+          "n": 36,
+          "median": 14.5645,
+          "maximum": 48.953,
+          "within_5": 0,
+          "within_10": 6
+        },
+        "conversation_saved_s": {
+          "n": 36,
+          "median": 14.5705,
+          "maximum": 48.958,
+          "within_5": 0,
+          "within_10": 6
+        }
+      },
+      "candidate": {
+        "first_public_text_s": {
+          "n": 36,
+          "median": 4.294,
+          "maximum": 7.332,
+          "within_5": 25,
+          "within_10": 36
+        },
+        "question_validated_s": {
+          "n": 32,
+          "median": 5.475,
+          "maximum": 8.574,
+          "within_5": 12,
+          "within_10": 32
+        },
+        "reply_complete_s": {
+          "n": 36,
+          "median": 5.487,
+          "maximum": 13.62,
+          "within_5": 13,
+          "within_10": 35
+        },
+        "conversation_saved_s": {
+          "n": 36,
+          "median": 5.4925,
+          "maximum": 13.63,
+          "within_5": 13,
+          "within_10": 35
+        }
+      }
+    },
+    "quality_contract_audit": {
+      "candidate_public_replies": 38,
+      "english_replies": 19,
+      "chinese_replies": 19,
+      "durable_saves": 38,
+      "expected_no_question_replies": 4,
+      "human_semantic_review": "pending"
+    }
+  },
+  "existing_session_followup": {
+    "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+    "receipt_dir": "var/issue53-existing-sessions-20261020e",
+    "runner_status": "stopped in optional background wrapper after recorded rows",
+    "recorded_rows": 16,
+    "saved_rows": 16,
+    "row_failures": [],
+    "coverage": [
+      "resumed turns",
+      "saved replay",
+      "deliberate rollback",
+      "long source in both locales"
+    ],
+    "temporary_homes_removed": true,
+    "limitation": "The optional background result is reported separately; the recorded continuation and long-source rows are complete."
+  },
+  "background_acceptance": {
+    "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+    "receipt_dir": "var/issue53-background-acceptance-20261020f",
+    "receipt_sha256": "f3c5e15dda954a91ec3696ab1798cd32fba1d92bc21020e7da711307a0b358f3",
+    "cleanup_audit_sha256": "1e27c7d8a8ffedf643a8bb8b6ba857151910baed2edc536f7b00b127dfd2a7ba",
+    "status": "completed",
+    "cases": [
+      {
+        "case": "correction/en-AU",
+        "iterations": 1,
+        "retrieval_complete": true,
+        "source_count": 3,
+        "memory_count": 3,
+        "event_count": 3
+      },
+      {
+        "case": "name-clue/zh-CN",
+        "iterations": 1,
+        "retrieval_complete": true,
+        "source_count": 3,
+        "memory_count": 3,
+        "event_count": 2
+      }
+    ],
+    "failures": [],
+    "background_dispatches": 7,
+    "temporary_homes_removed": true,
+    "cleanup_note": "The original receipt was written before process teardown and recorded false; post-process audit found no matching task homes."
+  },
+  "browser_smoke": {
+    "source_revision": "e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4",
+    "receipt_dir": "var/issue53-proxy-isolated-20261020r",
+    "receipt_sha256": "0685dc74e12388f5fc22b5f7b40d6cc2ae9392ea7ee6c88df7a48a5616c39cb4",
+    "browser_log_sha256": "74883a08c4094574b2751c71de9f7987be81fe75bc69faef15ecd81ab45307fe",
+    "status": "passed",
+    "turns": [
+      "profile-neutral opening",
+      "later saved turn",
+      "name correction",
+      "resumed pause"
+    ],
+    "http_status": "200 for every turn",
+    "content_type": "application/x-ndjson",
+    "streamed_before_completion": true,
+    "early_unlocks": 0,
+    "duplicate_visible_replies": 0,
+    "durable_sources": 4,
+    "durable_replies": 4,
+    "canonical_fence_observation": "one stale older reply was hidden after a preference revision; accepted testimony and later valid replies remained visible",
+    "optional_readiness_500s": true,
+    "storage_failures": 0
   }
 }

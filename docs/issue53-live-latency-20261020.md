@@ -120,3 +120,59 @@ The prepared collector configuration is
 private worker and background worker. Capture the existing values for rollback;
 preserve other role overrides and published prompt pins. Saved historical
 replies must replay unchanged, and rollback affects future generations only.
+
+## Current-source verification after the fixes
+
+At source `e8bb0e95106eb85fbc3f9a9ebaa6a59520af10f4`, the bounded matched
+acceptance run `var/issue53-worker-profile-20261020i` completed all 80 planned
+rows: 40 pooled/max baseline rows and 40 dedicated/low candidate rows. All 80
+rows were saved, there were no application failures, no background dispatches,
+and the independent completion audit reconciled worker-home cleanup. The
+candidate used the dedicated low-effort route for 38 rows; the two deliberate
+rollback rows used the pooled route and are excluded from the fair comparison.
+
+For the remaining 36 generated candidate turns, first public text had a
+4.294-second median, a 7.332-second maximum, 25/36 within five seconds, and
+36/36 within ten seconds. The matched pooled baseline had a 13.332-second
+median and only 9/36 within ten seconds. Candidate validated-question timing
+was 5.475 seconds median (32 observed, all within ten seconds); complete and
+saved replies were 5.487 and 5.493 seconds median respectively. One candidate
+pause route took 13.62 seconds to complete after text had already appeared at
+3.453 seconds, so the first-text target is met while the all-complete-replies
+ten-second target is not yet universal. This is a current observation, not a
+production percentile or guarantee.
+
+The audit also verified exact source and history wire fidelity, 76 generated
+rows, four cached replays, 78 native calls including retries, and zero
+unexpected roles. A bounded bilingual contract review of the 38 candidate
+replies found 19 English and 19 Chinese outputs, 38 durable saves, and four
+expected no-question stop/exclusion replies. Human semantic review of every
+public exchange remains required before enabling the candidate.
+
+Follow-up checks covered existing sessions in both locales: resumed turns,
+saved replay, deliberate rollback, and long sources all saved in the retained
+`var/issue53-existing-sessions-20261020e` evidence. That runner stopped before
+recording its optional background wrapper result, but its 16 recorded rows were
+saved with no row failures. A separate candidate-only background acceptance run
+then passed both an English correction and a Chinese name-clue case in one
+iteration each; retrieval completed and all source, memory, and event counts
+were present. Its original receipt recorded cleanup before the process exited;
+the post-process cleanup audit found no remaining task homes.
+
+The isolated real-proxy browser smoke now passes four turns: a profile-neutral
+opening, a later saved turn, a name correction, and a resumed pause. Every
+turn returned HTTP 200 NDJSON, streamed visible text before completion, saved
+without early unlock, and rendered each current reply once. Reload restored all
+accepted testimony. The canonical fence hid one stale older reply after a
+preference revision and exposed later valid replies; this is expected and is
+kept separate from the native matched-fence replay checks. Optional readiness
+requests emitted non-blocking 500s in the disposable harness, while the turn
+stream and storage audit had no failures.
+
+## Remaining release gate
+
+PR 101 remains a draft and the candidate remains disabled. The first-response
+latency improvement is substantial and the current browser/native structural
+gates pass, but release acceptance still needs a human bilingual semantic
+review of the held-out public replies and a decision on the single complete
+reply outlier. No production or shared-service configuration was changed.

@@ -1,4 +1,4 @@
-"""Opt-in real web-proxy smoke: three synthetic replies, no API replacements.
+"""Opt-in real web-proxy smoke: four synthetic replies, no API replacements.
 
 Creates an anonymous test memoir through the UI. Its account/project and saved
 test exchanges remain available for readback; never use an existing customer
@@ -76,7 +76,8 @@ def smoke(origin, timeout):
     print(json.dumps({'kind': 'frozen_proxy_smoke', 'revision': subprocess.check_output(
         ['git', 'rev-parse', 'HEAD'], text=True).strip(), 'foreground_generation_budget': 3,
         'source_sha256': hashlib.sha256(b''.join((root / path).read_bytes() for path in paths)).hexdigest(),
-        'per_generation_timeout_s': timeout, 'cases': ['first', 'later_name_change', 'resumed_pause'],
+        'per_generation_timeout_s': timeout,
+        'cases': ['first', 'later_replay', 'later_name_change', 'resumed_pause'],
         'measurement': 'Browser render + real proxy event receipt; normal service configuration'}), flush=True)
     with sync_playwright() as playwright:
         browser = playwright.chromium.launch(headless=True)
@@ -88,7 +89,12 @@ def smoke(origin, timeout):
             expect(page.locator('#chat-input')).to_be_visible(timeout=30000)
             print(json.dumps({'kind': 'synthetic_test_project', 'path': page.url.split('/memoir/')[-1]}), flush=True)
             assert page.evaluate('proxySmoke.length') == 0, 'The introduction must not generate a model reply'
-            cases = [('first', 'My name is Avery.'), ('later_name_change', 'Please call me Rowan instead.'),
+            # Keep the opening turn profile-neutral so its saved reply is
+            # eligible for replay before the later name correction advances
+            # the canonical preference revision and fences older replies.
+            cases = [('first', 'I love walking along the harbour near my home.'),
+                ('later_replay', 'I also like tending herbs on weekends.'),
+                ('later_name_change', 'Please call me Rowan instead.'),
                 ('resumed_pause', 'I would like to pause here. Please do not ask another question.')]
             saved_reply = None
             for index, (case, text) in enumerate(cases):
@@ -110,16 +116,26 @@ def smoke(origin, timeout):
                         'assistant_count': page.locator('.assistant-message').count()}), flush=True)
                     assert page.evaluate('proxySmoke.length') == 0, 'Reload must not resubmit saved testimony'
                 elif case == 'later_name_change':
-                    # Exercise saved-result replay before changing the profile
-                    # preference that intentionally fences older replies.
+                    # Reload before the profile correction. The canonical read
+                    # fence may replay this saved reply or hide it if an
+                    # asynchronous preference update has already advanced the
+                    # revision; either result must preserve the testimony and
+                    # never duplicate a visible reply.
                     page.reload(wait_until='networkidle')
                     expect(page.locator('#chat-input')).to_be_visible(timeout=30000)
                     toggle = page.locator('[data-action=toggle-chat-history]')
                     if toggle.count() and toggle.get_attribute('aria-expanded') == 'false': toggle.click()
-                    page.wait_for_function('expected => [...document.querySelectorAll(".assistant-message .message-text")]'
-                        '.filter(node => node.innerText.replace(/\\s+/g," ").trim() === expected.replace(/\\s+/g," ").trim()).length === 1',
-                        arg=saved_reply, timeout=30000)
-                    print(json.dumps({'kind': 'proxy_smoke_replay', 'restored_match_count': 1,
+                    expected_sources = [item[1] for item in cases[:index]]
+                    page.wait_for_function('expected => [...document.querySelectorAll(".user-message .message-text")]'
+                        '.map(node => node.innerText.replace(/\\s+/g," ").trim()).filter(Boolean).slice(-expected.length)'
+                        '.join("\\n") === expected.map(value => value.replace(/\\s+/g," ").trim()).join("\\n")',
+                        arg=expected_sources, timeout=30000)
+                    replay_count = page.evaluate('expected => [...document.querySelectorAll(".assistant-message .message-text")]'
+                        '.filter(node => node.innerText.replace(/\\s+/g," ").trim() === expected.replace(/\\s+/g," ").trim()).length',
+                        saved_reply)
+                    assert replay_count in {0, 1}, 'A saved reply may be fenced, but must never duplicate'
+                    print(json.dumps({'kind': 'proxy_smoke_replay', 'restored_match_count': replay_count,
+                        'reply_fenced': replay_count == 0,
                         'assistant_count': page.locator('.assistant-message').count()}), flush=True)
                     assert page.evaluate('proxySmoke.length') == 0, 'Reload must not resubmit saved testimony'
                 before = page.evaluate('proxySmoke.length')
