@@ -27,7 +27,7 @@ def reply(updates=None):
     result = {'acknowledgement': 'We can continue at your pace.',
         'plan': {'candidates': [{'id': 'q1', 'question': 'What comes to mind?',
             'context': {'event_id': None, 'photo_id': None, 'life_stage': None,
-                        'year': None, 'historical_clue_id': None}, 'order': 0, 'bridge': ''}],
+                        'year': None, 'historical_clue_id': None, 'evidence': None}, 'order': 0, 'bridge': ''}],
             'chosen_id': 'q1', 'active_event_id': None, 'work': None},
         'associations': [], 'response_photo_ids': [], 'stopped': False}
     if updates is not None:
@@ -260,6 +260,80 @@ def test_model_and_literal_fallback_deduplicate_same_control():
     ctx = context("Don't discuss my school")
     rows = validate_governed_collector_result(reply([update(ctx, 'excluded_topic')]), ctx)['continuity_updates']
     assert len(rows) == 1
+
+
+def test_null_spanned_overwide_literal_control_is_canonicalized():
+    from apps.api.lifetime_memory_continuity import literal_continuity_updates
+    ctx = context('跳过这个问题。我不想聊厨房。')
+    item = update(ctx, 'excluded_topic', ctx['source']['text'], char_start=None, char_end=None)
+    rows = validate_governed_collector_result(reply([item]), ctx)['continuity_updates']
+    assert rows == literal_continuity_updates(ctx)
+
+
+@pytest.mark.parametrize('kind', ['person', 'unresolved_reference'])
+def test_required_offsets_cannot_be_manufactured_for_person_or_reference(kind):
+    ctx = context()
+    item = update(ctx, kind)
+    item.pop('char_start')
+    item.pop('char_end')
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
+def test_explicit_wrong_span_cannot_be_canonicalized_as_a_control():
+    ctx = context("Skip. Don't discuss my school.")
+    quote = "Skip. Don't discuss my school"
+    item = update(ctx, 'excluded_topic', quote=quote, char_start=1, char_end=1 + len(quote))
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
+def test_missing_offsets_cannot_be_canonicalized_as_a_control():
+    ctx = context("Don't discuss my school")
+    item = update(ctx, 'excluded_topic')
+    item.pop('char_start')
+    item.pop('char_end')
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
+@pytest.mark.parametrize('text', [
+    "Skip. Don't discuss my school. Don't mention my workplace.",
+    "Skip. Don't discuss my school. I'll return to the garden later.",
+])
+def test_ambiguous_overwide_control_quote_is_rejected(text):
+    ctx = context(text)
+    item = update(ctx, 'excluded_topic', quote=ctx['source']['text'], char_start=None, char_end=None)
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
+@pytest.mark.parametrize('changes', [
+    {'source_id': str(UUID(int=999))},
+    {'source_version': 2},
+    {'text': 'fabricated wording', 'quote': 'fabricated wording'},
+])
+def test_overwide_literal_fallback_validates_source_metadata_and_quote(changes):
+    ctx = context('跳过这个问题。我不想聊厨房。')
+    item = update(ctx, 'excluded_topic', ctx['source']['text'], char_start=None, char_end=None)
+    item.update(changes)
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([item]), ctx)
+
+
+def test_overwide_literal_fallback_cannot_bypass_update_limit():
+    ctx = context('跳过这个问题。我不想聊厨房。')
+    item = update(ctx, 'excluded_topic', ctx['source']['text'], char_start=None, char_end=None)
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(reply([deepcopy(item) for _ in range(9)]), ctx)
+
+
+def test_explicit_overwide_literal_control_still_fails_closed():
+    ctx = context('跳过这个问题。我不想聊厨房。')
+    item = update(ctx, 'excluded_topic', ctx['source']['text'],
+                  char_start=0, char_end=len(ctx['source']['text']))
+    with pytest.raises(ValueError, match='Privacy and commitment'):
+        validate_governed_collector_result(reply([item]), ctx)
 
 
 def test_old_worker_phase_cannot_become_a_saved_preference():

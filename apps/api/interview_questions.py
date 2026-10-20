@@ -45,12 +45,27 @@ def validate_question_evidence(value, context):
     return ref.model_copy(update={'char_start': start, 'char_end': end})
 
 
-def question_evidence_schema(schema):
+def question_evidence_schema(schema, context=None):
     ref = schema.get('$defs', {}).get('EvidenceRef')
     if ref:
         ref['required'] = list(ref['properties'])
         for field in ref['properties'].values():
             field.pop('default', None)
+        for name in ('char_start','char_end'):
+            ref['properties'][name]['description']=(
+                'For a current-source quote occurring exactly once, use null for BOTH offsets; '
+                'the application finds and validates its exact span. For repeated wording, supply '
+                'exact absolute Unicode character offsets. For a queued hint, copy its supplied offsets.')
+        if context is not None:
+            source = context.get('source') or {}
+            allowed = ([source['id']] if source.get('status') == 'active'
+                and source.get('kind', 'narrator_chat') in {'narrator_chat', 'narrator_transcript'} else [])
+            allowed.extend(evidence['source_id'] for hint in question_candidates(context)
+                           if (evidence := hint_evidence(hint, context)) is not None)
+            if allowed:
+                ref['properties']['source_id']['enum'] = list(dict.fromkeys(allowed))
+            else:
+                schema['$defs']['EvidenceRef'] = {'type': 'null'}
     return schema
 
 

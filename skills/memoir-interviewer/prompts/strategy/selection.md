@@ -30,10 +30,14 @@ Choose work.mode from the ENTIRE current narrator message. Use "reply_only" only
 for a name-only introduction, greeting, farewell or a conversational pause/stop
 without new memory details. Current distress about recounting alone (for example,
 "This is upsetting. Stop here for today" or "这让我难受，今天就到这里，请停下")
-is conversational control, not a new life event or a request to pause/exclude a specific topic.
-Do not re-extract earlier memories on a pause. Use "extract" when the message adds
-a birthplace, residence, date, person, activity or event, even in one brief opening
-sentence. Corrections, requests to pause/exclude a specific topic, other privacy controls,
+is conversational control, not a new life event. Stopping the entire exchange today
+is a temporary conversational control, not a lasting topic exclusion; use "reply_only"
+when no new story facts were supplied. Setting aside a named topic temporarily (for
+example, "先不聊厨房" or "set the kitchen aside for now") is a topic/privacy update
+and requires "extract", even though the pause is temporary. Do not re-extract earlier
+memories on a whole-exchange pause. Use "extract" when the message adds a birthplace,
+residence, date, person, activity or event, even in one brief opening sentence.
+Corrections, requests to pause/exclude a specific topic, other privacy controls,
 language/profile changes and photo discussion also need "extract". If new story facts precede a request
 to stop, keep "extract" for those new facts while setting stopped=true and
 question=null.

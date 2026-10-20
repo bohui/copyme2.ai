@@ -10,6 +10,7 @@ from __future__ import annotations
 from copy import deepcopy
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -29,6 +30,10 @@ from .lifetime_memory_contracts import (
 )
 from .lifetime_memory_execution import open_execution
 from .lifetime_memory_publication import ProviderPublication
+from .diagnostics import configure_diagnostic_logger, log_diagnostic
+
+
+diagnostic_logger = configure_diagnostic_logger(logging.getLogger('memoir.collector.diagnostics'))
 
 
 # Native outputSchema also constrains commentary. Forcing a preamble required
@@ -350,7 +355,8 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         return _admission(publisher, json.loads(fence_snapshot))
     # Snapshot validation-only data before awaiting provider work.
     interview_context = deepcopy(interview_context)
-    from .interview_plan import CollectorVisibleStream, historical_acknowledgement_allowed
+    from .interview_plan import (CollectorVisibleStream, historical_acknowledgement_allowed,
+        translation_grounding_violation, TRANSLATION_GROUNDING_ERROR)
     visible = CollectorVisibleStream()
     streamed_acknowledgement = None
 
@@ -358,7 +364,8 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         nonlocal streamed_acknowledgement
         value = visible.feed(chunk)
         if (value and historical_acknowledgement_allowed(value, interview_context)
-                and (acknowledgement is None or value == acknowledgement)):
+            and not translation_grounding_violation(value, interview_context)
+            and (acknowledgement is None or value == acknowledgement)):
             streamed_acknowledgement = value
             # Only the complete validated acknowledgement crosses this boundary.
             await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
@@ -401,10 +408,14 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'Privacy and commitment continuity require asserted direct narrator wording',
                 'Continuity text must preserve the exact attributed quote',
                 'Continuity span must cover exact original characters',
+                'Question evidence span must match the referenced passage',
+                'Question evidence needs one exact passage or explicit offsets',
+                'Question evidence is outside the supplied narrator passages',
                 'Inferred continuity requires explicit uncertainty',
                 'Duplicate continuity update',
                 'Candidate is stale, asked or outside this project',
                 'Current intent overrides prepared candidates',
+                'Current intent requires one appropriate follow-up question',
                 'Candidate use requires its recorded reason',
                 'Candidate identity required',
                 'Prepared candidate text changed',
@@ -413,6 +424,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'Current pause requires no question',
                 'A stop cannot force a question',
                 'Correction cannot replace the streamed acknowledgement',
+                TRANSLATION_GROUNDING_ERROR,
             }
             reason = str(error) if str(error) in reasons else 'SCHEMA_OR_OTHER_CONTRACT'
             if isinstance(error,json.JSONDecodeError):reason='INVALID_JSON'
@@ -426,9 +438,10 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                     if cause in reasons:
                         reason = cause
                         break
-            import logging
-            logging.getLogger(__name__).warning('governed_collector rejected reason=%s',
-                reason)
+            log_diagnostic(diagnostic_logger, 'collector_output_rejected',
+                (responsesapi_client_metadata or {}).get('request_id'),
+                component='memoir.collector', agent_role='collector', model=model,
+                requested_effort=effort, status='rejected', error_code=reason)
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn',reason=reason) from None

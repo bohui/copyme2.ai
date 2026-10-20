@@ -37,14 +37,16 @@ class _ContinuityUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
 
     kind: Literal['person', 'unresolved_reference', 'commitment', 'excluded_topic', 'paused_topic']
-    text: str = Field(min_length=1, max_length=500)
+    text: str = Field(min_length=1, max_length=500,
+        description='Verbatim copy of quote. Do not extract a shorter name, label or paraphrase.')
     assertion: Literal['asserted', 'inferred']
     uncertainty: str | None = Field(max_length=500)
     source_id: str = Field(min_length=1, max_length=128)
     source_version: int = Field(ge=1, strict=True)
     char_start: int = Field(ge=0, strict=True)
     char_end: int = Field(ge=1, strict=True)
-    quote: str = Field(min_length=1, max_length=500)
+    quote: str = Field(min_length=1, max_length=500,
+        description='Exactly identical to text, character for character, and a verbatim substring of the current narrator source. Not a longer supporting sentence for a shorter text.')
 
     @model_validator(mode='after')
     def faithful_text(self):
@@ -271,30 +273,65 @@ def validate_governed_collector_result(raw, context):
                            'selection_reason': 'prepared_candidate', 'question_delivered': chosen['question']}
     if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
     source = _current_source(context)
+    literal = _literal_directives(source) if source else []
     updates = value.get('continuity_updates', [])
     if isinstance(updates, list):
         updates = [dict(item) if isinstance(item, dict) else item for item in updates]
+        overwide = []
+        structurally_validated = []
         for item in updates:
-            if not source or not isinstance(item, dict):
-                continue
-            start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
-            locate = ('char_start' in item and 'char_end' in item and start is None and end is None)
-            explicit = type(start) is int and start >= 0 and type(end) is int and end >= 1
-            if (not (locate or explicit)
-                    or not isinstance(quote, str) or not 0 < len(quote) <= 500
-                    or item.get('source_id') != source['id']
-                    or type(item.get('source_version')) is not int or item['source_version'] != source['version']):
-                continue
-            if locate or source['text'][start:end] != quote:
-                original_start = source['text'].find(quote)
-                if original_start >= 0 and source['text'].find(quote, original_start + 1) < 0:
-                    # Resolve a unique exact quote before typed span validation.
-                    item['char_start'] = original_start
-                    item['char_end'] = original_start + len(quote)
-    proposed = _Updates.model_validate({'continuity_updates': updates}).continuity_updates
+            candidate = item
+            is_overwide = False
+            if isinstance(item, dict):
+                start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
+                locate = ('char_start' in item and 'char_end' in item
+                          and start is None and end is None)
+                explicit = type(start) is int and start >= 0 and type(end) is int and end >= 1
+                needs_repair = (locate or (explicit and source and isinstance(quote, str)
+                                           and source['text'][start:end] != quote))
+                if needs_repair and source and isinstance(quote, str):
+                    original_start = source['text'].find(quote)
+                    unique = (original_start >= 0
+                              and source['text'].find(quote, original_start + 1) < 0)
+                    if unique:
+                        matching_literals = [direct for direct in literal
+                            if direct.quote in quote and direct.quote != quote]
+                        is_overwide = (
+                            locate
+                            and item.get('assertion') == 'asserted'
+                            and item.get('kind') in _DIRECT_KINDS
+                            and len(matching_literals) == 1
+                            and matching_literals[0].kind == item.get('kind'))
+                        # Validate the raw proposal with a temporary exact span
+                        # before a host-owned over-wide control can be removed.
+                        candidate = dict(item)
+                        candidate['char_start'] = original_start
+                        candidate['char_end'] = original_start + len(quote)
+                        if not is_overwide:
+                            item['char_start'] = candidate['char_start']
+                            item['char_end'] = candidate['char_end']
+            structurally_validated.append(candidate)
+            overwide.append(is_overwide)
+        # This runs before normalization, so invalid metadata, fabricated
+        # quotes, and over-limit arrays cannot disappear through fallback.
+        _Updates.model_validate({'continuity_updates': structurally_validated})
+        if updates and source is None:
+            raise ValueError('Continuity requires exact current narrator evidence')
+        for item in updates:
+            if (item['source_id'] != source['id']
+                    or item['source_version'] != source['version']):
+                raise ValueError('Continuity requires exact current narrator evidence')
+        # Privacy and commitment controls are host-owned literals. A model can
+        # occasionally quote the whole control sentence plus a preceding pacing
+        # sentence (with null offsets), which is semantically safe but cannot pass
+        # the exact-span check. Canonicalize only this asserted, null-spanned,
+        # unambiguous over-wide form after the complete raw list is validated.
+        normalized = [item for item, is_overwide in zip(updates, overwide) if not is_overwide]
+    else:
+        normalized = updates
+    proposed = _Updates.model_validate({'continuity_updates': normalized}).continuity_updates
     if proposed and source is None:
         raise ValueError('Continuity requires exact current narrator evidence')
-    literal = _literal_directives(source) if source else []
     seen = set()
     for item in proposed:
         if (item.source_id != source['id'] or item.source_version != source['version']

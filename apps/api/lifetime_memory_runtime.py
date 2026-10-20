@@ -335,7 +335,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     result=await runtime._worker_turn(user_id=storage.user_id,prior=None,memories=[],profile={},place_journey={},
                         family_enabled=False,family_context={},project_id=project_id,text='',language=selected_language,
                         interview_context=context,governed=governed.model_dump(mode='json'),on_delta=delta if on_delta else None,
-                        on_event=None if two_lane else progress.harness_event,evaluation=evaluation,trajectory=trajectory)
+                        on_event=None if two_lane else progress.harness_event,evaluation=evaluation,trajectory=trajectory,
+                        diagnostic_request_id=client_turn_id)
                     if trajectory is not None:
                         trajectory.append_trajectory(result.get('trajectory'),source='canonical-worker')
                 else:
@@ -343,7 +344,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                         api_key=runtime.api_key,model=collector.model,governed=governed,interview_context=context,
                         timeout=runtime.timeout,on_delta=delta if on_delta else None,on_event=None if two_lane else progress.harness_event,
                         effort=collector.effort,issue14_admission=runtime._issue14_admission,trajectory=trajectory,
-                        responsesapi_client_metadata=evaluation)
+                        responsesapi_client_metadata={**(evaluation or {}),'request_id':client_turn_id})
             except PolicyUnavailable:
                 raise await policy_pending() from None
             except CanonicalActivationUnavailable as error:

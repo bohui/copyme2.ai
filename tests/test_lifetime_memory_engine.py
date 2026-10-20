@@ -2,6 +2,7 @@
 import asyncio
 from copy import deepcopy
 import json
+import logging
 from pathlib import Path
 import tomllib
 from uuid import UUID
@@ -233,17 +234,44 @@ def test_each_turn_has_new_home_even_for_same_fence(tmp_path):
     assert FakeConnection.instances[0].home != FakeConnection.instances[1].home
 
 
-def test_continuity_validation_diagnostic_names_fixed_reason_without_private_values(tmp_path, caplog):
+def test_continuity_validation_diagnostic_names_fixed_reason_without_private_values(tmp_path, caplog, monkeypatch):
+    import apps.api.lifetime_memory_engine as engine
+    monkeypatch.setattr(engine, 'diagnostic_logger', logging.getLogger(__name__))
+    caplog.set_level(logging.INFO)
     from apps.api.lifetime_memory_engine import CollectorOutputInvalid
     value=json.loads(valid_reply())
     value['continuity_updates']=[dict(kind='person',text='PRIVATE NARRATOR VALUE',
         quote='PRIVATE NARRATOR VALUE',assertion='asserted',uncertainty=None,
         source_id=str(UUID(int=4)),source_version=1,char_start=0,char_end=1)]
     FakeConnection.reply=json.dumps(value)
+    request_id=str(UUID(int=9))
     with pytest.raises(CollectorOutputInvalid):
-        run(tmp_path)
+        run(tmp_path,responsesapi_client_metadata={'request_id':request_id})
+    diagnostic=json.loads(caplog.records[-1].message.split('memoir_diagnostic ',1)[1])
+    assert diagnostic['event']=='collector_output_rejected'
+    assert diagnostic['request_id']==request_id
+    assert diagnostic['model']=='synthetic-byte-bpe'
     assert 'Continuity span must cover exact original characters' in caplog.text
     assert 'PRIVATE NARRATOR VALUE' not in caplog.text
+
+
+@pytest.mark.parametrize('source_id,reason', [
+    (str(UUID(int=4)), 'Question evidence span must match the referenced passage'),
+    (str(UUID(int=5)), 'Question evidence is outside the supplied narrator passages'),
+])
+def test_question_evidence_repair_names_fixed_reason_without_private_values(tmp_path, caplog, monkeypatch, source_id, reason):
+    import apps.api.lifetime_memory_engine as engine
+    monkeypatch.setattr(engine, 'diagnostic_logger', logging.getLogger(__name__))
+    caplog.set_level(logging.INFO)
+    value=json.loads(valid_reply())
+    value['plan']['candidates'][0]['context']['evidence']=dict(source_id=source_id,
+        version=1,quote='blue umbrella',char_start=13,char_end=26,attribution=None)
+    FakeConnection.reply=json.dumps(value)
+    with pytest.raises(engine.CollectorOutputInvalid) as failure:
+        run(tmp_path)
+    assert failure.value.reason==reason
+    assert reason in caplog.text
+    assert 'blue umbrella' not in caplog.text
 
 
 @pytest.mark.parametrize('changes', [
@@ -355,7 +383,8 @@ def test_valid_second_response_uses_the_same_packet_in_a_new_home(tmp_path):
     assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances})==1
 
 
-def test_invalid_private_continuity_retries_without_repeating_streamed_acknowledgement(tmp_path):
+@pytest.mark.parametrize('label_only', [False, True])
+def test_invalid_private_continuity_retries_without_repeating_streamed_acknowledgement(tmp_path, label_only):
     invalid = json.loads(valid_reply())
     invalid['continuity_updates'] = [{
         'kind': 'person', 'text': 'Ming', 'quote': 'Ming',
@@ -363,6 +392,9 @@ def test_invalid_private_continuity_retries_without_repeating_streamed_acknowled
         'source_id': str(UUID(int=4)), 'source_version': 1,
         'char_start': 0, 'char_end': 4,
     }]
+    if label_only:
+        invalid['continuity_updates'][0].update(text='blue umbrella',quote=TEXT,
+            char_start=None,char_end=None)
     class RecoveringStream(FakeConnection):
         async def turn(self, thread_id, prompt, **options):
             await super().turn(thread_id, prompt, **options)
@@ -379,13 +411,15 @@ def test_invalid_private_continuity_retries_without_repeating_streamed_acknowled
     assert [json.loads(chunk) for chunk in seen] == [
         {'acknowledgement': json.loads(valid_reply())['acknowledgement']}]
     assert 'Ming' not in ''.join(seen) and 'Where did you carry it?' not in ''.join(seen)
+    assert 'continuity_updates' not in ''.join(seen)
     assert FakeConnection.instances[1].turns[0][2]['output_schema']['properties']['acknowledgement']['enum'] == [
         json.loads(valid_reply())['acknowledgement']]
     assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances}) == 1
 
 
-@pytest.mark.parametrize('invalid_ack', ['An unvalidated question?', '', 'x' * 2001],
-                         ids=['question', 'empty', 'oversized'])
+@pytest.mark.parametrize('invalid_ack', ['An unvalidated question?', '', 'x' * 2001,
+    '好的，我们跳过厨房。您想从哪段经历聊起呢','What would you like to remember.'],
+                         ids=['question', 'empty', 'oversized','bare-chinese-question','bare-english-question'])
 def test_invalid_acknowledgements_stay_hidden_during_bounded_retry(tmp_path, invalid_ack):
     from apps.api.interview_plan import CollectorVisibleStream
     invalid = json.loads(valid_reply())
@@ -531,7 +565,10 @@ def test_other_provider_terminal_failures_are_not_retried(tmp_path,message,statu
     assert len(FakeConnection.instances)==1
 
 
-def test_repair_diagnostics_keep_only_server_owned_field_names(tmp_path,caplog):
+def test_repair_diagnostics_keep_only_server_owned_field_names(tmp_path,caplog,monkeypatch):
+    import apps.api.lifetime_memory_engine as engine
+    monkeypatch.setattr(engine, 'diagnostic_logger', logging.getLogger(__name__))
+    caplog.set_level(logging.INFO)
     invalid=json.loads(valid_reply())
     invalid['stopped']='PRIVATE_MODEL_VALUE'
     class Repair(FakeConnection):
