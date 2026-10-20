@@ -63,7 +63,8 @@ class Conversation:
             else:
                 if self.fail_immediate:
                     return httpx.Response(503)
-                output = proposal(mode=work, name=name, question='What happened next?')
+                output = {**proposal(mode=work, name=name, question='What happened next?'),
+                          'selection_reason': 'latest_story'}
                 focus = body.get('interview_context', {}).get('workspace_focus', {})
                 if focus.get('event_id'):
                     output['plan']['active_event_id'] = focus['event_id']

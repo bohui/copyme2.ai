@@ -4642,7 +4642,8 @@ begin
      raise exception 'prepared questions must be distinct' using errcode='22023';end if;
    perform public.validate_two_lane_places(page->'source'->>'text',p_result->'place_journeys');
    for q in select * from jsonb_array_elements(p_result->'prepared_questions') loop
-     if jsonb_typeof(q)<>'object' or exists(select 1 from jsonb_object_keys(q) k where k not in ('question','topic','quote'))
+     if jsonb_typeof(q)<>'object' or exists(select 1 from jsonb_object_keys(q) k where k not in ('question','topic','quote','requires_confirmation'))
+       or (q ? 'requires_confirmation' and jsonb_typeof(q->'requires_confirmation') is distinct from 'boolean')
        or jsonb_typeof(q->'question') is distinct from 'string' or length(q->>'question') not between 1 and 800
        or jsonb_typeof(q->'topic') is distinct from 'string' or length(q->>'topic') not between 1 and 120
        or jsonb_typeof(q->'quote') is distinct from 'string' or length(q->>'quote') not between 1 and 500
@@ -4664,14 +4665,26 @@ begin
        journeys=(select coalesce(jsonb_agg(distinct j),'[]') from jsonb_array_elements(
          case when user_lifetime_place_journey.source_version=excluded.source_version then user_lifetime_place_journey.journeys else '[]' end||excluded.journeys) j);
    end if;
-   if page->'two_lane'->>'strategy_mode' is null then
+   -- Confirmations are actionable in every strategy mode; ordinary shadow hints stay private.
    insert into public.user_lifetime_prepared_question values(snap.user_id,snap.project_id,(page->'source'->>'id')::uuid,
      (page->'source'->>'version')::bigint,snap.source_high_water,snap.policy_epoch,snap.preference_revision,
-     (page->'two_lane'->>'execution_generation')::bigint,(page->'two_lane'->>'phase_revision')::bigint,snap.id,p_page_digest,p_result->'prepared_questions')
+     (page->'two_lane'->>'execution_generation')::bigint,(page->'two_lane'->>'phase_revision')::bigint,snap.id,p_page_digest,
+     (select coalesce(jsonb_agg(hint.value),'[]') from jsonb_array_elements(p_result->'prepared_questions') hint(value)
+       where page->'two_lane'->>'strategy_mode' is null or hint.value->'requires_confirmation'='true'::jsonb))
    on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,source_revision=excluded.source_revision,
      policy_epoch=excluded.policy_epoch,preference_revision=excluded.preference_revision,execution_generation=excluded.execution_generation,
-     phase_revision=excluded.phase_revision,snapshot_id=excluded.snapshot_id,page_digest=excluded.page_digest,questions=excluded.questions;
-   end if;
+     phase_revision=excluded.phase_revision,snapshot_id=excluded.snapshot_id,page_digest=excluded.page_digest,
+     questions=(select coalesce(jsonb_agg(hint.value order by hint.position),'[]') from (
+       select distinct on (lower(btrim(item.value->>'question'))) item.value,item.position
+       from jsonb_array_elements((case when user_lifetime_prepared_question.source_version=excluded.source_version
+         and user_lifetime_prepared_question.policy_epoch=excluded.policy_epoch
+         and user_lifetime_prepared_question.preference_revision=excluded.preference_revision
+         and user_lifetime_prepared_question.execution_generation=excluded.execution_generation
+         then jsonb_path_query_array(user_lifetime_prepared_question.questions,'$[*] ? (@.requires_confirmation == true)')
+         else '[]'::jsonb end)||excluded.questions) with ordinality item(value,position)
+       order by lower(btrim(item.value->>'question')),
+         (item.value->'requires_confirmation'='true'::jsonb) desc nulls last,item.position
+     ) hint);
  end if;
  return result;
 end $$;
@@ -5083,9 +5096,14 @@ begin
      where p.user_id=auth.uid() and p.project_id=project and not p.shadow and p.plan_revision=(p_outcome->>'plan_revision_seen')::bigint) then
      raise exception 'pinned strategy unavailable' using errcode='PT409';end if;
    if p_outcome->>'selected_candidate_id' is not null then
-     if p_outcome->>'plan_revision_seen' is null or context->'plan'->>'plan_revision' is distinct from p_outcome->>'plan_revision_seen' then
-       raise exception 'pinned candidate dependencies changed' using errcode='PT409';end if;
-     select q into candidate from jsonb_array_elements(context->'plan'->'candidates') q where q->>'id'=p_outcome->>'selected_candidate_id';
+     select q into candidate from jsonb_array_elements(public.read_lifetime_prepared_questions(
+       (p_fence->'identity'->>'conversation_id')::uuid)) q
+       where q->'requires_confirmation'='true'::jsonb and q->>'id'=p_outcome->>'selected_candidate_id';
+     if candidate is null then
+       if p_outcome->>'plan_revision_seen' is null or context->'plan'->>'plan_revision' is distinct from p_outcome->>'plan_revision_seen' then
+         raise exception 'pinned candidate dependencies changed' using errcode='PT409';end if;
+       select q into candidate from jsonb_array_elements(context->'plan'->'candidates') q where q->>'id'=p_outcome->>'selected_candidate_id';
+     end if;
      if candidate is null or p_outcome->>'selection_reason' not in ('prepared_candidate','adapted_candidate') then
        raise exception 'candidate unavailable' using errcode='PT409';end if;
      if p_outcome->>'selection_reason'='prepared_candidate' and candidate->>'question' is distinct from question then
@@ -9394,17 +9412,20 @@ begin
    select q||jsonb_build_object('id','bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex'),
      'source_id',d.source_id,'source_version',d.source_version,'creation_revision',d.source_revision,
      'snapshot_id',d.snapshot_id,'policy_epoch',d.policy_epoch,'task_version','two-lane-v1',
-     'invalidation','source/policy/preference/generation/recent coverage/delivered question') item
+     'invalidation',case when q->'requires_confirmation'='true'::jsonb then 'source/policy/preference/generation/delivered question'
+       else 'source/policy/preference/generation/recent coverage/delivered question' end) item
    from public.user_lifetime_prepared_question d join public.user_narrator_source s on s.user_id=d.user_id and s.project_id=d.project_id
      and s.id=d.source_id and s.version=d.source_version and s.status='active'
    join public.user_memoir_project p on p.user_id=d.user_id and p.project_id=d.project_id
-   cross join lateral jsonb_array_elements(d.questions) q
+   cross join lateral jsonb_array_elements(d.questions) with ordinality hints(q,position)
    where d.user_id=auth.uid() and d.project_id=identity.project_id and d.policy_epoch=p.policy_epoch
      and d.preference_revision=identity.preference_revision and d.execution_generation=identity.execution_generation
-     and d.source_revision>=p.source_sequence-1
+     and (q->'requires_confirmation'='true'::jsonb or d.source_revision>=p.source_sequence-1)
      and not exists(select 1 from public.user_interview_turn t where t.user_id=d.user_id and t.project_id=d.project_id
        and t.collector->'plan'->>'chosen_id'='bq-'||encode(sha256(convert_to(d.source_id::text||':'||d.source_version||':'||(q->>'question'),'UTF8')),'hex'))
-   order by s.sequence desc,d.source_id,q->>'question' limit 3
+   order by case when q->'requires_confirmation'='true'::jsonb then 0 else 1 end,
+     case when q->'requires_confirmation'='true'::jsonb then s.sequence end,
+     s.sequence desc,d.source_id,position limit 3
  ) hints;
  return result;
 end $$;

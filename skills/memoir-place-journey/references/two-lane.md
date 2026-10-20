@@ -13,7 +13,14 @@ order. A qualifier is part of its descendant's hierarchy, not a separate cue:
 `河北省承德市附属医院` yields `承德市` with hierarchy
 `["Earth", "中国", "河北省", "承德市"]`. Hospitals, schools, streets, compounds,
 generic locations, prior profile places and public reference locations do not
-create cues. If one place is ambiguous, omit only that place.
+create cues. Treat 大石庙 as a possible administrative town name, including
+承德市双桥区的大石庙镇, rather than assuming it names a temple. Preserve the
+source label: a bare 大石庙 stays 大石庙; 大石庙镇 stays 大石庙镇. Use a containing
+hierarchy only when reliably resolved. If the intended place is uncertain or
+conflicts with the narrator's other details, omit only that cue and add one
+prepared_questions entry with requires_confirmation=true and its exact source
+quote. A proposed location belongs in the clarification as a possibility until
+the narrator confirms it. Keep extracting the other clear places.
 
 Use granularity `country`, `region`, `city` or `suburb`; towns and named urban
 districts use `suburb`. Set both latitude and longitude to approximate public

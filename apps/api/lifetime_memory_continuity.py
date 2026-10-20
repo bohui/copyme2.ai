@@ -76,17 +76,28 @@ class _Places(BaseModel):
     place_journeys: list[_PlaceJourney] = Field(max_length=8)
 
 
-def governed_collector_schema(context=None):
-    """Add the governed wire field without modifying the legacy schema.
+class _LegacyIntent(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    selection_reason: Literal['latest_story', 'user_redirect', 'current_correction',
+                              'pacing', 'pause', 'direct_answer']
 
-    The provider requires every wire property; old responses may still omit the
-    extension when validated. The caller budgets these full schema bytes.
+
+def governed_collector_schema(context=None):
+    """Extend the governed wire without modifying saved legacy plans.
+
+    Older responses may omit extensions unless a pending confirmation requires
+    current intent. The caller budgets these full required wire-schema bytes.
     """
     if (context or {}).get('strategy_selector'):
         from .interview_strategy import selector_schema
         schema=selector_schema(context)
     else:
         schema = deepcopy(collector_schema(context))
+        if (context or {}).get('two_lane_memory') is True:
+            intent = _LegacyIntent.model_json_schema()['properties']['selection_reason']
+            intent.pop('default', None)
+            schema['properties']['selection_reason'] = intent
+            schema['required'].append('selection_reason')
     extension = _Updates.model_json_schema()
     schema.setdefault('$defs', {}).update(extension['$defs'])
     item = schema['$defs']['_ContinuityUpdate']['properties']
@@ -231,11 +242,33 @@ def validate_governed_collector_result(raw, context):
     if not isinstance(value, dict):
         raise ValueError('Collector result must be an object')
     outcome=None
+    selection_reason=None
     if context.get('strategy_selector'):
         from .interview_strategy import adapt_selection
         value,outcome,stopped=adapt_selection(value,context)
+        selection_reason=outcome['selection_reason']
+    elif context.get('two_lane_memory') is True:
+        intent = {key: item for key, item in value.items() if key == 'selection_reason'}
+        if intent:
+            selection_reason = _LegacyIntent.model_validate(intent).selection_reason
+        value = {key: item for key, item in value.items() if key != 'selection_reason'}
     ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
+    ordinary['stopped'] = result['stopped']
+    if selection_reason in {'pause', 'direct_answer'} and result['plan']['candidates']:
+        raise ValueError('A pause or direct answer requires no question')
+    if context.get('prepared_questions'):
+        from .two_lane_memory import pending_confirmation, prioritize_confirmation
+        # A validated stop already carries intent; a follow-up needs the model's signal.
+        if selection_reason is None and not result['stopped'] and pending_confirmation(context):
+            raise ValueError('Pending confirmation requires selection_reason')
+        prioritized = prioritize_confirmation(ordinary, context, selection_reason=selection_reason)
+        if prioritized is not ordinary:
+            result = validate_collector_result(prioritized, context)
+            if outcome is not None:
+                chosen = result['plan']['candidates'][0]
+                outcome = {**outcome, 'selected_candidate_id': chosen['id'],
+                           'selection_reason': 'prepared_candidate', 'question_delivered': chosen['question']}
     if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
     source = _current_source(context)
     updates = value.get('continuity_updates', [])

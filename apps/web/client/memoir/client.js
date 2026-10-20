@@ -72,6 +72,8 @@ const state = {
   photoMemoryRevision: 0,
   photoFavoritesOpen: false,
   workspaceUnlocked: false,
+  workspaceActivatedProjectId: null,
+  placeWorkspaceMap: null,
   compositionStage: 0,
   workspaceCollapsed: false,
   lifeStage: "childhood",
@@ -1725,6 +1727,8 @@ async function signOut() {
     state.placeJourneyChange = null;
     state.workspaceTab = "memoir";
     state.workspaceUnlocked = false;
+    state.workspaceActivatedProjectId = null;
+    state.placeWorkspaceMap = null;
     state.compositionStage = 0;
     state.workspaceCollapsed = false;
     state.lifeStage = "childhood";
@@ -2258,9 +2262,9 @@ function renderStory() {
 }
 
 function workspaceContentAvailable() {
-  // Place/photo context needs a resolved map target for the selected place.
-  // Completed free recall also opens Chapters; early draft status does not.
-  return Boolean(composingWorkspaceActive() || freeRecallFinished() || placeMapTarget(placeWorkspaceSelection()));
+  if (placeMapTarget(placeWorkspaceSelection())) state.workspaceActivatedProjectId = state.project?.id;
+  return Boolean(composingWorkspaceActive() || freeRecallFinished()
+    || (state.project?.id && state.workspaceActivatedProjectId === state.project.id));
 }
 
 function workspaceHasContent() {

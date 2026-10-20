@@ -173,7 +173,7 @@ test('does not render a place card when no map target is available', async () =>
  }), '');
 });
 
-test('hides an unresolved selected place even when another saved place has a map', async () => {
+test('keeps the last available map when a later selected place cannot be resolved', async () => {
  const fs = await import('node:fs');
  const vm = await import('node:vm');
  const source = readMemoirClientSource();
@@ -187,12 +187,16 @@ test('hides an unresolved selected place even when another saved place has a map
  for (const name of ['placeMapTarget', 'placeMapRenderKey', 'placeMapAvailable', 'placeWorkspaceSelection', 'freeRecallFinished', 'workspaceContentAvailable', 'workspaceHasContent']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
  }
- assert.equal(context.workspaceHasContent(), false);
- assert.equal(context.placeWorkspaceSelection(), null);
+ assert.equal(context.workspaceHasContent(), true);
+ assert.equal(context.placeWorkspaceSelection().place, mapped.place);
  assert.equal(context.placeWorkspaceSelection({allowUnmapped: true}).place, unknown.place);
  context.state.placeJourney = mapped;
  context.state.selectedPlace = placeHistoryKey(mapped);
  assert.equal(context.workspaceHasContent(), true);
+ context.state.placeJourney = {...unknown, preview:true};
+ context.state.selectedPlace = placeHistoryKey(unknown);
+ assert.equal(context.placeWorkspaceSelection().place, mapped.place);
+ assert.equal(context.placeWorkspaceSelection({allowUnmapped:true}).place, unknown.place);
 });
 
 test('map framing retains a geocoded place scale and uses a saved parent scale', async () => {

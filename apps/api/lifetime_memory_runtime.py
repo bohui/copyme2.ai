@@ -279,7 +279,6 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 state=await call('read_lifetime_strategy_context',p_conversation_id=str(identity.conversation_id))
                 if state['mode']=='active':
                     if state.get('plan') is not None:InterviewStrategyPlan.model_validate(state['plan'])
-                    context.pop('prepared_questions',None)
                     context.update(strategy_selector=True,strategy_context=state,
                         active_strategy=(state.get('plan') or {}).get('strategy') or state.get('planned_strategy_hint') or
                             ('explore' if context['has_accepted_narration'] else 'comfort'))
