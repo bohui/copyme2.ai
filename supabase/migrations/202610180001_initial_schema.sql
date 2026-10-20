@@ -5077,7 +5077,8 @@ begin
  select q into chosen from jsonb_array_elements(p_plan->'candidates') q where q->>'id'=p_plan->>'chosen_id';
  question:=chosen->>'question';
  if question is distinct from p_outcome->>'question_delivered' or (question is null and p_outcome->>'selection_reason' not in ('pause','direct_answer'))
-   or (question is not null and (length(question)>800 or strpos(p_reply,question)=0))
+   or (question is not null and (length(question)>800 or length(public.lifetime_question_text(question))=0
+     or strpos(p_reply,public.lifetime_question_text(question))=0))
    or jsonb_array_length(p_plan->'candidates')>1 then raise exception 'outcome must match the saved immediate question' using errcode='22023';end if;
  select * into prior from public.user_lifetime_strategy_outcome where user_id=auth.uid() and project_id=project and client_turn_id=p_client_turn_id;
  if found then
@@ -5107,7 +5108,8 @@ begin
      end if;
      if candidate is null or p_outcome->>'selection_reason' not in ('prepared_candidate','adapted_candidate') then
        raise exception 'candidate unavailable' using errcode='PT409';end if;
-     if p_outcome->>'selection_reason'='prepared_candidate' and candidate->>'question' is distinct from question then
+     if p_outcome->>'selection_reason'='prepared_candidate'
+       and public.lifetime_question_text(candidate->>'question') is distinct from public.lifetime_question_text(question) then
        raise exception 'prepared candidate text changed' using errcode='22023';end if;
    elsif p_outcome->>'selection_reason' in ('prepared_candidate','adapted_candidate') then raise exception 'candidate identity required' using errcode='22023';end if;
  end if;
@@ -5121,7 +5123,8 @@ begin
  on conflict do nothing;
  return result||jsonb_build_object('strategy_metrics',jsonb_build_object('repeated_question_count',
    (select count(*) from public.user_lifetime_strategy_outcome o where o.user_id=auth.uid() and o.project_id=project
-     and o.delivered and o.client_turn_id<>p_client_turn_id and lower(btrim(o.question_delivered))=lower(btrim(question))),
+     and o.delivered and o.client_turn_id<>p_client_turn_id
+     and lower(public.lifetime_question_text(o.question_delivered))=lower(public.lifetime_question_text(question))),
    'previous_delivered_question_count',(select count(*) from public.user_lifetime_strategy_outcome o
      where o.user_id=auth.uid() and o.project_id=project and o.delivered and o.client_turn_id<>p_client_turn_id and o.question_delivered is not null)));
 end $$;
@@ -6836,6 +6839,13 @@ CREATE FUNCTION public.lifetime_source_attribution_summary(p_owner uuid, p_proje
  from (select distinct char_start,char_end,disposition from public.lifetime_source_attribution_rows(p_owner,p_project,p_source)) passages
 $$;
 
+-- Match the reply renderer's Python str.strip(); preserve internal whitespace and evidence.
+CREATE FUNCTION public.lifetime_question_text(p_question text) RETURNS text
+    LANGUAGE sql IMMUTABLE SET search_path TO '' AS $$
+ select btrim(p_question, U&'\0009\000A\000B\000C\000D\001C\001D\001E\001F\0020\0085\00A0' ||
+   U&'\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000')
+$$;
+
 CREATE FUNCTION public.lifetime_question_hint(p_source jsonb, p_hint jsonb) RETURNS jsonb
     LANGUAGE plpgsql IMMUTABLE SET search_path TO '' AS $$
 declare lo integer; hi integer; base integer:=coalesce((p_source->>'char_start')::integer,0);
@@ -6845,6 +6855,7 @@ begin
    or exists(select 1 from jsonb_object_keys(p_hint) k where k not in ('question','topic','quote','requires_confirmation','char_start','char_end'))
    or (p_hint ? 'requires_confirmation' and jsonb_typeof(p_hint->'requires_confirmation') is distinct from 'boolean')
    or jsonb_typeof(p_hint->'question') is distinct from 'string' or length(p_hint->>'question') not between 1 and 800
+   or length(public.lifetime_question_text(p_hint->>'question'))=0
    or jsonb_typeof(p_hint->'topic') is distinct from 'string' or length(p_hint->>'topic') not between 1 and 120
    or jsonb_typeof(p_hint->'quote') is distinct from 'string' or length(quote) not between 1 and 500
    or strpos(text,quote)=0 or length(regexp_replace(p_hint->>'question','[^?？]','','g'))>1 then
@@ -6867,7 +6878,7 @@ end $$;
 
 CREATE FUNCTION public.lifetime_question_id(p_source uuid, p_version bigint, p_hint jsonb) RETURNS text
     LANGUAGE sql IMMUTABLE SET search_path TO '' AS $$
- select 'bq-'||encode(sha256(convert_to(jsonb_build_array(p_source,p_version,lower(btrim(p_hint->>'question')),
+ select 'bq-'||encode(sha256(convert_to(jsonb_build_array(p_source,p_version,lower(public.lifetime_question_text(p_hint->>'question')),
    p_hint->'char_start',p_hint->'char_end',p_hint->>'quote')::text,'UTF8')),'hex')
 $$;
 
@@ -6892,7 +6903,8 @@ RETURNS TABLE(source_id uuid, source_version bigint, client_turn_id uuid, reply_
    and r.execution_generation=d.execution_generation and r.preference_revision=d.preference_revision
  cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'candidates','[]')) q
  where d.user_id=p_owner and d.project_id=p_project and q->>'id'=t.collector->'plan'->>'chosen_id'
-   and length(coalesce(q->>'question',''))>0 and strpos(t.collector->>'reply',q->>'question')>0
+   and length(public.lifetime_question_text(coalesce(q->>'question','')))>0
+   and strpos(t.collector->>'reply',public.lifetime_question_text(q->>'question'))>0
 $$;
 
 CREATE FUNCTION public.lifetime_question_dialogue(p_owner uuid, p_project text, p_source uuid DEFAULT NULL::uuid,
@@ -11372,7 +11384,7 @@ begin
       jsonb_typeof(candidate->'order') is distinct from 'number' or
       jsonb_typeof(candidate->'question') is distinct from 'string' or
       exists(select 1 from jsonb_object_keys(candidate) k where k not in ('id','question','context','order','bridge')) or length(coalesce(candidate->>'id','')) not between 1 and 128 or
-      length(btrim(coalesce(candidate->>'question',''))) not between 1 and 2000 or jsonb_typeof(context) is distinct from 'object' or
+      length(public.lifetime_question_text(coalesce(candidate->>'question',''))) not between 1 and 2000 or jsonb_typeof(context) is distinct from 'object' or
       length(coalesce(candidate->>'bridge',''))>2000 or
       exists(select 1 from jsonb_object_keys(context) k where k not in ('event_id','photo_id','life_stage','year','historical_clue_id','evidence')) or (candidate->>'order')::integer not between 0 and 100 then
       raise exception 'invalid interview plan candidate' using errcode='22023'; end if;
@@ -13406,6 +13418,7 @@ revoke all on function public.lifetime_source_attribution_rows(uuid, text, uuid)
 revoke all on function public.lifetime_source_attribution_summary(uuid, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_source_context(uuid, text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_delivered_questions(uuid, text) from public,anon,authenticated,service_role;
+revoke all on function public.lifetime_question_text(text) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_question_hint(jsonb, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_question_id(uuid, bigint, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.lifetime_consumed_question_ids(uuid, text) from public,anon,authenticated,service_role;

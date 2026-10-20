@@ -207,7 +207,7 @@ def adapt_selection(raw,context):
         if constraints:raise ValueError('Current intent overrides prepared candidates')
         if item.selection_reason not in {'prepared_candidate','adapted_candidate'}:raise ValueError('Candidate use requires its recorded reason')
         if item.question is None:raise ValueError('No question cannot deliver a candidate')
-        if item.selection_reason=='prepared_candidate' and item.question!=available[item.selected_candidate_id]['question']:
+        if item.selection_reason=='prepared_candidate' and item.question.strip()!=available[item.selected_candidate_id]['question'].strip():
             raise ValueError('Prepared candidate text changed')
     elif item.selection_reason in {'prepared_candidate','adapted_candidate'}:raise ValueError('Candidate identity required')
     candidate_id=item.selected_candidate_id or 'immediate-'+(context.get('source') or {}).get('id','fallback')

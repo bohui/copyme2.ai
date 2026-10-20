@@ -455,9 +455,58 @@ def test_database_cannot_retarget_a_hint_id_to_a_different_passage(sql):
 
 
 @pytest.mark.parametrize('strategy_selector', [False, True])
+@pytest.mark.parametrize('padding,streaming', [('',False),(' ',False),('\n',False),('\t\r\n',False),('\u00a0\u3000',False),(' \n\t',True)])
+def test_whitespace_padded_confirmation_is_delivered_once(sql,tmp_path,monkeypatch,strategy_selector,padding,streaming):
+    from test_interview_strategy_runtime import client_fixture
+    from test_interview_strategy import wire
+    question='Did you mean Hobart in Tasmania?'
+    def provider(request):
+        pending=json.loads(request.content)['interview_context']['prepared_questions']
+        output=(wire(question=pending[0]['question'].strip() if pending else 'What happened next?',
+                     selected_candidate_id=pending[0]['id'] if pending else None,
+                     selection_reason='prepared_candidate' if pending else 'latest_story') if strategy_selector else
+                {**proposal(mode='extract',name=None,question='What happened next?'),'selection_reason':'latest_story'})
+        return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'whitespace-confirmation','artifacts':[]})
+    with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
+        if not strategy_selector:
+            monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY','0')
+            sql('update public.lifetime_two_lane_rollout set strategy_enabled=false;')
+        first=client.post('/v1/agent/turn',json={'text':TEXT,'client_turn_id':str(uuid4())})
+        assert first.status_code==200,first.text
+        project=first.json()['project_id']
+        identity=rpc(sql,'resolve_lifetime_conversation',literal(project))
+        lane_id=lane(sql,identity);page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
+        result={'events':[],'place_journeys':[],'prepared_questions':[{'question':padding+question+padding,
+            'topic':'place','quote':page['source']['text'],'requires_confirmation':True}]}
+        if strategy_selector:
+            result['strategy_proposal']={'strategy':'shape','objective':'clarify_identity','focus_event_ids':[]}
+        service(sql,'commit_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+        turn=str(uuid4())
+        second=client.post('/v1/agent/turn',json={'project_id':project,'text':'Please go on.','client_turn_id':turn},
+            headers={'accept':'application/x-ndjson'} if streaming else {})
+        assert second.status_code==200,second.text
+        if streaming:
+            events=[json.loads(line) for line in second.text.splitlines()]
+            assert events[-1]['type']=='result',second.text
+            saved=events[-1]['data']
+        else:saved=second.json()
+        assert saved['reply'].endswith(question)
+        assert sql(f"select count(*) from public.user_memory_delivered_context where client_turn_id='{turn}';").stdout.strip()=='1'
+        pending=rpc(sql,'read_lifetime_prepared_questions',f"'{identity['conversation_id']}'")
+        third=client.post('/v1/agent/turn',json={'project_id':project,'text':'The water was clear.','client_turn_id':str(uuid4())})
+        assert third.status_code==200,third.text
+        assert not third.json()['reply'].endswith(question),'The delivered confirmation repeated on the next turn'
+        assert pending==[],'The delivered confirmation stayed queued'
+        if strategy_selector:
+            state=rpc(sql,'read_lifetime_strategy_context',f"'{identity['conversation_id']}'")
+            assert state['plan']['candidates']==[]
+
+
+@pytest.mark.parametrize('strategy_selector', [False, True])
 @pytest.mark.parametrize('hint_after_failure', [False, True])
+@pytest.mark.parametrize('padding', ['', ' \n\t'])
 def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_identity(
-        sql, tmp_path, monkeypatch, strategy_selector, hint_after_failure):
+        sql, tmp_path, monkeypatch, strategy_selector, hint_after_failure, padding):
     from apps.api.codex_runtime import CodexRuntime
     from apps.api.lifetime_memory_runtime import lifetime_http_turn
     from memoir_postgres_workflow import PostgresRest
@@ -466,7 +515,7 @@ def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_id
     from controlled_collector import worker_reply
 
     calls = []
-    question = {**QUESTION, 'question': 'Did you mean Hobart in Tasmania?', 'requires_confirmation': True}
+    question = {**QUESTION, 'question': padding+'Did you mean Hobart in Tasmania?'+padding, 'requires_confirmation': True}
     narration = 'The river walks near Hobart were in summer.'
 
     def provider(request):
@@ -535,7 +584,7 @@ def test_confirmation_is_consumed_only_after_delivery_and_retry_preserves_its_id
             f"'{identity['conversation_id']}'")] == [question['question']]
         retry = client.post('/v1/agent/turn', json={**options, 'text': narration})
         assert retry.status_code == 200 and retry.json()['cached'], retry.text
-        assert retry.json()['reply'].endswith(question['question'])
+        assert retry.json()['reply'].endswith(question['question'].strip())
         assert len(calls) == 2
         assert rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'") == []
         assert sql("select count(*) from public.user_lifetime_prepared_question where questions<>'[]'::jsonb;").stdout.strip() == '0'

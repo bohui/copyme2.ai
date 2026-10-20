@@ -103,6 +103,20 @@ def test_unknown_or_reused_candidates_cannot_be_selected():
     with pytest.raises(ValueError):validate_governed_collector_result(wire(selected_candidate_id='cross-project',selection_reason='prepared_candidate'),context(text='Please go on.'))
 
 
+@pytest.mark.parametrize('padding',[' \n\t','\u00a0\u3000'])
+def test_prepared_candidate_allows_edge_trimming_but_not_changed_words(padding):
+    from apps.api.lifetime_memory_continuity import validate_governed_collector_result
+    value=context(text='Please go on.')
+    candidate=value['strategy_context']['plan']['candidates'][0]
+    original=candidate['question']
+    candidate['question']=padding+original+padding
+    output=wire(question=original,selected_candidate_id=candidate['id'],selection_reason='prepared_candidate')
+    assert validate_governed_collector_result(output,value)['reply'].endswith(original)
+    output['question']='Was that after the move?'
+    with pytest.raises(ValueError,match='Prepared candidate text changed'):
+        validate_governed_collector_result(output,value)
+
+
 def test_prompt_has_no_user_selected_mode_policy():
     from apps.api.interview_strategy import strategy_instructions
     prompt=strategy_instructions('shape')

@@ -1,4 +1,5 @@
 """Model work decisions survive retries at the real persistence boundary."""
+import json
 import pytest
 
 from test_interview_photos_postgres import (
@@ -85,3 +86,31 @@ def test_question_passage_is_independently_validated_at_the_database(sql, invali
         assert rpc(sql, 'read_user_interview_turn', f"'project','{TURN}'")['reply'] is None
     else:
         assert save(sql, value)['plan']['candidates'][0]['context']['evidence'] == evidence
+
+
+def test_question_trimming_matches_python_and_preserves_identity_and_evidence(sql):
+    question='Who  do you mean?'
+    whitespace=[chr(code) for code in range(0x110000) if chr(code).isspace()]
+    hints=[{'question':padding+question+padding,'quote':' exact testimony ','char_start':7,'char_end':24}
+           for padding in ['',*whitespace]]
+    values=json.loads(sql("select jsonb_agg(jsonb_build_object('text',public.lifetime_question_text(h->>'question'),"
+        "'id',public.lifetime_question_id('00000000-0000-4000-8000-000000000001',1,h))) "
+        f"from jsonb_array_elements({literal(hints)}::jsonb) h;").stdout)
+    assert [value['text'] for value in values]==[hint['question'].strip() for hint in hints]
+    assert len({value['id'] for value in values})==1
+    source={'text':' exact testimony ','char_start':7}
+    hint={**hints[-1],'topic':'group','requires_confirmation':True}
+    normalized=json.loads(sql(f"select public.lifetime_question_hint({literal(source)}::jsonb,{literal(hint)}::jsonb);").stdout)
+    assert normalized['quote']==source['text']
+    assert (normalized['char_start'],normalized['char_end'])==(7,7+len(source['text']))
+    assert sql("select has_function_privilege('authenticated','public.lifetime_question_text(text)','execute');").stdout.strip()=='f'
+
+
+def test_whitespace_only_questions_cannot_be_saved_or_published(sql):
+    accept(sql,'A memory of my school.')
+    value=plan('extract',None)
+    value['candidates'][0]['question']=' \n\t\u3000'
+    assert save(sql,value,check=False).returncode!=0
+    hint={'question':value['candidates'][0]['question'],'topic':'school','quote':'school'}
+    rejected=sql(f"select public.lifetime_question_hint({literal({'text':'school'})}::jsonb,{literal(hint)}::jsonb);",check=False)
+    assert rejected.returncode!=0 and 'grounded question hints required' in rejected.stderr
