@@ -1,126 +1,122 @@
-# Issue 53: measured collector latency and remaining release checks
+# Issue 53: collector latency and release evidence
 
-The preferred target is meaningful text within **5 seconds**, with **10 seconds**
-as the fallback. PR [101](https://github.com/bohui/copyme2.ai/pull/101) remains a
-draft. The candidate is not enabled in the shared app, and issue 53 is not yet
-accepted.
+The target is meaningful text within **5 seconds**, with **10 seconds** as the
+fallback. PR [101](https://github.com/bohui/copyme2.ai/pull/101) remains a draft;
+the candidate is not enabled in the shared app and issue 53 is not accepted yet.
 
-## What the measurements establish
+## Routing and measured improvement
 
-The shared pooled collector route enforces maximum reasoning effort despite the
-app requesting low effort. Read-only key-policy verification matched the exact
-configured keys: `gpt-5.6-luna-memoir-low` enforces low effort for the same
-underlying `gpt-5.6-luna` model. No key policy, shared model route or other role
-was changed.
+Read-only verification of the exact configured consumer key confirms that the
+existing `gpt-5.6-luna-pooled` collector route enforces maximum reasoning. The
+dedicated `gpt-5.6-luna-memoir-low` route enforces low reasoning for the same
+underlying model. The shared upstream key policy and other roles were not changed.
 
-The last completed real-model cohort used source
-`a864bc50c06f6b03c2336919b95b436c8f0ef73c`. It exercised isolated PostgreSQL,
-the canonical backend HTTP/NDJSON path and the real Linux private worker with
-synthetic narrators. All 80 application rows saved, including four cached
-replays. There were 76 native turn invocations and no corrective invocations or
-application failures. A test-database cleanup command timed out after the rows
-finished; a separate completion audit verified the rows, removed worker homes
-and confirmed no task database containers remained. The original aborted
-supervisor receipt is retained.
+The completed historical cohort C, at `a864bc50`, saved all 80 application rows:
+76 generated turns and four cached replays, with no corrective invocation. Its
+supervisor timed out during database cleanup; an independent completion audit
+verified the rows and reconciled cleanup. The original failed receipt remains.
 
-The matched latency comparison excludes the four future rollback generations
-from both arms: 36 generated turns per arm, spanning both languages and opening,
-later, rich-story, correction, skip, language-switch, photo and resumed turns.
+The fair comparison excludes four future rollback generations, leaving 36
+generated turns per arm across both languages and first, later and resumed turns.
 
-| Observed milestone | Pooled/max median | Dedicated/low median | Dedicated/low maximum |
+| Milestone | Pooled/max median | Dedicated/low median | Dedicated/low maximum |
 | --- | ---: | ---: | ---: |
 | First public text | 19.044 s | 4.528 s | 7.035 s |
-| Validated question (34 turns per arm) | 22.859 s | 5.923 s | 9.130 s |
+| Validated question, 34 turns per arm | 22.859 s | 5.923 s | 9.130 s |
 | Complete public reply | 21.144 s | 5.952 s | 9.483 s |
 | Durable conversation save | 21.154 s | 5.994 s | 9.499 s |
 
-First public text improved by about 76%; 24 of 36 candidate turns reached it
-within five seconds, and all 36 within ten. Some acknowledgements are generic,
-so this milestone alone does not prove time to meaningful text. Complete replies
-provide a conservative time bound: all 36 finished within ten seconds, seven
-within five. These are small-sample observations, not production percentiles or
-a latency guarantee.
+First public text improved approximately 76%; all 36 candidate replies completed
+within ten seconds. These results establish the routing benefit, but **are not
+current release acceptance**. Review subsequently found extra-question, grounding
+and pacing defects. Generic acknowledgements do not count as meaningful text;
+complete replies give a conservative bound. Small-sample maxima are not production
+percentiles or guarantees. Input/cache differences, independent histories after
+the initial seed, and uncontrolled gateway load limit causal attribution.
 
-The [public evidence](test-evidence/issue53-every-turn-followup-20261020.json)
-retains the synthetic public exchanges, per-turn timings, frozen plan identity,
-read-only route policy, failures and limitations. Private planning, raw reasoning
-and credentials are excluded. Connected histories diverge after the first reply;
-shared gateway load and provider-internal attempts were not controlled or fully
-observable.
+## Fixes now prepared
 
-## Quality fixes and unsuccessful follow-ups
+The change preserves normal validation, bounded correction, source retention,
+fenced saving and the separate reply/save milestones. It removes observed repair
+triggers: ambiguous exact quotes, unnecessary explicit evidence offsets, extra
+questions in acknowledgements, and confusion over current-message work decisions.
 
-Review found an unpunctuated Chinese question in an acknowledgement, an assumed
-school morning absent from testimony, and a distress follow-up that needed a
-clearer pacing choice. Source
-`743546c138c2672be1c71b7aed22f1987849b369` added pre-stream rejection for the
-observed extra-question form and schema guidance for grounding and gentle
-pacing. It also clarifies the existing exact `text == quote` continuity contract
-to prevent unnecessary repair attempts. Existing validation and bounded repair
-remain in place. Those quality fixes did not change managed prompt Markdown or receipts. The
-main integration below reuses an already-published receipt for merged content.
+The pure-pause prompt fix, PR [104](https://github.com/bohui/copyme2.ai/pull/104),
+was merged with the user's approval. Publication ran from main through the normal
+workflow. Collector-plan version 2 and strategy-selection version 4 receipts were
+committed at `7ebf541`; `make prompt-check` verified all **81** published pins.
+There was no publication from a feature branch. Twelve real-worker regressions
+covering both languages and legacy/active selection then passed with 13 native
+attempts, no background calls, and verified home cleanup.
 
-Four work-mode expectations in the sequence manifest were inconsistent with the
-published collector contract for privacy and language/profile actions. They now
-require extraction. The original frozen plans and failures remain retained; this
-correction applies to the next comparison.
+Comparison H at `8e7a561` stopped after 47 of 80 planned application rows: **46
+saved, one failed, 33 unrun**, with 49 native invocations, no background dispatch,
+and verified worker-home cleanup. The failure exposed a host-side intent bug:
+Chinese “不想聊厨房” matched positive “想聊”, forcing a question even when the
+model correctly acknowledged the exclusion. Commit `2725650` corrects that match.
+Both captured native proposals now validate; `703795c` adds English/Chinese
+streamed HTTP/SQL regressions proving exact exclusion persistence, extraction,
+one saved exchange and one collector request.
 
-The current source has not completed its live acceptance run. Follow-up D stopped
-after ten rows with upstream WebSocket/HTTP 502 errors and a timeout affecting
-both routes. Probe E used normal native retry defaults and file-based diagnostic
-capture; both first turns timed out before public text. A valid direct generation
-probe also returned HTTP 502. These failures are retained and are not counted as
-successful latency observations. Health and model-list endpoints returning 200
-do not establish generation availability. Read-only gateway logs corroborate
-upstream `stream_incomplete` / WebSocket failures; their mixed traffic cannot
-supply Memoir-only request counts. One subsequent bounded availability request
-returned HTTP 200 but ended after 9.204 seconds without an observed output
-delta or terminal completion event. It did not establish healthy generation at that time.
+Bilingual review also found “sister” translated as “姐姐”, adding an unstated age
+relationship. Commit `0651502` strengthens shared acknowledgement/question schema
+guidance to preserve unspecified kinship in translation. The focused regression
+suite then passed **193 checks**. This guidance still needs its native regression;
+schema validation alone cannot establish semantic fidelity.
 
-## Latest main integration and checks
+H also contains candidate replies above the preferred fallback: a Chinese
+emotional turn completed at 15.108 seconds, a Chinese pause at 18.359, and an
+English language-switch turn at 10.141. Across the 23 saved candidate rows, first
+public text had a 5.512-second median and complete replies a 6.720-second median;
+20 completed within ten seconds. The failed candidate row remains separate.
+These outliers prevent claiming that the workload meets ten seconds on every
+turn. H is incomplete and is not acceptance evidence for current code.
 
-Latest main `4c1a53af9ba878e1991297f6b81521e474b6720a` merged cleanly at
-`89c9d2f1e39126dd5948718186e488342a583d48`, bringing delivered-question
-tracking and the toddler-stage removal. Review found two compatibility updates:
-the continuity fixture needed the new required nullable question-evidence field,
-and the changed timeline instructions needed their generated version 2 receipt.
-The latter was copied from the primary main checkout and verified against
-Langfuse; its staged work was left untouched. No feature-branch publication ran.
+## Checks and retained failures
 
-At `4d52604`, all **421** combined collector, continuity, strategy,
-question-identity, real-SQL HTTP and two-lane regression checks passed, with
-cleanup verified. Required `make test-place-research` passed **588 web, 432
-Python and 95 skill tests**. `make prompt-check` verified all **81** published
-pins. Before these fixes, the checks retained 13 combined and ten place Python
-failures; a clean latest-main checkout independently reproduced a background
-failure. This does not claim every repository test is green.
+At published source `8e7a561`:
 
-The earlier 80-row canonical matrix and mobile replay passed at source
-`743546c1`; the updated-main workload still needs its own full comparison.
+- Collector/question/plan/worker checks: **184 passed**.
+- Combined regressions: **427 passed, one failed** on a stale lane lease. The
+  exact isolated rerun passed; the timing cause is unproven. This was not one
+  all-green combined run.
+- Required `make test-place-research`: **588 web, 432 Python, 95 skill tests**.
+- Updated bilingual matrix: **10 checks per locale passed**, covering all 80
+  application rows and mobile replay; eight negative-stream checks per locale
+  were excluded here and had passed in the earlier full matrix at `91528c7`.
 
-## Recovered generation and remaining gates
+At `2725650`, **152** strategy/question/engine/runtime checks passed; the three
+focused exclusion checks passed. At `703795c`, both additional real SQL/HTTP
+exclusion regressions passed. These results do not substitute for a complete
+current-source live campaign.
 
-After the user confirmed gateway recovery, comparison F at `c4611030` executed
-30 planned turns with 30 native invocations and no background dispatch. All
-produced durable public replies, but the pure-stop candidate incorrectly chose
-`extract` rather than `reply_only`. Its public reply correctly stopped without
-a question. The frozen failure condition stopped the campaign, retaining 29
-passing rows, that contract failure, and 50 unrun rows. Worker homes were removed.
-Generation availability is no longer the blocker; work-decision correctness and
-verification on the updated main remain open.
+Earlier campaigns and failures remain retained in the
+[public evidence](test-evidence/issue53-every-turn-followup-20261020.json):
+D/E had upstream failures/timeouts; F saved 30 replies but failed the pure-stop
+work contract; G stopped on incorrect evidence offsets; H stopped on the negative
+intent bug. Fixes address those observed defects; unsuccessful rows are not
+counted as successful latency samples.
 
-Before acceptance, the latest source needs the pure-stop work fix, its full
-bilingual contract matrix, a bounded matched live run and
+A subsequent native probe completed model generation but failed at the local
+publication database guard before reply delivery. A cleanup timeout then masked
+the initial error. A browser setup probe made no model calls and exposed missing
+configuration in replaced shared containers. Existing project configuration is
+now supplied explicitly to task-owned ephemeral workers/API. Shared services
+were not changed. Further live checks acquire the existing backend operation
+lock to avoid overlapping another local stack operation.
+
+## Outstanding acceptance gates
+
+The current code needs a complete bounded matched live comparison and bilingual
 review of every public reply, genuine pre-rollout session continuation and
-rollback, long-source retention and independent extraction readback, and the
-small real web-proxy/browser smoke. Provider failures must remain in the final
-report. Controlled activation follows successful acceptance; the shared app
-continues using its existing configuration meanwhile.
+rollback, long-source wire retention and independent extraction readback, and the
+small real web-proxy/browser smoke. Local publication connectivity must be
+resolved before those measurements resume. Candidate activation follows those
+gates and remains pending.
 
-The reviewed activation values, once those gates pass, are
-`MEMORY_SPARK_COLLECTOR_MODEL=gpt-5.6-luna-memoir-low` and
+The prepared collector configuration is
+`MEMORY_SPARK_COLLECTOR_MODEL=gpt-5.6-luna-memoir-low` with
 `MEMORY_SPARK_COLLECTOR_REASONING_EFFORT=low`, applied consistently to API,
-private worker and background worker configuration. Other role overrides and
-published prompt pins stay as configured. Record the previous collector values
-before activation so rollback restores them for future turns. Activation is
-pending, not evidence of a completed rollout.
+private worker and background worker. Capture the existing values for rollback;
+preserve other role overrides and published prompt pins. Saved historical
+replies must replay unchanged, and rollback affects future generations only.

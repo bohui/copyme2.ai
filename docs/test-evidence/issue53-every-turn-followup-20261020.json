@@ -4,7 +4,7 @@
   "pr": 101,
   "preferred_seconds": 5,
   "fallback_seconds": 10,
-  "latest_source_revision": "4d5260448951ee5abfd6ee2604a5e5a427621513",
+  "latest_source_revision": "06515028e25f9ebf9a49362074256889518b9677",
   "release_accepted": false,
   "shared_app_candidate_enabled": false,
   "policy": {
@@ -1316,8 +1316,7 @@
     "probe_e": "both first turns timed out; two app-server invocations; homes removed",
     "direct_gateway_probe": "valid greeting request returned HTTP 502",
     "remaining": [
-      "pure-stop work decision correction",
-      "post-main full bilingual contract/matched live quality and latency gates",
+      "current-source full bilingual live quality and latency comparison, including translation ambiguity, retained failures and >10-second outliers",
       "genuine pre-rollout session continuation and rollback",
       "long-source retention and independent extraction readback",
       "bounded real web proxy/browser smoke",
@@ -1390,7 +1389,8 @@
       },
       "release_accepted": false
     },
-    "current_gate": "Fix the pure-stop work decision and verify the updated main source across the remaining live acceptance workload."
+    "current_gate": "Diagnose local publication delivery after the backend lock is available, then run the fixed current-source acceptance workload.",
+    "published_followup": "PR104 merged with user approval, normal main-only publication succeeded, all 81 exact prompt pins verified. H stopped on the Chinese negative-topic intent bug; code and persistence regressions fixed at 2725650 and 703795c."
   },
   "checks": [
     {
@@ -1492,5 +1492,1160 @@
       "place_skill_passed": 95
     },
     "primary_checkout_staged_work": "left untouched"
+  },
+  "published_pause_fix": {
+    "pr": 104,
+    "merge_revision": "c48ae3da73c2447a8b445edab1081cd03971d278",
+    "receipt_revision": "7ebf5416807dfb92fe0c3358a8455086a0e29336",
+    "publication": "user-authorized main-only publisher; two initial ReadTimeouts retained; final sync and exact pin check succeeded",
+    "pins": [
+      {
+        "name": "memoir/skills/memoir-interviewer/collector-plan",
+        "schema_version": 1,
+        "sha256": "dbd54bcec8129756af438553061946cd8cdcbb59c0b8ef197f044737ee0dfd65",
+        "type": "text",
+        "version": 2
+      },
+      {
+        "name": "memoir/skills/memoir-interviewer/strategy/selection",
+        "schema_version": 1,
+        "sha256": "fb959e2a76d6e24e3830613e018b6a7d815d67f0a93b3f4e37144966b4f23040",
+        "type": "text",
+        "version": 4
+      }
+    ],
+    "all_published_pins_verified": 81,
+    "feature_branch_publication": false
+  },
+  "published_fix_regression": {
+    "source_revision": "8e7a56188ad09aa0d851884c2042ec04a2f769db",
+    "status": "passed",
+    "cases": [
+      {
+        "collector_mode": "legacy",
+        "locale": "en-AU",
+        "kind": "pause",
+        "status": "passed",
+        "work": "reply_only",
+        "reply": "I’m sorry this is upsetting. We can stop here for today.",
+        "timings": {
+          "text_delta": 8.332,
+          "reply_complete": 8.996,
+          "conversation_saved": 9.004
+        }
+      },
+      {
+        "collector_mode": "legacy",
+        "locale": "zh-CN",
+        "kind": "pause",
+        "status": "passed",
+        "work": "reply_only",
+        "reply": "好，今天我们就先到这里。",
+        "timings": {
+          "text_delta": 4.188,
+          "reply_complete": 4.726,
+          "conversation_saved": 4.736
+        }
+      },
+      {
+        "collector_mode": "legacy",
+        "locale": "en-AU",
+        "kind": "story_stop",
+        "status": "passed",
+        "work": "extract",
+        "reply": "Understood. We’ll stop here for today.",
+        "timings": {
+          "text_delta": 5.606,
+          "reply_complete": 8.665,
+          "conversation_saved": 8.707
+        }
+      },
+      {
+        "collector_mode": "legacy",
+        "locale": "zh-CN",
+        "kind": "story_stop",
+        "status": "passed",
+        "work": "extract",
+        "reply": "好的，今天就先到这里。",
+        "timings": {
+          "text_delta": 6.844,
+          "reply_complete": 7.735,
+          "conversation_saved": 7.748
+        }
+      },
+      {
+        "collector_mode": "legacy",
+        "locale": "en-AU",
+        "kind": "unique_quote",
+        "status": "passed",
+        "work": "extract",
+        "reply": "That shed was part of your family life in Hobart.\n\nWhat do you remember most clearly about your father repairing bicycles in the shed?",
+        "timings": {
+          "text_delta": 4.028,
+          "reply_complete": 6.1,
+          "conversation_saved": 6.106
+        }
+      },
+      {
+        "collector_mode": "legacy",
+        "locale": "zh-CN",
+        "kind": "unique_quote",
+        "status": "passed",
+        "work": "extract",
+        "reply": "谢谢您。\n\n提到霍巴特，您最先想起的是哪段生活往事？",
+        "timings": {
+          "text_delta": 4.343,
+          "reply_complete": 6.414,
+          "conversation_saved": 6.421
+        }
+      },
+      {
+        "collector_mode": "active",
+        "locale": "en-AU",
+        "kind": "pause",
+        "status": "passed",
+        "work": "reply_only",
+        "reply": "I’m sorry this is upsetting. We’ll stop here for today.",
+        "timings": {
+          "text_delta": 5.634,
+          "reply_complete": 6.261,
+          "conversation_saved": 6.272
+        }
+      },
+      {
+        "collector_mode": "active",
+        "locale": "zh-CN",
+        "kind": "pause",
+        "status": "passed",
+        "work": "reply_only",
+        "reply": "好，今天就先到这里。谢谢您告诉我这些。",
+        "timings": {
+          "text_delta": 3.245,
+          "reply_complete": 3.694,
+          "conversation_saved": 3.706
+        }
+      },
+      {
+        "collector_mode": "active",
+        "locale": "en-AU",
+        "kind": "story_stop",
+        "status": "passed",
+        "work": "extract",
+        "reply": "Your father repaired bicycles in Hobart. We’ll stop here for today.",
+        "timings": {
+          "text_delta": 3.672,
+          "reply_complete": 4.527,
+          "conversation_saved": 4.544
+        }
+      },
+      {
+        "collector_mode": "active",
+        "locale": "zh-CN",
+        "kind": "story_stop",
+        "status": "passed",
+        "work": "extract",
+        "reply": "您父亲在霍巴特修自行车的这段记忆，我先替您留在这里。今天就到这里。",
+        "timings": {
+          "text_delta": 3.564,
+          "reply_complete": 4.492,
+          "conversation_saved": 4.501
+        }
+      },
+      {
+        "collector_mode": "active",
+        "locale": "en-AU",
+        "kind": "unique_quote",
+        "status": "passed",
+        "work": "extract",
+        "reply": "Thank you, Joan. Your father repaired bicycles in the shed, and you lived in Hobart.\n\nWhat do you remember about the shed where your father repaired bicycles?",
+        "timings": {
+          "text_delta": 4.364,
+          "reply_complete": 5.842,
+          "conversation_saved": 5.853
+        }
+      },
+      {
+        "collector_mode": "active",
+        "locale": "zh-CN",
+        "kind": "unique_quote",
+        "status": "passed",
+        "work": "extract",
+        "reply": "韩凤江，您说父亲在棚屋里修自行车，而你们住在霍巴特。\n\n父亲在棚屋里修自行车时，您通常会在旁边做些什么？",
+        "timings": {
+          "text_delta": 5.41,
+          "reply_complete": 13.317,
+          "conversation_saved": 13.334
+        }
+      }
+    ],
+    "native_attempts": 13,
+    "maximum_native_attempts": 18,
+    "background_attempts": 0,
+    "cleanup_verified": true,
+    "receipt_sha256": "ba8f1f7b11b6a3bc3325dd4662556e7390507795e83968f2e2947290f956f238",
+    "note": "Both languages, legacy and active schemas: pure distress/stop, new facts before stop, and unique question-evidence quote. One corrective native call retained."
+  },
+  "published_fix_checks": {
+    "combined": {
+      "passed": 427,
+      "failed": 1,
+      "seconds": 287.75,
+      "failure": "test_burst_coalescing_concurrent_claim_crash_restart_and_old_token_are_idempotent: stale canonical lane page",
+      "isolated_recheck": {
+        "passed": 1,
+        "seconds": 3.24,
+        "cleanup_verified": true
+      },
+      "full_run_receipt_sha256": "5de0910273cb00e8fdd44e3d87c5580fff30c3ccbfc40e2809217155121da96e"
+    },
+    "place_research": {
+      "web_passed": 588,
+      "python_passed": 432,
+      "skill_passed": 95
+    },
+    "matrices": [
+      {
+        "locale": "en-AU",
+        "rows_passed": 40,
+        "mock_native_dispatches": 38,
+        "checks_passed": 10,
+        "source_revision": "8e7a56188ad09aa0d851884c2042ec04a2f769db",
+        "exit_code": 0,
+        "seconds": 345.51,
+        "cleanup_verified": true,
+        "receipt_sha256": "3f628f5edae157a88f67cd0b61248739fae543f4fd5d9e6e55f39ff2e36544d6"
+      },
+      {
+        "locale": "zh-CN",
+        "rows_passed": 40,
+        "mock_native_dispatches": 38,
+        "checks_passed": 10,
+        "source_revision": "8e7a56188ad09aa0d851884c2042ec04a2f769db",
+        "exit_code": 0,
+        "seconds": 345.6,
+        "cleanup_verified": true,
+        "receipt_sha256": "a8eaa50659120d4de449a9a0ec781477e218e89d5cbec9dc76717ee3e68d0c1e"
+      }
+    ]
+  },
+  "active_selector_comparison_g": {
+    "source_revision": "655f5be",
+    "planned_rows": 80,
+    "completed_rows": 14,
+    "saved_rows": 13,
+    "failed_rows": [
+      "issue53/correction/en-AU/turn-1/0/candidate"
+    ],
+    "native_attempts": 16,
+    "unrun_rows": 66,
+    "cleanup_verified": true,
+    "failure": "Unique exact question quotation supplied incorrect explicit character offsets; validation rejected it. Two normal bounded repairs then failed upstream with max_output_tokens.",
+    "fix": "Shared question-evidence wire guidance prefers both offsets null for unique quotes. Host validation still resolves and verifies exact spans; explicit incorrect spans remain rejected. Fixed safe reason reaches normal bounded repairs."
+  },
+  "active_selector_comparison_h": {
+    "source_revision": "8e7a56188ad09aa0d851884c2042ec04a2f769db",
+    "status": "aborted",
+    "planned_rows": 80,
+    "attempted_rows": 47,
+    "saved_rows": 46,
+    "failed_rows": 1,
+    "unrun_rows": 33,
+    "native_invocations": 49,
+    "background_invocations": 0,
+    "temporary_homes_removed": true,
+    "receipt_sha256": "6a6126bc657e7510dd04b086d90dc5ff39232ea5fd1b93e52485f904fb962277",
+    "failed_row": {
+      "row_id": "issue53/switch-skip/zh-CN/turn-2/0/candidate",
+      "arm": "candidate",
+      "phase": "later",
+      "locale": "zh-CN",
+      "action": "turn",
+      "selected_route": "gpt-5.6-luna-memoir-low",
+      "status": "failed",
+      "failure_class": "CanonicalTurnFailed",
+      "error_code": null,
+      "timings": {
+        "api_preparation_to_worker_dispatch_s": 0.682,
+        "first_public_text_s": 8.713
+      }
+    },
+    "root_cause": "Chinese negative intent “不想聊” matched the positive redirect substring “想聊”, incorrectly requiring a follow-up. Two captured model proposals correctly acknowledged the exclusion without a question; both now pass the unchanged governed validator apart from the corrected intent detection.",
+    "fix_revision": "2725650f2c09f2b298868e9bea575e0b6a13f972",
+    "partial_cohort_summary": {
+      "baseline": {
+        "saved_rows": 23,
+        "attempted_rows": 23,
+        "timings": {
+          "first_public_text_s": {
+            "count": 23,
+            "median_s": 13.674,
+            "maximum_s": 56.11,
+            "within_5_s": 0,
+            "within_10_s": 1
+          },
+          "question_validated_s": {
+            "count": 20,
+            "median_s": 17.352,
+            "maximum_s": 60.133,
+            "within_5_s": 0,
+            "within_10_s": 0
+          },
+          "reply_complete_s": {
+            "count": 23,
+            "median_s": 15.636,
+            "maximum_s": 60.263,
+            "within_5_s": 0,
+            "within_10_s": 1
+          },
+          "conversation_saved_s": {
+            "count": 23,
+            "median_s": 15.686,
+            "maximum_s": 60.365,
+            "within_5_s": 0,
+            "within_10_s": 1
+          }
+        }
+      },
+      "candidate": {
+        "saved_rows": 23,
+        "attempted_rows": 24,
+        "timings": {
+          "first_public_text_s": {
+            "count": 23,
+            "median_s": 5.512,
+            "maximum_s": 16.804,
+            "within_5_s": 8,
+            "within_10_s": 21
+          },
+          "question_validated_s": {
+            "count": 20,
+            "median_s": 6.58,
+            "maximum_s": 14.538,
+            "within_5_s": 2,
+            "within_10_s": 19
+          },
+          "reply_complete_s": {
+            "count": 23,
+            "median_s": 6.72,
+            "maximum_s": 18.359,
+            "within_5_s": 2,
+            "within_10_s": 20
+          },
+          "conversation_saved_s": {
+            "count": 23,
+            "median_s": 6.727,
+            "maximum_s": 18.466,
+            "within_5_s": 2,
+            "within_10_s": 20
+          }
+        }
+      }
+    },
+    "limitation": "Stopped early; unequal denominators and incomplete scenarios. These statistics describe saved rows only and exclude the failed turn. First public text can be generic. This cohort is not release acceptance.",
+    "public_saved_rows": [
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+        "arm": "baseline",
+        "phase": "first",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "Thanks, Joan. We can start wherever suits you.\n\nWhat would you like to talk about first?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.392,
+          "first_public_text_s": 10.64,
+          "question_validated_s": 11.802,
+          "reply_complete_s": 11.824,
+          "conversation_saved_s": 11.831
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-1/0/candidate",
+        "arm": "candidate",
+        "phase": "first",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "It’s nice to meet you, Joan.\n\nWhat would you like to talk about today?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.231,
+          "first_public_text_s": 3.716,
+          "question_validated_s": 4.609,
+          "reply_complete_s": 4.635,
+          "conversation_saved_s": 4.662
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-2/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "Hobart is a distinctive place to begin your story.\n\nWhat comes to mind when you think of Hobart?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.125,
+          "first_public_text_s": 3.478,
+          "question_validated_s": 4.349,
+          "reply_complete_s": 4.361,
+          "conversation_saved_s": 4.368
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-2/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "That gives us a place to begin.\n\nWhat, if anything, have you heard about your birth in Hobart?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.328,
+          "first_public_text_s": 11.441,
+          "question_validated_s": 12.361,
+          "reply_complete_s": 12.375,
+          "conversation_saved_s": 12.382
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-3/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "The beans beside the kitchen give us a place to begin.\n\nWhat do you remember about growing beans beside the kitchen?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.128,
+          "first_public_text_s": 12.88,
+          "question_validated_s": 13.812,
+          "reply_complete_s": 13.824,
+          "conversation_saved_s": 13.83
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/en-AU/turn-3/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "Growing beans beside the kitchen is a vivid detail.\n\nWhat do you remember about looking after the beans?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.365,
+          "first_public_text_s": 4.298,
+          "question_validated_s": 5.259,
+          "reply_complete_s": 5.285,
+          "conversation_saved_s": 5.293
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-1/0/candidate",
+        "arm": "candidate",
+        "phase": "first",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "韩凤江，您好。\n\n您想先聊哪一段生活？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.27,
+          "first_public_text_s": 7.923,
+          "question_validated_s": 8.699,
+          "reply_complete_s": 8.782,
+          "conversation_saved_s": 8.8
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-1/0/baseline",
+        "arm": "baseline",
+        "phase": "first",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "韩凤江，您好。\n\n您想从现在的生活聊起，还是从一段您想讲的往事开始？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.228,
+          "first_public_text_s": 10.051,
+          "question_validated_s": 11.034,
+          "reply_complete_s": 11.205,
+          "conversation_saved_s": 11.226
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-2/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "霍巴特，是您出生的地方。\n\n提到霍巴特，您最先想起的是哪段往事？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.226,
+          "first_public_text_s": 17.484,
+          "question_validated_s": 18.53,
+          "reply_complete_s": 18.602,
+          "conversation_saved_s": 18.612
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-2/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "霍巴特是您出生的地方。\n\n提到霍巴特，您最先想起的是哪段往事？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.325,
+          "first_public_text_s": 5.111,
+          "question_validated_s": 6.155,
+          "reply_complete_s": 6.178,
+          "conversation_saved_s": 6.187
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-3/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "厨房旁边种豆子，是一段具体的生活记忆。\n\n当时是谁和您一起在厨房旁种豆子？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.179,
+          "first_public_text_s": 4.941,
+          "question_validated_s": 6.298,
+          "reply_complete_s": 6.312,
+          "conversation_saved_s": 6.319
+        }
+      },
+      {
+        "row_id": "issue53/name-clue/zh-CN/turn-3/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "厨房旁种豆子，是一段具体的往事。\n\n您还记得当时是谁和您一起种豆子吗？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.191,
+          "first_public_text_s": 13.642,
+          "question_validated_s": 15.623,
+          "reply_complete_s": 15.636,
+          "conversation_saved_s": 15.686
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-1/0/baseline",
+        "arm": "baseline",
+        "phase": "first",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "Thank you, Joan. Your father’s bicycle repairs in the shed give us a place to begin.\n\nWhat stands out to you about the shed where your father repaired bicycles?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.277,
+          "first_public_text_s": 10.196,
+          "question_validated_s": 11.688,
+          "reply_complete_s": 11.7,
+          "conversation_saved_s": 11.706
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-1/0/candidate",
+        "arm": "candidate",
+        "phase": "first",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "Thank you, Joan. The shed and your father’s bicycle repairs give us a clear place to begin.\n\nWhat do you remember most clearly about the shed where your father repaired bicycles?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.245,
+          "first_public_text_s": 4.61,
+          "question_validated_s": 6.182,
+          "reply_complete_s": 6.201,
+          "conversation_saved_s": 6.207
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-2/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "Thank you for correcting that—the bicycles were repaired by your mother.\n\nWhat do you remember most clearly about the shed where your mother repaired the bicycles?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.119,
+          "first_public_text_s": 4.173,
+          "question_validated_s": 5.417,
+          "reply_complete_s": 5.431,
+          "conversation_saved_s": 5.438
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-2/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "Thank you for correcting that—the bicycles were repaired by your mother.\n\nWhat stands out to you about the shed where your mother repaired the bicycles?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.49,
+          "first_public_text_s": 13.556,
+          "question_validated_s": 14.805,
+          "reply_complete_s": 14.851,
+          "conversation_saved_s": 14.862
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-3/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "Your home was in Hobart, and you brought Mother the tools.\n\nWhat do you remember about bringing Mother the tools?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.102,
+          "first_public_text_s": 17.333,
+          "question_validated_s": 18.895,
+          "reply_complete_s": 18.927,
+          "conversation_saved_s": 18.939
+        }
+      },
+      {
+        "row_id": "issue53/correction/en-AU/turn-3/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "Hobart was home, and you brought Mother the tools.\n\nWhat do you remember about bringing Mother the tools?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.58,
+          "first_public_text_s": 4.725,
+          "question_validated_s": 6.519,
+          "reply_complete_s": 6.566,
+          "conversation_saved_s": 6.573
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-1/0/candidate",
+        "arm": "candidate",
+        "phase": "first",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "韩凤江，记下了。父亲在棚屋里修自行车，霍巴特是这段记忆的背景。\n\n父亲在棚屋里修自行车的时候，您那时通常在哪里、在做什么？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.145,
+          "first_public_text_s": 6.584,
+          "question_validated_s": 8.18,
+          "reply_complete_s": 8.247,
+          "conversation_saved_s": 8.256
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-1/0/baseline",
+        "arm": "baseline",
+        "phase": "first",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "韩凤江，您好。父亲在棚屋里修自行车，这个细节很具体。\n\n您最先想起父亲在棚屋里修自行车时的哪一幕？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.649,
+          "first_public_text_s": 21.931,
+          "question_validated_s": 25.531,
+          "reply_complete_s": 25.668,
+          "conversation_saved_s": 25.684
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-2/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "明白了，修自行车的是母亲。\n\n您还记得母亲在棚屋里修自行车时的哪一幕？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.19,
+          "first_public_text_s": 14.949,
+          "question_validated_s": 17.989,
+          "reply_complete_s": 18.128,
+          "conversation_saved_s": 18.143
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-2/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "明白了，修自行车的是母亲，不是父亲。\n\n母亲在棚屋里修自行车的时候，您那时通常在哪里、在做什么？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 1.648,
+          "first_public_text_s": 7.729,
+          "question_validated_s": 9.817,
+          "reply_complete_s": 9.874,
+          "conversation_saved_s": 9.915
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-3/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "您住在霍巴特，也会给母亲递工具。\n\n您当时最常递给母亲什么工具？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.161,
+          "first_public_text_s": 5.508,
+          "question_validated_s": 6.641,
+          "reply_complete_s": 6.72,
+          "conversation_saved_s": 6.727
+        }
+      },
+      {
+        "row_id": "issue53/correction/zh-CN/turn-3/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "明白了，您说的是住在霍巴特，也给母亲递工具。\n\n给母亲递工具之后，您还记得发生了什么？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.705,
+          "first_public_text_s": 25.477,
+          "question_validated_s": 27.457,
+          "reply_complete_s": 27.53,
+          "conversation_saved_s": 27.539
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-1/0/baseline",
+        "arm": "baseline",
+        "phase": "first",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "I’ll take it gently. You were proud to help, frightened about leaving, and still keep the small spanner.\n\nWould you like to say a little about the small spanner, or leave this memory here for now?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.197,
+          "first_public_text_s": 19.228,
+          "question_validated_s": 21.055,
+          "reply_complete_s": 21.12,
+          "conversation_saved_s": 21.129
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-1/0/candidate",
+        "arm": "candidate",
+        "phase": "first",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "Thank you, Joan. I’ll take this gently; the workshop closing and your leaving with the blue box sound difficult to hold.\n\nWould you like to say what you remember most about the workshop before it closed, or leave that for now?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.609,
+          "first_public_text_s": 6.447,
+          "question_validated_s": 7.768,
+          "reply_complete_s": 7.783,
+          "conversation_saved_s": 7.828
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-2/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "The small spanner brings her careful work to mind.\n\nWhat do you remember about the way she worked that made you think of her as careful?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.155,
+          "first_public_text_s": 5.77,
+          "question_validated_s": 7.314,
+          "reply_complete_s": 7.363,
+          "conversation_saved_s": 7.374
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-2/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "The small spanner brings her careful work to mind.\n\nWhat is it about the spanner that makes you think of her work?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.784,
+          "first_public_text_s": 24.51,
+          "question_validated_s": 27.276,
+          "reply_complete_s": 27.416,
+          "conversation_saved_s": 27.428
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-3/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "I’m sorry this is upsetting. We’ll stop here for today.",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.186,
+          "first_public_text_s": 6.991,
+          "reply_complete_s": 8.231,
+          "conversation_saved_s": 8.255
+        }
+      },
+      {
+        "row_id": "issue53/emotional/en-AU/turn-3/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "I’m sorry this is upsetting. We’ll stop here for today.",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.977,
+          "first_public_text_s": 5.866,
+          "reply_complete_s": 6.46,
+          "conversation_saved_s": 6.513
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-1/0/candidate",
+        "arm": "candidate",
+        "phase": "first",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "我听见了那份自豪、害怕，也听见了说起这些让您难受。我们慢慢来，不必急着补上记不清的年份。\n\n如果愿意，您想先说说那把小扳手现在对您意味着什么吗？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.23,
+          "first_public_text_s": 5.512,
+          "question_validated_s": 7.178,
+          "reply_complete_s": 7.338,
+          "conversation_saved_s": 7.362
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-1/0/baseline",
+        "arm": "baseline",
+        "phase": "first",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "您说起这些很难受，我会放慢速度。\n\n那把小扳手让您最先想到什么？如果现在不想谈，也可以先放一放。",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.481,
+          "first_public_text_s": 56.11,
+          "question_validated_s": 60.133,
+          "reply_complete_s": 60.263,
+          "conversation_saved_s": 60.365
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-2/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "那把小扳手让您想起她干活时的仔细。\n\n您还记得她那时做的是什么活吗？如果不想细说，也可以先放一放。",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.312,
+          "first_public_text_s": 22.4,
+          "question_validated_s": 25.175,
+          "reply_complete_s": 25.253,
+          "conversation_saved_s": 25.314
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-2/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "那把小扳手也让您记住了她做事时的认真和仔细。\n\n您是在什么事情上注意到她这样仔细的？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 2.018,
+          "first_public_text_s": 11.614,
+          "question_validated_s": 14.538,
+          "reply_complete_s": 15.108,
+          "conversation_saved_s": 15.235
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-3/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "好，今天就先到这里。",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.742,
+          "first_public_text_s": 16.804,
+          "reply_complete_s": 18.359,
+          "conversation_saved_s": 18.466
+        }
+      },
+      {
+        "row_id": "issue53/emotional/zh-CN/turn-3/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "好，今天先到这里，我会停下。",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 2.352,
+          "first_public_text_s": 13.665,
+          "reply_complete_s": 14.925,
+          "conversation_saved_s": 14.985
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-1/0/baseline",
+        "arm": "baseline",
+        "phase": "first",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "Joan, I’ll stay with that memory of planting beans beside the old kitchen.\n\nWhat do you remember most about planting beans beside the old kitchen?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.273,
+          "first_public_text_s": 17.181,
+          "question_validated_s": 19.352,
+          "reply_complete_s": 19.47,
+          "conversation_saved_s": 19.519
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-1/0/candidate",
+        "arm": "candidate",
+        "phase": "first",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "It’s good to meet you, Joan. Beans beside the old kitchen make a clear opening memory.\n\nWhat do you remember most about planting those beans?",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.631,
+          "first_public_text_s": 5.654,
+          "question_validated_s": 9.948,
+          "reply_complete_s": 10.141,
+          "conversation_saved_s": 10.273
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-2/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "Of course—we’ll leave that topic aside.",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.246,
+          "first_public_text_s": 6.016,
+          "reply_complete_s": 7.014,
+          "conversation_saved_s": 7.022
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-2/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "Understood. I’ll leave the kitchen aside.",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 1.047,
+          "first_public_text_s": 12.215,
+          "reply_complete_s": 13.566,
+          "conversation_saved_s": 13.633
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-3/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "好的，我们用中文聊上学的事。\n\n关于上学，您想从哪段经历说起？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.472,
+          "first_public_text_s": 10.134,
+          "question_validated_s": 11.044,
+          "reply_complete_s": 11.151,
+          "conversation_saved_s": 11.159
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-3/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "好，我们用中文聊上学的事。\n\n上学时，哪一段经历最先浮现在您脑海里？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.456,
+          "first_public_text_s": 5.211,
+          "question_validated_s": 6.115,
+          "reply_complete_s": 6.271,
+          "conversation_saved_s": 6.389
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-4/0/candidate",
+        "arm": "candidate",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "和姐姐一起走去学校，听起来是您上学记忆中的一个片段。\n\n和姐姐一起走去学校时，您最先记得的是哪一件事？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.119,
+          "first_public_text_s": 6.216,
+          "question_validated_s": 7.424,
+          "reply_complete_s": 7.493,
+          "conversation_saved_s": 7.547
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/en-AU/turn-4/0/baseline",
+        "arm": "baseline",
+        "phase": "later",
+        "locale": "en-AU",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "姐姐陪您一起走去学校。\n\n在那段一起上学的日子里，您和姐姐平时怎么相处？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.47,
+          "first_public_text_s": 13.674,
+          "question_validated_s": 14.802,
+          "reply_complete_s": 14.881,
+          "conversation_saved_s": 14.92
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-1/0/baseline",
+        "arm": "baseline",
+        "phase": "first",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-pooled",
+        "reply": "韩凤江，您提到在老厨房旁种豆子。\n\n您说的“我们”，是指和谁一起种豆子？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.409,
+          "first_public_text_s": 14.775,
+          "question_validated_s": 16.715,
+          "reply_complete_s": 16.772,
+          "conversation_saved_s": 16.781
+        }
+      },
+      {
+        "row_id": "issue53/switch-skip/zh-CN/turn-1/0/candidate",
+        "arm": "candidate",
+        "phase": "first",
+        "locale": "zh-CN",
+        "action": "turn",
+        "selected_route": "gpt-5.6-luna-memoir-low",
+        "reply": "韩凤江，老厨房旁种豆子的这段记忆很值得从这里展开。\n\n您还记得那时种豆子时，通常是谁和您一起做吗？",
+        "timings": {
+          "api_preparation_to_worker_dispatch_s": 0.593,
+          "first_public_text_s": 4.784,
+          "question_validated_s": 6.365,
+          "reply_complete_s": 6.441,
+          "conversation_saved_s": 6.533
+        }
+      }
+    ]
+  },
+  "negated_topic_regression": {
+    "implementation_revision": "2725650f2c09f2b298868e9bea575e0b6a13f972",
+    "http_sql_test_revision": "703795cdae7bfb4b8ee856ec6575a6908415dcfc",
+    "strategy_question_engine_runtime_checks": {
+      "passed": 152,
+      "elapsed_s": 42.84
+    },
+    "focused_topic_exclusion_checks": {
+      "passed": 3,
+      "elapsed_s": 0.25
+    },
+    "streamed_http_sql_exclusion_checks": {
+      "passed": 2,
+      "elapsed_s": 4.28,
+      "languages": [
+        "en-AU",
+        "zh-CN"
+      ],
+      "observed": [
+        "one collector request",
+        "entire current source supplied",
+        "one durable conversation_saved",
+        "exact exclusion persisted",
+        "work mode extract",
+        "no forced redirect"
+      ]
+    },
+    "captured_native_proposals_revalidated": 2,
+    "initial_fixture_error_retained": true,
+    "current_code_full_live_acceptance_complete": false
+  },
+  "operator_followup_status": {
+    "shared_service_replacement_observed": true,
+    "ephemeral_configuration_fix": "Explicitly pass existing project configuration to task-owned ephemeral workers/API rather than inherit missing values from the replaced shared containers. No shared service configuration was changed.",
+    "native_probe_d": {
+      "native_invocations": 1,
+      "model_terminal_status": "completed",
+      "first_raw_delta_s": 9.703,
+      "model_terminal_s": 10.884,
+      "worker_terminal_s": 12.783,
+      "application_outcome": "PublicationDatabaseUnavailable before public reply delivery; original failure was subsequently masked by a cleanup timeout. Not a successful latency observation.",
+      "temporary_homes_removed": true
+    },
+    "browser_probe_d": {
+      "native_generation_started": false,
+      "outcome": "Browser could not reach story creation because the inherited Supabase URL was missing; fixed only in the not-yet-run ephemeral operator configuration.",
+      "temporary_homes_removed": true,
+      "api_cleanup_verified": true
+    },
+    "zero_call_database_path_probe_a": {
+      "model_calls": 0,
+      "database_allocations": 0,
+      "outcome": "Existing backend operation lock busy; no test work started."
+    },
+    "current_blocker": "Another local make up operation holds the existing backend lock; native and browser rechecks wait for it. Independent disposable-database connection diagnostics use no shared services and no model calls."
+  },
+  "translation_grounding_followup": {
+    "source_revision": "06515028e25f9ebf9a49362074256889518b9677",
+    "observed_failure": {
+      "row": "issue53/switch-skip/en-AU/turn-4/0/candidate",
+      "current_source": "My sister walked to school with me.",
+      "requested_reply_language": "zh-CN",
+      "unsupported_translation": "姐姐",
+      "reason": "The narrator did not establish whether the sister was older or younger."
+    },
+    "change": "Shared acknowledgement and question schema guidance preserves unspecified relationships across translation. No managed prompt Markdown or receipt changed.",
+    "focused_checks": {
+      "passed": 193,
+      "elapsed_s": 57.29
+    },
+    "native_regression_status": "prepared; not yet executed",
+    "release_accepted": false
   }
 }
