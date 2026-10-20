@@ -37,14 +37,16 @@ class _ContinuityUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
 
     kind: Literal['person', 'unresolved_reference', 'commitment', 'excluded_topic', 'paused_topic']
-    text: str = Field(min_length=1, max_length=500)
+    text: str = Field(min_length=1, max_length=500,
+        description='Verbatim copy of quote. Do not extract a shorter name, label or paraphrase.')
     assertion: Literal['asserted', 'inferred']
     uncertainty: str | None = Field(max_length=500)
     source_id: str = Field(min_length=1, max_length=128)
     source_version: int = Field(ge=1, strict=True)
     char_start: int = Field(ge=0, strict=True)
     char_end: int = Field(ge=1, strict=True)
-    quote: str = Field(min_length=1, max_length=500)
+    quote: str = Field(min_length=1, max_length=500,
+        description='Exactly identical to text, character for character, and a verbatim substring of the current narrator source. Not a longer supporting sentence for a shorter text.')
 
     @model_validator(mode='after')
     def faithful_text(self):

@@ -30,4 +30,4 @@ def test_collector_compose_preserves_empty_defaults_and_explicit_overrides(tmp_p
         entries = [line.strip().removeprefix('- ').strip('"')
                    for line in result.stdout.splitlines()
                    if line.strip().removeprefix('- ').strip('"').startswith(key + '=')]
-        assert entries == [key + '=' + value] * 2  # API and Codex worker.
+        assert entries == [key + '=' + value] * 3  # API, Codex worker and checkpoint worker.

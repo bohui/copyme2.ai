@@ -10,6 +10,7 @@ from __future__ import annotations
 from copy import deepcopy
 import asyncio
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any, Literal
@@ -29,6 +30,10 @@ from .lifetime_memory_contracts import (
 )
 from .lifetime_memory_execution import open_execution
 from .lifetime_memory_publication import ProviderPublication
+from .diagnostics import configure_diagnostic_logger, log_diagnostic
+
+
+diagnostic_logger = configure_diagnostic_logger(logging.getLogger('memoir.collector.diagnostics'))
 
 
 # Native outputSchema also constrains commentary. Forcing a preamble required
@@ -426,9 +431,10 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                     if cause in reasons:
                         reason = cause
                         break
-            import logging
-            logging.getLogger(__name__).warning('governed_collector rejected reason=%s',
-                reason)
+            log_diagnostic(diagnostic_logger, 'collector_output_rejected',
+                (responsesapi_client_metadata or {}).get('request_id'),
+                component='memoir.collector', agent_role='collector', model=model,
+                requested_effort=effort, status='rejected', error_code=reason)
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn',reason=reason) from None

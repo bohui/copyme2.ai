@@ -83,6 +83,7 @@ def test_real_governed_http_save_cold_replay_preserves_identity_and_lease(sql,tm
     output=proposal(name='Joan',question='What would you like to share?');output['plan']['conversation_phase']='comfort'
     def provider(request):
         body=json.loads(request.content);calls.append(body)
+        assert body['diagnostic_request_id']==payload['client_turn_id']
         assert body['governed']['fence']['identity']['owner_id']==OWNER
         assert body['memories']==[] and body['profile']=={} and body['text']=='' and body['thread_id'] is None
         raw=json.dumps(output)
