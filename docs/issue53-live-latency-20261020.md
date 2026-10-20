@@ -160,6 +160,10 @@ at 4.543 seconds. The translation reply used neutral `姐妹` wording and saved
 at 7.645 seconds. Evidence is retained in
 `var/issue53-negation-probe-20261020g`. The focused collector, engine, and
 continuity suite passes **235 checks**, including explicit-offset rejection.
+Two subsequent full-cohort attempts are retained but excluded from acceptance:
+one stopped on a candidate worker stream/contract failure, and one was stopped
+after repeated pooled/max gateway timeouts and busy 409s. Both disposable
+worker homes were removed.
 
 Follow-up checks covered existing sessions in both locales: resumed turns,
 saved replay, deliberate rollback, and long sources all saved in the retained

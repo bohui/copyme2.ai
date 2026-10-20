@@ -1509,7 +1509,8 @@
     "Unrelated legacy tests on main reference removed runtime helpers; reproduced separately on clean main.",
     "The current public-reply semantic review is a bounded contract audit, not a blinded human bilingual study.",
     "The isolated browser smoke observed optional readiness 500s; turn streaming, durable save, and storage audits remained clean.",
-    "The 80-row native cohort contains one pre-fix complete/save outlier above ten seconds; the post-fix candidate-only replay passed that path, but it is not a full cohort rerun or production percentile."
+    "The 80-row native cohort contains one pre-fix complete/save outlier above ten seconds; the post-fix candidate-only replay passed that path, but it is not a full cohort rerun or production percentile.",
+    "Two post-fix full-cohort attempts were retained but excluded: one candidate stream/contract failure and one operator-cancelled run after pooled/max baseline timeouts and busy 409s under shared gateway load."
   ],
   "shared_app_configuration_observed": {
     "services": [
@@ -2900,5 +2901,30 @@
     ],
     "former_outlier": "The prior Chinese negative-topic row streamed at 3.453 seconds but completed at 13.62 seconds after three bounded repair attempts.",
     "limitation": "This targeted replay confirms the repaired path; the complete 80-row cohort has not been rerun at this revision and the 5-second first-text target is not universal for every translation case."
+  },
+  "post_fix_full_cohort_attempts": {
+    "source_revision": "6c105704c184c01a7cc0ab53bc54aa5458f0828a",
+    "counted_as_acceptance": false,
+    "attempts": [
+      {
+        "run_dir": "var/issue53-worker-profile-20261020j",
+        "receipt_sha256": "7b5ae19be2df593625b129f6c387cba06c1b1fcb0a0fb4d0bd04a357177f9f64",
+        "status": "aborted",
+        "recorded_rows": 15,
+        "failed_rows": 1,
+        "failure": "Candidate correction turn hit a worker stream/contract failure after first text; isolated replay of the same correction payload validated successfully.",
+        "temporary_homes_removed": true
+      },
+      {
+        "run_dir": "var/issue53-worker-profile-20261020k",
+        "receipt_sha256": "15e89e3a5235e65dd3fad04ec09188de7dac982ead0ca94adfc96c4c8991e23a",
+        "status": "operator_cancelled",
+        "recorded_rows": 37,
+        "failed_rows": 7,
+        "failure": "Pooled/max baseline requests repeatedly timed out or returned busy 409 under shared gateway load; candidate rows already recorded remained saved.",
+        "temporary_homes_removed": true
+      }
+    ],
+    "limitation": "These attempts demonstrate the current shared-gateway limitation and are excluded from latency acceptance; the completed matched cohort at e8 and targeted post-fix replay remain the valid evidence."
   }
 }
