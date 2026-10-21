@@ -26,6 +26,18 @@ def test_manifest_identifies_components_and_schema_without_request_testimony():
     assert all(item['version'] is None for item in manifest['artifacts'] if item['status']=='unpublished')
 
 
+def test_manifest_ignores_catalog_sources_not_shipped_to_runtime(monkeypatch):
+    from apps.api.prompt_catalog import PROMPT_PATHS
+    from apps.api.memory_events import extraction_instructions, extraction_schema
+
+    monkeypatch.setitem(PROMPT_PATHS, 'memoir/evaluation/not-shipped',
+                        'tests/evaluation/not-shipped.md')
+
+    manifest = instruction_manifest(extraction_instructions(), extraction_schema(), variant='extract')
+
+    assert 'memoir/evaluation/not-shipped' not in {item['name'] for item in manifest['artifacts']}
+
+
 def test_behavioral_schema_descriptions_are_not_a_second_prompt_store():
     schema = governed_collector_schema({'sources':[],'events':[],'photos':[]})
     def visit(value):
@@ -58,6 +70,57 @@ def test_explicit_missing_provider_binding_never_falls_back_to_environment(monke
     with pytest.raises(ValueError, match='not configured'):
         asyncio.run(run())
     assert calls == []
+
+
+def test_structured_request_forwards_skill_trace_identity(monkeypatch):
+    import asyncio
+    import httpx
+    from apps.api import llm_tracing
+    from apps.api.model_request import complete_json
+
+    class Observation:
+        def __init__(self, fields):
+            self.fields = fields
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    class Client:
+        def __init__(self):
+            self.observations = []
+
+        def start_as_current_observation(self, **fields):
+            observation = Observation(fields)
+            self.observations.append(observation)
+            return observation
+
+    client = Client()
+    monkeypatch.setattr(llm_tracing, '_client_cache', client)
+    captured = {}
+
+    def provider(request):
+        captured.update(json.loads(request.content))
+        return httpx.Response(200, json={
+            'id': 'fixture-response',
+            'status': 'completed',
+            'output': [{'type': 'message', 'content': [{
+                'type': 'output_text',
+                'text': '{"complete":true,"restrictions":[]}',
+            }]}],
+        })
+
+    asyncio.run(complete_json(
+        'memoir/skills/memoir-interviewer/policy-review', {}, {},
+        model='fixture-model', transport=httpx.MockTransport(provider),
+        base_url='https://fixture.invalid/v1', api_key='fixture-key',
+        trace_name='memoir-interviewer'))
+
+    assert captured['metadata']['generation_name'] == 'memoir-interviewer'
+    assert captured['metadata']['trace_name'] == 'memoir-interviewer'
+    assert client.observations[0].fields['name'] == 'memoir-interviewer'
 
 
 @pytest.mark.parametrize('fault',['span','duplicate','kind','incomplete'])

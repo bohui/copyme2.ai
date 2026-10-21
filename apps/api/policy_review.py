@@ -56,6 +56,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
         {'source': source}, PolicyReview.model_json_schema(),
         model=model or os.getenv('MEMORY_SPARK_COLLECTOR_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL'),
         base_url=base_url, api_key=api_key,
+        trace_name='memoir-interviewer',
         body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))
     output = validate_review(output, source)
     connection = await AsyncConnection.connect(os.environ['MEMOIR_PUBLICATION_DATABASE_URL'], connect_timeout=2)

@@ -66,9 +66,13 @@ def decode_json_response(value):
     return json.loads(text)
 
 
-async def complete_json(name, payload, schema, *, model=None, transport=None, body_factory=None, base_url=None, api_key=None):
+async def complete_json(name, payload, schema, *, model=None, transport=None, body_factory=None,
+                        base_url=None, api_key=None, trace_name=None):
     import httpx
     body, manifest = managed_json_request(name, payload, schema, model=model)
+    if trace_name:
+        body['metadata'] = {**body.get('metadata', {}),
+                            'generation_name': trace_name, 'trace_name': trace_name}
     base = (os.getenv('MEMORY_SPARK_LLM_BASE_URL', '') if base_url is None else base_url).rstrip('/')
     key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '') if api_key is None else api_key
     endpoint=urlsplit(base)
@@ -80,8 +84,12 @@ async def complete_json(name, payload, schema, *, model=None, transport=None, bo
         raise ValueError('Structured model request exceeds its byte budget')
     content = body_factory(encoded) if body_factory else encoded
     try:
-        with trace_llm_call(name, body['model'], input_summary={'kind': 'structured_input'},
-                            metadata={'prompt_manifest': manifest}) as trace:
+        trace_metadata = {'prompt_manifest': manifest}
+        if trace_name:
+            trace_metadata.update(generation_name=trace_name, trace_name=trace_name)
+        with trace_llm_call(trace_name or name, body['model'],
+                            input_summary={'kind': 'structured_input'},
+                            metadata=trace_metadata) as trace:
             async with httpx.AsyncClient(transport=transport, timeout=60, trust_env=False, follow_redirects=False) as client:
                 async with client.stream('POST', base + '/responses', content=content,
                     headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
@@ -113,6 +121,10 @@ def instruction_manifest(instructions, schema=None, *, variant=None, extra_names
     names = list(extra_names)
     for name, relative in PROMPT_PATHS.items():
         path = ROOT / relative
+        # Evaluation-only sources are catalogued for offline tooling but are
+        # not shipped in the runtime worker image.
+        if not path.is_file():
+            continue
         template = path.read_text(encoding='utf-8')
         if template and (template in instructions or
                 '{{prompt:' in template and render_prompt_artifact(path) in instructions):
