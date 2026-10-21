@@ -90,6 +90,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
         payload, schema,
         model=model or os.getenv('MEMORY_SPARK_COLLECTOR_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL'),
         base_url=base_url, api_key=api_key,
+        trace_name='memoir-interviewer',
         body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))
     acknowledgement = None
     if opening:
