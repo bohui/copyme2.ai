@@ -1,6 +1,14 @@
 """Model-consumed prompt sources, owned by their skill or shared workflow."""
 
 PROMPT_PATHS = {
+    'memoir/evaluation/semantic-boundaries-judge': 'apps/api/prompts/evaluation/semantic-boundaries-judge.md',
+    'memoir/skills/memoir-interviewer/governed-repair/codes': 'skills/memoir-interviewer/prompts/governed-repair/codes.md',
+    'memoir/skills/memoir-place-photo-research/capture-evidence': 'skills/memoir-place-photo-research/prompts/capture-evidence.md',
+    'memoir/skills/memoir-place-photo-research/discovery': 'skills/memoir-place-photo-research/prompts/discovery.md',
+    'memoir/shared/historical-acknowledgements': 'apps/api/prompts/shared/historical-acknowledgements.md',
+    'memoir/evaluation/probes/connectivity': 'apps/api/prompts/evaluation/probes/connectivity.md',
+    'memoir/evaluation/probes/worker': 'apps/api/prompts/evaluation/probes/worker.md',
+    'memoir/evaluation/probes/web-search': 'apps/api/prompts/evaluation/probes/web-search.md',
     'memoir/evaluation/five-case-judge': 'tests/evaluation/memoir_five_case_judge_prompt.md',
     'memoir/evaluation/five-case-judge/guard': 'tests/evaluation/prompts/five-case-judge/guard.md',
     'memoir/evaluation/live-skills/historical-lead': 'tests/evaluation/prompts/live-skills/historical-lead.md',
@@ -43,6 +51,7 @@ PROMPT_PATHS = {
     'memoir/skills/memoir-interviewer/background-memory': 'skills/memoir-interviewer/prompts/background-memory.md',
     'memoir/skills/memoir-interviewer/collector': 'skills/memoir-interviewer/prompts/collector.md',
     'memoir/skills/memoir-interviewer/collector-plan': 'skills/memoir-interviewer/prompts/collector-plan.md',
+    'memoir/skills/memoir-interviewer/governed-places': 'skills/memoir-interviewer/prompts/governed-places.md',
     'memoir/skills/memoir-interviewer/governed-continuity': 'skills/memoir-interviewer/prompts/governed-continuity.md',
     'memoir/skills/memoir-interviewer/governed-repair/acknowledgement': 'skills/memoir-interviewer/prompts/governed-repair/acknowledgement.md',
     'memoir/skills/memoir-interviewer/governed-repair/prefix': 'skills/memoir-interviewer/prompts/governed-repair/prefix.md',
@@ -53,6 +62,7 @@ PROMPT_PATHS = {
     'memoir/skills/memoir-interviewer/guidance': 'skills/memoir-interviewer/prompts/guidance.md',
     'memoir/skills/memoir-interviewer/language/en-AU': 'skills/memoir-interviewer/prompts/language/en-AU.md',
     'memoir/skills/memoir-interviewer/language/zh-CN': 'skills/memoir-interviewer/prompts/language/zh-CN.md',
+    'memoir/skills/memoir-interviewer/policy-review': 'skills/memoir-interviewer/prompts/policy-review.md',
     'memoir/skills/memoir-interviewer/privacy-guard': 'skills/memoir-interviewer/prompts/privacy-guard.md',
     'memoir/skills/memoir-interviewer/strategy/comfort': 'skills/memoir-interviewer/prompts/strategy/comfort.md',
     'memoir/skills/memoir-interviewer/strategy/explore': 'skills/memoir-interviewer/prompts/strategy/explore.md',

@@ -39,6 +39,11 @@ def sql(event_database):
 
 def rpc(sql, name, arguments, *, owner=OWNER, check=True):
     result = sql(as_user(f"select coalesce(to_jsonb(public.{name}({arguments})),'null'::jsonb);", owner), check=check)
+    if check and name in {'accept_user_narrator_source', 'accept_user_interview_turn', 'accept_two_lane_interview_turn', 'change_user_narrator_source'}:
+        # SQL seed callers supply a fixed empty review. Pending-policy tests use
+        # raw SQL; runtime tests exercise the separately mocked provider phase.
+        from controlled_policy import complete_seed_policy
+        complete_seed_policy(sql, owner)
     return json.loads(result.stdout.splitlines()[-1]) if check else result
 
 

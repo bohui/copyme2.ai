@@ -218,7 +218,7 @@ test-place-research: test-web ## Replay the two-place interview through the API,
 		tests/test_database_baseline.py::test_one_fresh_baseline_has_no_upgrade_or_backfill_statements
 	@python3 -m unittest discover -s skills/memoir-place-photo-research/tests
 
-langfuse-eval: ## Run the checked-in synthetic trajectory cases through the app/worker seam.
+langfuse-eval: ## Replay fixed trajectory snapshots through the deterministic scorer.
 	@set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \
 	args=""; if test "$(EVAL_PUBLISH)" = "1"; then args="--publish"; fi; \
 		python3 scripts/run_langfuse_evaluation.py --cases "$(EVAL_CASES)" --task "$(EVAL_TASK)" --failure-dir "$(EVAL_FAILURE_DIR)" --concurrency "$(EVAL_CONCURRENCY)" $$args

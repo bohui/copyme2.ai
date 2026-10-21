@@ -7,6 +7,9 @@ in flight, and result commits must independently revalidate the same lane token.
 """
 from __future__ import annotations
 
+from .model_request import instruction_manifest, manifest_metadata
+from .llm_tracing import trace_llm_call
+
 import asyncio
 from contextlib import asynccontextmanager
 from copy import deepcopy
@@ -723,8 +726,11 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
             start_params={'cwd':str(home),'ephemeral':True,'modelProvider':'llm_provider',
                 'model':model,'approvalPolicy':'never','sandbox':'read-only','baseInstructions':instructions},
             identity={'owner_id':str(fence.user_id),'conversation_id':str(fence.conversation_id)})
-        reply = await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
-            **({'effort':effort} if effort else {}),
-            responsesapi_client_metadata={'generation_name': skill_name, 'trace_name': skill_name})
+        manifest = instruction_manifest(instructions + ('\n' + EXTRACTION_WINDOW_CONTRACT if bounded.phase == 'extract' else ''),
+            schema, variant=bounded.phase)
+        with trace_llm_call('memoir.' + str(bounded.phase), model, metadata={'contract_version': 'lifetime-lane-v1', 'prompt_manifest': manifest}):
+            reply = await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
+                **({'effort':effort} if effort else {}),
+                responsesapi_client_metadata={**manifest_metadata(manifest),'generation_name': skill_name, 'trace_name': skill_name})
         _object(reply)  # Semantic/evidence validation and fenced commit remain with the lane owner.
     return {'thread_id':opened['thread_id'],'reply':reply,'artifacts':[]}

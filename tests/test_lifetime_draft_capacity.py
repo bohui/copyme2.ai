@@ -176,7 +176,8 @@ def seed_draft(sql,count=3):
         insert into public.user_private_draft_outbox(user_id,project_id,change_kind) values('{OWNER}',{literal(project)},'round');""")
     # Explicitly reconcile this isolated synthetic bulk fixture through the real
     # literal parser. Production imports remain pending without approved review.
-    sql(f"select public.apply_lifetime_literal_policy(user_id,project_id,id,version) from public.user_narrator_source where user_id='{OWNER}' and project_id={literal(project)};")
+    from controlled_policy import complete_seed_policy
+    complete_seed_policy(sql,OWNER)
     event=sql(f"select id from public.user_private_draft_outbox where user_id='{OWNER}' and project_id={literal(project)} order by created_at desc,id desc limit 1;").stdout.strip()
     return identity,event
 

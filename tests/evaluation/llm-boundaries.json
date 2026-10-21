@@ -1,0 +1,139 @@
+{
+  "schema_version": "memoir-semantic-boundaries/1",
+  "scope": "Live semantic contract evaluation; never an ordinary test assertion about natural-language meaning.",
+  "cases": [
+    {
+      "id": "privacy-paraphrase",
+      "contract": "policy",
+      "locale": "en-AU",
+      "source": "I would rather keep the kitchen out of our conversations.",
+      "expectation": "A completed review proposes an excluded_topic with exact original evidence for the kitchen restriction."
+    },
+    {
+      "id": "privacy-unrelated-report",
+      "contract": "policy",
+      "locale": "en-AU",
+      "source": "Do not discuss the kitchen. My mother said hello.",
+      "expectation": "The first clause remains an excluded_topic; unrelated reported speech must not cancel it."
+    },
+    {
+      "id": "privacy-attributed-quote",
+      "contract": "policy",
+      "locale": "en-AU",
+      "source": "My mother said, ‘Do not discuss the kitchen.’ I am telling you what she said, not asking for that restriction.",
+      "expectation": "No narrator restriction is asserted. Do not promote the mother's attributed words into a narrator control."
+    },
+    {
+      "id": "negative-topic-redirect",
+      "contract": "collector",
+      "locale": "en-AU",
+      "source": "Please do not change the subject.",
+      "expectation": "Do not classify this as a positive user_redirect to a new subject."
+    },
+    {
+      "id": "question-pause-paraphrase",
+      "contract": "collector",
+      "locale": "en-AU",
+      "source": "I would like to stop asking questions for now.",
+      "expectation": "Respect the pause with no new question; do not force a prepared candidate."
+    },
+    {
+      "id": "sister-relative-age",
+      "contract": "collector",
+      "locale": "zh-CN",
+      "source": "My sister was born before I was.",
+      "expectation": "A Chinese reply may accurately describe this sister as 姐姐. Preserve the per-person age relationship."
+    },
+    {
+      "id": "sister-age-not-brother",
+      "contract": "collector",
+      "locale": "zh-CN",
+      "source": "My older brother and my sister came with me.",
+      "expectation": "Do not infer the sister is younger from a separate older-brother reference; preserve her unspecified relative age."
+    },
+    {
+      "id": "acknowledgement-invitation",
+      "contract": "collector",
+      "locale": "en-AU",
+      "source": "I remember my father.",
+      "expectation": "The acknowledgement contains no invitation such as 'Tell me more about your father.' or 'What would you like to remember.' even without a question mark. Put any invitation or follow-up in the separate question field."
+    },
+    {
+      "id": "acknowledgement-invitation-chinese",
+      "contract": "collector",
+      "locale": "zh-CN",
+      "source": "我们先不聊厨房的事了。",
+      "expectation": "The acknowledgement may acknowledge the restriction but contains no follow-up such as '好的，我们跳过厨房。您想从哪段经历聊起呢' even without question punctuation. Put any invitation or follow-up in the separate question field."
+    },
+    {
+      "id": "independent-place-certainty",
+      "contract": "extract",
+      "locale": "en-AU",
+      "source": "I lived in Sydney. I am not sure which town my uncle lived in.",
+      "expectation": "Keep the narrator's clear Sydney cue. Do not invent the uncle's town or suppress Sydney because of that unrelated uncertainty."
+    },
+    {
+      "id": "date-unrelated-negation",
+      "contract": "extract",
+      "locale": "en-AU",
+      "source": "I lived in Sydney in 1980 and did not own a car.",
+      "expectation": "The Sydney cue has an explicit 1980 research window with exact evidence. Negation about car ownership does not negate residence or its date."
+    },
+    {
+      "id": "negative-residence",
+      "contract": "extract",
+      "locale": "en-AU",
+      "source": "I did not live in Sydney in 1980.",
+      "expectation": "Do not create an affirmative Sydney residence or research window for 1980 from this negated claim."
+    },
+    {
+      "id": "place-birth-versus-current",
+      "contract": "extract",
+      "locale": "zh-CN",
+      "source": "我目前生活在悉尼，我出生在河北承德的一个小镇。我是1983年出生的。",
+      "expectation": "Sydney is current context with no transferred birth date. Chengde may use a narrator birth-decade reference window of 1980–1989 with anchor 1983 and original evidence. Do not invent the small town's identity."
+    },
+    {
+      "id": "capture-before-weather",
+      "contract": "caption",
+      "locale": "en-AU",
+      "source": "Chengde street before the rain, photographed in 1983.",
+      "expectation": "The capture assertion is 1983 with no temporal uncertainty merely because 'before' refers to rain."
+    },
+    {
+      "id": "capture-versus-upload",
+      "contract": "caption",
+      "locale": "en-AU",
+      "source": "Photographed in 1983; uploaded in 2025.",
+      "expectation": "Classify 1983 as capture and 2025 as upload. Only capture timing can date the scene."
+    },
+    {
+      "id": "capture-uncertain",
+      "contract": "caption",
+      "locale": "en-AU",
+      "source": "Possibly photographed around 1983; date unconfirmed.",
+      "expectation": "Preserve capture-date uncertainty. Do not certify an exact scene date."
+    },
+    {
+      "id": "uncertain-event-date",
+      "contract": "extract",
+      "locale": "en-AU",
+      "source": "I think we moved approximately in 1976.",
+      "expectation": "Preserve approximate timing and uncertainty. 'Approximately' and 'around' are semantically acceptable; do not invent an exact day or require a particular paraphrase."
+    },
+    {
+      "id": "chinese-topic-pause",
+      "contract": "policy",
+      "locale": "zh-CN",
+      "source": "我们先不聊厨房，可以讲讲花园。",
+      "expectation": "A paused_topic for the kitchen keeps its exact source evidence. Do not exclude the garden that the narrator offers to discuss."
+    },
+    {
+      "id": "reported-clause-plus-redirect",
+      "contract": "collector",
+      "locale": "en-AU",
+      "source": "My father said nearby. Let’s talk about my garden.",
+      "expectation": "The narrator redirects to the garden. The unrelated reported clause must not cancel that request; preserve per-clause attribution."
+    }
+  ]
+}

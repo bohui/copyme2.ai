@@ -19,23 +19,13 @@ character offsets, with an exclusive end. Public news, photo
 metadata, old sources and generated assistant text cannot supply these updates.
 Do not translate quotes or invent a paraphrase, person, relationship, promise or
 restriction. No owner, epoch, record ID or revision belongs in a proposal.
-Privacy exclusions and pauses must be asserted direct literal narrator commands,
-not inferred preferences, conditional examples, quoted or reported speech. Keep
-their exact scope and wording. Explicit commitments describe future intent, never
-completed work. For initial literal controls use complete direct sentences such
-as "Don't discuss my school", "Let's set aside my school for now", or
-"I'll return to the garden later"; do not promote another person's quotation.
-The application validates the interview plan; this extension cannot override a
-pause or change language or chosen name.
-
-Return place_journeys for every distinct clear geographic place explicitly named
-in the CURRENT narrator source, in mention order, including an opening reply.
-Copy place from the original wording. Use an Earth-to-place hierarchy ending in
-that same label and country, region, city or suburb granularity. Map only coarse
-public geography: for 河北省承德市附属医院 use 承德市, never the hospital.
-Do not emit private addresses, buildings, schools, hospitals, generic places,
-quoted public references, uncertain locations or places only in saved context.
-Return [] when no clear place is named. These are visual recall cues, never
-evidence of residence or participation; keep them out of the spoken reply.
-Include approximate public place-centre latitude and longitude when known,
-otherwise set both to null. Never supply a person's address or precise location.
+Privacy exclusions and pauses are restrictive model proposals anchored to the
+current narrator's own preference or command, including indirect wording. Keep
+scope, negation, attribution and uncertainty separate for independent passages.
+The dedicated pending-policy review commits restrictions before private context
+is admitted; reproduce a reviewed restriction only with its exact quote and
+span. Other speakers' statements and hypothetical examples do not create a
+restriction. Explicit commitments describe future intent rather than completed
+work. A turn pause uses the turn's stop fields, without inventing a topic ban.
+The application validates evidence and the interview plan; this extension grants
+no language, chosen-name, ownership, sharing or publication permission.

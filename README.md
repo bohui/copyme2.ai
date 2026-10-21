@@ -473,8 +473,9 @@ acceptance remain separate gates.
 Memoir keeps the evaluation runner beside the application and private
 `codex-worker` boundary. The default dataset and callback are checked in at
 [`tests/evaluation/cases.json`](tests/evaluation/cases.json) and
-`apps.api.evaluation_cases:run_case`; each case uses an isolated synthetic
-identity/project and calls `CodexRuntime.turn(..., evaluation=..., include_trajectory=True)`.
+`apps.api.evaluation_cases:run_case`; each case replays a fixed synthetic
+trajectory snapshot for scorer validation. Current canonical database and engine
+replays separately cover application admission and persistence.
 The recorder captures observable Codex protocol and application steps, pre-action
 context, normalized tool arguments, results/errors/retries, marker/state
 validation, persistence, deterministic task results, and the terminal response
@@ -864,3 +865,42 @@ an exact year. The app reports a shortfall when
 fewer than ten qualifying photographs are found; Google CSE API results are also
 post-filtered by location, item date metadata and compatible licence after each
 page. Adding an API does not guarantee coverage for every year and place.
+
+### Deterministic checks and semantic evaluation
+
+Ordinary tests supply fixed model proposals and validate schemas, exact source
+spans, identity, revision fences, arithmetic and persistence. External network
+connections and DNS are denied in pytest and the standalone photo unit suite;
+loopback services and explicit mock transports remain available. A passing mock
+provider test does not measure language understanding. Trajectory scoring exposes
+`completion_contract` and optional `literal_response_contract` gates; semantic
+`final_response_quality` is emitted only by an explicitly configured live judge.
+The synthetic trajectory command replays scorer fixtures, not the application.
+
+Language expectations found in the boundary audit live in
+[`tests/evaluation/llm-boundaries.json`](tests/evaluation/llm-boundaries.json).
+`python3 scripts/evaluate_llm_boundaries.py` lists the cases with zero model calls.
+After publishing merged prompts through the workflow above, add `--execute` to run
+these synthetic semantic contracts and an independent managed judge. Receipts
+record the model, response ID, artifact versions/hashes and compiled instruction
+and schema hashes. This evaluates individual model contracts; full application
+live E2E remains a separate activity.
+
+A newly accepted source now remains policy-pending until a bounded model review
+of **that source alone** completes. The review can propose only restrictive topic
+controls. SQL validates exact original spans and commits controls and completion
+atomically. Missing configuration, uncertainty, provider failure or stale evidence
+leaves private-context publication blocked; user controls remain authoritative for
+permissions and relaxation. This adds one model call before ordinary generation.
+Place extraction supplies source-bound normalized research windows. The API,
+browser, photo search and news consume those saved values without interpreting
+chat again. Public prose captions likewise use a managed extraction contract;
+structured provider dates, source fetching, rights, bounds and URL checks remain
+host responsibilities.
+
+Offline feature-branch replays intentionally load registered draft prompt source
+text. Tests of the production loader still require genuine publication receipts.
+No feature-branch test fabricates a Langfuse version or permits production to load
+an unpublished prompt. Merge reviewed prompt sources, pull `main`, run
+`make prompt-sync`, commit the generated receipts, and run `make prompt-check`
+before deploying a changed prompt.

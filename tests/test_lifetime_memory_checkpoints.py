@@ -122,7 +122,7 @@ def test_more_than_100_historical_records_keep_recent_pronoun_context_bounded(sq
     statement=''.join(f"select public.save_lifetime_continuity('{identity['conversation_id']}','person-{n:03d}','person',0,1,'{OLD}',{literal(data)}::jsonb);" for n in range(120))
     sql(as_user(statement))
     rpc(sql,'save_lifetime_continuity',f"'{identity['conversation_id']}','active-pronoun','unresolved_reference',0,1,'{OLD}',{literal(data)}::jsonb")
-    rpc(sql,'save_lifetime_continuity',f"'{identity['conversation_id']}','privacy-exclusion','excluded_topic',0,1,'{OLD}',{literal({**data,'text':'Do not discuss the private school incident.'})}::jsonb")
+    sql(as_user("update public.user_profile set profile=jsonb_set(profile,'{memory_preferences}','{\"excluded_topics\":[\"Do not discuss the private school incident.\"]}');"))
     pins=rpc(sql,'read_lifetime_pinned',f"'{identity['conversation_id']}'")
     assert 'Do not discuss the private school incident.' in pins['excluded_topics']
     assert len(pins['known_continuity'])<=8 and not pins['known_continuity_complete']

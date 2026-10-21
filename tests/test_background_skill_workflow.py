@@ -487,7 +487,12 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     parramatta = {'place':'Parramatta','hierarchy':[*places[1]['hierarchy'],'Parramatta'],
                   'granularity':'suburb','latitude':-33.815,'longitude':151.002}
     def extract(packet):
-        return {**empty(packet), 'place_journeys': list(reversed(places))}
+        source=packet['sources'][0]
+        quoted=source['text']
+        model_places=[{**place} for place in reversed(places)]
+        model_places[1]['research']=dict(year_start=1980,year_end=1989,anchor_year=1983,basis='birth_decade',
+            quote=quoted,char_start=0,char_end=len(quoted))
+        return {**empty(packet), 'place_journeys': model_places}
     def external_get(url,**kwargs):
         params=kwargs['params']
         if 'maps.googleapis.com' in url:

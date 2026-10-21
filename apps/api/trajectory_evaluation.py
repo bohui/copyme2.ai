@@ -25,6 +25,7 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 from uuid import uuid4
 
 import httpx
+from .model_request import prompt_manifest
 from .llm_tracing import mark_llm_trace_error, trace_llm_call, update_llm_trace
 
 
@@ -67,15 +68,10 @@ _OBSERVATION_LINK_FIELDS = (
     "root_observation_id",
 )
 
-JUDGE_RUBRIC: dict[str, str] = {
-    "tool_appropriateness": "Choose only tools that advance the task and use the narrowest valid tool for the evidence available.",
-    "evidence_use": "Ground claims in returned evidence and preserve uncertainty; never invent facts absent from the case.",
-    "recovery": "Recover from tool errors with a bounded, useful retry or a clear safe stop.",
-    "repetition": "Avoid duplicate successful actions and unproductive loops.",
-    "stopping": "Stop once the task is complete or a safe, explicit blocker is reached.",
-    "instruction_adherence": "Follow the task, entitlement, privacy, ownership, and output constraints.",
-    "final_response_quality": "Give a concise, accurate, uncertainty-preserving response that matches the requested outcome.",
-}
+JUDGE_RUBRIC = (
+    'tool_appropriateness', 'evidence_use', 'recovery', 'repetition',
+    'stopping', 'instruction_adherence', 'final_response_quality',
+)
 
 
 def load_judge_calibration(payload: Any) -> list[Mapping[str, Any]]:
@@ -240,6 +236,10 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         "observation_id": "observation_id",
         "job_id": "job_id",
         "checkpoint_id": "checkpoint_id",
+        "contract_version": "contract_version",
+        "prompt_sha256": "prompt_sha256",
+        "schema_sha256": "schema_sha256",
+        "manifest_sha256": "manifest_sha256",
     }
     result: dict[str, str] = {}
     for source_key, target_key in aliases.items():
@@ -1252,7 +1252,7 @@ def evaluate_trajectory(
             if failed_tasks else "Deterministic task result assertions passed.",
         )
 
-    response_requirements = expected.get("response_requirements") or {}
+    response_requirements = expected.get("literal_response_requirements") or {}
     response = str(final.get("response") or "")
     if isinstance(response_requirements, Mapping):
         required_phrases = [str(item) for item in response_requirements.get("contains", []) if item]
@@ -1261,7 +1261,7 @@ def evaluate_trajectory(
         missing_phrases = [item for item in required_phrases if item.casefold() not in folded_response]
         found_phrases = [item for item in forbidden_phrases if item.casefold() in folded_response]
         if required_phrases or forbidden_phrases:
-            add("response_contract", 0 if missing_phrases or found_phrases else 1, "Response contract failed." if missing_phrases or found_phrases else "Response contract passed.")
+            add("literal_response_contract", 0 if missing_phrases or found_phrases else 1, "Literal response contract failed." if missing_phrases or found_phrases else "Literal response contract passed.")
 
     expected_skill_hash = expected.get("skill_manifest_sha256")
     if expected_skill_hash:
@@ -1321,7 +1321,7 @@ def evaluate_trajectory(
     state_names = {"state_assertions", "entitlement", "ownership", "revision", "artifact_state", "artifact_existence", "task_result"}
     skill_selection_names = {"required_actions", "forbidden_actions", "equivalent_valid_path", "allowed_tools", "enabled_skills"}
     skill_adherence_names = {"skill_manifest", "marker_syntax", "marker_grounding"}
-    final_names = {"terminal_completion", "response_contract"}
+    final_names = {"terminal_completion", "literal_response_contract"}
     def average(names: set[str], default: float = 1.0) -> float:
         values = [gates[name] for name in names if name in gates]
         return sum(values) / len(values) if values else default
@@ -1336,7 +1336,7 @@ def evaluate_trajectory(
     add("skill_selection_adherence", (selection_score + adherence_score) / 2, "Skill selection and adherence follow the case constraints.")
     add("execution_quality", average(execution_names), "Execution respects tool, retry, repetition, recovery, and step constraints.")
     add("state_correctness", average(state_names), "Final persisted state satisfies the case assertions.")
-    add("final_response_quality", average(final_names, 1.0 if terminal else 0.0), "The final response meets the terminal and response contract.")
+    add("completion_contract", average(final_names, 1.0 if terminal else 0.0), "Completion and literal requirements; semantic quality requires a live judge.")
     return scores
 
 
@@ -1358,7 +1358,7 @@ def build_judge_input(
         "final_response": redact_payload(final.get("response")),
         "stop_reason": final.get("stop_reason"),
         "final_state": redact_payload(final.get("state")),
-        "rubric": dict(JUDGE_RUBRIC),
+        "rubric_categories": list(JUDGE_RUBRIC),
     }
 
 
@@ -1366,11 +1366,11 @@ def build_judge_prompt(
     judge_input: Mapping[str, Any],
     *,
     calibration_examples: Iterable[Mapping[str, Any]] = (),
-    instructions: str | None = None,
+    prompt_names: tuple[str, ...] = ('memoir/evaluation/trajectory-judge/rubric',),
 ) -> str:
     """Create the full-run, calibrated input for an external semantic judge."""
     payload = {
-        "instructions": instructions or load_prompt_artifact(prompt_path('memoir/evaluation/trajectory-judge/rubric')),
+        "instructions": "\n".join(load_prompt_artifact(prompt_path(name)) for name in prompt_names),
         "calibration_examples": redact_payload(list(calibration_examples)),
         "input": redact_payload(judge_input),
     }
@@ -1493,7 +1493,7 @@ class OpenAICompatibleJudge:
         api_key: str = "",
         calibration_examples: Iterable[Mapping[str, Any]] = (),
         timeout: float = 60.0,
-        instructions: str | None = None,
+        prompt_names: tuple[str, ...] = ('memoir/evaluation/trajectory-judge/rubric',),
         max_tokens: int = 1200,
         reasoning_effort: str | None = None,
     ) -> None:
@@ -1502,7 +1502,7 @@ class OpenAICompatibleJudge:
         self.api_key = api_key
         self.calibration_examples = list(calibration_examples)
         self.timeout = timeout
-        self.instructions = instructions
+        self.prompt_names = prompt_names
         self.max_tokens = max(128, min(int(max_tokens), 4096))
         self.reasoning_effort = reasoning_effort
         self.calls = 0
@@ -1524,7 +1524,7 @@ class OpenAICompatibleJudge:
                 {"role": "user", "content": build_judge_prompt(
                     judge_input,
                     calibration_examples=self.calibration_examples,
-                    instructions=self.instructions,
+                    prompt_names=self.prompt_names,
                 )},
             ],
         }
@@ -1538,7 +1538,11 @@ class OpenAICompatibleJudge:
                 "fields": sorted(str(key) for key in judge_input.keys()),
                 "ordered_steps": len(judge_input.get("ordered_steps", [])),
             },
-            metadata={"provider": self.name, "endpoint": "chat.completions"},
+            metadata={"provider": self.name, "endpoint": "chat.completions", "prompt_manifest":
+                prompt_manifest(
+                    ['memoir/evaluation/trajectory-judge/system', *self.prompt_names],
+                    body['messages'][0]['content'] + '\n' + '\n'.join(load_prompt_artifact(prompt_path(n)) for n in self.prompt_names),
+                    body['response_format'], variant='trajectory-judge')},
         ) as trace:
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:

@@ -10,7 +10,7 @@ import os
 import logging
 from contextlib import asynccontextmanager
 from copy import deepcopy
-from typing import Any, Callable
+from typing import Literal, Any, Callable
 from uuid import UUID
 
 import httpx
@@ -112,7 +112,7 @@ class StorySpeechInput(BaseModel):
     text: str = Field(min_length=1, max_length=4096)
     language: str | None = None
     voice: str | None = None
-    instructions: str | None = None
+    prompt_name: Literal['memoir/speech/default','memoir/speech/en-AU','memoir/speech/zh-CN'] | None = None
     output_format: str = "mp3"
 
 
@@ -704,8 +704,9 @@ def build_router(
                             or (saved_language.get("locale") if isinstance(saved_language, dict) else None)
                             or detect_reply_locale(payload.text) or "en-AU")
             options = {**payload.model_dump(exclude_none=True), "language": language,
-                       **speech_character(language, voice=payload.voice, instructions=payload.instructions)}
+                       **speech_character(language, voice=payload.voice, prompt_name=payload.prompt_name)}
             cache_key = sha256_json({"user_id": storage.user_id, **options})
+            options.pop("instructions", None)
             existing = speech_cache.get(cache_key)
             if existing:
                 return JSONResponse(status_code=200, content={**existing, "cached": True})

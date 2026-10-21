@@ -51,11 +51,6 @@ def question_evidence_schema(schema, context=None):
         ref['required'] = list(ref['properties'])
         for field in ref['properties'].values():
             field.pop('default', None)
-        for name in ('char_start','char_end'):
-            ref['properties'][name]['description']=(
-                'For a current-source quote occurring exactly once, use null for BOTH offsets; '
-                'the application finds and validates its exact span. For repeated wording, supply '
-                'exact absolute Unicode character offsets. For a queued hint, copy its supplied offsets.')
         if context is not None:
             source = context.get('source') or {}
             allowed = ([source['id']] if source.get('status') == 'active'
@@ -106,11 +101,6 @@ def resolution_schema(schema, context, *, plan=False):
         container['required'] = [key for key in container['required'] if key != 'resolved_questions']
         return schema
     field.pop('default', None)
-    field['description'] = (
-        'Queued questions already answered by current narrator text or recent_dialogue, including paraphrases. '
-        'Exclude these before choosing the next question; cite exact narrator answer spans. '
-        'An assistant question alone, a skip, an uncertain answer, '
-        'or an unrelated reply does not resolve a fact. Keep unresolved confirmations; [] when none are answered.')
     schema['$defs']['QuestionResolution']['properties']['question_id']['enum'] = list(dict.fromkeys(
         candidate['id'] for candidate in candidates))
     return schema

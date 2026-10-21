@@ -194,7 +194,7 @@ def filter_place_photos(items: list[dict], period: str, center: dict | None = No
             and _date_matches(item.get('date_expression', ''), item['matched_period'], tolerance=0))
         if not _date_matches(item.get('date_expression', ''), period) and not same_decade:
             continue
-        if re.search(r'upload|publication|published|modified|visual_guess', item.get('date_basis', ''), re.I):
+        if item.get('date_basis') in {'upload_date','page_publication','modified','visual_guess'}:
             continue
         point = _coordinates(item)
         if center is not None and (point is None or _distance_km(center, point) > PHOTO_RADIUS_KM):
@@ -289,7 +289,7 @@ def _commons(place: str, period: str) -> list[dict]:
                 'title': title, 'image_url': image, 'source_url': source, 'location': place,
                 'location_evidence': caption, 'attribution': value('Artist'), 'license': license_name,
                 'license_url': value('LicenseUrl'), 'date_expression': date,
-                'date_basis': 'Wikimedia DateTimeOriginal',
+                'date_basis': 'original_exif',
                 'width': info.get('width'), 'height': info.get('height'),
                 'usage_permissions': usage_permissions(True),
                 'original_url': info.get('url', image), 'content_hash': info.get('sha1', ''),
@@ -538,7 +538,7 @@ def _google_cse(place: str, period: str, *, limit: int = MAX_RESULTS) -> list[di
                 'image_url': image, 'source_url': source, 'location': place,
                 'location_evidence': caption, 'attribution': _google_creator(result) or _text(result.get('displayLink')) or source,
                 'license': license_name, 'license_url': license_url,
-                'date_expression': scene_date[0], 'date_basis': f'Google {scene_date[1]}',
+                'date_expression': scene_date[0], 'date_basis': 'provider_date_taken',
                 **next((point for records in (result.get('pagemap') or {}).values() if isinstance(records, list)
                         for record in records if (point := _coordinates(record))), {}),
                 'allowed_actions': {'embed': True, 'download': False, 'print': False},
@@ -647,7 +647,7 @@ def _flickr(place: str, period: str) -> list[dict]:
                     'attribution': _text(photo.get('ownername')) or owner,
                     'license': licence['name'], 'license_url': licence['url'],
                     'date_expression': date if str(photo.get('datetakenunknown', '0')) == '0' else '',
-                    'date_basis': 'Flickr date taken' if str(photo.get('datetakenunknown', '0')) == '0' else 'Unknown capture date',
+                    'date_basis': 'provider_date_taken' if str(photo.get('datetakenunknown', '0')) == '0' else 'unknown',
                     **((_coordinates(photo) if str(photo.get('accuracy', '0')) != '0' else None) or {}),
                     'allowed_actions': {'embed': True, 'download': False, 'print': False},
                 })
@@ -1131,7 +1131,7 @@ def _llm_web_search(place: str, period: str) -> list[dict]:
                     'image_url': image['image_url'], 'original_url': image['image_url'],
                     'source_url': image['source_page_url'],
                     'date_expression': expression, 'scene_date_range': scene,
-                    'date_basis': 'Source capture metadata' if scene else 'Unknown capture date',
+                    'date_basis': scene.get('basis','source_caption') if scene else 'unknown',
                     'attribution': urlparse(image['source_page_url']).hostname,
                     'license': licence[0], 'license_url': licence[1],
                     'usage_permissions': usage_permissions(True), 'memory_reference_only': True,

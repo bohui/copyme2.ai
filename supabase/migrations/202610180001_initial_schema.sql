@@ -890,7 +890,7 @@ CREATE TABLE public.user_lifetime_pending_policy (
     source_version bigint NOT NULL,
     client_turn_id uuid NOT NULL,
     parser_version text NOT NULL,
-    CONSTRAINT user_lifetime_pending_policy_parser_version_check CHECK ((parser_version = 'literal-v1'::text)),
+    CONSTRAINT user_lifetime_pending_policy_parser_version_check CHECK ((parser_version = 'semantic-v1'::text)),
     CONSTRAINT user_lifetime_pending_policy_source_version_check CHECK ((source_version > 0))
 );
 
@@ -909,7 +909,7 @@ CREATE TABLE public.user_lifetime_policy_inventory_pending (
     project_id text NOT NULL,
     conversation_id uuid NOT NULL,
     parser_version text NOT NULL,
-    CONSTRAINT user_lifetime_policy_inventory_pending_parser_version_check CHECK ((parser_version = 'literal-v1'::text))
+    CONSTRAINT user_lifetime_policy_inventory_pending_parser_version_check CHECK ((parser_version = 'semantic-v1'::text))
 );
 
 CREATE TABLE public.user_lifetime_prepared_question (
@@ -1053,7 +1053,8 @@ CREATE TABLE public.user_lifetime_source_policy_receipt (
     source_id uuid NOT NULL,
     source_version bigint NOT NULL,
     parser_version text NOT NULL,
-    CONSTRAINT user_lifetime_source_policy_receipt_parser_version_check CHECK ((parser_version = 'literal-v1'::text)),
+    review jsonb NOT NULL,
+    CONSTRAINT user_lifetime_source_policy_receipt_parser_version_check CHECK ((parser_version = 'semantic-v1'::text)),
     CONSTRAINT user_lifetime_source_policy_receipt_source_version_check CHECK ((source_version > 0))
 );
 
@@ -2658,7 +2659,7 @@ begin
  end if;
  select exists(select 1 from public.user_narrator_source where user_id=owner and project_id=p_project_id and client_turn_id=p_client_turn_id) into existed;
  source:=public.accept_user_narrator_source_record(p_project_id,p_client_turn_id,p_text,p_kind,p_language);
- if not existed then perform public.apply_lifetime_literal_policy(owner,p_project_id,(source->>'id')::uuid,(source->>'version')::bigint);end if;
+ -- The source trigger keeps private-context publication pending until semantic review.
  return source;
 end $$;
 
@@ -2875,46 +2876,87 @@ begin
    'proof_revision',saved.revision);
 end $$;
 
-CREATE FUNCTION public.apply_lifetime_literal_policy(p_owner uuid, p_project text, p_source uuid, p_version bigint) RETURNS void
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO ''
-    AS $$
-declare source public.user_narrator_source%rowtype; identity public.user_lifetime_conversation%rowtype;
- epoch bigint; item jsonb; v_data jsonb; identifier text; controls jsonb;
+CREATE FUNCTION public.read_lifetime_policy_review(p_fence jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare result jsonb;
 begin
- -- Only authoritative private acceptance/edit wrappers may call this function.
- if not exists(select 1 from public.user_lifetime_conversation where user_id=p_owner and project_id=p_project) then return;end if;
- select policy_epoch into epoch from public.user_memoir_project where user_id=p_owner and project_id=p_project for update;
- insert into public.user_profile(user_id,profile) values(p_owner,'{}') on conflict do nothing;
- perform 1 from public.user_profile where user_id=p_owner for update;
- select * into identity from public.user_lifetime_conversation where user_id=p_owner and project_id=p_project for update;
- if not found then return;end if;
- select * into source from public.user_narrator_source where user_id=p_owner and project_id=p_project and id=p_source and version=p_version and status='active';
- if not found then raise exception 'current source policy required' using errcode='PT409';end if;
- controls:=public.parse_lifetime_literal_policy(source.text);
- for item in select value from jsonb_array_elements(controls) loop
-   v_data:=jsonb_build_object('text',item->>'text','assertion','asserted',
-    'uncertainty','Literal current-source request; scope is limited to the quoted wording.',
-    'source_refs',jsonb_build_array(jsonb_build_object('source_id',source.id,'version',source.version,
-      'char_start',item->'char_start','char_end',item->'char_end','quote',item->>'text')));
-   identifier:='literal-v1:'||encode(sha256(convert_to('memoir:continuity:'||source.id::text||':'||source.version::text||':'||
-      (item->>'kind')||':'||(item->>'char_start')||':'||(item->>'char_end'),'UTF8')),'hex');
-   -- Recognize earlier UUID5 identity only by the complete, exact evidence/data.
-   -- Never rewrite or replay an older preference from a partial identity match.
-   if not exists(select 1 from public.user_lifetime_continuity c where c.user_id=p_owner and c.conversation_id=identity.conversation_id
-       and c.kind=item->>'kind' and c.kind in ('excluded_topic','paused_topic')
-       and c.data->'source_refs'->0->>'source_id'=source.id::text
-       and c.data->'source_refs'->0->>'version'=source.version::text
-       and c.data->'source_refs'->0->>'char_start'=item->>'char_start'
-       and c.data->'source_refs'->0->>'char_end'=item->>'char_end'
-       and c.data=v_data and c.policy_epoch=epoch) then
-     insert into public.user_lifetime_continuity(user_id,conversation_id,record_id,kind,revision,policy_epoch,data)
-       values(p_owner,identity.conversation_id,identifier,item->>'kind',1,epoch,v_data);
+ perform public.lock_lifetime_publication_scope(p_fence);
+ select public.narrator_source_record(s) into result
+ from public.user_lifetime_pending_policy p join public.user_narrator_source s
+   on s.user_id=p.user_id and s.project_id=p.project_id and s.id=p.source_id
+   and s.version=p.source_version and s.status='active'
+ where p.user_id=auth.uid() and p.conversation_id=(p_fence->'identity'->>'conversation_id')::uuid
+ order by s.sequence limit 1;
+ return result;
+end $$;
+
+CREATE FUNCTION public.lock_lifetime_policy_review(p_fence jsonb) RETURNS double precision
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare remaining double precision;
+begin
+ remaining:=public.lock_lifetime_publication_scope(p_fence);
+ if public.read_lifetime_policy_review(p_fence) is null then
+   raise exception 'pending source policy review required' using errcode='PT409';
+ end if;
+ return remaining;
+end $$;
+
+CREATE FUNCTION public.complete_lifetime_policy_review(p_fence jsonb, p_source_id uuid, p_version bigint, p_review jsonb, p_receipt jsonb) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare owner uuid:=(p_fence->'identity'->>'owner_id')::uuid;
+ project text:=p_fence->'identity'->>'project_id'; conversation uuid:=(p_fence->'identity'->>'conversation_id')::uuid;
+ source public.user_narrator_source%rowtype; item jsonb; data jsonb; identifier text; lo integer; hi integer;
+begin
+ -- Only the server-side service role can certify completion; narrator clients
+ -- may accept sources but cannot bypass this pending-policy gate.
+ perform set_config('request.jwt.claim.sub',owner::text,true);
+ perform 1 from public.user_memoir_project where user_id=owner and project_id=project for update;
+ perform 1 from public.user_profile where user_id=owner for update;
+ perform public.lock_lifetime_publication_scope(p_fence);
+ select * into source from public.user_narrator_source where user_id=owner and project_id=project
+   and id=p_source_id and version=p_version and status='active';
+ if not found then raise exception 'active exact review source required' using errcode='PT409';end if;
+ if not exists(select 1 from public.user_lifetime_pending_policy where user_id=owner and project_id=project
+   and source_id=p_source_id and source_version=p_version) then
+   if exists(select 1 from public.user_lifetime_source_policy_receipt where user_id=owner and project_id=project
+      and source_id=p_source_id and source_version=p_version and review=jsonb_build_object('output',p_review,'receipt',p_receipt)) then
+     return public.capture_lifetime_fence(conversation,(p_fence->>'lease_token')::uuid);
    end if;
+   raise exception 'pending exact policy review required' using errcode='PT409';
+ end if;
+ if jsonb_typeof(p_review) is distinct from 'object' or p_review->'complete' is distinct from 'true'::jsonb
+   or exists(select 1 from jsonb_object_keys(p_review) k where k not in ('complete','restrictions'))
+   or jsonb_typeof(p_review->'restrictions') is distinct from 'array' or jsonb_array_length(p_review->'restrictions')>8
+   or jsonb_typeof(p_receipt) is distinct from 'object' or length(coalesce(p_receipt->>'response_id','')) not between 1 and 1024
+   or octet_length(p_receipt::text)>32768 then raise exception 'complete bounded policy review required' using errcode='22023';end if;
+ if (select count(*) from jsonb_array_elements(p_review->'restrictions')) <>
+    (select count(distinct jsonb_build_array(x->'kind',x->'char_start',x->'char_end')) from jsonb_array_elements(p_review->'restrictions') x) then
+   raise exception 'duplicate policy control' using errcode='22023'; end if;
+ for item in select value from jsonb_array_elements(p_review->'restrictions') loop
+   if jsonb_typeof(item) is distinct from 'object' or not(item ?& array['kind','quote','char_start','char_end'])
+     or exists(select 1 from jsonb_object_keys(item) k where k not in ('kind','quote','char_start','char_end'))
+     or coalesce(item->>'kind','') not in ('excluded_topic','paused_topic')
+     or jsonb_typeof(item->'quote') is distinct from 'string' or length(item->>'quote') not between 1 and 500
+     or jsonb_typeof(item->'char_start') is distinct from 'number' or item->>'char_start' !~ '^[0-9]+$'
+     or jsonb_typeof(item->'char_end') is distinct from 'number' or item->>'char_end' !~ '^[1-9][0-9]*$'
+     then raise exception 'typed restrictive source control required' using errcode='22023';end if;
+   lo:=(item->>'char_start')::integer;hi:=(item->>'char_end')::integer;
+   if hi<=lo or hi>length(source.text) or substring(source.text from lo+1 for hi-lo) is distinct from item->>'quote'
+     then raise exception 'exact policy quote required' using errcode='22023';end if;
  end loop;
- insert into public.user_lifetime_source_policy_receipt values(p_owner,p_project,identity.conversation_id,p_source,p_version,'literal-v1')
- on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,parser_version=excluded.parser_version;
- delete from public.user_lifetime_pending_policy where user_id=p_owner and project_id=p_project and source_id=p_source and source_version=p_version;
+ insert into public.user_lifetime_source_policy_receipt(user_id,project_id,conversation_id,source_id,source_version,parser_version,review)
+ values(owner,project,conversation,p_source_id,p_version,'semantic-v1',jsonb_build_object('output',p_review,'receipt',p_receipt))
+ on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,parser_version=excluded.parser_version,review=excluded.review;
+ for item in select value from jsonb_array_elements(p_review->'restrictions') loop
+   data:=jsonb_build_object('text',item->>'quote','assertion','asserted','uncertainty',null,
+     'source_refs',jsonb_build_array(jsonb_build_object('source_id',source.id,'version',source.version,
+       'quote',item->>'quote','char_start',item->'char_start','char_end',item->'char_end')));
+   identifier:='semantic-v1:'||encode(sha256(convert_to('memoir:continuity:'||source.id::text||':'||source.version::text||':'||
+     (item->>'kind')||':'||(item->>'char_start')||':'||(item->>'char_end'),'UTF8')),'hex');
+   perform public.save_lifetime_continuity(conversation,identifier,item->>'kind',0,(p_fence->>'policy_epoch')::bigint,(p_fence->>'lease_token')::uuid,data);
+ end loop;
+ delete from public.user_lifetime_pending_policy where user_id=owner and project_id=project and source_id=p_source_id and source_version=p_version;
+ return public.capture_lifetime_fence(conversation,(p_fence->>'lease_token')::uuid);
 end $$;
 
 CREATE FUNCTION public.apply_user_memory_events(p_project_id text, p_sources jsonb, p_events jsonb) RETURNS jsonb
@@ -3825,7 +3867,7 @@ begin
    perform 1 from public.user_profile where user_id=owner for update;
  end if;
  result:=public.change_user_narrator_source_record(p_project_id,p_source_id,p_expected_version,p_action,p_text);
- if p_action='edit' then perform public.apply_lifetime_literal_policy(owner,p_project_id,p_source_id,(result->>'version')::bigint);end if;
+ -- Edited narration requires a new semantic policy review before publication.
  return result;
 end $$;
 
@@ -4579,7 +4621,7 @@ begin
        or proposal is null or coalesce(item->>'role','') not in ('setting','origin','destination')
        or exists(select 1 from jsonb_object_keys(item->'place') k where k not in ('place','hierarchy','granularity')) then
        raise exception 'invalid selective event place' using errcode='22023';end if;
-     perform public.validate_two_lane_places(ref->>'quote',jsonb_build_array(item->'place'||'{"schema_version":1}'));
+     perform public.validate_two_lane_places(ref->>'quote',jsonb_build_array(item->'place'||'{"schema_version":1}'),coalesce((ref->>'char_start')::integer,0));
      if exists(select 1 from jsonb_array_elements_text(item->'place'->'hierarchy') label where
        label ~* '(医院|学校|大学|学院|车站|家属院|小区|大厦|大楼|街|路|巷)([0-9]+号)?$|\m(hospital|school|university|college|station|street|road|lane|avenue|building|compound)\M(\s+[0-9]+)?$') then
        raise exception 'public coarse geography required' using errcode='22023';end if;
@@ -4648,7 +4690,7 @@ begin
      (select count(distinct public.lifetime_question_id((page->'source'->>'id')::uuid,
        (page->'source'->>'version')::bigint,q)) from jsonb_array_elements(questions) q) then
      raise exception 'prepared questions must be distinct' using errcode='22023';end if;
-   perform public.validate_two_lane_places(page->'source'->>'text',p_result->'place_journeys');
+   perform public.validate_two_lane_places(page->'source'->>'text',p_result->'place_journeys',coalesce((page->'source'->>'char_start')::integer,0));
    if page->'two_lane'->>'work_mode'='reply_only' and (jsonb_array_length(p_result->'events')>0
      or jsonb_array_length(p_result->'place_journeys')>0 or jsonb_array_length(p_result->'prepared_questions')>0) then
      raise exception 'reply only work cannot create derived facts' using errcode='22023';end if;
@@ -7531,10 +7573,10 @@ begin
  -- Inventory remains incomplete until a separate, reviewed migration resolves
  -- it. Merely editing the first source cannot clear unknown remaining history.
  if exists(select 1 from public.user_narrator_source where user_id=new.user_id and project_id=new.project_id) then
-   insert into public.user_lifetime_policy_inventory_pending values(new.user_id,new.project_id,new.conversation_id,'literal-v1') on conflict do nothing;
+   insert into public.user_lifetime_policy_inventory_pending values(new.user_id,new.project_id,new.conversation_id,'semantic-v1') on conflict do nothing;
  end if;
  insert into public.user_lifetime_pending_policy
- select s.user_id,s.project_id,new.conversation_id,s.id,s.version,s.client_turn_id,'literal-v1'
+ select s.user_id,s.project_id,new.conversation_id,s.id,s.version,s.client_turn_id,'semantic-v1'
  from public.user_narrator_source s where s.user_id=new.user_id and s.project_id=new.project_id and s.status='active'
  order by s.sequence limit 1 on conflict do nothing;
  return new;
@@ -7554,7 +7596,7 @@ begin
    delete from public.user_lifetime_pending_policy where user_id=new.user_id and project_id=new.project_id and source_id=new.id;
    delete from public.user_lifetime_source_policy_receipt where user_id=new.user_id and project_id=new.project_id and source_id=new.id;
  else
-   insert into public.user_lifetime_pending_policy values(new.user_id,new.project_id,conversation,new.id,new.version,new.client_turn_id,'literal-v1')
+   insert into public.user_lifetime_pending_policy values(new.user_id,new.project_id,conversation,new.id,new.version,new.client_turn_id,'semantic-v1')
    on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,parser_version=excluded.parser_version;
  end if;
  return new;
@@ -7726,39 +7768,6 @@ CREATE FUNCTION public.original_recording_visible(r public.user_original_recordi
    where l.recording_id=r.id and l.user_id=p_owner and s.status='active'))
 $$;
 
-CREATE FUNCTION public.parse_lifetime_literal_policy(p_text text) RETURNS jsonb
-    LANGUAGE plpgsql IMMUTABLE
-    SET search_path TO ''
-    AS $memoir$
-declare segment text; phrase text; kind text; cursor_at integer:=0; raw_start integer; quote_start integer;
- result jsonb:='[]';
-begin
- if p_text is null or length(p_text)>100000 then raise exception 'invalid narrator text' using errcode='22023';end if;
- if p_text collate pg_catalog."C" ~* $reported$["“”‘「」『』`：:]|(?<!\w)['’]|['’](?!\w)|\y(?:said|says|told|asked|replied|wrote|written|whispered|shouted|reported|quoted|quote|caption|script|example|hypothetical|suppose|imagine)\y|(?:说|說|告诉|告訴|写道|寫道|写着|寫著|例如|假如|如果)$reported$ then return result;end if;
- for segment in select item[1] from regexp_matches(p_text collate pg_catalog."C",$segments$[^.!?。！？\r\n\u2028\u2029]+[.!?。！？]?$segments$,'g') item loop
-   raw_start:=cursor_at+strpos(substring(p_text from cursor_at+1),segment)-1;
-   cursor_at:=raw_start+length(segment);
-   quote_start:=raw_start+length(segment)-length(regexp_replace(segment,'^[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+',''));
-   phrase:=regexp_replace(regexp_replace(segment,'^[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+',''),'[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$','');
-   if right(phrase,1) in ('?','？') then continue;end if;
-   phrase:=regexp_replace(regexp_replace(phrase,'[.!。！]+$',''),'[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$','');
-   if phrase='' or phrase collate pg_catalog."C" ~* $conditional$\y(?:if|unless|until|when|because|but|except|maybe|perhaps|whether)\y|(?:除非|如果|假如|也许|也許|可能|但是|不过|不過)$conditional$ then continue;end if;
-   kind:=null;
-    if phrase collate pg_catalog."C" ~* $pattern$^(?:(?:please[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+)?(?:do[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+not|don't|don’t|never)[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+(?:discuss|mention|ask[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+(?:me[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+)?about|bring[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+up)[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+.+)$$pattern$ then kind:='excluded_topic';
-    elsif phrase collate pg_catalog."C" ~* $pattern$^(?:I[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+(?:do[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+not|don't|don’t)[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+want[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+to[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+(?:discuss|talk[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+about)[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+.+)$$pattern$ then kind:='excluded_topic';
-    elsif phrase collate pg_catalog."C" ~* $pattern$^(?:(?:请|我)?(?:不要|别|不想)(?:再)?(?:讨论|谈|聊|提)(?:到|起)?[^，,：:；;]+)$$pattern$ then kind:='excluded_topic';
-    elsif phrase collate pg_catalog."C" ~* $pattern$^(?:(?:(?:please|let's|let’s)[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+)?(?:set[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+aside|pause[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+discussing|pause[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+talking[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+about)[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+.+?(?:[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+for[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+now)?)$$pattern$ then kind:='paused_topic';
-    elsif phrase collate pg_catalog."C" ~* $pattern$^(?:(?:我们|咱们)?先(?:不聊|不谈|暂停讨论)[^，,：:；;]+)$$pattern$ then kind:='paused_topic';
-    end if;
-   if kind is not null then
-     if length(phrase)>500 then raise exception 'LIFETIME_POLICY_INPUT_LIMIT' using errcode='22023';end if;
-     result:=result||jsonb_build_array(jsonb_build_object('kind',kind,'text',phrase,'char_start',quote_start,'char_end',quote_start+length(phrase)));
-     if jsonb_array_length(result)>8 then raise exception 'LIFETIME_POLICY_INPUT_LIMIT' using errcode='22023';end if;
-   end if;
- end loop;
- return result;
-end $memoir$;
-
 CREATE FUNCTION public.pending_lifetime_collection_jobs(p_limit integer DEFAULT 8, p_include_outline boolean DEFAULT true) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
@@ -7850,10 +7859,12 @@ begin
    if not found then raise exception 'current source continuity required';end if;
    if p_literal_only and item->>'kind' not in ('excluded_topic','paused_topic') then raise exception 'only current literal privacy controls allowed'; end if;
    if item->>'kind' in ('excluded_topic','paused_topic') and
-     (v_data->>'assertion'<>'asserted' or not exists(select 1 from jsonb_array_elements(public.parse_lifetime_literal_policy(source.text)) literal
-       where literal->>'kind'=item->>'kind' and literal->>'text'=v_data->>'text'
-         and literal->'char_start'=ref->'char_start' and literal->'char_end'=ref->'char_end')) then
-     raise exception 'direct literal privacy instruction required';end if;
+     (v_data->>'assertion'<>'asserted' or not exists(select 1 from public.user_lifetime_source_policy_receipt r,
+       lateral jsonb_array_elements(r.review->'output'->'restrictions') reviewed
+       where r.user_id=owner and r.project_id=project and r.source_id=source.id and r.source_version=source.version
+         and reviewed->>'kind'=item->>'kind' and reviewed->>'quote'=v_data->>'text'
+         and reviewed->'char_start'=ref->'char_start' and reviewed->'char_end'=ref->'char_end')) then
+     raise exception 'reviewed current privacy restriction required';end if;
    select * into existing from public.user_lifetime_continuity where user_id=owner and conversation_id=conversation and record_id=item->>'record_id';
    if not found and item->>'kind' in ('excluded_topic','paused_topic') then
      -- Earlier UUID5 policy records remain opaque stable identities. Reuse an
@@ -7888,28 +7899,7 @@ begin
  if not found then raise exception 'current narrator source required' using errcode='PT409'; end if;
  if jsonb_typeof(p_journeys) is distinct from 'array' or jsonb_array_length(p_journeys)>8
    or octet_length(p_journeys::text)>8192 then raise exception 'bounded place journeys required' using errcode='22023'; end if;
- for journey in select * from jsonb_array_elements(p_journeys) loop
-   if jsonb_typeof(journey) is distinct from 'object'
-     or exists(select 1 from jsonb_object_keys(journey) k where k not in ('schema_version','place','hierarchy','granularity','duration_ms','latitude','longitude'))
-     or journey->'schema_version' is distinct from '1'::jsonb
-     or jsonb_typeof(journey->'place') is distinct from 'string'
-     or length(journey->>'place') not between 1 and 120
-     or strpos(lower(source.text),lower(journey->>'place'))=0
-     or jsonb_typeof(journey->'hierarchy') is distinct from 'array'
-     or jsonb_array_length(journey->'hierarchy') not between 2 and 6
-     or journey->'hierarchy'->>0 is distinct from 'Earth'
-     or journey->'hierarchy'->>-1 is distinct from journey->>'place'
-     or exists(select 1 from jsonb_array_elements(journey->'hierarchy') label
-       where jsonb_typeof(label) is distinct from 'string' or length(label#>>'{}') not between 1 and 120)
-     or coalesce(journey->>'granularity','') not in ('country','region','city','suburb')
-     then raise exception 'grounded coarse place journey required' using errcode='22023'; end if;
-   if (journey ? 'latitude') is distinct from (journey ? 'longitude')
-     or (journey ? 'latitude' and (jsonb_typeof(journey->'latitude') is distinct from 'number'
-       or jsonb_typeof(journey->'longitude') is distinct from 'number'
-       or (journey->>'latitude')::numeric not between -90 and 90
-       or (journey->>'longitude')::numeric not between -180 and 180))
-     then raise exception 'valid public place centre required' using errcode='22023'; end if;
- end loop;
+ perform public.validate_two_lane_places(source.text,p_journeys);
  insert into public.user_lifetime_place_journey(user_id,project_id,source_id,source_version,journeys) values(owner,project,p_source_id,p_source_version,p_journeys)
  on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,journeys=excluded.journeys,derived_fence=null;
 end $$;
@@ -9571,7 +9561,7 @@ begin
  perform 1 from public.user_memoir_project where user_id=owner and project_id=project for share;
  select * into pending from public.user_lifetime_pending_policy where user_id=owner and conversation_id=p_conversation_id order by source_id limit 1;
  return jsonb_build_object('pending',found or exists(select 1 from public.user_lifetime_policy_inventory_pending where user_id=owner and project_id=project),'pending_source_id',pending.source_id,'pending_source_version',pending.source_version,
-   'pending_client_turn_id',pending.client_turn_id,'parser_version','literal-v1');
+   'pending_client_turn_id',pending.client_turn_id,'parser_version','semantic-v1');
 end $$;
 
 CREATE FUNCTION public.read_lifetime_prepared_questions(p_conversation_id uuid) RETURNS jsonb
@@ -11272,6 +11262,15 @@ begin
       or (ref->>'char_end')::integer>length(source.text)
       or substring(source.text from (ref->>'char_start')::integer+1 for (ref->>'char_end')::integer-(ref->>'char_start')::integer)
          is distinct from ref->>'quote' then raise exception 'invalid source evidence'; end if;
+    if p_kind in ('excluded_topic','paused_topic') and not exists(
+      select 1 from public.user_lifetime_source_policy_receipt r
+      cross join lateral jsonb_array_elements(r.review->'output'->'restrictions') item
+      where r.user_id=owner and r.project_id=project and r.source_id=source.id and r.source_version=source.version
+        and item->>'kind'=p_kind and item->>'quote'=ref->>'quote'
+        and item->'char_start'=ref->'char_start' and item->'char_end'=ref->'char_end'
+        and p_data->>'assertion'='asserted' and p_data->>'text'=ref->>'quote') then
+      raise exception 'completed restrictive policy review required' using errcode='42501';
+    end if;
     last_sequence:=greatest(last_sequence,source.sequence);
     if not (ref ?& array['source_id','version','char_start','char_end','quote']) then raise exception 'complete evidence required'; end if;
   end loop;
@@ -12514,7 +12513,32 @@ begin
     raise exception 'date expression requires its original evidence' using errcode='22023'; end if;
 end $memoir$;
 
-CREATE FUNCTION public.validate_two_lane_places(p_source_text text, p_journeys jsonb) RETURNS void
+CREATE FUNCTION public.validate_place_research_window(p_text text, w jsonb, p_source_offset integer DEFAULT 0) RETURNS void
+ LANGUAGE plpgsql SET search_path TO '' AS $$
+begin
+ if jsonb_typeof(w) is distinct from 'object'
+ or not w ?& array['year_start','year_end','anchor_year','basis','quote','char_start','char_end']
+ or exists(select 1 from jsonb_object_keys(w) k where k not in ('year_start','year_end','anchor_year','basis','quote','char_start','char_end'))
+ or coalesce(w->>'basis','') not in ('explicit_period','birth_decade')
+ or jsonb_typeof(w->'quote') is distinct from 'string' or length(w->>'quote') not between 1 and 2000
+ or jsonb_typeof(w->'year_start') is distinct from 'number' or jsonb_typeof(w->'year_end') is distinct from 'number'
+ or jsonb_typeof(w->'char_start') is distinct from 'number' or jsonb_typeof(w->'char_end') is distinct from 'number'
+ or coalesce(w->>'year_start','') !~ '^[0-9]{4}$' or coalesce(w->>'year_end','') !~ '^[0-9]{4}$'
+ or coalesce(w->>'char_start','') !~ '^[0-9]{1,8}$' or coalesce(w->>'char_end','') !~ '^[0-9]{1,8}$'
+ then raise exception 'typed place research evidence required' using errcode='22023'; end if;
+ if (w->>'year_start')::int not between 1800 and 2100 or (w->>'year_end')::int not between (w->>'year_start')::int and least(2100,(w->>'year_start')::int+15)
+ or (w->>'char_start')::int<p_source_offset or (w->>'char_end')::int>p_source_offset+length(p_text) or (w->>'char_end')::int<=(w->>'char_start')::int
+ or substring(p_text from (w->>'char_start')::int-p_source_offset+1 for (w->>'char_end')::int-(w->>'char_start')::int) is distinct from w->>'quote'
+ then raise exception 'exact place research evidence required' using errcode='22023'; end if;
+ if w->'anchor_year'<>'null'::jsonb then
+   if jsonb_typeof(w->'anchor_year') is distinct from 'number' or coalesce(w->>'anchor_year','') !~ '^[0-9]{4}$' then raise exception 'typed research anchor required' using errcode='22023'; end if;
+   if (w->>'anchor_year')::int not between (w->>'year_start')::int and (w->>'year_end')::int then
+     raise exception 'research anchor outside window' using errcode='22023'; end if;
+ end if;
+end $$;
+revoke all on function public.validate_place_research_window(text,jsonb,integer) from public,anon,authenticated,service_role;
+
+CREATE FUNCTION public.validate_two_lane_places(p_source_text text, p_journeys jsonb, p_source_offset integer DEFAULT 0) RETURNS void
     LANGUAGE plpgsql
     SET search_path TO ''
     AS $$
@@ -12524,7 +12548,7 @@ begin
    or octet_length(p_journeys::text)>8192 then raise exception 'bounded place journeys required' using errcode='22023'; end if;
  for journey in select * from jsonb_array_elements(p_journeys) loop
    if jsonb_typeof(journey) is distinct from 'object'
-     or exists(select 1 from jsonb_object_keys(journey) k where k not in ('schema_version','place','hierarchy','granularity','duration_ms','latitude','longitude'))
+     or exists(select 1 from jsonb_object_keys(journey) k where k not in ('schema_version','place','hierarchy','granularity','duration_ms','latitude','longitude','research'))
      or journey->'schema_version' is distinct from '1'::jsonb
      or jsonb_typeof(journey->'place') is distinct from 'string'
      or length(journey->>'place') not between 1 and 120
@@ -12543,6 +12567,9 @@ begin
        or (journey->>'latitude')::numeric not between -90 and 90
        or (journey->>'longitude')::numeric not between -180 and 180))
      then raise exception 'valid public place centre required' using errcode='22023'; end if;
+   if journey ? 'research' and journey->'research'<>'null'::jsonb then
+     perform public.validate_place_research_window(p_source_text,journey->'research',p_source_offset);
+   end if;
  end loop;
 end $$;
 
@@ -13319,7 +13346,6 @@ revoke all on function public.advance_lifetime_deleted_preferences() from public
 revoke all on function public.advance_lifetime_draft_publication() from public,anon,authenticated,service_role;
 revoke all on function public.advance_lifetime_preferences() from public,anon,authenticated,service_role;
 revoke all on function public.advance_two_lane_checkpoint(uuid, uuid, integer, text) from public,anon,authenticated,service_role;
-revoke all on function public.apply_lifetime_literal_policy(uuid, text, uuid, bigint) from public,anon,authenticated,service_role;
 revoke all on function public.apply_user_memory_events(text, jsonb, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.apply_user_memory_events_before_photos(text, jsonb, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.assert_lifetime_draft_receipt_scope(uuid) from public,anon,authenticated,service_role;
@@ -13494,11 +13520,16 @@ revoke all on function public.normalize_response_stage() from public,anon,authen
 revoke all on function public.original_recording_authorized(uuid, text) from public,anon,authenticated,service_role;
 revoke all on function public.original_recording_descriptor(public.user_original_recording) from public,anon,authenticated,service_role;
 revoke all on function public.original_recording_visible(public.user_original_recording, uuid) from public,anon,authenticated,service_role;
-revoke all on function public.parse_lifetime_literal_policy(text) from public,anon,authenticated,service_role;
 revoke all on function public.pending_lifetime_collection_jobs(integer, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.pending_memoir_lanes(integer) from public,anon,authenticated,service_role;
 revoke all on function public.pending_memoir_receipts(integer) from public,anon,authenticated,service_role;
 revoke all on function public.persist_lifetime_chosen_name(uuid, uuid, bigint, text) from public,anon,authenticated,service_role;
+revoke all on function public.read_lifetime_policy_review(jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.lock_lifetime_policy_review(jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.complete_lifetime_policy_review(jsonb,uuid,bigint,jsonb,jsonb) from public,anon,authenticated,service_role;
+grant execute on function public.read_lifetime_policy_review(jsonb) to authenticated;
+grant execute on function public.lock_lifetime_policy_review(jsonb) to authenticated;
+grant execute on function public.complete_lifetime_policy_review(jsonb,uuid,bigint,jsonb,jsonb) to service_role;
 revoke all on function public.persist_lifetime_continuity_updates(jsonb, jsonb, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.persist_lifetime_place_journeys(jsonb, uuid, bigint, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.prepare_guest_conversation_before_memory_events(text, text, jsonb, jsonb, text) from public,anon,authenticated,service_role;
@@ -13652,7 +13683,7 @@ revoke all on function public.validate_lifetime_replay_input(uuid, uuid, text, t
 revoke all on function public.validate_memory_evidence(uuid, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.validate_memory_temporal(uuid, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.validate_memory_temporal_before_attribution(uuid, text, jsonb) from public,anon,authenticated,service_role;
-revoke all on function public.validate_two_lane_places(text, jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.validate_two_lane_places(text, jsonb, integer) from public,anon,authenticated,service_role;
 revoke all on function public.verify_lifetime_chosen_name_write() from public,anon,authenticated,service_role;
 revoke all on function public.workspace_progressive_rework_section(public.user_workspace_section_rework) from public,anon,authenticated,service_role;
 revoke all on function public.workspace_progressive_section_current(public.user_lifetime_memoir_section) from public,anon,authenticated,service_role;
@@ -14450,6 +14481,8 @@ returns text language sql stable security definer set search_path='' as $$
 $$;
 revoke all on function public.lifetime_interview_strategy_rollout(uuid) from public, anon, authenticated, service_role;
 grant execute on function public.lifetime_interview_strategy_rollout(uuid) to service_role;
+
+CREATE INDEX user_story_game_edition_id_idx ON public.user_story_game(edition_id);
 
 notify pgrst, 'reload schema';
 commit;

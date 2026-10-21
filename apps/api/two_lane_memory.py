@@ -24,12 +24,10 @@ class PreparedQuestion(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     question: str = Field(min_length=1, max_length=800)
     topic: str = Field(min_length=1, max_length=120)
-    quote: str = Field(min_length=1, max_length=500,
-        description='Exact narrator passage this question refers to, not the whole message when it contains several topics.')
-    char_start: int | None = Field(default=None, ge=0, description='Absolute start of the referenced quote; null only for an unambiguous quote.')
-    char_end: int | None = Field(default=None, ge=1, description='Absolute exclusive end of the referenced quote; null only for an unambiguous quote.')
-    requires_confirmation: bool = Field(default=False,
-        description='Whether this question needs narrator confirmation before continuing the interview.')
+    quote: str = Field(min_length=1, max_length=500)
+    char_start: int | None = Field(default=None, ge=0)
+    char_end: int | None = Field(default=None, ge=1)
+    requires_confirmation: bool = Field(default=False)
 
 
 class DerivedHints(_Places):
@@ -52,14 +50,7 @@ def extraction_contract(*, strategy=False, attribution=False):
     schema['properties'].update(extension['properties'])
     schema['required']+=list(extension['properties'])
     place_skill = load_prompt_artifact(Path(__file__).resolve().parents[2] / 'skills/memoir-place-journey/references/two-lane.md')
-    # The versioned timeline text also describes its standalone events-only
-    # transport. Replace that one sentence when composing the wider two-lane
-    # schema so the worker receives one consistent output contract.
-    timeline_instructions = extraction_instructions(derived_hints=True).replace(
-        'Return only schema-bound\nJSON `{"events": [...]}` to the private worker.',
-        'Return schema-bound JSON matching the supplied combined schema to the private worker.',
-    )
-    instructions=timeline_instructions+'\n'+place_skill+load_prompt_artifact(
+    instructions=extraction_instructions(derived_hints=True)+'\n'+place_skill+load_prompt_artifact(
         prompt_path('memoir/skills/memoir-author-timeline/derived-hints'))
     if strategy:
         from .interview_strategy import StrategyProposal
@@ -80,7 +71,8 @@ def derived_hints(raw, page):
     hints=DerivedHints.model_validate({key:raw[key] for key in ('place_journeys','prepared_questions')})
     places=[validate_place_journey(place.model_dump()) for place in hints.place_journeys
             if place.hierarchy[-1]==place.place]
-    places=grounded_place_journeys([place for place in places if place],page['source']['text'])
+    places=grounded_place_journeys([place for place in places if place],page['source']['text'],
+        source_offset=page['source'].get('char_start') or 0)
     questions=[]
     for item in hints.prepared_questions:
         item.char_start, item.char_end = question_span(page['source'], item.quote, item.char_start, item.char_end)
@@ -94,9 +86,6 @@ def derived_hints(raw, page):
 
 
 def pending_confirmation(context):
-    from .interview_strategy import current_constraints
-    if current_constraints((context.get('source') or {}).get('text', '')):
-        return None
     return next((q for q in context.get('prepared_questions', [])
                  if q.get('requires_confirmation') is True), None)
 

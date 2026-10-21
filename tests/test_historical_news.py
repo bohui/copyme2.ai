@@ -311,8 +311,8 @@ def test_mislabelled_violent_card_fails_even_with_neutral_invitation(title,summa
 
 
 def test_ready_news_schema_limits_acknowledgement_before_generation():
-    from apps.api.interview_plan import collector_schema,HISTORICAL_ACKNOWLEDGEMENTS
-    assert set(collector_schema(ready_context())['properties']['acknowledgement']['enum'])==HISTORICAL_ACKNOWLEDGEMENTS
+    from apps.api.interview_plan import collector_schema,historical_acknowledgements
+    assert set(collector_schema(ready_context())['properties']['acknowledgement']['enum'])==historical_acknowledgements(ready_context())
 
 
 @pytest.mark.parametrize('text',[

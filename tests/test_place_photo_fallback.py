@@ -219,7 +219,7 @@ def test_llm_time_fallback_inspects_real_source_metadata(search_world, date_expr
     item, = photos.search_place_photos('Chengde', photos.ANY_PHOTO_DATE)
     assert item['date_expression'] == date_expression
     assert item['allowed_actions']['publish'] is False
-    assert 'any capture period' in world['calls'][0]['input']
+    assert json.loads(world['calls'][0]['input'])['temporal']['mode']=='any_time'
 
 
 @pytest.mark.parametrize('date_expression', ['1900-10-01', '', '2099-10-01'])

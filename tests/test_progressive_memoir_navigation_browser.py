@@ -12,6 +12,9 @@ import pytest
 from playwright.sync_api import expect, sync_playwright
 from browser_optional_fonts import control_optional_fonts
 
+if not os.getenv('MEMOIR_BROWSER_URL'):
+    pytest.skip('Requires isolated source frontend',allow_module_level=True)
+
 from test_shared_memory_events_postgres import (
     database, attachment_database, private_database, event_database, sql,
     ROOT, OWNER, rpc, five_rounds, run_controlled_composer, story_client,

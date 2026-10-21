@@ -156,11 +156,6 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
     photo = photo_by_url.get(helper._crawl4ai_image_url(meta.get('og:image'))) or photo
     taken = _text(photo.get('dateTaken') or photo.get('dateCreated'))
     if not taken:
-        # Flickr exposes this separate from its "Uploaded on" timestamp.
-        match = re.search(r'Taken (?:on|in)\s+((?:[A-Za-z]+\s+(?:\d{1,2},?\s+)?)?(?:18|19|20)\d{2})',
-                          page['text_excerpt'], re.I)
-        taken = match.group(1) if match else ''
-    if not taken:
         for key in ('dateTaken', 'date_taken', 'exif:DateTimeOriginal'):
             if meta.get(key):
                 taken = meta[key]
@@ -200,26 +195,12 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             return []
     if not period:
         temporal = helper.normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
-    scene_date = helper._crawl4ai_scene_date(taken or context, temporal)
-    if period and not any_date and (not scene_date or (taken and not _date_matches(taken, period))):
-        scene_date = None
-    if not period:
-        current = helper.normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
-        years = helper._crawl4ai_years(taken or context)
-        scene_date = None
-        if years:
-            year = years[0]
-            start, end = f'{year:04d}-01-01', f'{year:04d}-12-31'
-            iso_date = re.match(r'\d{4}-\d{2}-\d{2}', taken)
-            if iso_date:
-                start = end = iso_date.group()
-            elif taken:
-                try:
-                    start = end = datetime.strptime(taken.replace(',', ''), '%B %d %Y').date().isoformat()
-                except ValueError:
-                    pass
-            if current['start'] <= start and end <= current['end']:
-                scene_date = {'start': start, 'end': end}
+    fields = {key: _text(photo.get(key)) for key in ('name','caption','description','dateTaken','dateCreated','datePublished','uploadDate') if _text(photo.get(key))}
+    if taken:
+        fields['dateTaken'] = taken
+    if not fields:
+        fields['caption'] = page['text_excerpt'] if is_flickr else context
+    scene_date = helper._llm_reconcile_capture_dates([fields], temporal)
     creator = photo.get('creator') or photo.get('author') or {}
     attribution = _text(creator.get('name') if isinstance(creator, dict) else creator)
     source_licence_url = _text(meta.get('license'))
@@ -311,10 +292,11 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             'location_evidence': ' '.join(filter(None, (location_evidence, image_location, _text(caption)))),
             'date_expression': taken if is_flickr and taken else (
                 '' if image_date is None else image_date['start'] if image_date['start'] == image_date['end'] else
+                image_date['start'][:7] if image_date['precision'] == 'month' else
                 image_date['start'][:4] if image_date['start'][:4] == image_date['end'][:4] else
                 image_date['start'][:4] + '-' + image_date['end'][:4]),
             'scene_date_range': image_date,
-            'date_basis': 'Source capture metadata or caption' if image_date else 'Unknown capture date',
+            'date_basis': image_date.get('basis','source_caption') if image_date else 'unknown',
             **(image_point or {}),
             'license': image_licence[0] if image_licence else 'Unknown', 'license_url': image_licence_url,
             'source_registry_id': source_registry_id(source_url),

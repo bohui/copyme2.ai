@@ -82,7 +82,7 @@ def test_flickr_source_reads_item_tags_album_and_capture_date_without_using_uplo
     source = 'https://www.flickr.com/photos/kattebelletje/3330975589/'
     found = browser._source_items(page, source, '离宫, 承德市', '1980s')
     assert len(found) == 1
-    assert found[0]['date_expression'] == 'October 1983'
+    assert found[0]['date_expression'] == '1983-10'
     assert '承德' in found[0]['location_evidence']
     assert found[0]['license_url'] == 'https://creativecommons.org/licenses/by/2.0/deed.en'
     assert not browser._source_items(page.replace('/by/2.0/', '/by-nc/2.0/'), source, '离宫, 承德市', '1980s')
@@ -617,7 +617,7 @@ def test_flickr_browses_public_search_and_ignores_upload_date(fake_crawler):
                      '<p>Taken on October 1, 1983 Uploaded on October 1, 2025</p>'
                      '<a href="https://creativecommons.org/licenses/by/4.0/">Licence</a>')
     result = asyncio.run(browser._browse_query('flickr', 'Chengde', '1980s', search))
-    assert len(result) == 1 and result[0]['date_expression'] == 'October 1, 1983'
+    assert len(result) == 1 and result[0]['date_expression'] == '1983-10-01'
     assert all(config.check_robots_txt for _, config in calls)
 
 
@@ -1152,6 +1152,54 @@ def test_expansion_through_authenticated_photo_endpoint_without_database(monkeyp
         assert other.status_code in {403, 404}
     assert len(searches) == 2 and all(query['refresh'] is True for query in searches)
 
+
+
+def test_current_api_photo_keeps_its_normalized_day_in_the_client(monkeypatch):
+    from pathlib import Path
+    import subprocess
+    from fastapi.testclient import TestClient
+    from apps.api import place_photo_pages
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 21, 12, tzinfo=ZoneInfo('Australia/Sydney'))
+
+    monkeypatch.setattr(photos, 'datetime', Clock)
+    center = {'latitude': 40.98, 'longitude': 117.94}
+    item = {'asset_id': 'normalized-current', 'image_url': 'https://images.example/current.jpg',
+        'date_expression': '2026-06-01', 'scene_date_range': {
+            'start': '2026-06-01', 'end': '2026-06-01', 'precision': 'day', 'basis': 'source_caption'},
+        'date_basis': 'source_caption', 'allowed_actions': {'embed': True}, **center}
+    monkeypatch.setattr(place_photo_pages, 'search_place_photos', lambda *args, **kwargs: [item])
+    with TestClient(create_app(MemoryStore())) as client:
+        headers = {'X-Account-Id': 'current-photo-owner'}
+        project = client.post('/v1/projects', headers=headers, json={'mode': 'self'}).json()['id']
+        response = client.get(f'/v1/projects/{project}/place-photos', headers=headers,
+            params={'place': 'Chengde', **center})
+        assert response.status_code == 200, response.text
+        items = response.json()['items']
+        assert [photo['asset_id'] for photo in items] == ['normalized-current']
+    program = r'''
+const fs = require('node:fs'), vm = require('node:vm');
+const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+class Clock extends Date {
+  constructor(...args) { super(...(args.length ? args : ['2026-10-21T12:00:00Z'])); }
+}
+const source = fs.readFileSync('apps/web/client/memoir/photo-workspace.mjs', 'utf8').replace(/^  /gm, '');
+const context = vm.createContext({Date: Clock});
+for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoMatchesScope']) {
+  vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
+}
+process.stdout.write(JSON.stringify(input.items.filter(item => context.photoMatchesScope(item, input.entry)).map(item => item.asset_id)));
+'''
+    result = subprocess.run(['node', '-e', program], cwd=Path(__file__).resolve().parents[1],
+        input=json.dumps({'items': items, 'entry': {'place': 'Chengde', **center}}),
+        capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == ['normalized-current']
 
 
 def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, serpapi_sources):

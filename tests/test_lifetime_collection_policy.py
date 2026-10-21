@@ -92,10 +92,10 @@ def test_owner_read_reports_policy_maintenance_instead_of_generation_pause():
 
 def mark_pending(sql, identity, original, *, inventory=False):
     if inventory:
-        sql(f"insert into public.user_lifetime_policy_inventory_pending values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','literal-v1');")
+        sql(f"insert into public.user_lifetime_policy_inventory_pending values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','semantic-v1');")
     else:
         sql(f"insert into public.user_lifetime_pending_policy values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}',"
-            f"'{original['id']}',1,'{original['client_turn_id']}','literal-v1');")
+            f"'{original['id']}',1,'{original['client_turn_id']}','semantic-v1');")
 
 
 def dsn_for(sql):
@@ -177,7 +177,8 @@ def test_policy_wait_preserves_checkpoint_and_resumes_after_metadata_repair(sql,
     assert sent == []
     # Synthetic owner-only maintenance establishes the same original's policy
     # receipt. No user completeness flag or historical preference is invented.
-    sql(f"select public.apply_lifetime_literal_policy('{OWNER}',{literal(project)},'{originals[0]['id']}',1);")
+    from controlled_policy import complete_seed_policy
+    complete_seed_policy(sql,OWNER)
     assert asyncio.run(worker.execute(job['id'])) == {'status': 'succeeded', 'processed': 2}
     assert sent == ([1, 2] if stage == 'provider' else [])
     assert rpc(sql, 'read_lifetime_collection_job', f"'{job['id']}',null,8")['status'] == 'SUCCEEDED'
@@ -214,7 +215,8 @@ def test_policy_metadata_defer_requires_exact_owner_live_token_and_worker_role(s
     assert service_rpc(sql, 'defer_lifetime_collection_job_policy', args) is True
     assert checkpoint(sql, job) == accepted
     assert service_rpc(sql, 'defer_lifetime_collection_job_policy', args, check=False).returncode != 0
-    sql(f"select public.apply_lifetime_literal_policy('{OWNER}',{literal(identity['project_id'])},'{original['id']}',1);")
+    from controlled_policy import complete_seed_policy
+    complete_seed_policy(sql,OWNER)
     replacement = claim(sql, job)
     sql(f"update public.user_lifetime_collection_job set lease_until=clock_timestamp()-interval '1 second' where id='{job['id']}';")
     assert service_rpc(sql, 'defer_lifetime_collection_job_policy', f"'{job['id']}','{replacement['token']}','{OWNER}'", check=False).returncode != 0

@@ -15,8 +15,12 @@ import json
 import os
 from pathlib import Path
 import time
+import sys
 
 import httpx
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from apps.api.model_request import prompt_manifest, manifest_metadata
+from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -45,9 +49,12 @@ async def main() -> int:
     base_url = (os.getenv("MEMORY_SPARK_LLM_BASE_URL") or file_env.get("MEMORY_SPARK_LLM_BASE_URL") or "").rstrip("/")
     model = os.getenv("MEMORY_SPARK_LLM_MODEL") or file_env.get("MEMORY_SPARK_LLM_MODEL") or ""
     api_key = os.getenv("MEMORY_SPARK_LLM_API_KEY") or file_env.get("MEMORY_SPARK_LLM_API_KEY") or ""
+    instructions = load_prompt_artifact(prompt_path('memoir/evaluation/probes/connectivity'))
+    manifest = prompt_manifest(['memoir/evaluation/probes/connectivity'],instructions,variant='synthetic-probe')
     receipt: dict[str, object] = {
         "schema_version": "memoir-provider-connectivity-probe/1",
         "recorded_at": utc_now(),
+        "prompt_manifest": manifest,
         "base_url": base_url,
         "model": model,
         "request_kind": "synthetic connectivity probe; not a Memoir case round",
@@ -62,7 +69,8 @@ async def main() -> int:
                 headers={"Authorization": f"Bearer {api_key}"} if api_key else {},
                 json={
                     "model": model,
-                    "messages": [{"role": "user", "content": "Return exactly the word LIVE for this synthetic connectivity probe."}],
+                    "messages": [{"role": "user", "content": instructions}],
+                    "metadata": manifest_metadata(manifest),
                     "temperature": 0,
                     "max_tokens": 4,
                 },

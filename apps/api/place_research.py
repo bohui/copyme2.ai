@@ -3,10 +3,6 @@ import re
 
 from .place_identity import geographic_label
 
-DATE = re.compile(r'(?<!\d)(?:18|19|20)\d{2}(?:\s*(?:s|年代)|年(?:\d{1,2}月(?:\d{1,2}日)?)?)?'
-                  r'(?:\s*(?:[–—-]|至|到|to)\s*(?:18|19|20)\d{2}年?)?', re.I)
-UNRESOLVED = re.compile(r'\bnot\b|never|maybe|perhaps|about|around|不是|并非|大约|可能|不确定', re.I)
-
 
 def place_aliases(place):
     label = geographic_label(place)
@@ -50,45 +46,30 @@ def _research_pair(place, public_places):
     return matches[0] if len(matches) == 1 else None
 
 
-def _named(clause, place):
-    return any(re.search((r'(?<![a-z])' if alias.isascii() else '') + re.escape(alias)
-                         + (r'(?![a-z])' if alias.isascii() else ''), clause, re.I)
-               for alias in place_aliases(place))
+def normalized_research_fields(window):
+    from .place_journey import PlaceResearchWindow
+    if not window:
+        return dict(research_period='',research_period_basis='',research_year=None)
+    window=PlaceResearchWindow.model_validate(window).model_dump()
+    start,end=window['year_start'],window['year_end']
+    period=(f'{start}s' if end==start+9 and start%10==0 else str(start) if start==end else f'{start}–{end}')
+    return dict(research_period=period,research_period_basis=window['basis'],research_year=window['anchor_year'])
 
 
 def research_places(places, sources):
-    """A birth decade is a reference-search window, never a memoir event date."""
+    """Project a source-bound normalized model window; never reparse narration."""
+    from .place_journey import PlaceResearchWindow
     active = {source.get('sequence'): source for source in sources if source.get('status') == 'active'}
     result = []
     for place in places:
-        period, basis, year = '', '', None
+        window = place.get('research')
         source = active.get(place.get('source_sequence'))
-        for clause in re.split(r'[，。!?！？；;\n]|\bbut\b|但是|不过|然而', (source or {}).get('text', '')):
-            if not _named(clause, place['place']) or UNRESOLVED.search(clause):
-                continue
-            if any(other['place'] != place['place'] and not same_research_place(other['place'], place['place'])
-                   and _named(clause, other['place']) for other in places):
-                continue
-            dates = DATE.findall(clause)
-            if len(dates) != 1:
-                continue
-            expression = dates[0]
-            years = [int(year) for year in re.findall(r'(?:18|19|20)\d{2}', expression)]
-            birth = bool(re.search(r'\bborn\b|出生', clause, re.I))
-            if birth and (not re.search(r'\bI\b|我(?:于|在|是|生|出)|本人', clause, re.I)
-                          or re.search(r'我(?:的)?(?:父|母|爸|妈|祖|外|儿|女)|\bmy\b', clause, re.I)):
-                continue
-            if len(years) == 2:
-                if years[0] > years[1] or years[1] - years[0] > 15:
-                    continue
-                period, basis = f'{years[0]}–{years[1]}', 'explicit_period'
-            elif re.search(r's|年代', expression, re.I) or birth:
-                period, basis = f'{years[0] // 10 * 10}s', 'birth_decade' if birth else 'explicit_period'
-            else:
-                period, basis = expression, 'explicit_period'
-            year = years[0] if len(years) == 1 and not re.search(r's|年代', expression, re.I) else None
-        result.append({**place, 'research_period': period, 'research_period_basis': basis,
-                       'research_year': year})
+        fields = normalized_research_fields(None)
+        if window and source:
+            window = PlaceResearchWindow.model_validate(window).model_dump()
+            if source['text'][window['char_start']:window['char_end']] == window['quote']:
+                fields = normalized_research_fields(window)
+        result.append({**place, **fields})
     return result
 
 

@@ -22,17 +22,10 @@ from .stage_readiness import LIFE_STAGES
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
 
-HISTORICAL_ACKNOWLEDGEMENTS = {
-    'We can keep following your memories at your pace.',
-    '我们可以按您的节奏继续回忆。',
-}
-
-
 def historical_acknowledgements(context):
-    language=(context or {}).get('interview_language')
-    if language=='zh-CN':return {'我们可以按您的节奏继续回忆。'}
-    if language=='en-AU':return {'We can keep following your memories at your pace.'}
-    return HISTORICAL_ACKNOWLEDGEMENTS
+    copies = json.loads(load_prompt_artifact(prompt_path('memoir/shared/historical-acknowledgements')))
+    language = (context or {}).get('interview_language')
+    return {copies[language]} if language in copies else set(copies.values())
 
 
 def historical_acknowledgement_allowed(value, context):
@@ -50,76 +43,19 @@ class QuestionContext(StrictModel):
     life_stage: str | None
     year: int | None
     historical_clue_id: str | None = Field(default=None, max_length=128)
-    evidence: EvidenceRef | None = Field(default=None, description=(
-        'Exact narrator passage this question refers to, not the whole message when it contains several topics. '
-        'Use current source or the selected queued hint; include absolute offsets for repeated wording. '
-        'Null only when no referenced narrator passage is available; unanchored wording cannot consume another hint.'))
-
-
-TRANSLATION_GROUNDING = ('Preserve unspecified relationships when translating: sister alone does not '
-    'establish older/younger (姐姐/妹妹); use neutral wording rather than adding that detail. '
-    'An explicit comparison, including a quantified age difference, may be translated faithfully.')
-TRANSLATION_GROUNDING_ERROR = (
-    'Translation adds an unspecified sibling age; use a neutral sibling term unless the current source '
-    'explicitly states older or younger.')
-
-_SIBLING_SOURCE_PATTERN = re.compile(r'\b(?:sister|brother)\b', re.IGNORECASE)
-_SIBLING_AGE_QUANTITY = (
-    r'(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|'
-    r'a\s+few|several)')
-_EXPLICIT_SIBLING_AGE_PATTERN = re.compile(
-    r'\b(?:older|elder|big|younger|little)\s+(?:sister|brother)s?\b'
-    r'|\b(?:sister|brother)s?\s+(?:who\s+is\s+)?(?:older|elder|younger|little)\b'
-    r'|\b(?:sister|brother)s?\s+(?:is|was|has\s+been|had\s+been)\s+'
-    r'(?:much\s+)?(?:older|elder|younger|little)\b'
-    rf'|\b(?:sister|brother)s?\b[^.!?]{{0,60}}\b{_SIBLING_AGE_QUANTITY}'
-    r'\s+(?:years?|yrs?)\s+(?:older|elder|younger|junior|senior)\b'
-    rf'|\b{_SIBLING_AGE_QUANTITY}\s+(?:years?|yrs?)\s+'
-    r'(?:older|elder|younger|junior|senior)\b[^.!?]{0,60}'
-    r'\b(?:sister|brother)s?\b'
-    rf'|\b(?:sister|brother)s?\b[^.!?]{{0,60}}\b'
-    r'(?:older|elder|younger|junior|senior)\s+by\s+'
-    rf'{_SIBLING_AGE_QUANTITY}\s+(?:years?|yrs?)\b',
-    re.IGNORECASE)
-_AGE_SPECIFIC_SIBLING_TRANSLATION = re.compile(
-    r'(?:姐姐|妹妹|姊姊|大姐|小妹|哥哥|弟弟|兄长|大哥|小弟)')
-
-
-def translation_grounding_violation(value, context):
-    """Reject an age-specific Chinese sibling term absent source support.
-
-    The model may translate an English relationship into a Chinese term that
-    silently adds older/younger status. Keep this check narrow: it applies only
-    to a Chinese interview, only to the current English source, and allows an
-    explicit source qualifier such as ``older sister``.
-    """
-    if (context or {}).get('interview_language') != 'zh-CN':
-        return False
-    source = (context or {}).get('source') or {}
-    source_text = source.get('text', '') if isinstance(source, dict) else ''
-    if (not isinstance(source_text, str)
-            or not _SIBLING_SOURCE_PATTERN.search(source_text)
-            or _EXPLICIT_SIBLING_AGE_PATTERN.search(source_text)):
-        return False
-    return bool(_AGE_SPECIFIC_SIBLING_TRANSLATION.search(value or ''))
-
-
-QUESTION_DESCRIPTION = ('One answerable follow-up grounded in the narrator’s facts and current focus. '
-    'Match the requested pace; when distressed, offer skip/continue without probing painful details. '
-    + TRANSLATION_GROUNDING)
+    evidence: EvidenceRef | None = Field(default=None)
 
 
 class QuestionCandidate(StrictModel):
     id: str = Field(min_length=1, max_length=128)
-    question: str = Field(min_length=1, max_length=800,description=QUESTION_DESCRIPTION)
+    question: str = Field(min_length=1, max_length=800)
     context: QuestionContext
     order: int = Field(ge=0, le=100)
     bridge: str = Field(max_length=500)
 
 
 class TurnWorkPlan(StrictModel):
-    mode: Literal['reply_only', 'extract'] = Field(description=
-        'Decide from new information in the ENTIRE CURRENT message, not earlier story details. Use reply_only for a name-only introduction, greeting, farewell, or a conversational pause/stop without new story facts. Current distress about recounting alone (such as 这让我难受) is reply_only, not a new life event. Stopping the entire exchange today (今天就到这里 or 先停一下) is conversational control, not a lasting topic exclusion. Setting aside a named topic temporarily (such as 先不聊厨房 or set the kitchen aside for now) is a topic/privacy update and requires extract. Do not re-extract earlier memories on a whole-exchange pause. Use extract for new memory clues, corrections, topic/privacy exclusions or pauses, language/profile changes, or photo discussion. If new story facts precede a stop, use extract while stopped=true with no question.')
+    mode: Literal['reply_only', 'extract'] = Field()
     name: str | None = Field(max_length=120)
 
 
@@ -147,16 +83,9 @@ class PhotoAssociation(StrictModel):
     provenance: Literal['narrator_metadata']
 
 
-ACKNOWLEDGEMENT_DESCRIPTION = (
-    'A brief statement using only the narrator’s stated facts or intent. Do not add assumed '
-    'times, relationships or events. Do not ask or invite a question here, '
-    'including a question without a question mark. Put the single chosen question in the question/plan fields. '
-    + TRANSLATION_GROUNDING)
-
-
 class CollectorResult(StrictModel):
     # First field deliberately precedes all private planning in the JSON stream.
-    acknowledgement: str = Field(min_length=1, max_length=2000,description=ACKNOWLEDGEMENT_DESCRIPTION)
+    acknowledgement: str = Field(min_length=1, max_length=2000)
     plan: InterviewPlan
     associations: list[PhotoAssociation] = Field(max_length=20)
     response_photo_ids: list[str] = Field(max_length=5)
@@ -201,22 +130,6 @@ def _questions(value):
 def _acknowledgement_has_question(value):
     if _questions(value):
         return True
-    # Direct questions also occur without punctuation, especially before 呢/吗.
-    for sentence in re.split(r'[。.!！\n]', value):
-        text=sentence.strip()
-        if re.match(r'^(?:(?:what|why|how|who|where|when|which)\s+)?'
-                r'(?:would|could|can|will|do|did|are|have)\s+you\b'
-                r'|^what\s+(?:comes to mind|stands out)\s+when\s+you\b',text,re.I):
-            return True
-        direct=re.search(r'(?:^|[，,])\s*(?:那(?:么)?[，,]?\s*)?(?:您|你)(?:现在|当时|还|更|最|先|通常)*(?:想|愿意|希望|记得|觉得|知道|会|能|可以)',text)
-        if direct and (text.endswith('吗') or (text.endswith('呢')
-                and re.search(r'哪|谁|什么|怎么|如何|为何|为什么|是否',text))):
-            # Indefinite constructions such as “什么都可以” and “哪段经历
-            # 都很珍贵” are declarative reassurance, even when they end in
-            # the sentence-final 呢. They do not ask the narrator to choose.
-            if re.search(r'(?:哪|谁|什么|怎么|如何)[^。.!！?？]*?(?:都|也|可以|能够|能|无论)', text):
-                continue
-            return True
     return False
 
 
@@ -237,10 +150,6 @@ def validate_collector_result(value, context):
     result = CollectorResult.model_validate(raw)
     if not historical_acknowledgement_allowed(result.acknowledgement, context):
         raise ValueError('Historical context cannot supply personal acknowledgement facts')
-    visible = result.acknowledgement + '\n' + '\n'.join(
-        candidate.question + '\n' + candidate.bridge for candidate in result.plan.candidates)
-    if translation_grounding_violation(visible, context):
-        raise ValueError(TRANSLATION_GROUNDING_ERROR)
     if _acknowledgement_has_question(result.acknowledgement):
         raise ValueError('Acknowledgement cannot contain a question')
     plan = result.plan

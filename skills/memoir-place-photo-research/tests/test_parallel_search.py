@@ -19,6 +19,9 @@ from urllib.parse import parse_qs, urlsplit
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
+from photo_test_support.fixed_caption_data import proposal as fixed_caption_proposal
+from photo_test_support.offline_network import deny_external_network
+deny_external_network()
 import photo_research as p
 import photo_search as s
 
@@ -28,6 +31,8 @@ CARD = {"source_url": "https://archive.example/photo", "image_url": "https://ima
 
 class ParallelTests(unittest.TestCase):
     def setUp(self):
+        stub = patch.object(p,'_caption_date_proposal',side_effect=fixed_caption_proposal)
+        stub.start(); self.addCleanup(stub.stop)
         self.tmp = tempfile.TemporaryDirectory()
         self.run = Path(self.tmp.name)
         with contextlib.redirect_stdout(io.StringIO()):
@@ -225,6 +230,10 @@ class ParallelTests(unittest.TestCase):
 
 
 class CaptureTests(unittest.TestCase):
+    def setUp(self):
+        stub = patch.object(p,'_caption_date_proposal',side_effect=fixed_caption_proposal)
+        stub.start(); self.addCleanup(stub.stop)
+
     current = {"place": "Chengde", "temporal": p.normalize_period(None, date(2026, 10, 2))}
     historical = {"place": "Chengde", "temporal": p.normalize_period("1980s", date(2026, 10, 2))}
 

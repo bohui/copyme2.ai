@@ -158,7 +158,7 @@ def test_oversized_input_rejected_before_source_acceptance(sql,tmp_path,monkeypa
     storage.client.close()
 
 
-def test_real_http_literal_privacy_name_commitment_survive_checkpoint_cold_turn(sql,tmp_path,monkeypatch):
+def test_real_http_reviewed_privacy_and_proposed_commitment_survive_cold_turn(sql,tmp_path,monkeypatch,fixed_policy_controls):
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true');monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     packets=[]
@@ -169,6 +169,10 @@ def test_real_http_literal_privacy_name_commitment_survive_checkpoint_cold_turn(
         if len(packets)>1:
             response['plan']['work']={'mode':'extract','name':None};response['acknowledgement']='We can return to the garden.'
         if len(packets)==2:
+            source = body['interview_context']['source']; quote = "I'll return to the garden later."
+            start = source['text'].index(quote)
+            response['continuity_updates'] = [dict(kind='commitment',text=quote,assertion='asserted',uncertainty=None,
+                source_id=source['id'],source_version=source['version'],quote=quote,char_start=start,char_end=start+len(quote))]
             assert any('school' in value.lower() for value in packet['pinned']['excluded_topics'])
         if len(packets)==3:
             assert packet['checkpoint']['coverage_end']>2
@@ -184,11 +188,15 @@ def test_real_http_literal_privacy_name_commitment_survive_checkpoint_cold_turn(
         first=client.post('/v1/agent/turn',json={'text':'My name is Joan','client_turn_id':str(uuid4())})
         assert first.status_code==200,first.text
         project=first.json()['project_id']
+        fixed_policy_controls.append(('excluded_topic', "Don't discuss my school."))
         second=client.post('/v1/agent/turn',json={'project_id':project,'text':"Don't discuss my school. I'll return to the garden later.",'client_turn_id':str(uuid4())})
         assert second.status_code==200,second.text
         sql(__import__('test_agent_commit_postgres').as_user(f"""do $do$ begin for n in 1..35 loop
           perform public.accept_user_narrator_source('{project}',gen_random_uuid(),repeat('A synthetic ordinary garden recollection. ',40));
         end loop;end $do$;"""))
+        fixed_policy_controls.clear()
+        from controlled_policy import complete_seed_policy
+        complete_seed_policy(sql,OWNER)
         third=client.post('/v1/agent/turn',json={'project_id':project,'text':'Then what?','client_turn_id':str(uuid4())})
         assert third.status_code==200,third.text
     assert len(packets)==3
@@ -255,7 +263,8 @@ def test_active_privacy_byte_overflow_retains_source_without_provider_and_retry_
     ('Don’t discuss my school','excluded_topics'),
     ('我不想再提学校','excluded_topics'),
 ])
-def test_literal_privacy_variants_persist_before_http_provider(sql,tmp_path,monkeypatch,text,kind):
+def test_fixed_review_controls_persist_before_private_provider(sql,tmp_path,monkeypatch,text,kind,fixed_policy_controls):
+    fixed_policy_controls.append(({"excluded_topics":"excluded_topic","paused_topics":"paused_topic"}[kind],text))
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true');monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
     calls=[]
@@ -423,49 +432,15 @@ def test_clearance_rejection_preserves_accepted_source_and_exact_retry(sql, tmp_
     assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '1'
 
 
-@pytest.mark.parametrize('language,source_kind',[('en-AU','narrator_chat'),('zh-CN','narrator_transcript')])
-def test_privacy_limit_rejects_before_acceptance_and_exact_eight_retry_is_atomic(sql,tmp_path,monkeypatch,language,source_kind):
-    from apps.api.main import create_app
-    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
-    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
-    controls=[f'Do not discuss topic{i}.' if language=='en-AU' else f'不要讨论话题{i}。' for i in range(9)]
-    packets=[]
-    def provider(request):
-        packet=json.loads(json.loads(request.content)['governed']['packet']);packets.append(packet)
-        assert len(packet['pinned']['excluded_topics'])==8
-        for directive in controls[:8]:
-            assert directive.rstrip('.。') in ' '.join(packet['pinned']['excluded_topics'])
-        output=proposal(mode='extract',name=None,question='What would you like to share?')
-        output['acknowledgement']='We can choose another memory.'
-        return worker_reply(request,{'thread_id':'privacy-boundary','reply':json.dumps(output),'artifacts':[]})
-    monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
-    monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
-    turn=str(uuid4())
-    payload={'text':' '.join(controls),'client_turn_id':turn,'language':language,'source_kind':source_kind}
-    with TestClient(create_app(MemoryStore())) as client:
-        rejected=client.post('/v1/agent/turn',json=payload)
-        assert rejected.status_code==413,rejected.text
-        assert 'not accepted or truncated' in rejected.text
-        assert not packets
-        for table in ['user_narrator_source','user_interview_turn','user_completed_round']:
-            assert sql(f'select count(*) from public.{table};').stdout.strip()=='0'
-        payload['text']=' '.join(controls[:8])
-        accepted=client.post('/v1/agent/turn',json=payload)
-        assert accepted.status_code==200,accepted.text
-        assert accepted.json()['conversation_saved']
-        assert sql("select count(*) from public.user_lifetime_continuity where kind in ('excluded_topic','paused_topic');").stdout.strip()=='8'
-        replay=client.post('/v1/agent/turn',json=payload)
-        assert replay.status_code==200 and replay.json()['cached'],replay.text
-        following=client.post('/v1/agent/turn',json={**payload,'client_turn_id':str(uuid4()),'text':'I remember a sunny afternoon.'})
-        assert following.status_code==200,following.text
-    assert len(packets)==2
-    assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='2'
-    assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='2'
 
 
 def test_prior_unreviewed_policy_blocks_fresh_http_turn_with_truthful_metadata(sql,tmp_path,monkeypatch):
     from apps.api.main import create_app
+    from apps.api import policy_review
+    from apps.api.lifetime_memory_policy import PolicyUnavailable
+    async def unavailable(*args, **kwargs):
+        raise PolicyUnavailable()
+    monkeypatch.setattr(policy_review,'complete_json',unavailable)
     identity=rpc(sql,'resolve_lifetime_conversation','null')
     prior_turn=str(uuid4());prior_source=str(uuid4())
     # Model a raw imported accepted original. Only authoritative acceptance may

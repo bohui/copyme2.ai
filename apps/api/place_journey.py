@@ -4,8 +4,30 @@ from __future__ import annotations
 import json
 import re
 import unicodedata
-from typing import Any
+from typing import Any, Literal
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .place_identity import geographic_label, place_identity, place_path
+
+
+class PlaceResearchWindow(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    year_start: int = Field(ge=1800, le=2100)
+    year_end: int = Field(ge=1800, le=2100)
+    anchor_year: int | None
+    basis: Literal['explicit_period', 'birth_decade']
+    quote: str = Field(min_length=1, max_length=2000)
+    char_start: int = Field(ge=0)
+    char_end: int = Field(ge=1)
+
+    @model_validator(mode='after')
+    def bounds(self):
+        if not 0 <= self.year_end - self.year_start <= 15:
+            raise ValueError('Invalid research window')
+        if self.anchor_year is not None and not self.year_start <= self.anchor_year <= self.year_end:
+            raise ValueError('Research anchor must be inside its window')
+        if self.char_end - self.char_start != len(self.quote):
+            raise ValueError('Invalid research evidence span')
+        return self
 
 
 MARKER_START = "[[MEMORY_SPARK_PLACE_JOURNEY]]"
@@ -32,6 +54,7 @@ PERSISTED_FIELDS = (
     "granularity",
     "latitude",
     "longitude",
+    "research",
     "duration_ms",
 )
 
@@ -133,6 +156,11 @@ def validate_place_journey(raw: Any) -> dict[str, Any] | None:
     if latitude is not None:
         payload["latitude"] = latitude
         payload["longitude"] = longitude
+    if raw.get('research') is not None:
+        try:
+            payload['research'] = PlaceResearchWindow.model_validate(raw['research']).model_dump()
+        except ValueError:
+            return None
     payload["schema_version"] = SCHEMA_VERSION
     return payload
 
@@ -193,132 +221,27 @@ def place_journey_matches_message(journey: Any, message: str) -> bool:
         return False
     if normalized_label in normalized_message:
         return True
-    # Allow a leading article in a model label to differ from the storyteller's
-    # wording, e.g. "the old river town" vs "old river town".
-    words = normalized_label.split()
-    return len(words) > 1 and " ".join(words[1:]) in normalized_message
+    return False
 
 
-def grounded_place_journeys(journeys: list[dict[str, Any]], message: str) -> list[dict[str, Any]]:
-    """Keep independent cues, not broad qualifiers of another accepted place."""
-    if place_journey_message_is_ambiguous(message):
-        return []
-    candidates = [place for place in journeys if place_journey_matches_message(place, message)]
-
-    def path(place):
-        labels = list(place['hierarchy'][1:])
-        if not labels or _normalize_for_match(labels[-1]) != _normalize_for_match(place['place']):
-            labels.append(place['place'])
-        return labels
-
-    def identity(label):
-        return _normalize_for_match(label).removesuffix('省').removesuffix('市')
-
-    def label_pattern(label):
-        label = unicodedata.normalize('NFKC', label).casefold()
-        # Latin labels need word boundaries; Chinese locality labels can join.
-        return (r'(?<![a-z0-9])' if re.match('[a-z0-9]', label) else '') + re.escape(label) + (
-            r'(?![a-z0-9])' if re.search('[a-z0-9]$', label) else '')
-
-    paths = [path(place) for place in candidates]
-    selected = []
-    # Recognise joined locality names, not narrative transitions or sentences.
-    separator = r'(?:[ \t,，·]|的|(?<!\w)(?:in|of)(?!\w))*'
-    for parent, ancestor in zip(candidates, paths):
-        if parent['granularity'] not in {'country', 'region'}:
-            selected.append(parent)
-            continue
-        remaining = unicodedata.normalize('NFKC', message).casefold()
-        def remove_locality(match):
-            tail = remaining[match.end():].lstrip(' \t')
-            # A comma can start another memory: "Chengde, Hebei was where
-            # I worked" is not an address. Keep uncertain continuations.
-            if ',' in match.group() and not re.match(
-                r'(?:$|[.,;!?。！？；\n]|(?:in|on|at|during|since|until|around|from)\s+(?:\d|[a-z]+\s+\d))', tail
-            ):
-                return match.group()
-            return ' '
-        for child, descendant in zip(candidates, paths):
-            if (len(ancestor) >= len(descendant)
-                    or any(identity(left) != identity(right)
-                           for left, right in zip(ancestor, descendant))):
-                continue
-            labels = [parent['place'], *descendant[len(ancestor):-1], child['place']]
-            for locality in (labels, [parent['place'], child['place']]):
-                for order in (locality, list(reversed(locality))):
-                    remaining = re.sub(separator.join(map(label_pattern, order)), remove_locality, remaining)
-        # A second standalone mention makes the broad place a distinct cue.
-        if place_journey_matches_message(parent, remaining):
-            selected.append(parent)
+def grounded_place_journeys(journeys: list[dict[str, Any]], message: str, *, source_offset=0) -> list[dict[str, Any]]:
+    """Validate source identity/spans; assertion meaning belongs to extraction."""
     distinct = {}
-    for place in selected:
+    for raw in journeys:
+        place = raw
+        if validate_place_journey(raw) is None or not place_journey_matches_message(place, message):
+            continue
+        evidence = place.get('research')
+        if evidence and (evidence['char_start'] < source_offset
+                or evidence['char_end'] > source_offset + len(message)
+                or message[evidence['char_start']-source_offset:evidence['char_end']-source_offset] != evidence['quote']):
+            raise ValueError('Place research evidence must match the current source')
         key = place_identity(place)
         previous = distinct.get(key)
         if previous and place.get('latitude') is None and previous.get('latitude') is not None:
             place = {**place, 'latitude': previous['latitude'], 'longitude': previous['longitude']}
         distinct[key] = place
     return list(distinct.values())
-
-
-def place_journey_message_is_ambiguous(message: str) -> bool:
-    """Reject mapping when the storyteller explicitly withholds place identity."""
-    if not isinstance(message, str) or not message.strip():
-        return False
-    normalized = _normalize_for_match(message)
-    # Ground uncertainty in the clause that contains its object. A location
-    # word in the preceding clause must not veto a separately uncertain date:
-    # "I moved to Hobart in 1980, but I am not sure which month" is still a
-    # clear place mention. Conversely, "which old town" remains a location
-    # object and must block mapping.
-    english_uncertainty = re.compile(
-        r"\b(?:unsure|uncertain|ambiguous|not sure|don't know|do not know|"
-        r"cannot identify|can't identify)\b"
-    )
-    english_location_object = re.compile(
-        r"\b(?:place|town|city|location|where|map(?:ping)?|which\s+one|"
-        r"which\s+(?:place|town|city|location))\b"
-    )
-    english_location_subject_uncertainty = re.compile(
-        r"\b(?:the\s+)?(?:place|town|city|location)\b"
-        r"(?:(?:\s+(?!and\b|or\b|but\b|while\b|whereas\b|"
-        r"year\b|month\b|age\b|date\b|time\b)\w+)){0,10}\s+"
-        r"(?:is|was|remains|seems)\s+(?:uncertain|unclear|ambiguous|unknown)\b"
-    )
-    # Split before normalization: _normalize_for_match intentionally removes
-    # punctuation, but punctuation and conjunctions are the boundaries that
-    # keep a named place from contaminating an uncertainty about a date.
-    raw_clauses = re.split(
-        r"[;,.!?，；。！？]+|\b(?:and|or|but|although|though|however|yet|while|whereas)\b|"
-        r"(?:但是|但|不过|然而|可是)",
-        message,
-        flags=re.IGNORECASE,
-    )
-    english_clauses = [_normalize_for_match(clause) for clause in raw_clauses if clause.strip()]
-    english = False
-    for clause in english_clauses:
-        match = english_uncertainty.search(clause)
-        if ((match and english_location_object.search(clause[match.end():]))
-                or english_location_subject_uncertainty.search(clause)):
-            english = True
-            break
-    english = english or bool(re.search(r"\b(?:ask instead of mapping|ask me before mapping)\b", normalized))
-
-    chinese_uncertainty = re.compile(r"(?:不确定|不肯定|不清楚|无法确定|不知道)")
-    chinese_location_object = re.compile(r"(?:地方|地点|城市|镇|哪里|定位|映射|映射到)")
-    chinese_location_subject_uncertainty = re.compile(
-        r"(?:这个|那个|我说的|所说的)?(?:地方|地点|城市|镇).{0,30}"
-        r"(?:是|叫|指|所说的).{0,20}(?:不确定|不肯定|不清楚|无法确定|不知道)"
-    )
-    chinese_clauses = [_normalize_for_match(clause) for clause in raw_clauses if clause.strip()]
-    chinese = False
-    for clause in chinese_clauses:
-        match = chinese_uncertainty.search(clause)
-        if ((match and chinese_location_object.search(clause[match.end():]))
-                or chinese_location_subject_uncertainty.search(clause)):
-            chinese = True
-            break
-    chinese = chinese or bool(re.search(r"请先问.{0,30}(?:不要映射|不要定位)", message))
-    return bool(english or chinese)
 
 
 def _text(value: Any, limit: int) -> str | None:

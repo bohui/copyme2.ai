@@ -14,9 +14,13 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import time
+import sys
 from uuid import UUID
 
 import httpx
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from apps.api.model_request import prompt_manifest, manifest_metadata
+from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
 
 
 def utc_now() -> str:
@@ -36,15 +40,19 @@ async def main() -> int:
         "project_id": "synthetic-worker-smoke",
         "family_enabled": False,
         "language": "en-AU",
-        "text": "Return one short sentence acknowledging this synthetic worker smoke probe.",
+        "text": load_prompt_artifact(prompt_path('memoir/evaluation/probes/worker')),
         "model": args.model,
         "agent_role": "collector",
     }
     if payload["model"] is None:
         payload.pop("model")
+    instructions = load_prompt_artifact(prompt_path('memoir/evaluation/probes/worker'))
+    manifest = prompt_manifest(['memoir/evaluation/probes/worker'],instructions,variant='synthetic-probe')
+    payload['evaluation']=manifest_metadata(manifest)
     receipt: dict[str, object] = {
         "schema_version": "memoir-codex-worker-smoke-probe/1",
         "recorded_at": utc_now(),
+        "prompt_manifest": manifest,
         "worker_url": args.worker_url,
         "request_kind": "one synthetic non-memoir Codex worker turn",
         "timeout_seconds": args.timeout,

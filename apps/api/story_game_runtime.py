@@ -92,21 +92,27 @@ async def propose_game(packet, *, token):
         metadata={'generation_name': 'memoir-story-game', 'trace_name': 'memoir-story-game'},
         text={'format': {'type': 'json_schema', 'name': 'memoir_game_proposal', 'strict': True,
                          'schema': GameProposal.model_json_schema()}})
+    from .model_request import instruction_manifest, manifest_metadata
+    manifest = instruction_manifest(instructions, GameProposal.model_json_schema(),variant='story-game')
+    body['metadata'].update(manifest_metadata(manifest))
     content = json.dumps(body, ensure_ascii=False).encode('utf-8')
     request = GameRequestBody(content,
         publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
         fence=dict(game_id=packet['game_id'], token=token, authority=packet['authority']))
     try:
-        async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=120) as client:
-            async with client.stream('POST', base + '/responses', content=request,
-                                     headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
-                                              'Content-Length': str(len(content))}) as response:
-                response.raise_for_status()
-                raw = bytearray()
-                async for chunk in response.aiter_bytes():
-                    raw.extend(chunk)
-                    if len(raw) > 512000:
-                        raise ValueError('game_response_limit')
+        from .llm_tracing import trace_llm_call
+        with trace_llm_call('story.game.proposal',model,metadata={'prompt_manifest':manifest}):
+            async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=120) as client:
+                async with client.stream('POST', base + '/responses', content=request,
+                                         headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
+                                                  'Content-Length': str(len(content))}) as response:
+                    response.raise_for_status()
+                    raw = bytearray()
+                    async for chunk in response.aiter_bytes():
+                        raw.extend(chunk)
+                        if len(raw) > 512000:
+                            raise ValueError('game_response_limit')
+
     finally:
         await request.aclose()
     if key.encode() in raw:
@@ -117,7 +123,7 @@ async def propose_game(packet, *, token):
     text = ''.join(part.get('text', '') for item in result.get('output', []) if item.get('type') == 'message'
                    for part in item.get('content', []) if part.get('type') == 'output_text')
     proposal = GameProposal.model_validate_json(text).model_dump(mode='json')
-    return proposal, dict(status='completed', response_id=result['id'], model=result['model'])
+    return proposal, dict(status='completed', response_id=result['id'], model=result['model'],prompt_manifest=manifest)
 
 
 async def generate_story_game(broker, game_id, *, provider=None):

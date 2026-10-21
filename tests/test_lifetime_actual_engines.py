@@ -36,10 +36,10 @@ def test_first_visible_ack_precedes_proposal_completion_and_durable_save(sql, tm
                 return (await (await connection.execute('select count(*) from public.user_completed_round')).fetchone())[0]
         expected = proposal(name='Joan', question='What would you like to share?')
         expected['acknowledgement'] = 'It is good to meet you, Joan.'
-        expected['plan']['conversation_phase'] = 'comfort'
         expected['continuity_updates'] = []
         expected['place_journeys'] = []
         expected['plan']['candidates'][0]['context']['historical_clue_id'] = None
+        expected['plan']['candidates'][0]['context']['evidence'] = None
         raw = json.dumps(expected)
 
         class ControlledAppServer(CodexConnection):

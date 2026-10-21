@@ -103,6 +103,23 @@ def mark_llm_trace_error(observation: Any, operation: str, error: BaseException)
     )
 
 
+def _linked_prompt(metadata):
+    manifest = (metadata or {}).get('prompt_manifest') or {}
+    artifacts = manifest.get('artifacts') or []
+    primary = next((item for item in artifacts if item.get('status') == 'published'), None)
+    if primary is None:
+        return None
+    try:
+        from langfuse.model import TextPromptClient
+        from langfuse.api import Prompt_Text
+        from .prompt_artifact import prompt_path, load_prompt_artifact
+        text = load_prompt_artifact(prompt_path(primary['name']))
+        return TextPromptClient(Prompt_Text(name=primary['name'],version=primary['version'],prompt=text,
+            config={},labels=[],tags=[]))
+    except Exception:
+        return None
+
+
 @contextmanager
 def trace_llm_call(
     name: str,
@@ -118,7 +135,9 @@ def trace_llm_call(
         return
 
     try:
+        linked = _linked_prompt(metadata)
         context = client.start_as_current_observation(
+            **({"prompt": linked} if linked is not None else {}),
             as_type="generation",
             name=name,
             model=model,

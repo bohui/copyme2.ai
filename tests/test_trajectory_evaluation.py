@@ -245,7 +245,7 @@ def test_deterministic_evaluators_check_order_budget_and_state():
         "skill_selection_adherence": 1.0,
         "execution_quality": 1.0,
         "state_correctness": 1.0,
-        "final_response_quality": 1.0,
+        "completion_contract": 1.0,
     }
 
 
@@ -263,14 +263,14 @@ def test_judge_input_contains_ordered_steps_and_terminal_state():
     assert judge_input["final_response"] == "reply"
     assert judge_input["final_state"] == {"saved": True}
     assert judge_input["rubric_version"]
-    assert "final_response_quality" in judge_input["rubric"]
+    assert "final_response_quality" in judge_input["rubric_categories"]
 
 
 def test_openai_compatible_judge_uses_template_and_records_safe_usage(monkeypatch):
     async def run():
         def handle(request):
             payload = json.loads(request.content)
-            assert "custom evaluator instructions" in payload["messages"][1]["content"]
+            assert "instructions" in json.loads(payload["messages"][1]["content"])
             assert payload["max_tokens"] == 1200
             return httpx.Response(
                 200,
@@ -293,7 +293,7 @@ def test_openai_compatible_judge_uses_template_and_records_safe_usage(monkeypatc
         judge = OpenAICompatibleJudge(
             base_url="http://judge",
             model="configured-model",
-            instructions="custom evaluator instructions",
+            prompt_names=('memoir/evaluation/trajectory-judge/rubric',),
         )
         result = await judge({"ordered_steps": [{"step_id": "step-0001"}]})
         assert result["status"] == "scored"
@@ -729,7 +729,7 @@ def test_runner_publishes_trace_and_idempotent_scores_to_langfuse_double():
         "skill_selection_adherence",
         "execution_quality",
         "state_correctness",
-        "final_response_quality",
+        "completion_contract",
     }
     assert len({score["score_id"] for score in client.scores}) == len(client.scores)
     assert client.flushed
@@ -785,116 +785,13 @@ def test_unavailable_judge_is_separate_from_deterministic_acceptance_evidence():
     assert result["failure_evidence"] == []
 
 
-def test_worker_turn_adds_evaluation_envelope_only_when_requested(monkeypatch):
+
+
+
+
+def test_evaluation_metadata_cannot_bypass_canonical_publication_admission():
     async def run():
-        captured = {}
-
-        def handle(request):
-            captured.update(json.loads(request.content))
-            return httpx.Response(200, json={"thread_id": "thread", "reply": "done", "artifacts": []})
-
-        client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
-        monkeypatch.setattr("apps.api.codex_runtime.httpx.AsyncClient", lambda **kwargs: client)
-        runtime = CodexRuntime(worker_url="http://worker", worker_secret="secret")
-        result = await runtime._worker_turn(
-            user_id="11111111-1111-4111-8111-111111111111",
-            prior=None,
-            memories=[],
-            profile={},
-            place_journey={},
-            family_enabled=False,
-            family_context={},
-            project_id=None,
-            text="hello",
-            language="en-AU",
-            evaluation={"run_id": "run-1", "case_id": "case-1"},
-        )
-        assert result["reply"] == "done"
-        assert captured["evaluation"] == {"run_id": "run-1", "case_id": "case-1"}
-
-    asyncio.run(run())
-
-
-@pytest.mark.parametrize('collector_model,expected_model', [(None, 'legacy-test-route'), ('memoir-luna-low', 'memoir-luna-low')])
-def test_runtime_returns_trajectory_only_for_an_evaluation_turn(monkeypatch, collector_model, expected_model):
-    if collector_model is None:
-        monkeypatch.delenv('MEMORY_SPARK_COLLECTOR_MODEL', raising=False)
-    else:
-        monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', collector_model)
-    class Storage:
-        user_id = "11111111-1111-4111-8111-111111111111"
-
-        def acquire_agent_turn_lease(self, token, lease_seconds):
-            return True
-
-        def renew_agent_turn_lease(self, token, lease_seconds):
-            return True
-
-        def release_agent_turn_lease(self, token):
-            return True
-
-        def agent_session(self):
-            return None
-
-        def memories(self):
-            return []
-
-        def profile(self):
-            return getattr(self, 'saved_profile', {'preferred_language': 'en-AU'})
-
-        def save_profile(self, profile):
-            self.saved_profile = dict(profile)
-
-        def place_journey(self):
-            return None
-
-        def story_entitlement(self):
-            return None
-
-        @staticmethod
-        def agent_path(path):
-            return path
-
-        def commit_agent_turn(self, token, thread_id, text, source_paths):
-            return {"id": "turn-1", "source_paths": source_paths}
-
-    async def run():
-        captured = {}
-        supplied = TrajectoryRecorder({"run_id": "run-1", "case_id": "case-1"})
-
-        def handle(request):
-            captured.update(json.loads(request.content))
-            return httpx.Response(200, json={
-                "thread_id": "thread-1",
-                "reply": "A grounded reply",
-                "artifacts": [],
-                "trajectory": {
-                    "schema_version": "memoir-trajectory/1",
-                    "steps": [{"phase": "codex", "action": "turn.completed"}],
-                    "final": {"status": "completed", "response": "A grounded reply"},
-                },
-            })
-
-        client = httpx.AsyncClient(transport=httpx.MockTransport(handle))
-        monkeypatch.setattr("apps.api.codex_runtime.httpx.AsyncClient", lambda **kwargs: client)
-        runtime = CodexRuntime(worker_url="http://worker", worker_secret="secret", model="legacy-test-route")
-        result = await runtime.turn(
-            Storage(),
-            "hello",
-            evaluation={"run_id": "run-1", "case_id": "case-1"},
-            evaluation_context={
-                "enabled_skills": ["memoir-memory-context"],
-                "available_tools": ["memory.search"],
-            },
-            trajectory=supplied,
-        )
-        assert result["trajectory"]["correlation"] == {"run_id": "run-1", "case_id": "case-1"}
-        assert result["trajectory"]["final"]["status"] == "completed"
-        assert captured["evaluation"] == {"run_id": "run-1", "case_id": "case-1"}
-        assert result["trajectory"]["context"]["task"] == "hello"
-        assert result["trajectory"]["context"]["project_id"] is None
-        assert result["trajectory"]["context"]["model"] == expected_model
-        assert result["trajectory"]["context"]["enabled_skills"] == ["memoir-memory-context"]
-        assert sum(step["action"] == "turn.received" for step in result["trajectory"]["steps"]) == 1
-
+        runtime = CodexRuntime(worker_url='http://worker', worker_secret='synthetic')
+        with pytest.raises(ValueError, match='canonical publication context'):
+            await runtime.turn(object(), 'hello', project_id='project', evaluation={'case_id':'fixed'})
     asyncio.run(run())

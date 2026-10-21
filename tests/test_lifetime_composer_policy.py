@@ -84,7 +84,7 @@ from test_lifetime_composer_capacity import (
 
 
 def mark_inventory_pending(sql,identity):
-    sql(f"insert into public.user_lifetime_policy_inventory_pending values('{identity['owner_id']}',{literal(identity['project_id'])},'{identity['conversation_id']}','literal-v1') on conflict do nothing;")
+    sql(f"insert into public.user_lifetime_policy_inventory_pending values('{identity['owner_id']}',{literal(identity['project_id'])},'{identity['conversation_id']}','semantic-v1') on conflict do nothing;")
 
 
 def metadata_defer(sql,lane,claim,*,owner=None,project=None,conversation=None,token=None,check=True,role='service_role'):
@@ -100,7 +100,7 @@ def test_pg_policy_pending_owners_do_not_starve_other_lane_or_receipt_polling(sq
     identity,source,lane,claim=seeded_composer(sql);project=identity['project_id']
     service(sql,'yield_lifetime_memoir_lane',f"'{lane}','{claim['token']}'")
     if pending_kind=='inventory':mark_inventory_pending(sql,identity)
-    else:sql(f"insert into public.user_lifetime_pending_policy values('{OWNER}',{literal(project)},'{identity['conversation_id']}','{source['id']}',1,'00000000-0000-4000-8000-000000000001','literal-v1');")
+    else:sql(f"insert into public.user_lifetime_pending_policy values('{OWNER}',{literal(project)},'{identity['conversation_id']}','{source['id']}',1,'00000000-0000-4000-8000-000000000001','semantic-v1');")
     ready=resolve(sql,owner=OTHER)
     rpc(sql,'accept_user_narrator_source',f"{literal(ready['project_id'])},'00000000-0000-4000-8000-000000000002','An unrelated safe memory'",owner=OTHER)
     ready_lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,pending) values('{OTHER}',{literal(ready['project_id'])},'timeline',true) returning id;").stdout.splitlines()[0]

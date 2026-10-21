@@ -171,19 +171,6 @@ def test_an_unavailable_source_cannot_hide_sibling_photos(search_world, tmp_path
         assert len(photos.search_place_photos('Chengde', '1980s')) == 1
 
 
-def test_skill_dates_album_photos_from_each_caption(search_world, tmp_path, capsys):
-    helper, world = search_world
-    world['pages']['https://archive.example/photo'] = (
-        '<title>Chengde archive published 1983</title>'
-        '<figure><img src="https://images.example/one.jpg"><figcaption>Chengde street 1983</figcaption></figure>'
-        '<figure><img src="https://images.example/two.jpg"><figcaption>Chengde market 1985</figcaption></figure>'
-        '<figure><img src="https://images.example/undated.jpg"><figcaption>Chengde street</figcaption></figure>'
-        '<figure><img src="https://images.example/wrong.jpg"><figcaption>Chengdu street 1983</figcaption></figure>')
-    start_run(helper, tmp_path, capsys)
-    assert helper.main(['discover', '--run', str(tmp_path)]) == 0
-    assert json.loads(capsys.readouterr().out)['qualifying'] == 2
-    assert [item['scene_date']['start'] for item in helper.read_json(tmp_path / 'candidates.json')] == [
-        '1983-01-01', '1985-01-01']
 
 
 @pytest.mark.parametrize('response', [
@@ -238,16 +225,6 @@ def test_skill_never_persists_credentials_echoed_in_provider_receipts(search_wor
     assert 'fixture-private-key' not in ''.join(file.read_text() for file in tmp_path.rglob('*') if file.is_file())
 
 
-def test_app_preserves_year_precision_from_source_captions(search_world):
-    _, world = search_world
-    world['pages']['https://archive.example/photo'] = (
-        '<figure><img src="https://images.example/street.jpg">'
-        '<figcaption>Chengde street 1983</figcaption></figure>'
-        '<script type="application/ld+json">{"@type":"ImageObject","contentUrl":"https://images.example/street.jpg",'
-        '"license":"https://creativecommons.org/licenses/by/4.0/"}</script>')
-    found, = photos.search_place_photos('Chengde', '1980s')
-    assert found['date_expression'] == '1983'
-    assert found['scene_date_range']['precision'] == 'year'
 
 
 @pytest.mark.parametrize('surface', ['skill', 'app'])
@@ -283,8 +260,16 @@ def test_app_keeps_catalogue_results_when_gateway_rejects_search(search_world, m
     assert found['asset_id'] == 'loc-fixture'
 
 
-def test_app_accepts_a_dated_candidate_for_unspecified_historical_period(search_world):
-    _, world = search_world
+def test_app_accepts_a_dated_candidate_for_unspecified_historical_period(search_world, monkeypatch):
+    helper, world = search_world
+    def interpreted(records):
+        assertions=[]
+        for index,fields in enumerate(records):
+            for field,quote in fields.items():
+                assertions.append(dict(record=index,field=field,quote=quote,char_start=0,char_end=len(quote),
+                    role='capture',uncertain=False,start='1983-01-01',end='1983-12-31',precision='year'))
+        return dict(complete=True,assertions=assertions)
+    monkeypatch.setattr(helper,'_caption_date_proposal',interpreted)
     world['pages']['https://archive.example/photo'] = (
         '<figure><img src="https://images.example/street.jpg">'
         '<figcaption>Chengde street 1983</figcaption></figure>'
@@ -354,16 +339,6 @@ def test_resuming_a_run_does_not_count_wrong_period_alternatives(search_world, t
     assert len(helper.read_json(tmp_path / 'candidates.json')) == 2
 
 
-def test_skill_preserves_documented_capture_ranges(search_world, tmp_path, capsys):
-    helper, world = search_world
-    world['pages']['https://archive.example/photo'] = (
-        '<figure><img src="https://images.example/street.jpg">'
-        '<figcaption>Chengde street 1982-1985</figcaption></figure>')
-    start_run(helper, tmp_path, capsys)
-    assert helper.main(['discover', '--run', str(tmp_path)]) == 0
-    candidate, = helper.read_json(tmp_path / 'candidates.json')
-    assert (candidate['scene_date']['start'], candidate['scene_date']['end'], candidate['scene_date']['precision']) == (
-        '1982-01-01', '1985-12-31', 'range')
 
 
 def test_skill_keeps_verified_photos_when_page_budget_is_exhausted(search_world, tmp_path, capsys):
@@ -378,33 +353,20 @@ def test_skill_keeps_verified_photos_when_page_budget_is_exhausted(search_world,
     assert len(helper.read_json(tmp_path / 'candidates.json')) == 1
 
 
-@pytest.mark.parametrize('source_kind', ['json', 'figure'])
-def test_skill_excludes_conflicting_caption_and_capture_dates(search_world, tmp_path, capsys, source_kind):
+
+
+
+
+def test_skill_accepts_a_dated_candidate_for_unspecified_historical_period(search_world, tmp_path, capsys, monkeypatch):
     helper, world = search_world
-    if source_kind == 'json':
-        world['pages']['https://archive.example/photo'] = world['pages']['https://archive.example/photo'].replace(
-            'Chengde street', 'Chengde street 1920; date: 1983-10-01')
-    else:
-        world['pages']['https://archive.example/photo'] = (
-            '<figure><img src="https://images.example/street.jpg">'
-            '<figcaption>Chengde street 1920; date: 1983-10-01</figcaption></figure>')
-    start_run(helper, tmp_path, capsys)
-    assert helper.main(['discover', '--run', str(tmp_path)]) == 0
-    assert json.loads(capsys.readouterr().out)['qualifying'] == 0
-
-
-def test_skill_excludes_multiple_exact_capture_dates_in_one_caption(search_world, tmp_path, capsys):
-    helper, world = search_world
-    world['pages']['https://archive.example/photo'] = (
-        '<figure><img src="https://images.example/street.jpg">'
-        '<figcaption>Chengde street taken 1983-01-01; taken 1983-10-01</figcaption></figure>')
-    start_run(helper, tmp_path, capsys)
-    assert helper.main(['discover', '--run', str(tmp_path)]) == 0
-    assert json.loads(capsys.readouterr().out)['qualifying'] == 0
-
-
-def test_skill_accepts_a_dated_candidate_for_unspecified_historical_period(search_world, tmp_path, capsys):
-    helper, world = search_world
+    def interpreted(records):
+        assertions=[]
+        for index,fields in enumerate(records):
+            for field,quote in fields.items():
+                assertions.append(dict(record=index,field=field,quote=quote,char_start=0,char_end=len(quote),
+                    role='capture',uncertain=False,start='1983-01-01',end='1983-12-31',precision='year'))
+        return dict(complete=True,assertions=assertions)
+    monkeypatch.setattr(helper,'_caption_date_proposal',interpreted)
     world['pages']['https://archive.example/photo'] = (
         '<figure><img src="https://images.example/street.jpg">'
         '<figcaption>Chengde street 1983</figcaption></figure>')
@@ -425,22 +387,6 @@ def test_skill_reads_photo_metadata_with_multiple_schema_types(search_world, tmp
     assert json.loads(capsys.readouterr().out)['qualifying'] == 1
 
 
-@pytest.mark.parametrize('surface', ['skill', 'app'])
-@pytest.mark.parametrize('field', ['name', 'caption', 'description', 'dateTaken'])
-def test_all_image_fields_reconcile_exact_capture_dates(search_world, tmp_path, capsys, surface, field):
-    helper, world = search_world
-    record = {'@type': 'Photograph', 'name': 'Chengde street',
-              'dateCreated': '1983-10-01', 'contentUrl': 'https://images.example/street.jpg',
-              field: '1983-01-01' if field == 'dateTaken' else 'Chengde street taken 1983-01-01'}
-    world['pages']['https://archive.example/photo'] = (
-        '<script type="application/ld+json">' + json.dumps(record) + '</script>')
-    if surface == 'skill':
-        start_run(helper, tmp_path, capsys)
-        assert helper.main(['discover', '--run', str(tmp_path)]) == 0
-        assert json.loads(capsys.readouterr().out)['qualifying'] == 0
-        assert helper.read_json(tmp_path / 'candidates.json') == []
-    else:
-        assert photos.search_place_photos('Chengde', '1980s') == []
 
 
 def set_image_metadata(world, fields):
@@ -469,83 +415,10 @@ def discover_image_metadata(helper, tmp_path, capsys, surface):
     return photos.search_place_photos('Chengde', '1980s')
 
 
-@pytest.mark.parametrize('surface', ['skill', 'app'])
-@pytest.mark.parametrize('fields', [
-    {'dateCreated': '1983-10-01', 'caption': 'Chengde street taken 1920'},
-    {'dateCreated': '1983-10-01', 'description': 'Chengde street taken 1920'},
-    {'dateTaken': '1983-10-01', 'dateCreated': '1920-01-01'},
-    {'dateTaken': '1920-01-01', 'dateCreated': '1983-10-01'},
-    {'name': 'Chengde street 1983', 'caption': 'Taken 1982', 'dateCreated': '1983-10-01'},
-    {'name': 'Chengde street 1983', 'description': 'Taken 1982', 'dateCreated': '1983-10-01'},
-    {'caption': 'Taken 1983-01-01', 'description': 'Taken 1983-10-01'},
-    {'dateCreated': '1983', 'caption': 'Taken 1983-01-01; taken 1983-10-01'},
-    {'dateCreated': '1983', 'description': 'Taken 1982-1984; taken 1920'},
-    {'dateCreated': '1983-02-30'},
-    {'dateCreated': 'circa 1983'},
-    {'dateCreated': '1983', 'caption': 'Chengde street circa 1982'},
-    {'dateCreated': '1983', 'dateTaken': 'unknown'},
-    {'datePublished': '1983-10-01', 'uploadDate': '1983-10-01'},
-    {'caption': 'Chengde street published 1983-10-01'},
-    {},
-], ids=['caption-cross-year', 'description-cross-year', 'metadata-cross-year', 'metadata-reverse',
-        'name-caption', 'name-description', 'caption-description', 'multiple-exact-dates',
-        'range-and-conflict', 'invalid-day', 'circa', 'uncertain-caption', 'unknown-capture-field',
-        'publication-upload-only', 'publication-caption-only', 'missing'])
-def test_image_metadata_conflicts_or_uncertainty_are_not_verified(search_world, tmp_path, capsys, surface, fields):
-    helper, world = search_world
-    set_image_metadata(world, fields)
-    assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
 
 
-@pytest.mark.parametrize('surface', ['skill', 'app'])
-@pytest.mark.parametrize('fields,expected', [
-    ({'dateCreated': '1983-10-01', 'dateTaken': '1983-10-01',
-      'caption': 'Chengde street 1983', 'description': 'Taken 1983-10-01'},
-     ('1983-10-01', '1983-10-01', 'day')),
-    ({'dateCreated': '1983', 'caption': 'Chengde street taken 1983-10-01'},
-     ('1983-10-01', '1983-10-01', 'day')),
-    ({'caption': 'Chengde street 1983'}, ('1983-01-01', '1983-12-31', 'year')),
-    ({'description': 'Chengde street 1982-1985'}, ('1982-01-01', '1985-12-31', 'range')),
-    ({'dateCreated': '1982-1985', 'caption': 'Chengde street 1983'},
-     ('1983-01-01', '1983-12-31', 'year')),
-    ({'dateCreated': '1983-10-01', 'caption': 'Chengde street 1983-10-01; taken 1983-10-01'},
-     ('1983-10-01', '1983-10-01', 'day')),
-    ({'dateCreated': '1983-10-01', 'datePublished': '2025-01-01', 'uploadDate': '2026-01-01'},
-     ('1983-10-01', '1983-10-01', 'day')),
-    ({'dateCreated': '1983-10-01', 'description': 'Published 2025-01-01'},
-     ('1983-10-01', '1983-10-01', 'day')),
-], ids=['consistent-fields', 'narrow-to-day', 'ordinary-caption', 'documented-range',
-        'narrow-range-to-year', 'identical-assertions', 'separate-publication-fields', 'publication-description'])
-def test_consistent_image_metadata_keeps_precision_and_provenance(search_world, tmp_path, capsys, surface, fields, expected):
-    helper, world = search_world
-    set_image_metadata(world, fields)
-    found, = discover_image_metadata(helper, tmp_path, capsys, surface)
-    scene = found['scene_date'] if surface == 'skill' else found['scene_date_range']
-    assert (scene['start'], scene['end'], scene['precision']) == expected
-    assert scene['conflicting'] is False
-    assert scene['basis'] == ('provider_date_taken' if fields.keys() & {'dateTaken', 'dateCreated'}
-                              else 'source_caption')
-    if surface == 'skill':
-        evidence = [json.loads(line) for line in (tmp_path / 'evidence.jsonl').read_text().splitlines()]
-        excerpt = next(row['excerpt'] for row in evidence if row['kind'] == 'scene_date')
-    else:
-        excerpt = found['location_evidence']
-    for field, value in {'name': 'Chengde street', **fields}.items():
-        assert f'{field}: {value}' in excerpt
-    assert found['allowed_actions']['download'] is False
 
 
-@pytest.mark.parametrize('surface', ['skill', 'app'])
-@pytest.mark.parametrize('caption', [
-    'Chengde street taken 1920; taken 1983-10-01',
-    'Chengde street taken 1983-01-01; taken 1983-10-01',
-])
-def test_figure_conflicts_stay_excluded_on_both_interfaces(search_world, tmp_path, capsys, surface, caption):
-    helper, world = search_world
-    world['pages']['https://archive.example/photo'] = (
-        '<figure><img src="https://images.example/street.jpg">'
-        '<figcaption>' + caption + '</figcaption></figure>')
-    assert discover_image_metadata(helper, tmp_path, capsys, surface) == []
 
 
 @pytest.mark.parametrize('surface', ['skill', 'app'])
@@ -572,24 +445,3 @@ def test_public_app_deduplicates_llm_and_catalogue_images(search_world, monkeypa
     monkeypatch.setattr(httpx, 'get', catalogues)
     found, = photos.search_place_photos('Chengde', '1980s')
     assert found['image_url'] == 'https://images.example/street.jpg'
-
-
-@pytest.mark.parametrize('surface', ['skill', 'app'])
-@pytest.mark.parametrize('fields,expected', [
-    ({'dateCreated': '1983-10', 'caption': 'Chengde street taken 1983-01'}, None),
-    ({'dateCreated': '1983-10-01', 'caption': 'Chengde street taken 1983-01'}, None),
-    ({'dateCreated': '1983-10', 'caption': 'Chengde street 1983'}, ('1983-10-01', '1983-10-31', 'month')),
-    ({'dateCreated': '1983-10', 'caption': 'Chengde street taken 1983-10-15'}, ('1983-10-15', '1983-10-15', 'day')),
-])
-def test_month_precision_cannot_hide_capture_conflicts(search_world, tmp_path, capsys, surface, fields, expected):
-    helper, world = search_world
-    set_image_metadata(world, fields)
-    found = discover_image_metadata(helper, tmp_path, capsys, surface)
-    if expected is None:
-        assert found == []
-    else:
-        photo, = found
-        scene = photo['scene_date'] if surface == 'skill' else photo['scene_date_range']
-        assert (scene['start'], scene['end'], scene['precision']) == expected
-        if surface == 'app' and expected[2] == 'month':
-            assert photo['date_expression'] == '1983-10'

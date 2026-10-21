@@ -25,7 +25,8 @@ def seed_large_event(sql):
       update public.user_memoir_project set source_sequence=1100,event_sequence=1,extraction_cursor=1100,interview_sequence=1 where user_id='{OWNER}' and project_id={literal(project)};""")
     # Fixture-only reconciliation of the exact synthetic originals just seeded.
     # Exercise the authoritative parser; never forge receipts or delete pending rows.
-    sql(f"select public.apply_lifetime_literal_policy(user_id,project_id,id,version) from public.user_narrator_source where user_id='{OWNER}' and project_id={literal(project)};")
+    from controlled_policy import complete_seed_policy
+    complete_seed_policy(sql,OWNER)
     identity = resolve(sql)
     context = rpc(sql, 'read_lifetime_interview_context', f"'{identity['conversation_id']}'")
     return identity, context

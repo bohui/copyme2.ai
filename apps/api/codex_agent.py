@@ -176,7 +176,7 @@ class CodexConnection:
                     'model', 'requested_model', 'provider', 'variant',
                     'round_id',
                     'trace_id', 'observation_id', 'job_id', 'checkpoint_id',
-                    'request_id',
+                    'request_id', 'contract_version', 'prompt_sha256', 'schema_sha256', 'manifest_sha256',
                 }
             }
         if self.progress:

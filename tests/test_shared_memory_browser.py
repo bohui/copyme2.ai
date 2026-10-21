@@ -13,6 +13,9 @@ import threading
 import pytest
 from playwright.sync_api import expect, sync_playwright
 
+if not os.getenv('MEMOIR_BROWSER_URL'):
+    pytest.skip('Requires isolated source frontend',allow_module_level=True)
+
 from test_shared_memory_events_postgres import (
     database, attachment_database, private_database, event_database, sql,
     rpc, five_rounds, run_controlled_composer, story_client, ROOT, OWNER,

@@ -63,7 +63,7 @@ test('period boundaries, uncertain metadata and coordinate validation remain str
   }
   assert.equal(context.photoMatchesScope(picture('upload', {date_expression: '1983', date_basis: 'upload_date', ...center}), entry), false);
   assert.equal(context.photoMatchesScope(picture('invalid', {date_expression: '1983', latitude: '', longitude: ''}), entry), false);
-  assert.equal(context.photoSearchPeriod({period: '青年时期'}, {when: '1983年'}), '1983年');
+  assert.equal(context.photoSearchPeriod({period: '青年时期'}, {when: '1983年'}), '');
 });
 
 test('content fingerprints merge rehosted variants while keeping a different scene', () => {
@@ -74,4 +74,27 @@ test('content fingerprints merge rehosted variants while keeping a different sce
     picture('different', {perceptual_hash: 'b3305923dc975592'}),
   ]);
   assert.deepEqual(Array.from(items, item => item.asset_id), ['original', 'different']);
+});
+
+test('current photos retain exact normalized date endpoints', () => {
+  class FixedDate extends Date {
+    constructor(...args) { super(...(args.length ? args : ['2026-10-21T12:00:00Z'])); }
+  }
+  const context = harness(null, {Date: FixedDate});
+  const center = {latitude: 40.98, longitude: 117.94};
+  const entry = {place: 'Chengde', ...center};
+  for (const [start, end, accepted] of [
+    ['2026-06-01', '2026-06-01', true],
+    ['2026-06-01', '2026-06-30', true],
+    ['2024-10-21', '2026-10-21', true],
+    ['2026-10-22', '2026-10-22', false],
+    ['2026-10-20', '2026-10-22', false],
+    ['2024-10-20', '2026-10-21', false],
+    ['2026-06-30', '2026-06-01', false],
+    ['2026-02-30', '2026-03-01', false],
+  ]) {
+    assert.equal(context.photoMatchesScope(picture(start + end, {...center,
+      scene_date_range: {start, end, basis: 'source_caption'}, date_expression: 'ignored display text'}), entry),
+      accepted, `${start}–${end}`);
+  }
 });

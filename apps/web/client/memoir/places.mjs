@@ -29,7 +29,7 @@ export const placeHistoryKey = place => JSON.stringify(path(place));
 export const matchesPlaceStage = (place, stage) => stage === 'all' || (place.life_stages || [place.life_stage]).includes(stage);
 const coordinates = place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude);
 
-const chronologyStageFromRecord = place => Math.min(
+const chronologyStageFromRecord = place => place.research?.basis === 'birth_decade' ? 0 : Math.min(
   ...(Array.from(new Set([...(place.life_stages || []), place.life_stage]))
     .map(stage => LIFE_STAGE_ORDER.get(stage))
     .filter(Number.isFinite)),
@@ -38,10 +38,7 @@ const chronologyStageFromRecord = place => Math.min(
 const profilePlaceParts = profile => {
   const raw = normalize(profile?.birth_place);
   if (!raw) return {birth: '', current: ''};
-  const currentMarker = /(?:[;；]\s*)?(?:currently\s+(?:live|lives|living)\s+in|(?:current|present)[ -]day\s+(?:residence|home)\s*:\s*|now\s+in|现居(?:住)?|现住(?:在)?|现在(?:生活|居住)在|目前(?:生活|居住)在)\s*/i;
-  const match = currentMarker.exec(raw);
-  if (!match) return {birth: raw, current: ''};
-  return {birth: raw.slice(0, match.index), current: raw.slice(match.index + match[0].length)};
+  return {birth: raw, current: normalize(profile?.current_place)};
 };
 const placeMatchesProfileValue = (place, value) => {
   const source = normalize(value);
@@ -83,26 +80,6 @@ export function sortPlacesChronologically(places, profile = null) {
     .map(({place}) => place);
 }
 
-const narrationContext = (place, messages) => {
-  const label = geographicLabel(place.place).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const named = new RegExp(`${/^[a-z0-9]/.test(label) ? '\\b' : ''}${label}${/[a-z0-9]$/.test(label) ? '\\b' : ''}`, 'i');
-  for (const message of [...messages].reverse()) {
-    if (message.role !== 'user' || typeof message.text !== 'string') continue;
-    const clauses = message.text.normalize('NFKC').split(/[，,。!?！？；;\n]|\bbut\b|但是|不过|然而/i);
-    for (const clause of clauses.reverse()) {
-      if (!named.test(clause)) continue;
-      const dates = clause.match(/(?:18|19|20)\d{2}(?:\s*(?:s|年代)|年(?:\d{1,2}月(?:\d{1,2}日)?)?)?(?:\s*(?:[–—-]|至|到|to)\s*(?:18|19|20)\d{2}年?)?/gi) || [];
-      const current = /\b(?:now|currently|present.day)\b|现在|目前|现居/i.test(clause);
-      const birth = /\bI(?:\s+was)?\s+born\b|(?:我|本人)(?:于|在)?[^。！？；;\n]{0,60}出生/i.test(clause);
-      if (dates.length === 1 || current || birth) return {
-        ...(dates.length === 1 ? {period: dates[0]} : current ? {period: ''} : {}),
-        ...(birth ? {life_stage: 'baby'} : {}),
-      };
-    }
-  }
-  return {};
-};
-
 export function mergePlaces(entries, profile = null, messages = []) {
   const merged = new Map();
   for (const entry of entries) {
@@ -110,10 +87,9 @@ export function mergePlaces(entries, profile = null, messages = []) {
     const key = placeHistoryKey(entry);
     const previous = merged.get(key) || {};
     const pictures = new Map([...(previous.pictures || []), ...(entry.pictures || [])].map(picture => [picture.asset_id || picture.id || picture.source_url || JSON.stringify(picture), picture]));
-    const context = narrationContext(entry, messages);
-    const life_stage = context.life_stage || entry.life_stage || previous.life_stage || null;
+    const life_stage = entry.life_stage || previous.life_stage || null;
     const life_stages = [...new Set([...(previous.life_stages || []), ...(entry.life_stages || []), life_stage].filter(Boolean))];
-    const item = {...previous, ...entry, ...context, life_stage, life_stages, pictures: [...pictures.values()]};
+    const item = {...previous, ...entry, life_stage, life_stages, pictures: [...pictures.values()]};
     if (!coordinates(entry) && coordinates(previous)) Object.assign(item, {latitude:previous.latitude, longitude:previous.longitude});
     merged.set(key, item);
   }

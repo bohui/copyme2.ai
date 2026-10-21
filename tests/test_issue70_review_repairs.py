@@ -14,7 +14,7 @@ class Broker:
     def __init__(self,sql):self.sql=sql
     async def rpc(self,name,**parameters):
         args=','.join(k+'=>'+literal(v) for k,v in parameters.items())
-        return json.loads(self.sql('set role service_role;select to_jsonb(public.'+name+'('+args+'));').stdout.splitlines()[-1])
+        return json.loads(self.sql("set role service_role;select coalesce(to_jsonb(public."+name+'('+args+")), 'null'::jsonb);").stdout.splitlines()[-1])
 
 
 def test_every_source_remains_in_lossless_checkpoint_or_mandatory_tail(sql):

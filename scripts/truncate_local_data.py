@@ -24,6 +24,8 @@ from urllib.request import Request, urlopen
 
 
 APP_TABLES = (
+    "public.user_story_game",
+    "public.lifetime_strategy_active_owner",
     "public.guest_conversation_transfer",
     "public.guest_merge_asset_access",
     "public.story_entitlement",

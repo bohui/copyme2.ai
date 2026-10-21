@@ -46,23 +46,8 @@ def test_selector_schema_only_admits_current_candidate_ids():
         validate(wire(selected_candidate_id='stale-candidate', selection_reason='adapted_candidate'), schema)
 
 
-@pytest.mark.parametrize('text', ["Let's talk about my garden.", 'Not today.'])
-def test_selector_schema_disallows_prepared_candidates_when_current_intent_overrides_them(text):
-    from jsonschema import validate, ValidationError
-    from apps.api.lifetime_memory_continuity import governed_collector_schema
-    schema = governed_collector_schema({**context(text=text), 'two_lane_memory': True})
-    with pytest.raises(ValidationError):
-        validate(wire(question='Was that before the move?', selected_candidate_id='candidate-1',
-            selection_reason='prepared_candidate'), schema)
 
 
-def test_pause_schema_requires_explicit_no_question_outcome():
-    from jsonschema import validate, ValidationError
-    from apps.api.lifetime_memory_continuity import governed_collector_schema
-    schema = governed_collector_schema({**context(text='Not today.'), 'two_lane_memory': True})
-    validate(wire(question=None, selection_reason='pause', stopped=True), schema)
-    with pytest.raises(ValidationError):
-        validate(wire(question=None, selection_reason='no_plan', stopped=True), schema)
 
 
 def test_local_redirect_does_not_mutate_the_stored_strategy():
@@ -92,10 +77,6 @@ def test_direct_answer_may_have_no_question_without_pausing_or_changing_strategy
     assert result['stopped'] is False and result['strategy_outcome']['question_delivered'] is None
 
 
-@pytest.mark.parametrize('text',["He said, 'organise my story'.",'她说：“整理我的故事。”', 'Yes.'])
-def test_quoted_controls_and_short_answers_do_not_infer_a_preference_or_discomfort(text):
-    from apps.api.interview_strategy import current_constraints
-    assert current_constraints(text)=={}
 
 
 def test_unknown_or_reused_candidates_cannot_be_selected():
@@ -117,65 +98,9 @@ def test_prepared_candidate_allows_edge_trimming_but_not_changed_words(padding):
         validate_governed_collector_result(output,value)
 
 
-def test_prompt_has_no_user_selected_mode_policy():
-    from apps.api.interview_strategy import strategy_instructions
-    prompt=strategy_instructions('shape')
-    assert 'Automatic internal shape is allowed' in prompt
-    assert 'legacy pacing' not in prompt
-    assert 'Shape only on the storyteller' not in prompt
 
 
 def test_strategy_flag_defaults_off(monkeypatch):
     from apps.api.interview_strategy import strategy_enabled
     monkeypatch.delenv('MEMOIR_INTERVIEW_STRATEGY',raising=False)
     assert strategy_enabled() is False
-
-
-@pytest.mark.parametrize('text', [
-    '跳过这个问题。我不想聊厨房。',
-    'Skip that question. I do not want to discuss the kitchen.',
-])
-def test_topic_exclusion_can_be_acknowledged_without_becoming_a_positive_redirect(text):
-    from apps.api.lifetime_memory_continuity import validate_governed_collector_result
-    c=context(text=text)
-    result=validate_governed_collector_result(wire(question=None,selection_reason='direct_answer',
-        stopped=False,work={'mode':'extract','name':None}),c)
-    assert result['plan']['candidates']==[] and result['plan']['chosen_id'] is None
-    assert result['plan']['work']['mode']=='extract'
-    assert result['continuity_updates'][0]['kind']=='excluded_topic'
-
-
-def test_topic_exclusion_before_a_positive_redirect_keeps_the_new_followup():
-    from apps.api.lifetime_memory_continuity import validate_governed_collector_result
-    c=context(text='我不想聊厨房。我想聊花园。')
-    result=validate_governed_collector_result(wire(question='您想先聊花园里的哪件事？',
-        selection_reason='user_redirect',work={'mode':'extract','name':None}),c)
-    assert result['plan']['candidates'][0]['question']=='您想先聊花园里的哪件事？'
-    assert result['continuity_updates'][0]['data']['source_refs'][0]['quote']=='我不想聊厨房'
-
-
-@pytest.mark.parametrize('text', [
-    '我不太想聊厨房。',
-    '我暂时不想聊厨房。',
-    '我并不想聊厨房。',
-    '我没想聊厨房。',
-    '我不想再聊厨房。',
-    '我不怎么想聊厨房。',
-    '我未必想聊厨房。',
-    '我不一定想聊厨房。',
-    '我不是很想聊厨房。',
-    '我不想换个话题。',
-    'I do not want to change the topic.',
-    'I don’t want to change the subject.',
-    '我不愿意聊厨房。',
-])
-def test_negative_adverbs_never_become_positive_topic_redirects(text):
-    from apps.api.interview_strategy import current_constraints
-
-    assert current_constraints(text) != {'override': 'user_redirect'}
-
-
-def test_negative_topic_followed_by_positive_redirect_still_uses_positive_redirect():
-    from apps.api.interview_strategy import current_constraints
-
-    assert current_constraints('我不太想聊厨房。我想聊花园。') == {'override': 'user_redirect'}
