@@ -32,3 +32,5 @@ invent an emotion or relationship. Never use private history or fill silence wit
 generic progress text. Keep restrictive controls
 complete and exact; if the review cannot complete, acknowledgement must be null.
 When an acknowledgement is not requested, return only the review fields.
+
+{{prompt:narrator_fidelity}}

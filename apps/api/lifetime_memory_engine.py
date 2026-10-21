@@ -447,7 +447,8 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
              'Unknown active event': 'CONTRACT_26',
              'Unknown candidate event': 'CONTRACT_27',
              'Unsupported biographical year': 'CONTRACT_28',
-             'Unsupported life stage': 'CONTRACT_29'}
+             'Unsupported life stage': 'CONTRACT_29',
+             'Opening name requires exact current narrator wording': 'CONTRACT_30'}
             reason = reasons[str(error)] if str(error) in reasons else 'SCHEMA_OR_OTHER_CONTRACT'
             if isinstance(error,json.JSONDecodeError):reason='INVALID_JSON'
             from pydantic import ValidationError

@@ -42,14 +42,16 @@
       "contract": "collector",
       "locale": "zh-CN",
       "source": "My sister was born before I was.",
-      "expectation": "A Chinese reply may accurately describe this sister as 姐姐. Preserve the per-person age relationship."
+      "expectation": "A Chinese reply may accurately describe this sister as 姐姐. Preserve the per-person age relationship.",
+      "source_language": "en-AU"
     },
     {
       "id": "sister-age-not-brother",
       "contract": "collector",
       "locale": "zh-CN",
       "source": "My older brother and my sister came with me.",
-      "expectation": "Do not infer the sister is younger from a separate older-brother reference; preserve her unspecified relative age."
+      "expectation": "Do not infer the sister is younger from a separate older-brother reference; preserve her unspecified relative age.",
+      "source_language": "en-AU"
     },
     {
       "id": "acknowledgement-invitation",
@@ -113,6 +115,91 @@
       "locale": "en-AU",
       "source": "My father said nearby. Let’s talk about my garden.",
       "expectation": "The narrator redirects to the garden. The unrelated reported clause must not cancel that request; preserve per-clause attribution."
+    },
+    {
+      "id": "policy-sibling-neutral",
+      "contract": "policy",
+      "locale": "zh-CN",
+      "source": "My sister walked to school with me.",
+      "expectation": "No supplied evidence gives relative age. If a sibling term is used, keep it age-neutral; do not add older/younger, including 姐姐 or 妹妹.",
+      "acknowledgement_requested": true,
+      "source_language": "en-AU"
+    },
+    {
+      "id": "collector-sibling-neutral",
+      "contract": "collector",
+      "locale": "zh-CN",
+      "source": "My sister walked to school with me.",
+      "expectation": "No supplied evidence gives relative age. If a sibling term is used, keep it age-neutral; do not add older/younger, including 姐姐 or 妹妹.",
+      "source_language": "en-AU"
+    },
+    {
+      "id": "policy-sister-explicit-older",
+      "contract": "policy",
+      "locale": "zh-CN",
+      "source": "My sister is older than me. We walked to school together.",
+      "expectation": "The same sister is explicitly older than the narrator. 姐姐 is permitted; do not reject or invert that supported age relationship.",
+      "acknowledgement_requested": true,
+      "source_language": "en-AU"
+    },
+    {
+      "id": "collector-sister-explicit-older",
+      "contract": "collector",
+      "locale": "zh-CN",
+      "source": "My sister is older than me. We walked to school together.",
+      "expectation": "The same sister is explicitly older than the narrator. 姐姐 is permitted; do not reject or invert that supported age relationship.",
+      "source_language": "en-AU"
+    },
+    {
+      "id": "policy-sister-quantified-younger",
+      "contract": "policy",
+      "locale": "zh-CN",
+      "source": "My sister is two years younger than me. We walked to school together.",
+      "expectation": "The same sister is explicitly younger by two years. 妹妹 is permitted. Do not invent older, change the gap or require an unsupported age order.",
+      "acknowledgement_requested": true,
+      "source_language": "en-AU"
+    },
+    {
+      "id": "collector-sister-quantified-younger",
+      "contract": "collector",
+      "locale": "zh-CN",
+      "source": "My sister is two years younger than me. We walked to school together.",
+      "expectation": "The same sister is explicitly younger by two years. 妹妹 is permitted. Do not invent older, change the gap or require an unsupported age order.",
+      "source_language": "en-AU"
+    },
+    {
+      "id": "policy-sibling-age-locality",
+      "contract": "policy",
+      "locale": "zh-CN",
+      "source": "My older brother and my sister walked to school with me.",
+      "expectation": "The brother is older; the sister age order is unspecified. Do not transfer the brother age comparison to the sister.",
+      "acknowledgement_requested": true,
+      "source_language": "en-AU"
+    },
+    {
+      "id": "collector-sibling-age-locality",
+      "contract": "collector",
+      "locale": "zh-CN",
+      "source": "My older brother and my sister walked to school with me.",
+      "expectation": "The brother is older; the sister age order is unspecified. Do not transfer the brother age comparison to the sister.",
+      "source_language": "en-AU"
+    },
+    {
+      "id": "policy-interviewer-image-limitation",
+      "contract": "policy",
+      "locale": "zh-CN",
+      "source_language": "zh-CN",
+      "source": "我叫韩凤江。照片说明把这里叫作我们的棚屋。你没有看过图像。",
+      "expectation": "The narrator tells the interviewer that the interviewer has not seen the image. Do not tell the narrator they have not seen it. Attribute the caption and keep image-inspection limitations on the interviewer; do not invent visual observations.",
+      "acknowledgement_requested": true
+    },
+    {
+      "id": "collector-interviewer-image-limitation",
+      "contract": "collector",
+      "locale": "zh-CN",
+      "source_language": "zh-CN",
+      "source": "我叫韩凤江。照片说明把这里叫作我们的棚屋。你没有看过图像。",
+      "expectation": "The narrator tells the interviewer that the interviewer has not seen the image. Do not tell the narrator they have not seen it. Attribute the caption and keep image-inspection limitations on the interviewer; do not invent visual observations."
     }
   ]
 }

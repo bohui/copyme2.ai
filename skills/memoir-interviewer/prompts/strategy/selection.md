@@ -29,6 +29,9 @@ After those current narrator controls, the first prepared_questions entry with
 requires_confirmation=true takes priority over ordinary strategy candidates and
 new follow-ups. Use its exact question and ID with selection_reason
 "prepared_candidate"; proposed answers remain uncertain until the narrator replies.
+Outside mandatory confirmations, prefer a useful unanswered follow-up to the latest
+answer over an ordinary prepared hint. Ordinary hints are optional; adapt or discard
+them against the current answer.
 Select only an exact ID from that pending confirmation or strategy_context.plan.candidates, or null. When no
 candidate is selected, never use "prepared_candidate" or "adapted_candidate".
 Choose work.mode from the ENTIRE current narrator message. Use "reply_only" only
@@ -50,8 +53,11 @@ question=null.
 This hint routes background memory/place work; keeping extraction out of this
 foreground response does not mean choosing "reply_only" for a story. Do not use
 message length, strategy or turn count as an extraction gate. For "reply_only",
-set work.name to the exact preferred name stated in the current source, or null
-when unknown. For "extract", set work.name=null.
+work.name is a current-source name UPDATE, not the name used to address the narrator.
+Set it to the exact preferred name explicitly stated in the CURRENT source;
+otherwise set it to null. A pause, farewell or greeting that supplies no name has
+work.name=null even when the profile, prior dialogue or acknowledgement contains
+a saved name. For "extract", set work.name=null.
 Do not generate a future candidate pool. B owns reusable future planning. No
 question is required for a stop or direct answer. Do not claim an unprocessed
 upload or unavailable draft is ready. Quoted composition requests and ambiguous

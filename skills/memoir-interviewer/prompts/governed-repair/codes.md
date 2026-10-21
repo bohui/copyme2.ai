@@ -29,6 +29,7 @@ Repair the structured proposal using the error code below and the supplied contr
   "CONTRACT_26": "Unknown active event",
   "CONTRACT_27": "Unknown candidate event",
   "CONTRACT_28": "Unsupported biographical year",
-  "CONTRACT_29": "Unsupported life stage"
+  "CONTRACT_29": "Unsupported life stage",
+  "CONTRACT_30": "work.name (or plan.work.name) is a name update supported by the CURRENT narrator source, not a stored addressing name. If the current source does not explicitly state a preferred name, set it to null. A pause, farewell or greeting cannot copy a name from profile, old dialogue or the already shown acknowledgement. Keep the same acknowledgement, stop and question decisions while correcting this field."
 }
 INVALID_JSON: Return valid JSON. INCOMPLETE_PROVIDER_OUTPUT: Return one complete structured object. SCHEMA_OR_OTHER_CONTRACT and SCHEMA_FIELD_*: Follow the supplied typed schema and exact evidence constraints.

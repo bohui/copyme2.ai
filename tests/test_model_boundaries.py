@@ -187,3 +187,41 @@ def test_structured_response_rejects_unsafe_or_oversized_response_ids(identifier
     with pytest.raises(ValueError):
         decode_json_response(dict(id=identifier, status='completed', output=[dict(type='message',
             status='completed', content=[dict(type='output_text', text='{}')])]))
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_collector_boundary_evaluation_uses_the_interviewer_contract(locale):
+    from scripts.evaluate_llm_boundaries import contract
+    from scripts.memoir_skill_eval_suite import packet
+    instructions,schema,context=contract(dict(contract='collector',source='A synthetic memory.',locale=locale))
+    evaluated=packet(dict(id='boundary-contract',skill='memoir-interviewer',locale=locale,
+        task=dict(strategy='explore',context=context)))
+    assert instructions==evaluated['instructions']
+    assert schema==evaluated['schema']
+
+
+@pytest.mark.parametrize('variant', ['collector', 'strategy/comfort', 'strategy/explore', 'strategy/shape'])
+def test_policy_acknowledgement_and_collector_share_narrator_fidelity(variant):
+    from apps.api.model_request import managed_json_request, instruction_manifest
+    from apps.api.prompt_composition import render_prompt_artifact
+    name='memoir/skills/memoir-interviewer/language/fidelity'
+    _,policy=managed_json_request('memoir/skills/memoir-interviewer/policy-review',{}, {})
+    collector=instruction_manifest(render_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/'+variant)))
+    policy_parts=[p for p in policy['artifacts'] if p['name']==name]
+    collector_parts=[p for p in collector['artifacts'] if p['name']==name]
+    assert len(policy_parts)==len(collector_parts)==1, 'Every visible generation must include the same narrator fidelity rules'
+    assert policy_parts[0]['sha256']==collector_parts[0]['sha256']
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+@pytest.mark.parametrize('acknowledgement', [False, True])
+def test_policy_boundary_evaluation_matches_the_production_request(locale,acknowledgement):
+    from apps.api.model_request import managed_json_request
+    from apps.api.policy_review import policy_review_schema
+    from scripts.evaluate_llm_boundaries import contract
+    instructions,schema,payload=contract(dict(contract='policy',source='A synthetic memory.',locale=locale,
+        acknowledgement_requested=acknowledgement))
+    body,_=managed_json_request('memoir/skills/memoir-interviewer/policy-review',payload,
+        policy_review_schema(acknowledgement=acknowledgement))
+    assert instructions==body['instructions'] and schema==body['text']['format']['schema']
+    assert payload.get('acknowledgement_requested',False)==acknowledgement

@@ -27,10 +27,10 @@ BUDGET = ContextBudget(model='synthetic-byte-bpe', context_window=40000,
 TEXT = 'I carried a blue umbrella in Sydney.'
 
 
-def fixture():
+def fixture(text=TEXT):
     source = ContextSource(identity=IDENTITY, policy_epoch=1, source_id=UUID(int=4),
-        version=1, sequence=1, original=TEXT, language='en-AU')
-    context = {'source': {'id': str(source.source_id), 'version': 1, 'text': TEXT, 'status': 'active'},
+        version=1, sequence=1, original=text, language='en-AU')
+    context = {'source': {'id': str(source.source_id), 'version': 1, 'text': text, 'status': 'active'},
         'sources': [], 'events': [], 'photo_context': [], 'interview_language': 'en-AU'}
     packet = build_context(identity=IDENTITY, policy_epoch=1,
         pinned=PinnedContinuity(preference_revision=0, language='en-AU'),
@@ -934,3 +934,32 @@ def test_collector_pause_rechecked_inside_actual_pipe_admission(tmp_path,monkeyp
                 return await super().request(method,params)
     with pytest.raises(LaneGenerationPaused):run(tmp_path,publisher=PausingPublisher(),connection_factory=AdmittedConnection)
     assert FakeConnection.instances[0].requests==[]
+
+
+def test_pause_name_repair_is_specific_and_preserves_the_streamed_acknowledgement(tmp_path):
+    governed,context=fixture('I would like to pause here. Please do not ask another question.')
+    acknowledgement='Of course. We can pause here.'
+    value=json.loads(valid_reply())
+    value.update(acknowledgement=acknowledgement,stopped=True)
+    value['plan'].update(candidates=[],chosen_id=None,active_event_id=None,
+        work=dict(mode='reply_only',name='Rowan'))
+
+    class Repair(FakeConnection):
+        async def turn(self,thread_id,prompt,**options):
+            await super().turn(thread_id,prompt,**options)
+            candidate=deepcopy(value)
+            if len(self.instances)>1:
+                assert '"error_code": "CONTRACT_30"' in prompt
+                candidate['plan']['work']['name']=None
+            raw=json.dumps(candidate)
+            await options['on_delta'](raw)
+            return raw
+
+    seen=[]
+    async def delta(value):seen.append(json.loads(value)['acknowledgement'])
+    result=run(tmp_path,governed,context,connection_factory=Repair,on_delta=delta)
+    saved=json.loads(result['reply'])
+    assert len(FakeConnection.instances)==2 and seen==[acknowledgement]
+    assert saved['stopped'] and saved['plan']['candidates']==[]
+    assert saved['plan']['work']==dict(mode='reply_only',name=None)
+    assert FakeConnection.instances[0].home!=FakeConnection.instances[1].home

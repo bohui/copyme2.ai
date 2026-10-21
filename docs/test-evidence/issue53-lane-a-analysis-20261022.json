@@ -1,0 +1,281 @@
+{
+  "schema_version": "issue53-lane-a-analysis/1",
+  "baseline_revision": "29396b6ddd84c5e233f22f4024bc05566cd97abe",
+  "coding_task": "codex://threads/01a1567e-46d6-7e40-afc7-ccd9620731c9",
+  "candidate_enabled_in_shared_app": false,
+  "release_accepted": false,
+  "published_prompt_check": {
+    "artifacts": 90,
+    "receipt_commit": "29396b6ddd84c5e233f22f4024bc05566cd97abe",
+    "selected_versions": {
+      "collector-plan": 4,
+      "governed-continuity": 3,
+      "governed-repair/codes": 3,
+      "policy-review": 3,
+      "strategy/selection": 6
+    }
+  },
+  "matched_live": {
+    "local_evidence": "var/issue53-worker-profile-20261022a",
+    "source_receipt_file_sha256": "cffde9d4438d9682617b5a5756cf8586cca97119cc4206d2b124dea0540602dc",
+    "plan_sha256": "5ebc10a2902feb7bdc9772abd9e29b08152aa534083f6ae818d4f424cebe914d",
+    "execution_sha256": "af71e5cf7f0879af5c83c62944625eb33c405c0e9bb426bab3745008e6d41064",
+    "source_status": "completed",
+    "application_rows": 80,
+    "generated": 76,
+    "cached_replays": 4,
+    "application_failures": [],
+    "elapsed_s": 1258.486,
+    "native_invocations": 81,
+    "native_invocations_by_worker": {
+      "baseline": 38,
+      "candidate": 41,
+      "rollback": 2
+    },
+    "direct_policy_calls": 76,
+    "provider_internal_attempts": null,
+    "background_calls": 0,
+    "judge_calls": 0,
+    "temporary_homes_removed": true,
+    "worker_stop_exit_code": 0,
+    "rejected_proposals_by_worker": {
+      "baseline": {},
+      "candidate": {
+        "CONTRACT_24": 3,
+        "CONTRACT_23": 1,
+        "SCHEMA_FIELD_continuity_updates": 1
+      },
+      "rollback": {}
+    },
+    "comparison_generated_per_arm": 36,
+    "rollback_generations_excluded": 4,
+    "raw_delivery_metrics": {
+      "baseline": {
+        "first_public_text_s": {
+          "n": 36,
+          "median_s": 16.924999999999997,
+          "maximum_s": 38.497,
+          "within_5_s": 0,
+          "within_10_s": 2
+        },
+        "question_validated_s": {
+          "n": 32,
+          "median_s": 20.482,
+          "maximum_s": 39.368,
+          "within_5_s": 0,
+          "within_10_s": 1
+        },
+        "reply_complete_s": {
+          "n": 36,
+          "median_s": 18.554,
+          "maximum_s": 39.394,
+          "within_5_s": 0,
+          "within_10_s": 2
+        },
+        "conversation_saved_s": {
+          "n": 36,
+          "median_s": 18.561500000000002,
+          "maximum_s": 39.402,
+          "within_5_s": 0,
+          "within_10_s": 2
+        }
+      },
+      "candidate": {
+        "first_public_text_s": {
+          "n": 36,
+          "median_s": 2.809,
+          "maximum_s": 10.479,
+          "within_5_s": 34,
+          "within_10_s": 35
+        },
+        "question_validated_s": {
+          "n": 32,
+          "median_s": 8.6265,
+          "maximum_s": 16.706,
+          "within_5_s": 0,
+          "within_10_s": 23
+        },
+        "reply_complete_s": {
+          "n": 36,
+          "median_s": 8.6495,
+          "maximum_s": 21.708,
+          "within_5_s": 0,
+          "within_10_s": 25
+        },
+        "conversation_saved_s": {
+          "n": 36,
+          "median_s": 8.659500000000001,
+          "maximum_s": 21.726,
+          "within_5_s": 0,
+          "within_10_s": 25
+        }
+      }
+    },
+    "semantic_review": {
+      "kind": "Codex bilingual source/reply inspection; not blinded, not independent human calibration",
+      "file_sha256": "a68456372931cb960f482675c3c75113d176de51b115ec53e6c31ce1a414a570",
+      "failed_rows": {
+        "issue53/switch-skip/en-AU/turn-4/0/candidate": "Unspecified sister became older sister in the policy acknowledgement and chosen question.",
+        "issue53/photo-reference/zh-CN/turn-1/0/candidate": "The interviewer image-inspection limitation was incorrectly attributed to the storyteller in the acknowledgement."
+      },
+      "generic_first_acknowledgements_not_counted": [
+        "issue53/correction/en-AU/turn-1/0/candidate",
+        "issue53/correction/zh-CN/turn-1/0/candidate",
+        "issue53/resume-replay-rollback/en-AU/turn-1/0/candidate",
+        "issue53/switch-skip/en-AU/turn-1/0/candidate",
+        "issue53/switch-skip/zh-CN/turn-1/0/candidate"
+      ],
+      "valid_candidate_meaningful_observations": 34,
+      "valid_candidate_meaningful_median_s": 3.165,
+      "valid_candidate_meaningful_max_s": 10.479,
+      "within_5_s": 27,
+      "within_10_s": 33
+    }
+  },
+  "browser": {
+    "local_evidence": "var/issue53-proxy-isolated-20261022a",
+    "source_revision": "29396b6ddd84c5e233f22f4024bc05566cd97abe",
+    "status": "failed",
+    "accepted_sources": 4,
+    "saved_replies": 3,
+    "durable_rounds": 3,
+    "failed_case": "resumed_pause",
+    "failure": "Three native proposals copied stored Rowan into work.name despite no current-source name; current-source validation correctly rejected them.",
+    "observed_native_starts": 7,
+    "direct_policy_calls": 4,
+    "direct_budget_receipt": "unavailable: CalledProcessError",
+    "provider_internal_attempts": null,
+    "api_cleanup_verified": true,
+    "temporary_homes_removed": true,
+    "worker_stop_exit_code": 0,
+    "optional_readiness_status": 503,
+    "optional_private_draft_reload_failures": "net::ERR_ABORTED; separate from foreground failure",
+    "receipt_file_sha256": "10148bb2537e6c720b137b7d81c6a2ba6b25e6427c009c494b48210c35bb0c33"
+  },
+  "consolidation": {
+    "status": "prepared_unpublished",
+    "priority": "user-selected prompt consolidation first",
+    "new_shared_source": "memoir/skills/memoir-interviewer/language/fidelity",
+    "output_schema_changed": false,
+    "strict_source_validators_changed": false,
+    "retry_limits_changed": false,
+    "shared_evaluator_core_changed": false,
+    "role_model_settings_changed": false,
+    "changed_runtime_prompt_test_files": {
+      "apps/api/lifetime_memory_runtime.py": "3c527ac3c214a6a10cfb4285fde9e9124b8b1100edc538f9d89731a3f6502348",
+      "skills/memoir-interviewer/prompts/strategy/selection.md": "0b53229b18e9c32a77af5d6fa2c55fa6609d549ff665bbf59dd0f067c226bfd6",
+      "scripts/evaluate_llm_boundaries.py": "0772e1b74753010bb156f2d5d2e26014a9232fec3fab229c417f758b764f7e4b",
+      "tests/test_interview_strategy_runtime.py": "198f3bab394ef546cb58b90af7432cc5ab3c4a82c4ddbbe5cb3e6a1d055662d0",
+      "tests/test_model_boundaries.py": "6d97ffa0b7c11bb9d6ea29f3b17d05535df2d415c3973136b6e316023a84c080",
+      "skills/memoir-interviewer/prompts/language/fidelity.md": "ad9544d59c4d0d4d97c2db3acb913b464920098d040dbd28d0b36e48284e186f",
+      "apps/api/prompt_catalog.py": "a5c7e072196a73bc084be0b206fb646ec5f9cedb670e6726ca34edc4e586f2c2",
+      "apps/api/prompt_composition.py": "afa981840f187c99c8f371fda1eca314e201c870311aa4df1e3819b159e75d8a",
+      "skills/memoir-interviewer/prompts/guidance.md": "34ed9649629e86881172fa24a699f0b5e46505975b6550d0bc8269d7520cd94e",
+      "skills/memoir-interviewer/prompts/collector.md": "141951122317e3c84247c3d63933e7695cfee97d7b7474ea7b2a0e5ba9d8e89a",
+      "skills/memoir-interviewer/prompts/strategy/comfort.md": "c6b8e78cdd13203d8844168f4c5c7046125af154245b6208ec384c571b3d609b",
+      "skills/memoir-interviewer/prompts/strategy/explore.md": "e93b233afa76ebb78187ea012d7f40439d8daabb46dc187e4b3151d557a5b812",
+      "skills/memoir-interviewer/prompts/strategy/shape.md": "bffece133bd67ad53a3696e51dff6d686fe00d6f44f891851820746acc80e7c1",
+      "skills/memoir-interviewer/prompts/policy-review.md": "e6adb60d005b14d0b352b1427c02f40fa71d6ee27ee7518614d0100747d19dd9",
+      "apps/api/policy_review.py": "1d0c2d2ac8b81350726856c24b219a06e5501f0e791be8f58a9d3ab3e520cadb",
+      "tests/evaluation/llm-boundaries.json": "9dd166c7f247f44a244aec1b5263476b115cf58e19a8d4ad82d49689c2fe8707",
+      "skills/memoir-interviewer/prompts/collector-plan.md": "45b2958468406fd3fc961620469d6907efba3af70f9ed5e7f60088bb904bc473",
+      "apps/api/lifetime_memory_engine.py": "a009a131f01e0040f09781c5f09a0a3114f2e28f46894a1fe857d0e0a9335796",
+      "skills/memoir-interviewer/prompts/governed-repair/codes.md": "ad5b0c14873bbaad42cbacca7157e0b867ef56530564eae6603071e6dc80ff72",
+      "tests/test_lifetime_memory_engine.py": "3977695383a4982329d40b93a4d45a299de4de4b067f722f180aa15ca5f8f1d5"
+    },
+    "semantic_cases_added": 10,
+    "semantic_cases_executed_live": 0
+  },
+  "checks": [
+    {
+      "name": "model-contract-red",
+      "exit_code": 1,
+      "counts": {
+        "failed": 3
+      },
+      "duration_s": 2.14,
+      "cleanup_verified": true,
+      "local_receipt": "/tmp/issue53-consolidation-red-20261022a/model-contracts.json",
+      "receipt_file_sha256": "a3fd74ba0e4bdbd254b4a36fd4239678749d966b74402e49982fb7d4d6e32f70"
+    },
+    {
+      "name": "runtime-and-name-repair-red",
+      "exit_code": 1,
+      "counts": {
+        "failed": 4
+      },
+      "duration_s": 7.99,
+      "cleanup_verified": true,
+      "local_receipt": "/tmp/issue53-consolidation-red-20261022b/runtime-contract.json",
+      "receipt_file_sha256": "11a3723fb031c617d77e7f5a06ca15671262a0e303cae04839d97e5b9e98b5a3"
+    },
+    {
+      "name": "focused",
+      "exit_code": 1,
+      "counts": {
+        "passed": 230,
+        "failed": 3
+      },
+      "duration_s": 68.9,
+      "cleanup_verified": true,
+      "local_receipt": "/tmp/issue53-consolidation-green-20261022a/focused.json",
+      "receipt_file_sha256": "022c72976398ba5a90a3a1b34472e5845b454dc6f156773b82e5f54a5ad2bef6"
+    },
+    {
+      "name": "unchanged-main-legacy-preparation",
+      "exit_code": 1,
+      "counts": {
+        "failed": 3
+      },
+      "duration_s": 1.25,
+      "cleanup_verified": true,
+      "local_receipt": "/tmp/issue53-consolidation-baseline-20261022a/legacy-preparation.json",
+      "receipt_file_sha256": "6cf74bd9e32e891d2eed8e43ab095e4f95cfc5b57d95f5feda764bb2db112588"
+    },
+    {
+      "name": "strict-contracts",
+      "exit_code": 0,
+      "counts": {
+        "passed": 145
+      },
+      "duration_s": 1.8,
+      "cleanup_verified": true,
+      "local_receipt": "/tmp/issue53-consolidation-green-20261022b/strict-contracts.json",
+      "receipt_file_sha256": "e91d1cac428843d68477b43876a46908fbd9d49f44ea0d6d17c91c0ea1c68455"
+    },
+    {
+      "name": "all-four-fidelity-templates",
+      "exit_code": 0,
+      "counts": {
+        "passed": 4
+      },
+      "duration_s": 1.41,
+      "cleanup_verified": true,
+      "local_receipt": "/tmp/issue53-consolidation-green-20261022c/shared-fidelity.json",
+      "receipt_file_sha256": "7c7d4c2986678f23d3b5055cceaa7326e776cec5dfbf40c2d3cc3fc7bdad97cb"
+    },
+    {
+      "name": "required-place-photo",
+      "exit_code": 0,
+      "counts": {
+        "javascript_passed": 591,
+        "api_database_passed": 429,
+        "standalone_passed": 95
+      },
+      "duration_s": 101.81,
+      "cleanup_verified": true,
+      "local_receipt": "/tmp/issue53-consolidation-required-20261022a/place-photo.json",
+      "receipt_file_sha256": "30bdd964795ef1165127f51ab6c04fd11d6cea4c7b21d7bc6578f51688ee48c8"
+    }
+  ],
+  "retained_failures": {
+    "legacy_preparation": "Three unchanged-main tests use deleted _resolve_language; initial focused failures retained, no runtime compatibility shim or test skipping added.",
+    "previous_campaigns": "docs/test-evidence/issue53-current-acceptance-20261021.json and docs/test-evidence/issue53-every-turn-followup-20261020.json"
+  },
+  "remaining_acceptance": [
+    "Git review/merge and main-only publication of new prompt sources",
+    "fresh bilingual matched native latency and semantic acceptance after publication",
+    "passing browser/proxy smoke after the name repair",
+    "fresh pre-rollout session, long-source, independent background extraction and deployed-worker checks"
+  ]
+}

@@ -316,16 +316,18 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             def row(value):return ContextSource(identity=identity,policy_epoch=fence['policy_epoch'],source_id=value['id'],version=value['version'],sequence=value['sequence'],original=value['text'],language=value['language'],kind=value['kind'],conversation_saved=value.get('conversation_saved',False),assistant_reply=value.get('assistant_reply'),reply_policy_epoch=value.get('reply_policy_epoch'))
             coverage=TailCoverage(identity=identity,policy_epoch=fence['policy_epoch'],after_sequence=after,through_sequence=source['sequence']-1,complete=tail['complete'],tombstones=tail['tombstones'])
             service=LifetimeMemoryService(storage.lifetime_rpc,budget=packet_budget)
-            from .collector_prompt import COMPACT_COLLECTOR_PROMPT
             from .codex_runtime import conversation_language_instruction
-            privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
-            instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
             if context.get('strategy_selector'):
-                instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS
-            if two_lane:
-                instructions+=CONVERSATION_INSTRUCTIONS
+                instructions='\n'.join((strategy_instructions(context['active_strategy']),
+                    conversation_language_instruction(selected_language),GOVERNED_CONTINUITY_INSTRUCTIONS))
             else:
-                instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-places'))
+                from .collector_prompt import COMPACT_COLLECTOR_PROMPT
+                privacy_guard=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
+                instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
+                if two_lane:
+                    instructions+=CONVERSATION_INSTRUCTIONS
+                else:
+                    instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-places'))
             try:
                 packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
                 tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)

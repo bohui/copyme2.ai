@@ -1,4 +1,4 @@
-{{prompt:collector_guidance}}This pass produces one immediate response/question and one small work hint only.
+{{prompt:collector_guidance}}{{prompt:narrator_fidelity}}This pass produces one immediate response/question and one small work hint only.
 Follow the appended structured interview contract and schema; keep private planning
 out of the spoken reply. Do not perform research, workspace extraction, chapter
 composition, publication, purchases or entitlement changes in this pass.

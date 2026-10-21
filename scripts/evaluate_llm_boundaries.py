@@ -16,18 +16,26 @@ DATASET = ROOT / 'tests/evaluation/llm-boundaries.json'
 def contract(case):
     from apps.api.interview_strategy import strategy_instructions
     from apps.api.lifetime_memory_continuity import governed_collector_schema, GOVERNED_CONTINUITY_INSTRUCTIONS
-    from apps.api.policy_review import PolicyReview
-    from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
+    from apps.api.policy_review import policy_review_schema
+    from apps.api.prompt_artifact import prompt_path
     from apps.api.two_lane_memory import extraction_contract
     source = dict(id='00000000-0000-4000-8000-000000000001', version=1, sequence=1,
-                  status='active', kind='narrator_chat', text=case['source'], language=case['locale'], author_role='storyteller')
+                  status='active', kind='narrator_chat', text=case['source'], language=case.get('source_language',case['locale']), author_role='storyteller')
     context = dict(source=source, sources=[source], events=[], photos=[], photo_context=[],
                    interview_language=case['locale'], active_strategy='explore', strategy_selector=True,
                    two_lane_memory=True, prepared_questions=[])
     if case['contract'] == 'policy':
-        return load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/policy-review')), PolicyReview.model_json_schema(), {'source': source}
+        from apps.api.prompt_composition import render_prompt_artifact
+        acknowledgement=bool(case.get('acknowledgement_requested'))
+        payload={'source':source}
+        if acknowledgement:
+            payload.update(acknowledgement_requested=True,interview_language=case['locale'])
+        return (render_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/policy-review')),
+                policy_review_schema(acknowledgement=acknowledgement),payload)
     if case['contract'] == 'collector':
-        return (strategy_instructions('explore') + '\n' + GOVERNED_CONTINUITY_INSTRUCTIONS,
+        from apps.api.codex_runtime import conversation_language_instruction
+        return ('\n'.join((strategy_instructions('explore'),
+                    conversation_language_instruction(case['locale']),GOVERNED_CONTINUITY_INSTRUCTIONS)),
                 governed_collector_schema(context), context)
     if case['contract'] == 'extract':
         instructions, schema = extraction_contract(strategy=True)

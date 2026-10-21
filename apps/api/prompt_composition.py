@@ -12,6 +12,7 @@ COMPONENTS = {
     'timeline_contract': 'skills/memoir-author-timeline/references/contract.md',
     'timeline_grounding': 'skills/memoir-author-timeline/prompts/shared/grounding.md',
     'collector_guidance': 'skills/memoir-interviewer/prompts/guidance.md',
+    'narrator_fidelity': 'skills/memoir-interviewer/prompts/language/fidelity.md',
     'strategy_selection': 'skills/memoir-interviewer/prompts/strategy/selection.md',
     'narrative_enrichment': 'skills/memoir-composer/references/narrative-enrichment.md',
     'editorial_review': 'skills/memoir-composer/references/editorial-review.prompt.md',

@@ -52,6 +52,11 @@ def test_strategy_prompt_preserves_work_routing_and_background_map(sql,tmp_path,
         assert 'Use "extract" when' in instructions
         assert 'work.mode' in instructions and 'work.name' in instructions
         assert 'plan.work' not in instructions
+        from scripts.memoir_skill_eval_suite import packet as evaluation_packet
+        context=body['interview_context']
+        evaluated=evaluation_packet(dict(id='runtime-contract',skill='memoir-interviewer',locale=language,
+            task=dict(strategy=context['active_strategy'],context=context)))
+        assert instructions==evaluated['instructions'], 'Runtime and evaluation must use the same interviewing contract'
         output=wire(selection_reason='latest_story',work={'mode':mode,'name':name})
         return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'work-routing','artifacts':[]})
     with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
@@ -228,6 +233,8 @@ def test_rollback_uses_collector_schema_without_restoring_user_modes(sql,tmp_pat
         body=json.loads(request.content);calls.append(body)
         assert not body['interview_context'].get('strategy_selector')
         assert 'conversation_phase' not in body['interview_context']
+        from apps.api.two_lane_memory import CONVERSATION_INSTRUCTIONS
+        assert CONVERSATION_INSTRUCTIONS in json.loads(body['governed']['packet'])['instructions']
         return httpx.Response(200,json={'reply':json.dumps(proposal(mode='extract',name=None)), 'thread_id':'legacy','artifacts':[]})
     with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
         identity=rpc(sql,'resolve_lifetime_conversation','null')

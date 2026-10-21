@@ -36,6 +36,14 @@ def early_ack_enabled():
     return os.getenv('MEMORY_SPARK_EARLY_POLICY_ACK', '').lower() in {'1', 'true', 'yes'}
 
 
+def policy_review_schema(*, acknowledgement):
+    schema = (PolicyReviewOpening if acknowledgement else PolicyReview).model_json_schema()
+    schema['required'] = list(schema['properties'])
+    for field in schema['properties'].values():
+        field.pop('default', None)
+    return schema
+
+
 def reviewed_acknowledgement(value, source, language):
     if not early_ack_enabled() or not isinstance(value, dict):
         return None
@@ -79,10 +87,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     if selected_language not in {'en-AU', 'zh-CN'}:
         selected_language = 'en-AU'
     opening = early_ack_enabled()
-    schema = (PolicyReviewOpening if opening else PolicyReview).model_json_schema()
-    schema['required'] = list(schema['properties'])
-    for field in schema['properties'].values():
-        field.pop('default', None)
+    schema = policy_review_schema(acknowledgement=opening)
     payload = {'source': source}
     if opening:
         payload.update(acknowledgement_requested=True, interview_language=selected_language)
