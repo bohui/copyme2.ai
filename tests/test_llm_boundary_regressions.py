@@ -1,5 +1,4 @@
 """Regressions from PR 105 review, with fixed model and isolated installations."""
-import hashlib
 import json
 import os
 import re
@@ -99,62 +98,26 @@ def test_policy_review_uses_runtime_gateway_and_credential(sql, tmp_path, monkey
     assert sql('select count(*) from public.user_lifetime_source_policy_receipt;').stdout.strip() == '1'
 
 
-@pytest.mark.parametrize('configured', [False, True])
-def test_installed_photo_skill_can_inspect_without_memoir(tmp_path, configured):
+def test_installed_photo_skill_uses_local_capture_parsing(tmp_path):
     skill = Path(__file__).resolve().parents[1] / 'skills/memoir-place-photo-research'
     installed = tmp_path / 'codex-home/skills/memoir-place-photo-research'
     shutil.copytree(skill, installed, ignore=shutil.ignore_patterns('__pycache__'))
-    if configured:
-        # Synthetic pins exist only in this disposable installation.
-        for part in ('discovery', 'capture-evidence'):
-            prompt = installed / 'prompts' / f'{part}.md'
-            prompt.with_name(prompt.name + '.langfuse.json').write_text(json.dumps({
-                'schema_version': 1, 'type': 'text', 'version': 7,
-                'name': f'memoir/skills/memoir-place-photo-research/{part}',
-                'sha256': hashlib.sha256(prompt.read_bytes()).hexdigest()}))
     script = """
-import importlib.util, sys, io, json, os
+import importlib.util, sys
 spec = importlib.util.spec_from_file_location('photo_research', sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
 spec.loader.exec_module(module)
-module._crawl4ai_load_dotenv = lambda: None
-if sys.argv[2] == 'False':
-    assert module._caption_date_proposal([{'caption': 'An observed caption.'}]) is None
-else:
-    os.environ.update(MEMORY_SPARK_LLM_BASE_URL='https://fixture.invalid/v1',
-        MEMORY_SPARK_LLM_API_KEY='fixture-key', MEMORY_SPARK_LLM_MODEL='fixture-model', MEMORY_SPARK_PHOTO_WEB_SEARCH='1')
-    calls = []
-    def respond(request, **kwargs):
-        body = json.loads(request.data)
-        assert request.full_url == 'https://fixture.invalid/v1/responses'
-        calls.append(body)
-        if 'tools' in body:
-            value = {'id': 'fixture-search', 'output': [{'type': 'web_search_call', 'id': 'fixture-tool',
-                'status': 'completed', 'action': {'sources': [{'url': 'https://archive.invalid/photo'}]}}]}
-        else:
-            value = {'id': 'fixture-caption', 'status': 'completed', 'output': [{'type': 'message',
-                'content': [{'type': 'output_text', 'text': '{"complete":true,"assertions":[]}'}]}]}
-        return io.BytesIO(json.dumps(value).encode())
-    module.http_request.urlopen = respond
-    module.public_addresses = lambda *args: None
-    caption = module._caption_date_proposal([{'caption': 'An observed caption.'}])
-    assert caption['complete'] is True
-    assert caption['receipt']['prompt_manifest']['artifacts'][0]['version'] == 7
-    search = module.llm_search('A public city', {'mode': 'current'})
-    assert search['prompt_manifest']['artifacts'][0]['name'].endswith('/discovery')
-    assert len(calls) == 2 and calls[0]['instructions'] and calls[1]['instructions']
-    prompt = module._prompt_adapter().prompt_path('memoir/skills/memoir-place-photo-research/capture-evidence')
-    prompt.write_text('Unpublished edit')
-    try:
-        module._caption_date_proposal([{'caption': 'An observed caption.'}])
-        raise AssertionError('Changed instructions must not be dispatched')
-    except ValueError:
-        pass
-    assert len(calls) == 2
+assert not hasattr(module, '_caption_date_proposal')
+assert module._crawl4ai_scene_date('Chengde street 1983',
+    {'mode': 'historical_range', 'start': '1980-01-01', 'end': '1989-12-31'})['start'] == '1983-01-01'
+assert module._crawl4ai_scene_date('Uploaded on 1983',
+    {'mode': 'historical_range', 'start': '1980-01-01', 'end': '1989-12-31'}) is None
+assert module._crawl4ai_location_matches('Chengde street 1983', 'Chengde')
+assert not module._crawl4ai_location_matches('Beijing street 1983', 'Chengde')
 """
     environment = {key: value for key, value in os.environ.items() if not key.startswith(('MEMORY_SPARK_', 'PHOTO_RESEARCH_'))}
-    result = subprocess.run([sys.executable, '-I', '-c', script, str(installed / 'scripts/photo_research.py'), str(configured)],
+    result = subprocess.run([sys.executable, '-I', '-c', script, str(installed / 'scripts/photo_research.py')],
         cwd=tmp_path, env=environment, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
 

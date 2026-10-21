@@ -149,12 +149,19 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
                   for item in (document if isinstance(document, list) else [document])
                   if item in photo_records), {})
     photo_by_url = {}
+    photos_by_url = {}
     for record in photo_records:
         record_url = helper._crawl4ai_image_url(record.get('contentUrl') or record.get('url'))
         if record_url:
             photo_by_url[record_url] = record
+            photos_by_url.setdefault(record_url, []).append(record)
     photo = photo_by_url.get(helper._crawl4ai_image_url(meta.get('og:image'))) or photo
     taken = _text(photo.get('dateTaken') or photo.get('dateCreated'))
+    if not taken:
+        # Flickr exposes this separately from its "Uploaded on" timestamp.
+        match = re.search(r'Taken (?:on|in)\s+((?:[A-Za-z]+\s+(?:\d{1,2},?\s+)?)?(?:18|19|20)\d{2})',
+                          page['text_excerpt'], re.I)
+        taken = match.group(1) if match else ''
     if not taken:
         for key in ('dateTaken', 'date_taken', 'exif:DateTimeOriginal'):
             if meta.get(key):
@@ -195,12 +202,37 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             return []
     if not period:
         temporal = helper.normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
-    fields = {key: _text(photo.get(key)) for key in ('name','caption','description','dateTaken','dateCreated','datePublished','uploadDate') if _text(photo.get(key))}
-    if taken:
-        fields['dateTaken'] = taken
-    if not fields:
-        fields['caption'] = page['text_excerpt'] if is_flickr else context
-    scene_date = helper._llm_reconcile_capture_dates([fields], temporal)
+    primary_record_url = helper._crawl4ai_image_url(photo.get('contentUrl') or photo.get('url'))
+    records_for_primary = photos_by_url.get(primary_record_url, [photo])
+    field_records = []
+    for record in records_for_primary:
+        fields = {key: _text(record.get(key)) for key in
+                  ('name', 'caption', 'description', 'dateTaken', 'dateCreated', 'datePublished', 'uploadDate')
+                  if _text(record.get(key))}
+        field_records.append(fields)
+    if field_records and any(field_records):
+        scene_date = helper._reconcile_capture_dates(field_records, temporal)
+    else:
+        scene_date = helper._crawl4ai_scene_date(taken or context, temporal)
+    if period and not any_date and (not scene_date or (taken and not _date_matches(taken, period))):
+        scene_date = None
+    if not period:
+        current = helper.normalize_period(None, datetime.now(ZoneInfo('Australia/Sydney')).date())
+        years = helper._crawl4ai_years(taken or context)
+        scene_date = None
+        if years:
+            year = years[0]
+            start, end = f'{year:04d}-01-01', f'{year:04d}-12-31'
+            iso_date = re.match(r'\d{4}-\d{2}-\d{2}', taken)
+            if iso_date:
+                start = end = iso_date.group()
+            elif taken:
+                try:
+                    start = end = datetime.strptime(taken.replace(',', ''), '%B %d %Y').date().isoformat()
+                except ValueError:
+                    pass
+            if current['start'] <= start and end <= current['end']:
+                scene_date = {'start': start, 'end': end}
     creator = photo.get('creator') or photo.get('author') or {}
     attribution = _text(creator.get('name') if isinstance(creator, dict) else creator)
     source_licence_url = _text(meta.get('license'))
@@ -290,7 +322,7 @@ def _source_items(source_html: str, source_url: str, place: str, period: str,
             'source_url': source_url, 'image_url': image, 'original_url': image,
             'location': place, 'attribution': image_attribution or urlsplit(source_url).hostname,
             'location_evidence': ' '.join(filter(None, (location_evidence, image_location, _text(caption)))),
-            'date_expression': taken if is_flickr and taken else (
+            'date_expression': (
                 '' if image_date is None else image_date['start'] if image_date['start'] == image_date['end'] else
                 image_date['start'][:7] if image_date['precision'] == 'month' else
                 image_date['start'][:4] if image_date['start'][:4] == image_date['end'][:4] else

@@ -94,27 +94,6 @@
       "expectation": "Sydney is current context with no transferred birth date. Chengde may use a narrator birth-decade reference window of 1980–1989 with anchor 1983 and original evidence. Do not invent the small town's identity."
     },
     {
-      "id": "capture-before-weather",
-      "contract": "caption",
-      "locale": "en-AU",
-      "source": "Chengde street before the rain, photographed in 1983.",
-      "expectation": "The capture assertion is 1983 with no temporal uncertainty merely because 'before' refers to rain."
-    },
-    {
-      "id": "capture-versus-upload",
-      "contract": "caption",
-      "locale": "en-AU",
-      "source": "Photographed in 1983; uploaded in 2025.",
-      "expectation": "Classify 1983 as capture and 2025 as upload. Only capture timing can date the scene."
-    },
-    {
-      "id": "capture-uncertain",
-      "contract": "caption",
-      "locale": "en-AU",
-      "source": "Possibly photographed around 1983; date unconfirmed.",
-      "expectation": "Preserve capture-date uncertainty. Do not certify an exact scene date."
-    },
-    {
       "id": "uncertain-event-date",
       "contract": "extract",
       "locale": "en-AU",

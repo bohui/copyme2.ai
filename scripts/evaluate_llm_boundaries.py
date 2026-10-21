@@ -32,9 +32,7 @@ def contract(case):
     if case['contract'] == 'extract':
         instructions, schema = extraction_contract(strategy=True)
         return instructions, schema, {'schema_version':1,'sources':[{**source,'char_start':0,'char_end':len(source['text'])}], 'events': [], 'interview_language': case['locale']}
-    from apps.api.place_photo_browser import _research
-    helper = _research()
-    return load_prompt_artifact(prompt_path('memoir/skills/memoir-place-photo-research/capture-evidence')), helper.CAPTURE_EVIDENCE_SCHEMA, {'records': [{'caption': case['source']}]}
+    raise ValueError(f"Unsupported semantic contract: {case['contract']}")
 
 
 async def execute(cases, output):
