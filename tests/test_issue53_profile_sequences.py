@@ -34,6 +34,7 @@ def test_zero_dispatch_plan_binds_pairs_and_all_provenance(monkeypatch):
     assert planned['dependency']['reviewed_core_commit'] == profile.REVIEWED_CORE_COMMIT
     for field in ('application', 'prompts', 'configuration_sources', 'dataset', 'evaluator', 'profiler'):
         assert planned['provenance'][field]
+    assert 'tests/controlled_policy.py' in planned['provenance']['evaluator']
     pairs = {}
     for row in planned['rows']:
         pairs.setdefault(row['pair_id'], []).append(row)
@@ -44,11 +45,12 @@ def test_zero_dispatch_plan_binds_pairs_and_all_provenance(monkeypatch):
 
 
 
-def test_unreviewed_evaluator_change_still_blocks_planning(monkeypatch):
+@pytest.mark.parametrize('dependency', [profile.CORE[0], 'tests/controlled_policy.py'])
+def test_unreviewed_evaluator_change_still_blocks_planning(monkeypatch, dependency):
     original_hash = profile._file_hash
 
     def changed_core(path):
-        return 'unreviewed' if path == profile.ROOT / profile.CORE[0] else original_hash(path)
+        return 'unreviewed' if path == profile.ROOT / dependency else original_hash(path)
 
     monkeypatch.setattr(profile, '_file_hash', changed_core)
     with pytest.raises(ValueError, match='reviewed_core_changed_requires_dependency_review'):

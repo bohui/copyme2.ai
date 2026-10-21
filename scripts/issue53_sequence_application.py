@@ -101,7 +101,10 @@ def focused_state(snapshot):
     return dict(sources=[{k:s[k] for k in ('id','version','sequence','text','user_id','project_id','client_turn_id','language')} for s in sources],
         replies=[dict(source_id=t['source_id'], client_turn_id=t['client_turn_id'], reply=t['collector']['reply'],
                       plan=t['collector']['plan']) for t in turns],
-        session=state['user_lifetime_conversation'])
+        session=state['user_lifetime_conversation'],
+        policy_reviews=[{**{k:r[k] for k in ('source_id','source_version','user_id','project_id')},
+                         'output':deepcopy(r['review']['output'])}
+                        for r in sorted(state['user_lifetime_source_policy_receipt'], key=lambda r:r['source_id'])])
 
 
 def fixture_question(family, step_id, language):
@@ -179,7 +182,8 @@ async def controlled_sequences(planned, directory):
             from scripts.controlled_native_state import _test_adapter
             _test_adapter()
             from controlled_policy import install_policy_review_transport
-            install_policy_review_transport(policy_fixture)
+            controls = []
+            install_policy_review_transport(policy_fixture, controls)
             from controlled_collector import extraction_proposal, worker_reply
             for case in planned['scenarios']:
                 samples = sorted({r['sample'] for r in planned['rows'] if r['scenario_id'] == case['id']})
@@ -231,6 +235,8 @@ async def controlled_sequences(planned, directory):
                                             start = len(budget.calls)
                                             ctx = profile.context(planned,row)
                                             original = step if step['action']=='turn' else next(s for s in case['steps'] if s['id']==step['target'])
+                                            controls[:] = [(control['kind'], control['quote'])
+                                                           for control in original.get('policy_controls', [])]
                                             text, language = original['text'], original['reply_language']
                                             excerpt = re.split(r'[?？]', text)[-1].strip() or text
                                             packet_readbacks, request_envelopes, policy_readbacks, transport_observations = [], [], [], []

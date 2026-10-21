@@ -21,11 +21,12 @@ from scripts.memoir_skill_eval_application import verify_witness
 
 ROOT = Path(__file__).resolve().parents[1]
 PR92_COMMIT = '0fe69a5b66fc2b17da35398b1f79e192febc188c'
-REVIEWED_CORE_COMMIT = 'd56bd053a723f5177e725d8d3506555ca1909edf'
+REVIEWED_CORE_COMMIT = 'd992e07fa31785be2352a3a95339f40011539dbc'
 MANIFEST = ROOT / 'tests/evaluation/response_sequences.json'
 MILESTONES = ('first_meaningful_text_s', 'validated_question_s', 'reply_complete_s', 'durable_save_s')
 CORE = ('scripts/memoir_skill_eval_suite.py', 'scripts/memoir_skill_eval_assets.py',
         'scripts/memoir_skill_eval_application.py', 'scripts/memoir_skill_scenarios.py')
+CONTROLLED_DEPENDENCIES = ('tests/controlled_policy.py',)
 MERGED_BASE = 'bb31f44ac8cb1c31baad8db418157b96dbe0eee0'
 CONTRACTS = ('public_validation', 'source_fidelity', 'language_provenance', 'ownership',
              'idempotency', 'durable_save', 'continuity')
@@ -55,6 +56,12 @@ def load_manifest(path=MANIFEST):
                 if step['phase'] != ('first' if not prior else 'resumed' if reopened else 'later'):
                     raise ValueError('phase_requires_genuine_sequence')
                 if not step['text'].strip(): raise ValueError('empty_testimony')
+                for control in step.get('policy_controls', []):
+                    if (set(control) != {'kind', 'quote'}
+                        or control['kind'] not in {'excluded_topic', 'paused_topic'}
+                        or not isinstance(control['quote'], str) or not 1 <= len(control['quote']) <= 500
+                        or step['text'].count(control['quote']) != 1):
+                        raise ValueError('explicit_unique_policy_fixture_required')
                 prior.append(step['id']); reopened = False
             elif step['action'] == 'replay':
                 if step['target'] not in prior: raise ValueError('replay_requires_saved_turn')
@@ -73,7 +80,7 @@ def provenance(manifest):
         'prompts': [p for p in tracked if p.startswith(('apps/api/prompts/', 'skills/'))
                     and p.endswith(('.md', '.json'))],
         'configuration_sources': ['compose.yml', '.env.example', 'apps/api/collector_configuration.py'],
-        'evaluator': list(CORE) + ['tests/evaluation/prompts/skill-judges/policy.md',
+        'evaluator': list(CORE + CONTROLLED_DEPENDENCIES) + ['tests/evaluation/prompts/skill-judges/policy.md',
                                   'tests/evaluation/prompts/skill-judges/memoir-interviewer.md'],
         'profiler': ['scripts/profile_first_reply.py', 'scripts/issue53_profile_sequences.py',
                      'scripts/issue53_sequence_application.py'],
@@ -81,9 +88,9 @@ def provenance(manifest):
     frozen = {}
     for group, paths in groups.items():
         frozen[group] = {p: _file_hash(ROOT / p) for p in sorted(paths) if (ROOT / p).is_file()}
-    for path in CORE:
+    for path in CORE + CONTROLLED_DEPENDENCIES:
         pinned = subprocess.check_output(['git', 'show', REVIEWED_CORE_COMMIT + ':' + path], cwd=ROOT)
-        if hashlib.sha256(pinned).hexdigest() != frozen['evaluator'][path]:
+        if hashlib.sha256(pinned).hexdigest() != frozen['evaluator'].get(path):
             raise ValueError('reviewed_core_changed_requires_dependency_review')
     frozen['dataset'] = digest(dict(manifest=manifest,
         phase_rubrics=json.loads((ROOT / 'tests/evaluation/conversation_phase_cases.json').read_text())))
@@ -245,6 +252,26 @@ def _sequence(planned, row, capture, prior_capture):
             or [t.get('assistant', {}).get('text') for t in tail] != [s.get('assistant_reply') for s in eligible]):
             raise ValueError('prior_exchange_packet_missing')
         current_step = steps[-1]
+        controls = current_step.get('policy_controls', [])
+        if controls:
+            current = sources[-1]
+            reviews = [r for r in capture['after'].get('policy_reviews', [])
+                       if r['source_id'] == current['id'] and r['source_version'] == current['version']
+                       and r['user_id'] == capture['owner_id'] and r['project_id'] == capture['project_id']]
+            expected_controls = []
+            for control in controls:
+                start = current['text'].index(control['quote'])
+                expected_controls.append(dict(**control, char_start=start, char_end=start + len(control['quote'])))
+            if (len(reviews) != 1 or reviews[0]['output'].get('complete') is not True
+                or any(c not in reviews[0]['output'].get('restrictions', []) for c in expected_controls)):
+                raise ValueError('policy_control_readback_missing')
+            pins = packets[-1]['pinned']
+            if (pins.get('privacy_complete') is not True
+                or any(c['quote'] not in pins.get(c['kind'] + 's', []) for c in controls)):
+                raise ValueError('policy_control_packet_missing')
+            if (any(s.get('conversation_saved') or s.get('assistant_reply') is not None for s in eligible)
+                or any('assistant' in t for t in tail)):
+                raise ValueError('privacy_tail_not_filtered')
         if sources[-1]['language'] != row['item']['task']['source']['language']:
             violations.append('language_provenance_mismatch')
         if packets[-1]['interview_context']['interview_language'] != current_step['reply_language']:
