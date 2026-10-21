@@ -142,6 +142,18 @@ test('assistant rendering hides legacy profile comments', () => {
  assert.doesNotMatch(html,/profile:/);
 });
 
+test('Mira avatar appears only on the opening greeting', () => {
+ const context=vm.createContext({state:{showThinkingSteps:false},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,formatText:value=>String(value),currentUiLocale:()=> 'zh-CN'});
+ for (const name of ['cleanAssistantText','renderAgentTrace','renderMessage']) vm.runInContext(extract(name),context);
+ const opening=context.renderMessage({id:'opening',role:'assistant',productCopy:'opening',text:'你好，我是 Mira。',streaming:false});
+ const later=context.renderMessage({id:'reply',role:'assistant',text:'请继续说说那段回忆。',streaming:false});
+ assert.match(opening,/class="assistant-avatar"/);
+ assert.match(opening,/mira_avatar_zh-CN\.png/);
+ assert.match(opening,/assistant-opening/);
+ assert.doesNotMatch(later,/assistant-avatar|mira_avatar/);
+ assert.doesNotMatch(later,/assistant-opening/);
+});
+
 test('finished workspace checks appear last inside the collapsed thinking steps', async () => {
  let emitEvent;
  const context=vm.createContext({state:{showThinkingSteps:true,supabase:{accessToken:'test'},project:{id:'p'},chat:[]},CHATBOT_NAME:'Mira',escapeHtml:String,translate:key=>key,translateWith:(key,{count})=>`${count} steps`,formatText:String,cleanAssistantText:String,simulatedLoopTrace:()=>[],conversationLanguage:()=>undefined,nextAssistantMessageId:()=> 'm1',render:()=>{},updateStreamingAssistantMessage:()=>{},

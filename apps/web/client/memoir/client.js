@@ -2822,13 +2822,17 @@ function renderMessage(message) {
     const you = escapeHtml(translate("Common.you"));
     return `<article class="chat-row user-message"><div class="chat-bubble"><div class="message-label">${you}</div><div class="message-text">${formatText(message.text)}</div>${message.attachments?.length ? `<div class="composer-attachments">${message.attachments.map(item => `<div class="composer-attachment">${attachmentPreview(item)}</div>`).join("")}</div>` : ""}</div></article>`;
   }
+  const isOpening = message.productCopy === "opening";
+  const avatar = isOpening
+    ? `<img class="assistant-avatar" src="/static/mira_avatar_${currentUiLocale() === "zh-CN" ? "zh-CN" : "en-AU"}.png" alt="" aria-hidden="true" />`
+    : "";
   const streaming = Boolean(message.streaming);
   const visibleText = cleanAssistantText(message.text);
   // Older saved conversations may still contain the retired manual-save action.
   const action = !streaming && message.action && message.action.name !== "save-memory" ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
   const trace = renderAgentTrace(message.trace || [], message.traceMode, message.traceExpanded ?? (streaming && !visibleText), message.clientTurnId);
   const listen = streaming || state.voiceMode ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(visibleText)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
-  return `<article class="chat-row assistant-message ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}"><div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.historicalContext ? historicalContextMarkup(message.historicalContext, currentUiLocale()) : ""}${message.responsePhotos?.length ? responsePhotoMarkup(message.responsePhotos) : ""}${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
+  return `<article class="chat-row assistant-message${isOpening ? " assistant-opening" : ""} ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}">${avatar}<div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.historicalContext ? historicalContextMarkup(message.historicalContext, currentUiLocale()) : ""}${message.responsePhotos?.length ? responsePhotoMarkup(message.responsePhotos) : ""}${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
 }
 
 function renderAgentTrace(trace, mode = "simulated", expanded = false, clientTurnId = null) {

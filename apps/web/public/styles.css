@@ -579,6 +579,9 @@ h3 { line-height: 1.1; }
 .user-message { padding-left: 12%; }
 .user-message .chat-bubble { max-width: min(680px, 88%); padding: 11px 15px; border: 0; border-radius: 20px 20px 6px 20px; background: var(--ink); color: var(--white); }
 .assistant-message .chat-bubble { width: 100%; max-width: 680px; min-width: 0; }
+.assistant-message.assistant-opening { gap: 12px; }
+.assistant-avatar { width: 54px; height: 54px; flex: 0 0 54px; object-fit: cover; border-radius: 50%; margin-top: 10px; }
+.assistant-message.assistant-opening .chat-bubble { width: auto; flex: 1 1 auto; }
 .message-meta .listen-button { flex-shrink: 0; white-space: nowrap; }
 .message-meta { margin-bottom: 6px; }
 .message-text { font-size: clamp(15px, 1.05vw, 17px); line-height: 1.55; }
@@ -982,6 +985,8 @@ h3 { line-height: 1.1; }
 @media (max-width: 560px) {
   .user-message { padding-left: 8%; }
   .user-message .chat-bubble { max-width: 92%; padding: 10px 14px; }
+  .assistant-message.assistant-opening { gap: 8px; }
+  .assistant-avatar { width: 44px; height: 44px; flex-basis: 44px; margin-top: 6px; }
   .chat-composer { gap: 2px; padding: 6px; min-height: 52px; }
   .chat-composer textarea { min-height: 38px; max-height: min(180px, 30vh); padding: 9px 7px; }
   .chat-composer .voice-button, .chat-composer .send-button { width: 36px; height: 36px; }
