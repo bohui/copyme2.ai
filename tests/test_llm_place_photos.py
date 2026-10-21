@@ -260,16 +260,8 @@ def test_app_keeps_catalogue_results_when_gateway_rejects_search(search_world, m
     assert found['asset_id'] == 'loc-fixture'
 
 
-def test_app_accepts_a_dated_candidate_for_unspecified_historical_period(search_world, monkeypatch):
-    helper, world = search_world
-    def interpreted(records):
-        assertions=[]
-        for index,fields in enumerate(records):
-            for field,quote in fields.items():
-                assertions.append(dict(record=index,field=field,quote=quote,char_start=0,char_end=len(quote),
-                    role='capture',uncertain=False,start='1983-01-01',end='1983-12-31',precision='year'))
-        return dict(complete=True,assertions=assertions)
-    monkeypatch.setattr(helper,'_caption_date_proposal',interpreted)
+def test_app_accepts_a_dated_candidate_for_unspecified_historical_period(search_world):
+    _, world = search_world
     world['pages']['https://archive.example/photo'] = (
         '<figure><img src="https://images.example/street.jpg">'
         '<figcaption>Chengde street 1983</figcaption></figure>'
@@ -357,16 +349,8 @@ def test_skill_keeps_verified_photos_when_page_budget_is_exhausted(search_world,
 
 
 
-def test_skill_accepts_a_dated_candidate_for_unspecified_historical_period(search_world, tmp_path, capsys, monkeypatch):
+def test_skill_accepts_a_dated_candidate_for_unspecified_historical_period(search_world, tmp_path, capsys):
     helper, world = search_world
-    def interpreted(records):
-        assertions=[]
-        for index,fields in enumerate(records):
-            for field,quote in fields.items():
-                assertions.append(dict(record=index,field=field,quote=quote,char_start=0,char_end=len(quote),
-                    role='capture',uncertain=False,start='1983-01-01',end='1983-12-31',precision='year'))
-        return dict(complete=True,assertions=assertions)
-    monkeypatch.setattr(helper,'_caption_date_proposal',interpreted)
     world['pages']['https://archive.example/photo'] = (
         '<figure><img src="https://images.example/street.jpg">'
         '<figcaption>Chengde street 1983</figcaption></figure>')

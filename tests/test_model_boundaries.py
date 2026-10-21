@@ -136,37 +136,11 @@ def test_policy_proposal_validation_cannot_invent_evidence_or_permissions(fault)
         validate_review(output,source)
 
 
-@pytest.mark.parametrize('fault',['span','role','uncertain','conflict','record'])
-def test_fixed_caption_proposals_require_exact_spans_and_consistent_capture_ranges(monkeypatch,fault):
-    helper=_research();text='An original caption.'
-    row=dict(record=0,field='caption',quote=text,char_start=0,char_end=len(text),role='capture',uncertain=False,
-        start='1983-01-01',end='1983-12-31',precision='year')
-    rows=[row]
-    if fault=='span':row['char_start']=1
-    if fault=='role':row['role']='guess'
-    if fault=='uncertain':row['uncertain']=True
-    if fault=='record':row['record']=3
-    if fault=='conflict':rows.append({**row,'start':'1984-01-01','end':'1984-12-31'})
-    monkeypatch.setattr(helper,'_caption_date_proposal',lambda _:dict(complete=True,assertions=rows))
-    assert helper._llm_reconcile_capture_dates([{'caption':text}],{'mode':'any_time'}) is None
-
-
-def test_fixed_caption_proposal_preserves_normalized_date_and_observed_source(monkeypatch):
-    helper=_research();text='Exact source caption.'
-    row=dict(record=0,field='caption',quote=text,char_start=0,char_end=len(text),role='capture',uncertain=False,
-        start='1983-01-01',end='1983-12-31',precision='year')
-    monkeypatch.setattr(helper,'_caption_date_proposal',lambda _:dict(complete=True,assertions=[row],receipt={'response_id':'fixed'}))
-    scene=helper._llm_reconcile_capture_dates([{'caption':text}],{'mode':'any_time'})
-    assert (scene['start'],scene['end'])==('1983-01-01','1983-12-31')
-    assert scene['assertions'][0]['value']==text
-    assert scene['interpretation_receipt']['response_id']=='fixed'
-
-
 def test_live_semantic_dataset_is_data_not_a_default_model_dispatch():
     path=Path(__file__).parent/'evaluation/llm-boundaries.json'
     cases=json.loads(path.read_text())['cases']
     assert len({case['id'] for case in cases})==len(cases)
-    assert all(case['contract'] in {'policy','collector','extract','caption'} and case['expectation'] for case in cases)
+    assert all(case['contract'] in {'policy','collector','extract'} and case['expectation'] for case in cases)
 
 
 def test_research_window_keeps_original_offsets_after_a_source_window_boundary():

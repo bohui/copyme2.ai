@@ -3,7 +3,6 @@
 PROMPT_PATHS = {
     'memoir/evaluation/semantic-boundaries-judge': 'apps/api/prompts/evaluation/semantic-boundaries-judge.md',
     'memoir/skills/memoir-interviewer/governed-repair/codes': 'skills/memoir-interviewer/prompts/governed-repair/codes.md',
-    'memoir/skills/memoir-place-photo-research/capture-evidence': 'skills/memoir-place-photo-research/prompts/capture-evidence.md',
     'memoir/skills/memoir-place-photo-research/discovery': 'skills/memoir-place-photo-research/prompts/discovery.md',
     'memoir/shared/historical-acknowledgements': 'apps/api/prompts/shared/historical-acknowledgements.md',
     'memoir/evaluation/probes/connectivity': 'apps/api/prompts/evaluation/probes/connectivity.md',

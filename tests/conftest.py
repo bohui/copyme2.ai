@@ -65,11 +65,3 @@ def fixed_policy_controls():
 def controlled_policy_review_transport(monkeypatch, fixed_policy_controls):
     from controlled_policy import install_policy_review_transport
     install_policy_review_transport(monkeypatch, fixed_policy_controls)
-
-
-@pytest.fixture(autouse=True)
-def fixed_caption_interpretation(monkeypatch):
-    """Neutral caption proposal; tests of date roles supply explicit assertions."""
-    from apps.api.place_photo_browser import _research
-    from photo_test_support.fixed_caption_data import proposal
-    monkeypatch.setattr(_research(), '_caption_date_proposal', proposal)
