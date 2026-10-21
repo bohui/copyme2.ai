@@ -77,3 +77,20 @@ def test_model_schema_still_accepts_exact_supported_direct_controls(text,kind):
     ctx=context(text)
     Draft202012Validator(governed_collector_schema(ctx)['$defs']['_ContinuityUpdate']).validate(
         update(ctx,quote=text,kind=kind))
+
+
+@pytest.mark.parametrize('text,person', [
+    ('I was mistaken: Mother repaired the bicycles, not Father.', 'Mother'),
+    ('我说错了，修自行车的是母亲，不是父亲。', '母亲'),
+])
+def test_corrected_person_requires_the_same_narrow_text_and_quote(text, person):
+    ctx = context(text)
+    invalid = update(ctx, quote=text, text=person)
+    with pytest.raises(ValueError, match='Continuity text must preserve the exact attributed quote'):
+        validate_governed_collector_result(reply([invalid]), ctx)
+    repaired = update(ctx, quote=person, char_start=None, char_end=None)
+    result = validate_governed_collector_result(reply([repaired]), ctx)
+    item = result['continuity_updates'][0]['data']
+    assert item['text'] == item['source_refs'][0]['quote'] == person
+    assert item['source_refs'][0]['char_start'] == text.index(person)
+    assert item['source_refs'][0]['char_end'] == text.index(person) + len(person)

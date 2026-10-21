@@ -2,7 +2,7 @@
   "schema_version": "issue53-current-acceptance/1",
   "release_accepted": false,
   "original_coding_task": "codex://threads/01a1567e-46d6-7e40-afc7-ccd9620731c9",
-  "pull_request": "https://github.com/bohui/copyme2.ai/pull/106",
+  "pull_request": "https://github.com/bohui/copyme2.ai/pull/107",
   "target_seconds": {
     "preferred": 5,
     "fallback": 10
@@ -283,6 +283,138 @@
           }
         }
       ]
+    },
+    {
+      "id": "issue53-worker-profile-20261021d",
+      "status": "aborted",
+      "source_revision": "c9381610e115f01112ca2d62b93cb529cccbd980",
+      "raw_receipt_sha256": "6d87487444b73e7bbe584b3c56744ef3cc97e5dfecff52db12941ad745e643d7",
+      "runner_source_sha256": "d2172a164e64d37e874c3a0c79b0a21fb6e90335d4ae1d800f327e92275384a6",
+      "planned_rows": 80,
+      "executed_rows": 22,
+      "unexecuted_rows": 58,
+      "elapsed_s": 350.471,
+      "background_dispatches": 0,
+      "policy_calls": 22,
+      "native_invocations": 25,
+      "provider_internal_requests": null,
+      "temporary_worker_homes_removed": true,
+      "foundation_worker_stop_exit_code": 0,
+      "arms": {
+        "baseline": {
+          "saved": 11,
+          "failed": 0,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 11,
+              "median_s": 15.824,
+              "maximum_s": 21.733
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 11,
+              "median_s": 16.972,
+              "maximum_s": 23.326
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 11,
+              "median_s": 16.986,
+              "maximum_s": 23.348
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 11,
+              "median_s": 16.994,
+              "maximum_s": 23.357
+            }
+          }
+        },
+        "candidate": {
+          "saved": 10,
+          "failed": 1,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 10,
+              "median_s": 2.9595000000000002,
+              "maximum_s": 4.463
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 9,
+              "median_s": 8.681,
+              "maximum_s": 17.219
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 10,
+              "median_s": 8.636,
+              "maximum_s": 17.25
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 10,
+              "median_s": 8.6425,
+              "maximum_s": 17.258
+            }
+          }
+        }
+      },
+      "failed_rows": [
+        {
+          "row_id": "issue53/correction/zh-CN/turn-2/0/candidate",
+          "failure_class": "CanonicalTurnFailed",
+          "error_code": null,
+          "timings": {
+            "first_meaningful_text_s": null,
+            "api_preparation_to_worker_dispatch_s": 3.002,
+            "first_public_text_s": 3.002
+          }
+        }
+      ],
+      "semantic_review_complete": false,
+      "semantic_findings": [
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/candidate",
+          "delivery": "saved",
+          "quality": "failed_missing_opening_invitation",
+          "reviewer": "coding_agent_not_human_acceptance"
+        }
+      ],
+      "matched_delivery_pairs": {
+        "count": 10,
+        "quality_acceptance": false,
+        "metrics": {
+          "baseline": {
+            "first_public_text_s": {
+              "observed_rows": 10,
+              "median_s": 15.8215,
+              "maximum_s": 20.503
+            },
+            "question_validated_s": {
+              "observed_rows": 10,
+              "median_s": 16.941000000000003,
+              "maximum_s": 21.829
+            },
+            "conversation_saved_s": {
+              "observed_rows": 10,
+              "median_s": 16.9735,
+              "maximum_s": 21.855
+            }
+          },
+          "candidate": {
+            "first_public_text_s": {
+              "observed_rows": 10,
+              "median_s": 2.9595000000000002,
+              "maximum_s": 4.463
+            },
+            "question_validated_s": {
+              "observed_rows": 9,
+              "median_s": 8.681,
+              "maximum_s": 17.219
+            },
+            "conversation_saved_s": {
+              "observed_rows": 10,
+              "median_s": 8.6425,
+              "maximum_s": 17.258
+            }
+          }
+        }
+      }
     }
   ],
   "checks": [
@@ -799,7 +931,15 @@
   "fixed_acknowledgement_schema": {
     "red_regressions": 4,
     "passing_focused_tests": 148,
-    "live_application_fixed_replay": "pending",
+    "live_application_fixed_replay": {
+      "status": "saved",
+      "native_invocations": 1,
+      "policy_calls": 0,
+      "receipt_sha256": "b64a42ccc5ac99b7056ee04373f715b9cd00d9a1d43f7e73c05e81514e9f8f02",
+      "cleanup": {
+        "stop_exit_code": 0
+      }
+    },
     "raw_probe_receipts": {
       "issue53-wire-probe-20261021a": "1750aaeafd387e87e9ebd6483aeef9f21c046b88a9de1418d90b797f30a33c69",
       "issue53-wire-constraint-probe-20261021a": "dd45c9a8f6f9233208e23654de07c511ff83c7d9d1e6926fe0ab56a1bff55321"
@@ -848,5 +988,265 @@
       "apps/api/lifetime_memory_continuity.py": "8fde84ebfa707c1d106f30c02882d71f60411aed6bdda1b9b6f7484ae53d362b",
       "apps/api/lifetime_memory_engine.py": "ba7e8484185ffca2ba7d3bcce92ae56b2897b60fa53284132340cd304e1b9738"
     }
+  },
+  "current_proxy_smoke": {
+    "id": "issue53-proxy-isolated-20261021a",
+    "status": "failed",
+    "planned_submissions": 4,
+    "accepted_sources": 4,
+    "durably_saved": 3,
+    "passing_rows": [
+      {
+        "kind": "proxy_smoke_result",
+        "case": "first",
+        "status": "saved",
+        "timings": {
+          "started": 0.1695,
+          "source_accepted": 4.884,
+          "progress": 4.890699999988079,
+          "text_delta": 5.042800000011921,
+          "question_validated": 9.375899999976157,
+          "reply_complete": 9.395600000023842,
+          "conversation_saved": 9.402600000023842,
+          "result": 9.421399999976158
+        },
+        "first_rendered_text_s": 5.043100000023842,
+        "early_unlock": false,
+        "duplicate_reply": false
+      },
+      {
+        "kind": "proxy_smoke_result",
+        "case": "later_replay",
+        "status": "saved",
+        "timings": {
+          "started": 0.15189999997615813,
+          "source_accepted": 3.263899999976158,
+          "progress": 3.278800000011921,
+          "text_delta": 3.503699999988079,
+          "question_validated": 8.904199999988078,
+          "reply_complete": 8.926,
+          "conversation_saved": 8.934899999976158,
+          "result": 8.951099999964237
+        },
+        "first_rendered_text_s": 3.503899999976158,
+        "early_unlock": false,
+        "duplicate_reply": false
+      },
+      {
+        "kind": "proxy_smoke_result",
+        "case": "later_name_change",
+        "status": "saved",
+        "timings": {
+          "started": 0.10010000002384185,
+          "source_accepted": 3.369,
+          "progress": 3.380699999988079,
+          "text_delta": 3.4953999999761582,
+          "reply_complete": 6.547699999988079,
+          "conversation_saved": 6.556100000023842,
+          "result": 6.564899999976158
+        },
+        "first_rendered_text_s": 3.495600000023842,
+        "early_unlock": false,
+        "duplicate_reply": false
+      }
+    ],
+    "failed_case": "resumed_pause",
+    "failure": "three_SCHEMAs_or_other_contract_rejections_then_browser_wait_timeout",
+    "root_cause": "not_reproduced_or_assigned",
+    "raw_receipt_sha256": "3059980c6c4f062f163a1f157b104ce59ef7574b9af676ea100f6fa1d7fb4f33",
+    "policy_calls": 4,
+    "native_starts_in_owned_worker_log": 6,
+    "remote_budget_receipt": "unavailable_CalledProcessError",
+    "temporary_homes_removed": true,
+    "api_cleanup": {
+      "removed": true
+    },
+    "foundation_cleanup": {
+      "stop_exit_code": 0
+    },
+    "optional_readiness_status": 503
+  },
+  "current_stop_probe": {
+    "status": "reply_saved_but_semantic_failure",
+    "scope": "one_different_saved_seed_not_exact_browser_state",
+    "source_revision": "c9381610e115f01112ca2d62b93cb529cccbd980",
+    "source_policy_restrictions": 1,
+    "problem": "whole_exchange_stop_proposed_as_topic_restriction",
+    "receipt_sha256": "7dd72f9d9a3dd5f1c955bbc371fc8ddd666c501b270a969271b1686c7fd2dc16",
+    "browser_failure_reproduced": false,
+    "foundation_cleanup": {
+      "stop_exit_code": 0
+    }
+  },
+  "prepared_quality_prompt_update": {
+    "status": "review_required_before_main_publication",
+    "prompts": [
+      {
+        "name": "memoir/skills/memoir-interviewer/collector-plan",
+        "published_version": 3,
+        "published_sha256": "70bdb500f7c9a5b01946ba17932e7dfef35c1cab8a85ed5b10331f06d2192cb3",
+        "draft_sha256": "b996bd54abd5ad748c85dae29fce9e9c30728c0a95d5d72f63d75524d3d63212",
+        "published": false
+      },
+      {
+        "name": "memoir/skills/memoir-interviewer/strategy/selection",
+        "published_version": 5,
+        "published_sha256": "cec88218db74fb9305f675842d59621df07e1679328ed18d91135e5678f44667",
+        "draft_sha256": "f6056a2410ef31de318cd4dd105d2f467618fa6863f9504773b1eb4f50c7fbb5",
+        "published": false
+      },
+      {
+        "name": "memoir/skills/memoir-interviewer/governed-continuity",
+        "published_version": 2,
+        "published_sha256": "91076eb8eb3fb915028d7e57558a68729b23ddcc22a948a3fc5038a2c948e753",
+        "draft_sha256": "2a0c0f829ed1569cd98b6f600b36219b8b74c5c155f433bbf3b736a93849189f",
+        "published": false
+      },
+      {
+        "name": "memoir/skills/memoir-interviewer/governed-repair/codes",
+        "published_version": 2,
+        "published_sha256": "ad48cc1d67688f3b0d10061a067de9e95b4ceceb6401ff716ef1f596b737b770",
+        "draft_sha256": "57372982271248fbb3162e7717c0a5cb76576e4efd135bab586946ae7e4843a9",
+        "published": false
+      },
+      {
+        "name": "memoir/skills/memoir-interviewer/policy-review",
+        "published_version": 2,
+        "published_sha256": "f84f73c5af8b62f26dc9c3fa5224685e8f84cd77850b7a997a3d345b1ef028ef",
+        "draft_sha256": "cc5795d1bd4c200a49c17280378eedc2bc574e2f92f0fd35514df0855600f67e",
+        "published": false
+      }
+    ],
+    "checks": {
+      "offline_before_fixture_fix": {
+        "name": "offline",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_policy_early_ack.py",
+          "tests/test_lifetime_memory_engine.py",
+          "tests/test_lifetime_continuity_offsets.py",
+          "tests/test_lifetime_memory_continuity.py",
+          "tests/test_interview_plan.py",
+          "tests/test_interview_strategy.py",
+          "tests/test_interview_strategy_runtime.py"
+        ],
+        "exit_code": 1,
+        "base_head": "c9381610e115f01112ca2d62b93cb529cccbd980",
+        "tree": "f2ae27656724f6e17d994a793a263feb0fc81718",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-8ikg6q0z",
+        "command_group": {
+          "group_id": 93157,
+          "leader_started": "Wed Oct 21 22:32:32 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-8ikg6q0z",
+              "device": 16777231,
+              "inode": 931857308
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 1,
+        "duration_seconds": 65.93
+      },
+      "offline_after_fixture_fix": {
+        "name": "offline",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_policy_early_ack.py",
+          "tests/test_lifetime_memory_engine.py",
+          "tests/test_lifetime_continuity_offsets.py",
+          "tests/test_lifetime_memory_continuity.py",
+          "tests/test_interview_plan.py",
+          "tests/test_interview_strategy.py",
+          "tests/test_interview_strategy_runtime.py"
+        ],
+        "exit_code": 0,
+        "base_head": "c9381610e115f01112ca2d62b93cb529cccbd980",
+        "tree": "f2ae27656724f6e17d994a793a263feb0fc81718",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-ej_hw3_z",
+        "command_group": {
+          "group_id": 98680,
+          "leader_started": "Wed Oct 21 22:39:30 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-ej_hw3_z",
+              "device": 16777231,
+              "inode": 931927921
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 64.81
+      },
+      "place_photo": {
+        "name": "place-photo",
+        "command": [
+          "make",
+          "test-place-research"
+        ],
+        "exit_code": 0,
+        "base_head": "c9381610e115f01112ca2d62b93cb529cccbd980",
+        "tree": "f2ae27656724f6e17d994a793a263feb0fc81718",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-yelsk_14",
+        "command_group": {
+          "group_id": 4084,
+          "leader_started": "Wed Oct 21 22:41:45 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-yelsk_14",
+              "device": 16777231,
+              "inode": 931966977
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 110.51
+      }
+    },
+    "offline_counts": {
+      "before": {
+        "passed": 271,
+        "failed": 2
+      },
+      "after": {
+        "passed": 273,
+        "failed": 0
+      }
+    },
+    "place_photo_counts": {
+      "javascript": 591,
+      "api_database": 429,
+      "standalone": 95
+    },
+    "new_prompt_live_calls": 0,
+    "semantics": "not_live_validated",
+    "candidate_default_enabled": false
   }
 }

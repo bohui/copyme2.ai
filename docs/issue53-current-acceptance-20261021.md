@@ -116,10 +116,49 @@ streaming, SQL, strict-offset and interview-plan checks pass after it. The
 instrumented diagnostic's direct-root-removal assertion failed; its ephemeral
 task container subsequently stopped and a separate inspection confirms removal.
 
-Repeat the original failed application turn, then the bounded bilingual matched
-workload and actual public-reply review. Existing-session/rollback and the small
-browser-proxy smoke also need current evidence before candidate activation.
-The current optimization has no completed live bilingual acceptance yet.
+The original failed application turn now completes and saves with one native
+invocation and no new source-policy request, preserving the exact acknowledgement.
+Its verified worker cleanup is retained. The follow-up is
+[PR107](https://github.com/bohui/copyme2.ai/pull/107).
+
+The next bounded campaign, at `c9381610`, stopped after 22/80 rows: eleven baseline
+saves, ten candidate saves, one failed candidate and 58 unexecuted rows. In the ten
+matched delivered pairs, first public text had a 2.960-second candidate median
+(maximum 4.463), versus 15.822 seconds for baseline. Candidate save median was
+8.643 seconds, maximum 17.258; nine candidate validated questions had an
+8.681-second median. These are partial delivery observations, not accepted quality
+or workload-wide latency. A Chinese name-only opening omitted its invitation and
+is a quality failure despite saving. A later Chinese correction was rejected on
+all three attempts for pairing a narrow person label with a wider quote; its early
+acknowledgement at 3.002 seconds was not followed by a question or save.
+
+The real-proxy browser run saved and rendered its first three exchanges once,
+with render times 5.043, 3.504 and 3.496 seconds, and no unlock before saving.
+Its resumed stop was accepted but failed three proposal validations and remained
+unsaved, followed by the verifier's wait timeout. All four sources and only three
+saved replies remain accounted for. Task API/worker cleanup succeeded. Optional
+readiness calls returned 503 separately from the foreground stream. This is a
+failed browser smoke; the generic validation reason has not been assigned a root
+cause. A narrow probe with a different saved seed completed the stop but proposed
+a topic restriction for a whole-exchange pause, which is another quality failure.
+
+Five prompt-source updates are prepared in PR107: keep a useful optional opening
+invitation, use natural source-grounded acknowledgements, make corrected-person
+text and quote identical and narrow, explain that repair precisely, and distinguish
+whole-exchange stopping from both kinds of topic restriction. Original source,
+span, privacy and persistence validators stay strict. The two old strategy-runtime
+privacy tests had empty policy fixtures; explicit bilingual restriction fixtures
+fix their failures without assigning model semantic scores. All 273 focused tests
+and the complete place/photo target (591 JavaScript, 429 API/database, 95 standalone)
+pass on the prepared sources. Earlier 271-pass/two-failure results are retained.
+
+The five new prompt sources remain unpublished; their receipts are unchanged.
+They require Git review/merge and normal main-only publication before live use.
+Fresh live acceptance will reject missing fixture-required questions and
+whole-exchange stops classified as topics, retain save state independently of
+contract failures, and capture exact synthetic browser state/rejection details.
+A completed bilingual comparison, existing-session/rollback and long-source checks,
+independent extraction and a passing browser smoke still precede activation.
 
 ## Verification record
 
@@ -147,4 +186,4 @@ no unrelated services have been stopped or reconfigured.
 The acknowledgement's required nullable schema follows the
 [official Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs).
 The decoder continues to reject incomplete output; schema validity is not
-semantic-quality evidence. Prompt publication is verified; live acceptance remains pending.
+semantic-quality evidence. PR106 publication is verified; PR107 prompt publication and fresh live acceptance remain pending.

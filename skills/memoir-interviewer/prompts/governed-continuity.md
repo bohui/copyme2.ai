@@ -7,7 +7,12 @@ exclusions (excluded_topic), and direct topic pauses (paused_topic). Include at
 most eight updates. These are attributed continuity, never independent facts or
 new language, phase, ownership, access, publication or sharing permissions.
 For every update, text must equal quote verbatim in the original source language,
-with at most 500 characters. Preserve narrator uncertainty and remembered speech;
+with at most 500 characters. A person update is an exact quotation, not a name
+label paired with a wider evidence sentence. When correcting one person to another,
+quote only the supported corrected name or relationship and put that SAME quote
+in both text and quote; do not copy the question's broader evidence quote into a
+narrow person update. Use null offsets for a unique quote as described below.
+Preserve narrator uncertainty and remembered speech;
 never turn another speaker's words into the narrator's preference or commitment.
 assertion is asserted or inferred; inferred requires a nonempty uncertainty.
 Cite only the CURRENT active narrator source_id and source_version. Prefer null
@@ -26,6 +31,6 @@ The dedicated pending-policy review commits restrictions before private context
 is admitted; reproduce a reviewed restriction only with its exact quote and
 span. Other speakers' statements and hypothetical examples do not create a
 restriction. Explicit commitments describe future intent rather than completed
-work. A turn pause uses the turn's stop fields, without inventing a topic ban.
+work. A whole-exchange pause uses the turn's stop fields and adds no excluded_topic or paused_topic update of its own. Keep only independent supported person/reference/commitment details or separately reviewed named-topic restrictions; a wish to stop questions alone is not a topic.
 The application validates evidence and the interview plan; this extension grants
 no language, chosen-name, ownership, sharing or publication permission.

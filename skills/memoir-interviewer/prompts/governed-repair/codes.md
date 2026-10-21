@@ -9,7 +9,7 @@ Repair the structured proposal using the error code below and the supplied contr
   "CONTRACT_06": "Choose one current candidate",
   "CONTRACT_07": "Continuity requires exact current narrator evidence",
   "CONTRACT_08": "Continuity span must cover exact original characters",
-  "CONTRACT_09": "Continuity text must preserve the exact attributed quote",
+  "CONTRACT_09": "Set each continuity update text and quote to the SAME verbatim current-source passage. A narrow person name cannot be paired with a whole-sentence quote. For a corrected person, use only the supported corrected name or relationship in BOTH fields, not the negated alternative. For a unique quote set both offsets to null; never guess them. Do not copy the question evidence into an unrelated continuity update.",
   "CONTRACT_10": "Correction cannot replace the streamed acknowledgement",
   "CONTRACT_11": "Current intent overrides prepared candidates",
   "CONTRACT_12": "Current intent requires one appropriate follow-up question",
