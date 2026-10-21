@@ -530,6 +530,86 @@
       "summary": "64 passed in 45.36s",
       "log_sha256": "02aaa917502a90e2313c205cebf3a0f2afee43f3aef1e3af8aed48ca7397ef4a",
       "native_cleanup_verified": true
+    },
+    {
+      "name": "matrix-zh-CN",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021e",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=zh-CN",
+        "ISSUE53_SQL_DIAGNOSTIC=/tmp/issue53-current-final-checks-20261021e/sql-resource-zh-CN.jsonl",
+        "PYTHONPATH=/tmp",
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-p",
+        "issue53_sql_diagnostic",
+        "--tb=short",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head_at_dispatch": "cf7a9d4d971cc1e8367626efaad8f2bed233f215",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 381.13,
+      "summary": "10 passed, 8 deselected in 378.18s (0:06:18)",
+      "log_sha256": "f1a70ecab5334140b641dc07a09b4e6e1663ac523e7b92bd260bfec963342482",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "negative-streams",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021f",
+      "command": [
+        "env",
+        "ISSUE53_SQL_DIAGNOSTIC=/tmp/issue53-current-final-checks-20261021f/sql-resource-faults.jsonl",
+        "PYTHONPATH=/tmp",
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-p",
+        "issue53_sql_diagnostic",
+        "--tb=short",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "negative_streams"
+      ],
+      "base_head_at_dispatch": "2350dfb1f8fda8d8750a9183a0e830319437c716",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 360.08,
+      "summary": "8 passed, 10 deselected in 357.05s (0:05:57)",
+      "log_sha256": "e896664df759e0798b80a5b471d1da40c329b026e85fd20a95e45e13cf62400a",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "saved-plan-and-integrity",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021g",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_issue53_saved_plan.py",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_skill_eval_suite.py"
+      ],
+      "base_head_at_dispatch": "2350dfb1f8fda8d8750a9183a0e830319437c716",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 127.13,
+      "summary": "72 passed in 125.39s (0:02:05)",
+      "log_sha256": "2f795a7f6a6c95280539df6742930299729aa3d2fbcb68fd0f514e0bbf7e5793",
+      "native_cleanup_verified": true
     }
   ],
   "remaining": [
@@ -548,7 +628,7 @@
     "Partial live saved-row summaries are not a matched quality comparison or a production percentile.",
     "The complete required place/photo target subsequently passed serially: 591 JavaScript, 429 API/database and 95 standalone tests. The isolated six-case background rerun also passed; the original failure remains retained.",
     "A surrounding-whitespace regression fails before normalization; all 64 integrated boundary/streaming/SQL checks pass afterward, with padded model acknowledgements in the real HTTP/SQL cases.",
-    "The English serial rerun passes all 40 application rows and 10 checks; the earlier 38-completed/two-failed matrix remains retained. Chinese and fault checks remain in progress."
+    "Both serial language matrices pass all 80 controlled rows and 20 checks. All eight bilingual negative-stream checks pass, followed by 72 saved-plan/evaluator/provenance checks. No resource error was recorded in these serial matrix/fault runs. Earlier failed runs remain evidence; synthetic completion does not establish live latency or semantic quality."
   ],
   "current_provider_policy": {
     "captured_at": "2026-10-21T10:20:37.250490+00:00",
@@ -589,5 +669,38 @@
     "checks_passed": 10,
     "sql_file_limit_events": 0,
     "diagnostic_source_sha256": "53b53a30b9737c1ca3839210d0f088b372ad08afe33bce24150bade2e489f79f"
+  },
+  "offline_verification": {
+    "status": "pass",
+    "bilingual_controlled_application_rows": 80,
+    "matrix_checks": 20,
+    "bilingual_negative_stream_checks": 8,
+    "integrated_boundary_stream_SQL_checks": 64,
+    "saved_plan_evaluator_provenance_checks": 72,
+    "required_place_photo_checks": {
+      "JavaScript": 591,
+      "API_database": 429,
+      "standalone_skill": 95
+    },
+    "model_quality_established": false
+  },
+  "chinese_matrix_serial": {
+    "application_rows_completed": 40,
+    "checks_passed": 10,
+    "sql_file_limit_events": 0
+  },
+  "negative_stream_resource_events": 0,
+  "checked_runtime_revision": "2350dfb1f8fda8d8750a9183a0e830319437c716",
+  "current_source_file_sha256": {
+    "apps/api/policy_review.py": "920e9a94fa692404fd275a4a1d160520485c141561a6ae2ecc61bc8d59405e5e",
+    "apps/api/lifetime_memory_runtime.py": "4d869b06ad78c70872fdd665ddac6d7b9ff3cfbea133e585c8153b1e8894ef35",
+    "apps/api/lifetime_memory_engine.py": "7a0a288138c090e49e99e2bdd9d6b7f04e70417c83d05f60aa9085c3f89314e9",
+    "apps/api/lifetime_memory_continuity.py": "9a59893cea53ac261217d9cdb9b01e6f7afb380de13614807202d8d3e3cac0b6",
+    "apps/api/model_request.py": "f4de9b013e3228dc4fc3df7e685d906c6b93b6767d488f8e89e60e5629184e54",
+    "scripts/issue53_sequence_application.py": "6deb015accf932b217adf0369d33c58c16669c036e8b23eb83c67fcbc8d72fbb",
+    "scripts/issue53_profile_sequences.py": "ff62924fe4fec1fa90bee2b14aa5b9bedca4d4a41ac4beb59c957874f58d560d",
+    "scripts/memoir_skill_eval_suite.py": "372e77bd6deac3228d014eaadd19ba720ea9dbea4325c12de77fa8c034314b26",
+    "tests/controlled_policy.py": "e1fd1fd9902ad2cd78be8f370f2e926a0d7d5156264b4e0bcb907d48d88cab49",
+    "tests/evaluation/response_sequences.json": "1b0155c3e6c59896e0025f767ace2378fe2718d29baafada505e0c9dac89a4f5"
   }
 }

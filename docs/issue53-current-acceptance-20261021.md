@@ -104,9 +104,16 @@ run exhausted the macOS system file limit; serial evaluator/pin checks pass 48.
 The expanded English offline matrix retained two failed rows (38 completed):
 one exchange was durably saved and publicly completed before a readback assertion,
 and one failed before worker dispatch. They are not successful acceptance rows.
-The serial English rerun passes all 40 rows and ten checks with no SQL resource
-error observed. The Chinese matrix and negative-stream checks are still in
-progress. The diagnostic observer records command failures without changing
-their outcomes. No task-owned containers remain from the earlier live
+The serial reruns pass all 80 bilingual application rows and 20 matrix checks,
+plus all eight malformed/disconnect/timeout/save-failure checks. No SQL resource
+error was observed in these reruns. The diagnostic observer records command
+failures without changing their outcomes. The final saved-plan tamper, evaluator
+and provenance run passes all 72 checks. No task-owned containers remain from the earlier live
 campaigns. Other local virtual machines hold most of the host's file handles;
 no unrelated services have been stopped or reconfigured.
+
+
+The acknowledgement's required nullable schema follows the
+[official Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+The decoder continues to reject incomplete output; schema validity is not
+semantic-quality evidence. Live prompt publication and acceptance remain pending.
