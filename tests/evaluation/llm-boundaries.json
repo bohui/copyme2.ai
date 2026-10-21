@@ -56,7 +56,14 @@
       "contract": "collector",
       "locale": "en-AU",
       "source": "I remember my father.",
-      "expectation": "The acknowledgement contains no invitation such as 'Tell me more about your father.' Put any invitation or follow-up in the separate question field."
+      "expectation": "The acknowledgement contains no invitation such as 'Tell me more about your father.' or 'What would you like to remember.' even without a question mark. Put any invitation or follow-up in the separate question field."
+    },
+    {
+      "id": "acknowledgement-invitation-chinese",
+      "contract": "collector",
+      "locale": "zh-CN",
+      "source": "我们先不聊厨房的事了。",
+      "expectation": "The acknowledgement may acknowledge the restriction but contains no follow-up such as '好的，我们跳过厨房。您想从哪段经历聊起呢' even without question punctuation. Put any invitation or follow-up in the separate question field."
     },
     {
       "id": "independent-place-certainty",

@@ -75,3 +75,26 @@ test('content fingerprints merge rehosted variants while keeping a different sce
   ]);
   assert.deepEqual(Array.from(items, item => item.asset_id), ['original', 'different']);
 });
+
+test('current photos retain exact normalized date endpoints', () => {
+  class FixedDate extends Date {
+    constructor(...args) { super(...(args.length ? args : ['2026-10-21T12:00:00Z'])); }
+  }
+  const context = harness(null, {Date: FixedDate});
+  const center = {latitude: 40.98, longitude: 117.94};
+  const entry = {place: 'Chengde', ...center};
+  for (const [start, end, accepted] of [
+    ['2026-06-01', '2026-06-01', true],
+    ['2026-06-01', '2026-06-30', true],
+    ['2024-10-21', '2026-10-21', true],
+    ['2026-10-22', '2026-10-22', false],
+    ['2026-10-20', '2026-10-22', false],
+    ['2024-10-20', '2026-10-21', false],
+    ['2026-06-30', '2026-06-01', false],
+    ['2026-02-30', '2026-03-01', false],
+  ]) {
+    assert.equal(context.photoMatchesScope(picture(start + end, {...center,
+      scene_date_range: {start, end, basis: 'source_caption'}, date_expression: 'ignored display text'}), entry),
+      accepted, `${start}–${end}`);
+  }
+});

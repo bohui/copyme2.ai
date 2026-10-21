@@ -158,6 +158,17 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if is_policy_pending(error):
                     raise await policy_pending() from None
                 raise
+        async def review_policy():
+            # Reviewing original narration is provider dispatch too.
+            if lifetime_generation_paused():
+                raise GenerationPaused('Conversation generation is paused; saved history and receipts remain available')
+            from .policy_review import review_pending_policy
+            try:
+                await review_pending_policy(storage, lease, str(identity.conversation_id),
+                    model=collector_configuration(runtime.model).model,
+                    base_url=runtime.base_url, api_key=runtime.api_key)
+            except (PolicyUnavailable, ValueError, OSError) as error:
+                raise await policy_pending() from error
         entitlement=await lease.io(storage.story_entitlement)
         access=await lease.io(storage_recall_status,storage,entitlement)
         fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
@@ -170,12 +181,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             replay=await call('read_lifetime_two_lane_reply' if two_lane else 'read_lifetime_reply',p_conversation_id=str(identity.conversation_id),p_client_turn_id=client_turn_id)
         policy_status=await call('read_lifetime_policy_status',p_conversation_id=str(identity.conversation_id))
         if policy_status.get('pending'):
-            from .policy_review import review_pending_policy
-            try:
-                await review_pending_policy(storage, lease, str(identity.conversation_id),
-                    model=collector_configuration(runtime.model).model)
-            except (PolicyUnavailable, ValueError, OSError) as error:
-                raise await policy_pending() from error
+            await review_policy()
             policy_status=await call('read_lifetime_policy_status',p_conversation_id=str(identity.conversation_id))
             if policy_status.get('pending'):
                 raise await policy_pending(policy_status)
@@ -229,12 +235,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             accepted_source_id=source['id']
             # Older private context remains blocked until the current source's
             # bounded semantic policy review commits under its original fence.
-            from .policy_review import review_pending_policy
-            try:
-                await review_pending_policy(storage, lease, str(identity.conversation_id),
-                    model=collector_configuration(runtime.model).model)
-            except (PolicyUnavailable, ValueError, OSError) as error:
-                raise await policy_pending() from error
+            await review_policy()
             profile=await lease.io(storage.profile)
             selected_language=explicit_request(text) or profile.get('preferred_language') or language or detect_reply_locale(text)
             if selected_language not in {'en-AU','zh-CN'}:selected_language='en-AU'

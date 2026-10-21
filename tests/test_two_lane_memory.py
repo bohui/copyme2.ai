@@ -44,11 +44,11 @@ def anchor_question(output, source, quote, start=None, end=None):
 
 def test_two_lane_extraction_includes_place_skill_without_conflicting_output_instruction():
     from apps.api.two_lane_memory import extraction_contract
+    from apps.api.model_request import instruction_manifest
     instructions, schema = extraction_contract()
-    assert 'memoir-place-journey' in instructions
-    assert '河北省承德市附属医院' in instructions
-    assert 'Return only schema-bound' not in instructions
-    assert 'Return schema-bound JSON matching the supplied combined schema' in instructions
+    sources = {item['name'] for item in instruction_manifest(instructions, schema)['artifacts']}
+    assert {'memoir/skills/memoir-place-journey/extraction',
+            'memoir/skills/memoir-author-timeline/derived-hints'} <= sources
     assert {'events', 'place_journeys', 'prepared_questions'} <= set(schema['required'])
 
 
@@ -1017,20 +1017,20 @@ def test_database_rollout_guard_cannot_be_enabled_by_an_authenticated_rpc_caller
     assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='0'
 
 
-@pytest.mark.parametrize('text,language,mode,name,stopped',[
-    ('My name is Joan','en-AU','reply_only','Joan',False),
-    ('我小时候住在承德，常和母亲一起去河边散步。','zh-CN','extract',None,False),
-    ('Dad repaired things.','en-AU','extract',None,False),
-    ('Please continue in English. 我记得花园。','en-AU','extract',None,False),
-    ('What happens to my memories?','en-AU','reply_only',None,False),
-    ('I would like to pause here. Please do not ask another question.','en-AU','reply_only',None,True),
-    ('This is upsetting. Stop here for today.','en-AU','reply_only',None,True),
-    ('这让我很难受。今天就到这里吧。','zh-CN','reply_only',None,True),
-    ('My father repaired bicycles in Hobart. Stop here for today.','en-AU','extract',None,True),
-    ('我父亲在霍巴特修自行车。今天就到这里吧。','zh-CN','extract',None,True),
-    ("Don't discuss my school. I meant my mother, not my sister.",'en-AU','extract',None,False),
+@pytest.mark.parametrize('text,language,mode,name,stopped,restriction',[
+    ('My name is Joan','en-AU','reply_only','Joan',False,None),
+    ('我小时候住在承德，常和母亲一起去河边散步。','zh-CN','extract',None,False,None),
+    ('Dad repaired things.','en-AU','extract',None,False,None),
+    ('Please continue in English. 我记得花园。','en-AU','extract',None,False,None),
+    ('What happens to my memories?','en-AU','reply_only',None,False,None),
+    ('I would like to pause here. Please do not ask another question.','en-AU','reply_only',None,True,None),
+    ('This is upsetting. Stop here for today.','en-AU','reply_only',None,True,None),
+    ('这让我很难受。今天就到这里吧。','zh-CN','reply_only',None,True,None),
+    ('My father repaired bicycles in Hobart. Stop here for today.','en-AU','extract',None,True,None),
+    ('我父亲在霍巴特修自行车。今天就到这里吧。','zh-CN','extract',None,True,None),
+    ("Don't discuss my school. I meant my mother, not my sister.",'en-AU','extract',None,False,"Don't discuss my school."),
 ])
-def test_flag_on_single_collector_work_question_and_language_contract(sql,tmp_path,monkeypatch,text,language,mode,name,stopped):
+def test_flag_on_single_collector_work_question_and_language_contract(sql,tmp_path,monkeypatch,text,language,mode,name,stopped,restriction,fixed_policy_controls):
     from apps.api import agent_routes
     from apps.api.codex_runtime import CodexRuntime
     from apps.api.main import create_app
@@ -1038,13 +1038,15 @@ def test_flag_on_single_collector_work_question_and_language_contract(sql,tmp_pa
     from fastapi.testclient import TestClient
     from memoir_postgres_workflow import PostgresRest
     monkeypatch.setenv('MEMOIR_TWO_LANES','1');monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
+    if restriction:
+        fixed_policy_controls.append(('excluded_topic', restriction))
     calls=[]
     def provider(request):
         body=json.loads(request.content);calls.append(body);packet=json.loads(body['governed']['packet'])
         assert packet['current']['narrator']['original']==text
         assert packet['pinned']['language']==language
         assert packet['interview_context']['two_lane_memory'] is True
-        if "Don't discuss" in text:assert packet['pinned']['excluded_topics']
+        if restriction:assert packet['pinned']['excluded_topics']
         output=proposal(mode=mode,name=name,question='您还记得什么？' if language=='zh-CN' else 'What else do you remember?')
         output['plan']['conversation_phase']='comfort' if mode=='reply_only' else 'explore'
         output['stopped']=stopped

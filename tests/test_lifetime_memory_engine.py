@@ -253,13 +253,13 @@ def test_continuity_validation_diagnostic_names_fixed_reason_without_private_val
     assert diagnostic['event']=='collector_output_rejected'
     assert diagnostic['request_id']==request_id
     assert diagnostic['model']=='synthetic-byte-bpe'
-    assert 'Continuity span must cover exact original characters' in caplog.text
+    assert diagnostic['error_code']=='CONTRACT_08'
     assert 'PRIVATE NARRATOR VALUE' not in caplog.text
 
 
 @pytest.mark.parametrize('source_id,reason', [
-    (str(UUID(int=4)), 'Question evidence span must match the referenced passage'),
-    (str(UUID(int=5)), 'Question evidence is outside the supplied narrator passages'),
+    (str(UUID(int=4)), 'CONTRACT_24'),
+    (str(UUID(int=5)), 'CONTRACT_22'),
 ])
 def test_question_evidence_repair_names_fixed_reason_without_private_values(tmp_path, caplog, monkeypatch, source_id, reason):
     import apps.api.lifetime_memory_engine as engine
@@ -419,9 +419,8 @@ def test_invalid_private_continuity_retries_without_repeating_streamed_acknowled
     assert len({instance.requests[0][1]['baseInstructions'] for instance in FakeConnection.instances}) == 1
 
 
-@pytest.mark.parametrize('invalid_ack', ['An unvalidated question?', '', 'x' * 2001,
-    '好的，我们跳过厨房。您想从哪段经历聊起呢','What would you like to remember.'],
-                         ids=['question', 'empty', 'oversized','bare-chinese-question','bare-english-question'])
+@pytest.mark.parametrize('invalid_ack', ['An unvalidated question?', '', 'x' * 2001],
+                         ids=['question', 'empty', 'oversized'])
 def test_invalid_acknowledgements_stay_hidden_during_bounded_retry(tmp_path, invalid_ack):
     from apps.api.interview_plan import CollectorVisibleStream
     invalid = json.loads(valid_reply())

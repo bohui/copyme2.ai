@@ -44,6 +44,22 @@ def test_semantic_quality_is_absent_without_a_live_judge():
     assert next(item['value'] for item in scores if item['name']=='completion_contract')==1
 
 
+@pytest.mark.parametrize('binding', [{'base_url': ''}, {'api_key': ''}])
+def test_explicit_missing_provider_binding_never_falls_back_to_environment(monkeypatch, binding):
+    import asyncio
+    import httpx
+    from apps.api.model_request import complete_json
+    monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL', 'https://environment.invalid/v1')
+    monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY', 'environment-fixture-key')
+    calls = []
+    async def run():
+        return await complete_json('memoir/skills/memoir-interviewer/policy-review', {}, {}, model='fixture-model',
+            transport=httpx.MockTransport(lambda request: calls.append(request)), **binding)
+    with pytest.raises(ValueError, match='not configured'):
+        asyncio.run(run())
+    assert calls == []
+
+
 @pytest.mark.parametrize('fault',['span','duplicate','kind','incomplete'])
 def test_policy_proposal_validation_cannot_invent_evidence_or_permissions(fault):
     source={'text':'An exact original.'}

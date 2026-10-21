@@ -74,8 +74,9 @@ def controlled_policy_review_transport(monkeypatch, fixed_policy_controls):
             return httpx.Response(200, json=dict(id='controlled-policy-response', status='completed',
                 output=[dict(type='message', status='completed', content=[dict(type='output_text', text=__import__('json').dumps(output))])]))
         kwargs['model']=kwargs.get('model') or 'controlled-policy-model'
+        kwargs.update(base_url='https://policy.invalid/v1', api_key='controlled-policy-key')
         return await original(name, payload, schema, transport=httpx.MockTransport(respond),
-            base_url='https://policy.invalid/v1',api_key='controlled-policy-key',**kwargs)
+            **kwargs)
 
     monkeypatch.setattr(policy_review, 'complete_json', complete)
 

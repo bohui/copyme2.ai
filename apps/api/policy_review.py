@@ -40,7 +40,7 @@ def validate_review(output, source):
     return value.model_dump()
 
 
-async def _review_pending_policy(storage, lease, conversation_id, *, model=None):
+async def _review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None):
     """An unavailable review leaves durable pending state and all other work closed."""
     from psycopg import AsyncConnection
     from psycopg.types.json import Jsonb
@@ -55,6 +55,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None)
     output, receipt = await complete_json('memoir/skills/memoir-interviewer/policy-review',
         {'source': source}, PolicyReview.model_json_schema(),
         model=model or os.getenv('MEMORY_SPARK_COLLECTOR_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL'),
+        base_url=base_url, api_key=api_key,
         body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))
     output = validate_review(output, source)
     connection = await AsyncConnection.connect(os.environ['MEMOIR_PUBLICATION_DATABASE_URL'], connect_timeout=2)
@@ -68,10 +69,11 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None)
         await _settle(asyncio.create_task(connection.close()))
 
 
-async def review_pending_policy(storage, lease, conversation_id, *, model=None):
+async def review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None):
     import httpx
     import psycopg
     try:
-        return await _review_pending_policy(storage, lease, conversation_id,model=model)
+        return await _review_pending_policy(storage, lease, conversation_id,
+            model=model, base_url=base_url, api_key=api_key)
     except (ValueError, KeyError, TypeError, OSError, httpx.HTTPError, psycopg.Error) as error:
         raise PolicyUnavailable() from error

@@ -29,14 +29,13 @@ import tempfile
 import time
 import unicodedata
 from datetime import date, datetime, timezone
+from functools import lru_cache
 from urllib.parse import parse_qs, quote, urlencode, urljoin, urlsplit, urlunsplit
 from urllib.robotparser import RobotFileParser
 from urllib import request as http_request
 from urllib.error import HTTPError, URLError
 import warnings
 from zoneinfo import ZoneInfo
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 VERSION = "1.1.0"
 UA = "PlacePhotoResearch/1.0"
@@ -956,6 +955,15 @@ def _crawl4ai_evidence_id(source_url: str, image_url: str, kind: str) -> str:
     return "c4a-" + hashlib.sha256(f"{source_url}\n{image_url}\n{kind}".encode()).hexdigest()[:24]
 
 
+@lru_cache(maxsize=1)
+def _prompt_adapter():
+    import importlib.util
+    spec = importlib.util.spec_from_file_location('photo_prompt_adapter', Path(__file__).with_name('photo_prompt_adapter.py'))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
     """Require observable native search execution before accepting public leads."""
     _crawl4ai_load_dotenv()
@@ -970,12 +978,10 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
     if (endpoint.scheme not in {"http", "https"} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         fail("llm_search_invalid_endpoint")
-    from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
-    from apps.api.model_request import prompt_manifest
-    from apps.api.llm_tracing import trace_llm_call
+    prompts = _prompt_adapter()
     name = 'memoir/skills/memoir-place-photo-research/discovery'
-    instructions = load_prompt_artifact(prompt_path(name))
-    manifest = prompt_manifest([name], instructions, variant='native-photo-discovery')
+    instructions = prompts.load_prompt_artifact(prompts.prompt_path(name))
+    manifest = prompts.prompt_manifest([name], instructions, variant='native-photo-discovery')
     body = {"model": model, "instructions": instructions,
             "input": json.dumps({'place': place, 'temporal': temporal}, ensure_ascii=False),
             "tools": [{"type": "web_search"}],
@@ -985,7 +991,7 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
     req = http_request.Request(base + "/responses", data=json.dumps(body).encode(),
                                headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     try:
-        with trace_llm_call(name,model,metadata={'prompt_manifest':manifest}):
+        with prompts.trace_llm_call(name,model,metadata={'prompt_manifest':manifest}):
             with http_request.urlopen(req, timeout=timeout) as response:
                 raw = response.read(MAX_PAGE_BYTES + 1)
         if len(raw) > MAX_PAGE_BYTES:
@@ -1076,8 +1082,6 @@ CAPTURE_EVIDENCE_SCHEMA = {'type': 'object', 'additionalProperties': False, 'req
 
 def _caption_date_proposal(records):
     """Managed semantic extraction from fetched public metadata only."""
-    from apps.api.model_request import managed_json_request, decode_json_response
-    from apps.api.llm_tracing import trace_llm_call
     _crawl4ai_load_dotenv()
     base, key, model = (_configured_env(name) for name in (
         'MEMORY_SPARK_LLM_BASE_URL', 'MEMORY_SPARK_LLM_API_KEY', 'MEMORY_SPARK_LLM_MODEL'))
@@ -1085,18 +1089,19 @@ def _caption_date_proposal(records):
         return None
     if len(records)>32 or len(json.dumps(records,ensure_ascii=False).encode())>16000:
         return None
-    body, manifest = managed_json_request('memoir/skills/memoir-place-photo-research/capture-evidence',
+    prompts = _prompt_adapter()
+    body, manifest = prompts.managed_json_request('memoir/skills/memoir-place-photo-research/capture-evidence',
         {'records': records}, CAPTURE_EVIDENCE_SCHEMA, model=model)
     req = http_request.Request(base.rstrip('/') + '/responses', data=json.dumps(body).encode(),
         headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
     try:
-        with trace_llm_call('photo.capture-evidence',model,metadata={'prompt_manifest':manifest}):
+        with prompts.trace_llm_call('photo.capture-evidence',model,metadata={'prompt_manifest':manifest}):
             with http_request.urlopen(req, timeout=30) as response:
                 raw = response.read(256001)
         if len(raw) > 256000:
             return None
         value = json.loads(raw)
-        proposal = decode_json_response(value)
+        proposal = prompts.decode_json_response(value)
         if proposal.get('complete') is not True or not isinstance(proposal.get('assertions'), list) or len(proposal['assertions']) > 32:
             return None
         return {**proposal, 'receipt': {'response_id': value['id'], 'prompt_manifest': manifest}}

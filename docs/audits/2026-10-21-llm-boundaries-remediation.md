@@ -21,6 +21,42 @@ fixed provider tests.
 | 12. Test/eval separation | Ordinary tests use explicit fixed proposals and deny external sockets/DNS. The standalone photo suite uses the same network boundary. Language cases live in a separate synthetic semantic dataset and an explicit live command. Browser E2E is opt-in before optional fixture imports. |
 | 13. Dead stage parser | The unused explicit-stage parser and its phrase-fixture tests were deleted. Source-based extraction owns stage interpretation. |
 
+## PR review regressions
+
+The review of commit `ae790d8` found four introduced defects. The follow-up
+changes address each at its calling boundary:
+
+| Review finding | Fix and regression evidence |
+| --- | --- |
+| Pending review bypassed generation pause | Both retry and newly accepted source paths use one guarded review call. A paused HTTP request leaves the source pending, sends no model request and writes no policy receipt. |
+| Recent normalized photo ranges expanded to whole years | Browser validation checks exact ISO endpoints, order, calendar validity and the current window. A fixed October 21 clock retains the June 1 photo through the authenticated photo API and client replay; future and out-of-window endpoints remain rejected. |
+| Review ignored runtime provider binding | The runtime forwards its effective gateway and key, including proxy path prefixes. Tests cover pending and new sources with an absent or conflicting environment endpoint/key. Explicit empty bindings cannot fall back to process credentials. |
+| Installed photo skill imported the Memoir package | A bundled prompt adapter and the skill-owned prompt resources support isolated installation. Model configuration is checked before loading optional application integration. Offline installed-skill tests exercise caption and discovery requests, exact receipt provenance and rejection of a changed prompt. |
+
+The affected host tests now check stable diagnostic codes and complete provenance
+hashes. The two removed language-heuristic expectations belong to semantic
+evaluation data; the dataset now has 19 cases. Their semantic correctness remains
+unmeasured, including unpunctuated invitations and sibling-age attribution. No
+passing fixed proposal is evidence of model understanding.
+
+Follow-up verification:
+
+| Check | Result |
+| --- | --- |
+| Required `make test-place-research` | 591 JavaScript + 429 API/database + 95 standalone photo tests passed |
+| Focused provider, policy, metadata, diagnostic and combined-contract regressions | 293 passed |
+| Canonical worker/in-process, HTTP runtime and atomic privacy checks | 52 passed |
+| Photo skill packaging | Standard `_validate-skills` target passed |
+| Semantic evaluation plan | 19 cases, zero model calls |
+| Syntax and whitespace | Python compilation and `git diff --check` passed |
+
+A broader run exposed 46 failures in `tests/test_codex_agent.py` involving removed
+legacy runtime methods and missing canonical publication context. The same 46
+test IDs fail against an isolated copy of base `d9dfaea` (3 pass on both). These
+pre-existing failures remain; the full suite is not reported green. Two further
+stale two-lane fixtures from the broader run were repaired and pass in the
+focused check above.
+
 ## Privacy behavior and tradeoff
 
 Acceptance durably records the source before review. Until review completes,

@@ -1154,6 +1154,54 @@ def test_expansion_through_authenticated_photo_endpoint_without_database(monkeyp
 
 
 
+def test_current_api_photo_keeps_its_normalized_day_in_the_client(monkeypatch):
+    from pathlib import Path
+    import subprocess
+    from fastapi.testclient import TestClient
+    from apps.api import place_photo_pages
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 10, 21, 12, tzinfo=ZoneInfo('Australia/Sydney'))
+
+    monkeypatch.setattr(photos, 'datetime', Clock)
+    center = {'latitude': 40.98, 'longitude': 117.94}
+    item = {'asset_id': 'normalized-current', 'image_url': 'https://images.example/current.jpg',
+        'date_expression': '2026-06-01', 'scene_date_range': {
+            'start': '2026-06-01', 'end': '2026-06-01', 'precision': 'day', 'basis': 'source_caption'},
+        'date_basis': 'source_caption', 'allowed_actions': {'embed': True}, **center}
+    monkeypatch.setattr(place_photo_pages, 'search_place_photos', lambda *args, **kwargs: [item])
+    with TestClient(create_app(MemoryStore())) as client:
+        headers = {'X-Account-Id': 'current-photo-owner'}
+        project = client.post('/v1/projects', headers=headers, json={'mode': 'self'}).json()['id']
+        response = client.get(f'/v1/projects/{project}/place-photos', headers=headers,
+            params={'place': 'Chengde', **center})
+        assert response.status_code == 200, response.text
+        items = response.json()['items']
+        assert [photo['asset_id'] for photo in items] == ['normalized-current']
+    program = r'''
+const fs = require('node:fs'), vm = require('node:vm');
+const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+class Clock extends Date {
+  constructor(...args) { super(...(args.length ? args : ['2026-10-21T12:00:00Z'])); }
+}
+const source = fs.readFileSync('apps/web/client/memoir/photo-workspace.mjs', 'utf8').replace(/^  /gm, '');
+const context = vm.createContext({Date: Clock});
+for (const name of ['photoSearchPeriod', 'placePhotoCenter', 'photoMatchesScope']) {
+  vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
+}
+process.stdout.write(JSON.stringify(input.items.filter(item => context.photoMatchesScope(item, input.entry)).map(item => item.asset_id)));
+'''
+    result = subprocess.run(['node', '-e', program], cwd=Path(__file__).resolve().parents[1],
+        input=json.dumps({'items': items, 'entry': {'place': 'Chengde', **center}}),
+        capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == ['normalized-current']
+
+
 def test_album_link_expansion_requires_each_photo_own_capture_date(monkeypatch, serpapi_sources):
     import subprocess
     _, sources, _, fetched = serpapi_sources

@@ -3,6 +3,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from copy import deepcopy
 import json
+import hashlib
 import tomllib
 from uuid import UUID
 
@@ -79,8 +80,14 @@ def test_job_engine_is_fresh_private_and_fenced(tmp_path,phase):
     connection=Connection.instances[0]
     assert connection.requests[0][0]=='thread/start' and connection.requests[0][1]['ephemeral']
     assert connection.turns[0][1]==bounded.packet and result['artifacts']==[]
-    assert connection.turns[0][2]['responsesapi_client_metadata'] == {
-        'generation_name':'memoir-composer','trace_name':'memoir-composer'}
+    metadata=connection.turns[0][2]['responsesapi_client_metadata']
+    assert metadata['generation_name']==metadata['trace_name']=='memoir-composer'
+    assert set(metadata)=={'generation_name','trace_name','prompt_sha256','schema_sha256','manifest_sha256'}
+    assert len(bytes.fromhex(metadata['manifest_sha256']))==32
+    from apps.api.lifetime_memory_job_engine import job_contract
+    instructions,schema=job_contract(bounded.fence)
+    assert metadata['prompt_sha256']==hashlib.sha256(instructions.encode()).hexdigest()
+    assert metadata['schema_sha256']==hashlib.sha256(json.dumps(schema,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     assert publisher.snapshots==[bounded.fence.model_dump(mode='json')]*2
     config=tomllib.loads((connection.home/'config.toml').read_text())
     assert config['memories']=={'generate_memories':False,'use_memories':False}

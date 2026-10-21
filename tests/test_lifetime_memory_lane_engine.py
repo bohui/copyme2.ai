@@ -3,6 +3,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from copy import deepcopy
 import json
+import hashlib
 from pathlib import Path
 import tomllib
 from uuid import UUID
@@ -212,13 +213,19 @@ def test_each_lane_phase_is_fresh_bounded_and_fenced(tmp_path,phase):
     assert instance.requests[0][1]['ephemeral'] is True
     assert instance.turns[0][1]==bounded.packet
     expected_skill = ('memoir-author-timeline' if phase == 'extract' else 'memoir-composer')
-    assert instance.turns[0][2]['responsesapi_client_metadata'] == {
-        'generation_name': expected_skill, 'trace_name': expected_skill}
+    metadata=instance.turns[0][2]['responsesapi_client_metadata']
+    assert metadata['generation_name']==metadata['trace_name']==expected_skill
+    assert set(metadata)=={'generation_name','trace_name','prompt_sha256','schema_sha256','manifest_sha256'}
+    assert len(bytes.fromhex(metadata['manifest_sha256']))==32
     assert 'A narrow original window.' not in instance.requests[0][1]['baseInstructions']
     assert len(publisher.snapshots)==2 and all(s==bounded.fence.model_dump(mode='json') for s in publisher.snapshots)
     assert lane_request_tokens(bounded)<=bounded.budget.input_budget
     from apps.api.lifetime_memory_lane_engine import lane_contract
     instructions,schema=lane_contract(phase,bounded.fence.locale,fence=bounded.fence)
+    from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
+    static=instructions + ('\n' + EXTRACTION_WINDOW_CONTRACT if phase=='extract' else '')
+    assert metadata['prompt_sha256']==hashlib.sha256(static.encode()).hexdigest()
+    assert metadata['schema_sha256']==hashlib.sha256(json.dumps(schema,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     assert instance.requests[0][1]['baseInstructions']==instructions
     assert lane_request_tokens(bounded)==(bounded.budget.count(instructions)
         +bounded.budget.count(bounded.packet)+bounded.budget.count(serialize_packet(schema))

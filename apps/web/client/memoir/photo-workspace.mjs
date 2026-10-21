@@ -95,15 +95,19 @@ export function createPhotoWorkspace({
       && placeHistoryKey({place: picture.search_place}) === placeHistoryKey({place: entry.photo_search_place || entry.place});
     const relaxedTime = relaxedGps && picture.search_fallback === "gps_time";
     const range = picture.scene_date_range;
-    const expression = range?.start && range?.end ? `${range.start}–${range.end}` : picture.date_expression || "";
-    const years = Array.from(expression.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
+    const validDay = value => typeof value === "string" && /^(?:18|19|20)\d{2}-\d{2}-\d{2}$/.test(value)
+      && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
+    if (range && (!validDay(range.start) || !validDay(range.end) || range.start > range.end)) return false;
+    const expression = picture.date_expression || "";
+    const years = range ? [Number(range.start.slice(0, 4)), Number(range.end.slice(0, 4))]
+      : Array.from(expression.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
     const normalizedDate = /^(?:18|19|20)\d{2}(?:s|年代|年|(?:[-/]\d{1,2}){1,2})?(?:[–—-](?:18|19|20)\d{2}(?:[-/]\d{1,2}){0,2})?$/;
     const basis = range?.basis || picture.date_basis;
-    if ((!relaxedTime && (!years.length || !normalizedDate.test(expression)))
+    if ((!relaxedTime && (!years.length || !range && !normalizedDate.test(expression)))
         || basis && !["source_caption","provider_date_taken","original_exif","catalogue","album_caption", ...(relaxedTime ? ["unknown"] : [])].includes(basis)) return false;
     const today = new Date().toLocaleDateString("en-CA", {timeZone: "Australia/Sydney"});
-    const isoDate = expression.match(/^(\d{4}-\d{2}-\d{2})(?:[T ].*)?$/)?.[1];
-    if (Math.max(...years) > Number(today.slice(0, 4)) || (isoDate && (isoDate > today
+    const isoDate = !range && expression.match(/^(\d{4}-\d{2}-\d{2})(?:[T ].*)?$/)?.[1];
+    if (range && range.end > today || Math.max(...years) > Number(today.slice(0, 4)) || (isoDate && (isoDate > today
         || !Number.isFinite(Date.parse(isoDate)) || new Date(isoDate).toISOString().slice(0, 10) !== isoDate))) return false;
     const bounds = (value, expandBareYear = false) => {
       const years = Array.from(value.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
@@ -112,7 +116,7 @@ export function createPhotoWorkspace({
         || (expandBareYear && /^\s*(?:18|19|20)\d{2}\s*$/.test(value))
         ? [years[0], years[0] + 9] : [Math.min(...years), Math.max(...years)];
     };
-    const requested = bounds(period, true), captured = bounds(expression);
+    const requested = bounds(period, true), captured = range ? years : bounds(expression);
     if (!relaxedTime && requested) {
       const yearOnly = /^(?:18|19|20)\d{2}年?$/.test(period);
       const tolerance = requested[0] === requested[1] && yearOnly ? 10 : 0;
@@ -130,7 +134,7 @@ export function createPhotoWorkspace({
       const exact = expression.match(/^(\d{4}-\d{2}-\d{2})(?:[T ].*)?$/)?.[1];
       const parsed = /^[A-Za-z]+ \d{1,2},? \d{4}$/.test(expression) ? new Date(expression) : null;
       const date = exact || (parsed && Number.isFinite(parsed.getTime()) ? parsed.toISOString().slice(0, 10) : null);
-      const start = date || `${captured[0]}-01-01`, end = date || `${captured[1]}-12-31`;
+      const start = range?.start || date || `${captured[0]}-01-01`, end = range?.end || date || `${captured[1]}-12-31`;
       if (start < recent.toISOString().slice(0, 10) || end > today) return false;
     }
     if (relaxedGps) return true;

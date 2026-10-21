@@ -69,8 +69,8 @@ def decode_json_response(value):
 async def complete_json(name, payload, schema, *, model=None, transport=None, body_factory=None, base_url=None, api_key=None):
     import httpx
     body, manifest = managed_json_request(name, payload, schema, model=model)
-    base = (base_url or os.getenv('MEMORY_SPARK_LLM_BASE_URL', '')).rstrip('/')
-    key = api_key or os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
+    base = (os.getenv('MEMORY_SPARK_LLM_BASE_URL', '') if base_url is None else base_url).rstrip('/')
+    key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '') if api_key is None else api_key
     endpoint=urlsplit(base)
     if (not key or not body['model'] or endpoint.scheme not in {'http','https'} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
