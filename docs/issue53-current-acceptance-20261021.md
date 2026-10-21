@@ -94,7 +94,8 @@ optimization has no live latency or bilingual semantic acceptance yet.
 
 The [sanitized evidence](test-evidence/issue53-current-acceptance-20261021.json)
 retains both live campaigns and the red/green evaluator checks. Current integrated
-boundary, streaming and SQL checks pass all 63 tests. The required place/photo
+boundary, streaming and SQL checks pass all 64 tests, including surrounding
+whitespace normalization so the public acknowledgement matches saved rendering. The required place/photo
 target passes 591 JavaScript, 429 API/database and 95 standalone checks in its
 serial rerun. Its first run had one database serialization-conflict failure;
 the isolated six-case background rerun passes. The first concurrent shared-suite
@@ -103,7 +104,9 @@ run exhausted the macOS system file limit; serial evaluator/pin checks pass 48.
 The expanded English offline matrix retained two failed rows (38 completed):
 one exchange was durably saved and publicly completed before a readback assertion,
 and one failed before worker dispatch. They are not successful acceptance rows.
-A serial current-source matrix with a command-outcome-preserving SQL resource
-observer is in progress. No task-owned containers remain from the earlier live
+The serial English rerun passes all 40 rows and ten checks with no SQL resource
+error observed. The Chinese matrix and negative-stream checks are still in
+progress. The diagnostic observer records command failures without changing
+their outcomes. No task-owned containers remain from the earlier live
 campaigns. Other local virtual machines hold most of the host's file handles;
 no unrelated services have been stopped or reconfigured.

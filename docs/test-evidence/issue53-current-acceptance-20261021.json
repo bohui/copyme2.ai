@@ -454,6 +454,82 @@
       "summary": "429 passed in 101.91s (0:01:41)",
       "log_sha256": "a40a8203a3fa3d2a67a5cb03b59ebf5cddae489d46e7f194727ab6525a78451b",
       "native_cleanup_verified": true
+    },
+    {
+      "name": "matrix-en-AU",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021d",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=en-AU",
+        "ISSUE53_SQL_DIAGNOSTIC=/tmp/issue53-current-final-checks-20261021d/sql-resource.jsonl",
+        "PYTHONPATH=/tmp",
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-p",
+        "issue53_sql_diagnostic",
+        "--tb=short",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head_at_dispatch": "2e908d62048cd4f237024b32931601f07de0f54a",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 425.79,
+      "summary": "10 passed, 8 deselected in 423.67s (0:07:03)",
+      "log_sha256": "91f0cca2ed00fbfc41d3eccb9e0b58005df0cd1b3fe315d541feb09e203380bd",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "acknowledgement-whitespace-before",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021d",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_policy_early_ack.py",
+        "-k",
+        "matches_rendered_reply_whitespace"
+      ],
+      "base_head_at_dispatch": "d412c4fc0cdfaa9ce3892f7d38fec3f02254c48f",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_s": 2.96,
+      "summary": "1 failed, 18 deselected in 1.20s",
+      "log_sha256": "2e43adafd26fdd416dc6edeeca2fd3360d429cdb7bf2e03dcc1aa1488cf31f52",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "integrated-boundaries",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021e",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_model_boundaries.py",
+        "tests/test_llm_boundary_regressions.py",
+        "tests/test_policy_early_ack.py",
+        "tests/test_lifetime_policy_atomic_postgres.py"
+      ],
+      "base_head_at_dispatch": "d412c4fc0cdfaa9ce3892f7d38fec3f02254c48f",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 47.06,
+      "summary": "64 passed in 45.36s",
+      "log_sha256": "02aaa917502a90e2313c205cebf3a0f2afee43f3aef1e3af8aed48ca7397ef4a",
+      "native_cleanup_verified": true
     }
   ],
   "remaining": [
@@ -470,6 +546,48 @@
     "The first required place/photo rerun retained one database serialization-conflict failure.",
     "The English matrix retained two failed rows, including one post-save readback failure; neither counts as passed acceptance.",
     "Partial live saved-row summaries are not a matched quality comparison or a production percentile.",
-    "The complete required place/photo target subsequently passed serially: 591 JavaScript, 429 API/database and 95 standalone tests. The isolated six-case background rerun also passed; the original failure remains retained."
-  ]
+    "The complete required place/photo target subsequently passed serially: 591 JavaScript, 429 API/database and 95 standalone tests. The isolated six-case background rerun also passed; the original failure remains retained.",
+    "A surrounding-whitespace regression fails before normalization; all 64 integrated boundary/streaming/SQL checks pass afterward, with padded model acknowledgements in the real HTTP/SQL cases.",
+    "The English serial rerun passes all 40 application rows and 10 checks; the earlier 38-completed/two-failed matrix remains retained. Chinese and fault checks remain in progress."
+  ],
+  "current_provider_policy": {
+    "captured_at": "2026-10-21T10:20:37.250490+00:00",
+    "read_mode": "live_gateway_sqlite_read_only_inside_running_container",
+    "route_configuration": "running litellm environment and mounted configuration",
+    "route_policy": [
+      {
+        "alias": "gpt-5.6-luna-pooled",
+        "configured_model": "openai/gpt-5.6-luna",
+        "configured_effort": "max",
+        "exact_key_policy_matched": true,
+        "policy": {
+          "enforced_model": "gpt-5.6-luna",
+          "enforced_reasoning_effort": "max",
+          "enforced_service_tier": null,
+          "traffic_class": "foreground",
+          "is_active": 1
+        }
+      },
+      {
+        "alias": "gpt-5.6-luna-memoir-low",
+        "configured_model": "openai/gpt-5.6-luna",
+        "configured_effort": "low",
+        "exact_key_policy_matched": true,
+        "policy": {
+          "enforced_model": "gpt-5.6-luna",
+          "enforced_reasoning_effort": "low",
+          "enforced_service_tier": null,
+          "traffic_class": "foreground",
+          "is_active": 1
+        }
+      }
+    ],
+    "keys_or_hashes_retained": false
+  },
+  "english_matrix_serial": {
+    "application_rows_completed": 40,
+    "checks_passed": 10,
+    "sql_file_limit_events": 0,
+    "diagnostic_source_sha256": "53b53a30b9737c1ca3839210d0f088b372ad08afe33bce24150bade2e489f79f"
+  }
 }
