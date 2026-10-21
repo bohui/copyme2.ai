@@ -199,6 +199,90 @@
           }
         }
       ]
+    },
+    {
+      "id": "issue53-worker-profile-20261021c",
+      "status": "aborted",
+      "source_revision": "89759a8edb9512903fedbaa6e4286e87b781bcd5",
+      "raw_receipt_sha256": "8232508bc85202230e81861b33390da1bc5c7c850d644b8f907d66574eff4853",
+      "runner_source_sha256": "b4ba49b82798e305ff1028ec433c857eaef93789d029bf06ef2e3b6cbfdcb8c6",
+      "planned_rows": 80,
+      "executed_rows": 6,
+      "unexecuted_rows": 74,
+      "elapsed_s": 174.161,
+      "background_dispatches": 0,
+      "policy_calls": 6,
+      "native_invocations": 7,
+      "provider_internal_requests": null,
+      "native_retry_notifications": 10,
+      "temporary_worker_homes_removed": true,
+      "foundation_worker_stop_exit_code": 0,
+      "arms": {
+        "baseline": {
+          "saved": 3,
+          "failed": 0,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 3,
+              "median_s": 18.018,
+              "maximum_s": 20.086
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 3,
+              "median_s": 18.813,
+              "maximum_s": 21.306
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 3,
+              "median_s": 18.827,
+              "maximum_s": 21.32
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 3,
+              "median_s": 18.834,
+              "maximum_s": 21.327
+            }
+          }
+        },
+        "candidate": {
+          "saved": 2,
+          "failed": 1,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 2,
+              "median_s": 3.3685,
+              "maximum_s": 3.8
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 2,
+              "median_s": 7.461,
+              "maximum_s": 7.758
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 2,
+              "median_s": 7.502,
+              "maximum_s": 7.813
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 2,
+              "median_s": 7.51,
+              "maximum_s": 7.822
+            }
+          }
+        }
+      },
+      "failed_rows": [
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/candidate",
+          "failure_class": "CanonicalTurnFailed",
+          "error_code": null,
+          "timings": {
+            "first_meaningful_text_s": null,
+            "api_preparation_to_worker_dispatch_s": 5.873,
+            "first_public_text_s": 5.872
+          }
+        }
+      ]
     }
   ],
   "checks": [
@@ -702,5 +786,67 @@
     "scripts/memoir_skill_eval_suite.py": "372e77bd6deac3228d014eaadd19ba720ea9dbea4325c12de77fa8c034314b26",
     "tests/controlled_policy.py": "e1fd1fd9902ad2cd78be8f370f2e926a0d7d5156264b4e0bcb907d48d88cab49",
     "tests/evaluation/response_sequences.json": "1b0155c3e6c59896e0025f767ace2378fe2718d29baafada505e0c9dac89a4f5"
+  },
+  "publication": {
+    "main_receipt_commit": "1bb673fdba0de9afd70f7d3ec328ee37e45b3d59",
+    "verified_artifacts": 90,
+    "prompt_versions": {
+      "policy-review": 2,
+      "governed-repair/codes": 2
+    },
+    "candidate_default_enabled": false
+  },
+  "fixed_acknowledgement_schema": {
+    "red_regressions": 4,
+    "passing_focused_tests": 148,
+    "live_application_fixed_replay": "pending",
+    "raw_probe_receipts": {
+      "issue53-wire-probe-20261021a": "1750aaeafd387e87e9ebd6483aeef9f21c046b88a9de1418d90b797f30a33c69",
+      "issue53-wire-constraint-probe-20261021a": "dd45c9a8f6f9233208e23654de07c511ff83c7d9d1e6926fe0ab56a1bff55321"
+    },
+    "reproduction_cleanup": {
+      "container": "memoir-issue53-worker-c33cccbdaa0e",
+      "inspect_exit_code": 1,
+      "ephemeral_container_removed": true,
+      "direct_root_removal_assertion_passed": false,
+      "foundation_stop_exit_code": 0,
+      "absence_error_verified": true
+    },
+    "required_target_postmerge": {
+      "name": "place-photo",
+      "command": [
+        "make",
+        "test-place-research"
+      ],
+      "exit_code": 0,
+      "base_head": "57d0da0ef0865c50eb7da0e707a2567ed976fcf6",
+      "tree": "f9c94134365a27dcf6cc7f15753aae9c5376da1e",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-3dykbfoe",
+      "command_group": {
+        "group_id": 79954,
+        "leader_started": "Wed Oct 21 21:46:28 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-3dykbfoe",
+            "device": 16777231,
+            "inode": 931495047
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 158.89
+    },
+    "current_source_sha256": {
+      "apps/api/interview_plan.py": "3e0836cc65916b874482284bd5cfdb01a78bb3af63e51fe2f2cb913eda1529f1",
+      "apps/api/lifetime_memory_continuity.py": "8fde84ebfa707c1d106f30c02882d71f60411aed6bdda1b9b6f7484ae53d362b",
+      "apps/api/lifetime_memory_engine.py": "ba7e8484185ffca2ba7d3bcce92ae56b2897b60fa53284132340cd304e1b9738"
+    }
   }
 }

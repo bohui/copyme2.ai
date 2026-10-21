@@ -7,7 +7,8 @@ review introduced by PR105 and does not establish current latency or quality.
 
 The original coding task is
 [the optimization chat](codex://threads/01a1567e-46d6-7e40-afc7-ccd9620731c9).
-The reviewable continuation is [PR106](https://github.com/bohui/copyme2.ai/pull/106).
+[PR106](https://github.com/bohui/copyme2.ai/pull/106) merged at
+`d0d33dbef87a63b69c558402b932e17dbb842f1f`.
 
 ## Current observations
 
@@ -82,13 +83,43 @@ red to green. No semantic or human acceptance gate has been relaxed.
 
 ## Remaining acceptance
 
-New prompt sources require review and merge to main, followed by normal main-only
-publication and receipt verification before live use. No feature-branch prompt
-versions have been published. After publication, repeat the bounded bilingual
-matched workload on the deployed worker path, review the actual public replies,
-retain failures alongside latency, and repeat existing-session/rollback and the
-small browser-proxy smoke before enabling the candidate. The current early-text
-optimization has no live latency or bilingual semantic acceptance yet.
+PR106's prompt sources are published from main. Receipt commit
+`1bb673fdba0de9afd70f7d3ec328ee37e45b3d59` pins policy-review and governed-repair/codes
+to version 2; `make prompt-check` verifies all 90 artifacts. No feature-branch
+prompt versions were published. The candidate still defaults off.
+
+The fresh current-main worker campaign stopped after six of 80 rows: three
+baseline saves, two candidate saves and one candidate failure, with 74 rows
+unexecuted. The first two candidate deltas were grounded statements at 2.937
+and 3.800 seconds, versus 12.160 and 18.018 seconds for the matched baseline.
+The third candidate emitted grounded text at 5.872 seconds but failed to finish
+or save. Its two native turns each received six incomplete provider responses;
+those failures are retained and do not establish acceptance. The campaign made
+seven native invocations and six source-policy calls; its task container stopped
+successfully and temporary worker homes were removed.
+
+A one-turn replay reproduced empty `response.incomplete` events with
+`max_output_tokens`, no explicit request output cap and zero reported usage.
+Four fixed direct-wire probes distinguished the cause: unchanged input, an
+explicit 8,192-token cap and a fresh cache key still failed; removing the fixed
+acknowledgement enum completed and passed the original full schema. Two narrower
+probes both completed with the original enum intact when its redundant regex
+was removed, and both passed the original full schema. This is a reproduced
+provider schema interaction, not evidence that the response needed more tokens.
+
+The follow-up code uses one schema helper for reviewed acknowledgements, fresh
+repairs and fixed historical acknowledgements. It keeps exact enum choices and
+all application validation, removing only the redundant pattern from fixed
+choices. Unconstrained acknowledgements retain the no-question pattern. Four
+new regression cases fail before the fix; all 148 focused schema, engine,
+streaming, SQL, strict-offset and interview-plan checks pass after it. The
+instrumented diagnostic's direct-root-removal assertion failed; its ephemeral
+task container subsequently stopped and a separate inspection confirms removal.
+
+Repeat the original failed application turn, then the bounded bilingual matched
+workload and actual public-reply review. Existing-session/rollback and the small
+browser-proxy smoke also need current evidence before candidate activation.
+The current optimization has no completed live bilingual acceptance yet.
 
 ## Verification record
 
@@ -116,4 +147,4 @@ no unrelated services have been stopped or reconfigured.
 The acknowledgement's required nullable schema follows the
 [official Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs).
 The decoder continues to reject incomplete output; schema validity is not
-semantic-quality evidence. Live prompt publication and acceptance remain pending.
+semantic-quality evidence. Prompt publication is verified; live acceptance remains pending.

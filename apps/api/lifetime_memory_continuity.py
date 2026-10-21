@@ -18,7 +18,7 @@ from uuid import NAMESPACE_URL, uuid5
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .prompt_artifact import load_prompt_artifact, prompt_path
-from .interview_plan import collector_schema, validate_collector_result
+from .interview_plan import collector_schema, constrain_acknowledgement, validate_collector_result
 from .place_journey import grounded_place_journeys, validate_place_journey, PlaceResearchWindow
 
 
@@ -95,7 +95,7 @@ def governed_collector_schema(context=None):
             schema['properties']['selection_reason'] = intent
             schema['required'].append('selection_reason')
     if (context or {}).get('reviewed_acknowledgement') is not None:
-        schema['properties']['acknowledgement']['enum'] = [context['reviewed_acknowledgement']]
+        constrain_acknowledgement(schema, [context['reviewed_acknowledgement']])
     extension = _Updates.model_json_schema()
     schema.setdefault('$defs', {}).update(extension['$defs'])
     item = schema['$defs']['_ContinuityUpdate']['properties']

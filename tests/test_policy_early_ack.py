@@ -123,15 +123,27 @@ def test_cached_acknowledgement_never_crosses_source_language_or_flag(monkeypatc
     assert policy_review.reviewed_acknowledgement(value, source, 'en-AU') is None
 
 
-def test_collector_cannot_change_a_reviewed_acknowledgement():
+@pytest.mark.parametrize('text,acknowledgement', [
+    ('We grew beans beside the kitchen.', 'I hear that you grew beans beside the kitchen.'),
+    ('我们在厨房旁边种豆子。', '您提到在厨房旁边种豆子。'),
+])
+def test_collector_cannot_change_a_reviewed_acknowledgement(text, acknowledgement):
     from test_interview_strategy import context, wire
     from apps.api.lifetime_memory_continuity import validate_governed_collector_result, governed_collector_schema
-    ctx = context(text='My father repaired bicycles.')
-    ctx['reviewed_acknowledgement'] = 'Your father repaired bicycles.'
+    ctx = context(text=text)
+    ctx['reviewed_acknowledgement'] = acknowledgement
     schema = governed_collector_schema(ctx)
     assert schema['properties']['acknowledgement']['enum'] == [ctx['reviewed_acknowledgement']]
     with pytest.raises(ValueError, match='cannot replace the streamed acknowledgement'):
         validate_governed_collector_result(wire(acknowledgement='A replacement.'), ctx)
+    from jsonschema import Draft202012Validator, ValidationError
+    locked = schema['properties']['acknowledgement']
+    Draft202012Validator(locked).validate(acknowledgement)
+    with pytest.raises(ValidationError):
+        Draft202012Validator(locked).validate('A replacement.')
+    assert 'pattern' not in locked
+    ctx.pop('reviewed_acknowledgement')
+    assert 'pattern' in governed_collector_schema(ctx)['properties']['acknowledgement']
 
 
 def test_pending_policy_hides_a_previous_source_acknowledgement(sql):

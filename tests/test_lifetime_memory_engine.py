@@ -458,6 +458,7 @@ def test_fresh_repairs_cannot_change_an_already_streamed_acknowledgement(tmp_pat
                 await options['on_delta'](json.dumps({'acknowledgement': original}))
                 return json.dumps(changed)
             assert options['output_schema']['properties']['acknowledgement']['enum'] == [original]
+            assert 'pattern' not in options['output_schema']['properties']['acknowledgement']
             raw = json.dumps(changed) if attempt == 2 else valid_reply()
             await options['on_delta'](raw)
             return raw
@@ -694,6 +695,7 @@ def test_output_schema_context_is_used_but_not_serialized_twice(tmp_path):
     connection = FakeConnection.instances[0]
     assert connection.turns[0][2]['output_schema']['properties']['acknowledgement']['enum'] == [
         'We can keep following your memories at your pace.']
+    assert 'pattern' not in connection.turns[0][2]['output_schema']['properties']['acknowledgement']
     assert 'historical_news' not in connection.turns[0][1]
 
 
