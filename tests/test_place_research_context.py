@@ -11,6 +11,9 @@ PLACES = [
     {'place': '承德市', 'hierarchy': ['Earth', '中国', '河北省', '承德市'], 'granularity': 'city', 'source_sequence': 1},
 ]
 TEXT = '我现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'
+# Controlled model proposal, not a host interpretation of the source string.
+PLACES[1]['research'] = dict(year_start=1980, year_end=1989, anchor_year=1983,
+    basis='birth_decade', quote=TEXT, char_start=0, char_end=len(TEXT))
 
 
 def view(text=TEXT):
@@ -52,20 +55,12 @@ def test_historical_hypothesis_requires_the_saved_country_hierarchy():
     assert hypothesis['place'] == 'Perth, Australia'
 
 
-@pytest.mark.parametrize('text,expected', [
-    ('我在1980年代住在承德市。现在住在悉尼。', '1980s'),
-    ('I lived in Chengde in the 1980s.', '1980s'),
-    ('1982–1985年我住在承德市。', '1982–1985'),
-    ('我父亲于1983年在承德市出生。', ''),
-    ('我不是1983年在承德市出生的。', ''),
-    ('我大约1983年在承德市出生。', ''),
-    ('我现在生活在悉尼。', ''),
-])
-def test_explicit_periods_and_unsupported_birth_claims(text, expected):
+@pytest.mark.parametrize('start,end,period', [(1980,1989,'1980s'),(1982,1985,'1982–1985'),(1980,1980,'1980')])
+def test_fixed_normalized_window_projects_to_the_shared_search_period(start,end,period):
     from apps.api.place_research import research_places
-    value = view(text)
-    places = research_places(value['places'], value['sources'])
-    assert places[1]['research_period'] == expected
+    value = view()
+    value['places'][1]['research'].update(year_start=start,year_end=end,anchor_year=start,basis='explicit_period')
+    assert research_places(value['places'],value['sources'])[1]['research_period']==period
 
 
 def test_withdrawn_or_unrelated_source_never_supplies_a_place_period():

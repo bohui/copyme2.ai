@@ -1901,7 +1901,7 @@ def create_app(
         data = payload.model_dump(exclude_unset=True)
         text = str(session["question"].get("text") or "").strip()
         language = str(data.get("language") or project.get("profile", {}).get("preferred_language") or "en-AU")
-        character = speech_character(language, voice=data.get("voice"), instructions=data.get("instructions"))
+        character = speech_character(language, voice=data.get("voice"), prompt_name=data.get("prompt_name"))
         voice, instructions = character["voice"], character["instructions"]
         speed = character["speed"]
         output_format = str(data.get("output_format") or "mp3")
@@ -1918,7 +1918,7 @@ def create_app(
             _project(memory, existing["project_id"], actor)
             return response_for(existing, cached=True, status_code=200)
         try:
-            generated = selected_speech_service.synthesize(text, language=language, voice=voice, instructions=instructions, speed=speed, output_format=output_format, model=model)
+            generated = selected_speech_service.synthesize(text, language=language, voice=voice, prompt_name=data.get("prompt_name"), speed=speed, output_format=output_format, model=model)
         except SpeechUnavailable as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
         except SpeechProviderError as exc:

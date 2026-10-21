@@ -34,11 +34,11 @@ test('explicit calendar period takes priority and remains grounded', () => {
   const context = vm.createContext({});
   vm.runInContext(source.match(/function photoSearchPeriod\([^]*?\n\}/)[0], context);
   assert.equal(context.photoSearchPeriod({period: '1980s'}, {when: '青年时期'}), '1980s');
-  assert.equal(context.photoSearchPeriod({}, {when: '1983年'}), '1983年');
-  assert.equal(context.photoSearchPeriod({}, {when: '1980–1989'}), '1980–1989');
+  assert.equal(context.photoSearchPeriod({}, {when: '1983年'}), '');
+  assert.equal(context.photoSearchPeriod({}, {when: '1980–1989'}), '');
   assert.equal(context.photoSearchPeriod({place: '悉尼', period: ''}, {when: '1983年4月'}), '');
   assert.equal(context.photoSearchPeriod({place: '承德市', period: '1983年4月'}, {when: '小时候'}), '1983年4月');
-  assert.equal(context.photoSearchPeriod({place: '承德市', period: ''}, {where: '河北省承德市', when: '1980s'}), '1980s');
+  assert.equal(context.photoSearchPeriod({place: '承德市', period: ''}, {where: '河北省承德市', when: '1980s'}), '');
   assert.equal(context.photoSearchPeriod({place: '悉尼', period: ''}, {where: '承德市', when: '1980s'}), '');
   assert.equal(context.photoSearchPeriod({place: '承德市', research_period: '1980s'}, {}), '1980s');
   assert.equal(context.photoSearchPeriod({place: '悉尼', research_period: ''}, {when: '1980s'}), '');

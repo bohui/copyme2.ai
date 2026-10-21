@@ -103,5 +103,5 @@ def test_speech_calls_are_traced_without_recording_audio_or_text(monkeypatch):
         "mime_type": "audio/webm",
     }
     assert client.observations[1].fields["input"] == {"kind": "text", "characters": len("private answer")}
-    assert all("private" not in json.dumps(observation.fields) for observation in client.observations)
+    assert all("private" not in json.dumps(observation.fields,default=lambda p: {'name':p.name,'version':p.version}) for observation in client.observations)
     http_client.close()

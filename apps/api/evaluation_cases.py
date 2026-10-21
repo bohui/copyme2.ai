@@ -1,29 +1,24 @@
-"""Checked-in synthetic cases for the Memoir trajectory evaluator.
+"""Fixed trajectory fixtures for the deterministic scorer.
 
-The cases exercise ``CodexRuntime.turn`` and its private-worker seam with an
-isolated in-process worker/storage fixture. They are deterministic and safe to
-run in ordinary CI; setting a real worker URL is a separate live-provider run.
+No application or model is executed. Canonical database workflow tests cover
+application boundaries; explicit live commands measure language behavior.
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
-import hashlib
 import json
 import os
 from typing import Any, Mapping
 from uuid import uuid4
 
-import httpx
 
-from .codex_runtime import CodexRuntime
-from .memoir_tasks import execute_task
 from .trajectory_evaluation import TrajectoryRecorder, build_skill_manifest, normalise_correlation
 
 
 DATASET_NAME = "memoir-synthetic"
-DATASET_VERSION = "memoir-synthetic/2"
+DATASET_VERSION = "memoir-synthetic/3"
 RUBRIC_VERSION = "memoir-trajectory-rubric/2"
 
 
@@ -183,7 +178,8 @@ class SyntheticWorker:
             )
         reply = str(synthetic.get("reply") or "I can keep this memory grounded and uncertain where needed.")
         recorder.record("application", "worker.turn.completed", output={"thread_id": "synthetic-thread", "reply": reply})
-        recorder.finish(reply, status="completed", stop_reason="turn.completed")
+        recorder.finish(reply, status="completed", stop_reason="turn.completed",
+                        state=synthetic.get('final_state', {}))
         return {
             "thread_id": "synthetic-thread",
             "reply": reply,
@@ -193,74 +189,10 @@ class SyntheticWorker:
         }
 
 
-class SyntheticRuntime(CodexRuntime):
-    def __init__(self, case: Mapping[str, Any]) -> None:
-        super().__init__(
-            worker_url="http://synthetic-private-worker",
-            worker_secret="synthetic-secret",
-            model="synthetic-model",
-            task_publisher_enabled=True,
-        )
-        self.worker = SyntheticWorker(case)
-
-        async def handle(request: httpx.Request) -> httpx.Response:
-            if request.url.path != "/internal/codex/turn":
-                return httpx.Response(404, request=request)
-            payload = json.loads(request.content.decode("utf-8"))
-            result = await self.worker.turn(**payload)
-            encoded = json.dumps(result, ensure_ascii=False)
-            if "application/x-ndjson" in request.headers.get("accept", ""):
-                events = "\n".join(json.dumps(event, ensure_ascii=False) for event in (
-                    {"type": "text_delta", "text": result["reply"]},
-                    {"type": "provider_complete", "data": result},
-                    {"type": "result", "data": result},
-                )) + "\n"
-                return httpx.Response(
-                    200,
-                    headers={"content-type": "application/x-ndjson"},
-                    content=events.encode("utf-8"),
-                    request=request,
-                )
-            return httpx.Response(200, headers={"content-type": "application/json"}, content=encoded.encode("utf-8"), request=request)
-
-        self.worker_transport = httpx.MockTransport(handle)
-
-    async def publish_task(self, user_id: str, project_id: str, task: Any) -> dict[str, Any]:
-        """Execute the deterministic task locally inside the isolated fixture."""
-        encoded = json.dumps(task.model_dump(), ensure_ascii=False, sort_keys=True)
-        task_id = "synthetic-task-" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()[:16]
-        return {
-            "id": task_id,
-            "project_id": project_id,
-            "kind": task.kind,
-            "status": "SUCCEEDED",
-            "attempts": 1,
-            "result": execute_task(task),
-            "error": None,
-        }
-
-
 async def run_case(case: Mapping[str, Any], correlation: Mapping[str, str]) -> dict[str, Any]:
-    """Execute one case through the normal runtime/private-worker seam."""
+    """Replay a fixed scorer fixture. This does not execute the application."""
     case = normalise_case(case)
-    storage = SyntheticStorage(case, correlation)
-    runtime = SyntheticRuntime(case)
-
-    async def discard_delta(_chunk: str) -> None:
-        return None
-
-    input_data = case["input"]
-    result = await runtime.turn(
-        storage,
-        str(input_data.get("text") or ""),
-        project_id=storage.project_id,
-        language=input_data.get("language"),
-        on_delta=discard_delta,
-        evaluation=correlation,
-        include_trajectory=True,
-        evaluation_context={
-            "enabled_skills": case["enabled_skills"],
-            "available_tools": case["available_tools"],
-        },
-    )
+    result = await SyntheticWorker(case).turn(
+        text=case['input']['text'], language=case['input']['language'], evaluation=correlation)
+    result['evaluation_scope'] = 'scorer_fixture'
     return result

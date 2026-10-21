@@ -36,6 +36,8 @@ class AcceptedResponsePending(MaintenancePending):
 
 
 def place_workspace_update(project_id, journeys):
+    from .place_research import normalized_research_fields
+    journeys=[{**place,**normalized_research_fields(place.get('research'))} for place in journeys]
     return {'project_id':project_id,'source_sequence':max(place.get('source_sequence',0) for place in journeys),
         'place_journey':journeys[-1],'place_journeys':journeys,
         'place_journey_change':{'changed':True,'mentioned':True}}
@@ -118,7 +120,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     two_lane=two_lanes_enabled()
     from .conversation_locale import detect_reply_locale,explicit_request
     from .interview_plan import CollectorVisibleStream,collector_instructions,public_interview_fields
-    from .lifetime_memory_continuity import (GOVERNED_CONTINUITY_INSTRUCTIONS,LiteralContinuityInputError,validate_literal_continuity_input,validate_governed_collector_result)
+    from .lifetime_memory_continuity import (GOVERNED_CONTINUITY_INSTRUCTIONS,validate_governed_collector_result)
     from .lifetime_memory_engine import (CollectorResponseUnavailable,GovernedCollectorInput,
         governed_request_overhead,run_governed_collector)
     from .lifetime_memory_outbox import LifetimeMemoryOutbox
@@ -168,14 +170,15 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             replay=await call('read_lifetime_two_lane_reply' if two_lane else 'read_lifetime_reply',p_conversation_id=str(identity.conversation_id),p_client_turn_id=client_turn_id)
         policy_status=await call('read_lifetime_policy_status',p_conversation_id=str(identity.conversation_id))
         if policy_status.get('pending'):
-            raise await policy_pending(policy_status)
-        if user_response and replay is None:
+            from .policy_review import review_pending_policy
             try:
-                validate_literal_continuity_input(text,source_kind=source_kind)
-            except LiteralContinuityInputError:
-                if already_accepted:
-                    raise await policy_pending() from None
-                raise InputLimitExceeded('This message exceeds the explicit privacy-control request limit; the original was not accepted or truncated') from None
+                await review_pending_policy(storage, lease, str(identity.conversation_id),
+                    model=collector_configuration(runtime.model).model)
+            except (PolicyUnavailable, ValueError, OSError) as error:
+                raise await policy_pending() from error
+            policy_status=await call('read_lifetime_policy_status',p_conversation_id=str(identity.conversation_id))
+            if policy_status.get('pending'):
+                raise await policy_pending(policy_status)
         if replay is not None:
             response={**replay,'cached':True,'recall_status':access}
             response['recordings']=await lease.io(storage.source_recordings,project_id,replay['accepted_source_id']) if callable(getattr(storage,'source_recordings',None)) else []
@@ -224,6 +227,14 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             source=accepted.get('source')
             if not source:raise ValueError('Governed narrator turn requires a canonical source')
             accepted_source_id=source['id']
+            # Older private context remains blocked until the current source's
+            # bounded semantic policy review commits under its original fence.
+            from .policy_review import review_pending_policy
+            try:
+                await review_pending_policy(storage, lease, str(identity.conversation_id),
+                    model=collector_configuration(runtime.model).model)
+            except (PolicyUnavailable, ValueError, OSError) as error:
+                raise await policy_pending() from error
             profile=await lease.io(storage.profile)
             selected_language=explicit_request(text) or profile.get('preferred_language') or language or detect_reply_locale(text)
             if selected_language not in {'en-AU','zh-CN'}:selected_language='en-AU'
@@ -231,7 +242,6 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 language_fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
                 selected_language=await call('set_lifetime_language',p_fence=language_fence,p_language=selected_language,p_explicit=bool(explicit_request(text)))
             fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
-            # Source acceptance atomically persists the complete literal policy.
             publication.set_fence(fence)
             progress=TurnProgress(on_event,client_turn_id,project_id,selected_language,enabled=thinking_steps_enabled())
             if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
@@ -302,10 +312,10 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
             if context.get('strategy_selector'):
                 instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS
-                # Places are optional B work, so omit that extension from A.
-                instructions=instructions[:instructions.index('Return place_journeys')]
-            elif two_lane:
+            if two_lane:
                 instructions+=CONVERSATION_INSTRUCTIONS
+            else:
+                instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-places'))
             try:
                 packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
                 tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)

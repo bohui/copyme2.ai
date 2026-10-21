@@ -16,9 +16,13 @@ import json
 import os
 from pathlib import Path
 import time
+import sys
 from urllib.parse import urlsplit
 
 import httpx
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from apps.api.model_request import prompt_manifest, manifest_metadata
+from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
 
 
 def read_env(path: Path) -> dict[str, str]:
@@ -100,13 +104,17 @@ async def main() -> int:
     api_key = os.getenv("MEMORY_SPARK_LLM_API_KEY") or file_env.get("MEMORY_SPARK_LLM_API_KEY") or ""
     request_body = {
         "model": model,
-        "input": "For this synthetic capability check only: what is the capital of Australia? If web search is used, include source citations.",
+        "input": load_prompt_artifact(prompt_path('memoir/evaluation/probes/web-search')),
         "tools": [{"type": "web_search"}],
         "max_output_tokens": 120,
     }
+    instructions = load_prompt_artifact(prompt_path('memoir/evaluation/probes/web-search'))
+    manifest = prompt_manifest(['memoir/evaluation/probes/web-search'],instructions,variant='synthetic-probe')
+    request_body['metadata']=manifest_metadata(manifest)
     receipt: dict[str, object] = {
         "schema_version": "memoir-provider-web-search-probe/1",
         "recorded_at": utc_now(),
+        "prompt_manifest": manifest,
         "base_url": base_url,
         "model": model,
         "request_kind": "one synthetic Responses web_search capability probe; not a Memoir round",

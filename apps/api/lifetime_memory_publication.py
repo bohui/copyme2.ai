@@ -19,6 +19,7 @@ class PublicationDatabaseUnavailable(PublicationUnavailable):
 
 
 class TransactionalPublication:
+    lock_function = 'lock_lifetime_publication'
     def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=5.0):
         if not dsn:
             raise PublicationUnavailable('Governed publication requires a transactional database connection')
@@ -53,7 +54,7 @@ class TransactionalPublication:
                         "set_config('request.jwt.claim.sub',%s,true),set_config('lock_timeout',%s,true)",
                         (str(self.owner), f'{int(self.lock_timeout*1000)}ms'))
                     lease_started = asyncio.get_running_loop().time()
-                    result = await connection.execute('select public.lock_lifetime_publication(%s)', (Jsonb(snapshot),))
+                    result = await connection.execute('select public.' + self.lock_function + '(%s)', (Jsonb(snapshot),))
                     remaining = float((await result.fetchone())[0])
                     lease_deadline = lease_started + remaining
                     activation_pending = True

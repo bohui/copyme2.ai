@@ -63,20 +63,15 @@ def test_provider_receives_the_localized_voice_and_delivery(language, voice, del
     assert "language" not in requests[0]  # Language selects delivery; it is not a speech API field.
 
 
-def test_additional_locales_and_explicit_options_can_choose_their_own_character(monkeypatch):
-    requests = []
-
-    def provider(request):
-        requests.append(json.loads(request.content))
-        return httpx.Response(200, content=b"audio")
-
-    client = httpx.Client(base_url="https://speech.test/v1", transport=httpx.MockTransport(provider))
-    speech = OpenAISpeechService("test-key", client=client)
-    monkeypatch.setenv("MEMORY_SPARK_TTS_VOICE_FR_FR", "shimmer")
-    monkeypatch.setenv("MEMORY_SPARK_TTS_INSTRUCTIONS_FR_FR", "Parlez avec douceur en français.")
-    speech.synthesize("Un souvenir.", language="fr-FR")
-    speech.synthesize("Un souvenir.", language="fr-FR", voice="nova", instructions="Une autre voix.")
-    assert requests[0]["voice"] == "shimmer"
-    assert requests[0]["instructions"] == "Parlez avec douceur en français."
-    assert requests[1]["voice"] == "nova"
-    assert requests[1]["instructions"] == "Une autre voix."
+def test_voice_override_uses_only_managed_delivery_policy(monkeypatch):
+    from apps.api.speech import speech_character
+    monkeypatch.setenv('MEMORY_SPARK_TTS_VOICE_FR_FR', 'shimmer')
+    monkeypatch.setenv('MEMORY_SPARK_TTS_INSTRUCTIONS_FR_FR', 'Unmanaged policy must not be sent')
+    character = speech_character('fr-FR')
+    assert character['voice']=='shimmer'
+    assert character['instructions'] != 'Unmanaged policy must not be sent'
+    assert speech_character('fr-FR',voice='nova',prompt_name='memoir/speech/en-AU')['voice']=='nova'
+    with pytest.raises(ValueError,match='managed'):
+        speech_character('fr-FR',prompt_name='unmanaged')
+    with pytest.raises(ValueError,match='managed'):
+        OpenAISpeechService('test').synthesize('Text',instructions='Unmanaged')

@@ -8,35 +8,36 @@ from typing import Any
 
 import httpx
 from .prompt_artifact import load_prompt_artifact, prompt_path
+from .model_request import prompt_manifest
 from .llm_tracing import mark_llm_trace_error, trace_llm_call, update_llm_trace
 
 
 _SPEECH_CHARACTERS = {
-    "zh-cn": {
-        "voice": "coral",
-        "speed": 1.1,
-        "instructions": load_prompt_artifact(prompt_path('memoir/speech/zh-CN')),
-    },
-    "en-au": {
-        "voice": "marin",
-        "instructions": load_prompt_artifact(prompt_path('memoir/speech/en-AU')),
-    },
+    'zh-cn': {'voice': 'coral', 'speed': 1.1, 'prompt_name': 'memoir/speech/zh-CN'},
+    'en-au': {'voice': 'marin', 'prompt_name': 'memoir/speech/en-AU'},
 }
 
 
+def speech_prompt_name(language, prompt_name=None):
+    locale = str(language or 'en-AU').strip().replace('_', '-').lower()
+    locale = {'zh': 'zh-cn', 'en': 'en-au'}.get(locale, locale)
+    name = prompt_name or _SPEECH_CHARACTERS.get(locale, {}).get('prompt_name', 'memoir/speech/default')
+    if name not in {'memoir/speech/default', 'memoir/speech/en-AU', 'memoir/speech/zh-CN'}:
+        raise ValueError('Unknown managed speech prompt')
+    return name
+
+
 def speech_character(language: str | None, *, voice: str | None = None,
-                     instructions: str | None = None) -> dict[str, Any]:
-    """Choose server-owned voice and delivery defaults for an interview locale."""
-    locale = str(language or "en-AU").strip().replace("_", "-").lower()
-    locale = {"zh": "zh-cn", "en": "en-au"}.get(locale, locale)
-    suffix = re.sub(r"[^A-Z0-9]", "_", locale.upper())
-    default = _SPEECH_CHARACTERS.get(locale, {
-        "voice": "marin", "instructions": load_prompt_artifact(prompt_path('memoir/speech/default')),
-    })
+                     prompt_name: str | None = None) -> dict[str, Any]:
+    """Choose versioned delivery policy; voice remains a typed provider option."""
+    locale = str(language or 'en-AU').strip().replace('_', '-').lower()
+    locale = {'zh': 'zh-cn', 'en': 'en-au'}.get(locale, locale)
+    suffix = re.sub(r'[^A-Z0-9]', '_', locale.upper())
+    default = _SPEECH_CHARACTERS.get(locale, {'voice': 'marin'})
     return {
-        "voice": (voice or "").strip() or os.getenv(f"MEMORY_SPARK_TTS_VOICE_{suffix}", "").strip() or default["voice"],
-        "instructions": (instructions or "").strip() or os.getenv(f"MEMORY_SPARK_TTS_INSTRUCTIONS_{suffix}", "").strip() or default["instructions"],
-        "speed": default.get("speed", 1.0),
+        'voice': (voice or '').strip() or os.getenv(f'MEMORY_SPARK_TTS_VOICE_{suffix}', '').strip() or default['voice'],
+        'instructions': load_prompt_artifact(prompt_path(speech_prompt_name(language, prompt_name))),
+        'speed': default.get('speed', 1.0),
     }
 
 
@@ -136,9 +137,11 @@ class OpenAISpeechService:
             return result
 
     def synthesize(self, text: str, **options: Any) -> dict[str, Any]:
+        if options.get('instructions') is not None:
+            raise ValueError('Use a managed speech prompt_name')
         model = str(options.get("model") or self.tts_model)
         character = speech_character(options.get("language"), voice=options.get("voice"),
-                                     instructions=options.get("instructions"))
+                                     prompt_name=options.get("prompt_name"))
         payload: dict[str, Any] = {
             "model": model,
             "input": text,
@@ -154,6 +157,9 @@ class OpenAISpeechService:
                 "provider": self.provider,
                 "endpoint": "audio.speech",
                 "voice": payload["voice"],
+                "prompt_manifest": prompt_manifest(
+                    [speech_prompt_name(options.get('language'), options.get('prompt_name'))], payload['instructions'],
+                    variant='speech'),
                 "response_format": payload["response_format"],
             },
         ) as trace:

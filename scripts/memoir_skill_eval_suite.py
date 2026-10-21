@@ -65,12 +65,15 @@ def inventory():
             if not name.startswith('memoir/skills/' + skill + '/'):
                 continue
             from apps.api.prompt_artifact import load_prompt_artifact
-            from apps.api.prompt_composition import composition_receipt
+            from apps.api.prompt_composition import render_prompt_artifact
+            from apps.api.model_request import prompt_manifest
             path = ROOT / relative
             load_prompt_artifact(path)
-            pin = json.loads(path.with_name(path.name + '.langfuse.json').read_text())
-            definition['prompt_sources'].append(dict(name=name, path=relative, version=pin['version'],
-                sha256=pin['sha256'], composition=composition_receipt(path)))
+            manifest=prompt_manifest([name],render_prompt_artifact(path))
+            pin=manifest['artifacts'][0]
+            definition['prompt_sources'].append(dict(name=name,path=relative,version=pin['version'],
+                status=pin['status'],sha256=pin['sha256'],composition=dict(
+                    sha256=manifest['prompt_sha256'],components=manifest['artifacts'][1:])))
         result[skill] = definition
     return json.loads(json.dumps(result))
 

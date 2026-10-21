@@ -1,0 +1,970 @@
+{
+  "audit_date": "2026-10-21",
+  "timezone": "Australia/Sydney",
+  "git_commit": "df76b1154f1ab7ae14e4b0ff06eb28402314a177",
+  "scope": "LLM prompt governance, deterministic tests versus model evaluation, semantic regex interpretation; static repository scan plus targeted local checks",
+  "counts": {
+    "catalog_artifacts": 70,
+    "registered_artifacts": 81,
+    "matching_local_receipts": 81,
+    "mismatching_local_receipts": 0,
+    "python_files": {
+      "apps/api": 113,
+      "scripts": 99,
+      "skills": 6,
+      "tests": 407
+    },
+    "test_function_definitions": 3400,
+    "python_re_call_sites": {
+      "apps/api": 202,
+      "scripts": 144,
+      "skills": 63,
+      "tests": 62
+    },
+    "api_re_files": 32
+  },
+  "prompts": [
+    {
+      "name": "memoir/evaluation/five-case-judge",
+      "path": "tests/evaluation/memoir_five_case_judge_prompt.md",
+      "receipt_path": "tests/evaluation/memoir_five_case_judge_prompt.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "9ca0213f4b44be0432ab633c02979edd5acd13f77f132cfc938832e42570a4db",
+      "actual_sha256": "9ca0213f4b44be0432ab633c02979edd5acd13f77f132cfc938832e42570a4db",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/five-case-judge/guard",
+      "path": "tests/evaluation/prompts/five-case-judge/guard.md",
+      "receipt_path": "tests/evaluation/prompts/five-case-judge/guard.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "5beb9825df0498e8479923848b50bc7d51244c89c779c8fa9411fa5bb50629fe",
+      "actual_sha256": "5beb9825df0498e8479923848b50bc7d51244c89c779c8fa9411fa5bb50629fe",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/live-skills/historical-lead",
+      "path": "tests/evaluation/prompts/live-skills/historical-lead.md",
+      "receipt_path": "tests/evaluation/prompts/live-skills/historical-lead.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "26f8246ed283766a25d6c693da4f0297560904ef3869a521164664c45e0082d1",
+      "actual_sha256": "26f8246ed283766a25d6c693da4f0297560904ef3869a521164664c45e0082d1",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/live-skills/independent-events",
+      "path": "tests/evaluation/prompts/live-skills/independent-events.md",
+      "receipt_path": "tests/evaluation/prompts/live-skills/independent-events.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "5db0d3708e75b39394991834ce5dedd8a5c119e5f78baa728661505554e32093",
+      "actual_sha256": "5db0d3708e75b39394991834ce5dedd8a5c119e5f78baa728661505554e32093",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/live-skills/native-search",
+      "path": "tests/evaluation/prompts/live-skills/native-search.md",
+      "receipt_path": "tests/evaluation/prompts/live-skills/native-search.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "cadef7da2324b0c83655dc6d9b8c690ec034ea375a3e1e31fbf2f42f6e665bc1",
+      "actual_sha256": "cadef7da2324b0c83655dc6d9b8c690ec034ea375a3e1e31fbf2f42f6e665bc1",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/live-skills/photo-lead",
+      "path": "tests/evaluation/prompts/live-skills/photo-lead.md",
+      "receipt_path": "tests/evaluation/prompts/live-skills/photo-lead.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "9f294a84742fc492197b5379182e7c86a32374b228f45ef5b01f0129174343c5",
+      "actual_sha256": "9f294a84742fc492197b5379182e7c86a32374b228f45ef5b01f0129174343c5",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/live-skills/place-groups",
+      "path": "tests/evaluation/prompts/live-skills/place-groups.md",
+      "receipt_path": "tests/evaluation/prompts/live-skills/place-groups.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "8608c7d241e54df1b460248bf12e26c373361f4b9f4b20f50a92324aecf447cc",
+      "actual_sha256": "8608c7d241e54df1b460248bf12e26c373361f4b9f4b20f50a92324aecf447cc",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/live-skills/story-game",
+      "path": "tests/evaluation/prompts/live-skills/story-game.md",
+      "receipt_path": "tests/evaluation/prompts/live-skills/story-game.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "63cc78d70c64a1f96036947421e4e9d29aa2cc8c1441560218d5bb94b26af045",
+      "actual_sha256": "63cc78d70c64a1f96036947421e4e9d29aa2cc8c1441560218d5bb94b26af045",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-author-timeline/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-author-timeline.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-author-timeline.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "8988996834a0225f4803d814c6f98fe1ce65cbde9e7edb98975a8cfd49029897",
+      "actual_sha256": "8988996834a0225f4803d814c6f98fe1ce65cbde9e7edb98975a8cfd49029897",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-composer/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-composer.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-composer.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "705c405b971edbf6c25f0fdb36af426dff03c5159e61ef62eeeaa2ccb3314031",
+      "actual_sha256": "705c405b971edbf6c25f0fdb36af426dff03c5159e61ef62eeeaa2ccb3314031",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-family-tree/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-family-tree.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-family-tree.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "5282ab0846d4440713800a9fc7cb2dab4e24eca2de63ac7de5c6a195718353ca",
+      "actual_sha256": "5282ab0846d4440713800a9fc7cb2dab4e24eca2de63ac7de5c6a195718353ca",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-historical-news-research/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-historical-news-research.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-historical-news-research.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "a8c5a1ce06c75e655656567649b7b08a224a7874d665b6e01e74e0e576a6433d",
+      "actual_sha256": "a8c5a1ce06c75e655656567649b7b08a224a7874d665b6e01e74e0e576a6433d",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-interviewer/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-interviewer.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-interviewer.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "79a295bf91bf40e99bd30e12ff9440bfc4c6c38d6bb22c304ef9a3e7f148509f",
+      "actual_sha256": "79a295bf91bf40e99bd30e12ff9440bfc4c6c38d6bb22c304ef9a3e7f148509f",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-memory-context/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-memory-context.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-memory-context.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "ce4ba4b18e11dcfc6d477bd975d2a8316df3dcbe1e2580373fabf3cf4cb561e7",
+      "actual_sha256": "ce4ba4b18e11dcfc6d477bd975d2a8316df3dcbe1e2580373fabf3cf4cb561e7",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-place-groups/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-place-groups.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-place-groups.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "e63c3c0092bc764e3f67dffe754828f6b5441dd459325ab876f2866e88fdb6d8",
+      "actual_sha256": "e63c3c0092bc764e3f67dffe754828f6b5441dd459325ab876f2866e88fdb6d8",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-place-journey/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-place-journey.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-place-journey.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "e4c28969702ac1887cd68c34e9f790ada3f0a8181239f4e0e9d8cb9631e651bf",
+      "actual_sha256": "e4c28969702ac1887cd68c34e9f790ada3f0a8181239f4e0e9d8cb9631e651bf",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-place-photo-research/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-place-photo-research.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-place-photo-research.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "e96ef7343aa76df44a97eddde6cd79bcb55fc468342c9e037930ee21cdeb79d0",
+      "actual_sha256": "e96ef7343aa76df44a97eddde6cd79bcb55fc468342c9e037930ee21cdeb79d0",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/memoir-story-game/rubric",
+      "path": "tests/evaluation/prompts/skill-judges/memoir-story-game.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/memoir-story-game.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "2590dcbd5c36b38583c2faccb04b00a367dd7892ee64d61a785e46e1badb2070",
+      "actual_sha256": "2590dcbd5c36b38583c2faccb04b00a367dd7892ee64d61a785e46e1badb2070",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/skills/shared-policy",
+      "path": "tests/evaluation/prompts/skill-judges/policy.md",
+      "receipt_path": "tests/evaluation/prompts/skill-judges/policy.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "8be3e0ed026c79f19b4737d906173e823471cf0b5ad61c93352976515f8fa3ba",
+      "actual_sha256": "8be3e0ed026c79f19b4737d906173e823471cf0b5ad61c93352976515f8fa3ba",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/trajectory-judge/rubric",
+      "path": "apps/api/prompts/evaluation/trajectory-judge/rubric.md",
+      "receipt_path": "apps/api/prompts/evaluation/trajectory-judge/rubric.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "d8e9d743de1ad91da9ea6dce088d509c1edba6b5323f4fb9e8c4e29e98c9a0c3",
+      "actual_sha256": "d8e9d743de1ad91da9ea6dce088d509c1edba6b5323f4fb9e8c4e29e98c9a0c3",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/evaluation/trajectory-judge/system",
+      "path": "apps/api/prompts/evaluation/trajectory-judge/system.md",
+      "receipt_path": "apps/api/prompts/evaluation/trajectory-judge/system.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "06a13cf8837a84f8e45c4fa15fc14310504c85edc9dcb634df51e9bd2bb81c3a",
+      "actual_sha256": "06a13cf8837a84f8e45c4fa15fc14310504c85edc9dcb634df51e9bd2bb81c3a",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/shared/bounded-context/en-AU",
+      "path": "apps/api/prompts/shared/bounded-context/en-AU.md",
+      "receipt_path": "apps/api/prompts/shared/bounded-context/en-AU.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+      "actual_sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/shared/bounded-context/policy",
+      "path": "apps/api/prompts/shared/bounded-context/policy.md",
+      "receipt_path": "apps/api/prompts/shared/bounded-context/policy.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+      "actual_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/shared/bounded-context/zh-CN",
+      "path": "apps/api/prompts/shared/bounded-context/zh-CN.md",
+      "receipt_path": "apps/api/prompts/shared/bounded-context/zh-CN.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+      "actual_sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/shared/place-conflicts",
+      "path": "apps/api/prompts/shared/place-conflicts.md",
+      "receipt_path": "apps/api/prompts/shared/place-conflicts.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+      "actual_sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/attribution",
+      "path": "skills/memoir-author-timeline/prompts/attribution.md",
+      "receipt_path": "skills/memoir-author-timeline/prompts/attribution.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "cc01a7e1ad07676fa95950c71b4ecc63bd2d4db4db530d208ac9fbc2e72d5dc9",
+      "actual_sha256": "cc01a7e1ad07676fa95950c71b4ecc63bd2d4db4db530d208ac9fbc2e72d5dc9",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/contract",
+      "path": "skills/memoir-author-timeline/references/contract.md",
+      "receipt_path": "skills/memoir-author-timeline/references/contract.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
+      "actual_sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/derived-hints",
+      "path": "skills/memoir-author-timeline/prompts/derived-hints.md",
+      "receipt_path": "skills/memoir-author-timeline/prompts/derived-hints.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "099e4117d961a2751a5d45da010ec3b4e8187b5fb7b91d655442a5dae4af68f8",
+      "actual_sha256": "099e4117d961a2751a5d45da010ec3b4e8187b5fb7b91d655442a5dae4af68f8",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/extract",
+      "path": "skills/memoir-author-timeline/prompts/extract.md",
+      "receipt_path": "skills/memoir-author-timeline/prompts/extract.md.langfuse.json",
+      "version": 3,
+      "receipt_sha256": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
+      "actual_sha256": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/extract-with-hints",
+      "path": "skills/memoir-author-timeline/prompts/extract-with-hints.md",
+      "receipt_path": "skills/memoir-author-timeline/prompts/extract-with-hints.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "38ad20878043ad6f8518404f5887e367d881b047e1cdbba481a223028835db24",
+      "actual_sha256": "38ad20878043ad6f8518404f5887e367d881b047e1cdbba481a223028835db24",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/instructions",
+      "path": "skills/memoir-author-timeline/SKILL.md",
+      "receipt_path": "skills/memoir-author-timeline/SKILL.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "ed29917e7a93dc9f5a7668233899eb1293a040400433ff4ee6a7e7c186b4eb73",
+      "actual_sha256": "ed29917e7a93dc9f5a7668233899eb1293a040400433ff4ee6a7e7c186b4eb73",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/shared/grounding",
+      "path": "skills/memoir-author-timeline/prompts/shared/grounding.md",
+      "receipt_path": "skills/memoir-author-timeline/prompts/shared/grounding.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "66bedf7ad003eca9584c9c4f6432461c47d978a00cd2d550d52c184c7c551fbc",
+      "actual_sha256": "66bedf7ad003eca9584c9c4f6432461c47d978a00cd2d550d52c184c7c551fbc",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/window",
+      "path": "skills/memoir-author-timeline/prompts/window.md",
+      "receipt_path": "skills/memoir-author-timeline/prompts/window.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "42cc8858f0500ae355bf8db5e18361ca8b26f469ec20dd2530833d270fd1c01e",
+      "actual_sha256": "42cc8858f0500ae355bf8db5e18361ca8b26f469ec20dd2530833d270fd1c01e",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/batch/compose",
+      "path": "skills/memoir-composer/prompts/batch/compose.md",
+      "receipt_path": "skills/memoir-composer/prompts/batch/compose.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+      "actual_sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/batch/prepare",
+      "path": "skills/memoir-composer/prompts/batch/prepare.md",
+      "receipt_path": "skills/memoir-composer/prompts/batch/prepare.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
+      "actual_sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/draft",
+      "path": "skills/memoir-composer/prompts/draft.md",
+      "receipt_path": "skills/memoir-composer/prompts/draft.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+      "actual_sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/leaf/en-AU",
+      "path": "skills/memoir-composer/prompts/outline/leaf/en-AU.md",
+      "receipt_path": "skills/memoir-composer/prompts/outline/leaf/en-AU.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "a32e8ad5e53803c2b5c0ea3e0b77ed1793a3a393c86b3dc148dc1f4ad9a573f2",
+      "actual_sha256": "a32e8ad5e53803c2b5c0ea3e0b77ed1793a3a393c86b3dc148dc1f4ad9a573f2",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/leaf/zh-CN",
+      "path": "skills/memoir-composer/prompts/outline/leaf/zh-CN.md",
+      "receipt_path": "skills/memoir-composer/prompts/outline/leaf/zh-CN.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "a3108ba8705f81ceccaeb85da14393b4ff18dba7d224f87b01bb9b0776340b2b",
+      "actual_sha256": "a3108ba8705f81ceccaeb85da14393b4ff18dba7d224f87b01bb9b0776340b2b",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/merge/en-AU",
+      "path": "skills/memoir-composer/prompts/outline/merge/en-AU.md",
+      "receipt_path": "skills/memoir-composer/prompts/outline/merge/en-AU.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "b1af3ebef85419e8344db5ad56b9524645e7b094e3f0386b0f12155b4e593aa5",
+      "actual_sha256": "b1af3ebef85419e8344db5ad56b9524645e7b094e3f0386b0f12155b4e593aa5",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/merge/zh-CN",
+      "path": "skills/memoir-composer/prompts/outline/merge/zh-CN.md",
+      "receipt_path": "skills/memoir-composer/prompts/outline/merge/zh-CN.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "80fdf1243c337012039ce5b94a3b37cb0d9cfffd9a45785ffbb788b25b3beb07",
+      "actual_sha256": "80fdf1243c337012039ce5b94a3b37cb0d9cfffd9a45785ffbb788b25b3beb07",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/shared/prefix",
+      "path": "skills/memoir-composer/prompts/outline/shared/prefix.md",
+      "receipt_path": "skills/memoir-composer/prompts/outline/shared/prefix.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+      "actual_sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/shared/suffix",
+      "path": "skills/memoir-composer/prompts/outline/shared/suffix.md",
+      "receipt_path": "skills/memoir-composer/prompts/outline/shared/suffix.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+      "actual_sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/prepare",
+      "path": "skills/memoir-composer/prompts/prepare.md",
+      "receipt_path": "skills/memoir-composer/prompts/prepare.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+      "actual_sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/review",
+      "path": "skills/memoir-composer/prompts/review.md",
+      "receipt_path": "skills/memoir-composer/prompts/review.md.langfuse.json",
+      "version": 3,
+      "receipt_sha256": "0ea3aef24d8cc4a23481e52c78010a3d2855a94ddad1eea524ff1ef5c0a9d85c",
+      "actual_sha256": "0ea3aef24d8cc4a23481e52c78010a3d2855a94ddad1eea524ff1ef5c0a9d85c",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/shared/editorial-review",
+      "path": "skills/memoir-composer/references/editorial-review.prompt.md",
+      "receipt_path": "skills/memoir-composer/references/editorial-review.prompt.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+      "actual_sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+      "path": "skills/memoir-composer/references/narrative-enrichment.md",
+      "receipt_path": "skills/memoir-composer/references/narrative-enrichment.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+      "actual_sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-family-tree/instructions",
+      "path": "skills/memoir-family-tree/SKILL.md",
+      "receipt_path": "skills/memoir-family-tree/SKILL.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "5e6961f5109c4e1efdcb6ab7d9f364db1e5e884de86241ad3ad9471d77a63978",
+      "actual_sha256": "5e6961f5109c4e1efdcb6ab7d9f364db1e5e884de86241ad3ad9471d77a63978",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-historical-news-research/contract",
+      "path": "skills/memoir-historical-news-research/references/contract.md",
+      "receipt_path": "skills/memoir-historical-news-research/references/contract.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "8b7a43b49b0dd1b7e94b7c18dd9074f8d8156dafceb47d14fec818d322742111",
+      "actual_sha256": "8b7a43b49b0dd1b7e94b7c18dd9074f8d8156dafceb47d14fec818d322742111",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-historical-news-research/discovery",
+      "path": "skills/memoir-historical-news-research/prompts/discovery.md",
+      "receipt_path": "skills/memoir-historical-news-research/prompts/discovery.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "92bced910bfb0de9ee5ab0b9ca89446b432d9ac3b4cbeea3e2d781df362ef0d9",
+      "actual_sha256": "92bced910bfb0de9ee5ab0b9ca89446b432d9ac3b4cbeea3e2d781df362ef0d9",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-historical-news-research/instructions",
+      "path": "skills/memoir-historical-news-research/SKILL.md",
+      "receipt_path": "skills/memoir-historical-news-research/SKILL.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "e31e6f403b0bd506eb044af2f94a86ef9a0fe4d633d7c68a646d02f8d18dd74a",
+      "actual_sha256": "e31e6f403b0bd506eb044af2f94a86ef9a0fe4d633d7c68a646d02f8d18dd74a",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/background-memory",
+      "path": "skills/memoir-interviewer/prompts/background-memory.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/background-memory.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "9407ab2f75826baa74b2377df4062ef8a91cb45948810abd31fffe6c212a801e",
+      "actual_sha256": "9407ab2f75826baa74b2377df4062ef8a91cb45948810abd31fffe6c212a801e",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/collector",
+      "path": "skills/memoir-interviewer/prompts/collector.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/collector.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "a3ead5e1d7c122c163d7481cb612c2899ecefbd9890a106a6f89a951462feb00",
+      "actual_sha256": "a3ead5e1d7c122c163d7481cb612c2899ecefbd9890a106a6f89a951462feb00",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/collector-plan",
+      "path": "skills/memoir-interviewer/prompts/collector-plan.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/collector-plan.md.langfuse.json",
+      "version": 3,
+      "receipt_sha256": "70bdb500f7c9a5b01946ba17932e7dfef35c1cab8a85ed5b10331f06d2192cb3",
+      "actual_sha256": "70bdb500f7c9a5b01946ba17932e7dfef35c1cab8a85ed5b10331f06d2192cb3",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/governed-continuity",
+      "path": "skills/memoir-interviewer/prompts/governed-continuity.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/governed-continuity.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "45a9cef1f49731e391898dcfd6c467e8d117812907b985787490b6f614c33cb7",
+      "actual_sha256": "45a9cef1f49731e391898dcfd6c467e8d117812907b985787490b6f614c33cb7",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/governed-repair/acknowledgement",
+      "path": "skills/memoir-interviewer/prompts/governed-repair/acknowledgement.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/governed-repair/acknowledgement.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "d12dad60b46e499f5074d3ba4195a07b2eef32a83629c08742f82f2ff22024d0",
+      "actual_sha256": "d12dad60b46e499f5074d3ba4195a07b2eef32a83629c08742f82f2ff22024d0",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/governed-repair/prefix",
+      "path": "skills/memoir-interviewer/prompts/governed-repair/prefix.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/governed-repair/prefix.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "67a7388ba9688410c9c1abae71620367fccf8871f9399f336dbb57e4ed20c07a",
+      "actual_sha256": "67a7388ba9688410c9c1abae71620367fccf8871f9399f336dbb57e4ed20c07a",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/governed-repair/suffix",
+      "path": "skills/memoir-interviewer/prompts/governed-repair/suffix.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/governed-repair/suffix.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "97afeb5474b22e9a141f0c60a3f419b22138359b50082963be29b4506295229b",
+      "actual_sha256": "97afeb5474b22e9a141f0c60a3f419b22138359b50082963be29b4506295229b",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/governed-turn",
+      "path": "skills/memoir-interviewer/prompts/governed-turn.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/governed-turn.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "64e48428df35573c868f75d53f0c0469d945ad40ef335e1086a1b50d42dc9c4c",
+      "actual_sha256": "64e48428df35573c868f75d53f0c0469d945ad40ef335e1086a1b50d42dc9c4c",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/greeting/begin",
+      "path": "skills/memoir-interviewer/prompts/greeting/begin.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/greeting/begin.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "8c7ad73130cf38335f75c769321df74ca0f324fae25023f9e700cea52326615b",
+      "actual_sha256": "8c7ad73130cf38335f75c769321df74ca0f324fae25023f9e700cea52326615b",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/greeting/continue",
+      "path": "skills/memoir-interviewer/prompts/greeting/continue.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/greeting/continue.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "517c357872d5b4470fc395f353b7c9b2feab2152316598eab140514fec2718f3",
+      "actual_sha256": "517c357872d5b4470fc395f353b7c9b2feab2152316598eab140514fec2718f3",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/guidance",
+      "path": "skills/memoir-interviewer/prompts/guidance.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/guidance.md.langfuse.json",
+      "version": 3,
+      "receipt_sha256": "91eba3471487f6138d058f5707b8b078bd493716a0ca14a52349755e20423f2b",
+      "actual_sha256": "91eba3471487f6138d058f5707b8b078bd493716a0ca14a52349755e20423f2b",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/language/en-AU",
+      "path": "skills/memoir-interviewer/prompts/language/en-AU.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/language/en-AU.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "39fa47b6449054f239c2d758f4dd0ebc33505f5e4864b8f5e5c6778d4c2eccb4",
+      "actual_sha256": "39fa47b6449054f239c2d758f4dd0ebc33505f5e4864b8f5e5c6778d4c2eccb4",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/language/zh-CN",
+      "path": "skills/memoir-interviewer/prompts/language/zh-CN.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/language/zh-CN.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "316e7866fca80f8b533edf4d4253ff0648e0a2955f345c2b9f69ba0d1ee2c163",
+      "actual_sha256": "316e7866fca80f8b533edf4d4253ff0648e0a2955f345c2b9f69ba0d1ee2c163",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/privacy-guard",
+      "path": "skills/memoir-interviewer/prompts/privacy-guard.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/privacy-guard.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "0d1d5cac6b3e73ed48785a97b60f29061925d3cf09ef2f72b9bd3c989486b346",
+      "actual_sha256": "0d1d5cac6b3e73ed48785a97b60f29061925d3cf09ef2f72b9bd3c989486b346",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/strategy/comfort",
+      "path": "skills/memoir-interviewer/prompts/strategy/comfort.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/strategy/comfort.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "84844e71a1dc98907b452c448cc895259987c79873e3e59465b89ae878eb621f",
+      "actual_sha256": "84844e71a1dc98907b452c448cc895259987c79873e3e59465b89ae878eb621f",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/strategy/explore",
+      "path": "skills/memoir-interviewer/prompts/strategy/explore.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/strategy/explore.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "2026dd118a8d6e04a58d40bb5441763ada65ac0985cd29d46a9ad0e051cb7947",
+      "actual_sha256": "2026dd118a8d6e04a58d40bb5441763ada65ac0985cd29d46a9ad0e051cb7947",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/strategy/proposal",
+      "path": "skills/memoir-interviewer/prompts/strategy/proposal.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/strategy/proposal.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "aa6553e3c0e81cb44cbb16508a37e6158266b63fba79709dfef155bd8f6ca017",
+      "actual_sha256": "aa6553e3c0e81cb44cbb16508a37e6158266b63fba79709dfef155bd8f6ca017",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/strategy/selection",
+      "path": "skills/memoir-interviewer/prompts/strategy/selection.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/strategy/selection.md.langfuse.json",
+      "version": 5,
+      "receipt_sha256": "cec88218db74fb9305f675842d59621df07e1679328ed18d91135e5678f44667",
+      "actual_sha256": "cec88218db74fb9305f675842d59621df07e1679328ed18d91135e5678f44667",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/strategy/shape",
+      "path": "skills/memoir-interviewer/prompts/strategy/shape.md",
+      "receipt_path": "skills/memoir-interviewer/prompts/strategy/shape.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "aed26acddbc9f311539f50d8a4c91ddfdcfaf7fd48f17fe38073e67f6e9f533b",
+      "actual_sha256": "aed26acddbc9f311539f50d8a4c91ddfdcfaf7fd48f17fe38073e67f6e9f533b",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-memory-context/instructions",
+      "path": "skills/memoir-memory-context/SKILL.md",
+      "receipt_path": "skills/memoir-memory-context/SKILL.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "a28a203eb72c78943460cd65a79faffe3ec063efff27be0f513424a59063f082",
+      "actual_sha256": "a28a203eb72c78943460cd65a79faffe3ec063efff27be0f513424a59063f082",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-memory-context/summary",
+      "path": "skills/memoir-memory-context/prompts/summary.md",
+      "receipt_path": "skills/memoir-memory-context/prompts/summary.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "01e01f507ce1888fc1bc1cf912db861c321afff05e3cd43d71341b4089a0a4d8",
+      "actual_sha256": "01e01f507ce1888fc1bc1cf912db861c321afff05e3cd43d71341b4089a0a4d8",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-place-groups/instructions",
+      "path": "skills/memoir-place-groups/SKILL.md",
+      "receipt_path": "skills/memoir-place-groups/SKILL.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "f03171f20d2c2d595b08e0fe579ed456a4da606da8e02c3555c27788e50fdda4",
+      "actual_sha256": "f03171f20d2c2d595b08e0fe579ed456a4da606da8e02c3555c27788e50fdda4",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-place-journey/extraction",
+      "path": "skills/memoir-place-journey/references/two-lane.md",
+      "receipt_path": "skills/memoir-place-journey/references/two-lane.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "f53bd07d404d6427b315f1869d4cce512a7066882d601c47c1e8e088d79a4e3e",
+      "actual_sha256": "f53bd07d404d6427b315f1869d4cce512a7066882d601c47c1e8e088d79a4e3e",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-place-journey/instructions",
+      "path": "skills/memoir-place-journey/SKILL.md",
+      "receipt_path": "skills/memoir-place-journey/SKILL.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "a7e45041686e0be511db8fcfc6fdba4eb4c1970d90ac102901c751fd1abc0379",
+      "actual_sha256": "a7e45041686e0be511db8fcfc6fdba4eb4c1970d90ac102901c751fd1abc0379",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-place-photo-research/instructions",
+      "path": "skills/memoir-place-photo-research/SKILL.md",
+      "receipt_path": "skills/memoir-place-photo-research/SKILL.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "c796185cf190aea666fc7b69b6aadd80293831214f47bc9fd2b432157bcf50a7",
+      "actual_sha256": "c796185cf190aea666fc7b69b6aadd80293831214f47bc9fd2b432157bcf50a7",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-story-game/instructions",
+      "path": "skills/memoir-story-game/SKILL.md",
+      "receipt_path": "skills/memoir-story-game/SKILL.md.langfuse.json",
+      "version": 2,
+      "receipt_sha256": "af639d19152e32ad7f08ed1c313ef44666b99843db48390c4fa8cbf6c49c3f2e",
+      "actual_sha256": "af639d19152e32ad7f08ed1c313ef44666b99843db48390c4fa8cbf6c49c3f2e",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-story-game/proposal",
+      "path": "skills/memoir-story-game/prompts/proposal.md",
+      "receipt_path": "skills/memoir-story-game/prompts/proposal.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "fd3ba1bfaf42f941958f282f1003be96448f8a8923b764bbe326618773e6b103",
+      "actual_sha256": "fd3ba1bfaf42f941958f282f1003be96448f8a8923b764bbe326618773e6b103",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/skills/memoir-story-game/runtime-contract",
+      "path": "skills/memoir-story-game/references/runtime-contract.md",
+      "receipt_path": "skills/memoir-story-game/references/runtime-contract.md.langfuse.json",
+      "version": 3,
+      "receipt_sha256": "b2d8ae34f3fbc579094db920b6540f96d2217e9932daa32caefd9dc4b33dac6f",
+      "actual_sha256": "b2d8ae34f3fbc579094db920b6540f96d2217e9932daa32caefd9dc4b33dac6f",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/speech/default",
+      "path": "apps/api/prompts/speech/default.md",
+      "receipt_path": "apps/api/prompts/speech/default.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "90925ec99590f6f948bd6dcc5ffbd1a15ccd8609363d75bdc6bfd199c375b8f8",
+      "actual_sha256": "90925ec99590f6f948bd6dcc5ffbd1a15ccd8609363d75bdc6bfd199c375b8f8",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/speech/en-AU",
+      "path": "apps/api/prompts/speech/en-AU.md",
+      "receipt_path": "apps/api/prompts/speech/en-AU.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "e361615ad29303fed0d2e9870ebab92f819b8b4e6f449a68646b9cf8a5c8f968",
+      "actual_sha256": "e361615ad29303fed0d2e9870ebab92f819b8b4e6f449a68646b9cf8a5c8f968",
+      "local_hash_matches": true
+    },
+    {
+      "name": "memoir/speech/zh-CN",
+      "path": "apps/api/prompts/speech/zh-CN.md",
+      "receipt_path": "apps/api/prompts/speech/zh-CN.md.langfuse.json",
+      "version": 1,
+      "receipt_sha256": "35bbc00ef5d92a6c250f8504fe3c0fa4e95f819bb46dc8b04e8638a008239191",
+      "actual_sha256": "35bbc00ef5d92a6c250f8504fe3c0fa4e95f819bb46dc8b04e8638a008239191",
+      "local_hash_matches": true
+    }
+  ],
+  "api_field_descriptions": [
+    {
+      "path": "apps/api/two_lane_memory.py",
+      "line": 27,
+      "value": "'Exact narrator passage this question refers to, not the whole message when it contains several topics.'"
+    },
+    {
+      "path": "apps/api/two_lane_memory.py",
+      "line": 29,
+      "value": "'Absolute start of the referenced quote; null only for an unambiguous quote.'"
+    },
+    {
+      "path": "apps/api/two_lane_memory.py",
+      "line": 30,
+      "value": "'Absolute exclusive end of the referenced quote; null only for an unambiguous quote.'"
+    },
+    {
+      "path": "apps/api/two_lane_memory.py",
+      "line": 31,
+      "value": "'Whether this question needs narrator confirmation before continuing the interview.'"
+    },
+    {
+      "path": "apps/api/interview_plan.py",
+      "line": 53,
+      "value": "'Exact narrator passage this question refers to, not the whole message when it contains several topics. Use current source or the selected queued hint; include absolute offsets for repeated wording. Null only when no referenced narrator passage is available; unanchored wording cannot consume another hint.'"
+    },
+    {
+      "path": "apps/api/interview_plan.py",
+      "line": 114,
+      "value": "QUESTION_DESCRIPTION"
+    },
+    {
+      "path": "apps/api/interview_plan.py",
+      "line": 121,
+      "value": "'Decide from new information in the ENTIRE CURRENT message, not earlier story details. Use reply_only for a name-only introduction, greeting, farewell, or a conversational pause/stop without new story facts. Current distress about recounting alone (such as 这让我难受) is reply_only, not a new life event. Stopping the entire exchange today (今天就到这里 or 先停一下) is conversational control, not a lasting topic exclusion. Setting aside a named topic temporarily (such as 先不聊厨房 or set the kitchen aside for now) is a topic/privacy update and requires extract. Do not re-extract earlier memories on a whole-exchange pause. Use extract for new memory clues, corrections, topic/privacy exclusions or pauses, language/profile changes, or photo discussion. If new story facts precede a stop, use extract while stopped=true with no question.'"
+    },
+    {
+      "path": "apps/api/interview_plan.py",
+      "line": 159,
+      "value": "ACKNOWLEDGEMENT_DESCRIPTION"
+    },
+    {
+      "path": "apps/api/interview_strategy.py",
+      "line": 64,
+      "value": "ACKNOWLEDGEMENT_DESCRIPTION"
+    },
+    {
+      "path": "apps/api/interview_strategy.py",
+      "line": 65,
+      "value": "QUESTION_DESCRIPTION"
+    },
+    {
+      "path": "apps/api/interview_strategy.py",
+      "line": 73,
+      "value": "'Exact current narrator passage the immediate question refers to; null offsets are allowed for a unique quote. Distinguish separate groups within one message; for a queued candidate its recorded evidence is retained. Null only for a question without referenced narrator evidence.'"
+    },
+    {
+      "path": "apps/api/lifetime_memory_continuity.py",
+      "line": 40,
+      "value": "'Verbatim copy of quote. Do not extract a shorter name, label or paraphrase.'"
+    },
+    {
+      "path": "apps/api/lifetime_memory_continuity.py",
+      "line": 48,
+      "value": "'Exactly identical to text, character for character, and a verbatim substring of the current narrator source. Not a longer supporting sentence for a shorter text.'"
+    }
+  ],
+  "regex_call_sites_by_file": {
+    "apps/api/agent_tasks.py": 3,
+    "apps/api/codex_progress.py": 1,
+    "apps/api/codex_runtime.py": 7,
+    "apps/api/conversation_locale.py": 3,
+    "apps/api/diagnostics.py": 1,
+    "apps/api/family_context.py": 3,
+    "apps/api/formal_memoir_routes.py": 1,
+    "apps/api/historical_news.py": 13,
+    "apps/api/historical_news_provider.py": 2,
+    "apps/api/interview_photos.py": 1,
+    "apps/api/interview_plan.py": 11,
+    "apps/api/interview_strategy.py": 15,
+    "apps/api/issue14_execution_admission.py": 1,
+    "apps/api/lifetime_memory_continuity.py": 5,
+    "apps/api/lifetime_memory_lane_engine.py": 2,
+    "apps/api/lifetime_memory_service.py": 1,
+    "apps/api/lifetime_memory_transport.py": 1,
+    "apps/api/main.py": 3,
+    "apps/api/memory_events.py": 7,
+    "apps/api/place_identity.py": 1,
+    "apps/api/place_journey.py": 16,
+    "apps/api/place_photo_browser.py": 19,
+    "apps/api/place_photo_expansion.py": 2,
+    "apps/api/place_photo_sources.py": 2,
+    "apps/api/place_photos.py": 36,
+    "apps/api/place_research.py": 12,
+    "apps/api/profile_intake.py": 20,
+    "apps/api/prompt_composition.py": 1,
+    "apps/api/speech.py": 1,
+    "apps/api/stage_readiness.py": 2,
+    "apps/api/story_game_routes.py": 1,
+    "apps/api/trajectory_evaluation.py": 8,
+    "scripts/audit_spec_routes.py": 2,
+    "scripts/canary_gateway_actor.py": 7,
+    "scripts/canary_gateway_binding.py": 2,
+    "scripts/canary_gateway_bridge.py": 4,
+    "scripts/canary_send_guard.py": 4,
+    "scripts/canary_worker.py": 1,
+    "scripts/check_localization_catalog.py": 1,
+    "scripts/controlled_native_state.py": 2,
+    "scripts/evaluate_place_journeys.py": 3,
+    "scripts/fifty_round_dispatch_budget.py": 3,
+    "scripts/issue14_progressive_readback.py": 3,
+    "scripts/issue14_provider_budget.py": 1,
+    "scripts/issue14_response_observation.py": 1,
+    "scripts/issue14_source_contract.py": 1,
+    "scripts/issue14_subscription_session.py": 1,
+    "scripts/issue14_subscription_transport.py": 2,
+    "scripts/issue53_sequence_application.py": 1,
+    "scripts/issue6_semantic_evaluation.py": 2,
+    "scripts/memoir_checkpoint_readback.py": 1,
+    "scripts/memoir_fifty_browser.py": 6,
+    "scripts/memoir_fifty_browser_runner.py": 11,
+    "scripts/memoir_fifty_photo.py": 11,
+    "scripts/native_canary_launcher.py": 2,
+    "scripts/refresh_mocker_compose_hosts.py": 1,
+    "scripts/run_acceptance_evidence.py": 1,
+    "scripts/run_canonical_five_case_evaluation.py": 2,
+    "scripts/run_codexlb_canary.py": 1,
+    "scripts/run_isolated_check.py": 1,
+    "scripts/run_issue14_subscription_evaluation.py": 4,
+    "scripts/run_memoir_five_case_evaluation.py": 47,
+    "scripts/run_memoir_supabase_evaluation.py": 3,
+    "scripts/setup_memoir_test_accounts.py": 3,
+    "scripts/start_container_stack.py": 9,
+    "skills/memoir-place-photo-research/scripts/photo_research.py": 60,
+    "skills/memoir-place-photo-research/scripts/photo_search.py": 2,
+    "skills/memoir-story-game/scripts/validate.py": 1,
+    "tests/browser_auth_reminder.py": 1,
+    "tests/browser_collection_review.py": 2,
+    "tests/browser_localization_e2e.py": 3,
+    "tests/browser_place_map_e2e.py": 2,
+    "tests/browser_recovery_fixture.py": 1,
+    "tests/browser_start_flow.py": 1,
+    "tests/browser_voice_controls.py": 4,
+    "tests/browser_workspace_history.py": 2,
+    "tests/interview_postgres_single.py": 4,
+    "tests/memoir_postgres_workflow.py": 11,
+    "tests/test_agent_commit_postgres.py": 1,
+    "tests/test_conversation_recovery_api.py": 1,
+    "tests/test_database_baseline.py": 4,
+    "tests/test_interview_workspace_browser.py": 8,
+    "tests/test_lifetime_composer_capacity.py": 2,
+    "tests/test_memoir_postgres_artifacts.py": 3,
+    "tests/test_memoir_postgres_runtime_readback.py": 2,
+    "tests/test_place_photo_relevance.py": 1,
+    "tests/test_stage_readiness_browser.py": 1,
+    "tests/test_stage_readiness_resume_browser.py": 1,
+    "tests/test_story_game_runtime_postgres.py": 1,
+    "tests/test_task_runtime.py": 4,
+    "tests/test_web_container_config.py": 2
+  },
+  "verification": {
+    "command": "LANGFUSE_TRACING_ENABLED=false python3 -m pytest -q --tb=short tests/test_prompt_artifact.py tests/test_prompt_composition.py tests/test_interview_plan.py tests/test_interview_strategy.py tests/test_issue6_semantic_evaluation.py tests/test_llm_place_photos.py tests/test_place_journey.py tests/test_trajectory_evaluation.py",
+    "passed": 318,
+    "failed": 3,
+    "elapsed_seconds": 4.93,
+    "failures": [
+      "tests/test_trajectory_evaluation.py::test_worker_turn_adds_evaluation_envelope_only_when_requested",
+      "tests/test_trajectory_evaluation.py::test_runtime_returns_trajectory_only_for_an_evaluation_turn[None-legacy-test-route]",
+      "tests/test_trajectory_evaluation.py::test_runtime_returns_trajectory_only_for_an_evaluation_turn[memoir-luna-low-memoir-luna-low]"
+    ],
+    "remote_langfuse_checked": false,
+    "live_models_called": false
+  },
+  "initial_verification": {
+    "git_commit": "f1d6d6f",
+    "command": "LANGFUSE_TRACING_ENABLED=false python3 -m pytest -q tests/test_prompt_artifact.py tests/test_prompt_composition.py tests/test_interview_plan.py tests/test_interview_strategy.py tests/test_issue6_semantic_evaluation.py tests/test_llm_place_photos.py tests/test_place_journey.py tests/test_trajectory_evaluation.py",
+    "passed": 313,
+    "failed": 8,
+    "elapsed_seconds": 2.79,
+    "failures": [
+      "tests/test_prompt_artifact.py::test_checked_in_compact_prompt_keeps_previous_runtime_text",
+      "tests/test_prompt_composition.py::test_shared_sources_have_one_registry_name_and_no_embedded_policy_copies",
+      "tests/test_interview_plan.py::test_schema_and_instruction_keep_source_and_metadata_distinct",
+      "tests/test_interview_strategy.py::test_shared_core_plus_one_active_module_without_legacy_shape_gate",
+      "tests/test_interview_strategy.py::test_prompt_has_no_user_selected_mode_policy",
+      "tests/test_trajectory_evaluation.py::test_worker_turn_adds_evaluation_envelope_only_when_requested",
+      "tests/test_trajectory_evaluation.py::test_runtime_returns_trajectory_only_for_an_evaluation_turn[None-legacy-test-route]",
+      "tests/test_trajectory_evaluation.py::test_runtime_returns_trajectory_only_for_an_evaluation_turn[memoir-luna-low-memoir-luna-low]"
+    ],
+    "remote_langfuse_checked": false,
+    "live_models_called": false,
+    "mismatching_receipts": [
+      {
+        "path": "skills/memoir-interviewer/prompts/collector-plan.md",
+        "version": 2
+      },
+      {
+        "path": "skills/memoir-interviewer/prompts/guidance.md",
+        "version": 2
+      },
+      {
+        "path": "skills/memoir-interviewer/prompts/strategy/selection.md",
+        "version": 4
+      }
+    ]
+  },
+  "concurrent_change": {
+    "from": "f1d6d6f",
+    "to": "df76b11",
+    "commit_subject": "sync langfuse",
+    "performed_by_this_audit": false,
+    "receipt_mismatches_resolved": 3
+  }
+}

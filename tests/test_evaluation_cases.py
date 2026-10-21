@@ -1,4 +1,4 @@
-"""Regression coverage for the checked-in end-to-end synthetic evaluation set."""
+"""Fixed snapshots exercise deterministic scorer contracts; no application/model execution."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ def test_cases_have_reproducible_context_metadata():
         assert isinstance(case["available_tools"], list)
 
 
-def test_checked_in_cases_pass_through_the_runtime_boundary():
+def test_fixed_trajectory_snapshots_pass_the_scorer_contracts():
     payload = json.loads(CASES_PATH.read_text(encoding="utf-8"))
     cases = [normalise_case(case) for case in payload["cases"]]
 
@@ -41,6 +41,7 @@ def test_checked_in_cases_pass_through_the_runtime_boundary():
 
     results = asyncio.run(run_all())
     for case, result in zip(cases, results):
+        assert result["evaluation_scope"] == "scorer_fixture"
         trajectory = result["trajectory"]
         assert trajectory["correlation"]["case_id"] == case["id"]
         assert trajectory["schema_version"] == "memoir-trajectory/1"

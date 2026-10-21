@@ -104,9 +104,9 @@ def test_pending_oldest_owner_does_not_starve_required_work_for_ready_owner(sql,
     other=rpc(sql,'resolve_lifetime_conversation','null',owner=OTHER)
     rpc(sql,'accept_user_narrator_source',f"{literal(other['project_id'])},'{NEW}','Other synthetic source'",owner=OTHER)
     if inventory:
-        sql(f"insert into public.user_lifetime_policy_inventory_pending values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','literal-v1');")
+        sql(f"insert into public.user_lifetime_policy_inventory_pending values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','semantic-v1');")
     else:
-        sql(f"insert into public.user_lifetime_pending_policy values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','{source['id']}',1,'{source['client_turn_id']}','literal-v1');")
+        sql(f"insert into public.user_lifetime_pending_policy values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','{source['id']}',1,'{source['client_turn_id']}','semantic-v1');")
     sql(f"update public.user_lifetime_memory_obligation set created_at=clock_timestamp()-interval '1 day' where user_id='{OWNER}';")
     result=worker_rpc(sql,1)
     assert result['processed']==1 and result['failed']==0
@@ -141,7 +141,7 @@ def test_pending_after_selection_defers_without_aborting_other_required_work(sql
             # on the second owner while the first waits for its lease lock.
             await observer.execute('begin')
             await observer.execute('select 1 from public.user_memoir_project where user_id=%s and project_id=%s for update',(OTHER,other['project_id']))
-            await observer.execute('insert into public.user_lifetime_pending_policy values(%s,%s,%s,%s,1,%s,\'literal-v1\')',
+            await observer.execute('insert into public.user_lifetime_pending_policy values(%s,%s,%s,%s,1,%s,\'semantic-v1\')',
                 (OTHER,other['project_id'],other['conversation_id'],other_source['id'],other_source['client_turn_id']))
             await observer.execute('commit')
             await blocker.rollback()

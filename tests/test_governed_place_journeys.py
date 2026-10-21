@@ -149,7 +149,7 @@ def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, mon
         if json.loads(line)['type'] == 'result') if streaming else retry.json()
     assert replay['cached'] and replay['place_journeys'] == result['place_journeys']
     restored = next(step for step in replay['trace'] if step.get('skill') == 'memoir-place-journey')
-    assert restored['status'] == 'completed'
+    assert restored['status'] == 'cached'
     assert 'Restored' in restored['detail'] or '恢复' in restored['detail']
     assert len(calls) == 1
     from apps.api import main
@@ -158,6 +158,8 @@ def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, mon
     storage = PostgresRest(sql, OWNER).storage()
     try:
         saved = storage.lifetime_rpc('read_lifetime_place_journeys', p_project_id=result['project_id'])
+        from apps.api.place_research import normalized_research_fields
+        saved=[{**place,**normalized_research_fields(place.get('research'))} for place in saved]
         assert saved == result['place_journeys']
         with TestClient(create_app(MemoryStore())) as client:
             auth = {'Authorization': 'Bearer synthetic'}
@@ -177,6 +179,11 @@ def test_canonical_http_turn_delivers_places_to_the_workspace(sql, tmp_path, mon
             storage.change_narrator_source(result['project_id'], result['accepted_source_id'], 1,
                 action=change, text='小时候在爸爸工作的学校的家属院里玩。' if change == 'edit' else None)
             assert storage.lifetime_rpc('read_lifetime_place_journeys', p_project_id=result['project_id']) == []
+            if change=='edit':
+                blocked=client.get('/v1/agent/place-journey',headers=auth)
+                assert blocked.status_code==503,blocked.text
+                from controlled_policy import complete_seed_policy
+                complete_seed_policy(sql,OWNER)
             assert client.get('/v1/agent/place-journey', headers=auth).json()['place_journey'] is None
             cleared = client.get('/v1/projects/' + result['project_id'], headers=auth)
             assert cleared.json()['profile']['memory_places'] == []

@@ -333,7 +333,7 @@ async def main_async(args: argparse.Namespace) -> dict[str, Any]:
         api_key=api_key,
         calibration_examples=calibration_examples,
         timeout=args.timeout,
-        instructions=instructions,
+        prompt_names=('memoir/evaluation/five-case-judge', 'memoir/evaluation/five-case-judge/guard'),
         max_tokens=args.max_tokens,
         reasoning_effort=args.reasoning_effort,
     )

@@ -205,7 +205,7 @@ def test_commons_keeps_original_dimensions_and_licence_but_rejects_upload_date(m
     item = photos._commons('Chengde', '1980s')[0]
     assert (item['width'], item['height']) == (1200, 800)
     assert item['usage_permissions']['app_display'] == 'permitted'
-    assert item['date_basis'] == 'Wikimedia DateTimeOriginal'
+    assert item['date_basis'] == 'original_exif'
 
 
 def test_chinese_sydney_search_discovers_and_accepts_english_catalogue_records(monkeypatch):

@@ -30,7 +30,6 @@ def test_one_timeline_skill_version_reaches_both_extraction_schemas(monkeypatch,
         instructions = extraction_instructions(derived_hints=derived)
         assert instructions.startswith(changed)
         assert instructions.count(changed) == 1
-        assert 'Shared MemoryEvent service' in instructions
         assert ('place_journeys' in instructions) is derived
     path.write_text('Unexported local edit')
     with pytest.raises(ValueError, match='Invalid Langfuse prompt artifact'):

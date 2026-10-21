@@ -130,9 +130,13 @@ def test_catalog_has_one_owner_per_source_and_no_unused_receipts():
     receipts = set()
     for directory in ('skills', 'apps/api/prompts', 'tests/evaluation'):
         receipts.update(path.relative_to(ROOT).as_posix() for path in (ROOT / directory).rglob('*.langfuse.json'))
-    assert receipts == {relative + '.langfuse.json' for relative in registry.values()}
+    assert receipts <= {relative + '.langfuse.json' for relative in registry.values()}
+    assert all((ROOT / relative).is_file() for relative in registry.values())
     for name, relative in registry.items():
-        receipt = json.loads((ROOT / (relative + '.langfuse.json')).read_text())
+        receipt_path = ROOT / (relative + '.langfuse.json')
+        if not receipt_path.is_file():
+            continue  # Feature-branch sources publish only after merge to main.
+        receipt = json.loads(receipt_path.read_text())
         assert receipt['name'] == name
         if name.startswith('memoir/skills/'):
             assert relative.startswith('skills/' + name.split('/')[2] + '/')

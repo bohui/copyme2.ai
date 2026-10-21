@@ -34,7 +34,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -75,7 +75,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -116,7 +116,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -157,7 +157,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -198,7 +198,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -251,7 +251,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -304,7 +304,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -345,7 +345,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -386,7 +386,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -434,7 +434,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -482,7 +482,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -523,7 +523,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -564,7 +564,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -605,7 +605,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -646,7 +646,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"
@@ -687,7 +687,7 @@
       "expected": {
         "max_steps": 30,
         "max_retries": 0,
-        "response_requirements": {
+        "semantic_response_expectations": {
           "excludes": [
             "your earliest memory",
             "您最早记得"

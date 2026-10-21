@@ -94,10 +94,13 @@ export function createPhotoWorkspace({
       && picture.requested_period === period
       && placeHistoryKey({place: picture.search_place}) === placeHistoryKey({place: entry.photo_search_place || entry.place});
     const relaxedTime = relaxedGps && picture.search_fallback === "gps_time";
-    const expression = picture.date_expression || "";
+    const range = picture.scene_date_range;
+    const expression = range?.start && range?.end ? `${range.start}–${range.end}` : picture.date_expression || "";
     const years = Array.from(expression.matchAll(/(?<!\d)((?:18|19|20)\d{2})(?!\d)/g), match => Number(match[1]));
-    if ((!relaxedTime && (!years.length || /circa|\bca\.?\s|before|after|unknown|约|不详|以前|以后/i.test(expression)))
-        || /upload|publication|published|modified|visual_guess/i.test(picture.date_basis || "")) return false;
+    const normalizedDate = /^(?:18|19|20)\d{2}(?:s|年代|年|(?:[-/]\d{1,2}){1,2})?(?:[–—-](?:18|19|20)\d{2}(?:[-/]\d{1,2}){0,2})?$/;
+    const basis = range?.basis || picture.date_basis;
+    if ((!relaxedTime && (!years.length || !normalizedDate.test(expression)))
+        || basis && !["source_caption","provider_date_taken","original_exif","catalogue","album_caption", ...(relaxedTime ? ["unknown"] : [])].includes(basis)) return false;
     const today = new Date().toLocaleDateString("en-CA", {timeZone: "Australia/Sydney"});
     const isoDate = expression.match(/^(\d{4}-\d{2}-\d{2})(?:[T ].*)?$/)?.[1];
     if (Math.max(...years) > Number(today.slice(0, 4)) || (isoDate && (isoDate > today
@@ -111,7 +114,7 @@ export function createPhotoWorkspace({
     };
     const requested = bounds(period, true), captured = bounds(expression);
     if (!relaxedTime && requested) {
-      const yearOnly = /^\s*(?:(?:about|around|circa|approximately|ca\.?|c\.)\s+|(?:大约|约|大概)\s*)?(?:18|19|20)\d{2}\s*年?\s*(?:左右|前后|前後)?\s*$/i.test(period);
+      const yearOnly = /^(?:18|19|20)\d{2}年?$/.test(period);
       const tolerance = requested[0] === requested[1] && yearOnly ? 10 : 0;
       const decade = Math.floor(requested[0] / 10) * 10;
       const sameDecade = picture.period_match === "decade" && picture.requested_period === period
@@ -179,14 +182,10 @@ export function createPhotoWorkspace({
     photoPaginationObserver.observe(button);
   }
 
-  function photoSearchPeriod(entry, focus) {
+  function photoSearchPeriod(entry) {
     if (typeof entry?.research_period === "string") return entry.research_period;
-    // Life-stage labels such as 青年时期 describe the memoir, not calendar
-    // dates. Only a grounded year/range can restrict a historical photo search.
-    if (/(?:18|19|20)\d{2}/.test(entry?.period || "")) return entry.period;
-    const matchingPlace = entry?.place && focus?.where?.includes(entry.place);
-    if (entry?.period === "" && !matchingPlace) return "";
-    return /(?:18|19|20)\d{2}/.test(focus?.when || "") ? focus.when : "";
+    // Compatibility for already saved numeric calendar fields only.
+    return /^(?:18|19|20)\d{2}(?:s|年代|年(?:\d{1,2}月(?:\d{1,2}日)?)?|[-–—](?:18|19|20)\d{2})?$/.test(entry?.period || "") ? entry.period : "";
   }
 
   function referenceUrl(value) {

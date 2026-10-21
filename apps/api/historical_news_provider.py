@@ -105,11 +105,15 @@ class GatewayHistoricalProvider:
         if (not key or not model or parsed.scheme not in {'https','http'} or not parsed.hostname
             or parsed.username or parsed.password or parsed.query or parsed.fragment):
             raise ValueError('Historical search is not configured')
-        prompt = load_prompt_artifact(prompt_path('memoir/skills/memoir-historical-news-research/discovery')).replace('{{query}}', query)
+        from .model_request import prompt_manifest, manifest_metadata
+        name = 'memoir/skills/memoir-historical-news-research/discovery'
+        instructions = load_prompt_artifact(prompt_path(name))
+        manifest = prompt_manifest([name],instructions,variant='historical-native-search')
+        prompt = instructions.replace('{{query}}', query)
         body={'model':model,'input':prompt,'tools':[{'type':'web_search'}],'tool_choice':'required',
             'include':['web_search_call.action.sources'],'reasoning':{'effort':'low'},
             'max_output_tokens':3000,'store':False,
-            'metadata':{'generation_name':'memoir-historical-news-research',
+            'metadata':{**manifest_metadata(manifest),'generation_name':'memoir-historical-news-research',
                 'trace_name':'memoir-historical-news-research'}}
         async def request(client):
             try:
@@ -121,10 +125,13 @@ class GatewayHistoricalProvider:
                         if len(raw)>MAX_BYTES:raise ValueError('Search response exceeds limit')
                 decoded=decode_discovery(json.loads(raw))
                 if key in json.dumps(decoded):raise ValueError('Unsafe search receipt')
+                decoded['receipt']['prompt_manifest']=manifest
                 return decoded
             except httpx.HTTPError:raise OSError('Historical provider unavailable') from None
-        if self.client:return await request(self.client)
-        async with httpx.AsyncClient(follow_redirects=False) as client:return await request(client)
+        from .llm_tracing import trace_llm_call
+        with trace_llm_call('historical.discovery',model,metadata={'prompt_manifest':manifest}):
+            if self.client:return await request(self.client)
+            async with httpx.AsyncClient(follow_redirects=False) as client:return await request(client)
 
     async def inspect(self,url,*,timeout):
         # DNS/robots/socket operations must not survive the job deadline.

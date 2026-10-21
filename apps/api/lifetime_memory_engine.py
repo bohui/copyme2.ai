@@ -7,6 +7,9 @@ homes and transcripts are disposable; they are never a source of personal truth.
 """
 from __future__ import annotations
 
+from .model_request import instruction_manifest, manifest_metadata
+from .llm_tracing import trace_llm_call
+
 from copy import deepcopy
 import asyncio
 import json
@@ -331,8 +334,10 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     output_schema = governed_collector_schema(interview_context)
     prompt=GOVERNED_TURN_PROMPT
     if repair_reason is not None:
+        prompt += load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/codes'))
+    if repair_reason is not None:
         prompt+=(load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/prefix'))
-            +repair_reason+load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/suffix')))
+            +json.dumps({'error_code': repair_reason},ensure_ascii=False)+load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/suffix')))
     if acknowledgement is not None:
         # A fresh-home repair must preserve the acknowledgement already shown.
         output_schema['properties']['acknowledgement']['enum'] = [acknowledgement]
@@ -355,8 +360,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         return _admission(publisher, json.loads(fence_snapshot))
     # Snapshot validation-only data before awaiting provider work.
     interview_context = deepcopy(interview_context)
-    from .interview_plan import (CollectorVisibleStream, historical_acknowledgement_allowed,
-        translation_grounding_violation, TRANSLATION_GROUNDING_ERROR)
+    from .interview_plan import CollectorVisibleStream, historical_acknowledgement_allowed
     visible = CollectorVisibleStream()
     streamed_acknowledgement = None
 
@@ -364,7 +368,6 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         nonlocal streamed_acknowledgement
         value = visible.feed(chunk)
         if (value and historical_acknowledgement_allowed(value, interview_context)
-            and not translation_grounding_violation(value, interview_context)
             and (acknowledgement is None or value == acknowledgement)):
             streamed_acknowledgement = value
             # Only the complete validated acknowledgement crosses this boundary.
@@ -386,51 +389,65 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'model':model, 'approvalPolicy':'never', 'sandbox':'read-only',
                 'baseInstructions':governed.packet}, identity=identity.model_dump(mode='json'))
         candidate = opened['thread_id']
-        reply = await connection.turn(candidate, prompt,
-            output_schema=output_schema,
-            **({'on_delta':model_delta} if on_delta else {}),
-            **({'on_event':on_event} if on_event else {}),
-            **({'effort':effort} if effort else {}),
-            responsesapi_client_metadata={
-                **(responsesapi_client_metadata or {}),
-                'generation_name': 'memoir-interviewer',
-                'trace_name': 'memoir-interviewer',
-            })
+        static_parts = [packet.instructions, GOVERNED_TURN_PROMPT]
+        if repair_reason:
+            static_parts.extend(load_prompt_artifact(prompt_path(
+                'memoir/skills/memoir-interviewer/governed-repair/' + part))
+                for part in ('codes', 'prefix', 'suffix'))
+        if acknowledgement is not None:
+            static_parts.append(load_prompt_artifact(prompt_path(
+                'memoir/skills/memoir-interviewer/governed-repair/acknowledgement')))
+        manifest = instruction_manifest('\n'.join(static_parts), output_schema,
+            variant='collector-repair' if repair_reason else 'collector',
+            extra_names=['memoir/shared/historical-acknowledgements']
+                if interview_context.get('historical_news',{}).get('clues') else [])
+        with trace_llm_call('memoir.' + str('collector-repair' if repair_reason else 'collector'), model, metadata={'contract_version': 'lifetime-v1', 'prompt_manifest': manifest}):
+            reply = await connection.turn(candidate, prompt,
+                output_schema=output_schema,
+                **({'on_delta':model_delta} if on_delta else {}),
+                **({'on_event':on_event} if on_event else {}),
+                **({'effort':effort} if effort else {}),
+                responsesapi_client_metadata={**manifest_metadata(manifest),
+                    **(responsesapi_client_metadata or {}),
+                    'generation_name': 'memoir-interviewer',
+                    'trace_name': 'memoir-interviewer',
+                })
         try:
             validated = validate_governed_collector_result(reply, interview_context)
             expected = acknowledgement if acknowledgement is not None else streamed_acknowledgement
             if expected is not None and validated['acknowledgement'] != expected:
                 raise ValueError('Correction cannot replace the streamed acknowledgement')
         except (ValueError, TypeError, KeyError) as error:
-            reasons = {
-                'Continuity requires exact current narrator evidence',
-                'Unsupported biographical year', 'Unsupported life stage',
-                'Unknown candidate event', 'Unknown active event',
-                'Only one visible question is allowed', 'Choose one current candidate',
-                'Question candidates must be distinct', 'Acknowledgement cannot contain a question',
-                'Returning to another event needs a conversational bridge',
-                'Privacy and commitment continuity require asserted direct narrator wording',
-                'Continuity text must preserve the exact attributed quote',
-                'Continuity span must cover exact original characters',
-                'Question evidence span must match the referenced passage',
-                'Question evidence needs one exact passage or explicit offsets',
-                'Question evidence is outside the supplied narrator passages',
-                'Inferred continuity requires explicit uncertainty',
-                'Duplicate continuity update',
-                'Candidate is stale, asked or outside this project',
-                'Current intent overrides prepared candidates',
-                'Current intent requires one appropriate follow-up question',
-                'Candidate use requires its recorded reason',
-                'Candidate identity required',
-                'Prepared candidate text changed',
-                'Only one immediate question is allowed',
-                'No-question outcome requires an explicit reason',
-                'Current pause requires no question',
-                'A stop cannot force a question',
-                'Correction cannot replace the streamed acknowledgement',
-                TRANSLATION_GROUNDING_ERROR,
-            }
-            reason = str(error) if str(error) in reasons else 'SCHEMA_OR_OTHER_CONTRACT'
+            reasons = {'A stop cannot force a question': 'CONTRACT_01',
+             'Acknowledgement cannot contain a question': 'CONTRACT_02',
+             'Candidate identity required': 'CONTRACT_03',
+             'Candidate is stale, asked or outside this project': 'CONTRACT_04',
+             'Candidate use requires its recorded reason': 'CONTRACT_05',
+             'Choose one current candidate': 'CONTRACT_06',
+             'Continuity requires exact current narrator evidence': 'CONTRACT_07',
+             'Continuity span must cover exact original characters': 'CONTRACT_08',
+             'Continuity text must preserve the exact attributed quote': 'CONTRACT_09',
+             'Correction cannot replace the streamed acknowledgement': 'CONTRACT_10',
+             'Current intent overrides prepared candidates': 'CONTRACT_11',
+             'Current intent requires one appropriate follow-up question': 'CONTRACT_12',
+             'Current pause requires no question': 'CONTRACT_13',
+             'Duplicate continuity update': 'CONTRACT_14',
+             'Inferred continuity requires explicit uncertainty': 'CONTRACT_15',
+             'No-question outcome requires an explicit reason': 'CONTRACT_16',
+             'Only one immediate question is allowed': 'CONTRACT_17',
+             'Only one visible question is allowed': 'CONTRACT_18',
+             'Prepared candidate text changed': 'CONTRACT_19',
+             'Privacy and commitment continuity require asserted direct narrator wording': 'CONTRACT_20',
+             'Question candidates must be distinct': 'CONTRACT_21',
+             'Question evidence is outside the supplied narrator passages': 'CONTRACT_22',
+             'Question evidence needs one exact passage or explicit offsets': 'CONTRACT_23',
+             'Question evidence span must match the referenced passage': 'CONTRACT_24',
+             'Returning to another event needs a conversational bridge': 'CONTRACT_25',
+             'Unknown active event': 'CONTRACT_26',
+             'Unknown candidate event': 'CONTRACT_27',
+             'Unsupported biographical year': 'CONTRACT_28',
+             'Unsupported life stage': 'CONTRACT_29'}
+            reason = reasons[str(error)] if str(error) in reasons else 'SCHEMA_OR_OTHER_CONTRACT'
             if isinstance(error,json.JSONDecodeError):reason='INVALID_JSON'
             from pydantic import ValidationError
             if isinstance(error, ValidationError):
@@ -440,7 +457,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                         reason='SCHEMA_FIELD_'+field
                     cause = str((detail.get('ctx') or {}).get('error', ''))
                     if cause in reasons:
-                        reason = cause
+                        reason = reasons[cause]
                         break
             log_diagnostic(diagnostic_logger, 'collector_output_rejected',
                 (responsesapi_client_metadata or {}).get('request_id'),

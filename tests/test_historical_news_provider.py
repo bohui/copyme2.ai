@@ -34,7 +34,7 @@ def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(mo
     assert captured[0]['model']==(research_model or 'approved-model')
     assert 'max_tool_calls' not in captured[0] and captured[0]['store'] is False
     assert captured[0]['reasoning']=={'effort':'low'}
-    assert captured[0]['metadata'] == {
+    assert {k:captured[0]['metadata'][k] for k in ('generation_name','trace_name')} == {
         'generation_name':'memoir-historical-news-research',
         'trace_name':'memoir-historical-news-research'}
     assert 'photograph' not in captured[0]['input']

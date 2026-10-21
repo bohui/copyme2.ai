@@ -21,6 +21,11 @@ p = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = p
 spec.loader.exec_module(p)
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'tests'))
+from fixed_caption_data import proposal as fixed_caption_proposal
+from offline_network import deny_external_network
+deny_external_network()
+
 ASOF = date(2026, 9, 26)
 
 def fixture():
@@ -181,6 +186,8 @@ class SecurityTests(unittest.TestCase):
 
 class WorkflowTests(unittest.TestCase):
     def setUp(self):
+        stub = patch.object(p,'_caption_date_proposal',side_effect=fixed_caption_proposal)
+        stub.start(); self.addCleanup(stub.stop)
         self.tmp=tempfile.TemporaryDirectory(); self.run=Path(self.tmp.name)
         self.req,self.c,self.ev=fixture()
         p.write_json(self.run/"request.json",self.req); p.write_json(self.run/"candidates.json",[self.c])

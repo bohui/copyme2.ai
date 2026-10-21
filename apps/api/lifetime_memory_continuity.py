@@ -12,7 +12,6 @@ from pathlib import Path
 from copy import deepcopy
 from hashlib import sha256
 import json
-import re
 from typing import Annotated, Literal
 from uuid import NAMESPACE_URL, uuid5
 
@@ -20,14 +19,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .interview_plan import collector_schema, validate_collector_result
-from .place_journey import grounded_place_journeys, validate_place_journey
+from .place_journey import grounded_place_journeys, validate_place_journey, PlaceResearchWindow
 
 
 MAX_CONTINUITY_UPDATES = 8
-
-
-class LiteralContinuityInputError(ValueError):
-    """An explicit policy cannot be completely represented without truncation."""
 
 
 GOVERNED_CONTINUITY_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-continuity'))
@@ -37,16 +32,14 @@ class _ContinuityUpdate(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
 
     kind: Literal['person', 'unresolved_reference', 'commitment', 'excluded_topic', 'paused_topic']
-    text: str = Field(min_length=1, max_length=500,
-        description='Verbatim copy of quote. Do not extract a shorter name, label or paraphrase.')
+    text: str = Field(min_length=1, max_length=500)
     assertion: Literal['asserted', 'inferred']
     uncertainty: str | None = Field(max_length=500)
     source_id: str = Field(min_length=1, max_length=128)
     source_version: int = Field(ge=1, strict=True)
     char_start: int = Field(ge=0, strict=True)
     char_end: int = Field(ge=1, strict=True)
-    quote: str = Field(min_length=1, max_length=500,
-        description='Exactly identical to text, character for character, and a verbatim substring of the current narrator source. Not a longer supporting sentence for a shorter text.')
+    quote: str = Field(min_length=1, max_length=500)
 
     @model_validator(mode='after')
     def faithful_text(self):
@@ -71,6 +64,7 @@ class _PlaceJourney(BaseModel):
     granularity: Literal['country', 'region', 'city', 'suburb']
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
+    research: PlaceResearchWindow | None = None
 
 
 class _Places(BaseModel):
@@ -109,9 +103,6 @@ def governed_collector_schema(context=None):
     if source:
         item['source_id']['const'] = source['id']
         item['source_version']['const'] = source['version']
-        direct_kinds = {directive.kind for directive in _literal_directives(source)}
-        item['kind']['enum'] = [kind for kind in item['kind']['enum']
-                               if kind not in _DIRECT_KINDS or kind in direct_kinds]
     schema['properties']['continuity_updates'] = extension['properties']['continuity_updates']
     schema['required'].append('continuity_updates')
     if (context or {}).get('two_lane_memory') is True:
@@ -142,100 +133,7 @@ def _current_source(context):
     return source
 
 
-# Freeze whitespace and English word-boundary behavior independently of Python
-# Unicode versions and the PostgreSQL database locale. SQL uses this explicit
-# whitespace class and C collation; English word markers are ASCII in both.
-_SPACE_CLASS = r'[\u0009-\u000d\u001c-\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]'
-_SPACE_CHARS = ''.join(chr(code) for code in (
-    *range(0x9, 0xe), *range(0x1c, 0x21), 0x85, 0xa0, 0x1680,
-    *range(0x2000, 0x200b), 0x2028, 0x2029, 0x202f, 0x205f, 0x3000))
-_SENTENCE_PATTERN = r'[^.!?。！？\r\n\u2028\u2029]+[.!?。！？]?'
-
-# Whole direct sentences only. This is a deliberately small literal fallback,
-# not an intent classifier. Reported/quoted text anywhere makes control scope
-# ambiguous, including speech continued across a newline or sentence boundary.
-_REPORTED = re.compile(
-    r'''["“”‘「」『』`：:]|(?<!\w)['’]|['’](?!\w)|\b(?:said|says|told|asked|replied|wrote|written|whispered|shouted|reported|quoted|quote|caption|script|example|hypothetical|suppose|imagine)\b|(?:说|說|告诉|告訴|写道|寫道|写着|寫著|例如|假如|如果)''',
-    re.IGNORECASE | re.ASCII,
-)
-_CONDITIONAL = re.compile(
-    r'\b(?:if|unless|until|when|because|but|except|maybe|perhaps|whether)\b|(?:除非|如果|假如|也许|也許|可能|但是|不过|不過)',
-    re.IGNORECASE | re.ASCII,
-)
-_LITERAL_PATTERNS = (
-    ('excluded_topic', r"(?:please\s+)?(?:do not|don't|don’t|never)\s+(?:discuss|mention|ask (?:me )?about|bring up)\s+.+"),
-    ('excluded_topic', r"I\s+(?:do not|don't|don’t)\s+want to\s+(?:discuss|talk about)\s+.+"),
-    ('excluded_topic', r'(?:请|我)?(?:不要|别|不想)(?:再)?(?:讨论|谈|聊|提)(?:到|起)?[^，,：:；;]+'),
-    ('paused_topic', r"(?:(?:please|let's|let’s)\s+)?(?:set aside|pause discussing|pause talking about)\s+.+?(?:\s+for now)?"),
-    ('paused_topic', r'(?:我们|咱们)?先(?:不聊|不谈|暂停讨论)[^，,：:；;]+'),
-    ('commitment', r"I(?:'ll|’ll| will| promise to)\s+.+"),
-    ('commitment', r'我(?:下次会|稍后会|之后会|以后会|会|将|打算)[^，,：:；;]+'),
-)
-_LITERAL_PATTERNS = tuple((kind, pattern.replace(' ', r'\s+').replace(r'\s', _SPACE_CLASS))
-                          for kind, pattern in _LITERAL_PATTERNS)
 _PRIVACY_KINDS = {'excluded_topic', 'paused_topic'}
-_DIRECT_KINDS = _PRIVACY_KINDS | {'commitment'}
-
-
-def _literal_phrases(text):
-    if _REPORTED.search(text):
-        return []
-    result = []
-    for match in re.finditer(_SENTENCE_PATTERN, text):
-        segment = match.group()
-        start = match.start() + len(segment) - len(segment.lstrip(_SPACE_CHARS))
-        phrase = segment.strip(_SPACE_CHARS)
-        # Question-shaped wording is not a literal instruction or promise.
-        if phrase.endswith(('?', '？')):
-            continue
-        phrase = phrase.rstrip('.!。！').rstrip(_SPACE_CHARS)
-        if not phrase or _CONDITIONAL.search(phrase):
-            continue
-        for kind, pattern in _LITERAL_PATTERNS:
-            if re.fullmatch(pattern, phrase, re.IGNORECASE | re.ASCII):
-                if len(phrase) > 500:
-                    if kind in _PRIVACY_KINDS:
-                        raise LiteralContinuityInputError('Explicit privacy controls must fit 500 characters without truncation')
-                    break
-                result.append({'kind': kind, 'text': phrase, 'char_start': start,
-                    'char_end': start + len(phrase)})
-                break
-    return result
-
-
-def _validate_policy_count(phrases):
-    if sum(item['kind'] in _PRIVACY_KINDS for item in phrases) > MAX_CONTINUITY_UPDATES:
-        raise LiteralContinuityInputError('Too many explicit privacy controls for one continuity turn; no controls were truncated')
-
-
-def validate_literal_continuity_input(text, *, source_kind='narrator_chat'):
-    """Pure preaccept validation, using the identical postaccept literal parser.
-
-    This is an early request check, not a trusted completeness claim. Atomic
-    persistence independently establishes current-source policy completeness.
-    For already accepted replays, callers must report maintenance rather than
-    claim the source was not accepted when this validation rejects the text.
-    """
-    if not isinstance(text, str) or source_kind not in {'narrator_chat', 'narrator_transcript'}:
-        raise LiteralContinuityInputError('Original narrator text and kind are required')
-    _validate_policy_count(_literal_phrases(text))
-
-
-def _literal_directives(source):
-    phrases = _literal_phrases(source['text'])
-    _validate_policy_count(phrases)
-    return [_ContinuityUpdate(**item, assertion='asserted', uncertainty=(
-        'Literal statement of future intent; completion is unconfirmed.'
-        if item['kind'] == 'commitment' else
-        'Literal current-source request; scope is limited to the quoted wording.'),
-        source_id=source['id'], source_version=source['version'], quote=item['text'])
-        for item in phrases]
-
-
-def _same_literal(proposal, literal):
-    """Allow punctuation in a model quote without widening its control span."""
-    return (proposal.kind == literal.kind and proposal.char_start == literal.char_start
-            and proposal.quote.rstrip('.!。！').rstrip(_SPACE_CHARS) == literal.quote)
 
 
 def validate_governed_collector_result(raw, context):
@@ -273,63 +171,19 @@ def validate_governed_collector_result(raw, context):
                            'selection_reason': 'prepared_candidate', 'question_delivered': chosen['question']}
     if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
     source = _current_source(context)
-    literal = _literal_directives(source) if source else []
     updates = value.get('continuity_updates', [])
     if isinstance(updates, list):
         updates = [dict(item) if isinstance(item, dict) else item for item in updates]
-        overwide = []
-        structurally_validated = []
         for item in updates:
-            candidate = item
-            is_overwide = False
-            if isinstance(item, dict):
-                start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
-                locate = ('char_start' in item and 'char_end' in item
-                          and start is None and end is None)
-                explicit = type(start) is int and start >= 0 and type(end) is int and end >= 1
-                needs_repair = (locate or (explicit and source and isinstance(quote, str)
-                                           and source['text'][start:end] != quote))
-                if needs_repair and source and isinstance(quote, str):
-                    original_start = source['text'].find(quote)
-                    unique = (original_start >= 0
-                              and source['text'].find(quote, original_start + 1) < 0)
-                    if unique:
-                        matching_literals = [direct for direct in literal
-                            if direct.quote in quote and direct.quote != quote]
-                        is_overwide = (
-                            locate
-                            and item.get('assertion') == 'asserted'
-                            and item.get('kind') in _DIRECT_KINDS
-                            and len(matching_literals) == 1
-                            and matching_literals[0].kind == item.get('kind'))
-                        # Validate the raw proposal with a temporary exact span
-                        # before a host-owned over-wide control can be removed.
-                        candidate = dict(item)
-                        candidate['char_start'] = original_start
-                        candidate['char_end'] = original_start + len(quote)
-                        if not is_overwide:
-                            item['char_start'] = candidate['char_start']
-                            item['char_end'] = candidate['char_end']
-            structurally_validated.append(candidate)
-            overwide.append(is_overwide)
-        # This runs before normalization, so invalid metadata, fabricated
-        # quotes, and over-limit arrays cannot disappear through fallback.
-        _Updates.model_validate({'continuity_updates': structurally_validated})
-        if updates and source is None:
-            raise ValueError('Continuity requires exact current narrator evidence')
-        for item in updates:
-            if (item['source_id'] != source['id']
-                    or item['source_version'] != source['version']):
-                raise ValueError('Continuity requires exact current narrator evidence')
-        # Privacy and commitment controls are host-owned literals. A model can
-        # occasionally quote the whole control sentence plus a preceding pacing
-        # sentence (with null offsets), which is semantically safe but cannot pass
-        # the exact-span check. Canonicalize only this asserted, null-spanned,
-        # unambiguous over-wide form after the complete raw list is validated.
-        normalized = [item for item, is_overwide in zip(updates, overwide) if not is_overwide]
-    else:
-        normalized = updates
-    proposed = _Updates.model_validate({'continuity_updates': normalized}).continuity_updates
+            if not isinstance(item, dict) or source is None:
+                continue
+            start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
+            locate = start is None and end is None and 'char_start' in item and 'char_end' in item
+            if isinstance(quote, str) and locate:
+                position = source['text'].find(quote)
+                if position >= 0 and source['text'].find(quote, position + 1) < 0:
+                    item.update(char_start=position, char_end=position + len(quote))
+    proposed = _Updates.model_validate({'continuity_updates': updates}).continuity_updates
     if proposed and source is None:
         raise ValueError('Continuity requires exact current narrator evidence')
     seen = set()
@@ -342,15 +196,8 @@ def validate_governed_collector_result(raw, context):
         if key in seen:
             raise ValueError('Duplicate continuity update')
         seen.add(key)
-        if item.kind == 'person' and item.assertion == 'asserted':
-            from .interview_strategy import current_constraints
-            prefix = source['text'][:item.char_start].rstrip()
-            if (current_constraints(source['text']).get('override') == 'current_correction'
-                    and re.search(r'\bnot(?:\s+(?:my|our|the|his|her|their|your))?\s*$|(?:不是|并非|並非)(?:我|我的|他|他的|她|她的)?$', prefix, re.I)):
-                raise ValueError('A superseded person cannot become asserted continuity')
-        if item.kind in _DIRECT_KINDS and (item.assertion != 'asserted'
-                or not any(_same_literal(item, direct) for direct in literal)):
-            raise ValueError('Privacy and commitment continuity require asserted direct narrator wording')
+        if item.kind in _PRIVACY_KINDS and item.assertion != 'asserted':
+            raise ValueError('Privacy restrictions require a completed current-source review')
 
     places = _Places.model_validate({'place_journeys': [] if context.get('two_lane_memory') is True
         else value.get('place_journeys', [])}).place_journeys
@@ -358,33 +205,8 @@ def validate_governed_collector_result(raw, context):
                   if place.hierarchy[-1] == place.place]
     journeys = grounded_place_journeys([place for place in candidates if place is not None],
                                       source['text']) if source else []
-    return {**result, 'continuity_updates': _rows(_select_updates(literal, proposed)),
+    return {**result, 'continuity_updates': _rows(proposed),
             'place_journeys': journeys}
-
-
-def literal_continuity_updates(context):
-    """Return deterministic literal rows before generation, without model input.
-
-    Only the enumerated English/Chinese sentence forms are recognized. Mixed
-    quoted/reported language is conservatively ignored, not intent-classified.
-    The coordinator can persist excluded/paused rows under the existing lease
-    before capturing the provider/publication fence. It remains responsible for
-    policy revision and idempotency. This helper neither writes nor changes phase.
-    """
-    source = _current_source(context)
-    return _rows(_select_updates(_literal_directives(source) if source else [], []))
-
-
-def _select_updates(literal, proposed):
-    # Every literal control has priority, including controls already proposed at
-    # the end of a full model array. Canonicalize ALL direct kinds so early and
-    # final persistence use identical quote spans, uncertainty and record IDs.
-    controls = [item for item in literal if item.kind in _PRIVACY_KINDS]
-    if len(controls) > MAX_CONTINUITY_UPDATES:
-        raise LiteralContinuityInputError('Too many explicit privacy controls for one continuity turn; no controls were truncated')
-    commitments = [item for item in literal if item.kind == 'commitment']
-    other = [item for item in proposed if item.kind not in _DIRECT_KINDS]
-    return [*controls, *commitments, *other][:MAX_CONTINUITY_UPDATES]
 
 
 def _rows(selected):
@@ -393,10 +215,10 @@ def _rows(selected):
     rows = []
     for item in selected:
         seed = f'memoir:continuity:{item.source_id}:{item.source_version}:{item.kind}:{item.char_start}:{item.char_end}'
-        record_id = ('literal-v1:' + sha256(seed.encode('utf-8')).hexdigest()
+        record_id = ('semantic-v1:' + sha256(seed.encode('utf-8')).hexdigest()
                      if item.kind in _PRIVACY_KINDS else str(uuid5(NAMESPACE_URL, seed)))
         rows.append({'record_id': record_id, 'kind': item.kind, 'data': {
-            'text': item.text, 'assertion': item.assertion, 'uncertainty': item.uncertainty,
+            'text': item.text, 'assertion': item.assertion, 'uncertainty': None if item.kind in _PRIVACY_KINDS else item.uncertainty,
             'source_refs': [{'source_id': item.source_id, 'version': item.source_version,
                 'char_start': item.char_start, 'char_end': item.char_end, 'quote': item.quote}],
         }})

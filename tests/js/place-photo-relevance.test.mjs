@@ -63,7 +63,7 @@ test('period boundaries, uncertain metadata and coordinate validation remain str
   }
   assert.equal(context.photoMatchesScope(picture('upload', {date_expression: '1983', date_basis: 'upload_date', ...center}), entry), false);
   assert.equal(context.photoMatchesScope(picture('invalid', {date_expression: '1983', latitude: '', longitude: ''}), entry), false);
-  assert.equal(context.photoSearchPeriod({period: '青年时期'}, {when: '1983年'}), '1983年');
+  assert.equal(context.photoSearchPeriod({period: '青年时期'}, {when: '1983年'}), '');
 });
 
 test('content fingerprints merge rehosted variants while keeping a different scene', () => {

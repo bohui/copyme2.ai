@@ -121,6 +121,8 @@ def paid(sql):
 
 
 def confirm(sql, project, sources):
+    from controlled_policy import complete_seed_policy
+    complete_seed_policy(sql,OWNER)
     periods = {name:{'status':'skipped','memory_ids':[],'note':'Not covered'} for name in
         ('baby','childhood','adolescence','young_adulthood','midlife','later_life')}
     periods['childhood'] = {'status':'recorded','memory_ids':[row['id'] for row in sources],'note':''}
@@ -298,7 +300,7 @@ def test_typed_job_fences_match_exact_sql_pages_before_leaf_and_merge_publicatio
     sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
     data={'text':control['text'],'assertion':'asserted','source_refs':[{'source_id':control['id'],'version':1,
         'char_start':0,'char_end':len(control['text']),'quote':control['text']}]}
-    rpc(sql,'save_lifetime_continuity',f"'{identity['conversation_id']}','privacy-exclusion','excluded_topic',0,1,'{OLD}',{literal(data)}::jsonb")
+    sql(as_user("update public.user_profile set profile=jsonb_set(profile,'{memory_preferences}','{\"excluded_topics\":[\"Do not discuss the private school incident.\"]}');"))
     confirm(sql,project,originals);paid(sql);job=create(sql,project,[],'BuildOutline',1);lease=claim(sql,job)
     budget=ContextBudget(model='synthetic-byte-bpe',context_window=131072,input_budget=65536,output_headroom=32768,framing_headroom=4096)
     phases=[]
@@ -307,7 +309,7 @@ def test_typed_job_fences_match_exact_sql_pages_before_leaf_and_merge_publicatio
         fence=bounded.fence.model_dump(mode='json');phases.append(fence['phase'])
         assert job_request_tokens(bounded)<=65536
         assert control['text'] in json.loads(bounded.packet)['job_context']['preferences']['excluded_topics']
-        assert bounded.fence.preferences.known_continuity[0].kind=='excluded_topic'
+        assert 'Do not discuss the private school incident.' in bounded.fence.preferences.excluded_topics
         assert rpc(sql,'lock_lifetime_collection_job_publication',f'{literal(fence)}::jsonb')>0
         import asyncio
         from apps.api.lifetime_memory_job_engine import JobPublication
@@ -428,6 +430,8 @@ def test_selected_manifest_remains_bounded_as_history_grows_to_ten_thousand(sql)
     for start in range(2,10001,500):
         end=min(start+499,10000)
         sql(as_user(f"set statement_timeout='90s';do $$ begin for n in {start}..{end} loop perform public.accept_user_narrator_source('{project}',gen_random_uuid(),'Unselected memory '||n);end loop;end $$;"))
+        from controlled_policy import complete_seed_policy
+        complete_seed_policy(sql,OWNER)
     # Resume the durable checkpoint after a potentially long idle history build.
     sql(f"update public.user_lifetime_collection_job set lease_until=clock_timestamp()-interval '1 second' where id='{job['id']}';")
     lease=claim(sql,job)

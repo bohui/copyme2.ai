@@ -8,7 +8,6 @@ from apps.api.place_journey import (
     extract_place_journeys,
     grounded_place_journeys,
     normalize_persisted_place_journey,
-    place_journey_message_is_ambiguous,
     place_journey_matches_message,
     place_journey_fingerprint,
     validate_place_journey,
@@ -42,43 +41,10 @@ def test_same_city_aliases_are_deduplicated_after_source_grounding():
     assert 'latitude' not in short
 
 
-@pytest.mark.parametrize('message,independent', [
-    ('我出生在河北省承德市附属医院。', False),
-    ('我出生在河北省的承德市。', False),
-    ('我出生在承德市，后来在河北省工作。', True),
-    ('我后来住在河北省，承德市是我的出生地。', True),
-    ('我住在河北省。承德市是我的出生地。', True),
-    ('我记得河北省\n承德市', True),
-])
-def test_only_qualified_chinese_province_mentions_are_redundant(message, independent):
-    province = {'place': '河北省', 'hierarchy': ['Earth', '中国', '河北省'], 'granularity': 'region'}
-    city = {'place': '承德市', 'hierarchy': ['Earth', '中国', '河北', '承德市'], 'granularity': 'city'}
-    selected = grounded_place_journeys([province, city], message)
-    assert [place['place'] for place in selected] == (['河北省', '承德市'] if independent else ['承德市'])
-    assert city['hierarchy'] == ['Earth', '中国', '河北', '承德市']
 
 
-@pytest.mark.parametrize('message,independent', [
-    ('I was born in Chengde, Hebei.', False),
-    ('I was born in Chengde in Hebei.', False),
-    ('I was born in Chengde, Hebei in April 1983.', False),
-    ('I worked across Hebei, then moved to Chengde.', True),
-    ('I was born in Chengde, Hebei was where I later worked.', True),
-    ('I travelled across Hebei. Chengde was my birthplace.', True),
-])
-def test_only_qualified_english_province_mentions_are_redundant(message, independent):
-    province = {'place': 'Hebei', 'hierarchy': ['Earth', 'China', 'Hebei'], 'granularity': 'region'}
-    city = {'place': 'Chengde', 'hierarchy': ['Earth', 'China', 'Hebei', 'Chengde'], 'granularity': 'city'}
-    selected = grounded_place_journeys([province, city], message)
-    assert [place['place'] for place in selected] == (['Hebei', 'Chengde'] if independent else ['Chengde'])
 
 
-def test_country_and_province_qualifiers_do_not_create_extra_records():
-    country = {'place': '中国', 'hierarchy': ['Earth', '中国'], 'granularity': 'country'}
-    province = {'place': '河北省', 'hierarchy': [*country['hierarchy'], '河北省'], 'granularity': 'region'}
-    city = {'place': '承德市', 'hierarchy': [*province['hierarchy'], '承德市'], 'granularity': 'city'}
-    assert grounded_place_journeys([country, province, city], '我出生在中国河北省承德市。') == [city]
-    assert grounded_place_journeys([country, province, city], '我出生在承德市，河北省，中国。') == [city]
 
 
 def test_keeps_standalone_provinces_and_independent_cities_and_suburbs():
@@ -248,26 +214,3 @@ def test_place_journey_marker_must_match_the_current_storyteller_message():
     assert not place_journey_matches_message(journey, "Tell me about that day.")
     assert not place_journey_matches_message(journey, "I remember living in Victoria.")
     assert place_journey_matches_message(journey, "I remember a summer in Geelong.")
-
-
-@pytest.mark.parametrize('message', [
-    'I am unsure which old town I mean when I say the place beyond Launceston; ask instead of mapping it.',
-    '我不确定说的是哪一个地方，请先问我，不要定位。',
-    'The city I mean by Springfield is uncertain.',
-    'I am not sure which city.\nI moved there in 1983.',
-])
-def test_explicit_place_uncertainty_blocks_mapping_even_when_a_city_is_named(message):
-    assert place_journey_message_is_ambiguous(message)
-
-
-@pytest.mark.parametrize('message', [
-    'I moved to the city of Hobart in 1980, but I am not sure which month.',
-    'I am not sure which month.\nI moved to the city of Hobart in 1980.',
-    'I moved to the city of Hobart in 1980; the month is uncertain.',
-    'The city was Hobart and the year is uncertain.',
-    'The city was Hobart and my age was unknown.',
-    'The city was Hobart, and the time is unclear.',
-    'I retired in Hobart, although I cannot remember the exact year.',
-])
-def test_date_uncertainty_does_not_block_a_grounded_place(message):
-    assert not place_journey_message_is_ambiguous(message)

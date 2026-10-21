@@ -206,7 +206,7 @@ def test_real_sql_pending_policy_reaches_collector_saved_and_read_guards(sql):
     read_fence=rpc(sql,'capture_lifetime_read_fence',literal(identity['project_id']))
     # An explicit synthetic inventory blocker stands in for incomplete historic
     # policy review. Current authority remains valid; only policy readiness fails.
-    sql(f"insert into public.user_lifetime_policy_inventory_pending values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','literal-v1');")
+    sql(f"insert into public.user_lifetime_policy_inventory_pending values('{OWNER}',{literal(identity['project_id'])},'{identity['conversation_id']}','semantic-v1');")
     dsn=sql.publication_dsn
     async def run():
         for factory,snapshot in ((ProviderPublication,fence),(TransactionalPublication,fence),(ReadPublication,read_fence)):

@@ -82,7 +82,7 @@ def test_flickr_source_reads_item_tags_album_and_capture_date_without_using_uplo
     source = 'https://www.flickr.com/photos/kattebelletje/3330975589/'
     found = browser._source_items(page, source, '离宫, 承德市', '1980s')
     assert len(found) == 1
-    assert found[0]['date_expression'] == 'October 1983'
+    assert found[0]['date_expression'] == '1983-10'
     assert '承德' in found[0]['location_evidence']
     assert found[0]['license_url'] == 'https://creativecommons.org/licenses/by/2.0/deed.en'
     assert not browser._source_items(page.replace('/by/2.0/', '/by-nc/2.0/'), source, '离宫, 承德市', '1980s')
@@ -617,7 +617,7 @@ def test_flickr_browses_public_search_and_ignores_upload_date(fake_crawler):
                      '<p>Taken on October 1, 1983 Uploaded on October 1, 2025</p>'
                      '<a href="https://creativecommons.org/licenses/by/4.0/">Licence</a>')
     result = asyncio.run(browser._browse_query('flickr', 'Chengde', '1980s', search))
-    assert len(result) == 1 and result[0]['date_expression'] == 'October 1, 1983'
+    assert len(result) == 1 and result[0]['date_expression'] == '1983-10-01'
     assert all(config.check_robots_txt for _, config in calls)
 
 
