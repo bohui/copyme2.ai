@@ -1,0 +1,593 @@
+{
+  "schema_version": "issue53-current-acceptance/1",
+  "release_accepted": false,
+  "original_coding_task": "codex://threads/01a1567e-46d6-7e40-afc7-ccd9620731c9",
+  "pull_request": "https://github.com/bohui/copyme2.ai/pull/106",
+  "target_seconds": {
+    "preferred": 5,
+    "fallback": 10
+  },
+  "candidate_default_enabled": false,
+  "live_runs": [
+    {
+      "id": "issue53-worker-profile-20261021a",
+      "status": "aborted",
+      "source_revision": "0a424a25ae53be30f6cf32679305be46a0124f0f",
+      "raw_receipt_sha256": "2d12d9f4519497b556b18b8b94f5163efd3910982f715b9f6ad29827271eda6f",
+      "runner_source_sha256": "672bd96e9bea869768a59589136cba4763a2185e73a6dcfba4f56dc415c6e5cb",
+      "planned_rows": 80,
+      "executed_rows": 2,
+      "unexecuted_rows": 78,
+      "elapsed_s": 27.946,
+      "background_dispatches": 0,
+      "policy_calls": 2,
+      "native_invocations": null,
+      "native_count_unavailable_reason": "CalledProcessError",
+      "provider_internal_requests": null,
+      "temporary_worker_homes_removed": true,
+      "foundation_worker_stop_exit_code": 0,
+      "arms": {
+        "baseline": {
+          "saved": 0,
+          "failed": 1,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            },
+            "api_preparation_to_worker_dispatch_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            }
+          }
+        },
+        "candidate": {
+          "saved": 0,
+          "failed": 1,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            },
+            "api_preparation_to_worker_dispatch_s": {
+              "observed_saved_rows": 0,
+              "median_s": null,
+              "maximum_s": null
+            }
+          }
+        }
+      },
+      "failed_rows": [
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/baseline",
+          "failure_class": "CanonicalTurnFailed",
+          "error_code": null,
+          "timings": {
+            "api_preparation_to_worker_dispatch_s": 3.89
+          }
+        },
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-1/0/candidate",
+          "failure_class": "CanonicalTurnFailed",
+          "error_code": null,
+          "timings": {}
+        }
+      ]
+    },
+    {
+      "id": "issue53-worker-profile-20261021b",
+      "status": "aborted",
+      "source_revision": "751ed4eec2d4e8bb3e0f1bc7f2cd332ddf9138f3",
+      "raw_receipt_sha256": "4589c61b6ff5d2aeaf31b66a777fd69496f3e8a8843036b694a74a4e8befdef3",
+      "runner_source_sha256": "000b1b029d5b30a3013953f3eb3a44ab8764d874f5175a286193c8999b5af805",
+      "planned_rows": 80,
+      "executed_rows": 14,
+      "unexecuted_rows": 66,
+      "elapsed_s": 331.213,
+      "background_dispatches": 0,
+      "policy_calls": 14,
+      "native_invocations": 16,
+      "native_count_unavailable_reason": null,
+      "provider_internal_requests": null,
+      "temporary_worker_homes_removed": true,
+      "foundation_worker_stop_exit_code": 0,
+      "arms": {
+        "baseline": {
+          "saved": 7,
+          "failed": 0,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 7,
+              "median_s": 15.742,
+              "maximum_s": 28.841
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 7,
+              "median_s": 17.097,
+              "maximum_s": 30.47
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 7,
+              "median_s": 17.124,
+              "maximum_s": 30.543
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 7,
+              "median_s": 17.133,
+              "maximum_s": 30.556
+            },
+            "api_preparation_to_worker_dispatch_s": {
+              "observed_saved_rows": 7,
+              "median_s": 3.419,
+              "maximum_s": 11.481
+            }
+          }
+        },
+        "candidate": {
+          "saved": 6,
+          "failed": 1,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 6,
+              "median_s": 14.267,
+              "maximum_s": 25.846
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 6,
+              "median_s": 15.4,
+              "maximum_s": 28.301
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 6,
+              "median_s": 15.4595,
+              "maximum_s": 28.469
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 6,
+              "median_s": 15.5225,
+              "maximum_s": 28.497
+            },
+            "api_preparation_to_worker_dispatch_s": {
+              "observed_saved_rows": 6,
+              "median_s": 5.327500000000001,
+              "maximum_s": 15.52
+            }
+          }
+        }
+      },
+      "failed_rows": [
+        {
+          "row_id": "issue53/correction/en-AU/turn-1/0/candidate",
+          "failure_class": "CanonicalTurnFailed",
+          "error_code": null,
+          "timings": {
+            "api_preparation_to_worker_dispatch_s": 3.702,
+            "first_public_text_s": 9.54
+          }
+        }
+      ]
+    }
+  ],
+  "checks": [
+    {
+      "name": "before",
+      "receipt_directory": "/tmp/issue53-review-fixes-20261021a",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_privacy_evaluation.py"
+      ],
+      "base_head_at_dispatch": "751ed4eec2d4e8bb3e0f1bc7f2cd332ddf9138f3",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_s": 133.48,
+      "summary": "6 failed, 24 passed in 131.17s (0:02:11)",
+      "log_sha256": "df7e3d270fc599b28d4550dcf990757e41dff46eab346e23e422a0e70264f021",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "fixed",
+      "receipt_directory": "/tmp/issue53-review-fixes-20261021b",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_issue53_privacy_evaluation.py"
+      ],
+      "base_head_at_dispatch": "751ed4eec2d4e8bb3e0f1bc7f2cd332ddf9138f3",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 195.31,
+      "summary": "30 passed in 191.59s (0:03:11)",
+      "log_sha256": "0fd30a3a97f8706ff3f9d1b3c457876e3b0b93776093a005f82bdb6b1a3558ca",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "shared-hash-before",
+      "receipt_directory": "/tmp/issue53-review-fixes-20261021c",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_skill_eval_suite.py",
+        "-k",
+        "source_content_hash"
+      ],
+      "base_head_at_dispatch": "751ed4eec2d4e8bb3e0f1bc7f2cd332ddf9138f3",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_s": 2.72,
+      "summary": "1 failed, 23 deselected in 0.91s",
+      "log_sha256": "540081a08a6d93c6084724191c763f8f453023ba7acec85a7e3aa2d5f8bd3c21",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "shared-hash-fixed",
+      "receipt_directory": "/tmp/issue53-review-fixes-20261021c",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_skill_eval_suite.py"
+      ],
+      "base_head_at_dispatch": "751ed4eec2d4e8bb3e0f1bc7f2cd332ddf9138f3",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_s": 6.55,
+      "summary": "5 failed, 14 passed, 5 errors in 4.33s",
+      "log_sha256": "a446c4f47d526285b8728471ba29df152167eb4798c4d9a453ee8bd0174a8534",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "shared-hash-fixed",
+      "receipt_directory": "/tmp/issue53-review-fixes-20261021d",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_skill_eval_suite.py"
+      ],
+      "base_head_at_dispatch": "751ed4eec2d4e8bb3e0f1bc7f2cd332ddf9138f3",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 6.07,
+      "summary": "24 passed in 4.63s",
+      "log_sha256": "ebc9d2e98c6620f34c1c66e933192517a08476efe2638c46883aeaf0688183a7",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "inventory-pin",
+      "receipt_directory": "/tmp/issue53-review-fixes-20261021d",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_skill_eval_suite.py"
+      ],
+      "base_head_at_dispatch": "d992e07fa31785be2352a3a95339f40011539dbc",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 13.83,
+      "summary": "48 passed in 11.10s",
+      "log_sha256": "75c6bde31dd7c59d76f905c228287530d9171f3f4700caa9f63c960045bae52a",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "streaming",
+      "receipt_directory": "/tmp/issue53-early-ack-checks-20261021f",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_policy_early_ack.py",
+        "tests/test_lifetime_policy_atomic_postgres.py"
+      ],
+      "base_head_at_dispatch": "751ed4eec2d4e8bb3e0f1bc7f2cd332ddf9138f3",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 30.7,
+      "summary": "29 passed in 28.56s",
+      "log_sha256": "8972c8eb7fea52a5a24b14631f30071b29dd92def956207e130b6b64e2f80d06",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "place-photo",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021a",
+      "command": [
+        "make",
+        "test-place-research"
+      ],
+      "base_head_at_dispatch": "751ed4eec2d4e8bb3e0f1bc7f2cd332ddf9138f3",
+      "status": "completed",
+      "exit_code": 2,
+      "duration_s": 173.48,
+      "summary": "1 failed, 428 passed in 129.81s (0:02:09)",
+      "log_sha256": "4f516465da22a873e8878bd3740033ac9860a3cad1aedcbca1b5619e45c69ed9",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "matrix-en-AU",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021b",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=en-AU",
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head_at_dispatch": "985a917026426407dd5839de546018cfff520116",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_s": 504.43,
+      "summary": "3 failed, 7 passed, 8 deselected in 498.81s (0:08:18)",
+      "log_sha256": "d1a8af96f2c7f91bb3cd2b617314d5a7d84bb474e96ea413b0b65a366644e85b",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "integrated-boundaries",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021b",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_model_boundaries.py",
+        "tests/test_llm_boundary_regressions.py",
+        "tests/test_policy_early_ack.py",
+        "tests/test_lifetime_policy_atomic_postgres.py"
+      ],
+      "base_head_at_dispatch": "c1c3302520bbe3adea3b77dfae2128dc4aaedf34",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 78.23,
+      "summary": "63 passed in 73.21s (0:01:13)",
+      "log_sha256": "019ccf5941524ad9d0dab15245cd83ff8e954508b0b2533f9928e72f33f6b710",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "background-conflict-rerun",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_background_skill_workflow.py",
+        "-k",
+        "model_recognized_control_overrides_a_saved_lane_b_confirmation"
+      ],
+      "base_head_at_dispatch": "2e908d62048cd4f237024b32931601f07de0f54a",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 20.31,
+      "summary": "6 passed, 22 deselected in 18.65s",
+      "log_sha256": "27184600cb5d7b4bb865e4d2d1ef83775800ea0375ccb6b623d15edf6e63567f",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "place-photo-serial",
+      "command": [
+        "make",
+        "test-place-research"
+      ],
+      "base_head_at_dispatch": "2e908d62048cd4f237024b32931601f07de0f54a",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 137.0,
+      "summary": "429 passed in 101.91s (0:01:41)",
+      "log_sha256": "a40a8203a3fa3d2a67a5cb03b59ebf5cddae489d46e7f194727ab6525a78451b",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "matrix-en-AU",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021d",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=en-AU",
+        "ISSUE53_SQL_DIAGNOSTIC=/tmp/issue53-current-final-checks-20261021d/sql-resource.jsonl",
+        "PYTHONPATH=/tmp",
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-p",
+        "issue53_sql_diagnostic",
+        "--tb=short",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head_at_dispatch": "2e908d62048cd4f237024b32931601f07de0f54a",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 425.79,
+      "summary": "10 passed, 8 deselected in 423.67s (0:07:03)",
+      "log_sha256": "91f0cca2ed00fbfc41d3eccb9e0b58005df0cd1b3fe315d541feb09e203380bd",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "acknowledgement-whitespace-before",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021d",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_policy_early_ack.py",
+        "-k",
+        "matches_rendered_reply_whitespace"
+      ],
+      "base_head_at_dispatch": "d412c4fc0cdfaa9ce3892f7d38fec3f02254c48f",
+      "status": "completed",
+      "exit_code": 1,
+      "duration_s": 2.96,
+      "summary": "1 failed, 18 deselected in 1.20s",
+      "log_sha256": "2e43adafd26fdd416dc6edeeca2fd3360d429cdb7bf2e03dcc1aa1488cf31f52",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "integrated-boundaries",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021e",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_model_boundaries.py",
+        "tests/test_llm_boundary_regressions.py",
+        "tests/test_policy_early_ack.py",
+        "tests/test_lifetime_policy_atomic_postgres.py"
+      ],
+      "base_head_at_dispatch": "d412c4fc0cdfaa9ce3892f7d38fec3f02254c48f",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 47.06,
+      "summary": "64 passed in 45.36s",
+      "log_sha256": "02aaa917502a90e2313c205cebf3a0f2afee43f3aef1e3af8aed48ca7397ef4a",
+      "native_cleanup_verified": true
+    }
+  ],
+  "remaining": [
+    "main-only prompt publication",
+    "complete current-source bilingual live comparison",
+    "bilingual semantic review",
+    "existing-session and rollback acceptance",
+    "browser-proxy smoke"
+  ],
+  "notes": [
+    "The receipt base head does not imply a clean tree; fixes were tested before commit and latest-main integration is identified separately.",
+    "The first six failing review tests and shared-hash-before are intentional red regressions.",
+    "One concurrent shared evaluator run exhausted the macOS system file limit; serial reruns passed.",
+    "The first required place/photo rerun retained one database serialization-conflict failure.",
+    "The English matrix retained two failed rows, including one post-save readback failure; neither counts as passed acceptance.",
+    "Partial live saved-row summaries are not a matched quality comparison or a production percentile.",
+    "The complete required place/photo target subsequently passed serially: 591 JavaScript, 429 API/database and 95 standalone tests. The isolated six-case background rerun also passed; the original failure remains retained.",
+    "A surrounding-whitespace regression fails before normalization; all 64 integrated boundary/streaming/SQL checks pass afterward, with padded model acknowledgements in the real HTTP/SQL cases.",
+    "The English serial rerun passes all 40 application rows and 10 checks; the earlier 38-completed/two-failed matrix remains retained. Chinese and fault checks remain in progress."
+  ],
+  "current_provider_policy": {
+    "captured_at": "2026-10-21T10:20:37.250490+00:00",
+    "read_mode": "live_gateway_sqlite_read_only_inside_running_container",
+    "route_configuration": "running litellm environment and mounted configuration",
+    "route_policy": [
+      {
+        "alias": "gpt-5.6-luna-pooled",
+        "configured_model": "openai/gpt-5.6-luna",
+        "configured_effort": "max",
+        "exact_key_policy_matched": true,
+        "policy": {
+          "enforced_model": "gpt-5.6-luna",
+          "enforced_reasoning_effort": "max",
+          "enforced_service_tier": null,
+          "traffic_class": "foreground",
+          "is_active": 1
+        }
+      },
+      {
+        "alias": "gpt-5.6-luna-memoir-low",
+        "configured_model": "openai/gpt-5.6-luna",
+        "configured_effort": "low",
+        "exact_key_policy_matched": true,
+        "policy": {
+          "enforced_model": "gpt-5.6-luna",
+          "enforced_reasoning_effort": "low",
+          "enforced_service_tier": null,
+          "traffic_class": "foreground",
+          "is_active": 1
+        }
+      }
+    ],
+    "keys_or_hashes_retained": false
+  },
+  "english_matrix_serial": {
+    "application_rows_completed": 40,
+    "checks_passed": 10,
+    "sql_file_limit_events": 0,
+    "diagnostic_source_sha256": "53b53a30b9737c1ca3839210d0f088b372ad08afe33bce24150bade2e489f79f"
+  }
+}

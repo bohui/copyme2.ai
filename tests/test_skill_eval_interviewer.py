@@ -18,6 +18,7 @@ def test_foreground_packets_validate_real_selector_and_current_intent(tmp_path, 
               'slow-pacing': 'pacing'}.get(case, 'latest_story')
     output = wire(question=None if pause else '您还记得什么？' if locale == 'zh-CN' else 'What else do you remember?',
                   selection_reason=reason, stopped=pause, used_strategy='explore')
+    output.pop('resolved_questions', None)
     class Provider:
         async def call(self, packet):
             assert packet['input']['strategy_selector'] is True

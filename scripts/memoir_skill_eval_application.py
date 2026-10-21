@@ -201,6 +201,8 @@ async def _execute(value):
         return fixture.response
 
     with controlled_database(directory_root=value['allocation']) as sql, pytest.MonkeyPatch.context() as patch:
+        from controlled_policy import install_policy_review_transport
+        install_policy_review_transport(patch)
         game_case = item['skill'] == 'memoir-story-game'
         conversation = Conversation(sql, folder, patch, lambda packet: {
             **empty(packet), 'events': [episode(packet, packet['sources'][0]['text'], title=packet['sources'][0]['text'])]},

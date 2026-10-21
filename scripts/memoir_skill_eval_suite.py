@@ -471,7 +471,7 @@ async def run(planned, directory, *, skill=None, history_provider=None, photo_pr
                 ROOT / 'scripts/run_memoir_skill_evaluation.py', ROOT / 'scripts/prompt_registry.py',
                 ROOT / 'scripts/publish_langfuse_prompts.py', ROOT / 'scripts/memoir_skill_eval_application.py',
                 ROOT / 'scripts/memoir_skill_eval_browser.py', ROOT / 'tests/test_conversation_attribution.py',
-                ROOT / 'tests/test_story_game_runtime_postgres.py']}),
+                ROOT / 'tests/test_story_game_runtime_postgres.py', ROOT / 'tests/controlled_policy.py']}),
         prompt_inventory=planned['inventory'], evaluator_definitions=planned['evaluators'],
         judge_executor='sdk' if sdk_judge else 'managed' if managed_judge else 'none',
         human_calibration=planned['human_calibration'], results=[], coverage={}, budgets={})

@@ -261,3 +261,16 @@ def test_response_size_is_bounded_before_retaining_application_evidence(tmp_path
     assert result['budgets']['skill']['dispatched'] == 1
     assert result['results'][0]['execution'] == 'unavailable'
     assert 'x' * 300000 not in (tmp_path / 'receipt.json').read_text()
+
+
+def test_source_content_hash_binds_controlled_policy_helper(tmp_path, monkeypatch):
+    from pathlib import Path
+    original = Path.read_bytes
+    helper = suite.ROOT / 'tests/controlled_policy.py'
+    before = asyncio.run(suite.run(selected(), tmp_path / 'before'))
+    def changed_dependency(path):
+        content = original(path)
+        return content + b'\n# unreviewed helper change\n' if path == helper else content
+    monkeypatch.setattr(Path, 'read_bytes', changed_dependency)
+    after = asyncio.run(suite.run(selected(), tmp_path / 'after'))
+    assert before['source_content_sha256'] != after['source_content_sha256']

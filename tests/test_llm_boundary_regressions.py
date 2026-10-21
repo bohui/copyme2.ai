@@ -104,6 +104,11 @@ def test_installed_photo_skill_uses_local_capture_parsing(tmp_path):
     shutil.copytree(skill, installed, ignore=shutil.ignore_patterns('__pycache__'))
     script = """
 import importlib.util, sys
+class WithoutMemoir:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == 'apps' or fullname.startswith('apps.'):
+            raise ModuleNotFoundError('Memoir is not installed in this fixture', name=fullname)
+sys.meta_path.insert(0, WithoutMemoir())
 spec = importlib.util.spec_from_file_location('photo_research', sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module

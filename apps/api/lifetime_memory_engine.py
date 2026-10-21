@@ -279,7 +279,7 @@ async def run_governed_collector(**options):
     """Retry rejected output in fresh bounded homes within the original timeout."""
     options={**options,'interview_context':deepcopy(options['interview_context']),
         'governed':GovernedCollectorInput.model_validate(options['governed'].model_dump(mode='json'))}
-    acknowledgement = None
+    acknowledgement = options['interview_context'].get('reviewed_acknowledgement')
     original_delta = options.get('on_delta')
     if original_delta:
         async def observed_delta(text):

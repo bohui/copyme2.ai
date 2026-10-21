@@ -164,9 +164,10 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 raise GenerationPaused('Conversation generation is paused; saved history and receipts remain available')
             from .policy_review import review_pending_policy
             try:
-                await review_pending_policy(storage, lease, str(identity.conversation_id),
+                return await review_pending_policy(storage, lease, str(identity.conversation_id),
                     model=collector_configuration(runtime.model).model,
-                    base_url=runtime.base_url, api_key=runtime.api_key)
+                    base_url=runtime.base_url, api_key=runtime.api_key,
+                    language=explicit_request(text), fallback_language=language)
             except (PolicyUnavailable, ValueError, OSError) as error:
                 raise await policy_pending() from error
         entitlement=await lease.io(storage.story_entitlement)
@@ -235,7 +236,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             accepted_source_id=source['id']
             # Older private context remains blocked until the current source's
             # bounded semantic policy review commits under its original fence.
-            await review_policy()
+            reviewed_opening=await review_policy()
             profile=await lease.io(storage.profile)
             selected_language=explicit_request(text) or profile.get('preferred_language') or language or detect_reply_locale(text)
             if selected_language not in {'en-AU','zh-CN'}:selected_language='en-AU'
@@ -285,6 +286,14 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             if two_lane:
                 context['two_lane_memory']=True
                 context['prepared_questions']=await call('read_lifetime_prepared_questions',p_conversation_id=str(identity.conversation_id))
+            from .policy_review import reviewed_acknowledgement
+            from .interview_plan import historical_acknowledgement_allowed
+            opening=reviewed_acknowledgement(reviewed_opening or policy_status.get('reviewed_acknowledgement'),
+                source,selected_language)
+            if opening and historical_acknowledgement_allowed(opening,context):
+                context['reviewed_acknowledgement']=opening
+            else:
+                opening=None
             collector=collector_configuration(runtime.model)
             if two_lane and strategy_enabled() and collector.prompt_version=='two-lane-v1':
                 state=await call('read_lifetime_strategy_context',p_conversation_id=str(identity.conversation_id))
@@ -333,6 +342,10 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             await progress.update('memory-context','Saved profile and memory context loaded','个人资料和回忆背景已加载',status='completed')
             governed=GovernedCollectorInput(packet=serialize_packet(packet),fence=fence,budget=overall,prompt_version='lifetime-v1')
             visible=CollectorVisibleStream()
+            if opening and on_delta:
+                visible.feed(json.dumps({'acknowledgement':opening},ensure_ascii=False))
+                await on_delta(opening)
+                await publication.flush()
             async def delta(chunk):
                 value=visible.feed(chunk)
                 if value and on_delta:await on_delta(value)

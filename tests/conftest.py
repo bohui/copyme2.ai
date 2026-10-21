@@ -63,22 +63,5 @@ def fixed_policy_controls():
 
 @pytest.fixture(autouse=True)
 def controlled_policy_review_transport(monkeypatch, fixed_policy_controls):
-    from apps.api import policy_review
-    original = policy_review.complete_json
-
-    async def complete(name, payload, schema, **kwargs):
-        source = payload['source']
-        controls = []
-        for kind, quote in fixed_policy_controls:
-            start = source['text'].index(quote)
-            controls.append(dict(kind=kind, quote=quote, char_start=start, char_end=start + len(quote)))
-        output = dict(complete=True, restrictions=controls)
-        def respond(request):
-            return httpx.Response(200, json=dict(id='controlled-policy-response', status='completed',
-                output=[dict(type='message', status='completed', content=[dict(type='output_text', text=__import__('json').dumps(output))])]))
-        kwargs['model']=kwargs.get('model') or 'controlled-policy-model'
-        kwargs.update(base_url='https://policy.invalid/v1', api_key='controlled-policy-key')
-        return await original(name, payload, schema, transport=httpx.MockTransport(respond),
-            **kwargs)
-
-    monkeypatch.setattr(policy_review, 'complete_json', complete)
+    from controlled_policy import install_policy_review_transport
+    install_policy_review_transport(monkeypatch, fixed_policy_controls)

@@ -1,7 +1,11 @@
 # Issue 53: collector latency and release evidence
 
+Current-source acceptance after PR105 is tracked in
+[the 21 October follow-up](issue53-current-acceptance-20261021.md). The cohorts
+below predate the added source-policy round trip and remain historical.
+
 The target is meaningful text within **5 seconds**, with **10 seconds** as the
-fallback. PR [101](https://github.com/bohui/copyme2.ai/pull/101) remains a draft;
+fallback. PR [101](https://github.com/bohui/copyme2.ai/pull/101) is merged;
 the candidate is not enabled in the shared app and issue 53 is not accepted yet.
 
 ## Routing and measured improvement
