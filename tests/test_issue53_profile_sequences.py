@@ -31,8 +31,10 @@ def test_zero_dispatch_plan_binds_pairs_and_all_provenance(monkeypatch):
     planned = profile.plan(samples=2)
     assert planned['dispatches'] == 0
     assert planned['dependency']['commit'] == profile.PR92_COMMIT
+    assert planned['dependency']['reviewed_core_commit'] == profile.REVIEWED_CORE_COMMIT
     for field in ('application', 'prompts', 'configuration_sources', 'dataset', 'evaluator', 'profiler'):
         assert planned['provenance'][field]
+    assert 'tests/controlled_policy.py' in planned['provenance']['evaluator']
     pairs = {}
     for row in planned['rows']:
         pairs.setdefault(row['pair_id'], []).append(row)
@@ -40,6 +42,19 @@ def test_zero_dispatch_plan_binds_pairs_and_all_provenance(monkeypatch):
     assert len({r['row_id'] for r in planned['rows']}) == len(planned['rows'])
     assert planned['budgets']['live_dispatches'] == 0
     assert planned['human_acceptance'] == 'pending_bilingual_heldout'
+
+
+
+@pytest.mark.parametrize('dependency', [profile.CORE[0], 'tests/controlled_policy.py'])
+def test_unreviewed_evaluator_change_still_blocks_planning(monkeypatch, dependency):
+    original_hash = profile._file_hash
+
+    def changed_core(path):
+        return 'unreviewed' if path == profile.ROOT / dependency else original_hash(path)
+
+    monkeypatch.setattr(profile, '_file_hash', changed_core)
+    with pytest.raises(ValueError, match='reviewed_core_changed_requires_dependency_review'):
+        profile.plan()
 
 
 def test_empty_ingestion_keeps_every_planned_row_and_is_incomplete():

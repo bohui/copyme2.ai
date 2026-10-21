@@ -178,3 +178,38 @@ def test_research_window_keeps_original_offsets_after_a_source_window_boundary()
     assert grounded_place_journeys([place],text,source_offset=offset)==[place]
     with pytest.raises(ValueError,match='evidence'):
         grounded_place_journeys([place],text)
+
+
+def test_worker_manifest_does_not_require_uninstalled_evaluation_prompts(monkeypatch):
+    from apps.api.prompt_artifact import load_prompt_artifact
+    from apps.api.model_request import PROMPT_PATHS
+
+    name = 'memoir/skills/memoir-interviewer/governed-turn'
+    instructions = load_prompt_artifact(prompt_path(name))
+    missing = 'memoir/evaluation/not-installed-in-worker'
+    monkeypatch.setitem(PROMPT_PATHS, missing, 'tests/evaluation/not-installed-in-worker.md')
+    manifest = instruction_manifest(instructions, {}, variant='collector')
+    assert name in {artifact['name'] for artifact in manifest['artifacts']}
+    assert missing not in {artifact['name'] for artifact in manifest['artifacts']}
+    with pytest.raises(FileNotFoundError):
+        instruction_manifest(instructions, {}, extra_names=[missing])
+
+
+@pytest.mark.parametrize('identifier', ['resp_gateway_token=', 'resp_gateway_token=='])
+def test_structured_response_accepts_completed_gateway_ids_with_padding(identifier):
+    from apps.api.model_request import decode_json_response
+
+    value = dict(id=identifier, status='completed', output=[dict(type='message', status='completed',
+        content=[dict(type='output_text', text='{"complete":true,"restrictions":[]}')])])
+    assert decode_json_response(value) == dict(complete=True, restrictions=[])
+    value['status'] = 'incomplete'
+    with pytest.raises(ValueError, match='did not complete'):
+        decode_json_response(value)
+
+
+@pytest.mark.parametrize('identifier', ['resp_bad id', 'resp_middle=padding', 'resp_'+('x' * 1024)])
+def test_structured_response_rejects_unsafe_or_oversized_response_ids(identifier):
+    from apps.api.model_request import decode_json_response
+    with pytest.raises(ValueError):
+        decode_json_response(dict(id=identifier, status='completed', output=[dict(type='message',
+            status='completed', content=[dict(type='output_text', text='{}')])]))

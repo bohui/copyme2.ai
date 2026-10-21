@@ -12,6 +12,32 @@ current-run receipt fix `a9724f7ed51423b5131c7690ab2e049d5c80b3be`.
 The planner rejects changes to the pinned shared evaluator/receipt core until
 that dependency is reviewed. No PR92 shared file is changed here.
 
+## 21 October evaluator dependency review
+
+PR105 changed only the shared evaluator's prompt inventory assembly: it now uses
+`model_request.prompt_manifest` to record managed prompt status, the same source
+SHA-256, and compiled component provenance. The planner retains the original
+PR92 dependency identity and separately pins the reviewed evaluator bytes at
+`d992e07fa31785be2352a3a95339f40011539dbc` (including the policy-helper
+execution-hash inventory fix). The application adapter additionally installs the same fixed
+HTTP policy-review transport used by ordinary tests, so its isolated child
+completes the new source-only review through the real publication guard and
+SQL transaction. This is explicit fixture data, not model-quality evidence.
+The asset, receipt verifier, budget, scoring and scenario files are unchanged
+from the original pin. No execution or release gate is relaxed; another unreviewed core
+change still blocks planning, covered by an explicit regression. The fixed HTTP
+policy helper (`tests/controlled_policy.py`) is also part of that pinned dependency
+inventory and content hash; edits to it require the same dependency review.
+
+The bilingual skip/exclusion turns declare exact restrictive quotes in the frozen
+manifest. The offline adapter submits those explicit controls through the real
+HTTP/SQL policy path. Comparison requires the resulting current-source policy
+receipt, active pinned restriction, and exclusion of prior assistant replies from
+the governed input. A mutually consistent but incorrectly unfiltered history can
+no longer pass, and a resealed empty review fails contracts and latency pairing.
+These checks establish fixture behavior only; live model privacy interpretation
+and bilingual response quality still require separate acceptance.
+
 ## Reused interfaces
 
 - `memoir_skill_eval_suite.plan`, `judge_definition`, `quality`, `Budget`,

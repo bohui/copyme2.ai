@@ -114,6 +114,11 @@ def test_installed_photo_skill_can_inspect_without_memoir(tmp_path, configured):
                 'sha256': hashlib.sha256(prompt.read_bytes()).hexdigest()}))
     script = """
 import importlib.util, sys, io, json, os
+class WithoutMemoir:
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname == 'apps' or fullname.startswith('apps.'):
+            raise ModuleNotFoundError('Memoir is not installed in this fixture', name=fullname)
+sys.meta_path.insert(0, WithoutMemoir())
 spec = importlib.util.spec_from_file_location('photo_research', sys.argv[1])
 module = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = module
@@ -133,7 +138,7 @@ else:
             value = {'id': 'fixture-search', 'output': [{'type': 'web_search_call', 'id': 'fixture-tool',
                 'status': 'completed', 'action': {'sources': [{'url': 'https://archive.invalid/photo'}]}}]}
         else:
-            value = {'id': 'fixture-caption', 'status': 'completed', 'output': [{'type': 'message',
+            value = {'id': 'fixture-caption=', 'status': 'completed', 'output': [{'type': 'message',
                 'content': [{'type': 'output_text', 'text': '{"complete":true,"assertions":[]}'}]}]}
         return io.BytesIO(json.dumps(value).encode())
     module.http_request.urlopen = respond

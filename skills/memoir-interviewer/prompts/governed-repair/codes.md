@@ -24,7 +24,7 @@ Repair the structured proposal using the error code below and the supplied contr
   "CONTRACT_21": "Question candidates must be distinct",
   "CONTRACT_22": "Question evidence is outside the supplied narrator passages",
   "CONTRACT_23": "Question evidence needs one exact passage or explicit offsets",
-  "CONTRACT_24": "Question evidence span must match the referenced passage",
+  "CONTRACT_24": "Question evidence span must match the referenced passage. Copy one narrow exact quote from the supplied current source. For a unique quote, set both char_start and char_end to null; the application locates it exactly. Do not count or guess character positions. Repeated wording needs a longer unique quote or precise absolute offsets.",
   "CONTRACT_25": "Returning to another event needs a conversational bridge",
   "CONTRACT_26": "Unknown active event",
   "CONTRACT_27": "Unknown candidate event",

@@ -518,7 +518,13 @@
             "durable_save",
             "owner_project_scope"
           ],
-          "source_language": "en-AU"
+          "source_language": "en-AU",
+          "policy_controls": [
+            {
+              "kind": "excluded_topic",
+              "quote": "I do not want to discuss the kitchen."
+            }
+          ]
         },
         {
           "id": "turn-3",
@@ -616,7 +622,13 @@
             "durable_save",
             "owner_project_scope"
           ],
-          "source_language": "zh-CN"
+          "source_language": "zh-CN",
+          "policy_controls": [
+            {
+              "kind": "excluded_topic",
+              "quote": "我不想聊厨房。"
+            }
+          ]
         },
         {
           "id": "turn-3",

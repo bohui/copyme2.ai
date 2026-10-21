@@ -23,3 +23,31 @@ def complete_seed_policy(sql, owner):
         if created then perform public.release_user_agent_turn_lease(lease);end if;
       end loop;
     end $fixture$;""")
+
+
+def install_policy_review_transport(monkeypatch, controls=()):
+    """Fixed proposals at the real HTTP request seam for offline child processes."""
+    import json
+    import httpx
+    from apps.api import policy_review
+
+    original = policy_review.complete_json
+
+    async def complete(name, payload, schema, **kwargs):
+        source = payload['source']
+        restrictions = []
+        for kind, quote in controls:
+            start = source['text'].index(quote)
+            restrictions.append(dict(kind=kind, quote=quote, char_start=start, char_end=start + len(quote)))
+        output = dict(complete=True, restrictions=restrictions)
+
+        def respond(request):
+            return httpx.Response(200, json=dict(id='controlled-policy-response', status='completed',
+                output=[dict(type='message', status='completed',
+                    content=[dict(type='output_text', text=json.dumps(output))])]))
+
+        kwargs.update(model=kwargs.get('model') or 'controlled-policy-model',
+            base_url='http://127.0.0.1:1/v1', api_key='controlled-policy-key', transport=httpx.MockTransport(respond))
+        return await original(name, payload, schema, **kwargs)
+
+    monkeypatch.setattr(policy_review, 'complete_json', complete)
