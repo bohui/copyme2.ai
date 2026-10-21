@@ -173,10 +173,13 @@ async def controlled_sequences(planned, directory):
     sys.addaudithook(_network_guard)
     native_cleanup_confirmed = False
     try:
-        with offline_settings():
+        import pytest
+        with offline_settings(), pytest.MonkeyPatch.context() as policy_fixture:
             # Helper imports add tests to sys.path, without creating provider clients.
             from scripts.controlled_native_state import _test_adapter
             _test_adapter()
+            from controlled_policy import install_policy_review_transport
+            install_policy_review_transport(policy_fixture)
             from controlled_collector import extraction_proposal, worker_reply
             for case in planned['scenarios']:
                 samples = sorted({r['sample'] for r in planned['rows'] if r['scenario_id'] == case['id']})

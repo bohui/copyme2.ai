@@ -54,7 +54,8 @@ except ModuleNotFoundError as error:
 
     def decode_json_response(value):
         if (not isinstance(value, dict) or value.get('status') != 'completed'
-                or not isinstance(value.get('id'), str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,1024}', value['id'])
+                or not isinstance(value.get('id'), str) or len(value['id']) > 1024
+                or not re.fullmatch(r'[A-Za-z0-9_-]+={0,2}', value['id'])
                 or not isinstance(value.get('output'), list)):
             raise ValueError('Model response did not complete')
         messages = [item for item in value['output'] if isinstance(item, dict) and item.get('type') == 'message']

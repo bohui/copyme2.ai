@@ -55,7 +55,8 @@ def managed_json_request(name, payload, schema, *, model=None):
 
 def decode_json_response(value):
     if (not isinstance(value, dict) or value.get('status') != 'completed'
-            or not isinstance(value.get('id'),str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,1024}',value['id'])
+            or not isinstance(value.get('id'), str) or len(value['id']) > 1024
+            or not re.fullmatch(r'[A-Za-z0-9_-]+={0,2}', value['id'])
             or not isinstance(value.get('output'),list)):
         raise ValueError('Model response did not complete')
     messages = [item for item in value['output'] if isinstance(item,dict) and item.get('type') == 'message']
@@ -113,6 +114,8 @@ def instruction_manifest(instructions, schema=None, *, variant=None, extra_names
     names = list(extra_names)
     for name, relative in PROMPT_PATHS.items():
         path = ROOT / relative
+        if not path.is_file():
+            continue
         template = path.read_text(encoding='utf-8')
         if template and (template in instructions or
                 '{{prompt:' in template and render_prompt_artifact(path) in instructions):
