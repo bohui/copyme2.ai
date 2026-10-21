@@ -7,6 +7,7 @@ in explicitly so both migrations remain covered while the product changes.
 """
 
 import os
+import sys
 from pathlib import Path
 
 os.environ.setdefault("LANGFUSE_TRACING_ENABLED", "false")
@@ -17,6 +18,8 @@ import pytest
 from apps.api import prompt_artifact
 from scripts.prompt_registry import prompt_registry, ROOT
 
+# Use the same fixtures that ship in an isolated photo-skill installation.
+sys.path.insert(0, str(ROOT / 'skills/memoir-place-photo-research/tests'))
 
 # Offline application replays test reviewed source text, including unpublished
 # PR edits. The production loader and publication tests still validate receipts.
@@ -36,7 +39,7 @@ prompt_artifact.load_prompt_artifact = _offline_prompt_source
 def deny_external_provider_dispatch(monkeypatch):
     """Only in-process transports and loopback services belong in ordinary tests."""
     import socket
-    from offline_network import deny_external_network
+    from photo_test_support.offline_network import deny_external_network
     original, resolver = deny_external_network()
     connect, resolve = socket.socket.connect, socket.getaddrinfo
     socket.socket.connect, socket.getaddrinfo = original, resolver
@@ -85,5 +88,5 @@ def controlled_policy_review_transport(monkeypatch, fixed_policy_controls):
 def fixed_caption_interpretation(monkeypatch):
     """Neutral caption proposal; tests of date roles supply explicit assertions."""
     from apps.api.place_photo_browser import _research
-    from fixed_caption_data import proposal
+    from photo_test_support.fixed_caption_data import proposal
     monkeypatch.setattr(_research(), '_caption_date_proposal', proposal)

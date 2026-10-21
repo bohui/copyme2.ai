@@ -1,4 +1,4 @@
-"""Fixed synthetic model outputs for public-source adapter tests, never gold scoring."""
+"""Bundled fixed model outputs for public-source adapter tests, never gold scoring."""
 
 # Exact fixture identities select canned provider responses; no language is parsed.
 CAPTURES = {

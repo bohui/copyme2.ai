@@ -23,8 +23,8 @@ fixed provider tests.
 
 ## PR review regressions
 
-The review of commit `ae790d8` found four introduced defects. The follow-up
-changes address each at its calling boundary:
+Reviews of commits `ae790d8` and `704227d` found the following introduced
+defects. The follow-up changes address each at its calling boundary:
 
 | Review finding | Fix and regression evidence |
 | --- | --- |
@@ -32,6 +32,7 @@ changes address each at its calling boundary:
 | Recent normalized photo ranges expanded to whole years | Browser validation checks exact ISO endpoints, order, calendar validity and the current window. A fixed October 21 clock retains the June 1 photo through the authenticated photo API and client replay; future and out-of-window endpoints remain rejected. |
 | Review ignored runtime provider binding | The runtime forwards its effective gateway and key, including proxy path prefixes. Tests cover pending and new sources with an absent or conflicting environment endpoint/key. Explicit empty bindings cannot fall back to process credentials. |
 | Installed photo skill imported the Memoir package | A bundled prompt adapter and the skill-owned prompt resources support isolated installation. Model configuration is checked before loading optional application integration. Offline installed-skill tests exercise caption and discovery requests, exact receipt provenance and rejection of a changed prompt. |
+| Installed skill tests depended on repository-only fixtures | Both shared helpers now live in the bundled `tests/photo_test_support` package. The skill tests use package-local imports and repository pytest uses the same canonical helpers. A new regression copies only the skill into `.agents/skills` and runs the documented unittest command with Python isolation. An actual packaged ZIP installation also runs all 95 tests successfully. |
 
 The affected host tests now check stable diagnostic codes and complete provenance
 hashes. The two removed language-heuristic expectations belong to semantic
@@ -49,6 +50,11 @@ Follow-up verification:
 | Photo skill packaging | Standard `_validate-skills` target passed |
 | Semantic evaluation plan | 19 cases, zero model calls |
 | Syntax and whitespace | Python compilation and `git diff --check` passed |
+
+After moving the bundled fixtures, the installed-skill and model-boundary group
+passed all 26 tests. The required place-research target was repeated successfully
+with 591 JavaScript, 429 API/database and 95 standalone tests. Default collection
+succeeds with 7,294 tests. The full collected suite was not executed.
 
 A broader run exposed 46 failures in `tests/test_codex_agent.py` involving removed
 legacy runtime methods and missing canonical publication context. The same 46

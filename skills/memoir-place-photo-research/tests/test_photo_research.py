@@ -21,9 +21,8 @@ p = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = p
 spec.loader.exec_module(p)
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'tests'))
-from fixed_caption_data import proposal as fixed_caption_proposal
-from offline_network import deny_external_network
+from photo_test_support.fixed_caption_data import proposal as fixed_caption_proposal
+from photo_test_support.offline_network import deny_external_network
 deny_external_network()
 
 ASOF = date(2026, 9, 26)

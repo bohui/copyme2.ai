@@ -2,6 +2,7 @@
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -156,3 +157,16 @@ else:
     result = subprocess.run([sys.executable, '-I', '-c', script, str(installed / 'scripts/photo_research.py'), str(configured)],
         cwd=tmp_path, env=environment, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_installed_photo_skill_runs_documented_offline_suite(tmp_path):
+    skill = Path(__file__).resolve().parents[1] / 'skills/memoir-place-photo-research'
+    installed = tmp_path / '.agents/skills/memoir-place-photo-research'
+    shutil.copytree(skill, installed, ignore=shutil.ignore_patterns('__pycache__'))
+    environment = {key: value for key, value in os.environ.items()
+                   if key != 'PYTHONPATH' and not key.startswith(('MEMORY_SPARK_', 'PHOTO_RESEARCH_'))}
+    result = subprocess.run([sys.executable, '-I', '-m', 'unittest', 'discover',
+        '-s', '.agents/skills/memoir-place-photo-research/tests', '-v'],
+        cwd=tmp_path, env=environment, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+    assert re.search(r'\bRan [1-9]\d* tests?\b', result.stderr), result.stderr

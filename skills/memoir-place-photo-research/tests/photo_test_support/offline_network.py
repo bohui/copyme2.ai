@@ -1,4 +1,4 @@
-"""Shared network boundary for deterministic pytest and standalone unittest runs."""
+"""Bundled network boundary for deterministic pytest and standalone unittest runs."""
 import ipaddress
 import socket
 
