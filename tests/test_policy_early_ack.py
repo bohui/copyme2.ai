@@ -37,7 +37,7 @@ def test_reviewed_acknowledgement_precedes_blocked_collector_and_replays_once(
         assert payload['acknowledgement_requested'] is True
         assert 'context' not in payload and 'profile' not in payload
         policy_calls.append(payload)
-        output = dict(complete=True, restrictions=[], acknowledgement=acknowledgement)
+        output = dict(complete=True, restrictions=[], acknowledgement='  ' + acknowledgement + '\n')
         def respond(request):
             return httpx.Response(200, json=dict(id='fixed-review=', status='completed', output=[dict(
                 type='message', status='completed', content=[dict(type='output_text', text=json.dumps(output))])]))
@@ -151,3 +151,11 @@ def test_pending_policy_hides_a_previous_source_acknowledgement(sql):
     sql(as_user(f"select public.change_user_narrator_source({literal(identity['project_id'])},'{source['id']}',1,'edit','A changed narrator source.');"))
     pending = status(sql, identity)
     assert pending['pending'] is True and pending['reviewed_acknowledgement'] is None
+
+
+def test_reviewed_acknowledgement_matches_rendered_reply_whitespace(monkeypatch):
+    monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK', '1')
+    source = dict(id='current-source', version=1)
+    value = dict(source_id=source['id'], source_version=1, language='en-AU',
+                 text='  Your father repaired bicycles.\n')
+    assert policy_review.reviewed_acknowledgement(value, source, 'en-AU') == 'Your father repaired bicycles.'

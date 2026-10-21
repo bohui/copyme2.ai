@@ -46,7 +46,7 @@ def reviewed_acknowledgement(value, source, language):
     text = value.get('text')
     if not isinstance(text, str) or not text.strip() or len(text) > 500 or '?' in text or '？' in text:
         return None
-    return text
+    return text.strip()
 
 
 def validate_review(output, source):
@@ -95,7 +95,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     acknowledgement = None
     if opening:
         parsed = PolicyReviewOpening.model_validate(output)
-        acknowledgement = parsed.acknowledgement
+        acknowledgement = parsed.acknowledgement.strip() if parsed.acknowledgement else None
         output = parsed.model_dump(exclude={'acknowledgement'})
     output = validate_review(output, source)
     if acknowledgement:
