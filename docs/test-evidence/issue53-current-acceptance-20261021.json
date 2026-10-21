@@ -2,7 +2,7 @@
   "schema_version": "issue53-current-acceptance/1",
   "release_accepted": false,
   "original_coding_task": "codex://threads/01a1567e-46d6-7e40-afc7-ccd9620731c9",
-  "pull_request": "https://github.com/bohui/copyme2.ai/pull/106",
+  "pull_request": "https://github.com/bohui/copyme2.ai/pull/107",
   "target_seconds": {
     "preferred": 5,
     "fallback": 10
@@ -199,6 +199,222 @@
           }
         }
       ]
+    },
+    {
+      "id": "issue53-worker-profile-20261021c",
+      "status": "aborted",
+      "source_revision": "89759a8edb9512903fedbaa6e4286e87b781bcd5",
+      "raw_receipt_sha256": "8232508bc85202230e81861b33390da1bc5c7c850d644b8f907d66574eff4853",
+      "runner_source_sha256": "b4ba49b82798e305ff1028ec433c857eaef93789d029bf06ef2e3b6cbfdcb8c6",
+      "planned_rows": 80,
+      "executed_rows": 6,
+      "unexecuted_rows": 74,
+      "elapsed_s": 174.161,
+      "background_dispatches": 0,
+      "policy_calls": 6,
+      "native_invocations": 7,
+      "provider_internal_requests": null,
+      "native_retry_notifications": 10,
+      "temporary_worker_homes_removed": true,
+      "foundation_worker_stop_exit_code": 0,
+      "arms": {
+        "baseline": {
+          "saved": 3,
+          "failed": 0,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 3,
+              "median_s": 18.018,
+              "maximum_s": 20.086
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 3,
+              "median_s": 18.813,
+              "maximum_s": 21.306
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 3,
+              "median_s": 18.827,
+              "maximum_s": 21.32
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 3,
+              "median_s": 18.834,
+              "maximum_s": 21.327
+            }
+          }
+        },
+        "candidate": {
+          "saved": 2,
+          "failed": 1,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 2,
+              "median_s": 3.3685,
+              "maximum_s": 3.8
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 2,
+              "median_s": 7.461,
+              "maximum_s": 7.758
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 2,
+              "median_s": 7.502,
+              "maximum_s": 7.813
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 2,
+              "median_s": 7.51,
+              "maximum_s": 7.822
+            }
+          }
+        }
+      },
+      "failed_rows": [
+        {
+          "row_id": "issue53/name-clue/en-AU/turn-3/0/candidate",
+          "failure_class": "CanonicalTurnFailed",
+          "error_code": null,
+          "timings": {
+            "first_meaningful_text_s": null,
+            "api_preparation_to_worker_dispatch_s": 5.873,
+            "first_public_text_s": 5.872
+          }
+        }
+      ]
+    },
+    {
+      "id": "issue53-worker-profile-20261021d",
+      "status": "aborted",
+      "source_revision": "c9381610e115f01112ca2d62b93cb529cccbd980",
+      "raw_receipt_sha256": "6d87487444b73e7bbe584b3c56744ef3cc97e5dfecff52db12941ad745e643d7",
+      "runner_source_sha256": "d2172a164e64d37e874c3a0c79b0a21fb6e90335d4ae1d800f327e92275384a6",
+      "planned_rows": 80,
+      "executed_rows": 22,
+      "unexecuted_rows": 58,
+      "elapsed_s": 350.471,
+      "background_dispatches": 0,
+      "policy_calls": 22,
+      "native_invocations": 25,
+      "provider_internal_requests": null,
+      "temporary_worker_homes_removed": true,
+      "foundation_worker_stop_exit_code": 0,
+      "arms": {
+        "baseline": {
+          "saved": 11,
+          "failed": 0,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 11,
+              "median_s": 15.824,
+              "maximum_s": 21.733
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 11,
+              "median_s": 16.972,
+              "maximum_s": 23.326
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 11,
+              "median_s": 16.986,
+              "maximum_s": 23.348
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 11,
+              "median_s": 16.994,
+              "maximum_s": 23.357
+            }
+          }
+        },
+        "candidate": {
+          "saved": 10,
+          "failed": 1,
+          "saved_row_timings": {
+            "first_public_text_s": {
+              "observed_saved_rows": 10,
+              "median_s": 2.9595000000000002,
+              "maximum_s": 4.463
+            },
+            "question_validated_s": {
+              "observed_saved_rows": 9,
+              "median_s": 8.681,
+              "maximum_s": 17.219
+            },
+            "reply_complete_s": {
+              "observed_saved_rows": 10,
+              "median_s": 8.636,
+              "maximum_s": 17.25
+            },
+            "conversation_saved_s": {
+              "observed_saved_rows": 10,
+              "median_s": 8.6425,
+              "maximum_s": 17.258
+            }
+          }
+        }
+      },
+      "failed_rows": [
+        {
+          "row_id": "issue53/correction/zh-CN/turn-2/0/candidate",
+          "failure_class": "CanonicalTurnFailed",
+          "error_code": null,
+          "timings": {
+            "first_meaningful_text_s": null,
+            "api_preparation_to_worker_dispatch_s": 3.002,
+            "first_public_text_s": 3.002
+          }
+        }
+      ],
+      "semantic_review_complete": false,
+      "semantic_findings": [
+        {
+          "row_id": "issue53/name-clue/zh-CN/turn-1/0/candidate",
+          "delivery": "saved",
+          "quality": "failed_missing_opening_invitation",
+          "reviewer": "coding_agent_not_human_acceptance"
+        }
+      ],
+      "matched_delivery_pairs": {
+        "count": 10,
+        "quality_acceptance": false,
+        "metrics": {
+          "baseline": {
+            "first_public_text_s": {
+              "observed_rows": 10,
+              "median_s": 15.8215,
+              "maximum_s": 20.503
+            },
+            "question_validated_s": {
+              "observed_rows": 10,
+              "median_s": 16.941000000000003,
+              "maximum_s": 21.829
+            },
+            "conversation_saved_s": {
+              "observed_rows": 10,
+              "median_s": 16.9735,
+              "maximum_s": 21.855
+            }
+          },
+          "candidate": {
+            "first_public_text_s": {
+              "observed_rows": 10,
+              "median_s": 2.9595000000000002,
+              "maximum_s": 4.463
+            },
+            "question_validated_s": {
+              "observed_rows": 9,
+              "median_s": 8.681,
+              "maximum_s": 17.219
+            },
+            "conversation_saved_s": {
+              "observed_rows": 10,
+              "median_s": 8.6425,
+              "maximum_s": 17.258
+            }
+          }
+        }
+      }
     }
   ],
   "checks": [
@@ -530,6 +746,86 @@
       "summary": "64 passed in 45.36s",
       "log_sha256": "02aaa917502a90e2313c205cebf3a0f2afee43f3aef1e3af8aed48ca7397ef4a",
       "native_cleanup_verified": true
+    },
+    {
+      "name": "matrix-zh-CN",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021e",
+      "command": [
+        "env",
+        "ISSUE53_TEST_LOCALE=zh-CN",
+        "ISSUE53_SQL_DIAGNOSTIC=/tmp/issue53-current-final-checks-20261021e/sql-resource-zh-CN.jsonl",
+        "PYTHONPATH=/tmp",
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-p",
+        "issue53_sql_diagnostic",
+        "--tb=short",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "not negative_streams"
+      ],
+      "base_head_at_dispatch": "cf7a9d4d971cc1e8367626efaad8f2bed233f215",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 381.13,
+      "summary": "10 passed, 8 deselected in 378.18s (0:06:18)",
+      "log_sha256": "f1a70ecab5334140b641dc07a09b4e6e1663ac523e7b92bd260bfec963342482",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "negative-streams",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021f",
+      "command": [
+        "env",
+        "ISSUE53_SQL_DIAGNOSTIC=/tmp/issue53-current-final-checks-20261021f/sql-resource-faults.jsonl",
+        "PYTHONPATH=/tmp",
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "-p",
+        "issue53_sql_diagnostic",
+        "--tb=short",
+        "tests/test_issue53_offline_coverage.py",
+        "-k",
+        "negative_streams"
+      ],
+      "base_head_at_dispatch": "2350dfb1f8fda8d8750a9183a0e830319437c716",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 360.08,
+      "summary": "8 passed, 10 deselected in 357.05s (0:05:57)",
+      "log_sha256": "e896664df759e0798b80a5b471d1da40c329b026e85fd20a95e45e13cf62400a",
+      "native_cleanup_verified": true
+    },
+    {
+      "name": "saved-plan-and-integrity",
+      "receipt_directory": "/tmp/issue53-current-final-checks-20261021g",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--tb=short",
+        "tests/test_issue53_saved_plan.py",
+        "tests/test_issue53_profile_sequences.py",
+        "tests/test_skill_eval_suite.py"
+      ],
+      "base_head_at_dispatch": "2350dfb1f8fda8d8750a9183a0e830319437c716",
+      "status": "completed",
+      "exit_code": 0,
+      "duration_s": 127.13,
+      "summary": "72 passed in 125.39s (0:02:05)",
+      "log_sha256": "2f795a7f6a6c95280539df6742930299729aa3d2fbcb68fd0f514e0bbf7e5793",
+      "native_cleanup_verified": true
     }
   ],
   "remaining": [
@@ -548,7 +844,7 @@
     "Partial live saved-row summaries are not a matched quality comparison or a production percentile.",
     "The complete required place/photo target subsequently passed serially: 591 JavaScript, 429 API/database and 95 standalone tests. The isolated six-case background rerun also passed; the original failure remains retained.",
     "A surrounding-whitespace regression fails before normalization; all 64 integrated boundary/streaming/SQL checks pass afterward, with padded model acknowledgements in the real HTTP/SQL cases.",
-    "The English serial rerun passes all 40 application rows and 10 checks; the earlier 38-completed/two-failed matrix remains retained. Chinese and fault checks remain in progress."
+    "Both serial language matrices pass all 80 controlled rows and 20 checks. All eight bilingual negative-stream checks pass, followed by 72 saved-plan/evaluator/provenance checks. No resource error was recorded in these serial matrix/fault runs. Earlier failed runs remain evidence; synthetic completion does not establish live latency or semantic quality."
   ],
   "current_provider_policy": {
     "captured_at": "2026-10-21T10:20:37.250490+00:00",
@@ -589,5 +885,368 @@
     "checks_passed": 10,
     "sql_file_limit_events": 0,
     "diagnostic_source_sha256": "53b53a30b9737c1ca3839210d0f088b372ad08afe33bce24150bade2e489f79f"
+  },
+  "offline_verification": {
+    "status": "pass",
+    "bilingual_controlled_application_rows": 80,
+    "matrix_checks": 20,
+    "bilingual_negative_stream_checks": 8,
+    "integrated_boundary_stream_SQL_checks": 64,
+    "saved_plan_evaluator_provenance_checks": 72,
+    "required_place_photo_checks": {
+      "JavaScript": 591,
+      "API_database": 429,
+      "standalone_skill": 95
+    },
+    "model_quality_established": false
+  },
+  "chinese_matrix_serial": {
+    "application_rows_completed": 40,
+    "checks_passed": 10,
+    "sql_file_limit_events": 0
+  },
+  "negative_stream_resource_events": 0,
+  "checked_runtime_revision": "2350dfb1f8fda8d8750a9183a0e830319437c716",
+  "current_source_file_sha256": {
+    "apps/api/policy_review.py": "920e9a94fa692404fd275a4a1d160520485c141561a6ae2ecc61bc8d59405e5e",
+    "apps/api/lifetime_memory_runtime.py": "4d869b06ad78c70872fdd665ddac6d7b9ff3cfbea133e585c8153b1e8894ef35",
+    "apps/api/lifetime_memory_engine.py": "7a0a288138c090e49e99e2bdd9d6b7f04e70417c83d05f60aa9085c3f89314e9",
+    "apps/api/lifetime_memory_continuity.py": "9a59893cea53ac261217d9cdb9b01e6f7afb380de13614807202d8d3e3cac0b6",
+    "apps/api/model_request.py": "f4de9b013e3228dc4fc3df7e685d906c6b93b6767d488f8e89e60e5629184e54",
+    "scripts/issue53_sequence_application.py": "6deb015accf932b217adf0369d33c58c16669c036e8b23eb83c67fcbc8d72fbb",
+    "scripts/issue53_profile_sequences.py": "ff62924fe4fec1fa90bee2b14aa5b9bedca4d4a41ac4beb59c957874f58d560d",
+    "scripts/memoir_skill_eval_suite.py": "372e77bd6deac3228d014eaadd19ba720ea9dbea4325c12de77fa8c034314b26",
+    "tests/controlled_policy.py": "e1fd1fd9902ad2cd78be8f370f2e926a0d7d5156264b4e0bcb907d48d88cab49",
+    "tests/evaluation/response_sequences.json": "1b0155c3e6c59896e0025f767ace2378fe2718d29baafada505e0c9dac89a4f5"
+  },
+  "publication": {
+    "main_receipt_commit": "1bb673fdba0de9afd70f7d3ec328ee37e45b3d59",
+    "verified_artifacts": 90,
+    "prompt_versions": {
+      "policy-review": 2,
+      "governed-repair/codes": 2
+    },
+    "candidate_default_enabled": false
+  },
+  "fixed_acknowledgement_schema": {
+    "red_regressions": 4,
+    "passing_focused_tests": 148,
+    "live_application_fixed_replay": {
+      "status": "saved",
+      "native_invocations": 1,
+      "policy_calls": 0,
+      "receipt_sha256": "b64a42ccc5ac99b7056ee04373f715b9cd00d9a1d43f7e73c05e81514e9f8f02",
+      "cleanup": {
+        "stop_exit_code": 0
+      }
+    },
+    "raw_probe_receipts": {
+      "issue53-wire-probe-20261021a": "1750aaeafd387e87e9ebd6483aeef9f21c046b88a9de1418d90b797f30a33c69",
+      "issue53-wire-constraint-probe-20261021a": "dd45c9a8f6f9233208e23654de07c511ff83c7d9d1e6926fe0ab56a1bff55321"
+    },
+    "reproduction_cleanup": {
+      "container": "memoir-issue53-worker-c33cccbdaa0e",
+      "inspect_exit_code": 1,
+      "ephemeral_container_removed": true,
+      "direct_root_removal_assertion_passed": false,
+      "foundation_stop_exit_code": 0,
+      "absence_error_verified": true
+    },
+    "required_target_postmerge": {
+      "name": "place-photo",
+      "command": [
+        "make",
+        "test-place-research"
+      ],
+      "exit_code": 0,
+      "base_head": "57d0da0ef0865c50eb7da0e707a2567ed976fcf6",
+      "tree": "f9c94134365a27dcf6cc7f15753aae9c5376da1e",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-3dykbfoe",
+      "command_group": {
+        "group_id": 79954,
+        "leader_started": "Wed Oct 21 21:46:28 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-3dykbfoe",
+            "device": 16777231,
+            "inode": 931495047
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 158.89
+    },
+    "current_source_sha256": {
+      "apps/api/interview_plan.py": "3e0836cc65916b874482284bd5cfdb01a78bb3af63e51fe2f2cb913eda1529f1",
+      "apps/api/lifetime_memory_continuity.py": "8fde84ebfa707c1d106f30c02882d71f60411aed6bdda1b9b6f7484ae53d362b",
+      "apps/api/lifetime_memory_engine.py": "ba7e8484185ffca2ba7d3bcce92ae56b2897b60fa53284132340cd304e1b9738"
+    }
+  },
+  "current_proxy_smoke": {
+    "id": "issue53-proxy-isolated-20261021a",
+    "status": "failed",
+    "planned_submissions": 4,
+    "accepted_sources": 4,
+    "durably_saved": 3,
+    "passing_rows": [
+      {
+        "kind": "proxy_smoke_result",
+        "case": "first",
+        "status": "saved",
+        "timings": {
+          "started": 0.1695,
+          "source_accepted": 4.884,
+          "progress": 4.890699999988079,
+          "text_delta": 5.042800000011921,
+          "question_validated": 9.375899999976157,
+          "reply_complete": 9.395600000023842,
+          "conversation_saved": 9.402600000023842,
+          "result": 9.421399999976158
+        },
+        "first_rendered_text_s": 5.043100000023842,
+        "early_unlock": false,
+        "duplicate_reply": false
+      },
+      {
+        "kind": "proxy_smoke_result",
+        "case": "later_replay",
+        "status": "saved",
+        "timings": {
+          "started": 0.15189999997615813,
+          "source_accepted": 3.263899999976158,
+          "progress": 3.278800000011921,
+          "text_delta": 3.503699999988079,
+          "question_validated": 8.904199999988078,
+          "reply_complete": 8.926,
+          "conversation_saved": 8.934899999976158,
+          "result": 8.951099999964237
+        },
+        "first_rendered_text_s": 3.503899999976158,
+        "early_unlock": false,
+        "duplicate_reply": false
+      },
+      {
+        "kind": "proxy_smoke_result",
+        "case": "later_name_change",
+        "status": "saved",
+        "timings": {
+          "started": 0.10010000002384185,
+          "source_accepted": 3.369,
+          "progress": 3.380699999988079,
+          "text_delta": 3.4953999999761582,
+          "reply_complete": 6.547699999988079,
+          "conversation_saved": 6.556100000023842,
+          "result": 6.564899999976158
+        },
+        "first_rendered_text_s": 3.495600000023842,
+        "early_unlock": false,
+        "duplicate_reply": false
+      }
+    ],
+    "failed_case": "resumed_pause",
+    "failure": "three_SCHEMAs_or_other_contract_rejections_then_browser_wait_timeout",
+    "root_cause": "not_reproduced_or_assigned",
+    "raw_receipt_sha256": "3059980c6c4f062f163a1f157b104ce59ef7574b9af676ea100f6fa1d7fb4f33",
+    "policy_calls": 4,
+    "native_starts_in_owned_worker_log": 6,
+    "remote_budget_receipt": "unavailable_CalledProcessError",
+    "temporary_homes_removed": true,
+    "api_cleanup": {
+      "removed": true
+    },
+    "foundation_cleanup": {
+      "stop_exit_code": 0
+    },
+    "optional_readiness_status": 503
+  },
+  "current_stop_probe": {
+    "status": "reply_saved_but_semantic_failure",
+    "scope": "one_different_saved_seed_not_exact_browser_state",
+    "source_revision": "c9381610e115f01112ca2d62b93cb529cccbd980",
+    "source_policy_restrictions": 1,
+    "problem": "whole_exchange_stop_proposed_as_topic_restriction",
+    "receipt_sha256": "7dd72f9d9a3dd5f1c955bbc371fc8ddd666c501b270a969271b1686c7fd2dc16",
+    "browser_failure_reproduced": false,
+    "foundation_cleanup": {
+      "stop_exit_code": 0
+    }
+  },
+  "prepared_quality_prompt_update": {
+    "status": "review_required_before_main_publication",
+    "prompts": [
+      {
+        "name": "memoir/skills/memoir-interviewer/collector-plan",
+        "published_version": 3,
+        "published_sha256": "70bdb500f7c9a5b01946ba17932e7dfef35c1cab8a85ed5b10331f06d2192cb3",
+        "draft_sha256": "b996bd54abd5ad748c85dae29fce9e9c30728c0a95d5d72f63d75524d3d63212",
+        "published": false
+      },
+      {
+        "name": "memoir/skills/memoir-interviewer/strategy/selection",
+        "published_version": 5,
+        "published_sha256": "cec88218db74fb9305f675842d59621df07e1679328ed18d91135e5678f44667",
+        "draft_sha256": "f6056a2410ef31de318cd4dd105d2f467618fa6863f9504773b1eb4f50c7fbb5",
+        "published": false
+      },
+      {
+        "name": "memoir/skills/memoir-interviewer/governed-continuity",
+        "published_version": 2,
+        "published_sha256": "91076eb8eb3fb915028d7e57558a68729b23ddcc22a948a3fc5038a2c948e753",
+        "draft_sha256": "2a0c0f829ed1569cd98b6f600b36219b8b74c5c155f433bbf3b736a93849189f",
+        "published": false
+      },
+      {
+        "name": "memoir/skills/memoir-interviewer/governed-repair/codes",
+        "published_version": 2,
+        "published_sha256": "ad48cc1d67688f3b0d10061a067de9e95b4ceceb6401ff716ef1f596b737b770",
+        "draft_sha256": "57372982271248fbb3162e7717c0a5cb76576e4efd135bab586946ae7e4843a9",
+        "published": false
+      },
+      {
+        "name": "memoir/skills/memoir-interviewer/policy-review",
+        "published_version": 2,
+        "published_sha256": "f84f73c5af8b62f26dc9c3fa5224685e8f84cd77850b7a997a3d345b1ef028ef",
+        "draft_sha256": "cc5795d1bd4c200a49c17280378eedc2bc574e2f92f0fd35514df0855600f67e",
+        "published": false
+      }
+    ],
+    "checks": {
+      "offline_before_fixture_fix": {
+        "name": "offline",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_policy_early_ack.py",
+          "tests/test_lifetime_memory_engine.py",
+          "tests/test_lifetime_continuity_offsets.py",
+          "tests/test_lifetime_memory_continuity.py",
+          "tests/test_interview_plan.py",
+          "tests/test_interview_strategy.py",
+          "tests/test_interview_strategy_runtime.py"
+        ],
+        "exit_code": 1,
+        "base_head": "c9381610e115f01112ca2d62b93cb529cccbd980",
+        "tree": "f2ae27656724f6e17d994a793a263feb0fc81718",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-8ikg6q0z",
+        "command_group": {
+          "group_id": 93157,
+          "leader_started": "Wed Oct 21 22:32:32 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-8ikg6q0z",
+              "device": 16777231,
+              "inode": 931857308
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 1,
+        "duration_seconds": 65.93
+      },
+      "offline_after_fixture_fix": {
+        "name": "offline",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_policy_early_ack.py",
+          "tests/test_lifetime_memory_engine.py",
+          "tests/test_lifetime_continuity_offsets.py",
+          "tests/test_lifetime_memory_continuity.py",
+          "tests/test_interview_plan.py",
+          "tests/test_interview_strategy.py",
+          "tests/test_interview_strategy_runtime.py"
+        ],
+        "exit_code": 0,
+        "base_head": "c9381610e115f01112ca2d62b93cb529cccbd980",
+        "tree": "f2ae27656724f6e17d994a793a263feb0fc81718",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-ej_hw3_z",
+        "command_group": {
+          "group_id": 98680,
+          "leader_started": "Wed Oct 21 22:39:30 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-ej_hw3_z",
+              "device": 16777231,
+              "inode": 931927921
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 64.81
+      },
+      "place_photo": {
+        "name": "place-photo",
+        "command": [
+          "make",
+          "test-place-research"
+        ],
+        "exit_code": 0,
+        "base_head": "c9381610e115f01112ca2d62b93cb529cccbd980",
+        "tree": "f2ae27656724f6e17d994a793a263feb0fc81718",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-yelsk_14",
+        "command_group": {
+          "group_id": 4084,
+          "leader_started": "Wed Oct 21 22:41:45 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-yelsk_14",
+              "device": 16777231,
+              "inode": 931966977
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 110.51
+      }
+    },
+    "offline_counts": {
+      "before": {
+        "passed": 271,
+        "failed": 2
+      },
+      "after": {
+        "passed": 273,
+        "failed": 0
+      }
+    },
+    "place_photo_counts": {
+      "javascript": 591,
+      "api_database": 429,
+      "standalone": 95
+    },
+    "new_prompt_live_calls": 0,
+    "semantics": "not_live_validated",
+    "candidate_default_enabled": false
   }
 }

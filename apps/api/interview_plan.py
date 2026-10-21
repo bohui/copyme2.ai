@@ -92,6 +92,13 @@ class CollectorResult(StrictModel):
     stopped: bool
 
 
+def constrain_acknowledgement(schema, choices):
+    field = schema['properties']['acknowledgement']
+    field['enum'] = choices
+    # This provider can return empty incomplete output for enum plus pattern.
+    field.pop('pattern', None)
+
+
 def collector_schema(context=None):
     schema = CollectorResult.model_json_schema()
     schema['properties']['acknowledgement']['pattern'] = '^[^?？]*$'
@@ -115,7 +122,7 @@ def collector_schema(context=None):
             question_context['properties'][field]['enum']=list(dict.fromkeys([None,*allowed]))
         plan['properties']['active_event_id']['enum']=list(dict.fromkeys([None,*pointers['event_id']]))
     if (context or {}).get('historical_news', {}).get('clues'):
-        schema['properties']['acknowledgement']['enum'] = sorted(historical_acknowledgements(context))
+        constrain_acknowledgement(schema, sorted(historical_acknowledgements(context)))
     return question_evidence_schema(resolution_schema(schema, context, plan=True), context)
 
 

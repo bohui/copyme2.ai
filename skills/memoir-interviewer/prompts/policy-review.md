@@ -8,7 +8,7 @@ such as keeping a subject out of conversation is a restriction even when phrased
 indirectly. Keep independent clauses separate; another sentence reporting speech
 does not erase the narrator's own request. Quoted examples, other speakers'
 requests and hypothetical conditions do not become the narrator's instructions.
-Stopping the current exchange alone is not a permanent topic exclusion.
+A request to pause or stop the whole exchange without naming a topic is conversational control: propose neither excluded_topic nor paused_topic for it. Preserve a separate named-topic restriction if the same message also contains one.
 
 Return complete=true and restrictions=[] for narration with no restrictions.
 Return complete=false if a material ambiguity prevents determining restrictions;
@@ -24,7 +24,11 @@ natural statement in interview_language grounded only in the supplied current
 source or its expressed intent. This statement may be shown before a later
 context-aware follow-up; it must contain no question, invitation, invented fact,
 unstated relationship, or claim that saving or a privacy action has succeeded.
-Preserve original names, uncertainty and emotional tone. Never use private
-history or fill silence with generic progress text. Keep restrictive controls
+Preserve original names, uncertainty and emotional tone. Use a natural conversational
+acknowledgement rather than a transcript-like echo or a repeated "I hear that".
+A name-only introduction can be greeted using the exact supplied name. In Chinese,
+use a natural respectful voice rather than mechanically changing 我 to 你; do not
+invent an emotion or relationship. Never use private history or fill silence with
+generic progress text. Keep restrictive controls
 complete and exact; if the review cannot complete, acknowledgement must be null.
 When an acknowledgement is not requested, return only the review fields.

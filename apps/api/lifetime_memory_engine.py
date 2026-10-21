@@ -25,6 +25,7 @@ from .prompt_artifact import load_prompt_artifact, prompt_path
 from .codex_agent import CodexConnection, CodexTurnIncomplete, provider_config
 from .codex_worker_files import write_config
 from .lifetime_memory_continuity import governed_collector_schema, validate_governed_collector_result
+from .interview_plan import constrain_acknowledgement
 from .issue14_execution_admission import check_issue14_dispatch, issue14_connection_options
 from .lifetime_memory_context import ContextCheckpoint, serialize_packet
 from .lifetime_memory_contracts import (
@@ -340,7 +341,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             +json.dumps({'error_code': repair_reason},ensure_ascii=False)+load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/suffix')))
     if acknowledgement is not None:
         # A fresh-home repair must preserve the acknowledgement already shown.
-        output_schema['properties']['acknowledgement']['enum'] = [acknowledgement]
+        constrain_acknowledgement(output_schema, [acknowledgement])
         prompt+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/acknowledgement'))+json.dumps(acknowledgement,ensure_ascii=False)+'.'
     if (governed.budget.count(governed.packet) + governed_request_overhead(
             interview_context, governed.budget, output_schema=output_schema,prompt=prompt) > governed.budget.input_budget):

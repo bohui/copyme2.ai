@@ -297,11 +297,14 @@ def test_active_selector_finishes_actual_send_while_planner_transport_is_stalled
     asyncio.run(scenario())
 
 
-@pytest.mark.parametrize('text,language,topic',[
-    ('Skip that question. I do not want to discuss the kitchen.','en-AU','kitchen'),
-    ('跳过这个问题。我不想聊厨房。','zh-CN','厨房'),
+@pytest.mark.parametrize('text,language,topic,restriction',[
+    ('Skip that question. I do not want to discuss the kitchen.','en-AU','kitchen',
+     'I do not want to discuss the kitchen.'),
+    ('跳过这个问题。我不想聊厨房。','zh-CN','厨房','我不想聊厨房。'),
 ])
-def test_exclusion_acknowledgement_saves_privacy_work_without_forcing_a_redirect(sql,tmp_path,monkeypatch,text,language,topic):
+def test_exclusion_acknowledgement_saves_privacy_work_without_forcing_a_redirect(
+        sql,tmp_path,monkeypatch,fixed_policy_controls,text,language,topic,restriction):
+    fixed_policy_controls.append(('excluded_topic', restriction))
     calls=[]
     def provider(request):
         body=json.loads(request.content);calls.append(body)

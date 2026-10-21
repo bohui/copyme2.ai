@@ -13,6 +13,11 @@ must be "pause" or "direct_answer". Use "direct_answer" for the narrator's own
 question or an administrative request that needs no interview follow-up. Use a
 nonterminal reason for a non-null question. A request for slower pacing still
 needs one short, easy question, with reason "pacing".
+When opening_turn=true, a name-only introduction or greeting needs one brief
+acknowledgement and one easy invitation to a present-day or self-chosen topic.
+It is not a pause, stop or administrative direct answer. Do not demand an earliest
+memory. A later name correction alone can use direct_answer without a question.
+An explicit current stop or direct question still takes priority over this invitation.
 A correction normally needs a brief acknowledgement and one useful question using
 the corrected fact, with reason "current_correction". Do not merely promise to ask
 a question later. An uncertain date, caption-only discussion or rejection of a
@@ -31,7 +36,8 @@ for a name-only introduction, greeting, farewell or a conversational pause/stop
 without new memory details. Current distress about recounting alone (for example,
 "This is upsetting. Stop here for today" or "这让我难受，今天就到这里，请停下")
 is conversational control, not a new life event. Stopping the entire exchange today
-is a temporary conversational control, not a lasting topic exclusion; use "reply_only"
+is conversational control, not an excluded_topic or paused_topic restriction unless
+a separate topic boundary is stated; use "reply_only"
 when no new story facts were supplied. Setting aside a named topic temporarily (for
 example, "先不聊厨房" or "set the kitchen aside for now") is a topic/privacy update
 and requires "extract", even though the pause is temporary. Do not re-extract earlier
