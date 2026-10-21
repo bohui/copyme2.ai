@@ -21,6 +21,7 @@ from scripts.memoir_skill_eval_application import verify_witness
 
 ROOT = Path(__file__).resolve().parents[1]
 PR92_COMMIT = '0fe69a5b66fc2b17da35398b1f79e192febc188c'
+REVIEWED_CORE_COMMIT = 'd56bd053a723f5177e725d8d3506555ca1909edf'
 MANIFEST = ROOT / 'tests/evaluation/response_sequences.json'
 MILESTONES = ('first_meaningful_text_s', 'validated_question_s', 'reply_complete_s', 'durable_save_s')
 CORE = ('scripts/memoir_skill_eval_suite.py', 'scripts/memoir_skill_eval_assets.py',
@@ -81,9 +82,9 @@ def provenance(manifest):
     for group, paths in groups.items():
         frozen[group] = {p: _file_hash(ROOT / p) for p in sorted(paths) if (ROOT / p).is_file()}
     for path in CORE:
-        pinned = subprocess.check_output(['git', 'show', PR92_COMMIT + ':' + path], cwd=ROOT)
+        pinned = subprocess.check_output(['git', 'show', REVIEWED_CORE_COMMIT + ':' + path], cwd=ROOT)
         if hashlib.sha256(pinned).hexdigest() != frozen['evaluator'][path]:
-            raise ValueError('pr92_core_changed_requires_dependency_review')
+            raise ValueError('reviewed_core_changed_requires_dependency_review')
     frozen['dataset'] = digest(dict(manifest=manifest,
         phase_rubrics=json.loads((ROOT / 'tests/evaluation/conversation_phase_cases.json').read_text())))
     frozen['source_revision'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
@@ -147,7 +148,7 @@ def plan(*, samples=1, scenario=None, variants=None, max_skill_calls=0, max_judg
         rows=rows, variants=variants, provenance=frozen, dispatches=0,
         controlled=dict(rollback=controlled_rollback, faults=selected_faults),
         judge_definition=suite.judge_definition('memoir-interviewer'),
-        dependency=dict(pr=92, commit=PR92_COMMIT, merged_base=MERGED_BASE, status='merged_framework_acceptance_limits_remain'),
+        dependency=dict(pr=92, commit=PR92_COMMIT, reviewed_core_commit=REVIEWED_CORE_COMMIT, merged_base=MERGED_BASE, status='merged_framework_acceptance_limits_remain'),
         budgets=dict(max_skill_calls=max_skill_calls, max_judge_calls=max_judge_calls,
                      seconds=seconds, timeout=timeout, live_dispatches=0),
         human_acceptance='pending_bilingual_heldout', semantic_acceptance='not_established')

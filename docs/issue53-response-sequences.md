@@ -12,6 +12,20 @@ current-run receipt fix `a9724f7ed51423b5131c7690ab2e049d5c80b3be`.
 The planner rejects changes to the pinned shared evaluator/receipt core until
 that dependency is reviewed. No PR92 shared file is changed here.
 
+## 21 October evaluator dependency review
+
+PR105 changed only the shared evaluator's prompt inventory assembly: it now uses
+`model_request.prompt_manifest` to record managed prompt status, the same source
+SHA-256, and compiled component provenance. The planner retains the original
+PR92 dependency identity and separately pins the reviewed evaluator bytes at
+`d56bd053a723f5177e725d8d3506555ca1909edf`. The application adapter additionally installs the same fixed
+HTTP policy-review transport used by ordinary tests, so its isolated child
+completes the new source-only review through the real publication guard and
+SQL transaction. This is explicit fixture data, not model-quality evidence.
+The asset, receipt verifier, budget, scoring and scenario files are unchanged
+from the original pin. No execution or release gate is relaxed; another unreviewed core
+change still blocks planning, covered by an explicit regression.
+
 ## Reused interfaces
 
 - `memoir_skill_eval_suite.plan`, `judge_definition`, `quality`, `Budget`,
