@@ -2881,7 +2881,8 @@ CREATE FUNCTION public.read_lifetime_policy_review(p_fence jsonb) RETURNS jsonb
 declare result jsonb;
 begin
  perform public.lock_lifetime_publication_scope(p_fence);
- select public.narrator_source_record(s) into result
+ select public.narrator_source_record(s)||jsonb_build_object('interview_language',
+   (select profile->>'preferred_language' from public.user_profile where user_id=auth.uid())) into result
  from public.user_lifetime_pending_policy p join public.user_narrator_source s
    on s.user_id=p.user_id and s.project_id=p.project_id and s.id=p.source_id
    and s.version=p.source_version and s.status='active'
@@ -9554,13 +9555,23 @@ CREATE FUNCTION public.read_lifetime_policy_status(p_conversation_id uuid) RETUR
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
-declare owner uuid:=auth.uid(); project text; pending public.user_lifetime_pending_policy%rowtype;
+declare owner uuid:=auth.uid(); project text; pending public.user_lifetime_pending_policy%rowtype; is_pending boolean; opening jsonb;
 begin
  select project_id into project from public.user_lifetime_conversation where user_id=owner and conversation_id=p_conversation_id;
  if not found then raise exception 'conversation unavailable' using errcode='42501';end if;
  perform 1 from public.user_memoir_project where user_id=owner and project_id=project for share;
  select * into pending from public.user_lifetime_pending_policy where user_id=owner and conversation_id=p_conversation_id order by source_id limit 1;
- return jsonb_build_object('pending',found or exists(select 1 from public.user_lifetime_policy_inventory_pending where user_id=owner and project_id=project),'pending_source_id',pending.source_id,'pending_source_version',pending.source_version,
+ is_pending:=found or exists(select 1 from public.user_lifetime_policy_inventory_pending where user_id=owner and project_id=project);
+ if not is_pending then
+   select jsonb_build_object('source_id',s.id,'source_version',s.version,
+     'language',r.review#>>'{receipt,acknowledgement_language}','text',r.review#>>'{receipt,acknowledgement}') into opening
+   from public.user_narrator_source s join public.user_lifetime_source_policy_receipt r
+     on r.user_id=s.user_id and r.project_id=s.project_id and r.source_id=s.id and r.source_version=s.version
+   join public.user_memoir_project p on p.user_id=s.user_id and p.project_id=s.project_id and p.source_sequence=s.sequence
+   where s.user_id=owner and s.project_id=project and s.status='active'
+     and jsonb_typeof(r.review#>'{receipt,acknowledgement}')='string';
+ end if;
+ return jsonb_build_object('pending',is_pending,'reviewed_acknowledgement',opening,'pending_source_id',pending.source_id,'pending_source_version',pending.source_version,
    'pending_client_turn_id',pending.client_turn_id,'parser_version','semantic-v1');
 end $$;
 

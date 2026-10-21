@@ -87,6 +87,7 @@ def test_authenticated_clients_cannot_certify_their_own_review(sql):
 def test_current_source_review_never_reads_older_private_context(sql):
     identity = resolve(sql); source = accept(sql, identity, 'Only this pending source.')['source']; fence = begin_review(sql, identity)
     result = rpc(sql, 'read_lifetime_policy_review', f'{literal(fence)}::jsonb')
+    assert result.pop('interview_language') is None
     assert result == source
     forged = {**fence, 'source_revision': fence['source_revision'] + 1}
     result = rpc(sql, 'lock_lifetime_policy_review', f'{literal(forged)}::jsonb', check=False)

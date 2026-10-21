@@ -94,6 +94,8 @@ def governed_collector_schema(context=None):
             intent.pop('default', None)
             schema['properties']['selection_reason'] = intent
             schema['required'].append('selection_reason')
+    if (context or {}).get('reviewed_acknowledgement') is not None:
+        schema['properties']['acknowledgement']['enum'] = [context['reviewed_acknowledgement']]
     extension = _Updates.model_json_schema()
     schema.setdefault('$defs', {}).update(extension['$defs'])
     item = schema['$defs']['_ContinuityUpdate']['properties']
@@ -154,6 +156,9 @@ def validate_governed_collector_result(raw, context):
         value = {key: item for key, item in value.items() if key != 'selection_reason'}
     ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
+    if (context.get('reviewed_acknowledgement') is not None
+            and result['acknowledgement'] != context['reviewed_acknowledgement']):
+        raise ValueError('Correction cannot replace the streamed acknowledgement')
     ordinary['stopped'] = result['stopped']
     if selection_reason in {'pause', 'direct_answer'} and result['plan']['candidates']:
         raise ValueError('A pause or direct answer requires no question')

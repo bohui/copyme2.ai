@@ -28,6 +28,27 @@ class PolicyReview(BaseModel):
     restrictions: list[Restriction] = Field(max_length=8)
 
 
+class PolicyReviewOpening(PolicyReview):
+    acknowledgement: str | None = Field(default=None, min_length=1, max_length=500, pattern='^[^?？]*$')
+
+
+def early_ack_enabled():
+    return os.getenv('MEMORY_SPARK_EARLY_POLICY_ACK', '').lower() in {'1', 'true', 'yes'}
+
+
+def reviewed_acknowledgement(value, source, language):
+    if not early_ack_enabled() or not isinstance(value, dict):
+        return None
+    if (type(value.get('source_version')) is not int or value.get('source_id') != source['id']
+            or value.get('source_version') != source['version']
+            or value.get('language') != language):
+        return None
+    text = value.get('text')
+    if not isinstance(text, str) or not text.strip() or len(text) > 500 or '?' in text or '？' in text:
+        return None
+    return text
+
+
 def validate_review(output, source):
     value = PolicyReview.model_validate(output)
     if not value.complete:
@@ -40,7 +61,8 @@ def validate_review(output, source):
     return value.model_dump()
 
 
-async def _review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None):
+async def _review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None,
+                                 language=None, fallback_language='en-AU'):
     """An unavailable review leaves durable pending state and all other work closed."""
     from psycopg import AsyncConnection
     from psycopg.types.json import Jsonb
@@ -52,12 +74,32 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     if source is None:
         return
     publisher = PolicyReviewPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=storage.user_id)
+    saved_language = source.pop('interview_language', None)
+    selected_language = language or saved_language or fallback_language
+    if selected_language not in {'en-AU', 'zh-CN'}:
+        selected_language = 'en-AU'
+    opening = early_ack_enabled()
+    schema = (PolicyReviewOpening if opening else PolicyReview).model_json_schema()
+    schema['required'] = list(schema['properties'])
+    for field in schema['properties'].values():
+        field.pop('default', None)
+    payload = {'source': source}
+    if opening:
+        payload.update(acknowledgement_requested=True, interview_language=selected_language)
     output, receipt = await complete_json('memoir/skills/memoir-interviewer/policy-review',
-        {'source': source}, PolicyReview.model_json_schema(),
+        payload, schema,
         model=model or os.getenv('MEMORY_SPARK_COLLECTOR_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL'),
         base_url=base_url, api_key=api_key,
         body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))
+    acknowledgement = None
+    if opening:
+        parsed = PolicyReviewOpening.model_validate(output)
+        acknowledgement = parsed.acknowledgement
+        output = parsed.model_dump(exclude={'acknowledgement'})
     output = validate_review(output, source)
+    if acknowledgement:
+        receipt = {**receipt, 'acknowledgement': acknowledgement,
+                   'acknowledgement_language': selected_language}
     connection = await AsyncConnection.connect(os.environ['MEMOIR_PUBLICATION_DATABASE_URL'], connect_timeout=2)
     try:
         async with connection.transaction():
@@ -67,13 +109,17 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
                 (Jsonb(fence), source['id'], source['version'], Jsonb(output), Jsonb(receipt)))
     finally:
         await _settle(asyncio.create_task(connection.close()))
+    if acknowledgement:
+        return dict(source_id=source['id'], source_version=source['version'],
+                    language=selected_language, text=acknowledgement)
 
 
-async def review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None):
+async def review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None,
+                                language=None, fallback_language='en-AU'):
     import httpx
     import psycopg
     try:
         return await _review_pending_policy(storage, lease, conversation_id,
-            model=model, base_url=base_url, api_key=api_key)
+            model=model, base_url=base_url, api_key=api_key, language=language, fallback_language=fallback_language)
     except (ValueError, KeyError, TypeError, OSError, httpx.HTTPError, psycopg.Error) as error:
         raise PolicyUnavailable() from error
