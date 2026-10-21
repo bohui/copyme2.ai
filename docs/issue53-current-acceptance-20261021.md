@@ -17,7 +17,7 @@ The first stopped after two failed rows: a worker omitted unrelated evaluation
 prompt files and the decoder rejected a valid completed response with a padded
 ID. PR106 fixes both boundaries while preserving explicit required-prompt checks,
 completed-response validation and bounded IDs. Main later added trace naming and
-an overlapping optional-prompt fix; those changes must be retained on integration.
+an overlapping optional-prompt fix; those changes are retained in the latest-main integration.
 
 At `751ed4e`, the second campaign stopped after 14 of 80 planned rows: seven
 baseline saves, six candidate saves, one candidate failure and 66 unexecuted rows.
@@ -89,3 +89,21 @@ matched workload on the deployed worker path, review the actual public replies,
 retain failures alongside latency, and repeat existing-session/rollback and the
 small browser-proxy smoke before enabling the candidate. The current early-text
 optimization has no live latency or bilingual semantic acceptance yet.
+
+## Verification record
+
+The [sanitized evidence](test-evidence/issue53-current-acceptance-20261021.json)
+retains both live campaigns and the red/green evaluator checks. Current integrated
+boundary, streaming and SQL checks pass all 63 tests. The required place/photo
+target passes 591 JavaScript, 429 API/database and 95 standalone checks in its
+serial rerun. Its first run had one database serialization-conflict failure;
+the isolated six-case background rerun passes. The first concurrent shared-suite
+run exhausted the macOS system file limit; serial evaluator/pin checks pass 48.
+
+The expanded English offline matrix retained two failed rows (38 completed):
+one exchange was durably saved and publicly completed before a readback assertion,
+and one failed before worker dispatch. They are not successful acceptance rows.
+A serial current-source matrix with a command-outcome-preserving SQL resource
+observer is in progress. No task-owned containers remain from the earlier live
+campaigns. Other local virtual machines hold most of the host's file handles;
+no unrelated services have been stopped or reconfigured.
