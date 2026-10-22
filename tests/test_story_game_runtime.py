@@ -81,8 +81,12 @@ def test_game_routes_require_auth_and_do_not_accept_browser_authority(monkeypatc
         assert result.status_code == 422
 
 
-@pytest.mark.parametrize('bad', ['duplicate_json', 'missing_receipt', 'incomplete', 'credential'])
-def test_provider_reply_must_be_one_completed_schema_document(monkeypatch, bad):
+@pytest.mark.parametrize('bad,configured,expected', [
+    ('duplicate_json', None, 'low'), ('missing_receipt', None, 'low'),
+    ('incomplete', None, 'low'), ('credential', None, 'low'),
+    (None, None, 'low'), (None, ' high ', 'high'), (None, '', 'low'),
+])
+def test_provider_uses_configured_effort_and_requires_completed_schema_document(monkeypatch, bad, configured, expected):
     from contextlib import asynccontextmanager
     from apps.api.story_game_runtime import GamePublication
 
@@ -95,19 +99,33 @@ def test_provider_reply_must_be_one_completed_schema_document(monkeypatch, bad):
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL', 'https://gateway.test/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY', 'private-game-test-key')
     monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL', 'configured-model')
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'gpt-6-astra')
+    monkeypatch.delenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', raising=False)
+    if configured is not None:
+        monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', configured)
     output = json.dumps(proposal())
     if bad == 'duplicate_json': output *= 2
     if bad == 'credential': output = 'private-game-test-key'
     response = {'id': None if bad == 'missing_receipt' else 'resp-test', 'model': 'served-model',
-        'status': 'incomplete' if bad == 'incomplete' else 'completed',
+        'status': 'incomplete' if bad == 'incomplete' else 'completed', 'reasoning': {'effort': expected},
         'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': output}]}]}
     client_type = httpx.AsyncClient
     def transport(request):
         sent = json.loads(request.content)
+        assert sent['model'] == 'gpt-6-astra' and sent['reasoning'] == {'effort': expected}
         assert sent['store'] is False and sent['text']['format']['strict'] is True
-        assert sent['metadata'] == {'generation_name': 'memoir-story-game', 'trace_name': 'memoir-story-game'}
+        metadata = dict(sent['metadata'])
+        for key in ('prompt_sha256', 'schema_sha256', 'manifest_sha256'):
+            assert len(metadata.pop(key)) == 64
+        assert metadata == {'generation_name': 'memoir-story-game', 'trace_name': 'memoir-story-game'}
         assert 'p_expected_digest' not in sent
         return httpx.Response(200, json=response)
     monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=httpx.MockTransport(transport), **kwargs))
-    with pytest.raises(ValueError):
-        asyncio.run(propose_game(dict(game_id=GAME, authority={}, chapters=[]), token=TOKEN))
+    request = propose_game(dict(game_id=GAME, authority={}, chapters=[]), token=TOKEN)
+    if bad:
+        with pytest.raises(ValueError):
+            asyncio.run(request)
+    else:
+        actual, receipt = asyncio.run(request)
+        assert actual == proposal()
+        assert receipt['requested_reasoning_effort'] == receipt['provider_reasoning_effort'] == expected
