@@ -31,6 +31,7 @@ def test_reviewed_acknowledgement_precedes_blocked_collector_and_replays_once(
     policy_calls = []
 
     async def review(name, payload, schema, **kwargs):
+        assert name == 'memoir/skills/memoir-interviewer/policy-review-opening'
         assert payload['source']['text'] == text
         assert 'interview_language' not in payload['source']
         assert payload['interview_language'] == language

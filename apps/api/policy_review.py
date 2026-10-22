@@ -86,7 +86,8 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     payload = {'source': source}
     if opening:
         payload.update(acknowledgement_requested=True, interview_language=selected_language)
-    output, receipt = await complete_json('memoir/skills/memoir-interviewer/policy-review',
+    prompt = 'memoir/skills/memoir-interviewer/policy-review' + ('-opening' if opening else '')
+    output, receipt = await complete_json(prompt,
         payload, schema,
         model=model or os.getenv('MEMORY_SPARK_COLLECTOR_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL'),
         base_url=base_url, api_key=api_key,
