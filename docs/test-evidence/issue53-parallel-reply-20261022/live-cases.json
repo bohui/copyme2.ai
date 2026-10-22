@@ -1,0 +1,118 @@
+[
+  {
+    "language": "en-AU",
+    "turns": [
+      {
+        "id": "opening",
+        "text": "My name is Avery. My father and I ran a shop in Chengde. Later, I moved to Sydney.",
+        "quality": [
+          "Use Avery exactly if naming the narrator.",
+          "No invented dates, age, family relationships or reasons.",
+          "One grounded question."
+        ]
+      },
+      {
+        "id": "later",
+        "text": "At first I rented a small room near the harbour. I felt both excited and lonely.",
+        "quality": [
+          "Preserve mixed feelings.",
+          "One useful question about this narration."
+        ]
+      },
+      {
+        "id": "privacy",
+        "text": "Please don't bring up my father again. Let's talk about moving to Sydney.",
+        "quality": [
+          "Final reply must not ask about the father.",
+          "Persist the restriction and replace only the current bubble.",
+          "Previous saved replies unchanged."
+        ]
+      },
+      {
+        "id": "resumed",
+        "text": "After three weeks I found work repairing bicycles.",
+        "quality": [
+          "Load the prior saved conversation using a new runtime and UserStorage.",
+          "Avoid the excluded father topic.",
+          "No invented link between father/shop and new job."
+        ]
+      },
+      {
+        "id": "stop",
+        "text": "That's enough for today. Please stop asking questions.",
+        "heldout": true,
+        "quality": [
+          "Final reply contains no follow-up question or invitation."
+        ]
+      },
+      {
+        "id": "correction",
+        "text": "One correction: the room was in Newcastle, not Sydney. Please use Newcastle for the room.",
+        "heldout": true,
+        "quality": [
+          "Preserve room-location correction to Newcastle.",
+          "Do not relocate every other experience.",
+          "Avoid the excluded father topic."
+        ]
+      }
+    ]
+  },
+  {
+    "language": "zh-CN",
+    "turns": [
+      {
+        "id": "opening",
+        "text": "我叫小林。我和父亲曾在承德经营一家商店，后来我搬到了悉尼。",
+        "quality": [
+          "Use 小林 exactly if naming the narrator.",
+          "No invented dates, ages or reasons.",
+          "One grounded question."
+        ]
+      },
+      {
+        "id": "later",
+        "text": "起初，我在海港附近租了一个小房间，当时既兴奋又孤单。",
+        "quality": [
+          "Preserve mixed feelings.",
+          "One useful question about this narration."
+        ]
+      },
+      {
+        "id": "privacy",
+        "text": "以后请不要再提我的父亲。我们聊聊搬到悉尼的经历吧。",
+        "quality": [
+          "Final reply must not ask about father.",
+          "Persist the restriction and replace only the current bubble.",
+          "Previous saved replies unchanged."
+        ]
+      },
+      {
+        "id": "resumed",
+        "text": "三周后，我找到了一份修自行车的工作。",
+        "quality": [
+          "Load prior saved state using a new runtime and UserStorage.",
+          "Avoid the excluded father topic.",
+          "No invented link between father/shop and new job."
+        ]
+      },
+      {
+        "id": "stop",
+        "text": "今天就聊到这里，请不要再问问题了。",
+        "heldout": true,
+        "quality": [
+          "Final reply contains no follow-up question or invitation."
+        ]
+      },
+      {
+        "id": "correction",
+        "text": "更正一下：那个房间在纽卡斯尔，不在悉尼。关于那个房间，请用纽卡斯尔。",
+        "heldout": true,
+        "quality": [
+          "Preserve room-location correction to 纽卡斯尔.",
+          "Do not relocate every other experience.",
+          "Avoid the excluded father topic."
+        ]
+      }
+    ]
+  }
+]

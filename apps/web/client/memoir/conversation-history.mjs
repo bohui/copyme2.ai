@@ -94,7 +94,7 @@ export function createConversationHistory({
     if (!key) return;
     try {
       if (!state.chat.length) return;
-      const messages = state.chat.filter((message) => message.text || message.error).map((message) => {
+      const messages = state.chat.filter((message) => !message.provisional && (message.text || message.error)).map((message) => {
         message.cacheId ||= globalThis.crypto?.randomUUID?.() || `message-${Date.now()}-${Math.random().toString(36).slice(2)}`;
         const saved = {
           cacheId: message.cacheId,
@@ -123,7 +123,10 @@ export function createConversationHistory({
         saved.updatedAt = message.updatedAt;
         return saved;
       });
-      const previous = mergeChatHistoryCopies([...readBrowserValues(key), JSON.stringify(messages)]);
+      const provisional = state.chat.filter(message => message.provisional);
+      const previous = mergeChatHistoryCopies([...readBrowserValues(key), JSON.stringify(messages)])
+        .filter(saved => !provisional.some(message => message.cacheId && message.cacheId === saved.cacheId
+          || message.clientTurnId && saved.role === 'assistant' && message.clientTurnId === saved.clientTurnId));
       saveBrowserValue(key, JSON.stringify(previous));
     } catch {
       // The conversation remains usable when browser storage is unavailable or full.

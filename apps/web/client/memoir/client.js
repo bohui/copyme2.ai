@@ -8,6 +8,7 @@ import { createStoryGameDialog } from "./story-game.mjs";
 import { createStoryCheckout, FALLBACK_STORY_PLANS } from "./story-checkout.mjs";
 import { createConversationAudio } from "./conversation-audio.mjs";
 import { createConversationHistory } from "./conversation-history.mjs";
+import { createReplyRevision } from "./reply-revision.mjs";
 import { createUiLocale, UI_LOCALES } from "./ui-locale.mjs";
 import { restoreLegacyBrowserSession, signOutBrowserSession } from "../../auth/browser.mjs";
 import { createBrowserClient } from "@supabase/ssr";
@@ -368,7 +369,10 @@ function isCurrentProjectScope(scope) {
 function invalidateProjectNavigation() {
   // Save accepted text before detaching the transport. Aborting a browser
   // request does not undo a turn already accepted by the server.
-  for (const message of state.chat) if (message.streaming) message.streaming = false;
+  for (const message of state.chat) if (message.streaming) {
+    if (message.provisional) message.text = "";
+    message.streaming = false;
+  }
   persistChatHistory();
   state.navigationGeneration = (state.navigationGeneration || 0) + 1;
   state.projectRecovery?.finish();
@@ -645,6 +649,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   const simulated = simulatedLoopTrace(toolNames);
   if (!state.supabase?.accessToken) return { reply: fallback || null, trace: simulated, traceMode: "simulated" };
   let streamedMessage = null;
+  let revisionText = null;
   const liveTrace = [];
   const streamProjectId = state.project?.id || null;
   const ownerId = state.supabase?.user?.id;
@@ -780,18 +785,29 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       if (update.stage_readiness) state.stageReadiness = update.stage_readiness;
       render();
     };
-    const body = await streamAgentTurn(text, async (delta) => {
+    const body = await streamAgentTurn(text, async (delta, revision) => {
       if (!current() || replyFinished) return;
       if (!streamedMessage) {
         streamedMessage = { id: nextAssistantMessageId(), clientTurnId:requestTurn.id, role: "assistant", text: "", streaming: true };
         state.chat.push(streamedMessage);
         render();
       }
-      streamedMessage.text += delta;
-      updateStreamingAssistantMessage(streamedMessage);
+      if (revisionText) revisionText.append(delta, revision);
+      else {
+        streamedMessage.text += delta;
+        updateStreamingAssistantMessage(streamedMessage);
+      }
     }, async (event) => {
       if (!current()) return;
-      if (event.type === "progress") {
+      if (event.type === "reply_revision") {
+        if (!streamedMessage) {
+          streamedMessage = {id:nextAssistantMessageId(), clientTurnId:requestTurn.id, role:"assistant", text:"", streaming:true};
+          state.chat.push(streamedMessage);
+        }
+        revisionText ||= createReplyRevision({message:streamedMessage, render:updateStreamingAssistantMessage, current});
+        revisionText.begin(event.data.revision);
+        updateStreamingAssistantMessage(streamedMessage);
+      } else if (event.type === "progress") {
         recordProgress(event.data);
       } else if (event.type === "source_accepted") {
         state.photoTurns?.accept(requestTurn, {...event.data, state:"source_accepted"});
@@ -816,6 +832,8 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
           .catch((error) => { if (current()) toast(error.message); });
       }
     }, language, firstReplyLocalization, conversationText, requestTurn.id, serverAction, sourceKind, {scope, controller, turn:requestTurn});
+    if (!current()) return detached();
+    if (revisionText) await revisionText.finish(body.reply || "");
     if (!current()) return detached();
     replyFinished = true;
     // A saved reply is ready even when an earlier workspace write is pending.
@@ -858,6 +876,8 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     return { historicalContext:body.historical_context ? historicalContext(body.historical_context) : null, responsePhotos:state.photoTurns?.cards(body.response_photos), clientTurnId:requestTurn.id, blocked: body.recall_status?.payment_required && !body.reply, streamedMessage, reply: body.reply || fallback || null, trace: liveTrace.length ? liveTrace : (body.trace || []), traceMode: liveTrace.length ? "live" : (body.trace_mode || "codex"), placeJourney: body.place_journey || null, placeJourneyChange: body.place_journey_change || null, familyContextUpdate: body.family_context_update || null };
   } catch (error) {
     if (!current()) return detached();
+    if (revisionText) await revisionText.finish("");
+    if (!current()) return detached();
     if (state.project?.id === streamProjectId && state.placeJourney === previewJourney && previewJourney) {
       state.placeJourney = previousJourney;
       state.selectedPlace = previousSelection;
@@ -869,6 +889,8 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       streamedMessage.error = error.message;
     }
     return { failed:true, streamedMessage, reply: streamedMessage?.text || error.message, trace: liveTrace.map(step => ({ ...step, status: step.status === "running" ? "failed" : step.status })), traceMode: "error" };
+  } finally {
+    revisionText?.dispose();
   }
 }
 
@@ -911,6 +933,7 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
   let buffer = "";
   let result = null;
   let ready = false;
+  let replyRevision = null;
   let resolveReady;
   let rejectReady;
   const readyPromise = new Promise((resolve, reject) => {
@@ -959,7 +982,17 @@ async function streamAgentTurn(text, onDelta, onEvent = async () => {}, language
       const value = buffer.slice(0, end);
       buffer = buffer.slice(end);
       const event = JSON.parse(value);
-      if (event.type === "text_delta" && !ready) await onDelta(event.text || "");
+      if (event.type === "reply_revision" && !ready) {
+        const revision = event.data?.revision;
+        if (!Number.isSafeInteger(revision) || revision < 0) throw new Error("Invalid reply revision");
+        if (replyRevision === null || revision > replyRevision) {
+          replyRevision = revision;
+          await onEvent(event);
+        }
+      } else if (event.type === "text_delta" && !ready) {
+        if (replyRevision === null && event.revision !== undefined) throw new Error("Missing reply revision");
+        if (replyRevision === null || event.revision === replyRevision) await onDelta(event.text || "", event.revision);
+      }
       else if (event.type === "source_accepted") await onEvent(event);
       else if (event.type === "reply_complete") result = { ...(result || {}), ...(event.data || {}) };
       else if (event.type === "conversation_saved") {
@@ -1260,6 +1293,7 @@ function updateStreamingAssistantMessage(message) {
   if (text) {
     text.innerHTML = formatText(visibleText);
     text.hidden = !visibleText;
+    text.setAttribute("aria-live", message.provisional ? "off" : "polite");
   }
   const thinking = row.querySelector(".message-thinking");
   if (thinking) thinking.hidden = !message.streaming || Boolean(visibleText);
@@ -2832,7 +2866,7 @@ function renderMessage(message) {
   const action = !streaming && message.action && message.action.name !== "save-memory" ? `<button class="button button-primary button-small message-action" data-action="${message.action.name}">${escapeHtml(message.action.label)} <span>↗</span></button>` : "";
   const trace = renderAgentTrace(message.trace || [], message.traceMode, message.traceExpanded ?? (streaming && !visibleText), message.clientTurnId);
   const listen = streaming || state.voiceMode ? "" : `<button class="listen-button" data-action="speak" data-text="${escapeHtml(visibleText)}" aria-label="${escapeHtml(translate("Memoir.story.listen"))}">◖ ${escapeHtml(translate("Memoir.story.listenButton"))}</button>`;
-  return `<article class="chat-row assistant-message${isOpening ? " assistant-opening" : ""} ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}">${avatar}<div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="polite" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.historicalContext ? historicalContextMarkup(message.historicalContext, currentUiLocale()) : ""}${message.responsePhotos?.length ? responsePhotoMarkup(message.responsePhotos) : ""}${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
+  return `<article class="chat-row assistant-message${isOpening ? " assistant-opening" : ""} ${streaming ? "message-streaming" : ""}" data-message-id="${escapeHtml(message.id || "")}">${avatar}<div class="chat-bubble"><div class="message-meta"><span class="message-label">${CHATBOT_NAME}</span>${listen}</div><div class="message-thinking" role="status" ${streaming && !visibleText ? "" : "hidden"}>${escapeHtml(translate("Memoir.story.thinkingCodex"))}</div><div class="message-trace" aria-live="polite">${trace}</div><div class="message-text" aria-live="${message.provisional ? "off" : "polite"}" ${visibleText ? "" : "hidden"}>${formatText(visibleText)}</div>${message.historicalContext ? historicalContextMarkup(message.historicalContext, currentUiLocale()) : ""}${message.responsePhotos?.length ? responsePhotoMarkup(message.responsePhotos) : ""}${message.error ? `<p role="alert">${escapeHtml(message.error)}</p>` : ""}${action}</div></article>`;
 }
 
 function renderAgentTrace(trace, mode = "simulated", expanded = false, clientTurnId = null) {

@@ -402,6 +402,14 @@ accepts `compact-v1`, `two-lane-v1` and the opt-in `reply-v2`, defaulting to
 enabled two lanes, matching API/worker code and published prompt receipts;
 activation awaits matched live latency, semantic quality and background-state acceptance.
 
+`MEMORY_SPARK_PARALLEL_POLICY_REVIEW=1` additionally opts into
+[revisable current replies](docs/issue53-parallel-reply-streaming.md). The API and
+worker need matching code and the updated fresh-install schema. It streams a
+draft using the previously allowed conversation while the current source review
+runs; a new restriction cancels and replaces only that draft. Reviewed saving
+remains mandatory. The flag defaults to `0`; draft deletion cannot undo text
+already read on screen or history already sent to the model.
+
 Edit and review prompt Markdown in a pull request before creating a Langfuse
 version. Feature branches do not publish or fabricate version receipts. The API
 reads checked-in prompt files. Shared instructions have one source;

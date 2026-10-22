@@ -368,6 +368,32 @@ def test_completed_invalid_json_uses_the_existing_validation_repair_budget(monke
     assert 'INVALID_JSON' in captured[2]['input'][0]['content'][1]['text']
 
 
+def test_revisable_validation_repair_can_replace_a_displayed_draft(monkeypatch,tmp_path):
+    from apps.api.conversation_reply import reply_instructions
+    from apps.api.lifetime_memory_engine import run_governed_collector
+    from test_conversation_reply import proposal
+    from test_lifetime_memory_engine import encode
+    monkeypatch.setenv('MEMORY_SPARK_PARALLEL_POLICY_REVIEW','1')
+    governed,context=fixture()
+    context.update(reply_contract='reply-v2',two_lane_memory=True,revisable_reply=True)
+    packet=json.loads(governed.packet)
+    packet.update(instructions=reply_instructions(),interview_context={
+        k:v for k,v in context.items() if k not in {'source','sources'}})
+    invalid=proposal();invalid['acknowledgement']='What happened to your father?'
+    captured=install_reply_provider(monkeypatch,[invalid,proposal()])
+    chunks=[];restarts=[]
+    async def delta(value):chunks.append(value)
+    async def event(value):
+        if value['type']=='collector_restart':restarts.append(value)
+    result=asyncio.run(run_governed_collector(command=[],home_root=tmp_path,
+        base_url='https://provider.invalid/v1',api_key='fixture-secret-key',model=BUDGET.model,
+        governed=encode(packet),interview_context=context,on_delta=delta,on_event=event,publisher=FakePublisher()))
+    assert json.loads(result['reply'])==proposal()
+    assert len(captured)==2 and len(restarts)==1
+    assert [json.loads(value)['acknowledgement'] for value in chunks]==[invalid['acknowledgement'],proposal()['acknowledgement']]
+    assert 'enum' not in captured[1]['text']['format']['schema']['properties']['acknowledgement']
+
+
 @pytest.mark.parametrize('code,expected', [
     ('CONTRACT_24', 'precise absolute offsets'),
     ('CONTRACT_09', 'not the negated alternative'),

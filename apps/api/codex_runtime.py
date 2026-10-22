@@ -363,8 +363,15 @@ class CodexRuntime:
         worker_headers={**worker_headers,'Content-Type':'application/json','Content-Length':str(len(encoded))}
         if governed is None:
             raise ValueError('A canonical execution contract is required')
-        from .lifetime_memory_publication import GovernedRequestBody, ProviderPublication
-        publisher = ProviderPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=user_id)
+        from .lifetime_memory_publication import GovernedRequestBody, ProviderPublication, DraftProviderPublication
+        draft=(interview_context or {}).get('policy_review_pending') is True
+        if draft:
+            from .parallel_reply import parallel_policy_enabled
+            if (not parallel_policy_enabled() or (interview_context or {}).get('revisable_reply') is not True
+                    or (interview_context or {}).get('reply_contract')!='reply-v2'):
+                raise ValueError('Pending policy requires enabled revisable reply execution')
+        publisher = (DraftProviderPublication if draft else ProviderPublication)(
+            os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), authenticated_owner=user_id)
         request_content = {'content': GovernedRequestBody(encoded, publisher=publisher, fence=governed['fence'])}
         result: Any = None
 
@@ -427,7 +434,7 @@ class CodexRuntime:
                                     event = json.loads(line)
                                     if event['type'] == 'text_delta' and on_delta:
                                         await on_delta(event['text'])
-                                    elif event['type'] == 'codex_activity' and on_event:
+                                    elif event['type'] in {'codex_activity', 'collector_restart'} and on_event:
                                         await on_event(event)
                                     elif event['type'] == 'provider_complete':
                                         provider = event.get('data') or {}

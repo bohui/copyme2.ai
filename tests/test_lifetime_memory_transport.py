@@ -104,6 +104,57 @@ def test_personal_bodies_sent_under_guard_and_cleanup_after_final_send():
     execute(scenario())
 
 
+def test_queued_cancelled_revision_never_reappears_after_replacement():
+    async def scenario():
+        publisher=Publisher();draft=Publisher();events=[];queued=asyncio.Event()
+        async def run(emit):
+            emit.set_fence(FENCE)
+            await emit.begin_revision(draft=True)
+            await emit('Cancelled text.')
+            await emit.begin_revision(draft=False)
+            await emit('Replacement.')
+            queued.set()
+            return {'reply':'Replacement.'}
+        async def send(message):
+            event=body_event(message)
+            if event:
+                events.append(event)
+                if event['type']=='started': await queued.wait()
+        stream=governed_turn_events(run)
+        await GovernedStreamingResponse(stream,publisher=publisher,draft_publisher=draft)(SCOPE,no_disconnect,send)
+        assert [e.get('text') for e in events if e['type']=='text_delta']==['Replacement.']
+        assert [e['data']['revision'] for e in events if e['type']=='reply_revision']==[1]
+        assert not draft.fences
+    execute(scenario())
+
+
+def test_policy_rejection_of_a_queued_draft_does_not_block_its_reset_or_final_reply():
+    from apps.api.lifetime_memory_policy import PolicyUnavailable
+    class RejectedDraft(Publisher):
+        @asynccontextmanager
+        async def guard(self,fence):
+            raise PolicyUnavailable()
+            yield
+    async def scenario():
+        publisher=Publisher();events=[]
+        async def run(emit):
+            emit.set_fence(FENCE)
+            await emit.begin_revision(draft=True)
+            await emit('Now restricted.')
+            await emit.flush()
+            await emit.begin_revision(draft=False)
+            await emit('Replacement.')
+            return {'reply':'Replacement.'}
+        async def send(message):
+            if event:=body_event(message):events.append(event)
+        stream=governed_turn_events(run)
+        await GovernedStreamingResponse(stream,publisher=publisher,draft_publisher=RejectedDraft())(SCOPE,no_disconnect,send)
+        assert not any(e['type']=='error' for e in events)
+        assert [e.get('text') for e in events if e['type']=='text_delta']==['Replacement.']
+        assert events[-1]['type']=='result'
+    execute(scenario())
+
+
 @pytest.mark.parametrize('kind',['question_validated','reply_complete'])
 def test_milestone_metadata_never_uses_the_unfenced_generic_exemption(kind):
     async def scenario():

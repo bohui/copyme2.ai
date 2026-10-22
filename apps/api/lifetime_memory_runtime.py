@@ -137,6 +137,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     identity=IdentityEnvelope.model_validate({k:v for k,v in identity_raw.items() if k!='outcome'})
     project_id=identity.project_id
     scope=AsyncExitStack();await scope.__aenter__()
+    policy_task=None
     try:
         await scope.enter_async_context(runtime._lock(storage.user_id))
         lease=await scope.enter_async_context(runtime._storage_lease(storage,timeout=5))
@@ -158,7 +159,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if is_policy_pending(error):
                     raise await policy_pending() from None
                 raise
-        async def review_policy():
+        async def review_policy(*, include_decision=False):
             # Reviewing original narration is provider dispatch too.
             if lifetime_generation_paused():
                 raise GenerationPaused('Conversation generation is paused; saved history and receipts remain available')
@@ -167,9 +168,17 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 return await review_pending_policy(storage, lease, str(identity.conversation_id),
                     model=collector_configuration(runtime.model).model,
                     base_url=runtime.base_url, api_key=runtime.api_key,
-                    language=explicit_request(text), fallback_language=language)
+                    language=explicit_request(text), fallback_language=language, include_decision=include_decision)
             except (PolicyUnavailable, ValueError, OSError) as error:
                 raise await policy_pending() from error
+        async def select_language():
+            profile=await lease.io(storage.profile)
+            selected=explicit_request(text) or profile.get('preferred_language') or language or detect_reply_locale(text)
+            if selected not in {'en-AU','zh-CN'}: selected='en-AU'
+            if profile.get('preferred_language')!=selected:
+                language_fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
+                selected=await call('set_lifetime_language',p_fence=language_fence,p_language=selected,p_explicit=bool(explicit_request(text)))
+            return selected
         entitlement=await lease.io(storage.story_entitlement)
         access=await lease.io(storage_recall_status,storage,entitlement)
         fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
@@ -236,160 +245,194 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             source=accepted.get('source')
             if not source:raise ValueError('Governed narrator turn requires a canonical source')
             accepted_source_id=source['id']
-            # Older private context remains blocked until the current source's
-            # bounded semantic policy review commits under its original fence.
-            reviewed_opening=await review_policy()
-            profile=await lease.io(storage.profile)
-            selected_language=explicit_request(text) or profile.get('preferred_language') or language or detect_reply_locale(text)
-            if selected_language not in {'en-AU','zh-CN'}:selected_language='en-AU'
-            if profile.get('preferred_language')!=selected_language:
-                language_fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
-                selected_language=await call('set_lifetime_language',p_fence=language_fence,p_language=selected_language,p_explicit=bool(explicit_request(text)))
-            fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
-            publication.set_fence(fence)
-            progress=TurnProgress(on_event,client_turn_id,project_id,selected_language,enabled=thinking_steps_enabled())
-            if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
-                'accepted_source_id':source['id'],'recordings':accepted.get('recordings',[]),**public_interview_fields(accepted)}})
-            await progress.update('memory-context','Loading saved profile and memory context','正在加载个人资料和回忆背景')
-            context=await call('read_lifetime_interview_context',p_conversation_id=str(identity.conversation_id))
-            if workspace_focus:
-                from .workspace_memory_actions import read_workspace_focus, apply_workspace_focus
-                try:
-                    focus = await lease.io(read_workspace_focus, storage, project_id, workspace_focus)
-                except HTTPException as error:
-                    if error.status_code != 409: raise
-                    # The original is accepted. A changed optional workspace task
-                    # must not prevent this source or a lost reply from completing.
-                    focus = None
-                apply_workspace_focus(context, focus)
-            from .historical_news import accepted_hypothesis,ready_projection
-            import os
-            context['historical_news']=ready_projection(context['historical_news'],enabled=os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() in {'1','true','yes'})
-            news=context['historical_news']
-            needs_revalidation=news.pop('needs_revalidation',False)
-            if news.get('enabled') and needs_revalidation:
-                # Reuse inspected evidence only after checking the latest accepted basis.
-                # This local preparation never starts or awaits external research.
-                try:
-                    basis=await lease.io(storage.historical_news_basis,project_id)
-                    hypothesis=accepted_hypothesis(basis) if basis else None
-                    if hypothesis:
-                        refreshed=await lease.io(storage.revalidate_historical_news,project_id,hypothesis,basis['news_snapshot'])
-                        if refreshed:
-                            refreshed.pop('needs_revalidation',None)
-                            context['historical_news']=refreshed
-                except Exception:
-                    pass  # Optional stale clues remain excluded on read/validation failure.
-            context.pop('conversation_phase',None)
-            context.update(source=source,sources=[source],photo_context=accepted.get('photo_context',[]),
-                interview_language=selected_language,opening_turn=accepted.get('sequence')==1)
-            from .interview_strategy import stage_breadth_checkpoint
-            context['breadth_checkpoint'] = stage_breadth_checkpoint(context.pop('stage_coverage', []))
-            if two_lane:
-                context['two_lane_memory']=True
-                context['prepared_questions']=await call('read_lifetime_prepared_questions',p_conversation_id=str(identity.conversation_id))
-            from .policy_review import reviewed_acknowledgement
-            from .interview_plan import historical_acknowledgement_allowed
-            opening=reviewed_acknowledgement(reviewed_opening or policy_status.get('reviewed_acknowledgement'),
-                source,selected_language)
-            if opening and historical_acknowledgement_allowed(opening,context):
-                context['reviewed_acknowledgement']=opening
-            else:
-                opening=None
-            collector=collector_configuration(runtime.model)
-            if collector.prompt_version == 'reply-v2':
-                if not two_lane:
-                    raise CollectorConfigurationError('Reply v2 requires the enabled two-lane workflow')
-                context['reply_contract'] = 'reply-v2'
-            if two_lane and strategy_enabled() and collector.prompt_version in {'two-lane-v1', 'reply-v2'}:
-                state=await call('read_lifetime_strategy_context',p_conversation_id=str(identity.conversation_id))
-                if state['mode']=='active':
-                    if state.get('plan') is not None:InterviewStrategyPlan.model_validate(state['plan'])
-                    context.update(strategy_selector=True,strategy_context=state,
-                        active_strategy=(state.get('plan') or {}).get('strategy') or state.get('planned_strategy_hint') or
-                            ('explore' if context['has_accepted_narration'] else 'comfort'))
-                    publication.strategy_metrics=StrategyMetrics(client_turn_id,source['sequence'],context,start=turn_started)
-            overall=ContextBudget(model=collector.model,context_window=131072,input_budget=65536,output_headroom=8192,framing_headroom=2048)
-            overhead=governed_request_overhead(context,overall)
-            packet_budget=overall.model_copy(update={'input_budget':overall.input_budget-overhead})
-            saved=await call('read_lifetime_checkpoint_before' if two_lane else 'read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_model=collector.model,p_prompt_version='lifetime-v1',
-                **({'p_before_sequence':source['sequence'],'p_require_accepted':True} if two_lane else {}))
-            if saved and saved['coverage_end']>=source['sequence']:
-                saved=await call('read_lifetime_checkpoint_before',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],
-                    p_model=collector.model,p_prompt_version='lifetime-v1',p_before_sequence=source['sequence'],p_require_accepted=False)
-            after=saved['coverage_end'] if saved else 0
-            tail=await call('read_lifetime_two_lane_tail' if two_lane else 'read_lifetime_tail',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_after_sequence=after,p_through_sequence=source['sequence']-1)
-            def row(value):return ContextSource(identity=identity,policy_epoch=fence['policy_epoch'],source_id=value['id'],version=value['version'],sequence=value['sequence'],original=value['text'],language=value['language'],kind=value['kind'],conversation_saved=value.get('conversation_saved',False),assistant_reply=value.get('assistant_reply'),reply_policy_epoch=value.get('reply_policy_epoch'))
-            coverage=TailCoverage(identity=identity,policy_epoch=fence['policy_epoch'],after_sequence=after,through_sequence=source['sequence']-1,complete=tail['complete'],tombstones=tail['tombstones'])
-            service=LifetimeMemoryService(storage.lifetime_rpc,budget=packet_budget)
-            if context.get('reply_contract') == 'reply-v2':
-                from .conversation_reply import reply_instructions
-                instructions = reply_instructions()
-            else:
-                from .collector_prompt import COMPACT_COLLECTOR_PROMPT
-                from .codex_runtime import conversation_language_instruction
-                if context.get('strategy_selector'):
-                    instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS
-                else:
-                    privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
-                    instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
+            from .parallel_reply import parallel_policy_enabled, RevisableReplyStream, reviewed_reply
+            revisable=(parallel_policy_enabled() and two_lane and publication.emitter is not None
+                and on_delta is not None and not already_accepted
+                and collector_configuration(runtime.model).prompt_version=='reply-v2')
+            reviewed_opening=None
+            pending_review=revisable
+            if not revisable:
+                reviewed_opening=await review_policy()
+            while True:
+                selected_language=await select_language()
+                fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
+                publication.set_fence(fence)
+                if revisable:
+                    if publication.emitter.revision is None:
+                        await publication.emitter.begin_revision(draft=pending_review)
+                    else:
+                        publication.emitter.draft=pending_review
+                progress=TurnProgress(on_event,client_turn_id,project_id,selected_language,enabled=thinking_steps_enabled())
+                if on_event:await on_event({'type':'source_accepted','data':{'client_turn_id':client_turn_id,'project_id':project_id,
+                    'accepted_source_id':source['id'],'recordings':accepted.get('recordings',[]),**public_interview_fields(accepted)}})
+                await progress.update('memory-context','Loading saved profile and memory context','正在加载个人资料和回忆背景')
+                context=await call('read_lifetime_interview_context',p_conversation_id=str(identity.conversation_id))
+                if workspace_focus:
+                    from .workspace_memory_actions import read_workspace_focus, apply_workspace_focus
+                    try:
+                        focus = await lease.io(read_workspace_focus, storage, project_id, workspace_focus)
+                    except HTTPException as error:
+                        if error.status_code != 409: raise
+                        # The original is accepted. A changed optional workspace task
+                        # must not prevent this source or a lost reply from completing.
+                        focus = None
+                    apply_workspace_focus(context, focus)
+                from .historical_news import accepted_hypothesis,ready_projection
+                import os
+                context['historical_news']=ready_projection(context['historical_news'],enabled=os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() in {'1','true','yes'})
+                news=context['historical_news']
+                needs_revalidation=news.pop('needs_revalidation',False)
+                if news.get('enabled') and needs_revalidation:
+                    # Reuse inspected evidence only after checking the latest accepted basis.
+                    # This local preparation never starts or awaits external research.
+                    try:
+                        basis=await lease.io(storage.historical_news_basis,project_id)
+                        hypothesis=accepted_hypothesis(basis) if basis else None
+                        if hypothesis:
+                            refreshed=await lease.io(storage.revalidate_historical_news,project_id,hypothesis,basis['news_snapshot'])
+                            if refreshed:
+                                refreshed.pop('needs_revalidation',None)
+                                context['historical_news']=refreshed
+                    except Exception:
+                        pass  # Optional stale clues remain excluded on read/validation failure.
+                context.pop('conversation_phase',None)
+                context.update(source=source,sources=[source],photo_context=accepted.get('photo_context',[]),
+                    interview_language=selected_language,opening_turn=accepted.get('sequence')==1)
+                from .interview_strategy import stage_breadth_checkpoint
+                context['breadth_checkpoint'] = stage_breadth_checkpoint(context.pop('stage_coverage', []))
                 if two_lane:
-                    instructions+=CONVERSATION_INSTRUCTIONS
+                    context['two_lane_memory']=True
+                    context['prepared_questions']=await call('read_lifetime_prepared_questions',p_conversation_id=str(identity.conversation_id))
+                from .policy_review import reviewed_acknowledgement
+                from .interview_plan import historical_acknowledgement_allowed
+                opening=None if revisable else reviewed_acknowledgement(reviewed_opening or policy_status.get('reviewed_acknowledgement'),
+                    source,selected_language)
+                if opening and historical_acknowledgement_allowed(opening,context):
+                    context['reviewed_acknowledgement']=opening
                 else:
-                    instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-places'))
-            try:
-                packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
-                tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)
-            except InputLimitExceeded as error:
-                pending=MaintenancePending('The source is accepted; required current context exceeds this request budget')
-                pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
-                raise pending from error
-            except MaintenancePending as error:
-                error.accepted_source_id=source['id'];error.client_turn_id=client_turn_id
-                raise
-            # Reject changed preparation; transport also fences actual prompt admission.
-            current_fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
-            if current_fence!=fence:raise RuntimeError('Context changed during preparation; retry the accepted turn')
-            await progress.update('memory-context','Saved profile and memory context loaded','个人资料和回忆背景已加载',status='completed')
-            governed=GovernedCollectorInput(packet=serialize_packet(packet),fence=fence,budget=overall,prompt_version='lifetime-v1')
-            visible=CollectorVisibleStream()
-            if opening and on_delta:
-                visible.feed(json.dumps({'acknowledgement':opening},ensure_ascii=False))
-                await on_delta(opening)
-                await publication.flush()
-            async def delta(chunk):
-                value=visible.feed(chunk)
-                if value and on_delta:await on_delta(value)
-            await progress.update('collector-call','LLM call · Generating reply and question pool','LLM 调用 · 正在生成回复和问题池')
-            model_started=time.monotonic()
-            if publication.strategy_metrics is not None:
-                publication.strategy_timings.update(context_preparation_ms=round((model_started-turn_started)*1000,3),
-                    input_bytes=len(governed.packet.encode()),prompt_version=collector.prompt_version)
-            try:
-                if runtime.worker_url:
-                    result=await runtime._worker_turn(user_id=storage.user_id,prior=None,memories=[],profile={},place_journey={},
-                        family_enabled=False,family_context={},project_id=project_id,text='',language=selected_language,
-                        interview_context=context,governed=governed.model_dump(mode='json'),on_delta=delta if on_delta else None,
-                        on_event=None if two_lane else progress.harness_event,evaluation=evaluation,trajectory=trajectory,
-                        diagnostic_request_id=client_turn_id)
-                    if trajectory is not None:
-                        trajectory.append_trajectory(result.get('trajectory'),source='canonical-worker')
+                    opening=None
+                collector=collector_configuration(runtime.model)
+                if collector.prompt_version == 'reply-v2':
+                    if not two_lane:
+                        raise CollectorConfigurationError('Reply v2 requires the enabled two-lane workflow')
+                    context['reply_contract'] = 'reply-v2'
+                if revisable:
+                    context.update(revisable_reply=True, policy_review_pending=pending_review)
+                if two_lane and strategy_enabled() and collector.prompt_version in {'two-lane-v1', 'reply-v2'}:
+                    state=await call('read_lifetime_strategy_context',p_conversation_id=str(identity.conversation_id))
+                    if state['mode']=='active':
+                        if state.get('plan') is not None:InterviewStrategyPlan.model_validate(state['plan'])
+                        context.update(strategy_selector=True,strategy_context=state,
+                            active_strategy=(state.get('plan') or {}).get('strategy') or state.get('planned_strategy_hint') or
+                                ('explore' if context['has_accepted_narration'] else 'comfort'))
+                        publication.strategy_metrics=StrategyMetrics(client_turn_id,source['sequence'],context,start=turn_started)
+                overall=ContextBudget(model=collector.model,context_window=131072,input_budget=65536,output_headroom=8192,framing_headroom=2048)
+                overhead=governed_request_overhead(context,overall)
+                packet_budget=overall.model_copy(update={'input_budget':overall.input_budget-overhead})
+                saved=await call('read_lifetime_checkpoint_before' if two_lane else 'read_lifetime_checkpoint',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_model=collector.model,p_prompt_version='lifetime-v1',
+                    **({'p_before_sequence':source['sequence'],'p_require_accepted':True} if two_lane else {}))
+                if saved and saved['coverage_end']>=source['sequence']:
+                    saved=await call('read_lifetime_checkpoint_before',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],
+                        p_model=collector.model,p_prompt_version='lifetime-v1',p_before_sequence=source['sequence'],p_require_accepted=False)
+                after=saved['coverage_end'] if saved else 0
+                tail=await call('read_lifetime_two_lane_tail' if two_lane else 'read_lifetime_tail',p_conversation_id=str(identity.conversation_id),p_policy_epoch=fence['policy_epoch'],p_after_sequence=after,p_through_sequence=source['sequence']-1)
+                def row(value):return ContextSource(identity=identity,policy_epoch=fence['policy_epoch'],source_id=value['id'],version=value['version'],sequence=value['sequence'],original=value['text'],language=value['language'],kind=value['kind'],conversation_saved=value.get('conversation_saved',False),assistant_reply=value.get('assistant_reply'),reply_policy_epoch=value.get('reply_policy_epoch'))
+                coverage=TailCoverage(identity=identity,policy_epoch=fence['policy_epoch'],after_sequence=after,through_sequence=source['sequence']-1,complete=tail['complete'],tombstones=tail['tombstones'])
+                service=LifetimeMemoryService(storage.lifetime_rpc,budget=packet_budget)
+                if context.get('reply_contract') == 'reply-v2':
+                    from .conversation_reply import reply_instructions
+                    instructions = reply_instructions()
                 else:
-                    result=await run_governed_collector(command=runtime.command,home_root=runtime.home_root,base_url=runtime.base_url,
-                        api_key=runtime.api_key,model=collector.model,governed=governed,interview_context=context,
-                        timeout=runtime.timeout,on_delta=delta if on_delta else None,on_event=None if two_lane else progress.harness_event,
-                        effort=collector.effort,issue14_admission=runtime._issue14_admission,trajectory=trajectory,
-                        responsesapi_client_metadata={**(evaluation or {}),'request_id':client_turn_id})
-            except PolicyUnavailable:
-                raise await policy_pending() from None
-            except CanonicalActivationUnavailable as error:
-                pending=MaintenancePending('The source is accepted; conversation provider authority is unavailable')
-                pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
-                raise pending from error
-            except (CollectorResponseUnavailable,TimeoutError):
-                pending=AcceptedResponsePending('Your message is saved. Please retry the response.')
-                pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
-                raise pending from None
+                    from .collector_prompt import COMPACT_COLLECTOR_PROMPT
+                    from .codex_runtime import conversation_language_instruction
+                    if context.get('strategy_selector'):
+                        instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS
+                    else:
+                        privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
+                        instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
+                    if two_lane:
+                        instructions+=CONVERSATION_INSTRUCTIONS
+                    else:
+                        instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-places'))
+                try:
+                    packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
+                    tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)
+                except InputLimitExceeded as error:
+                    pending=MaintenancePending('The source is accepted; required current context exceeds this request budget')
+                    pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
+                    raise pending from error
+                except MaintenancePending as error:
+                    error.accepted_source_id=source['id'];error.client_turn_id=client_turn_id
+                    raise
+                # Reject changed preparation; transport also fences actual prompt admission.
+                current_fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)
+                if current_fence!=fence:raise RuntimeError('Context changed during preparation; retry the accepted turn')
+                await progress.update('memory-context','Saved profile and memory context loaded','个人资料和回忆背景已加载',status='completed')
+                governed=GovernedCollectorInput(packet=serialize_packet(packet),fence=fence,budget=overall,prompt_version='lifetime-v1')
+                visible=RevisableReplyStream() if revisable else CollectorVisibleStream()
+                if opening and on_delta:
+                    visible.feed(json.dumps({'acknowledgement':opening},ensure_ascii=False))
+                    await on_delta(opening)
+                    await publication.flush()
+                generation_state={'active':True, 'visible':visible}
+                async def delta(chunk, _state=generation_state):
+                    if not _state['active']: return
+                    value=_state['visible'].feed(chunk)
+                    if value and on_delta:await on_delta(value)
+                async def collector_event(event, _state=generation_state, _pending=pending_review):
+                    if not _state['active']: return
+                    if event.get('type')=='collector_restart':
+                        _state['visible']=RevisableReplyStream()
+                        await publication.emitter.begin_revision(draft=_pending)
+                async def retract(_state=generation_state):
+                    _state['active']=False
+                    await publication.emitter.begin_revision(draft=False)
+                await progress.update('collector-call','LLM call · Generating reply and question pool','LLM 调用 · 正在生成回复和问题池')
+                model_started=time.monotonic()
+                if publication.strategy_metrics is not None:
+                    publication.strategy_timings.update(context_preparation_ms=round((model_started-turn_started)*1000,3),
+                        input_bytes=len(governed.packet.encode()),prompt_version=collector.prompt_version)
+                async def generate():
+                    try:
+                        if runtime.worker_url:
+                            result=await runtime._worker_turn(user_id=storage.user_id,prior=None,memories=[],profile={},place_journey={},
+                                family_enabled=False,family_context={},project_id=project_id,text='',language=selected_language,
+                                interview_context=context,governed=governed.model_dump(mode='json'),on_delta=delta if on_delta else None,
+                                on_event=collector_event if revisable else (None if two_lane else progress.harness_event),evaluation=evaluation,trajectory=trajectory,
+                                diagnostic_request_id=client_turn_id)
+                            if trajectory is not None:
+                                trajectory.append_trajectory(result.get('trajectory'),source='canonical-worker')
+                        else:
+                            result=await run_governed_collector(command=runtime.command,home_root=runtime.home_root,base_url=runtime.base_url,
+                                api_key=runtime.api_key,model=collector.model,governed=governed,interview_context=context,
+                                timeout=runtime.timeout,on_delta=delta if on_delta else None,on_event=collector_event if revisable else (None if two_lane else progress.harness_event),
+                                effort=collector.effort,issue14_admission=runtime._issue14_admission,trajectory=trajectory,
+                                responsesapi_client_metadata={**(evaluation or {}),'request_id':client_turn_id})
+                        return result
+                    finally:
+                        generation_state["active"]=False
+                try:
+                    if pending_review:
+                        policy_task=asyncio.create_task(review_policy(include_decision=True))
+                        result=await reviewed_reply(policy_task,generate,source=source,retract=retract)
+                        policy_task=None
+                        pending_review=False
+                        if result is None: continue
+                    else:
+                        result=await generate()
+                    visible=generation_state["visible"]
+                    if revisable: publication.emitter.draft=False
+                except PolicyUnavailable:
+                    raise await policy_pending() from None
+                except CanonicalActivationUnavailable as error:
+                    pending=MaintenancePending('The source is accepted; conversation provider authority is unavailable')
+                    pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
+                    raise pending from error
+                except (CollectorResponseUnavailable,TimeoutError):
+                    pending=AcceptedResponsePending('Your message is saved. Please retry the response.')
+                    pending.accepted_source_id=source['id'];pending.client_turn_id=client_turn_id
+                    raise pending from None
+                break
             if result.get('_artifact_task') is not None:
                 if two_lane:
                     publication.optional_tasks.append(result['_artifact_task'])
@@ -442,8 +485,13 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             if on_event and has_question:
                 await on_event({'type':'question_validated','data':{**milestone_identity,'has_question':True}})
             if on_delta:
-                prefix=validated.get('acknowledgement','') if visible.emitted else ''
-                await on_delta(validated['reply'][len(prefix):] if prefix and validated['reply'].startswith(prefix) else validated['reply'])
+                if revisable:
+                    if visible.text!=validated['reply']:
+                        await publication.emitter.begin_revision(draft=False)
+                        await on_delta(validated['reply'])
+                else:
+                    prefix=validated.get('acknowledgement','') if visible.emitted else ''
+                    await on_delta(validated['reply'][len(prefix):] if prefix and validated['reply'].startswith(prefix) else validated['reply'])
             access=await lease.io(storage_recall_status,storage,entitlement)
             response={'project_id':project_id,'client_turn_id':client_turn_id,'accepted_source_id':source['id'],'recordings':accepted.get('recordings',[]),
                 'conversation_saved':True,'reply':validated['reply'],'recall_status':access,**public_interview_fields(committed['interview']),
@@ -481,13 +529,17 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         publication.scope=scope;scope=None
         return GovernedResult(response,fence) if publication.emitter else response
     finally:
+        if policy_task is not None:
+            from .parallel_reply import discard_generation
+            from .lifetime_memory_reads import _settle
+            await _settle(asyncio.create_task(discard_generation(policy_task)))
         if scope is not None:await scope.aclose()
 
 
 async def lifetime_http_turn(runtime,storage,text,*,accept,options,close_storage=True):
     import os
     from fastapi import HTTPException
-    from .lifetime_memory_publication import TransactionalPublication,PublicationUnavailable
+    from .lifetime_memory_publication import TransactionalPublication,DraftPublication,PublicationUnavailable
     from .lifetime_memory_activation import CanonicalActivationUnavailable
     from .collector_configuration import CollectorConfigurationError
     from .lifetime_memory_transport import governed_turn_events,GovernedStreamingResponse,GovernedJSONResponse
@@ -503,7 +555,9 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options,close_storage
             async def run(emit):
                 publication.emitter=emit
                 return await runtime.turn(storage,text,**options,lifetime_context=publication,on_delta=emit,on_event=emit.event)
-            response=GovernedStreamingResponse(governed_turn_events(run,cleanup=cleanup),publisher=publisher,on_delivered=publication.observe_delivery)
+            response=GovernedStreamingResponse(governed_turn_events(run,cleanup=cleanup),publisher=publisher,
+                draft_publisher=DraftPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),authenticated_owner=storage.user_id),
+                on_delivered=publication.observe_delivery)
             return response
         result=await runtime.turn(storage,text,**options,lifetime_context=publication)
         response=GovernedJSONResponse(result,publisher=publisher,fence=publication.fence,cleanup=cleanup,on_delivered=publication.observe_delivery)

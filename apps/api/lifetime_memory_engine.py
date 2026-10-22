@@ -35,7 +35,7 @@ from .lifetime_memory_contracts import (
     PinnedContinuity,
 )
 from .lifetime_memory_execution import open_execution
-from .lifetime_memory_publication import ProviderPublication
+from .lifetime_memory_publication import ProviderPublication, DraftProviderPublication
 from .diagnostics import configure_diagnostic_logger, log_diagnostic
 
 
@@ -289,8 +289,9 @@ async def run_governed_collector(**options):
     options={**options,'interview_context':deepcopy(options['interview_context']),
         'governed':GovernedCollectorInput.model_validate(options['governed'].model_dump(mode='json'))}
     acknowledgement = options['interview_context'].get('reviewed_acknowledgement')
+    revisable = options['interview_context'].get('revisable_reply') is True
     original_delta = options.get('on_delta')
-    if original_delta:
+    if original_delta and not revisable:
         async def observed_delta(text):
             nonlocal acknowledgement
             if text:
@@ -306,6 +307,8 @@ async def run_governed_collector(**options):
     async with asyncio.timeout(options.get('timeout',120)):
         # One incomplete provider document can be replaced without consuming a validation attempt.
         for _ in range(attempts+1):
+            if _ and revisable and options.get('on_event'):
+                await options['on_event']({'type':'collector_restart'})
             try:
                 return await _run_governed_collector_once(**options, acknowledgement=acknowledgement,
                     repair_reason=repair_reason)
@@ -340,6 +343,11 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     from .lifetime_memory_lane_engine import check_lane_generation, _admission
     check_lane_generation()
     packet = validate_governed_context(governed, interview_context, model=model)
+    revisable = interview_context.get('revisable_reply') is True
+    if revisable:
+        from .parallel_reply import parallel_policy_enabled
+        if not parallel_policy_enabled() or interview_context.get('reply_contract') != 'reply-v2':
+            raise ValueError('Revisable streaming requires enabled reply-v2 execution')
     model_packet = governed.packet
     if interview_context.get('reply_contract') == 'reply-v2':
         from .conversation_reply import reply_packet
@@ -362,7 +370,10 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     if publisher is None:
         # Server-only configuration, never accepted in WorkerTurnInput. No
         # fallback to a prior RPC check: it cannot fence actual pipe admission.
-        publisher = ProviderPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
+        factory = DraftProviderPublication if interview_context.get('policy_review_pending') is True else ProviderPublication
+        if factory is DraftProviderPublication and not revisable:
+            raise ValueError('Pending policy requires revisable streaming')
+        publisher = factory(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'),
             authenticated_owner=packet.identity.owner_id)
     if not callable(getattr(publisher, 'guard', None)):
         raise TypeError('Governed execution requires a publication guard')
@@ -379,6 +390,9 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
 
     async def model_delta(chunk):
         nonlocal streamed_acknowledgement
+        if revisable:
+            await on_delta(chunk)
+            return
         value = visible.feed(chunk)
         if (value and historical_acknowledgement_allowed(value, interview_context)
             and (acknowledgement is None or value == acknowledgement)):
@@ -500,7 +514,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn',reason=reason) from None
-    if on_delta and streamed_acknowledgement is None:
+    if on_delta and streamed_acknowledgement is None and not revisable:
         await on_delta(reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
         'cold_resume_reason':'unvalidated_transcript' if thread_id else 'missing'}
