@@ -60,6 +60,7 @@ EXTRACTION_REJECTION_REASONS = {
     'Evidence outside the claimed source page': 'PAGE_SOURCE',
     'Evidence requires both exact offsets or neither': 'PAGE_OFFSETS',
     'An ambiguous occurrence requires exact offsets': 'PAGE_AMBIGUOUS',
+    'Attribution requires an exact unambiguous span': 'PAGE_AMBIGUOUS',
     'Evidence span exceeds claimed source page': 'PAGE_SPAN',
     'Evidence quote outside claimed source page': 'PAGE_QUOTE',
     'Whole-source policy authority changed': 'POLICY_SOURCE',
