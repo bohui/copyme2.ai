@@ -68,6 +68,18 @@ def test_unknown_or_nested_prompt_components_fail_closed(monkeypatch, tmp_path):
         composition.render_prompt_artifact(path)
 
 
+def test_acknowledgement_guidance_is_conditional_and_reuses_policy_rules():
+    normal = prompt_path('memoir/skills/memoir-interviewer/policy-review')
+    opening = prompt_path('memoir/skills/memoir-interviewer/policy-review-opening')
+    review = composition.render_prompt_artifact(normal)
+    with_acknowledgement = composition.render_prompt_artifact(opening)
+    assert 'acknowledgement_requested' not in review
+    assert 'acknowledgement_requested=true' in with_acknowledgement
+    assert with_acknowledgement.count(review) == 1
+    assert composition.component_paths(opening.read_text()) == (normal,)
+    assert len(review) < 1100 and len(with_acknowledgement) < 2000
+
+
 def test_shared_sources_have_one_registry_name_and_no_embedded_policy_copies():
     registry = prompt_registry()
     texts = {name: load_prompt_artifact(ROOT / relative) for name, relative in registry.items()}

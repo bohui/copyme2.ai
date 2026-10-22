@@ -64,6 +64,7 @@ PROMPT_PATHS = {
     'memoir/skills/memoir-interviewer/language-en-AU': 'skills/memoir-interviewer/prompts/language/en-AU.md',
     'memoir/skills/memoir-interviewer/language-zh-CN': 'skills/memoir-interviewer/prompts/language/zh-CN.md',
     'memoir/skills/memoir-interviewer/policy-review': 'skills/memoir-interviewer/prompts/policy-review.md',
+    'memoir/skills/memoir-interviewer/policy-review-opening': 'skills/memoir-interviewer/prompts/policy-review-opening.md',
     'memoir/skills/memoir-interviewer/privacy-guard': 'skills/memoir-interviewer/prompts/privacy-guard.md',
     'memoir/skills/memoir-interviewer/strategy-comfort': 'skills/memoir-interviewer/prompts/strategy/comfort.md',
     'memoir/skills/memoir-interviewer/strategy-explore': 'skills/memoir-interviewer/prompts/strategy/explore.md',

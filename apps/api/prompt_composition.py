@@ -13,6 +13,7 @@ COMPONENTS = {
     'timeline_grounding': 'skills/memoir-author-timeline/prompts/shared/grounding.md',
     'collector_guidance': 'skills/memoir-interviewer/prompts/guidance.md',
     'strategy_selection': 'skills/memoir-interviewer/prompts/strategy/selection.md',
+    'policy_review': 'skills/memoir-interviewer/prompts/policy-review.md',
     'narrative_enrichment': 'skills/memoir-composer/references/narrative-enrichment.md',
     'editorial_review': 'skills/memoir-composer/references/editorial-review.prompt.md',
     'lane_context': 'apps/api/prompts/shared/bounded-context/policy.md',

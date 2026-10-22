@@ -12,6 +12,7 @@ memoir/
     memoir-interviewer/
       reply
       policy-review
+      policy-review-opening
       governed-turn
       repair-{codes,prefix,suffix,acknowledgement}
       greeting-{begin,continue}
@@ -65,13 +66,19 @@ it adds no runner or scheduler. The other skill sources remain inside their
 existing skill directories. Generic bounded-worker policy has one shared owner
 because both timeline and composer consume it.
 
-The interviewer root contains all 23 prompts reachable through supported modes.
-Ten serve `reply-v2`, its conditional repairs, begin/continue actions and Lane B
+The interviewer catalog contains 24 prompts reachable through supported modes,
+including a new conditional policy-review opening template awaiting publication.
+Eleven serve `reply-v2`, its conditional repairs, begin/continue actions and Lane B
 strategy proposal. Thirteen also serve `compact-v1` or `two-lane-v1`, so they
 remain active prompts. No `legacy` folder is created: retirement requires removing
 the supported callers first. Language and strategy variants use flat root names.
 Repository source paths remain stable: the catalog maps Langfuse names to these
 existing files. The cleanup does not change the configured collector mode.
+
+The [privacy/repair optimization](issue53-policy-repair-20261022.md) composes
+optional acknowledgement guidance from the same privacy core and transmits only
+the matching repair hint. It adds no model call; source publication and deployed
+latency acceptance remain separate from namespace cleanup.
 
 The October 22 interviewer cleanup changes record names only in the local
 Langfuse project. All 46 version records retain their IDs, text, numeric versions,
