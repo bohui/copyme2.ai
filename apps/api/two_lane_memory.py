@@ -58,7 +58,7 @@ def extraction_contract(*, strategy=False, attribution=False, continuity=False, 
         schema.setdefault('$defs',{}).update(proposal.get('$defs',{}))
         schema['properties']['strategy_proposal']={k:v for k,v in proposal.items() if k!='$defs'}
         schema['required'].append('strategy_proposal')
-        instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/strategy/proposal'))
+        instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/strategy-proposal'))
     if attribution:
         from .conversation_attribution import attribution_schema, INSTRUCTIONS
         instructions += INSTRUCTIONS

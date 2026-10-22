@@ -83,7 +83,7 @@ class GreetingInput(BaseModel):
 
 
 GREETING_PROMPTS = {
-    action: load_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/greeting/{action}'))
+    action: load_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/greeting-{action}'))
     for action in ('begin', 'continue')
 }
 

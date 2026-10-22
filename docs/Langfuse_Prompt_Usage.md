@@ -6,6 +6,28 @@ The application and exporter use the same explicit catalog in
 `apps/api/prompt_catalog.py`. Each source has one owner, one name and one exact
 version receipt. These are caller-level classifications, not traffic counts.
 
+The interviewer rows were refreshed on 22 October: all 23 prompts have supported
+callers and stay at the skill root. Language, strategy, greeting and repair names
+are flat. None are classified as retired. The remaining rows retain the original
+audit date. See the
+[layout and migration details](Langfuse_Prompt_Structure_Refactor.md).
+
+For a normal `reply-v2` narrator turn, these are separate model calls:
+
+| Foreground call | Static prompt components | Instruction characters |
+| --- | --- | ---: |
+| Privacy review | `policy-review` | 2,753 |
+| Reply generation | `reply` (1,872) + newline + `governed-turn` (113) | 1,986 |
+| Both calls | Separate requests; components are not concatenated into one call | 4,739 |
+
+The under-2,000 budget applies to the normal reply generator's static instructions,
+not the whole Lane A flow or total request size. Conversation evidence, output
+schema and transport framing are additional. On a rejected reply, repair adds
+3,215 static characters from codes/prefix/suffix, plus the error data and optional
+acknowledgement-preservation rule. Greetings and Lane B have separate triggers;
+the other supported modes assemble their own prompts. The 23-entry inventory is
+not the prompt input for every turn. Namespace changes do not reduce these inputs.
+
 ## Ownership
 
 - `memoir/skills/<skill>/...` owns the skill's instructions, phases and reusable policy.
@@ -80,25 +102,29 @@ and cache readers remain available for historical data.
 | [`memoir/skills/memoir-composer/shared/editorial-review`](../skills/memoir-composer/references/editorial-review.prompt.md) | 1 | Shared runtime | [`apps/api/memoir_preview.py`](../apps/api/memoir_preview.py) — Review-only editorial component. |
 | [`memoir/skills/memoir-composer/shared/narrative-enrichment`](../skills/memoir-composer/references/narrative-enrichment.md) | 1 | Shared runtime | [`apps/api/memoir_preview.py`](../apps/api/memoir_preview.py) — Single narrative policy read by drafting and review. |
 | [`memoir/skills/memoir-family-tree/instructions`](../skills/memoir-family-tree/SKILL.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Explicit isolated probe/native-search model input; does not prove a production binding. |
-| [`memoir/skills/memoir-interviewer/background-memory`](../skills/memoir-interviewer/prompts/background-memory.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Optional foreground hint when background extraction owns place work. |
-| [`memoir/skills/memoir-interviewer/collector`](../skills/memoir-interviewer/prompts/collector.md) | 2 | Runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Default foreground collector; one governed request. |
-| [`memoir/skills/memoir-interviewer/collector-plan`](../skills/memoir-interviewer/prompts/collector-plan.md) | 1 | Runtime | [`apps/api/interview_plan.py`](../apps/api/interview_plan.py) — Structured result/plan contract appended to the default collector. |
-| [`memoir/skills/memoir-interviewer/governed-continuity`](../skills/memoir-interviewer/prompts/governed-continuity.md) | 1 | Runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Continuity output contract appended to the same collector call. |
-| [`memoir/skills/memoir-interviewer/governed-repair/acknowledgement`](../skills/memoir-interviewer/prompts/governed-repair/acknowledgement.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Retain the already streamed acknowledgement during bounded repair. |
-| [`memoir/skills/memoir-interviewer/governed-repair/prefix`](../skills/memoir-interviewer/prompts/governed-repair/prefix.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Bounded repair prefix after a rejected collector output. |
-| [`memoir/skills/memoir-interviewer/governed-repair/suffix`](../skills/memoir-interviewer/prompts/governed-repair/suffix.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Bounded repair suffix after a rejected collector output. |
+| [`memoir/skills/memoir-interviewer/reply`](../skills/memoir-interviewer/prompts/reply.md) | 1 | Runtime | [`apps/api/conversation_reply.py`](../apps/api/conversation_reply.py) — Small foreground proposal for `reply-v2`; locale and strategy arrive as data. |
+| [`memoir/skills/memoir-interviewer/policy-review`](../skills/memoir-interviewer/prompts/policy-review.md) | 3 | Runtime | [`apps/api/policy_review.py`](../apps/api/policy_review.py) — Source-only privacy policy review before the governed reply. |
+| [`memoir/skills/memoir-interviewer/repair-codes`](../skills/memoir-interviewer/prompts/governed-repair/codes.md) | 4 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Validator error codes added only during bounded repair. |
+| [`memoir/skills/memoir-interviewer/governed-places`](../skills/memoir-interviewer/prompts/governed-places.md) | 1 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Foreground place extraction when background extraction is disabled. |
+| [`memoir/skills/memoir-interviewer/background-memory`](../skills/memoir-interviewer/prompts/background-memory.md) | 2 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Optional foreground hint when background extraction owns place work. |
+| [`memoir/skills/memoir-interviewer/collector`](../skills/memoir-interviewer/prompts/collector.md) | 2 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Default foreground collector; one governed request. |
+| [`memoir/skills/memoir-interviewer/collector-plan`](../skills/memoir-interviewer/prompts/collector-plan.md) | 4 | Compatibility runtime | [`apps/api/interview_plan.py`](../apps/api/interview_plan.py) — Structured result/plan contract appended to the default collector. |
+| [`memoir/skills/memoir-interviewer/governed-continuity`](../skills/memoir-interviewer/prompts/governed-continuity.md) | 3 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Continuity output contract appended to the same collector call. |
+| [`memoir/skills/memoir-interviewer/repair-acknowledgement`](../skills/memoir-interviewer/prompts/governed-repair/acknowledgement.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Retain the already streamed acknowledgement during bounded repair. |
+| [`memoir/skills/memoir-interviewer/repair-prefix`](../skills/memoir-interviewer/prompts/governed-repair/prefix.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Bounded repair prefix after a rejected collector output. |
+| [`memoir/skills/memoir-interviewer/repair-suffix`](../skills/memoir-interviewer/prompts/governed-repair/suffix.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Bounded repair suffix after a rejected collector output. |
 | [`memoir/skills/memoir-interviewer/governed-turn`](../skills/memoir-interviewer/prompts/governed-turn.md) | 1 | Runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Structured governed user packet, not a second collector workflow. |
-| [`memoir/skills/memoir-interviewer/greeting/begin`](../skills/memoir-interviewer/prompts/greeting/begin.md) | 1 | Runtime | [`apps/api/agent_routes.py`](../apps/api/agent_routes.py) — Server-owned begin action through the same governed conversation transport. |
-| [`memoir/skills/memoir-interviewer/greeting/continue`](../skills/memoir-interviewer/prompts/greeting/continue.md) | 1 | Runtime | [`apps/api/agent_routes.py`](../apps/api/agent_routes.py) — Server-owned return action through the same governed conversation transport. |
-| [`memoir/skills/memoir-interviewer/guidance`](../skills/memoir-interviewer/prompts/guidance.md) | 1 | Shared runtime | [`apps/api/prompt_composition.py`](../apps/api/prompt_composition.py) — One behavior component shared by the default collector and three strategy variants. |
-| [`memoir/skills/memoir-interviewer/language/en-AU`](../skills/memoir-interviewer/prompts/language/en-AU.md) | 1 | Runtime | [`apps/api/codex_runtime.py`](../apps/api/codex_runtime.py) — Select the English interview policy; does not create another generation. |
-| [`memoir/skills/memoir-interviewer/language/zh-CN`](../skills/memoir-interviewer/prompts/language/zh-CN.md) | 1 | Runtime | [`apps/api/codex_runtime.py`](../apps/api/codex_runtime.py) — Select the Chinese interview policy; does not create another generation. |
-| [`memoir/skills/memoir-interviewer/privacy-guard`](../skills/memoir-interviewer/prompts/privacy-guard.md) | 1 | Runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Default collector privacy rule in the existing request. |
-| [`memoir/skills/memoir-interviewer/strategy/comfort`](../skills/memoir-interviewer/prompts/strategy/comfort.md) | 2 | Conditional runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — Comfort selection within the existing foreground collector, gated by two-lane/strategy configuration. |
-| [`memoir/skills/memoir-interviewer/strategy/explore`](../skills/memoir-interviewer/prompts/strategy/explore.md) | 2 | Conditional runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — Explore selection within the existing foreground collector, gated by two-lane/strategy configuration. |
-| [`memoir/skills/memoir-interviewer/strategy/proposal`](../skills/memoir-interviewer/prompts/strategy/proposal.md) | 1 | Conditional runtime | [`apps/api/two_lane_memory.py`](../apps/api/two_lane_memory.py) — Optional future-strategy output on that extraction call. |
-| [`memoir/skills/memoir-interviewer/strategy/selection`](../skills/memoir-interviewer/prompts/strategy/selection.md) | 1 | Shared runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — One selection/work-hint contract shared by the three strategies. |
-| [`memoir/skills/memoir-interviewer/strategy/shape`](../skills/memoir-interviewer/prompts/strategy/shape.md) | 2 | Conditional runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — Shape selection within the existing foreground collector, gated by two-lane/strategy configuration. |
+| [`memoir/skills/memoir-interviewer/greeting-begin`](../skills/memoir-interviewer/prompts/greeting/begin.md) | 1 | Runtime | [`apps/api/agent_routes.py`](../apps/api/agent_routes.py) — Server-owned begin action through the same governed conversation transport. |
+| [`memoir/skills/memoir-interviewer/greeting-continue`](../skills/memoir-interviewer/prompts/greeting/continue.md) | 1 | Runtime | [`apps/api/agent_routes.py`](../apps/api/agent_routes.py) — Server-owned return action through the same governed conversation transport. |
+| [`memoir/skills/memoir-interviewer/guidance`](../skills/memoir-interviewer/prompts/guidance.md) | 4 | Compatibility runtime | [`apps/api/prompt_composition.py`](../apps/api/prompt_composition.py) — One behavior component shared by the default collector and three strategy variants. |
+| [`memoir/skills/memoir-interviewer/language-en-AU`](../skills/memoir-interviewer/prompts/language/en-AU.md) | 1 | Compatibility runtime | [`apps/api/codex_runtime.py`](../apps/api/codex_runtime.py) — Select the English interview policy; does not create another generation. |
+| [`memoir/skills/memoir-interviewer/language-zh-CN`](../skills/memoir-interviewer/prompts/language/zh-CN.md) | 1 | Compatibility runtime | [`apps/api/codex_runtime.py`](../apps/api/codex_runtime.py) — Select the Chinese interview policy; does not create another generation. |
+| [`memoir/skills/memoir-interviewer/privacy-guard`](../skills/memoir-interviewer/prompts/privacy-guard.md) | 1 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Default collector privacy rule in the existing request. |
+| [`memoir/skills/memoir-interviewer/strategy-comfort`](../skills/memoir-interviewer/prompts/strategy/comfort.md) | 2 | Compatibility runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — Comfort selection within the existing foreground collector, gated by two-lane/strategy configuration. |
+| [`memoir/skills/memoir-interviewer/strategy-explore`](../skills/memoir-interviewer/prompts/strategy/explore.md) | 2 | Compatibility runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — Explore selection within the existing foreground collector, gated by two-lane/strategy configuration. |
+| [`memoir/skills/memoir-interviewer/strategy-proposal`](../skills/memoir-interviewer/prompts/strategy/proposal.md) | 1 | Conditional runtime | [`apps/api/two_lane_memory.py`](../apps/api/two_lane_memory.py) — Optional future-strategy output on that extraction call. |
+| [`memoir/skills/memoir-interviewer/strategy-selection`](../skills/memoir-interviewer/prompts/strategy/selection.md) | 6 | Compatibility runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — One selection/work-hint contract shared by the three strategies. |
+| [`memoir/skills/memoir-interviewer/strategy-shape`](../skills/memoir-interviewer/prompts/strategy/shape.md) | 2 | Compatibility runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — Shape selection within the existing foreground collector, gated by two-lane/strategy configuration. |
 | [`memoir/skills/memoir-memory-context/instructions`](../skills/memoir-memory-context/SKILL.md) | 1 | Runtime | [`apps/api/background_profile.py`](../apps/api/background_profile.py) — Automatic profile extraction for currently admitted targets. |
 | [`memoir/skills/memoir-memory-context/summary`](../skills/memoir-memory-context/prompts/summary.md) | 1 | Runtime | [`apps/api/lifetime_memory_summary.py`](../apps/api/lifetime_memory_summary.py) — Canonical source-linked memory summary phase. |
 | [`memoir/skills/memoir-place-groups/instructions`](../skills/memoir-place-groups/SKILL.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Explicit isolated probe/native-search model input; does not prove a production binding. |

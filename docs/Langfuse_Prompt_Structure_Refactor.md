@@ -10,12 +10,21 @@ release versions belong in metadata and version history.
 memoir/
   skills/
     memoir-interviewer/
+      reply
+      policy-review
+      governed-turn
+      repair-{codes,prefix,suffix,acknowledgement}
+      greeting-{begin,continue}
+      strategy-proposal
       collector
       collector-plan
       background-memory
-      strategy/{comfort,explore,shape,selection,proposal}
-      language/{en-AU,zh-CN}
-      ...
+      governed-continuity
+      governed-places
+      guidance
+      privacy-guard
+      strategy-{comfort,explore,shape,selection}
+      language-{en-AU,zh-CN}
     memoir-author-timeline/
       instructions
       contract
@@ -55,6 +64,20 @@ memoir/
 it adds no runner or scheduler. The other skill sources remain inside their
 existing skill directories. Generic bounded-worker policy has one shared owner
 because both timeline and composer consume it.
+
+The interviewer root contains all 23 prompts reachable through supported modes.
+Ten serve `reply-v2`, its conditional repairs, begin/continue actions and Lane B
+strategy proposal. Thirteen also serve `compact-v1` or `two-lane-v1`, so they
+remain active prompts. No `legacy` folder is created: retirement requires removing
+the supported callers first. Language and strategy variants use flat root names.
+Repository source paths remain stable: the catalog maps Langfuse names to these
+existing files. The cleanup does not change the configured collector mode.
+
+The October 22 interviewer cleanup changes record names only in the local
+Langfuse project. All 46 version records retain their IDs, text, numeric versions,
+timestamps, labels, tags, config and commit messages. It creates no prompt
+versions. The matching receipts are exported from the renamed records; the
+23 source texts and compiled instruction hashes are unchanged.
 
 ## Runtime contract
 
