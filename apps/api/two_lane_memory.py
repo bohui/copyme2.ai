@@ -17,7 +17,7 @@ def two_lanes_enabled():
     return os.getenv('MEMOIR_TWO_LANES', '').lower() in {'1', 'true', 'yes'}
 
 
-CONVERSATION_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/background-memory'))
+CONVERSATION_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/legacy/background-memory'))
 
 
 class PreparedQuestion(BaseModel):
@@ -58,7 +58,7 @@ def extraction_contract(*, strategy=False, attribution=False, continuity=False, 
         schema.setdefault('$defs',{}).update(proposal.get('$defs',{}))
         schema['properties']['strategy_proposal']={k:v for k,v in proposal.items() if k!='$defs'}
         schema['required'].append('strategy_proposal')
-        instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/strategy/proposal'))
+        instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/strategy-proposal'))
     if attribution:
         from .conversation_attribution import attribution_schema, INSTRUCTIONS
         instructions += INSTRUCTIONS

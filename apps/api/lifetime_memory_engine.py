@@ -340,14 +340,14 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     output_schema = governed_collector_schema(interview_context)
     prompt=GOVERNED_TURN_PROMPT
     if repair_reason is not None:
-        prompt += load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/codes'))
+        prompt += load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-codes'))
     if repair_reason is not None:
-        prompt+=(load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/prefix'))
-            +json.dumps({'error_code': repair_reason},ensure_ascii=False)+load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/suffix')))
+        prompt+=(load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-prefix'))
+            +json.dumps({'error_code': repair_reason},ensure_ascii=False)+load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-suffix')))
     if acknowledgement is not None:
         # A fresh-home repair must preserve the acknowledgement already shown.
         constrain_acknowledgement(output_schema, [acknowledgement])
-        prompt+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-repair/acknowledgement'))+json.dumps(acknowledgement,ensure_ascii=False)+'.'
+        prompt+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-acknowledgement'))+json.dumps(acknowledgement,ensure_ascii=False)+'.'
     if (governed.budget.count(governed.packet) + governed_request_overhead(
             interview_context, governed.budget, output_schema=output_schema,prompt=prompt) > governed.budget.input_budget):
         raise CollectorResponseUnavailable('The acknowledged reply exceeds the request budget')
@@ -398,11 +398,11 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         static_parts = [packet.instructions, GOVERNED_TURN_PROMPT]
         if repair_reason:
             static_parts.extend(load_prompt_artifact(prompt_path(
-                'memoir/skills/memoir-interviewer/governed-repair/' + part))
+                'memoir/skills/memoir-interviewer/repair-' + part))
                 for part in ('codes', 'prefix', 'suffix'))
         if acknowledgement is not None:
             static_parts.append(load_prompt_artifact(prompt_path(
-                'memoir/skills/memoir-interviewer/governed-repair/acknowledgement')))
+                'memoir/skills/memoir-interviewer/repair-acknowledgement')))
         manifest = instruction_manifest('\n'.join(static_parts), output_schema,
             variant='collector-repair' if repair_reason else 'collector',
             extra_names=['memoir/shared/historical-acknowledgements']

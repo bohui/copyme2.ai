@@ -78,7 +78,7 @@ def _worker_error_payload(response: httpx.Response) -> Mapping[str, Any] | None:
 
 
 CONVERSATION_LANGUAGE_INSTRUCTIONS = {
-    locale: load_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/language/{locale}'))
+    locale: load_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/legacy/language/{locale}'))
     for locale in ("en-AU", "zh-CN")
 }
 

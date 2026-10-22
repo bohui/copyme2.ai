@@ -101,7 +101,7 @@ def stage_breadth_checkpoint(coverage):
 def strategy_instructions(strategy):
     if strategy not in STRATEGY_MODULES:
         raise ValueError('Unknown internal strategy')
-    return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/strategy/{strategy}'))
+    return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/legacy/strategy/{strategy}'))
 
 def selection_candidates(context):
     candidates = ((context.get('strategy_context') or {}).get('plan') or {}).get('candidates', [])

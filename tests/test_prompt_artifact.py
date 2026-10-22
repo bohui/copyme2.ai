@@ -85,7 +85,7 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
     path.parent.mkdir(parents=True)
     path.write_text("Old", encoding="utf-8")
     monkeypatch.setattr("scripts.export_langfuse_prompts.prompt_registry",
-                        lambda root: {"memoir/skills/memoir-interviewer/collector": str(path.relative_to(root))})
+                        lambda root: {"memoir/skills/memoir-interviewer/legacy/collector": str(path.relative_to(root))})
 
     class CurrentClient:
         def __init__(self):
@@ -93,7 +93,7 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
             self.api = SimpleNamespace(prompts=SimpleNamespace(list=self.list))
 
         def list(self, **kwargs):
-            return SimpleNamespace(data=[SimpleNamespace(name="memoir/skills/memoir-interviewer/collector",
+            return SimpleNamespace(data=[SimpleNamespace(name="memoir/skills/memoir-interviewer/legacy/collector",
                                                           versions=[1, 3, 2])])
 
         def get_prompt(self, name, **kwargs):
@@ -112,6 +112,20 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
 
 def test_unused_browser_instructions_are_not_managed_prompts():
     assert not any(name.startswith('memoir/interview/browser/') for name in prompt_registry())
+
+
+def test_interviewer_root_contains_current_flow_and_legacy_stays_managed():
+    prefix = 'memoir/skills/memoir-interviewer/'
+    names = {name.removeprefix(prefix) for name in prompt_registry() if name.startswith(prefix)}
+    assert {name for name in names if not name.startswith('legacy/')} == {
+        'reply', 'policy-review', 'governed-turn', 'greeting-begin', 'greeting-continue',
+        'repair-codes', 'repair-prefix', 'repair-suffix', 'repair-acknowledgement', 'strategy-proposal',
+    }
+    assert {name.removeprefix('legacy/') for name in names if name.startswith('legacy/')} == {
+        'background-memory', 'collector', 'collector-plan', 'governed-continuity', 'governed-places',
+        'guidance', 'privacy-guard', 'language/en-AU', 'language/zh-CN',
+        'strategy/comfort', 'strategy/explore', 'strategy/shape', 'strategy/selection',
+    }
 
 
 def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():
