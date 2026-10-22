@@ -397,7 +397,10 @@ Langfuse. Integration guides, schemas and validators remain repository resources
 Canonical composition consumes host-owned events. Its retired full-source preview
 fallback and uncalled private-draft executor were removed. The HTTP first-response
 and canonical controlled profilers remain available. Collector configuration
-accepts `compact-v1` and `two-lane-v1`, defaulting to `compact-v1`.
+accepts `compact-v1`, `two-lane-v1` and the opt-in `reply-v2`, defaulting to
+`compact-v1`. The [small reply contract](docs/issue53-reply-v2.md) requires
+enabled two lanes, matching API/worker code and published prompt receipts;
+activation awaits matched live latency, semantic quality and background-state acceptance.
 
 Edit and review prompt Markdown in a pull request before creating a Langfuse
 version. Feature branches do not publish or fabricate version receipts. The API

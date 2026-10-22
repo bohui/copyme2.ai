@@ -108,6 +108,7 @@ class TwoLaneFence(Contract):
     work_mode: Literal['extract','reply_only','pending']
     strategy_mode: Literal['shadow','active'] | None = None
     strategy_revision: int = Field(default=0,ge=0,strict=True)
+    reply_contract: Literal['reply-v2'] | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class AttributionContext(Contract):
@@ -198,7 +199,9 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
     if phase == 'extract':
         if two_lane:
             from .two_lane_memory import extraction_contract
-            instructions,schema=extraction_contract(strategy=strategy, attribution=bool(fence and fence.attribution_context))
+            instructions,schema=extraction_contract(strategy=strategy, attribution=bool(fence and fence.attribution_context),
+                continuity=bool(fence and fence.two_lane and fence.two_lane.reply_contract == 'reply-v2'),
+                source=fence.source if fence else None)
         else:
             from .memory_events import extraction_instructions, extraction_schema
             instructions, schema = extraction_instructions(), extraction_schema()

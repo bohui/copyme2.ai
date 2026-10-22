@@ -848,7 +848,10 @@ CREATE TABLE public.user_lifetime_lane_page_receipt (
     page_digest text NOT NULL,
     result_digest text NOT NULL,
     root_digest text NOT NULL,
-    disposition text NOT NULL
+    disposition text NOT NULL,
+    continuity_digest text,
+    CONSTRAINT user_lifetime_lane_continuity_digest_check CHECK
+      (continuity_digest IS NULL OR continuity_digest ~ '^[a-f0-9]{64}$')
 );
 
 CREATE TABLE public.user_lifetime_memoir_cursor (
@@ -4243,11 +4246,92 @@ CREATE FUNCTION public.commit_lifetime_memoir_lane_page(p_lane_id uuid, p_token 
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
-declare page jsonb; result jsonb;
+declare page jsonb; result jsonb; snap public.user_lifetime_lane_snapshot%rowtype;
+  prior public.user_lifetime_lane_page_receipt%rowtype; original public.user_narrator_source%rowtype;
+  existing public.user_lifetime_continuity%rowtype; item jsonb; data jsonb; ref jsonb; fingerprint text;
+  delegated boolean; epoch bigint;
 begin
+  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
+  fingerprint:=encode(sha256(convert_to(p_result::text,'UTF8')),'hex');
+  select * into prior from public.user_lifetime_lane_page_receipt
+    where snapshot_id=snap.id and page_number=p_page_number;
+  if prior.continuity_digest is not null then
+    if prior.continuity_digest is distinct from fingerprint or prior.page_digest is distinct from p_page_digest then
+      raise exception 'background continuity replay conflict' using errcode='PT409';end if;
+    return jsonb_build_object('status','page_saved','replayed',true);
+  end if;
   page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
+  delegated:=page->'two_lane'->>'reply_contract'='reply-v2' and page->>'skill'='timeline';
+  if delegated then
+    if p_page_number is distinct from snap.page_number or p_page_digest is distinct from page->>'page_digest'
+      or jsonb_typeof(p_result) is distinct from 'object'
+      or jsonb_typeof(p_result->'continuity_updates') is distinct from 'array'
+      or jsonb_array_length(p_result->'continuity_updates')>8 or octet_length(p_result::text)>131072 then
+      raise exception 'bounded current background continuity required' using errcode='22023';end if;
+    if page->'two_lane'->>'work_mode'='reply_only' and jsonb_array_length(p_result->'continuity_updates')>0 then
+      raise exception 'reply only work cannot create continuity' using errcode='22023';end if;
+    select * into original from public.user_narrator_source where user_id=snap.user_id and project_id=snap.project_id
+      and id=(page->'source'->>'id')::uuid and version=(page->'source'->>'version')::bigint and status='active';
+    if not found then raise exception 'current background original required' using errcode='PT409';end if;
+    for item in select value from jsonb_array_elements(p_result->'continuity_updates') loop
+      if jsonb_typeof(item) is distinct from 'object' or not(item ?& array['record_id','kind','data'])
+        or exists(select 1 from jsonb_object_keys(item) k where k not in ('record_id','kind','data'))
+        or coalesce(item->>'kind','') not in ('person','unresolved_reference','commitment')
+        or jsonb_typeof(item->'record_id') is distinct from 'string' or length(item->>'record_id') not between 1 and 128 then
+        raise exception 'descriptive background continuity required' using errcode='22023';end if;
+      data:=item->'data';ref:=data->'source_refs'->0;
+      if jsonb_typeof(data) is distinct from 'object' or not(data ?& array['text','assertion','uncertainty','source_refs'])
+        or exists(select 1 from jsonb_object_keys(data) k where k not in ('text','assertion','uncertainty','source_refs'))
+        or jsonb_typeof(data->'text') is distinct from 'string' or length(data->>'text') not between 1 and 500
+        or length(btrim(data->>'text'))=0
+        or coalesce(data->>'assertion','') not in ('asserted','inferred')
+        or jsonb_typeof(data->'uncertainty') not in ('string','null') or length(coalesce(data->>'uncertainty',''))>500
+        or (data->>'assertion'='inferred' and length(btrim(coalesce(data->>'uncertainty','')))=0)
+        or jsonb_typeof(data->'source_refs') is distinct from 'array' or jsonb_array_length(data->'source_refs')<>1
+        or jsonb_typeof(ref) is distinct from 'object' or not(ref ?& array['source_id','version','char_start','char_end','quote'])
+        or exists(select 1 from jsonb_object_keys(ref) k where k not in ('source_id','version','char_start','char_end','quote'))
+        or ref->>'source_id' is distinct from original.id::text or ref->>'version' is distinct from original.version::text
+        or jsonb_typeof(ref->'source_id') is distinct from 'string' or jsonb_typeof(ref->'version') is distinct from 'number'
+        or coalesce(ref->>'version','') !~ '^[1-9][0-9]*$'
+        or jsonb_typeof(ref->'char_start') is distinct from 'number' or coalesce(ref->>'char_start','') !~ '^[0-9]+$'
+        or jsonb_typeof(ref->'char_end') is distinct from 'number' or coalesce(ref->>'char_end','') !~ '^[1-9][0-9]*$'
+        or (ref->>'char_start')::integer<(page->'source'->>'char_start')::integer
+        or (ref->>'char_end')::integer>(page->'source'->>'char_end')::integer
+        or (ref->>'char_end')::integer<=(ref->>'char_start')::integer
+        or jsonb_typeof(ref->'quote') is distinct from 'string' or data->>'text' is distinct from ref->>'quote'
+        or substring(original.text from (ref->>'char_start')::integer+1 for
+          (ref->>'char_end')::integer-(ref->>'char_start')::integer) is distinct from ref->>'quote' then
+        raise exception 'exact admitted background continuity evidence required' using errcode='22023';end if;
+    end loop;
+  elsif p_result ? 'continuity_updates' then
+    raise exception 'background continuity requires a saved reply v2 handoff' using errcode='22023';
+  end if;
   result:=public.commit_lifetime_memoir_lane_page_before_place_progress(
-    p_lane_id,p_token,p_page_number,p_result,p_page_digest);
+    p_lane_id,p_token,p_page_number,case when delegated then p_result-'continuity_updates' else p_result end,p_page_digest);
+  if delegated then
+    if result->>'status' is distinct from 'page_saved' then raise exception 'atomic background continuity commit required';end if;
+    -- Keep the model's input digest unchanged until the canonical page has committed.
+    select policy_epoch into epoch from public.user_memoir_project where user_id=snap.user_id and project_id=snap.project_id;
+    if not exists(select 1 from public.user_narrator_source where user_id=original.user_id and project_id=original.project_id
+      and id=original.id and version=original.version and status='active') then
+      raise exception 'background original changed during canonical commit' using errcode='PT409';end if;
+    for item in select value from jsonb_array_elements(p_result->'continuity_updates') loop
+      data:=item->'data';
+      select * into existing from public.user_lifetime_continuity where user_id=snap.user_id
+        and conversation_id=snap.conversation_id and record_id=item->>'record_id';
+      if found then
+        if existing.kind is distinct from item->>'kind' or existing.data is distinct from data
+          or existing.policy_epoch is distinct from epoch then
+          raise exception 'background continuity identity conflict' using errcode='PT409';end if;
+      else
+        insert into public.user_lifetime_continuity(user_id,conversation_id,record_id,kind,revision,policy_epoch,data,last_source_sequence)
+          values(snap.user_id,snap.conversation_id,item->>'record_id',item->>'kind',1,epoch,data,original.sequence);
+      end if;
+    end loop;
+    update public.user_lifetime_lane_page_receipt set continuity_digest=fingerprint
+      where snapshot_id=snap.id and page_number=p_page_number;
+    if not found then raise exception 'background continuity commit receipt required';end if;
+  end if;
   if result->>'status'='page_saved' and result->>'replayed' is distinct from 'true'
       and page->>'skill'='timeline' and page ? 'two_lane'
       and page->'two_lane'->>'work_mode'='extract'
@@ -5098,7 +5182,7 @@ begin
  return found;
 end $$;
 
-CREATE FUNCTION public.commit_lifetime_strategy_turn(p_fence jsonb, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_reply text, p_response_photo_ids jsonb, p_thread_id text, p_prompt_version text, p_model text, p_continuity_updates jsonb, p_outcome jsonb) RETURNS jsonb
+CREATE FUNCTION public.commit_lifetime_strategy_turn(p_fence jsonb, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_reply text, p_response_photo_ids jsonb, p_thread_id text, p_prompt_version text, p_model text, p_continuity_updates jsonb, p_outcome jsonb, p_name_update text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
@@ -5157,7 +5241,7 @@ begin
    elsif p_outcome->>'selection_reason' in ('prepared_candidate','adapted_candidate') then raise exception 'candidate identity required' using errcode='22023';end if;
  end if;
  result:=public.commit_lifetime_turn(p_fence,p_client_turn_id,p_plan,p_associations,p_reply,p_response_photo_ids,p_thread_id,p_prompt_version,p_model,p_continuity_updates,
-   (p_outcome->>'plan_revision_seen')::bigint);
+   (p_outcome->>'plan_revision_seen')::bigint,p_name_update);
  insert into public.user_lifetime_strategy_outcome(user_id,project_id,client_turn_id,reply_id,source_id,source_sequence,
    plan_revision_seen,selected_candidate_id,selection_reason,used_strategy,question_delivered,work_hint)
  values(auth.uid(),project,p_client_turn_id,(result->'memory'->0->>'id')::uuid,accepted.source_id,
@@ -5172,13 +5256,13 @@ begin
      where o.user_id=auth.uid() and o.project_id=project and o.delivered and o.client_turn_id<>p_client_turn_id and o.question_delivered is not null)));
 end $$;
 
-CREATE FUNCTION public.commit_lifetime_turn(p_fence jsonb, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_reply text, p_response_photo_ids jsonb, p_thread_id text, p_prompt_version text, p_model text, p_continuity_updates jsonb DEFAULT '[]'::jsonb, p_plan_revision bigint DEFAULT NULL::bigint) RETURNS jsonb
+CREATE FUNCTION public.commit_lifetime_turn(p_fence jsonb, p_client_turn_id uuid, p_plan jsonb, p_associations jsonb, p_reply text, p_response_photo_ids jsonb, p_thread_id text, p_prompt_version text, p_model text, p_continuity_updates jsonb DEFAULT '[]'::jsonb, p_plan_revision bigint DEFAULT NULL::bigint, p_name_update text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
 declare owner uuid:=auth.uid(); conversation uuid:=(p_fence->'identity'->>'conversation_id')::uuid;
  project text; accepted public.user_interview_turn%rowtype; source public.user_narrator_source%rowtype;
- interview jsonb; memory jsonb; next_fence jsonb; pins jsonb; prior public.user_lifetime_reply%rowtype;
+ interview jsonb; memory jsonb; plan_fence jsonb; next_fence jsonb; pins jsonb; prior public.user_lifetime_reply%rowtype;
 begin
  select project_id into project from public.user_lifetime_conversation where user_id=owner and conversation_id=conversation;
  if not found then raise exception 'conversation unavailable'; end if;
@@ -5190,7 +5274,8 @@ begin
  select * into prior from public.user_lifetime_reply where user_id=owner and conversation_id=conversation and client_turn_id=p_client_turn_id;
  if found then
    if accepted.collector->>'thread_id' is distinct from p_thread_id or accepted.collector->>'reply' is distinct from p_reply
-     or prior.model is distinct from p_model or prior.prompt_version is distinct from p_prompt_version then
+     or prior.model is distinct from p_model or prior.prompt_version is distinct from p_prompt_version
+     or (p_prompt_version='reply-v2' and accepted.collector->>'immediate_name' is distinct from p_name_update) then
      raise exception 'saved execution identity conflict'; end if;
    select jsonb_build_array(to_jsonb(m)) into memory from public.user_memory m where m.user_id=owner and m.id=prior.memory_id;
    return jsonb_build_object('memory',memory,'interview',public.read_user_interview_turn(project,p_client_turn_id),'fence',p_fence);
@@ -5200,21 +5285,38 @@ begin
  if not found then raise exception 'active exact narrator source required'; end if;
  interview:=public.save_lifetime_interview_plan(p_fence,project,p_client_turn_id,p_plan,p_associations,(p_fence->>'lease_token')::uuid,
    p_reply,p_response_photo_ids,p_thread_id,p_plan_revision);
- if p_plan->'work'->>'mode'='reply_only' and p_plan->'work'->>'name' is not null then
+ -- Validated photo links invalidate projections inside this locked save.
+ -- Each epoch bump also advances execution generation and may revoke derived
+ -- preferences. Bind that trigger effect; keep source, identity and lease exact.
+ plan_fence:=public.capture_lifetime_fence(conversation,(p_fence->>'lease_token')::uuid);
+ if plan_fence-'policy_epoch'-'execution_generation'-'preference_revision' is distinct from p_fence-'policy_epoch'-'execution_generation'-'preference_revision'
+   or (plan_fence->>'policy_epoch')::bigint<(p_fence->>'policy_epoch')::bigint
+   or (plan_fence->>'execution_generation')::bigint-(p_fence->>'execution_generation')::bigint
+      is distinct from (plan_fence->>'policy_epoch')::bigint-(p_fence->>'policy_epoch')::bigint
+   or (plan_fence->'policy_epoch'=p_fence->'policy_epoch' and plan_fence->'preference_revision' is distinct from p_fence->'preference_revision') then
+   raise exception 'unexpected plan mutation'; end if;
+ if p_name_update is not null then
+   if p_prompt_version<>'reply-v2' then raise exception 'immediate name requires reply v2';end if;
+   perform public.persist_lifetime_chosen_name(conversation,source.id,source.version,p_name_update);
+ elsif p_plan->'work'->>'mode'='reply_only' and p_plan->'work'->>'name' is not null then
    -- Retain exact source/version authority and preserve independent settings.
    perform public.persist_lifetime_chosen_name(conversation,source.id,source.version,p_plan->'work'->>'name');
  end if;
  next_fence:=public.capture_lifetime_fence(conversation,(p_fence->>'lease_token')::uuid);
  next_fence:=public.persist_lifetime_continuity_updates(next_fence,p_continuity_updates,false);
- -- Only this accepted plan's validated phase/name/continuity changes can advance the fence.
+ -- Only validated phase/name/continuity changes may follow the plan's photo save.
  -- All locks stay held, so no external correction/preference/source can intervene.
  next_fence:=public.capture_lifetime_fence(conversation,(p_fence->>'lease_token')::uuid);
- if next_fence-'phase_revision'-'preference_revision' is distinct from p_fence-'phase_revision'-'preference_revision' then raise exception 'unexpected execution mutation'; end if;
+ if next_fence-'phase_revision'-'preference_revision' is distinct from plan_fence-'phase_revision'-'preference_revision' then raise exception 'unexpected execution mutation'; end if;
  pins:=public.read_lifetime_pinned(conversation);
  update public.user_interview_turn set collector=collector||jsonb_build_object('history_privacy_digest',
    encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics','paused_topics',pins->'paused_topics',
      'privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex'))
    where user_id=owner and project_id=project and client_turn_id=p_client_turn_id;
+ if p_prompt_version='reply-v2' then
+   update public.user_interview_turn set collector=collector||jsonb_build_object('immediate_name',p_name_update)
+     where user_id=owner and project_id=project and client_turn_id=p_client_turn_id;
+ end if;
  memory:=public.commit_lifetime_interview_memory(next_fence,(p_fence->>'lease_token')::uuid,p_thread_id,
    'Storyteller: '||source.text||E'\nMemory Spark: '||p_reply,'{}'::text[],null,project,p_client_turn_id,true,'unplaced');
  insert into public.user_lifetime_reply values(owner,conversation,p_client_turn_id,(memory->0->>'id')::uuid,
@@ -8856,6 +8958,12 @@ begin
        source.user_id,source.project_id,candidate->>'id') ctx) bounded),'[]'));
    if coalesce(page->'memory_summary','null')='null' and page->'two_lane'->>'work_mode'<>'pending' then
      page:=jsonb_set(page,'{two_lane,work_mode}',to_jsonb(case when context->>'decision'='extract' then 'extract' else 'reply_only' end));
+   end if;
+   if exists(select 1 from public.user_lifetime_reply r join public.user_interview_turn t
+       on t.user_id=r.user_id and t.project_id=source.project_id and t.client_turn_id=r.client_turn_id
+       where r.user_id=source.user_id and t.source_id=source.id and t.source_version=source.version
+         and r.conversation_id=(page->>'conversation_id')::uuid and r.prompt_version='reply-v2') then
+     page:=jsonb_set(page,'{two_lane,reply_contract}',to_jsonb('reply-v2'::text));
    end if;
    page:=page-'input_digest'-'page_digest';
    page:=page||jsonb_build_object('input_digest',encode(sha256(convert_to((page-'token')::text,'UTF8')),'hex'));
@@ -13407,8 +13515,8 @@ revoke all on function public.commit_lifetime_memory_summary_page_before_skills(
 revoke all on function public.commit_lifetime_profile_page(uuid, uuid, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.commit_lifetime_profile_page_before_skills(uuid, uuid, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.commit_lifetime_strategy_delivery(jsonb, uuid, uuid) from public,anon,authenticated,service_role;
-revoke all on function public.commit_lifetime_strategy_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, jsonb) from public,anon,authenticated,service_role;
-revoke all on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, bigint) from public,anon,authenticated,service_role;
+revoke all on function public.commit_lifetime_strategy_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, jsonb, text) from public,anon,authenticated,service_role;
+revoke all on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, bigint, text) from public,anon,authenticated,service_role;
 revoke all on function public.commit_user_agent_turn(uuid, text, text, text[], bigint, text, uuid, boolean, text) from public,anon,authenticated,service_role;
 revoke all on function public.commit_user_agent_turn_before_photos(uuid, text, text, text[], bigint, text, uuid, boolean, text) from public,anon,authenticated,service_role;
 revoke all on function public.commit_user_agent_turn_legacy(uuid, text, text, text[], bigint) from public,anon,authenticated,service_role;
@@ -13754,10 +13862,10 @@ grant EXECUTE on function public.commit_lifetime_memory_summary_page(uuid, uuid,
 grant EXECUTE on function public.commit_lifetime_profile_page(uuid, uuid, text, jsonb) to service_role;
 grant EXECUTE on function public.commit_lifetime_strategy_delivery(jsonb, uuid, uuid) to authenticated;
 grant EXECUTE on function public.commit_lifetime_strategy_delivery(jsonb, uuid, uuid) to service_role;
-grant EXECUTE on function public.commit_lifetime_strategy_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, jsonb) to authenticated;
-grant EXECUTE on function public.commit_lifetime_strategy_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, jsonb) to service_role;
-grant EXECUTE on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, bigint) to authenticated;
-grant EXECUTE on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, bigint) to service_role;
+grant EXECUTE on function public.commit_lifetime_strategy_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, jsonb, text) to authenticated;
+grant EXECUTE on function public.commit_lifetime_strategy_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, jsonb, text) to service_role;
+grant EXECUTE on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, bigint, text) to authenticated;
+grant EXECUTE on function public.commit_lifetime_turn(jsonb, uuid, jsonb, jsonb, text, jsonb, text, text, text, jsonb, bigint, text) to service_role;
 grant EXECUTE on function public.commit_user_agent_turn(uuid, text, text, text[], bigint, text, uuid, boolean, text) to authenticated;
 grant EXECUTE on function public.commit_user_agent_turn(uuid, text, text, text[], bigint, text, uuid, boolean, text) to service_role;
 grant EXECUTE on function public.commit_user_agent_turn_before_photos(uuid, text, text, text[], bigint, text, uuid, boolean, text) to service_role;

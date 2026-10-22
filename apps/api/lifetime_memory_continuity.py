@@ -84,6 +84,12 @@ def governed_collector_schema(context=None):
     Older responses may omit extensions unless a pending confirmation requires
     current intent. The caller budgets these full required wire-schema bytes.
     """
+    if (context or {}).get('reply_contract') == 'reply-v2':
+        from .conversation_reply import reply_schema
+        schema = reply_schema(context)
+        if context.get('reviewed_acknowledgement') is not None:
+            constrain_acknowledgement(schema, [context['reviewed_acknowledgement']])
+        return schema
     if (context or {}).get('strategy_selector'):
         from .interview_strategy import selector_schema
         schema=selector_schema(context)
@@ -96,15 +102,8 @@ def governed_collector_schema(context=None):
             schema['required'].append('selection_reason')
     if (context or {}).get('reviewed_acknowledgement') is not None:
         constrain_acknowledgement(schema, [context['reviewed_acknowledgement']])
-    extension = _Updates.model_json_schema()
+    extension = continuity_schema((context or {}).get('source'))
     schema.setdefault('$defs', {}).update(extension['$defs'])
-    item = schema['$defs']['_ContinuityUpdate']['properties']
-    for field in ('char_start', 'char_end'):
-        item[field] = {'anyOf': [item[field], {'type': 'null'}]}
-    source = (context or {}).get('source')
-    if source:
-        item['source_id']['const'] = source['id']
-        item['source_version']['const'] = source['version']
     schema['properties']['continuity_updates'] = extension['properties']['continuity_updates']
     schema['required'].append('continuity_updates')
     if (context or {}).get('two_lane_memory') is True:
@@ -138,6 +137,53 @@ def _current_source(context):
 _PRIVACY_KINDS = {'excluded_topic', 'paused_topic'}
 
 
+def continuity_schema(source=None, *, background=False):
+    schema = _Updates.model_json_schema()
+    item = schema['$defs']['_ContinuityUpdate']['properties']
+    for field in ('char_start', 'char_end'):
+        item[field] = {'anyOf': [item[field], {'type': 'null'}]}
+    if source:
+        item['source_id']['const'] = source['id']
+        item['source_version']['const'] = source['version']
+    if background:
+        item['kind']['enum'] = ['person', 'unresolved_reference', 'commitment']
+    return schema
+
+
+def validate_continuity_updates(updates, source, *, background=False):
+    """Locate only explicitly null, unique spans in the admitted original window."""
+    offset = (source or {}).get('char_start', 0)
+    if isinstance(updates, list):
+        updates = deepcopy(updates)
+        for item in updates:
+            if not isinstance(item, dict) or source is None:
+                continue
+            start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
+            locate = start is None and end is None and 'char_start' in item and 'char_end' in item
+            if isinstance(quote, str) and locate:
+                position = source['text'].find(quote)
+                if position >= 0 and source['text'].find(quote, position + 1) < 0:
+                    item.update(char_start=offset + position, char_end=offset + position + len(quote))
+    proposed = _Updates.model_validate({'continuity_updates': updates}).continuity_updates
+    if proposed and source is None:
+        raise ValueError('Continuity requires exact current narrator evidence')
+    seen = set()
+    for item in proposed:
+        if (item.source_id != source['id'] or item.source_version != source['version']
+                or item.char_start < offset or item.char_end > offset + len(source['text'])
+                or source['text'][item.char_start-offset:item.char_end-offset] != item.quote):
+            raise ValueError('Continuity requires exact current narrator evidence')
+        key = (item.kind, item.char_start, item.char_end)
+        if key in seen:
+            raise ValueError('Duplicate continuity update')
+        seen.add(key)
+        if background and item.kind in _PRIVACY_KINDS:
+            raise ValueError('Background continuity cannot propose privacy controls')
+        if item.kind in _PRIVACY_KINDS and item.assertion != 'asserted':
+            raise ValueError('Privacy restrictions require a completed current-source review')
+    return _rows(proposed)
+
+
 def validate_governed_collector_result(raw, context):
     """Validate existing planning first, then return server-owned continuity rows."""
     value = json.loads(raw) if isinstance(raw, str) else raw
@@ -145,7 +191,11 @@ def validate_governed_collector_result(raw, context):
         raise ValueError('Collector result must be an object')
     outcome=None
     selection_reason=None
-    if context.get('strategy_selector'):
+    immediate_name=None
+    if context.get('reply_contract') == 'reply-v2':
+        from .conversation_reply import adapt_reply
+        value, selection_reason, outcome, stopped, immediate_name = adapt_reply(value, context)
+    elif context.get('strategy_selector'):
         from .interview_strategy import adapt_selection
         value,outcome,stopped=adapt_selection(value,context)
         selection_reason=outcome['selection_reason']
@@ -176,33 +226,7 @@ def validate_governed_collector_result(raw, context):
                            'selection_reason': 'prepared_candidate', 'question_delivered': chosen['question']}
     if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
     source = _current_source(context)
-    updates = value.get('continuity_updates', [])
-    if isinstance(updates, list):
-        updates = [dict(item) if isinstance(item, dict) else item for item in updates]
-        for item in updates:
-            if not isinstance(item, dict) or source is None:
-                continue
-            start, end, quote = item.get('char_start'), item.get('char_end'), item.get('quote')
-            locate = start is None and end is None and 'char_start' in item and 'char_end' in item
-            if isinstance(quote, str) and locate:
-                position = source['text'].find(quote)
-                if position >= 0 and source['text'].find(quote, position + 1) < 0:
-                    item.update(char_start=position, char_end=position + len(quote))
-    proposed = _Updates.model_validate({'continuity_updates': updates}).continuity_updates
-    if proposed and source is None:
-        raise ValueError('Continuity requires exact current narrator evidence')
-    seen = set()
-    for item in proposed:
-        if (item.source_id != source['id'] or item.source_version != source['version']
-                or item.char_end > len(source['text'])
-                or source['text'][item.char_start:item.char_end] != item.quote):
-            raise ValueError('Continuity requires exact current narrator evidence')
-        key = (item.kind, item.char_start, item.char_end)
-        if key in seen:
-            raise ValueError('Duplicate continuity update')
-        seen.add(key)
-        if item.kind in _PRIVACY_KINDS and item.assertion != 'asserted':
-            raise ValueError('Privacy restrictions require a completed current-source review')
+    updates = validate_continuity_updates(value.get('continuity_updates', []), source)
 
     places = _Places.model_validate({'place_journeys': [] if context.get('two_lane_memory') is True
         else value.get('place_journeys', [])}).place_journeys
@@ -210,7 +234,8 @@ def validate_governed_collector_result(raw, context):
                   if place.hierarchy[-1] == place.place]
     journeys = grounded_place_journeys([place for place in candidates if place is not None],
                                       source['text']) if source else []
-    return {**result, 'continuity_updates': _rows(proposed),
+    return {**result, **({'immediate_name': immediate_name} if context.get('reply_contract') == 'reply-v2' else {}),
+            'continuity_updates': updates,
             'place_journeys': journeys}
 
 

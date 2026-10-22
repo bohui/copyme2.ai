@@ -114,7 +114,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         client_turn_id=None,source_kind='narrator_chat',uploaded_photo_ids=None,photo_selection=None,recording_ids=None,
         user_response=True,on_delta=None,on_event=None,workspace_focus=None,evaluation=None,trajectory=None,**unused):
     turn_started=time.monotonic()
-    from .collector_configuration import collector_configuration
+    from .collector_configuration import collector_configuration, CollectorConfigurationError
     from .interview_strategy import strategy_enabled,strategy_instructions,InterviewStrategyPlan,StrategyMetrics
     from .two_lane_memory import two_lanes_enabled, CONVERSATION_INSTRUCTIONS
     two_lane=two_lanes_enabled()
@@ -223,6 +223,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         elif lifetime_generation_paused():
             raise GenerationPaused('Conversation generation is paused; saved history and receipts remain available')
         else:
+            if collector_configuration(runtime.model).prompt_version == 'reply-v2' and not two_lane:
+                raise CollectorConfigurationError('Reply v2 requires the enabled two-lane workflow')
             if workspace_focus and not already_accepted:
                 from .workspace_memory_actions import read_workspace_focus
                 await lease.io(read_workspace_focus, storage, project_id, workspace_focus)
@@ -295,7 +297,11 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             else:
                 opening=None
             collector=collector_configuration(runtime.model)
-            if two_lane and strategy_enabled() and collector.prompt_version=='two-lane-v1':
+            if collector.prompt_version == 'reply-v2':
+                if not two_lane:
+                    raise CollectorConfigurationError('Reply v2 requires the enabled two-lane workflow')
+                context['reply_contract'] = 'reply-v2'
+            if two_lane and strategy_enabled() and collector.prompt_version in {'two-lane-v1', 'reply-v2'}:
                 state=await call('read_lifetime_strategy_context',p_conversation_id=str(identity.conversation_id))
                 if state['mode']=='active':
                     if state.get('plan') is not None:InterviewStrategyPlan.model_validate(state['plan'])
@@ -316,16 +322,21 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             def row(value):return ContextSource(identity=identity,policy_epoch=fence['policy_epoch'],source_id=value['id'],version=value['version'],sequence=value['sequence'],original=value['text'],language=value['language'],kind=value['kind'],conversation_saved=value.get('conversation_saved',False),assistant_reply=value.get('assistant_reply'),reply_policy_epoch=value.get('reply_policy_epoch'))
             coverage=TailCoverage(identity=identity,policy_epoch=fence['policy_epoch'],after_sequence=after,through_sequence=source['sequence']-1,complete=tail['complete'],tombstones=tail['tombstones'])
             service=LifetimeMemoryService(storage.lifetime_rpc,budget=packet_budget)
-            from .collector_prompt import COMPACT_COLLECTOR_PROMPT
-            from .codex_runtime import conversation_language_instruction
-            privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
-            instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
-            if context.get('strategy_selector'):
-                instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS
-            if two_lane:
-                instructions+=CONVERSATION_INSTRUCTIONS
+            if context.get('reply_contract') == 'reply-v2':
+                from .conversation_reply import reply_instructions
+                instructions = reply_instructions()
             else:
-                instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-places'))
+                from .collector_prompt import COMPACT_COLLECTOR_PROMPT
+                from .codex_runtime import conversation_language_instruction
+                if context.get('strategy_selector'):
+                    instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS
+                else:
+                    privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
+                    instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
+                if two_lane:
+                    instructions+=CONVERSATION_INSTRUCTIONS
+                else:
+                    instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-places'))
             try:
                 packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
                 tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)
@@ -353,7 +364,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             model_started=time.monotonic()
             if publication.strategy_metrics is not None:
                 publication.strategy_timings.update(context_preparation_ms=round((model_started-turn_started)*1000,3),
-                    input_bytes=len(governed.packet.encode()),prompt_version='two-lane-v1')
+                    input_bytes=len(governed.packet.encode()),prompt_version=collector.prompt_version)
             try:
                 if runtime.worker_url:
                     result=await runtime._worker_turn(user_id=storage.user_id,prior=None,memories=[],profile={},place_journey={},
@@ -410,7 +421,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             try:
                 committed=await call('commit_lifetime_strategy_turn' if context.get('strategy_selector') else 'commit_lifetime_turn',p_fence=fence,p_client_turn_id=client_turn_id,p_plan=validated['plan'],
                     p_associations=validated['associations'],p_reply=validated['reply'],p_response_photo_ids=[p['photo_id'] for p in validated['response_photos']],
-                    p_thread_id=result['thread_id'],p_prompt_version='lifetime-v1',p_model=collector.model,p_continuity_updates=validated['continuity_updates'],
+                    p_thread_id=result['thread_id'],p_prompt_version=context.get('reply_contract', 'lifetime-v1'),p_model=collector.model,p_continuity_updates=validated['continuity_updates'],
+                    **({'p_name_update': validated['immediate_name']} if context.get('reply_contract') == 'reply-v2' else {}),
                     **({'p_outcome':validated['strategy_outcome']} if context.get('strategy_selector') else {}))
             except PolicyMaintenancePending:
                 raise
@@ -477,6 +489,7 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options,close_storage
     from fastapi import HTTPException
     from .lifetime_memory_publication import TransactionalPublication,PublicationUnavailable
     from .lifetime_memory_activation import CanonicalActivationUnavailable
+    from .collector_configuration import CollectorConfigurationError
     from .lifetime_memory_transport import governed_turn_events,GovernedStreamingResponse,GovernedJSONResponse
     publication=LifetimePublicationContext()
     response=None
@@ -500,6 +513,8 @@ async def lifetime_http_turn(runtime,storage,text,*,accept,options,close_storage
         if isinstance(error,CanonicalActivationUnavailable):
             raise HTTPException(503,'Conversation provider authority is unavailable',headers={'X-Error-Code':CanonicalActivationUnavailable.code,'Retry-After':'60'}) from None
         if isinstance(error,PublicationUnavailable):raise HTTPException(503,'Governed publication is not configured') from None
+        if isinstance(error,CollectorConfigurationError):
+            raise HTTPException(503,'Conversational generation is temporarily unavailable',headers={'X-Error-Code':'COLLECTOR_CONFIGURATION_INVALID'}) from None
         if isinstance(error,GenerationPaused):raise HTTPException(503,str(error),headers={'X-Error-Code':'LIFETIME_GENERATION_PAUSED'}) from None
         if isinstance(error,MappingRequired):raise HTTPException(409,str(error),headers={'X-Error-Code':'LIFETIME_MAPPING_REQUIRED'}) from None
         if isinstance(error,InputLimitExceeded):raise HTTPException(413,str(error)) from None

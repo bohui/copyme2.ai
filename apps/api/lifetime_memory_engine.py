@@ -11,6 +11,7 @@ from .model_request import instruction_manifest, manifest_metadata
 from .llm_tracing import trace_llm_call
 
 from copy import deepcopy
+from hashlib import sha256
 import asyncio
 import json
 import logging
@@ -332,6 +333,10 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     from .lifetime_memory_lane_engine import check_lane_generation, _admission
     check_lane_generation()
     packet = validate_governed_context(governed, interview_context, model=model)
+    model_packet = governed.packet
+    if interview_context.get('reply_contract') == 'reply-v2':
+        from .conversation_reply import reply_packet
+        model_packet = serialize_packet(reply_packet(packet))
     output_schema = governed_collector_schema(interview_context)
     prompt=GOVERNED_TURN_PROMPT
     if repair_reason is not None:
@@ -388,7 +393,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         opened = await open_execution(connection, thread_id=None, compatible=False,
             start_params={'cwd':str(home), 'ephemeral':True, 'modelProvider':'llm_provider',
                 'model':model, 'approvalPolicy':'never', 'sandbox':'read-only',
-                'baseInstructions':governed.packet}, identity=identity.model_dump(mode='json'))
+                'baseInstructions':model_packet}, identity=identity.model_dump(mode='json'))
         candidate = opened['thread_id']
         static_parts = [packet.instructions, GOVERNED_TURN_PROMPT]
         if repair_reason:
@@ -402,7 +407,9 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             variant='collector-repair' if repair_reason else 'collector',
             extra_names=['memoir/shared/historical-acknowledgements']
                 if interview_context.get('historical_news',{}).get('clues') else [])
-        with trace_llm_call('memoir.' + str('collector-repair' if repair_reason else 'collector'), model, metadata={'contract_version': 'lifetime-v1', 'prompt_manifest': manifest}):
+        with trace_llm_call('memoir.' + str('collector-repair' if repair_reason else 'collector'), model, metadata={
+                'contract_version': interview_context.get('reply_contract', 'lifetime-v1'),
+                'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}):
             reply = await connection.turn(candidate, prompt,
                 output_schema=output_schema,
                 **({'on_delta':model_delta} if on_delta else {}),
@@ -437,6 +444,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
              'No-question outcome requires an explicit reason': 'CONTRACT_16',
              'Only one immediate question is allowed': 'CONTRACT_17',
              'Only one visible question is allowed': 'CONTRACT_18',
+             'Opening name requires exact current narrator wording': 'CONTRACT_30',
              'Prepared candidate text changed': 'CONTRACT_19',
              'Privacy and commitment continuity require asserted direct narrator wording': 'CONTRACT_20',
              'Question candidates must be distinct': 'CONTRACT_21',

@@ -1,6 +1,8 @@
 """Model-consumed prompt sources, owned by their skill or shared workflow."""
 
 PROMPT_PATHS = {
+    'memoir/skills/memoir-interviewer/reply': 'skills/memoir-interviewer/prompts/reply.md',
+    'memoir/skills/memoir-author-timeline/continuity': 'skills/memoir-author-timeline/prompts/continuity.md',
     'memoir/evaluation/semantic-boundaries-judge': 'apps/api/prompts/evaluation/semantic-boundaries-judge.md',
     'memoir/skills/memoir-interviewer/governed-repair/codes': 'skills/memoir-interviewer/prompts/governed-repair/codes.md',
     'memoir/skills/memoir-place-photo-research/discovery': 'skills/memoir-place-photo-research/prompts/discovery.md',

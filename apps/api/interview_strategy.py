@@ -103,16 +103,21 @@ def strategy_instructions(strategy):
         raise ValueError('Unknown internal strategy')
     return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/strategy/{strategy}'))
 
+def selection_candidates(context):
+    candidates = ((context.get('strategy_context') or {}).get('plan') or {}).get('candidates', [])
+    confirmation = pending_confirmation(context)
+    if confirmation:
+        return [confirmation, *[item for item in candidates if item['id'] != confirmation['id']]]
+    return candidates
+
+
 def selector_schema(context=None):
     schema=ImmediateSelection.model_json_schema()
     schema['required']=list(schema['properties'])
     for prop in schema['properties'].values():prop.pop('default',None)
     schema['properties']['acknowledgement']['pattern']='^[^?？]*$'
     context=context or {}
-    candidates=((context.get('strategy_context') or {}).get('plan') or {}).get('candidates',[])
-    confirmation = pending_confirmation(context)
-    if confirmation:
-        candidates = [confirmation, *candidates]
+    candidates = selection_candidates(context)
     identities=list(dict.fromkeys(candidate['id'] for candidate in candidates))
     schema['properties']['selected_candidate_id']['enum']=[None,*identities]
     if not identities:
@@ -124,10 +129,7 @@ def selector_schema(context=None):
 def adapt_selection(raw,context):
     item=ImmediateSelection.model_validate({k:v for k,v in raw.items() if k!='continuity_updates'})
     state=context.get('strategy_context') or {};plan=state.get('plan') or {}
-    available={c['id']:c for c in plan.get('candidates',[])}
-    confirmation = pending_confirmation(context)
-    if confirmation:
-        available[confirmation['id']] = confirmation
+    available={c['id']:c for c in selection_candidates(context)}
     if item.question is not None and (not item.question.strip() or item.question.count('?')+item.question.count('？')>1):
         raise ValueError('Only one immediate question is allowed')
     if item.stopped and item.question is not None:raise ValueError('A stop cannot force a question')

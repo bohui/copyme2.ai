@@ -136,6 +136,8 @@ async def _extract(page,worker):
     from .lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT, EXTRACTION_REJECTION_REASONS
     if (page.get('two_lane') or {}).get('work_mode')=='reply_only':
         result={'events':[],'place_journeys':[],'prepared_questions':[]}
+        if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
+            result['continuity_updates'] = []
         if (page.get('two_lane') or {}).get('strategy_mode'):
             # No extraction/classifier call, and no inferred downgrade from a
             # short reply or pause. Preserve the prior planned strategy unchanged.
@@ -157,10 +159,22 @@ async def _extract(page,worker):
             publisher=getattr(worker,'lane_publisher',None),timeout=240)
         try:
             raw=json.loads(response['reply'])
+            if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
+                allowed = {'events', 'place_journeys', 'prepared_questions', 'continuity_updates'}
+                if page.get('attribution_context'):
+                    allowed.update({'event_places', 'passage_dispositions'})
+                if page['two_lane'].get('strategy_mode'):
+                    allowed.add('strategy_proposal')
+                if not isinstance(raw, dict) or set(raw) - allowed:
+                    raise ValueError('Unexpected background reply fields')
             result={'events':extraction_events({'events':raw['events']},page,original)}
             if page.get('two_lane'):
                 from .two_lane_memory import derived_hints
                 result.update(derived_hints(raw,page))
+                if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
+                    from .lifetime_memory_continuity import validate_continuity_updates
+                    result['continuity_updates'] = validate_continuity_updates(
+                        raw['continuity_updates'], page['source'], background=True)
                 if page.get('attribution_context'):
                     from .conversation_attribution import validate_attribution, policy_dispositions
                     result.update(validate_attribution(raw, page, result['events']))

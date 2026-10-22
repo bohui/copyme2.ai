@@ -34,7 +34,7 @@ class DerivedHints(_Places):
     prepared_questions: list[PreparedQuestion] = Field(max_length=5)
 
 
-def extraction_contract(*, strategy=False, attribution=False):
+def extraction_contract(*, strategy=False, attribution=False, continuity=False, source=None):
     from .memory_events import extraction_instructions, extraction_schema
     schema=extraction_schema()
     extension=DerivedHints.model_json_schema()
@@ -63,6 +63,13 @@ def extraction_contract(*, strategy=False, attribution=False):
         from .conversation_attribution import attribution_schema, INSTRUCTIONS
         instructions += INSTRUCTIONS
         schema = attribution_schema(schema)
+    if continuity:
+        from .lifetime_memory_continuity import continuity_schema
+        extension = continuity_schema(source, background=True)
+        schema['$defs'].update(extension['$defs'])
+        schema['properties'].update(extension['properties'])
+        schema['required'].append('continuity_updates')
+        instructions += load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/continuity'))
     return instructions,schema
 
 
