@@ -156,3 +156,68 @@ def test_complete_review_never_carries_an_incomplete_reason(reason):
 def test_audit_reason_is_bounded_and_typed(reason):
     with pytest.raises(ValueError):
         policy_review.PolicyReview.model_validate(dict(complete=False, restrictions=[], reason=reason))
+
+
+@pytest.mark.parametrize('restricted', [False, True])
+def test_explicit_retry_after_incomplete_review_regenerates_reply_v2_under_valid_controls(
+        sql, tmp_path, monkeypatch, restricted):
+    from test_conversation_reply import proposal as small_reply
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '1')
+    monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY', '0')
+    monkeypatch.setenv('MEMORY_SPARK_PARALLEL_POLICY_REVIEW', '0')
+    monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK', '0')
+    sql('update public.lifetime_two_lane_rollout set enabled=true;')
+    restriction = "Please don't discuss my school."
+    text = (restriction + ' ' if restricted else '') + 'We can talk about my garden.'
+    reviews, replies = [], []
+
+    def review_provider(request):
+        body = json.loads(request.content)
+        source = json.loads(body['input'])['source']
+        reviews.append(source)
+        complete = len(reviews) > 2
+        controls = [dict(kind='excluded_topic', quote=restriction,
+                         char_start=0, char_end=len(restriction))] if complete and restricted else []
+        output = dict(complete=complete, restrictions=controls, reason=None if complete else REASON)
+        return httpx.Response(200, json=dict(id=f'explicit-review-{len(reviews)}', status='completed',
+            output=[dict(type='message', content=[dict(type='output_text', text=json.dumps(output))])]))
+
+    async def review(*args, **kwargs):
+        kwargs.update(base_url='http://127.0.0.1:1/v1', api_key='controlled-policy-key',
+                      transport=httpx.MockTransport(review_provider))
+        return await complete_json(*args, **kwargs)
+
+    def collector(request):
+        body = json.loads(request.content)
+        replies.append(body)
+        assert len(reviews) == 3
+        assert body['interview_context']['reply_contract'] == 'reply-v2'
+        if restricted:
+            assert restriction in json.dumps(body['interview_context'])
+        output = {**small_reply(), 'acknowledgement': 'We can talk about your garden.',
+                  'question': 'What did you grow in the garden?'}
+        return worker_reply(request, dict(reply=json.dumps(output), thread_id='explicit-retry', artifacts=[]))
+
+    monkeypatch.setattr(policy_review, 'complete_json', review)
+    monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda _: PostgresRest(sql, OWNER).storage())
+    monkeypatch.setattr(agent_routes, 'runtime', CodexRuntime(home_root=tmp_path / 'homes',
+        worker_url='http://controlled.invalid', worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(collector)))
+    payload = dict(client_turn_id=str(uuid4()), text=text, language='en-AU')
+    with TestClient(create_app(MemoryStore())) as client:
+        first = client.post('/v1/agent/turn', headers={'Accept': 'application/x-ndjson'}, json=payload)
+        assert json.loads(first.text.splitlines()[-1])['type'] == 'error'
+        assert len(reviews) == 2 and replies == []
+        assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '0'
+        project = sql('select project_id from public.user_narrator_source;').stdout.strip()
+        second = client.post('/v1/agent/turn', headers={'Accept': 'application/x-ndjson'},
+                             json={**payload, 'project_id': project})
+        events = [json.loads(line) for line in second.text.splitlines()]
+        assert events[-1]['type'] == 'result', events
+        assert events[-1]['data']['conversation_saved']
+        assert len(replies) == 1 and reviews[0] == reviews[1] == reviews[2]
+        assert sql('select count(*) from public.user_narrator_source;').stdout.strip() == '1'
+        assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '1'

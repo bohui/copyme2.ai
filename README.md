@@ -417,6 +417,9 @@ leave the original saved and policy pending. The model supplies a bounded
 code and turn ID; details remain in private gateway traces. Successful recovery
 also retains both response IDs and reasons in the policy receipt's
 `policy_review_attempts`. Story uncertainty alone is not a privacy restriction.
+An explicit retry reuses the accepted source and applies completed restrictions
+before generating its reply. A failure before the first streamed text retains
+the turn ID so the browser can replace its error bubble on regeneration.
 
 Edit and review prompt Markdown in a pull request before creating a Langfuse
 version. Feature branches do not publish or fabricate version receipts. The API

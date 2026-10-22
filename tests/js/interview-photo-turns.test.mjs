@@ -40,6 +40,36 @@ test('retry and reload retain original photo snapshot and upload IDs',async()=>{
  state.supabase.user.id='other';assert.equal(reloaded.pending(),null);
 });
 
+test('failure before the first delta keeps the turn ID so regeneration replaces its error bubble',async()=>{
+ const vm=await import('node:vm');const h=harness();h.state.photoTurns=h.photos;
+ const turn=h.photos.prepare({text:'Original memory',conversationText:'Original memory',language:'en-AU'});
+ let messages=0;
+ const context=vm.createContext({state:h.state,AbortController,
+  captureProjectScope:h.deps.scope,isCurrentProjectScope:()=>true,
+  conversationLanguage:()=> 'en-AU',simulatedLoopTrace:()=>[],workspaceTurnFocus:()=>null,
+  nextAssistantMessageId:()=>`assistant-${++messages}`,render(){},toast(){},
+  updateStreamingAssistantMessage(){},markWorkspaceFocusStarted(){},
+  refreshStageReadiness:async()=>{},refreshPrivateDraft:async()=>{},
+  cleanAssistantText:text=>text,ASSISTANT_STREAM_CHUNK_SIZE:10000,
+  streamAgentTurn:async()=>{throw new Error('The response could not be completed or saved. Please try again.')}});
+ const source=readMemoirClientSource();
+ for(const name of ['agentTurn','streamAssistantMessage'])
+  vm.runInContext(source.match(new RegExp(`async function ${name}\\([^]*?\\n\\}`))[0],context);
+ const failed=await context.agentTurn(turn.text,'',[],turn.language,false,turn.conversationText);
+ assert.equal(failed.clientTurnId,turn.id);
+ const bubble=await context.streamAssistantMessage(failed.reply,{streamedMessage:failed.streamedMessage,clientTurnId:failed.clientTurnId});
+ assert.equal(h.state.chat.length,1);assert.equal(h.photos.pending().id,turn.id);
+ context.streamAgentTurn=async(text,onDelta)=>{
+  await onDelta('A recovered reply.');
+  return {reply:'A recovered reply.',conversation_saved:true};
+ };
+ const recovered=await context.agentTurn(turn.text,'',[],turn.language,false,turn.conversationText,null,'narrator_chat',{retry:turn});
+ assert.equal(recovered.streamedMessage,bubble);
+ await context.streamAssistantMessage(recovered.reply,{streamedMessage:recovered.streamedMessage,clientTurnId:recovered.clientTurnId});
+ assert.equal(h.state.chat.length,1);assert.equal(bubble.text,'A recovered reply.');
+ assert.equal(bubble.failed,false);assert.equal(bubble.error,'');assert.equal(h.photos.pending(),null);
+});
+
 for (const cached of [false, true]) test(`server recovery restores the accepted turn when the browser cache is ${cached ? 'a rejected newer turn' : 'missing'}`, async () => {
  const h=harness();
  if(cached)h.photos.prepare({text:'Rejected new message',conversationText:'Rejected new message'});
