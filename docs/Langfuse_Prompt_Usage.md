@@ -6,27 +6,33 @@ The application and exporter use the same explicit catalog in
 `apps/api/prompt_catalog.py`. Each source has one owner, one name and one exact
 version receipt. These are caller-level classifications, not traffic counts.
 
-The interviewer rows were refreshed on 22 October: all 23 prompts have supported
-callers and stay at the skill root. Language, strategy, greeting and repair names
-are flat. None are classified as retired. The remaining rows retain the original
+The interviewer rows were refreshed on 22 October. The privacy optimization adds
+one conditional opening template, making 24 catalog entries, all at the skill
+root. Language, strategy, greeting and repair names are flat. None are classified
+as retired. Changed and new sources below await main-only publication; existing
+receipts remain untouched until then. The remaining rows retain the original
 audit date. See the
 [layout and migration details](Langfuse_Prompt_Structure_Refactor.md).
 
 For a normal `reply-v2` narrator turn, these are separate model calls:
 
-| Foreground call | Static prompt components | Instruction characters |
-| --- | --- | ---: |
-| Privacy review | `policy-review` | 2,753 |
-| Reply generation | `reply` (1,872) + newline + `governed-turn` (113) | 1,986 |
-| Both calls | Separate requests; components are not concatenated into one call | 4,739 |
+| Foreground call | Static prompt components | Baseline characters | Proposed characters |
+| --- | --- | ---: | ---: |
+| Privacy review | `policy-review` | 2,753 | 993 |
+| Reply generation | `reply` + newline + `governed-turn` | 1,986 | 1,986 |
+| Both calls | Separate requests | 4,739 | 2,979 |
 
 The under-2,000 budget applies to the normal reply generator's static instructions,
 not the whole Lane A flow or total request size. Conversation evidence, output
-schema and transport framing are additional. On a rejected reply, repair adds
-3,215 static characters from codes/prefix/suffix, plus the error data and optional
+schema and transport framing are additional. The proposed optional early-ack
+template composes the core rules and original acknowledgement guidance into
+1,998 characters. On a rejected reply, selected repair guidance uses 431–823
+static characters, down from 3,215, plus error data and the optional
 acknowledgement-preservation rule. Greetings and Lane B have separate triggers;
-the other supported modes assemble their own prompts. The 23-entry inventory is
-not the prompt input for every turn. Namespace changes do not reduce these inputs.
+the other supported modes assemble their own prompts. The 24-entry inventory is
+not the prompt input for every turn. See the
+[profiled optimization](issue53-policy-repair-20261022.md), including slower
+held-out cases and the remaining deployment/acceptance gates.
 
 ## Ownership
 
@@ -103,8 +109,9 @@ and cache readers remain available for historical data.
 | [`memoir/skills/memoir-composer/shared/narrative-enrichment`](../skills/memoir-composer/references/narrative-enrichment.md) | 1 | Shared runtime | [`apps/api/memoir_preview.py`](../apps/api/memoir_preview.py) — Single narrative policy read by drafting and review. |
 | [`memoir/skills/memoir-family-tree/instructions`](../skills/memoir-family-tree/SKILL.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Explicit isolated probe/native-search model input; does not prove a production binding. |
 | [`memoir/skills/memoir-interviewer/reply`](../skills/memoir-interviewer/prompts/reply.md) | 1 | Runtime | [`apps/api/conversation_reply.py`](../apps/api/conversation_reply.py) — Small foreground proposal for `reply-v2`; locale and strategy arrive as data. |
-| [`memoir/skills/memoir-interviewer/policy-review`](../skills/memoir-interviewer/prompts/policy-review.md) | 3 | Runtime | [`apps/api/policy_review.py`](../apps/api/policy_review.py) — Source-only privacy policy review before the governed reply. |
-| [`memoir/skills/memoir-interviewer/repair-codes`](../skills/memoir-interviewer/prompts/governed-repair/codes.md) | 4 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Validator error codes added only during bounded repair. |
+| [`memoir/skills/memoir-interviewer/policy-review`](../skills/memoir-interviewer/prompts/policy-review.md) | Pending | Runtime | [`apps/api/policy_review.py`](../apps/api/policy_review.py) — Source-only privacy policy review before the governed reply; changed source awaits publication. |
+| [`memoir/skills/memoir-interviewer/policy-review-opening`](../skills/memoir-interviewer/prompts/policy-review-opening.md) | Pending | Conditional runtime | [`apps/api/policy_review.py`](../apps/api/policy_review.py) — Composes the core once with original style guidance only when early acknowledgement is requested. |
+| [`memoir/skills/memoir-interviewer/repair-codes`](../skills/memoir-interviewer/prompts/governed-repair/codes.md) | Pending | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Managed rule catalog; only common guidance and the matching rule enter a bounded repair. |
 | [`memoir/skills/memoir-interviewer/governed-places`](../skills/memoir-interviewer/prompts/governed-places.md) | 1 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Foreground place extraction when background extraction is disabled. |
 | [`memoir/skills/memoir-interviewer/background-memory`](../skills/memoir-interviewer/prompts/background-memory.md) | 2 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Optional foreground hint when background extraction owns place work. |
 | [`memoir/skills/memoir-interviewer/collector`](../skills/memoir-interviewer/prompts/collector.md) | 2 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Default foreground collector; one governed request. |

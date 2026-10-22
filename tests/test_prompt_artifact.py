@@ -119,6 +119,7 @@ def test_all_supported_interviewer_prompts_stay_at_root():
     names = {name.removeprefix(prefix) for name in prompt_registry() if name.startswith(prefix)}
     assert names == {
         'reply', 'policy-review', 'governed-turn', 'greeting-begin', 'greeting-continue',
+        'policy-review-opening',
         'repair-codes', 'repair-prefix', 'repair-suffix', 'repair-acknowledgement', 'strategy-proposal',
         'background-memory', 'collector', 'collector-plan', 'governed-continuity', 'governed-places',
         'guidance', 'privacy-guard', 'language-en-AU', 'language-zh-CN',

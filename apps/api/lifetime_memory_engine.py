@@ -53,6 +53,12 @@ SUPPORTED_BYTE_BOUND_MODELS = frozenset({'gpt-5.6-luna-pooled', 'gpt-5.6-luna-me
 SUPPORTED_PROMPT_VERSIONS = frozenset({'lifetime-v1'})
 
 
+def repair_instructions(reason):
+    rules = json.loads(load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-codes')))
+    key = 'SCHEMA_FIELD' if reason.startswith('SCHEMA_FIELD_') else reason
+    return rules['common'] + '\n' + rules.get(key, rules['SCHEMA_OR_OTHER_CONTRACT'])
+
+
 class CollectorResponseUnavailable(RuntimeError):
     code = 'LIFETIME_RESPONSE_PENDING'
 
@@ -348,9 +354,9 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         model_packet = serialize_packet(reply_packet(packet))
     output_schema = governed_collector_schema(interview_context)
     prompt=GOVERNED_TURN_PROMPT
-    if repair_reason is not None:
-        prompt += load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-codes'))
-    if repair_reason is not None:
+    repair = repair_instructions(repair_reason) if repair_reason is not None else None
+    if repair is not None:
+        prompt += repair
         prompt+=(load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-prefix'))
             +json.dumps({'error_code': repair_reason},ensure_ascii=False)+load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-suffix')))
     if acknowledgement is not None:
@@ -417,17 +423,19 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                     'baseInstructions':model_packet}, identity=identity.model_dump(mode='json'))
             candidate = opened['thread_id']
         static_parts = [packet.instructions, GOVERNED_TURN_PROMPT]
-        if repair_reason:
+        if repair is not None:
+            static_parts.append(repair)
             static_parts.extend(load_prompt_artifact(prompt_path(
                 'memoir/skills/memoir-interviewer/repair-' + part))
-                for part in ('codes', 'prefix', 'suffix'))
+                for part in ('prefix', 'suffix'))
         if acknowledgement is not None:
             static_parts.append(load_prompt_artifact(prompt_path(
                 'memoir/skills/memoir-interviewer/repair-acknowledgement')))
         manifest = instruction_manifest('\n'.join(static_parts), output_schema,
-            variant='collector-repair' if repair_reason else 'collector',
-            extra_names=['memoir/shared/historical-acknowledgements']
-                if interview_context.get('historical_news',{}).get('clues') else [])
+            variant='collector-repair' if repair is not None else 'collector',
+            extra_names=(['memoir/skills/memoir-interviewer/repair-codes'] if repair is not None else [])
+                + (['memoir/shared/historical-acknowledgements']
+                    if interview_context.get('historical_news',{}).get('clues') else []))
         trace_metadata = {
                 'contract_version': interview_context.get('reply_contract', 'lifetime-v1'),
                 'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}

@@ -392,3 +392,44 @@ def test_revisable_validation_repair_can_replace_a_displayed_draft(monkeypatch,t
     assert len(captured)==2 and len(restarts)==1
     assert [json.loads(value)['acknowledgement'] for value in chunks]==[invalid['acknowledgement'],proposal()['acknowledgement']]
     assert 'enum' not in captured[1]['text']['format']['schema']['properties']['acknowledgement']
+
+
+@pytest.mark.parametrize('code,expected', [
+    ('CONTRACT_24', 'precise absolute offsets'),
+    ('CONTRACT_09', 'not the negated alternative'),
+    ('INVALID_JSON', 'Return valid JSON.'),
+    ('INCOMPLETE_PROVIDER_OUTPUT', 'Return one complete structured object.'),
+    ('SCHEMA_FIELD_work', 'typed schema'),
+    ('SCHEMA_OR_OTHER_CONTRACT', 'typed schema'),
+    ('UNKNOWN_CODE', 'typed schema'),
+])
+def test_repair_sends_only_relevant_rule_and_retains_catalog_provenance(monkeypatch, tmp_path, code, expected):
+    from apps.api import lifetime_memory_engine as engine
+    from apps.api.conversation_reply import reply_instructions
+    from test_conversation_reply import proposal
+    from test_lifetime_memory_engine import encode
+    governed, context = fixture()
+    context.update(reply_contract='reply-v2', two_lane_memory=True)
+    packet = json.loads(governed.packet)
+    packet.update(instructions=reply_instructions(), interview_context={
+        key:value for key,value in context.items() if key not in {'source', 'sources'}})
+    captured = install_reply_provider(monkeypatch, [proposal()])
+    manifests = []
+    original = engine.instruction_manifest
+    def manifest(*args, **kwargs):
+        value = original(*args, **kwargs)
+        manifests.append(value)
+        return value
+    monkeypatch.setattr(engine, 'instruction_manifest', manifest)
+    asyncio.run(engine._run_governed_collector_once(command=['forbidden-codex'], home_root=tmp_path,
+        base_url='https://provider.invalid/v1', api_key='fixture-secret-key', model=BUDGET.model,
+        governed=encode(packet), interview_context=context, publisher=FakePublisher(), repair_reason=code))
+    prompt = captured[0]['input'][0]['content'][1]['text']
+    assert code in prompt and expected in prompt
+    assert 'CONTRACT_01' not in prompt
+    assert ('CONTRACT_09' in prompt) == (code == 'CONTRACT_09')
+    assert 'clear question evidence/candidate anchors' in prompt
+    assert 'infer no unstated time/place links' in prompt
+    assert len(prompt) < 1000
+    assert any(item['name'] == 'memoir/skills/memoir-interviewer/repair-codes'
+               for item in manifests[0]['artifacts'])

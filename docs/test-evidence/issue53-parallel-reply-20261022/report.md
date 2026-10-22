@@ -7,10 +7,24 @@ improved from a median **9.03s to 5.61s** for a complete, retained acknowledgeme
 `MEMORY_SPARK_PARALLEL_POLICY_REVIEW` remains off by default. No running service,
 prompt version or hosted data was changed.
 
+These live measurements apply to candidate `9e73dfe7c981c69c4f6324c0754bb3761f125639`.
+The branch subsequently integrated main `1610dc5c820838c5d25f8e8c2f5bab4f924cc445`,
+which includes PR #112's shorter privacy and repair prompts. That combined prompt
+and concurrency flow needs a fresh live comparison before activation; the timings
+below are historical evidence, not measurements of the updated branch.
+
+The combined branch passed 325 regression tests covering API/worker execution,
+SQL guards, browser revisions, privacy review, targeted repairs and prompt
+composition/publication behavior. These tests use controlled providers and
+reviewed local prompt text. Runtime publication is still pending for main's
+`policy-review`, `policy-review-opening` and `repair-codes` artifacts: their local
+receipts are outdated or absent. No prompt versions were published from this
+feature branch.
+
 ## What was measured
 
 Baseline: main `9c77d279d06ef2970fddad5b366850bae0f30239`, extracted to a plain
-temporary source directory. Candidate: this branch's application source; content
+temporary source directory. Candidate: the original `9e73dfe` application source; content
 hashes are in [evidence.json](evidence.json). Both use the existing published
 prompts, `gpt-5.6-luna-pooled` and requested `low` effort. Effective provider effort
 is unverified. PR #112's prompt shortening is not included.
