@@ -75,14 +75,20 @@ def extraction_contract(*, strategy=False, attribution=False, continuity=False, 
 
 def derived_hints(raw, page):
     from .place_journey import validate_place_journey, grounded_place_journeys
-    hints=DerivedHints.model_validate({key:raw[key] for key in ('place_journeys','prepared_questions')})
+    hints=DerivedHints.model_validate({key:raw[key] for key in ('place_journeys','prepared_questions')},
+        context={'derived_source':page['source']})
     places=[validate_place_journey(place.model_dump()) for place in hints.place_journeys
             if place.hierarchy[-1]==place.place]
     places=grounded_place_journeys([place for place in places if place],page['source']['text'],
         source_offset=page['source'].get('char_start') or 0)
     questions=[]
     for item in hints.prepared_questions:
-        item.char_start, item.char_end = question_span(page['source'], item.quote, item.char_start, item.char_end)
+        try:
+            item.char_start, item.char_end = question_span(page['source'], item.quote, item.char_start, item.char_end)
+        except ValueError:
+            if (item.char_start is None) != (item.char_end is None):
+                raise
+            item.char_start, item.char_end = question_span(page['source'], item.quote)
         if item.question.count('?')+item.question.count('？')>1:
             raise ValueError('Prepared hint contains multiple questions')
         if (item.question.strip().casefold(), item.char_start, item.char_end) in {
