@@ -53,7 +53,7 @@ def managed_json_request(name, payload, schema, *, model=None):
     return body,manifest
 
 
-def decode_json_response(value):
+def completed_response_text(value):
     if (not isinstance(value, dict) or value.get('status') != 'completed'
             or not isinstance(value.get('id'), str) or len(value['id']) > 1024
             or not re.fullmatch(r'[A-Za-z0-9_-]+={0,2}', value['id'])
@@ -62,9 +62,12 @@ def decode_json_response(value):
     messages = [item for item in value['output'] if isinstance(item,dict) and item.get('type') == 'message']
     if not messages or any(item.get('status', 'completed') != 'completed' or not isinstance(item.get('content'),list) for item in messages):
         raise ValueError('Model response has no complete message')
-    text = ''.join(part.get('text', '') for item in messages for part in item['content']
+    return ''.join(part.get('text', '') for item in messages for part in item['content']
                    if isinstance(part,dict) and part.get('type') == 'output_text' and isinstance(part.get('text'),str))
-    return json.loads(text)
+
+
+def decode_json_response(value):
+    return json.loads(completed_response_text(value))
 
 
 async def complete_json(name, payload, schema, *, model=None, transport=None, body_factory=None,

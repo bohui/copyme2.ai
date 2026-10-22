@@ -11,6 +11,7 @@ from .model_request import instruction_manifest, manifest_metadata
 from .llm_tracing import trace_llm_call
 
 from copy import deepcopy
+from contextlib import AsyncExitStack
 from hashlib import sha256
 import asyncio
 import json
@@ -278,7 +279,7 @@ def validate_governed_context(governed: GovernedCollectorInput, interview_contex
 
 
 async def run_governed_collector(**options):
-    """Retry rejected output in fresh bounded homes within the original timeout."""
+    """Retry rejected output from the same evidence within the original timeout."""
     options={**options,'interview_context':deepcopy(options['interview_context']),
         'governed':GovernedCollectorInput.model_validate(options['governed'].model_dump(mode='json'))}
     acknowledgement = options['interview_context'].get('reviewed_acknowledgement')
@@ -378,23 +379,29 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             streamed_acknowledgement = value
             # Only the complete validated acknowledgement crosses this boundary.
             await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
-    root = Path(home_root).expanduser().resolve()
-    root.mkdir(parents=True, exist_ok=True, mode=0o700)
-    identity = packet.identity
-    home = root / (f'governed-{identity.owner_id}-{identity.conversation_id}'
-        f'-epoch-{packet.policy_epoch}-generation-{packet.fence.execution_generation}-{uuid4()}')
-    home.mkdir(mode=0o700)
-    write_config(home, root, os.getuid() if uid is None else uid,
-        provider_config(base_url, model, governed=True), apply_owner=apply_owner)
-    factory = connection_factory or CodexConnection
-    async with factory(command, home, provider_env={'MEMORY_SPARK_LLM_API_KEY':api_key},
-            timeout=timeout, trajectory=trajectory, progress=progress, request_admission=request_admission,
-            **issue14_connection_options(issue14_admission)) as connection:
-        opened = await open_execution(connection, thread_id=None, compatible=False,
-            start_params={'cwd':str(home), 'ephemeral':True, 'modelProvider':'llm_provider',
-                'model':model, 'approvalPolicy':'never', 'sandbox':'read-only',
-                'baseInstructions':model_packet}, identity=identity.model_dump(mode='json'))
-        candidate = opened['thread_id']
+    async with AsyncExitStack() as stack:
+        direct_reply = interview_context.get('reply_contract') == 'reply-v2'
+        if direct_reply:
+            candidate = 'reply-' + uuid4().hex
+        else:
+            root = Path(home_root).expanduser().resolve()
+            root.mkdir(parents=True, exist_ok=True, mode=0o700)
+            identity = packet.identity
+            home = root / (f'governed-{identity.owner_id}-{identity.conversation_id}'
+                f'-epoch-{packet.policy_epoch}-generation-{packet.fence.execution_generation}-{uuid4()}')
+            home.mkdir(mode=0o700)
+            write_config(home, root, os.getuid() if uid is None else uid,
+                provider_config(base_url, model, governed=True), apply_owner=apply_owner)
+            factory = connection_factory or CodexConnection
+            connection = await stack.enter_async_context(factory(command, home,
+                provider_env={'MEMORY_SPARK_LLM_API_KEY':api_key}, timeout=timeout,
+                trajectory=trajectory, progress=progress, request_admission=request_admission,
+                **issue14_connection_options(issue14_admission)))
+            opened = await open_execution(connection, thread_id=None, compatible=False,
+                start_params={'cwd':str(home), 'ephemeral':True, 'modelProvider':'llm_provider',
+                    'model':model, 'approvalPolicy':'never', 'sandbox':'read-only',
+                    'baseInstructions':model_packet}, identity=identity.model_dump(mode='json'))
+            candidate = opened['thread_id']
         static_parts = [packet.instructions, GOVERNED_TURN_PROMPT]
         if repair_reason:
             static_parts.extend(load_prompt_artifact(prompt_path(
@@ -407,19 +414,29 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             variant='collector-repair' if repair_reason else 'collector',
             extra_names=['memoir/shared/historical-acknowledgements']
                 if interview_context.get('historical_news',{}).get('clues') else [])
-        with trace_llm_call('memoir.' + str('collector-repair' if repair_reason else 'collector'), model, metadata={
+        trace_metadata = {
                 'contract_version': interview_context.get('reply_contract', 'lifetime-v1'),
-                'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}):
-            reply = await connection.turn(candidate, prompt,
-                output_schema=output_schema,
-                **({'on_delta':model_delta} if on_delta else {}),
-                **({'on_event':on_event} if on_event else {}),
-                **({'effort':effort} if effort else {}),
-                responsesapi_client_metadata={**manifest_metadata(manifest),
-                    **(responsesapi_client_metadata or {}),
-                    'generation_name': 'memoir-interviewer',
-                    'trace_name': 'memoir-interviewer',
-                })
+                'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}
+        metadata = {**manifest_metadata(manifest), **(responsesapi_client_metadata or {}),
+                    'generation_name': 'memoir-interviewer', 'trace_name': 'memoir-interviewer'}
+        with trace_llm_call('memoir.' + str('collector-repair' if repair_reason else 'collector'),
+                            model, metadata=trace_metadata) as trace:
+            if direct_reply:
+                from .conversation_reply_transport import stream_reply
+                from .llm_tracing import update_llm_trace
+                reply, receipt = await stream_reply(view=json.loads(model_packet), prompt=prompt,
+                    schema=output_schema, model=model, effort=effort, budget=governed.budget,
+                    base_url=base_url, api_key=api_key, publisher=publisher, fence=packet.fence,
+                    metadata=metadata, timeout=timeout, on_delta=model_delta if on_delta else None,
+                    issue14_admission=issue14_admission)
+                update_llm_trace(trace, metadata={**trace_metadata, 'transport': 'responses', **receipt})
+            else:
+                reply = await connection.turn(candidate, prompt,
+                    output_schema=output_schema,
+                    **({'on_delta':model_delta} if on_delta else {}),
+                    **({'on_event':on_event} if on_event else {}),
+                    **({'effort':effort} if effort else {}),
+                    responsesapi_client_metadata=metadata)
         try:
             validated = validate_governed_collector_result(reply, interview_context)
             expected = acknowledgement if acknowledgement is not None else streamed_acknowledgement
