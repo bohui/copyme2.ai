@@ -491,8 +491,11 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         quoted=source['text']
         model_places=[{**place} for place in reversed(places)]
         model_places[1]['research']=dict(year_start=1980,year_end=1989,anchor_year=1983,basis='birth_decade',
-            quote=quoted,char_start=0,char_end=len(quoted))
-        return {**empty(packet), 'place_journeys': model_places}
+            quote=quoted,char_start=0,char_end=len(quoted)+3)
+        # Replay the live failure: both derived proposals preserve the words but miscount the span.
+        question=dict(question='关于承德的这段经历，您还记得什么？',topic='承德回忆',
+            quote=quoted,char_start=0,char_end=len(quoted)+3)
+        return {**empty(packet), 'place_journeys': model_places, 'prepared_questions':[question]}
     def external_get(url,**kwargs):
         params=kwargs['params']
         if 'maps.googleapis.com' in url:
@@ -547,6 +550,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         pending=progress(conversation)
         assert pending['pending'] and pending['derived_workspace']['places']==[]
         conversation.drain()
+        assert [phase for phase,_ in conversation.admissions].count('extract') == 1
         ready=progress(conversation)
         response=conversation.client.get(f'/v1/user/projects/{conversation.project}/history')
         assert response.status_code==200,response.text

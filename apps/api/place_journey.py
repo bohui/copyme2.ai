@@ -5,7 +5,7 @@ import json
 import re
 import unicodedata
 from typing import Any, Literal
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validator
 from .place_identity import geographic_label, place_identity, place_path
 
 
@@ -20,11 +20,19 @@ class PlaceResearchWindow(BaseModel):
     char_end: int = Field(ge=1)
 
     @model_validator(mode='after')
-    def bounds(self):
+    def bounds(self, info: ValidationInfo):
         if not 0 <= self.year_end - self.year_start <= 15:
             raise ValueError('Invalid research window')
         if self.anchor_year is not None and not self.year_start <= self.anchor_year <= self.year_end:
             raise ValueError('Research anchor must be inside its window')
+        if (info.context or {}).get('derived_source') is not None:
+            from .interview_questions import question_span
+            source = info.context['derived_source']
+            try:
+                self.char_start, self.char_end = question_span(source, self.quote, self.char_start, self.char_end)
+            except ValueError:
+                # Typed Lane B proposals may miscount; only the unchanged unique quote owns its span.
+                self.char_start, self.char_end = question_span(source, self.quote)
         if self.char_end - self.char_start != len(self.quote):
             raise ValueError('Invalid research evidence span')
         return self
