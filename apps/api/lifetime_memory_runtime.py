@@ -331,12 +331,12 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if context.get('strategy_selector'):
                     instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS
                 else:
-                    privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/legacy/privacy-guard'))
+                    privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
                     instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
                 if two_lane:
                     instructions+=CONVERSATION_INSTRUCTIONS
                 else:
-                    instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/legacy/governed-places'))
+                    instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-places'))
             try:
                 packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
                 tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)

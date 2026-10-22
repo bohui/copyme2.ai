@@ -4,36 +4,35 @@
   "scope": "local Langfuse interviewer namespace only; prompt text and runtime configuration unchanged",
   "names": 23,
   "root_prompts": [
-    "governed-turn",
-    "greeting-begin",
-    "greeting-continue",
-    "policy-review",
-    "repair-acknowledgement",
-    "repair-codes",
-    "repair-prefix",
-    "repair-suffix",
-    "reply",
-    "strategy-proposal"
-  ],
-  "legacy_prompts": [
     "background-memory",
     "collector",
     "collector-plan",
     "governed-continuity",
     "governed-places",
+    "governed-turn",
+    "greeting-begin",
+    "greeting-continue",
     "guidance",
-    "language/en-AU",
-    "language/zh-CN",
+    "language-en-AU",
+    "language-zh-CN",
+    "policy-review",
     "privacy-guard",
-    "strategy/comfort",
-    "strategy/explore",
-    "strategy/selection",
-    "strategy/shape"
+    "repair-acknowledgement",
+    "repair-codes",
+    "repair-prefix",
+    "repair-suffix",
+    "reply",
+    "strategy-comfort",
+    "strategy-explore",
+    "strategy-proposal",
+    "strategy-selection",
+    "strategy-shape"
   ],
+  "legacy_prompts": [],
   "versions": 46,
   "source_texts_unchanged": 23,
   "compiled_hashes_unchanged": 23,
-  "receipts_refreshed": 20,
+  "receipts_refreshed": 13,
   "new_versions": 0,
   "version_record_stable_fields_sha256": "ee3c0780e88fce11a0e4dc3618a178c0ae18e38b13435d4b91a9b81ec476a001",
   "backup": "var/interviewer-prompt-layout-20261022/langfuse-before.json",
@@ -56,7 +55,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/background-memory",
-      "name": "memoir/skills/memoir-interviewer/legacy/background-memory",
+      "name": "memoir/skills/memoir-interviewer/background-memory",
       "source": "skills/memoir-interviewer/prompts/background-memory.md",
       "version": 2,
       "source_sha256": "9407ab2f75826baa74b2377df4062ef8a91cb45948810abd31fffe6c212a801e",
@@ -64,7 +63,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/collector",
-      "name": "memoir/skills/memoir-interviewer/legacy/collector",
+      "name": "memoir/skills/memoir-interviewer/collector",
       "source": "skills/memoir-interviewer/prompts/collector.md",
       "version": 2,
       "source_sha256": "a3ead5e1d7c122c163d7481cb612c2899ecefbd9890a106a6f89a951462feb00",
@@ -72,7 +71,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/collector-plan",
-      "name": "memoir/skills/memoir-interviewer/legacy/collector-plan",
+      "name": "memoir/skills/memoir-interviewer/collector-plan",
       "source": "skills/memoir-interviewer/prompts/collector-plan.md",
       "version": 4,
       "source_sha256": "b996bd54abd5ad748c85dae29fce9e9c30728c0a95d5d72f63d75524d3d63212",
@@ -80,7 +79,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/governed-places",
-      "name": "memoir/skills/memoir-interviewer/legacy/governed-places",
+      "name": "memoir/skills/memoir-interviewer/governed-places",
       "source": "skills/memoir-interviewer/prompts/governed-places.md",
       "version": 1,
       "source_sha256": "1cf70ab51f86089cc0f96b35274aa52c0a075604c6a0fab6423e8695715f75e7",
@@ -88,7 +87,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/governed-continuity",
-      "name": "memoir/skills/memoir-interviewer/legacy/governed-continuity",
+      "name": "memoir/skills/memoir-interviewer/governed-continuity",
       "source": "skills/memoir-interviewer/prompts/governed-continuity.md",
       "version": 3,
       "source_sha256": "2a0c0f829ed1569cd98b6f600b36219b8b74c5c155f433bbf3b736a93849189f",
@@ -144,7 +143,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/guidance",
-      "name": "memoir/skills/memoir-interviewer/legacy/guidance",
+      "name": "memoir/skills/memoir-interviewer/guidance",
       "source": "skills/memoir-interviewer/prompts/guidance.md",
       "version": 4,
       "source_sha256": "275d76668cfaefe46ec0d1d1c9aae31255df8fd594f93ff045607b0949799f17",
@@ -152,7 +151,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/language/en-AU",
-      "name": "memoir/skills/memoir-interviewer/legacy/language/en-AU",
+      "name": "memoir/skills/memoir-interviewer/language-en-AU",
       "source": "skills/memoir-interviewer/prompts/language/en-AU.md",
       "version": 1,
       "source_sha256": "39fa47b6449054f239c2d758f4dd0ebc33505f5e4864b8f5e5c6778d4c2eccb4",
@@ -160,7 +159,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/language/zh-CN",
-      "name": "memoir/skills/memoir-interviewer/legacy/language/zh-CN",
+      "name": "memoir/skills/memoir-interviewer/language-zh-CN",
       "source": "skills/memoir-interviewer/prompts/language/zh-CN.md",
       "version": 1,
       "source_sha256": "316e7866fca80f8b533edf4d4253ff0648e0a2955f345c2b9f69ba0d1ee2c163",
@@ -176,7 +175,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/privacy-guard",
-      "name": "memoir/skills/memoir-interviewer/legacy/privacy-guard",
+      "name": "memoir/skills/memoir-interviewer/privacy-guard",
       "source": "skills/memoir-interviewer/prompts/privacy-guard.md",
       "version": 1,
       "source_sha256": "0d1d5cac6b3e73ed48785a97b60f29061925d3cf09ef2f72b9bd3c989486b346",
@@ -184,7 +183,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/strategy/comfort",
-      "name": "memoir/skills/memoir-interviewer/legacy/strategy/comfort",
+      "name": "memoir/skills/memoir-interviewer/strategy-comfort",
       "source": "skills/memoir-interviewer/prompts/strategy/comfort.md",
       "version": 2,
       "source_sha256": "84844e71a1dc98907b452c448cc895259987c79873e3e59465b89ae878eb621f",
@@ -192,7 +191,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/strategy/explore",
-      "name": "memoir/skills/memoir-interviewer/legacy/strategy/explore",
+      "name": "memoir/skills/memoir-interviewer/strategy-explore",
       "source": "skills/memoir-interviewer/prompts/strategy/explore.md",
       "version": 2,
       "source_sha256": "2026dd118a8d6e04a58d40bb5441763ada65ac0985cd29d46a9ad0e051cb7947",
@@ -208,7 +207,7 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/strategy/selection",
-      "name": "memoir/skills/memoir-interviewer/legacy/strategy/selection",
+      "name": "memoir/skills/memoir-interviewer/strategy-selection",
       "source": "skills/memoir-interviewer/prompts/strategy/selection.md",
       "version": 6,
       "source_sha256": "f6056a2410ef31de318cd4dd105d2f467618fa6863f9504773b1eb4f50c7fbb5",
@@ -216,14 +215,14 @@
     },
     {
       "original_name": "memoir/skills/memoir-interviewer/strategy/shape",
-      "name": "memoir/skills/memoir-interviewer/legacy/strategy/shape",
+      "name": "memoir/skills/memoir-interviewer/strategy-shape",
       "source": "skills/memoir-interviewer/prompts/strategy/shape.md",
       "version": 2,
       "source_sha256": "aed26acddbc9f311539f50d8a4c91ddfdcfaf7fd48f17fe38073e67f6e9f533b",
       "compiled_sha256": "35246d07d0a3b4d4880b679df397f433effb6b140c8fa6b2f582c255d8cb675d"
     }
   ],
-  "checks": {
+  "previous_layout_checks": {
     "prompt_pins_verified": 92,
     "regressions_passed": 427,
     "regressions_failed": 2,
@@ -237,6 +236,62 @@
     "native_allocation_cleanup_verified": true,
     "live_llm_calls": 0,
     "service_restarts": 0,
-    "baseline_source_snapshot_removed": true
+    "baseline_source_snapshot_removed": true,
+    "scope": "Checks before the correction that moved supported prompts out of legacy; retained as prior evidence only."
+  },
+  "classification": "All 23 prompts are reachable in supported modes; none are retired or archived.",
+  "correction_backup": "var/interviewer-prompt-layout-20261022/correction/langfuse-before.json",
+  "checks": {
+    "status": "pending",
+    "reply_instruction_characters": 1986,
+    "live_llm_calls": 0,
+    "service_restarts": 0,
+    "runtime_and_tooling_files_only_rename_strings": 7,
+    "files": [
+      "apps/api/agent_routes.py",
+      "apps/api/codex_runtime.py",
+      "apps/api/interview_strategy.py",
+      "apps/api/lifetime_memory_engine.py",
+      "apps/api/prompt_catalog.py",
+      "apps/api/two_lane_memory.py",
+      "scripts/memoir_skill_eval_suite.py"
+    ],
+    "current_and_supported_mode_prompts_load": true,
+    "reply_artifacts": [
+      "memoir/skills/memoir-interviewer/reply",
+      "memoir/skills/memoir-interviewer/governed-turn"
+    ],
+    "prompt_pins_verified": 92
+  },
+  "correction_attempts": [
+    {
+      "name": "corrected-prompt-references",
+      "status": "timed_out",
+      "exit_code": 124,
+      "duration_seconds": 180.06,
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-op40o_aa",
+            "device": 16777231,
+            "inode": 939865462
+          }
+        ],
+        "command_groups_stopped": []
+      }
+    }
+  ],
+  "instruction_budget": {
+    "scope": "Static source characters; excludes schema, testimony, serialization and agent/runtime overhead.",
+    "normal_reply_v2": 1986,
+    "foreground_policy_review": 2753,
+    "normal_foreground_two_call_total": 4739,
+    "conditional_repair_static_addition": 3215,
+    "optional_repair_acknowledgement_rule": 54,
+    "whole_lane_a_under_2000": false,
+    "inventory_is_not_per_turn_input": true
   }
 }

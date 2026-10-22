@@ -25,7 +25,7 @@ from .place_journey import grounded_place_journeys, validate_place_journey, Plac
 MAX_CONTINUITY_UPDATES = 8
 
 
-GOVERNED_CONTINUITY_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/legacy/governed-continuity'))
+GOVERNED_CONTINUITY_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-continuity'))
 
 
 class _ContinuityUpdate(BaseModel):

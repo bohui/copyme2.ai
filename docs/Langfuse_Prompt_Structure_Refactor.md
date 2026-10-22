@@ -16,16 +16,15 @@ memoir/
       repair-{codes,prefix,suffix,acknowledgement}
       greeting-{begin,continue}
       strategy-proposal
-      legacy/
-        collector
-        collector-plan
-        background-memory
-        governed-continuity
-        governed-places
-        guidance
-        privacy-guard
-        strategy/{comfort,explore,shape,selection}
-        language/{en-AU,zh-CN}
+      collector
+      collector-plan
+      background-memory
+      governed-continuity
+      governed-places
+      guidance
+      privacy-guard
+      strategy-{comfort,explore,shape,selection}
+      language-{en-AU,zh-CN}
     memoir-author-timeline/
       instructions
       contract
@@ -66,11 +65,13 @@ it adds no runner or scheduler. The other skill sources remain inside their
 existing skill directories. Generic bounded-worker policy has one shared owner
 because both timeline and composer consume it.
 
-The interviewer root contains the ten prompts reachable with `reply-v2`, including
-its conditional repairs, begin/continue actions and Lane B strategy proposal.
-The thirteen `legacy` entries remain callable by `compact-v1` and `two-lane-v1`;
-moving them does not change the configured collector mode. Repository source
-paths remain stable: the catalog maps Langfuse names to these existing files.
+The interviewer root contains all 23 prompts reachable through supported modes.
+Ten serve `reply-v2`, its conditional repairs, begin/continue actions and Lane B
+strategy proposal. Thirteen also serve `compact-v1` or `two-lane-v1`, so they
+remain active prompts. No `legacy` folder is created: retirement requires removing
+the supported callers first. Language and strategy variants use flat root names.
+Repository source paths remain stable: the catalog maps Langfuse names to these
+existing files. The cleanup does not change the configured collector mode.
 
 The October 22 interviewer cleanup changes record names only in the local
 Langfuse project. All 46 version records retain their IDs, text, numeric versions,

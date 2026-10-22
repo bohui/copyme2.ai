@@ -17,7 +17,7 @@ def two_lanes_enabled():
     return os.getenv('MEMOIR_TWO_LANES', '').lower() in {'1', 'true', 'yes'}
 
 
-CONVERSATION_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/legacy/background-memory'))
+CONVERSATION_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/background-memory'))
 
 
 class PreparedQuestion(BaseModel):

@@ -172,7 +172,7 @@ def packet(item):
         from apps.api.lifetime_memory_continuity import GOVERNED_CONTINUITY_INSTRUCTIONS, governed_collector_schema
         from apps.api.prompt_composition import render_prompt_artifact
         instructions = '\n'.join((strategy_instructions(task['strategy']), render_prompt_artifact(
-            prompt_path('memoir/skills/memoir-interviewer/legacy/language/' + item['locale'])), GOVERNED_CONTINUITY_INSTRUCTIONS))
+            prompt_path('memoir/skills/memoir-interviewer/language-' + item['locale'])), GOVERNED_CONTINUITY_INSTRUCTIONS))
         schema = governed_collector_schema(task['context'])
         payload = task['context']
     elif skill in {'memoir-author-timeline', 'memoir-place-journey'}:

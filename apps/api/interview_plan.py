@@ -127,7 +127,7 @@ def collector_schema(context=None):
 
 
 def collector_instructions(context):
-    prefix = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/legacy/collector-plan'))
+    prefix = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/collector-plan'))
     return prefix + json.dumps(context, ensure_ascii=False, separators=(',', ':'))
 
 def _questions(value):
