@@ -48,6 +48,10 @@ def _generic_event(event):
     """No free-form string, identifier or payload may hide in this exemption."""
     if event in ({'type': 'started'}, {'type': 'heartbeat'}):
         return True
+    if (set(event) == {'type', 'data'} and event['type'] == 'reply_revision'
+            and isinstance(event['data'], dict) and set(event['data']) == {'revision'}):
+        revision = event['data']['revision']
+        return type(revision) is int and 0 <= revision <= 64
     if set(event) != {'type', 'data'} or event['type'] != 'progress':
         return False
     data = event['data']
@@ -61,6 +65,8 @@ class _Envelope:
     body: bytes
     fence: ExecutionFence | None
     terminal: bool = False
+    revision: int | None = None
+    draft: bool = False
 
 
 @dataclass(frozen=True, init=False)
@@ -84,6 +90,14 @@ class GovernedEmitter:
     def __init__(self, stream):
         self._stream = stream
         self._fence = None
+        self.revision = None
+        self.draft = False
+
+    async def begin_revision(self, *, draft):
+        self.revision = 0 if self.revision is None else self.revision + 1
+        if self.revision > 64: raise ValueError('Too many reply revisions')
+        self.draft = draft
+        await self.event({'type':'reply_revision', 'data':{'revision':self.revision}})
 
     def set_fence(self, fence):
         self._fence = _copy_fence(fence)
@@ -95,7 +109,8 @@ class GovernedEmitter:
         if not isinstance(text, str):
             raise ValueError('Invalid turn stream text')
         if text:
-            await self.event({'type': 'text_delta', 'text': text})
+            await self.event({'type': 'text_delta', 'text': text,
+                **({'revision':self.revision} if self.revision is not None else {})})
 
     async def event(self, event):
         if not isinstance(event, dict) or not isinstance(event.get('type'), str) or not event['type']:
@@ -103,7 +118,8 @@ class GovernedEmitter:
         # Freeze both serialized payload and fence *before* any queue backpressure.
         fence = None if _generic_event(event) else _copy_fence(self._fence)
         envelope = _Envelope(_json_bytes(event) + b'\n', fence,
-                             terminal=event['type'] in {'result', 'error'})
+                             terminal=event['type'] in {'result', 'error'},
+                             revision=self.revision, draft=self.draft)
         if event.get('turn_id'):
             self._stream.request_id = new_request_id(event['turn_id'])
         if event['type'] == 'source_accepted':
@@ -247,10 +263,11 @@ async def _send_generic(send, message, publisher):
 
 class GovernedStreamingResponse(StreamingResponse):
     def __init__(self, content, *, publisher, status_code=200, headers=None,
-                 media_type='application/x-ndjson', background=None, on_delivered=None):
+                 media_type='application/x-ndjson', background=None, on_delivered=None, draft_publisher=None):
         if not isinstance(content, GovernedTurnStream):
             raise TypeError('GovernedStreamingResponse requires governed_turn_events')
         self.publisher = publisher
+        self.draft_publisher = draft_publisher
         self.governed_stream = content
         self.on_delivered=on_delivered
         self.delivered = False
@@ -264,18 +281,27 @@ class GovernedStreamingResponse(StreamingResponse):
             await _send_generic(send, {'type': 'http.response.start',
                 'status': self.status_code, 'headers': self.raw_headers}, self.publisher)
             async for envelope in self.body_iterator:
+                if envelope.revision is not None and envelope.revision != self.governed_stream.emitter.revision:
+                    continue
                 message = {'type': 'http.response.body', 'body': envelope.body,
                            'more_body': True}
                 if envelope.fence is None:
                     await _send_generic(send, message, self.publisher)
                 else:
                     try:
-                        await send_governed(send, message, publisher=self.publisher,
+                        publisher = self.draft_publisher if envelope.draft else self.publisher
+                        if publisher is None: raise PublicationUnavailable('Draft publication is not configured')
+                        await send_governed(send, message, publisher=publisher,
                                             fence=envelope.fence)
                         if self.on_delivered:self.on_delivered(json.loads(envelope.body))
                         if envelope.terminal:
                             terminal_delivered = json.loads(envelope.body).get('type') == 'result'
                     except Exception as error:
+                        from .lifetime_memory_policy import PolicyUnavailable
+                        if envelope.draft and (isinstance(error, PolicyUnavailable)
+                                or getattr(error, 'sqlstate', None) == 'PT409'):
+                            # Review can invalidate queued drafts before its reset frame is consumed.
+                            continue
                         self.governed_stream.log_failure(error, stage='publication')
                         # A failed database guard drops this and all queued private
                         # bodies. Only a fixed, non-personal reconciliation notice

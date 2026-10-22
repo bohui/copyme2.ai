@@ -99,6 +99,15 @@ class ProviderPublication(TransactionalPublication):
         await require_provider_activation(connection)
 
 
+class DraftPublication(TransactionalPublication):
+    """Current-turn draft only; final publication still requires completed review."""
+    lock_function = 'lock_lifetime_draft_reply'
+
+
+class DraftProviderPublication(ProviderPublication):
+    lock_function = 'lock_lifetime_draft_reply'
+
+
 async def send_governed(send, message, *, publisher, fence):
     """Guard actual ASGI send completion. Snapshot belongs to this exact body.
 

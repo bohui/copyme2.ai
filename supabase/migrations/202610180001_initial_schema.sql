@@ -7629,6 +7629,31 @@ begin
   return remaining;
 end $$;
 
+CREATE FUNCTION public.lock_lifetime_draft_reply(p_fence jsonb) RETURNS double precision
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare remaining double precision; owner uuid:=auth.uid(); project text:=p_fence->'identity'->>'project_id';
+ source public.user_narrator_source%rowtype; pending_count integer;
+begin
+ remaining:=public.lock_lifetime_publication_scope(p_fence);
+ if exists(select 1 from public.user_lifetime_policy_inventory_pending where user_id=owner and project_id=project) then
+   raise exception 'LIFETIME_POLICY_PENDING' using errcode='55000';end if;
+ select * into source from public.user_narrator_source where user_id=owner and project_id=project
+   and sequence=(p_fence->>'source_revision')::bigint and status='active';
+ if not found then raise exception 'active current draft source required' using errcode='PT409';end if;
+ select count(*) into pending_count from public.user_lifetime_pending_policy where user_id=owner and project_id=project;
+ if pending_count>0 then
+   if pending_count<>1 or not exists(select 1 from public.user_lifetime_pending_policy
+       where user_id=owner and project_id=project and source_id=source.id and source_version=source.version
+         and conversation_id=(p_fence->'identity'->>'conversation_id')::uuid) then
+     raise exception 'LIFETIME_POLICY_PENDING' using errcode='55000';end if;
+ elsif not exists(select 1 from public.user_lifetime_source_policy_receipt
+     where user_id=owner and project_id=project and source_id=source.id and source_version=source.version
+       and review#>'{output,complete}'='true'::jsonb and review#>'{output,restrictions}'='[]'::jsonb) then
+   raise exception 'LIFETIME_DRAFT_REPLACED' using errcode='PT409';
+ end if;
+ return remaining;
+end $$;
+
 CREATE FUNCTION public.lock_lifetime_read_publication(p_fence jsonb) RETURNS double precision
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
@@ -11858,7 +11883,10 @@ begin
  select project_id into project from public.user_lifetime_conversation where user_id=owner and conversation_id=(p_fence->'identity'->>'conversation_id')::uuid;
  if not found then raise exception 'conversation unavailable'; end if;
  perform 1 from public.user_memoir_project where user_id=owner and project_id=project for update;
- perform public.lock_lifetime_publication(p_fence);
+ -- Language metadata is selected before starting concurrent source review.
+ if exists(select 1 from public.user_lifetime_pending_policy where user_id=owner and project_id=project) then
+   perform public.lock_lifetime_draft_reply(p_fence);
+ else perform public.lock_lifetime_publication(p_fence);end if;
  if p_language not in ('en-AU','zh-CN') or p_explicit is null then raise exception 'invalid language selection'; end if;
  select profile->>'preferred_language' into selected from public.user_profile where user_id=owner for update;
  if p_explicit or selected is null or selected not in ('en-AU','zh-CN') then
@@ -13624,6 +13652,7 @@ revoke all on function public.lock_lifetime_profile_creation() from public,anon,
 revoke all on function public.lock_lifetime_provider_activation() from public,anon,authenticated,service_role;
 revoke all on function public.lock_lifetime_publication(jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.lock_lifetime_publication_scope(jsonb) from public,anon,authenticated,service_role;
+revoke all on function public.lock_lifetime_draft_reply(jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.lock_lifetime_read_publication(jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.lock_lifetime_read_publication_scope(jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.mark_lifetime_mapping_policy_pending() from public,anon,authenticated,service_role;
@@ -13942,6 +13971,7 @@ grant EXECUTE on function public.lock_lifetime_policy_profile() to service_role;
 grant EXECUTE on function public.lock_lifetime_profile_creation() to service_role;
 grant EXECUTE on function public.lock_lifetime_provider_activation() to authenticated;
 grant EXECUTE on function public.lock_lifetime_publication(jsonb) to authenticated;
+grant EXECUTE on function public.lock_lifetime_draft_reply(jsonb) to authenticated;
 grant EXECUTE on function public.lock_lifetime_read_publication(jsonb) to authenticated;
 grant EXECUTE on function public.memoir_lane_progress(public.user_memoir_lane) to service_role;
 grant EXECUTE on function public.memory_age_number(text) to service_role;

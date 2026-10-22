@@ -29,6 +29,30 @@ test('readable old durable history cannot hide a newer tab copy after a quota er
   assert.deepEqual(Array.from(h.context.restoreChatHistory('a'), m => m.text), ['Older memory', 'New accepted memory']);
 });
 
+test('provisional reply revisions never enter either browser history cache', () => {
+  const h = harness();
+  const reply = {role:'assistant', text:'Withdrawn family detail.', provisional:true};
+  h.state.chat = [{role:'user', text:'Please change the subject.'}, reply];
+  h.context.persistChatHistory();
+  assert.deepEqual(Array.from(h.context.restoreChatHistory('a'), m => m.text), ['Please change the subject.']);
+  for (const cache of [h.durable, h.tab]) assert.equal(cache.get('chat:guest:a').includes('Withdrawn'), false);
+  reply.text = 'What would you like to discuss instead?';
+  reply.provisional = false;
+  h.context.persistChatHistory();
+  assert.deepEqual(Array.from(h.context.restoreChatHistory('a'), m => m.text),
+    ['Please change the subject.', 'What would you like to discuss instead?']);
+});
+
+test('retrying a provisional reply removes its older cached draft without removing other turns', () => {
+  const h = harness();
+  const cached = [{cacheId:'older',role:'assistant',text:'Older confirmed reply.',clientTurnId:'old'},
+    {cacheId:'retry',role:'assistant',text:'Older failed draft.',clientTurnId:'retry'}];
+  for (const cache of [h.durable,h.tab]) cache.set('chat:guest:a', JSON.stringify(cached));
+  h.state.chat = [{role:'assistant',text:'New draft.',clientTurnId:'retry',provisional:true}];
+  h.context.persistChatHistory();
+  assert.deepEqual(Array.from(h.context.restoreChatHistory('a'),m=>m.text),['Older confirmed reply.']);
+});
+
 test('a newer durable copy from another tab is merged with this tabs newer partial reply', () => {
   const h = harness();
   h.durable.set('chat:guest:a', JSON.stringify([{cacheId: 'old', role: 'user', text: 'Older memory'},

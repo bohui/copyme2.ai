@@ -62,7 +62,7 @@ def validate_review(output, source):
 
 
 async def _review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None,
-                                 language=None, fallback_language='en-AU'):
+                                 language=None, fallback_language='en-AU', include_decision=False):
     """An unavailable review leaves durable pending state and all other work closed."""
     from psycopg import AsyncConnection
     from psycopg.types.json import Jsonb
@@ -110,17 +110,21 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
                 (Jsonb(fence), source['id'], source['version'], Jsonb(output), Jsonb(receipt)))
     finally:
         await _settle(asyncio.create_task(connection.close()))
-    if acknowledgement:
+    opening = (dict(source_id=source['id'], source_version=source['version'],
+                    language=selected_language, text=acknowledgement) if acknowledgement else None)
+    if include_decision:
         return dict(source_id=source['id'], source_version=source['version'],
-                    language=selected_language, text=acknowledgement)
+                    restricted=bool(output['restrictions']), acknowledgement=opening)
+    return opening
 
 
 async def review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None,
-                                language=None, fallback_language='en-AU'):
+                                language=None, fallback_language='en-AU', include_decision=False):
     import httpx
     import psycopg
     try:
         return await _review_pending_policy(storage, lease, conversation_id,
-            model=model, base_url=base_url, api_key=api_key, language=language, fallback_language=fallback_language)
+            model=model, base_url=base_url, api_key=api_key, language=language, fallback_language=fallback_language,
+            include_decision=include_decision)
     except (ValueError, KeyError, TypeError, OSError, httpx.HTTPError, psycopg.Error) as error:
         raise PolicyUnavailable() from error

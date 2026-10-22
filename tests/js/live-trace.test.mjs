@@ -3,8 +3,56 @@ import test from 'node:test';
 import { escapeHtml } from '../../apps/web/client/memoir/dom.mjs';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {createReplyRevision} from '../../apps/web/client/memoir/reply-revision.mjs';
 const source=readMemoirClientSource();
 const extract = name => ['captureProjectScope', 'isCurrentProjectScope', 'currentWorkspaceMemoryFocus', 'workspaceTurnFocus', 'markWorkspaceFocusStarted', 'readBrowserValues', 'mergeChatHistoryCopies'].map(helper => source.match(new RegExp(`(?:async )?function ${helper}\\([^]*?\\n\}`))[0]).join('\n') + '\n' + (source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0]);
+
+test('revision events discard old and untagged tokens without ending the reply stream', async () => {
+ const events=[{type:'reply_revision',data:{revision:0}}, {type:'text_delta',text:'Draft.',revision:0},
+  {type:'reply_revision',data:{revision:1}}, {type:'text_delta',text:'Late cancelled tokens.',revision:0},
+  {type:'text_delta',text:'Untagged cancelled tokens.'}, {type:'text_delta',text:'Replacement.',revision:1},
+  {type:'reply_revision',data:{revision:0}},
+  {type:'conversation_saved',data:{reply:'Replacement.',conversation_saved:true}},
+  {type:'reply_revision',data:{revision:2}}, {type:'text_delta',text:'After save.',revision:2},
+  {type:'result',data:{reply:'Replacement.',conversation_saved:true}}];
+ const seen=[];
+ const body=new ReadableStream({start(controller){controller.enqueue(new TextEncoder().encode(events.map(JSON.stringify).join('\n')));controller.close();}});
+ const context=vm.createContext({fetch:async()=>({ok:true,status:200,body}),state:{supabase:{accessToken:'test'},project:{id:'p'}},
+  memoirApiPath:p=>p,readCookie:()=>'',TextDecoder,conversationLanguage:()=> 'en-AU'});
+ vm.runInContext(extract('streamAgentTurn'),context);
+ const result=await context.streamAgentTurn('A memory',async(text,revision)=>seen.push([text,revision]),
+  async event=>{if(event.type==='reply_revision')seen.push(event.data.revision);});
+ await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(seen,[0,['Draft.',0],1,['Replacement.',1]]);
+ assert.equal(result.reply,'Replacement.');
+});
+
+for (const fail of [false,true]) test(`chat revises an immediately visible draft and clears it on ${fail?'failure':'save'}`, async () => {
+ const frames=[];
+ const context=vm.createContext({state:{supabase:{accessToken:'test'},project:{id:'p'},chat:[]},
+  conversationLanguage:()=> 'en-AU', simulatedLoopTrace:()=>[], nextAssistantMessageId:()=> 'm', render:()=>{},
+  updateStreamingAssistantMessage:message=>frames.push(message.text),toast:()=>{},
+  createReplyRevision:options=>createReplyRevision({...options,reducedMotion:()=>false,schedule:setImmediate,cancel:clearImmediate}),
+  refreshPrivateDraft:async()=>{},refreshStageReadiness:async()=>{},
+  streamAgentTurn:async(_text,onDelta,onEvent)=>{
+    await onEvent({type:'reply_revision',data:{revision:0}});
+    await onDelta('An unreviewed family detail.',0);
+    assert.equal(context.state.chat.at(-1).text,'An unreviewed family detail.');
+    assert.equal(context.state.chat.at(-1).provisional,true);
+    await onEvent({type:'reply_revision',data:{revision:1}});
+    await onDelta('LATE OLD TOKENS',0);
+    if(fail)throw new Error('Review unavailable');
+    await onDelta('We can change the subject.',1);
+    return {reply:'We can change the subject.',conversation_saved:true};
+  }});
+ vm.runInContext(extract('agentTurn'),context);
+ const result=await context.agentTurn('Please leave my family out.');
+ assert.equal(result.failed,fail?true:undefined);
+ assert.equal(result.streamedMessage.text,fail?'':'We can change the subject.');
+ assert.equal(result.streamedMessage.provisional,false);
+ assert.ok(frames.includes(''));
+ assert.equal(frames.some(text=>text.includes('LATE OLD')),false);
+});
 for (const completion of [{cached:false,has_question:true},
  {cached:false,has_question:true,reply:'A memory. What happened next?'},
  {cached:false,has_question:true,reply:'A memory. What happened next?',conversation_saved:true}]) {
@@ -120,7 +168,7 @@ test('thinking and text-only steps precede the reply, with no inline photo cards
  assert.ok(reply.indexOf('message-trace') < reply.indexOf('class="message-text"'));
 });
 test('incoming text replaces thinking without a standalone progress row', () => {
- const text={innerHTML:'',hidden:true};
+ const text={innerHTML:'',hidden:true,setAttribute(name,value){this[name]=value;}};
  const thinking={hidden:false};
  const progress={textContent:'',hidden:true};
  const row={querySelector:selector=>({'.message-text':text,'.message-thinking':thinking,'.message-progress':progress}[selector] || null)};
@@ -191,7 +239,7 @@ test('thinking status stays visible through steps, then hides when the response 
  assert.match(steps,/class="agent-loop" open/);
  assert.match(steps,/Checking conversation language/);
  assert.doesNotMatch(steps,/agent-loop-note|agent-loop-kind|<small>|Memoir.trace.status/);
- const text={hidden:true,innerHTML:''};
+ const text={hidden:true,innerHTML:'',setAttribute(name,value){this[name]=value;}};
  const thinking={hidden:false};
  let details;
  const trace={querySelector:()=>details,set innerHTML(html){details=html ? {open:html.includes('class="agent-loop" open')} : undefined;}};
