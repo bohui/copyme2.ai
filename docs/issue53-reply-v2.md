@@ -47,6 +47,36 @@ The underlying checkpoint/manifest, source-version, policy and publication check
 remain authoritative. A missing summary never creates fictitious coverage or
 discards the raw tail. The trace records the projected input's hash separately.
 
+## Model request layout
+
+The `reply-v2` responder uses a bounded streaming Responses request through the
+same configured gateway, model and effort. Its first developer message contains
+the existing interviewer instructions and dispatch. Authorized dialogue, brief,
+preferences and retrieved evidence follow as user data. The final user message
+contains the complete current exchange, including the original narrator wording
+and source metadata. Current evidence is not duplicated in the earlier context.
+
+This request advertises no tools and receives no Codex skill catalog, permission
+instructions or temporary workspace paths. It creates no agent home or resumable
+agent transcript. Other collector contracts and background lanes keep their
+existing transports. Provider response IDs are trace receipts; the saved reply's
+execution pointer remains separate from those potentially long IDs.
+
+Full governed validation still precedes projection. The HTTP body holds the
+existing publication guard through actual transport consumption and releases it
+before generation. Generation pause and evaluation admission are rechecked at
+that boundary. Existing acknowledgement streaming, strict result validation,
+bounded repair and durable-save fences remain in place. Requests respect the
+governed input and output budgets, responses have a byte limit, and a completed
+provider document must agree with any streamed text. Tools are never executed.
+
+The schema retains its reviewed field order so acknowledgement precedes private
+work. The cache key is stable within an owner and separate across owners. These
+changes create a reusable instruction prefix; they do not guarantee a cache hit.
+Small requests can fall below the provider's cache minimum. Compare actual cache
+usage and model latency separately from privacy review, application delivery and
+browser paint. This transport change reuses the published prompt text and pins.
+
 ## Durable background handoff
 
 The reply transaction records `reply-v2` as its execution contract. The existing

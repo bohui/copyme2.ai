@@ -1,0 +1,1013 @@
+{
+  "baseline_commit": "f94dd0aed73012aa75e7289b840bc93d4b5c85d7",
+  "candidate_code_commit": "3848f5e6e6b7e204712f03c88bd6dad1a20f00aa",
+  "scope": "Live model-stage diagnostic with synthetic governed evidence and a controlled publication guard. No real user account or persisted conversation was created. Browser, public application delivery, database save and concurrent B acceptance are unmeasured.",
+  "transport": "Same Responses gateway and gpt-5.6-luna-pooled alias; final candidate matches native requested low effort, low verbosity and all_turns reasoning context. Gateway key policy was not changed; its effective effort is not independently established by these traces.",
+  "plan": {
+    "baseline_revision": "f94dd0aed73012aa75e7289b840bc93d4b5c85d7",
+    "candidate": "pending implementation",
+    "scope": "live model-stage comparison only; synthetic governed state and controlled publication guard; no browser, database or deployed-worker acceptance",
+    "model": "gpt-5.6-luna-pooled",
+    "requested_effort": "low",
+    "provider_key_policy": "existing unchanged; previously observed max",
+    "arms": [
+      "baseline",
+      "candidate"
+    ],
+    "cases": [
+      "zh-opening",
+      "en-later-stop"
+    ],
+    "samples_per_case_per_arm": 2,
+    "total_model_generations": 8,
+    "max_generations_per_attempt": 1,
+    "validation_retries": 0,
+    "policy_calls": 0,
+    "judge_calls": 0,
+    "timeout_seconds_per_attempt": 45,
+    "total_deadline_seconds_per_arm": 200,
+    "quality_rubric": [
+      "Preserve narrator name, actions, relationships and quantities; invent no biographical facts.",
+      "Use Chinese for the Chinese opening; acknowledge the supplied gardening memory and ask at most one relevant question.",
+      "For the saved-history English stop case, acknowledge stopping and ask no follow-up.",
+      "All original source text and source metadata remain available to the model; strict host validation still applies."
+    ],
+    "cache": "two successive samples; report cached tokens if provider exposes them, without assuming a warm-cache hit",
+    "cleanup": "temporary runtime homes only; no hosted identity or story state created",
+    "amendments": [
+      {
+        "reason": "Initial candidate sorted output-schema fields and failed Chinese opening metadata validation; restore original field order and repeat the same four samples.",
+        "additional_generations": 4,
+        "new_total_generation_budget": 12,
+        "unchanged": [
+          "cases",
+          "quality rubric",
+          "model",
+          "effort",
+          "timeouts",
+          "sample count"
+        ],
+        "retained_failed_evidence": "candidate-initial.json"
+      },
+      {
+        "reason": "Match native low verbosity and all_turns reasoning context discovered in the actual provider trace; verify the final committed implementation.",
+        "additional_generations": 4,
+        "new_total_generation_budget": 16,
+        "candidate_commit": "3848f5e6e6b7e204712f03c88bd6dad1a20f00aa",
+        "unchanged": [
+          "cases",
+          "quality rubric",
+          "model route",
+          "effort",
+          "sample count",
+          "per-attempt timeout"
+        ],
+        "preserved_diagnostic_evidence": [
+          "candidate-initial.json",
+          "candidate.json"
+        ]
+      }
+    ]
+  },
+  "source_hashes": {
+    "conversation_reply.py": "fffd4aab393add96330760ac37d28ba9beabdf7d6f59ea0cddc45bbd9e61fe21",
+    "conversation_reply_transport.py": "8144f3e49c30c045f9c27ccbae7b945188f08b1e91eb190ab46c20cf6ce22af5",
+    "model_request.py": "0a12c4597cd8c2bd97d39f79e59efc14821d7d03ec1a101969de3b48850bf419",
+    "lifetime_memory_engine.py": "50de0e2980f00dce468b74779e17faf391a7aa98f616ae7ffc0b40ad742bcc93"
+  },
+  "gate_status": {
+    "input_layout": "pass: three messages; complete current evidence last; zero advertised tools/skills/environment",
+    "prompt_budget": "pass: existing core plus dispatch remains 1986 compiled characters",
+    "original_input_fidelity": "pass: matching governed-packet hashes; complete source metadata retained",
+    "observed_cache_hits": "none: all twelve candidate responses reported zero cached input tokens; baseline cache counts unavailable in observation usage",
+    "bilingual_quality": "inconclusive: final Chinese openings 2/2 and English stop 1/2 validate. One stop remains rejected for non-null question evidence with no question; both baseline stop attempts had the same defect.",
+    "end_to_end_latency": "unmeasured",
+    "concurrent_background": "unmeasured",
+    "issue53_acceptance": "not passed: strict sample-contract failure and missing end-to-end, resumed and concurrent-background acceptance",
+    "strict_sample_contracts": "fail: final candidate validates 3/4; one explicit stop retains non-null question evidence with no question. Baseline validates 2/4 with both stop attempts failing the same rule."
+  },
+  "semantic_review": "Manual review of the synthetic final outputs found grounded Chinese acknowledgements and relevant single questions, and English stop acknowledgements with no follow-up. This does not override the failed strict quote contract or establish broader bilingual/long-context/resumed quality.",
+  "summary": {
+    "zh-opening": {
+      "samples_per_arm": 2,
+      "baseline_validated": 2,
+      "candidate_validated": 2,
+      "baseline_input_tokens": [
+        3613,
+        3622
+      ],
+      "candidate_input_tokens": [
+        913,
+        913
+      ],
+      "input_reduction_percent": 74.76,
+      "baseline_median_ack_callback_s": 5.51145,
+      "candidate_median_ack_callback_s": 5.05835,
+      "baseline_median_completion_s": 5.92615,
+      "candidate_median_completion_s": 5.2556,
+      "baseline_median_provider_s": 5.4015,
+      "candidate_median_provider_s": 5.0485,
+      "candidate_ack_over_5_seconds": 1,
+      "candidate_ack_over_10_seconds": 0,
+      "caveat": "Rejected attempts remain included in raw timings; their acknowledgement does not count as a quality-gated successful response."
+    },
+    "en-later-stop": {
+      "samples_per_arm": 2,
+      "baseline_validated": 0,
+      "candidate_validated": 1,
+      "baseline_input_tokens": [
+        3761,
+        3770
+      ],
+      "candidate_input_tokens": [
+        1055,
+        1055
+      ],
+      "input_reduction_percent": 71.98,
+      "baseline_median_ack_callback_s": 4.8355,
+      "candidate_median_ack_callback_s": 3.5218499999999997,
+      "baseline_median_completion_s": 5.305899999999999,
+      "candidate_median_completion_s": 3.68585,
+      "baseline_median_provider_s": 5.0145,
+      "candidate_median_provider_s": 3.5975,
+      "candidate_ack_over_5_seconds": 0,
+      "candidate_ack_over_10_seconds": 0,
+      "caveat": "Rejected attempts remain included in raw timings; their acknowledgement does not count as a quality-gated successful response."
+    }
+  },
+  "checks": {
+    "reply-input-reviewed": {
+      "exit_code": 0,
+      "cleanup_verified": true
+    },
+    "reply-publication-regressions": {
+      "exit_code": 0,
+      "cleanup_verified": true
+    },
+    "reply-place-gate": {
+      "exit_code": 0,
+      "cleanup_verified": true
+    }
+  },
+  "prompt_check": {
+    "artifacts": 92,
+    "result": "passed; existing published pins; no prompt publication from feature branch"
+  },
+  "required_gate_counts": {
+    "web": 591,
+    "api_and_database": 429,
+    "standalone": 95
+  },
+  "targeted_suite_counts": {
+    "focused_and_runtime": 173,
+    "publication_and_decoder": 52
+  },
+  "broader_admission_suite": {
+    "baseline_commit": "f94dd0aed73012aa75e7289b840bc93d4b5c85d7",
+    "candidate_failures": [
+      "tests/test_issue14_execution_admission.py::test_dedicated_worker_http_rejects_before_starting_turn[False]",
+      "tests/test_issue14_execution_admission.py::test_dedicated_worker_http_rejects_before_starting_turn[True]",
+      "tests/test_issue14_execution_admission.py::test_dedicated_worker_publication_denied_before_task_store_contact",
+      "tests/test_issue14_execution_admission.py::test_normal_runtime_worker_request_and_result_are_unchanged",
+      "tests/test_issue14_execution_admission.py::test_normal_worker_default_remains_callable",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-language]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-publish]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-turn]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-worker]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-workspace]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-language]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-publish]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-turn]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-worker]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-workspace]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-language]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-publish]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-turn]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-worker]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-workspace]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-language]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-publish]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-turn]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-worker]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-workspace]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[author_timeline-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[collector-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[composer-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[composer-prepare]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[composer-review]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[memory_context-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[organiser-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[workspace-draft]"
+    ],
+    "baseline_failures": [
+      "tests/test_issue14_execution_admission.py::test_dedicated_worker_http_rejects_before_starting_turn[False]",
+      "tests/test_issue14_execution_admission.py::test_dedicated_worker_http_rejects_before_starting_turn[True]",
+      "tests/test_issue14_execution_admission.py::test_dedicated_worker_publication_denied_before_task_store_contact",
+      "tests/test_issue14_execution_admission.py::test_normal_runtime_worker_request_and_result_are_unchanged",
+      "tests/test_issue14_execution_admission.py::test_normal_worker_default_remains_callable",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-language]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-publish]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-turn]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-worker]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[None-workspace]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-language]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-publish]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-turn]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-worker]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata1-workspace]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-language]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-publish]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-turn]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-worker]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata2-workspace]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-language]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-publish]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-turn]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-worker]",
+      "tests/test_issue14_execution_admission.py::test_opted_runtime_refuses_all_paths_with_zero_worker_contacts[metadata3-workspace]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[author_timeline-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[collector-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[composer-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[composer-prepare]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[composer-review]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[memory_context-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[organiser-draft]",
+      "tests/test_issue14_execution_admission.py::test_opted_worker_denies_before_provider_probe_home_or_launch[workspace-draft]"
+    ],
+    "identical": true
+  },
+  "failures_and_limits": [
+    "All sixteen live generations and all rejected attempts are retained below.",
+    "An initial malformed synthetic packet failed preflight before dispatch. A wire-probe entry-point failure also made no model call.",
+    "The first offline test runner launch was sandbox-blocked; its retained allocation was separately reconciled and removed.",
+    "One cache-owner unit fixture initially used the wrong publication fence; corrected before the passing checks.",
+    "An intermediate live candidate sorted schema properties and produced invalid selection reasons; restored original order and retained those failed outputs.",
+    "Two ordered-schema diagnostic calls also failed the inherited stop-quote contract. Final code was profiled again after matching native verbosity/context.",
+    "Small sequential cohorts and provider-load drift do not establish a causal latency improvement or tail percentiles.",
+    "Controlled publication in live probes is not evidence of a deployed database/HTTP admission check; publication and HTTP/SQL replays were verified separately offline.",
+    "Other collector contracts, background lanes, prompt text and model/key configuration were not modified. Services were not restarted."
+  ],
+  "rollback": "Revert the transport change, or use the existing compact-v1/two-lane-v1 configuration with matching API and worker. Prompt pins and schema are unchanged.",
+  "samples": [
+    {
+      "arm": "baseline",
+      "case": "zh-opening",
+      "sample": 0,
+      "input": {
+        "id": "zh-opening",
+        "language": "zh-CN",
+        "text": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "prior": null
+      },
+      "governed_packet_sha256": "16f726806dfac7a0e6f4ef9cd6763ade0481cc2c44346b43fd4e0da67b222953",
+      "status": "passed_structural_contract",
+      "error_type": null,
+      "full_model_output": {
+        "acknowledgement": "小林，你小时候曾和母亲一起在院子里种豆子。",
+        "question": "你还记得那次种豆子时，最让你印象深刻的是什么吗？",
+        "reason": "latest_story",
+        "hint": null,
+        "quote": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "work": {
+          "mode": "extract",
+          "name": "小林"
+        }
+      },
+      "visible_reply_if_validated": "小林，你小时候曾和母亲一起在院子里种豆子。\n\n你还记得那次种豆子时，最让你印象深刻的是什么吗？",
+      "first_ack_callback_s": 6.2026,
+      "attempt_completion_s": 6.5795,
+      "provider_latency_s": 5.791,
+      "input_tokens": 3613,
+      "output_tokens": 105,
+      "reasoning_tokens": 516,
+      "cached_tokens": null,
+      "trace_id": "4ef0cefc0e47ac57890e0070f8469ef1",
+      "observation_id": "330f060b5b80be9c",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 5,
+        "roles": [
+          "developer",
+          "developer",
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 1,
+        "current_evidence_last": false
+      },
+      "model_input_sha256": "77da4a28c5ebb667f1c19d82aed2d1740ccf097294183ed886911ebca8255863"
+    },
+    {
+      "arm": "baseline",
+      "case": "en-later-stop",
+      "sample": 0,
+      "input": {
+        "id": "en-later-stop",
+        "language": "en-AU",
+        "text": "Please stop this interview now.",
+        "prior": "I grew up in Sydney."
+      },
+      "governed_packet_sha256": "ea6593f0d9b013ad61b4c5afc646e972a1119d3a3261ffb970d760491a624e98",
+      "status": "failed",
+      "error_type": "CollectorOutputInvalid",
+      "full_model_output": {
+        "acknowledgement": "Understood. I’ll stop here.",
+        "question": null,
+        "reason": "pause",
+        "hint": null,
+        "quote": "Please stop this interview now.",
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      },
+      "visible_reply_if_validated": null,
+      "first_ack_callback_s": 4.1884,
+      "attempt_completion_s": 4.4711,
+      "provider_latency_s": 4.245,
+      "input_tokens": 3761,
+      "output_tokens": 57,
+      "reasoning_tokens": 318,
+      "cached_tokens": null,
+      "trace_id": "b1627d99cb863edec88059d8c397ca93",
+      "observation_id": "0a0e0dd8d024b5cc",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 5,
+        "roles": [
+          "developer",
+          "developer",
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 1,
+        "current_evidence_last": false
+      },
+      "model_input_sha256": "681967fcd4718d704e06d9665c180dba2099c431e9ae2690456ad1c1fb69d75f"
+    },
+    {
+      "arm": "baseline",
+      "case": "zh-opening",
+      "sample": 1,
+      "input": {
+        "id": "zh-opening",
+        "language": "zh-CN",
+        "text": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "prior": null
+      },
+      "governed_packet_sha256": "16f726806dfac7a0e6f4ef9cd6763ade0481cc2c44346b43fd4e0da67b222953",
+      "status": "passed_structural_contract",
+      "error_type": null,
+      "full_model_output": {
+        "acknowledgement": "谢谢你，小林。你小时候曾和母亲一起在院子里种豆子。",
+        "question": "后来那些豆子长得怎么样？",
+        "reason": "latest_story",
+        "hint": null,
+        "quote": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "work": {
+          "mode": "extract",
+          "name": "小林"
+        }
+      },
+      "visible_reply_if_validated": "谢谢你，小林。你小时候曾和母亲一起在院子里种豆子。\n\n后来那些豆子长得怎么样？",
+      "first_ack_callback_s": 4.8203,
+      "attempt_completion_s": 5.2728,
+      "provider_latency_s": 5.012,
+      "input_tokens": 3622,
+      "output_tokens": 94,
+      "reasoning_tokens": 379,
+      "cached_tokens": null,
+      "trace_id": "6bd97f0f485c9f612cb3182a96b00691",
+      "observation_id": "d09b5043517cc451",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 5,
+        "roles": [
+          "developer",
+          "developer",
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 1,
+        "current_evidence_last": false
+      },
+      "model_input_sha256": "74263716958c1d6b9d969bc5ea8ad5db416d5aac675f1c249b103611c4f41c57"
+    },
+    {
+      "arm": "baseline",
+      "case": "en-later-stop",
+      "sample": 1,
+      "input": {
+        "id": "en-later-stop",
+        "language": "en-AU",
+        "text": "Please stop this interview now.",
+        "prior": "I grew up in Sydney."
+      },
+      "governed_packet_sha256": "ea6593f0d9b013ad61b4c5afc646e972a1119d3a3261ffb970d760491a624e98",
+      "status": "failed",
+      "error_type": "CollectorOutputInvalid",
+      "full_model_output": {
+        "acknowledgement": "Understood. I’ll stop the interview now.",
+        "question": null,
+        "reason": "pause",
+        "hint": null,
+        "quote": "Please stop this interview now.",
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      },
+      "visible_reply_if_validated": null,
+      "first_ack_callback_s": 5.4826,
+      "attempt_completion_s": 6.1407,
+      "provider_latency_s": 5.784,
+      "input_tokens": 3770,
+      "output_tokens": 59,
+      "reasoning_tokens": 270,
+      "cached_tokens": null,
+      "trace_id": "3c61fb07e7a5713b4f4dd2aa20ed8f6f",
+      "observation_id": "938e4086bfdd08d0",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 5,
+        "roles": [
+          "developer",
+          "developer",
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 1,
+        "current_evidence_last": false
+      },
+      "model_input_sha256": "897d3a8713506e63c980463892cb794b290892fe25ef17def42b4ee00dfa527d"
+    },
+    {
+      "arm": "diagnostic_sorted_schema",
+      "case": "zh-opening",
+      "sample": 0,
+      "input": {
+        "id": "zh-opening",
+        "language": "zh-CN",
+        "text": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "prior": null
+      },
+      "governed_packet_sha256": "16f726806dfac7a0e6f4ef9cd6763ade0481cc2c44346b43fd4e0da67b222953",
+      "status": "failed",
+      "error_type": "CollectorOutputInvalid",
+      "full_model_output": {
+        "acknowledgement": "谢谢你，小林。你小时候曾和母亲一起在院子里种豆子。",
+        "hint": null,
+        "question": "你还记得那时种的是什么豆子吗？",
+        "quote": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "reason": "prepared_candidate",
+        "work": {
+          "mode": "extract",
+          "name": "小林"
+        }
+      },
+      "visible_reply_if_validated": null,
+      "first_ack_callback_s": 6.4323,
+      "attempt_completion_s": 6.7407,
+      "provider_latency_s": 6.246,
+      "input_tokens": 913,
+      "output_tokens": 98,
+      "reasoning_tokens": 516,
+      "cached_tokens": 0,
+      "trace_id": "68a281d956475cc41a4504e46f294c7a",
+      "observation_id": "dd0e8c51b527f15a",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "d3be995e7c572153f4ced2a884b7f58787555de91899b212d61c0fe67163ac9b"
+    },
+    {
+      "arm": "diagnostic_sorted_schema",
+      "case": "en-later-stop",
+      "sample": 0,
+      "input": {
+        "id": "en-later-stop",
+        "language": "en-AU",
+        "text": "Please stop this interview now.",
+        "prior": "I grew up in Sydney."
+      },
+      "governed_packet_sha256": "ea6593f0d9b013ad61b4c5afc646e972a1119d3a3261ffb970d760491a624e98",
+      "status": "passed_structural_contract",
+      "error_type": null,
+      "full_model_output": {
+        "acknowledgement": "Understood. I’ll stop the interview now.",
+        "hint": null,
+        "question": null,
+        "quote": null,
+        "reason": "pause",
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      },
+      "visible_reply_if_validated": "Understood. I’ll stop the interview now.",
+      "first_ack_callback_s": 2.8767,
+      "attempt_completion_s": 3.0676,
+      "provider_latency_s": 2.989,
+      "input_tokens": 1055,
+      "output_tokens": 54,
+      "reasoning_tokens": 241,
+      "cached_tokens": 0,
+      "trace_id": "56446c7cdba2ca85ec163024a03e421a",
+      "observation_id": "9e04dafe6b6bce09",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "d20eaaf37c44f25a450f95c799d874866b8a4e06370642a30e8adca7c6a9c8f9"
+    },
+    {
+      "arm": "diagnostic_sorted_schema",
+      "case": "zh-opening",
+      "sample": 1,
+      "input": {
+        "id": "zh-opening",
+        "language": "zh-CN",
+        "text": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "prior": null
+      },
+      "governed_packet_sha256": "16f726806dfac7a0e6f4ef9cd6763ade0481cc2c44346b43fd4e0da67b222953",
+      "status": "failed",
+      "error_type": "CollectorOutputInvalid",
+      "full_model_output": {
+        "acknowledgement": "小林，谢谢你分享这段记忆。你小时候曾和母亲一起在院子里种豆子。",
+        "hint": null,
+        "question": "你还记得那时你们是怎样一起种豆子的吗？",
+        "quote": "小时候，我和母亲一起在院子里种豆子。",
+        "reason": "prepared_candidate",
+        "work": {
+          "mode": "extract",
+          "name": "小林"
+        }
+      },
+      "visible_reply_if_validated": null,
+      "first_ack_callback_s": 5.0902,
+      "attempt_completion_s": 5.5026,
+      "provider_latency_s": 5.369,
+      "input_tokens": 913,
+      "output_tokens": 101,
+      "reasoning_tokens": 440,
+      "cached_tokens": 0,
+      "trace_id": "b14989c57afeb43bde3775bf91e0fee9",
+      "observation_id": "361d2cf2326a98eb",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "d3be995e7c572153f4ced2a884b7f58787555de91899b212d61c0fe67163ac9b"
+    },
+    {
+      "arm": "diagnostic_sorted_schema",
+      "case": "en-later-stop",
+      "sample": 1,
+      "input": {
+        "id": "en-later-stop",
+        "language": "en-AU",
+        "text": "Please stop this interview now.",
+        "prior": "I grew up in Sydney."
+      },
+      "governed_packet_sha256": "ea6593f0d9b013ad61b4c5afc646e972a1119d3a3261ffb970d760491a624e98",
+      "status": "passed_structural_contract",
+      "error_type": null,
+      "full_model_output": {
+        "acknowledgement": "Understood. I’ll stop the interview now.",
+        "hint": null,
+        "question": null,
+        "quote": null,
+        "reason": "pause",
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      },
+      "visible_reply_if_validated": "Understood. I’ll stop the interview now.",
+      "first_ack_callback_s": 2.8775,
+      "attempt_completion_s": 3.2115,
+      "provider_latency_s": 3.06,
+      "input_tokens": 1055,
+      "output_tokens": 54,
+      "reasoning_tokens": 129,
+      "cached_tokens": 0,
+      "trace_id": "90f4eeb07dafb2a66daccc3877a2a404",
+      "observation_id": "30a66cb78a30eec1",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "d20eaaf37c44f25a450f95c799d874866b8a4e06370642a30e8adca7c6a9c8f9"
+    },
+    {
+      "arm": "diagnostic_ordered_schema",
+      "case": "zh-opening",
+      "sample": 0,
+      "input": {
+        "id": "zh-opening",
+        "language": "zh-CN",
+        "text": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "prior": null
+      },
+      "governed_packet_sha256": "16f726806dfac7a0e6f4ef9cd6763ade0481cc2c44346b43fd4e0da67b222953",
+      "status": "passed_structural_contract",
+      "error_type": null,
+      "full_model_output": {
+        "acknowledgement": "小林，你记得小时候和母亲一起在院子里种豆子。",
+        "question": "你还记得当时是怎么一起种豆子的吗？",
+        "reason": "latest_story",
+        "hint": null,
+        "quote": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "work": {
+          "mode": "extract",
+          "name": "小林"
+        }
+      },
+      "visible_reply_if_validated": "小林，你记得小时候和母亲一起在院子里种豆子。\n\n你还记得当时是怎么一起种豆子的吗？",
+      "first_ack_callback_s": 5.1946,
+      "attempt_completion_s": 5.5638,
+      "provider_latency_s": 5.08,
+      "input_tokens": 913,
+      "output_tokens": 97,
+      "reasoning_tokens": 516,
+      "cached_tokens": 0,
+      "trace_id": "c272c60a7cb99727dead57e3198aaaab",
+      "observation_id": "e7c6592326ab17c0",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "46faf57543f900188967bcd8d74222e9c4d99f28f12e0e8b11ac34aed2d5f2eb"
+    },
+    {
+      "arm": "diagnostic_ordered_schema",
+      "case": "en-later-stop",
+      "sample": 0,
+      "input": {
+        "id": "en-later-stop",
+        "language": "en-AU",
+        "text": "Please stop this interview now.",
+        "prior": "I grew up in Sydney."
+      },
+      "governed_packet_sha256": "ea6593f0d9b013ad61b4c5afc646e972a1119d3a3261ffb970d760491a624e98",
+      "status": "failed",
+      "error_type": "CollectorOutputInvalid",
+      "full_model_output": {
+        "acknowledgement": "Understood. I’ll stop the interview now.",
+        "question": null,
+        "reason": "pause",
+        "hint": null,
+        "quote": "Please stop this interview now.",
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      },
+      "visible_reply_if_validated": null,
+      "first_ack_callback_s": 3.0995,
+      "attempt_completion_s": 3.3393,
+      "provider_latency_s": 3.226,
+      "input_tokens": 1055,
+      "output_tokens": 58,
+      "reasoning_tokens": 293,
+      "cached_tokens": 0,
+      "trace_id": "da119a5fb7c10c3bdaa49d4d949f1699",
+      "observation_id": "565c274c1a393dc2",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "2a17dc5c9efe6acfd36e5849aad2e2c4303a8d8e2f0b2eff515eee5b403e84a3"
+    },
+    {
+      "arm": "diagnostic_ordered_schema",
+      "case": "zh-opening",
+      "sample": 1,
+      "input": {
+        "id": "zh-opening",
+        "language": "zh-CN",
+        "text": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "prior": null
+      },
+      "governed_packet_sha256": "16f726806dfac7a0e6f4ef9cd6763ade0481cc2c44346b43fd4e0da67b222953",
+      "status": "passed_structural_contract",
+      "error_type": null,
+      "full_model_output": {
+        "acknowledgement": "小林，你提到小时候曾和母亲一起在院子里种豆子。",
+        "question": "你还记得当时你们是怎样一起种豆子的吗？",
+        "reason": "latest_story",
+        "hint": null,
+        "quote": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "work": {
+          "mode": "extract",
+          "name": "小林"
+        }
+      },
+      "visible_reply_if_validated": "小林，你提到小时候曾和母亲一起在院子里种豆子。\n\n你还记得当时你们是怎样一起种豆子的吗？",
+      "first_ack_callback_s": 4.8163,
+      "attempt_completion_s": 5.1483,
+      "provider_latency_s": 5.015,
+      "input_tokens": 913,
+      "output_tokens": 100,
+      "reasoning_tokens": 516,
+      "cached_tokens": 0,
+      "trace_id": "5f71181e840c766197f73ad47a6b4fbf",
+      "observation_id": "7960acba2ad5a541",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "46faf57543f900188967bcd8d74222e9c4d99f28f12e0e8b11ac34aed2d5f2eb"
+    },
+    {
+      "arm": "diagnostic_ordered_schema",
+      "case": "en-later-stop",
+      "sample": 1,
+      "input": {
+        "id": "en-later-stop",
+        "language": "en-AU",
+        "text": "Please stop this interview now.",
+        "prior": "I grew up in Sydney."
+      },
+      "governed_packet_sha256": "ea6593f0d9b013ad61b4c5afc646e972a1119d3a3261ffb970d760491a624e98",
+      "status": "failed",
+      "error_type": "CollectorOutputInvalid",
+      "full_model_output": {
+        "acknowledgement": "Understood — I’ll stop the interview now, and I won’t ask any more questions.",
+        "question": null,
+        "reason": "pause",
+        "hint": null,
+        "quote": "Please stop this interview now.",
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      },
+      "visible_reply_if_validated": null,
+      "first_ack_callback_s": 2.472,
+      "attempt_completion_s": 2.6719,
+      "provider_latency_s": 2.511,
+      "input_tokens": 1055,
+      "output_tokens": 67,
+      "reasoning_tokens": 166,
+      "cached_tokens": 0,
+      "trace_id": "0744e010ef0cee372f5051be3c2eec8f",
+      "observation_id": "f12784b9652747f9",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "2a17dc5c9efe6acfd36e5849aad2e2c4303a8d8e2f0b2eff515eee5b403e84a3"
+    },
+    {
+      "arm": "candidate",
+      "case": "zh-opening",
+      "sample": 0,
+      "input": {
+        "id": "zh-opening",
+        "language": "zh-CN",
+        "text": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "prior": null
+      },
+      "governed_packet_sha256": "16f726806dfac7a0e6f4ef9cd6763ade0481cc2c44346b43fd4e0da67b222953",
+      "status": "passed_structural_contract",
+      "error_type": null,
+      "full_model_output": {
+        "acknowledgement": "小林，你记得小时候曾和母亲一起在院子里种豆子。",
+        "question": "你还记得那时种的是什么豆子吗？",
+        "reason": "latest_story",
+        "hint": null,
+        "quote": "小时候，我和母亲一起在院子里种豆子。",
+        "work": {
+          "mode": "extract",
+          "name": "小林"
+        }
+      },
+      "visible_reply_if_validated": "小林，你记得小时候曾和母亲一起在院子里种豆子。\n\n你还记得那时种的是什么豆子吗？",
+      "first_ack_callback_s": 4.5181,
+      "attempt_completion_s": 4.8425,
+      "provider_latency_s": 4.515,
+      "input_tokens": 913,
+      "output_tokens": 92,
+      "reasoning_tokens": 270,
+      "cached_tokens": 0,
+      "trace_id": "affeb6669390a7dc272909b5df8589da",
+      "observation_id": "d24ed4eed7594c63",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "46faf57543f900188967bcd8d74222e9c4d99f28f12e0e8b11ac34aed2d5f2eb"
+    },
+    {
+      "arm": "candidate",
+      "case": "en-later-stop",
+      "sample": 0,
+      "input": {
+        "id": "en-later-stop",
+        "language": "en-AU",
+        "text": "Please stop this interview now.",
+        "prior": "I grew up in Sydney."
+      },
+      "governed_packet_sha256": "ea6593f0d9b013ad61b4c5afc646e972a1119d3a3261ffb970d760491a624e98",
+      "status": "passed_structural_contract",
+      "error_type": null,
+      "full_model_output": {
+        "acknowledgement": "Of course — I’ll stop the interview now.",
+        "question": null,
+        "reason": "pause",
+        "hint": null,
+        "quote": null,
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      },
+      "visible_reply_if_validated": "Of course — I’ll stop the interview now.",
+      "first_ack_callback_s": 3.1935,
+      "attempt_completion_s": 3.3697,
+      "provider_latency_s": 3.287,
+      "input_tokens": 1055,
+      "output_tokens": 54,
+      "reasoning_tokens": 255,
+      "cached_tokens": 0,
+      "trace_id": "221763769b84831dc78ae9e7ec2a90c5",
+      "observation_id": "557ddc79a4f7859a",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "2a17dc5c9efe6acfd36e5849aad2e2c4303a8d8e2f0b2eff515eee5b403e84a3"
+    },
+    {
+      "arm": "candidate",
+      "case": "zh-opening",
+      "sample": 1,
+      "input": {
+        "id": "zh-opening",
+        "language": "zh-CN",
+        "text": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "prior": null
+      },
+      "governed_packet_sha256": "16f726806dfac7a0e6f4ef9cd6763ade0481cc2c44346b43fd4e0da67b222953",
+      "status": "passed_structural_contract",
+      "error_type": null,
+      "full_model_output": {
+        "acknowledgement": "小林，你记得小时候和母亲一起在院子里种豆子。",
+        "question": "你还记得你们当时是怎么种豆子的吗？",
+        "reason": "latest_story",
+        "hint": null,
+        "quote": "我叫小林。小时候，我和母亲一起在院子里种豆子。",
+        "work": {
+          "mode": "extract",
+          "name": "小林"
+        }
+      },
+      "visible_reply_if_validated": "小林，你记得小时候和母亲一起在院子里种豆子。\n\n你还记得你们当时是怎么种豆子的吗？",
+      "first_ack_callback_s": 5.5986,
+      "attempt_completion_s": 5.6687,
+      "provider_latency_s": 5.582,
+      "input_tokens": 913,
+      "output_tokens": 98,
+      "reasoning_tokens": 516,
+      "cached_tokens": 0,
+      "trace_id": "78ad51a24f281dbc4cc1b594e162929a",
+      "observation_id": "445339fec564e2ed",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "46faf57543f900188967bcd8d74222e9c4d99f28f12e0e8b11ac34aed2d5f2eb"
+    },
+    {
+      "arm": "candidate",
+      "case": "en-later-stop",
+      "sample": 1,
+      "input": {
+        "id": "en-later-stop",
+        "language": "en-AU",
+        "text": "Please stop this interview now.",
+        "prior": "I grew up in Sydney."
+      },
+      "governed_packet_sha256": "ea6593f0d9b013ad61b4c5afc646e972a1119d3a3261ffb970d760491a624e98",
+      "status": "failed",
+      "error_type": "CollectorOutputInvalid",
+      "full_model_output": {
+        "acknowledgement": "Understood — I’ll stop the interview now.",
+        "question": null,
+        "reason": "pause",
+        "hint": null,
+        "quote": "Please stop this interview now.",
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      },
+      "visible_reply_if_validated": null,
+      "first_ack_callback_s": 3.8502,
+      "attempt_completion_s": 4.002,
+      "provider_latency_s": 3.908,
+      "input_tokens": 1055,
+      "output_tokens": 58,
+      "reasoning_tokens": 320,
+      "cached_tokens": 0,
+      "trace_id": "e3a1fef1dbf1cc3cfe98b8832eccde6a",
+      "observation_id": "460902b2d1f2c3ed",
+      "provider_model": "gpt-5.6-luna",
+      "request_shape": {
+        "items": 3,
+        "roles": [
+          "developer",
+          "user",
+          "user"
+        ],
+        "additional_tools_items": 0,
+        "current_evidence_last": true
+      },
+      "model_input_sha256": "2a17dc5c9efe6acfd36e5849aad2e2c4303a8d8e2f0b2eff515eee5b403e84a3"
+    }
+  ]
+}
