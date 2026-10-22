@@ -410,6 +410,17 @@ runs; a new restriction cancels and replaces only that draft. Reviewed saving
 remains mandatory. The flag defaults to `0`; draft deletion cannot undo text
 already read on screen or history already sent to the model.
 
+An incomplete privacy review retries once for the same exact source before the
+turn fails. A completed review lets the reply continue; two incomplete reviews
+leave the original saved and policy pending. The model supplies a bounded
+`reason.code` and `reason.detail` for audit. General diagnostics record only the
+code and turn ID; details remain in private gateway traces. Successful recovery
+also retains both response IDs and reasons in the policy receipt's
+`policy_review_attempts`. Story uncertainty alone is not a privacy restriction.
+An explicit retry reuses the accepted source and applies completed restrictions
+before generating its reply. A failure before the first streamed text retains
+the turn ID so the browser can replace its error bubble on regeneration.
+
 Edit and review prompt Markdown in a pull request before creating a Langfuse
 version. Feature branches do not publish or fabricate version receipts. The API
 reads checked-in prompt files. Shared instructions have one source;

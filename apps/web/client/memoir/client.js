@@ -888,7 +888,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       streamedMessage.failed = true;
       streamedMessage.error = error.message;
     }
-    return { failed:true, streamedMessage, reply: streamedMessage?.text || error.message, trace: liveTrace.map(step => ({ ...step, status: step.status === "running" ? "failed" : step.status })), traceMode: "error" };
+    return { failed:true, clientTurnId:requestTurn.id, streamedMessage, reply: streamedMessage?.text || error.message, trace: liveTrace.map(step => ({ ...step, status: step.status === "running" ? "failed" : step.status })), traceMode: "error" };
   } finally {
     revisionText?.dispose();
   }

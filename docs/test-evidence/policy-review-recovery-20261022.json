@@ -1,0 +1,80 @@
+{
+  "scope": "Standalone source-only model diagnostics and separate controlled-provider HTTP/SQL/client regressions; not a live application-turn replay or deployment.",
+  "historical_failure": {
+    "policy_output": {"complete": false, "restrictions": []},
+    "recorded_reason": null,
+    "finding": "The reported narration describes uncertain memories, a move, childhood friends and fewer visits; it requests no topic exclusion or pause. The published prompt treated any unresolved topic/reference as grounds for incomplete privacy review.",
+    "limitation": "The historical model's particular reason was not recorded and cannot be reconstructed from its output."
+  },
+  "model": "gpt-5.6-luna-pooled",
+  "prompt_provenance": {
+    "published_version": 4,
+    "published_sha256": "19dde3267b3593d111fb58ecf25f4b59ec4aa1e1262416cc27e09eed99a4725e",
+    "intermediate_candidate_sha256": "4ba9ed32b7e7f97758ebaf8213642053b97c9d4eb66732697bfe12c7168f2f06",
+    "final_candidate_sha256": "f29c6e4426dbc320864ae04ae9cdfa2e98e84e860200240ad45b4aad03145ad3",
+    "candidate_status": "unpublished; existing receipt left unchanged"
+  },
+  "request_accounting": {
+    "initial_batch_limit": 8,
+    "final_batch_limit": 4,
+    "client_attempts": 12,
+    "completed_model_responses": 11,
+    "connection_resets_before_response": 1,
+    "reset_request_provider_execution": "unknown; counted as attempted and not repeated",
+    "reason_for_final_batch": "The intermediate candidate incorrectly completed a review for an unresolved real restriction. The final wording explicitly distinguishes unresolved restriction topics/references from ordinary story uncertainty."
+  },
+  "final_live_checks": [
+    {
+      "case": "reported_saved_message",
+      "complete": true,
+      "restriction_count": 0,
+      "reason": null,
+      "elapsed_seconds": 2.166,
+      "privacy": "Original narration and account/source identifiers are omitted from this artifact."
+    },
+    {
+      "case": "clear_privacy_restriction",
+      "source": "Please don't discuss school. We can talk about my garden.",
+      "complete": true,
+      "restriction_count": 1,
+      "restriction_kinds": ["excluded_topic"],
+      "reason": null,
+      "elapsed_seconds": 3.743
+    },
+    {
+      "case": "unresolved_person_restriction",
+      "source": "Please don't bring him up again.",
+      "complete": false,
+      "restriction_count": 0,
+      "reason": {
+        "code": "ambiguous_restriction",
+        "detail": "The requested topic exclusion is directed at the unresolved reference “him”."
+      },
+      "elapsed_seconds": 3.285
+    },
+    {
+      "case": "unresolved_topic_restriction",
+      "source": "以后不要再提那件事了。",
+      "complete": false,
+      "restriction_count": 0,
+      "reason": {
+        "code": "ambiguous_restriction",
+        "detail": "The restriction refers to the unresolved topic “那件事” (“that matter”)."
+      },
+      "elapsed_seconds": 4.686
+    }
+  ],
+  "regeneration": {
+    "browser_root_cause": "An error before the first text delta returned no clientTurnId, so the displayed error bubble could not be located and replaced by the explicit retry.",
+    "browser_regression": "Failed on the old code with undefined versus the accepted turn ID; passed after preserving clientTurnId, with one bubble replaced by the recovered reply.",
+    "client_regression_execution": "Shipped functions evaluated in Node.js vm, not a rendered browser.",
+    "backend_checks": "The actual reply-v2 HTTP/SQL path regenerates the same accepted source after review completion, both without restrictions and with a real restriction retained. One source and one completed round remain."
+  },
+  "verification": {
+    "focused_python_tests_passed": 124,
+    "make_test_web_passed": 601,
+    "final_live_checks_passed": 4,
+    "git_diff_check": "passed",
+    "limits": "A small semantic diagnostic sample, not a statistical quality or latency claim. Model probes did not commit a conversation reply or publish prompt versions."
+  }
+}

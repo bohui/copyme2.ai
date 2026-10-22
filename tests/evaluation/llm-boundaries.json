@@ -3,6 +3,34 @@
   "scope": "Live semantic contract evaluation; never an ordinary test assertion about natural-language meaning.",
   "cases": [
     {
+      "id": "privacy-neutral-chinese-alias-and-fewer-visits",
+      "contract": "policy",
+      "locale": "zh-CN",
+      "source": "这些我记不清了。陈明以前叫陈小明。长大后学习忙了，我回去找伙伴的次数慢慢少了。",
+      "expectation": "Ordinary narration about a name change and fewer visits contains no topic restriction. Return complete=true, restrictions=[], reason=null."
+    },
+    {
+      "id": "privacy-neutral-unresolved-story-reference",
+      "contract": "policy",
+      "locale": "en-AU",
+      "source": "He used to meet us there. I cannot remember his name or which year that was.",
+      "expectation": "Unresolved biographical references alone do not make a privacy restriction ambiguous. Return complete=true, restrictions=[], reason=null."
+    },
+    {
+      "id": "privacy-unresolved-actual-restriction",
+      "contract": "policy",
+      "locale": "zh-CN",
+      "source": "以后不要再提那件事了。",
+      "expectation": "A real exclusion request has an unresolved topic and no source-only antecedent. Return complete=false, restrictions=[] and a bounded reason with code ambiguous_restriction and detail explaining the unresolved privacy scope."
+    },
+    {
+      "id": "privacy-unresolved-person-restriction",
+      "contract": "policy",
+      "locale": "en-AU",
+      "source": "Please don't bring him up again.",
+      "expectation": "The exclusion intent is clear but the person is unresolved within this source. Return complete=false, restrictions=[] and reason code ambiguous_restriction with a brief explanation; do not certify an opaque him as a resolved topic."
+    },
+    {
       "id": "privacy-paraphrase",
       "contract": "policy",
       "locale": "en-AU",
