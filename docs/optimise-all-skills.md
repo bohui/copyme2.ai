@@ -142,10 +142,12 @@ The approved coordinate change passes its focused contract and main comparison. 
 
 ### Regression checks
 
-- 101 focused span, extraction, place and foreground-question checks passed. The pre-change run reproduced three failures; those failures and all cleanup receipts are retained.
+- 320 focused span, extraction, place, foreground-question, lane ownership and SQL persistence checks passed, including the initial 101-check group. The pre-change run reproduced three failures; those failures and all cleanup receipts are retained.
 - Unedited captured-output replay: seven of eight proposals validate with the candidate, including both date-range first attempts. The assistant-only fabricated quote remains rejected.
 - `make test-place-research` passed with 600 JavaScript, 429 API/database and 95 standalone checks. Its existing API-to-SQL-to-web replay now injects both coordinate mistakes and verifies that extraction runs once, while dated photo/news research remains available.
 - Disposable SQL/process cleanup was verified for every completed candidate and confirmation run. There are no prompt changes or new Langfuse versions in this change set.
+
+Implementation commit: `d95adc970372dbb599103656dfbc0c1b66efc28d`. Both changed runtime files match the exact hashes exercised by the live candidate.
 
 ### Upstream integration prerequisite
 
