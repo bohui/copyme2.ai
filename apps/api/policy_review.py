@@ -1,5 +1,6 @@
 """Review only pending original narration before admitting private-context work."""
 import asyncio
+import logging
 import os
 from typing import Literal
 
@@ -8,6 +9,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from .lifetime_memory_publication import ProviderPublication, GovernedRequestBody
 from .lifetime_memory_policy import PolicyUnavailable
 from .model_request import complete_json
+from .diagnostics import configure_diagnostic_logger, log_diagnostic, new_request_id
+
+
+diagnostic_logger = configure_diagnostic_logger(logging.getLogger('memoir.policy_review'))
 
 
 class PolicyReviewPublication(ProviderPublication):
@@ -22,10 +27,17 @@ class Restriction(BaseModel):
     char_end: int = Field(ge=1)
 
 
+class IncompleteReason(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    code: Literal['ambiguous_restriction', 'too_many_restrictions', 'quote_too_long']
+    detail: str = Field(min_length=1, max_length=300, pattern=r'\S')
+
+
 class PolicyReview(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     complete: bool
     restrictions: list[Restriction] = Field(max_length=8)
+    reason: IncompleteReason | None = None
 
 
 class PolicyReviewOpening(PolicyReview):
@@ -53,12 +65,14 @@ def validate_review(output, source):
     value = PolicyReview.model_validate(output)
     if not value.complete:
         raise PolicyUnavailable()
+    if value.reason is not None:
+        raise ValueError('Completed policy review cannot have an incomplete reason')
     for item in value.restrictions:
         if item.char_end > len(source['text']) or source['text'][item.char_start:item.char_end] != item.quote:
             raise ValueError('Policy review requires exact original spans')
     if len({(item.kind, item.char_start, item.char_end) for item in value.restrictions}) != len(value.restrictions):
         raise ValueError('Duplicate policy review control')
-    return value.model_dump()
+    return value.model_dump(exclude={'reason'})
 
 
 async def _review_pending_policy(storage, lease, conversation_id, *, model=None, base_url=None, api_key=None,
@@ -87,17 +101,33 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     if opening:
         payload.update(acknowledgement_requested=True, interview_language=selected_language)
     prompt = 'memoir/skills/memoir-interviewer/policy-review' + ('-opening' if opening else '')
-    output, receipt = await complete_json(prompt,
-        payload, schema,
-        model=model or os.getenv('MEMORY_SPARK_COLLECTOR_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL'),
-        base_url=base_url, api_key=api_key,
-        trace_name='memoir-interviewer',
-        body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))
+    request_id = new_request_id(source.get('client_turn_id'))
+    attempts = []
+    for attempt in range(2):
+        output, receipt = await complete_json(prompt,
+            payload, schema,
+            model=model or os.getenv('MEMORY_SPARK_COLLECTOR_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL'),
+            base_url=base_url, api_key=api_key,
+            trace_name='memoir-interviewer', diagnostic_request_id=request_id,
+            body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))
+        parsed = (PolicyReviewOpening if opening else PolicyReview).model_validate(output)
+        reason = parsed.reason.model_dump() if parsed.reason else None
+        attempts.append(dict(response_id=receipt['response_id'], complete=parsed.complete, reason=reason))
+        if parsed.complete:
+            break
+        # Free-form audit detail stays in private model traces/receipts, never general logs.
+        log_diagnostic(diagnostic_logger, 'policy_review_incomplete', request_id,
+            component='memoir.policy_review', status='retrying' if attempt == 0 else 'failed',
+            call_type='initial' if attempt == 0 else 'retry', model=receipt['model'],
+            error_code=parsed.reason.code if parsed.reason else 'reason_missing')
+        if attempt == 1:
+            raise PolicyUnavailable()
+        payload['previous_review'] = parsed.model_dump(exclude={'acknowledgement'})
+    receipt = {**receipt, 'policy_review_attempts': attempts}
     acknowledgement = None
     if opening:
-        parsed = PolicyReviewOpening.model_validate(output)
         acknowledgement = parsed.acknowledgement.strip() if parsed.acknowledgement else None
-        output = parsed.model_dump(exclude={'acknowledgement'})
+    output = parsed.model_dump(exclude={'acknowledgement'})
     output = validate_review(output, source)
     if acknowledgement:
         receipt = {**receipt, 'acknowledgement': acknowledgement,

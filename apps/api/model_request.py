@@ -71,12 +71,15 @@ def decode_json_response(value):
 
 
 async def complete_json(name, payload, schema, *, model=None, transport=None, body_factory=None,
-                        base_url=None, api_key=None, trace_name=None):
+                        base_url=None, api_key=None, trace_name=None, diagnostic_request_id=None):
     import httpx
     body, manifest = managed_json_request(name, payload, schema, model=model)
     if trace_name:
         body['metadata'] = {**body.get('metadata', {}),
                             'generation_name': trace_name, 'trace_name': trace_name}
+    if diagnostic_request_id is not None:
+        from .diagnostics import new_request_id
+        body['metadata']['request_id'] = new_request_id(diagnostic_request_id)
     base = (os.getenv('MEMORY_SPARK_LLM_BASE_URL', '') if base_url is None else base_url).rstrip('/')
     key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '') if api_key is None else api_key
     endpoint=urlsplit(base)
@@ -91,6 +94,8 @@ async def complete_json(name, payload, schema, *, model=None, transport=None, bo
         trace_metadata = {'prompt_manifest': manifest}
         if trace_name:
             trace_metadata.update(generation_name=trace_name, trace_name=trace_name)
+        if diagnostic_request_id is not None:
+            trace_metadata['request_id'] = body['metadata']['request_id']
         with trace_llm_call(trace_name or name, body['model'],
                             input_summary={'kind': 'structured_input'},
                             metadata=trace_metadata) as trace:
