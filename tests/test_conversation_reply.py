@@ -144,9 +144,10 @@ def test_background_continuity_never_manufactures_missing_offset_fields(field):
         validate_continuity_updates([raw], ctx['source'], background=True)
 
 
-def test_native_engine_uses_the_small_view_after_full_governed_validation(tmp_path):
+def test_engine_sends_evidence_last_without_launching_a_general_agent(tmp_path, monkeypatch):
     import asyncio
-    from test_lifetime_memory_engine import fixture, encode, FakeConnection, FakePublisher, BUDGET
+    from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
+    from test_conversation_reply_transport import install_reply_provider
     from apps.api.lifetime_memory_engine import run_governed_collector
     governed, ctx = fixture()
     ctx.update(reply_contract='reply-v2', two_lane_memory=True)
@@ -154,42 +155,40 @@ def test_native_engine_uses_the_small_view_after_full_governed_validation(tmp_pa
     packet.update(instructions=reply_instructions(), interview_context={
         key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
     governed = encode(packet)
-    class Connection(FakeConnection):
-        reply = json.dumps(proposal())
+    captured = install_reply_provider(monkeypatch, [proposal()])
+    def forbidden(*args, **kwargs):
+        raise AssertionError('reply-v2 launched a general agent')
     result = asyncio.run(run_governed_collector(command=['fake'], home_root=tmp_path,
         base_url='http://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
-        governed=governed, interview_context=ctx, connection_factory=Connection, publisher=FakePublisher()))
-    connection = Connection.instances[-1]
-    sent = json.loads(connection.requests[0][1]['baseInstructions'])
-    assert sent['current']['narrator'] == packet['current']['narrator']
-    assert sent['current']['sequence'] == packet['current']['sequence']
-    assert sent['dialogue'] == packet['tail']
-    assert 'fence' not in sent and 'identity' not in sent
-    assert sent['brief']['covered_through_sequence'] == 0
-    assert result['reply'] == Connection.reply
+        governed=governed, interview_context=ctx, connection_factory=forbidden, publisher=FakePublisher()))
+    current = json.loads(captured[0]['input'][-1]['content'])['current']
+    context = json.loads(captured[0]['input'][1]['content'])
+    assert current['narrator'] == packet['current']['narrator']
+    assert current['sequence'] == packet['current']['sequence']
+    assert context['dialogue'] == packet['tail']
+    assert 'fence' not in context and 'identity' not in context
+    assert context['brief']['covered_through_sequence'] == 0
+    assert json.loads(result['reply']) == proposal()
+    assert not list(tmp_path.iterdir())
 
 
-def test_repair_identifies_a_copied_stored_name_instead_of_repeating_a_generic_failure(tmp_path):
+def test_repair_identifies_a_copied_stored_name_instead_of_repeating_a_generic_failure(tmp_path, monkeypatch):
     import asyncio
-    from test_lifetime_memory_engine import fixture, encode, FakeConnection, FakePublisher, BUDGET
+    from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
+    from test_conversation_reply_transport import install_reply_provider
     from apps.api.lifetime_memory_engine import run_governed_collector
     governed, ctx = fixture()
     ctx.update(reply_contract='reply-v2', two_lane_memory=True)
     packet = json.loads(governed.packet)
     packet.update(instructions=reply_instructions(), interview_context={
         key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
-    class Connection(FakeConnection):
-        prompts = []
-        async def turn(self, thread_id, prompt, **options):
-            self.prompts.append(prompt)
-            raw = proposal()
-            if len(self.prompts) == 1:
-                raw['work']['name'] = 'Stored name absent from source'
-            else:
-                assert 'CONTRACT_30' in prompt
-            return json.dumps(raw)
+    invalid = {**proposal(), 'work':{'mode':'extract', 'name':'Stored name absent from source'}}
+    def repaired(body):
+        assert 'CONTRACT_30' in body['input'][0]['content'][1]['text']
+        return proposal()
+    captured = install_reply_provider(monkeypatch, [invalid, repaired])
     result = asyncio.run(run_governed_collector(command=['fake'], home_root=tmp_path,
         base_url='http://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
-        governed=encode(packet), interview_context=ctx, connection_factory=Connection, publisher=FakePublisher()))
-    assert len(Connection.prompts) == 2
+        governed=encode(packet), interview_context=ctx, publisher=FakePublisher()))
+    assert len(captured) == 2
     assert json.loads(result['reply'])['work']['name'] is None
