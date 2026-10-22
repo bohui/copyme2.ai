@@ -242,7 +242,7 @@
   "classification": "All 23 prompts are reachable in supported modes; none are retired or archived.",
   "correction_backup": "var/interviewer-prompt-layout-20261022/correction/langfuse-before.json",
   "checks": {
-    "status": "pending",
+    "status": "passed",
     "reply_instruction_characters": 1986,
     "live_llm_calls": 0,
     "service_restarts": 0,
@@ -261,7 +261,12 @@
       "memoir/skills/memoir-interviewer/reply",
       "memoir/skills/memoir-interviewer/governed-turn"
     ],
-    "prompt_pins_verified": 92
+    "prompt_pins_verified": 92,
+    "validation_main_commit": "4a4c98107827ac7ae357d922985c4a3a3e668814",
+    "focused_regressions_passed": 165,
+    "focused_regressions_failed": 0,
+    "native_allocation_cleanup_verified": true,
+    "earlier_run_limit": "A broader 180-second attempt timed out; its cleanup was verified. Its incomplete result is retained in correction_attempts."
   },
   "correction_attempts": [
     {
