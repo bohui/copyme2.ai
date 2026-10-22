@@ -1,5 +1,9 @@
 # Acceptance milestones
 
+Read the [game generation specification](specification.md) before planning a game
+or changing this skill. It defines the personal-homepage goal. M0–M4 below retain
+the current runtime's acceptance evidence; M5 covers the expanded introduction.
+
 Advance only with recorded evidence. The private runtime now has disposable
 PostgreSQL and actual browser integration checks. Live-provider generation and
 the five-case campaign require their separate retained receipts; source changes
@@ -12,6 +16,7 @@ alone do not satisfy them.
 | M2 — source/privacy validation | Evidence and chosen manuscript coverage for every factual line; negative tests for unsupported text, stale sources, minors/sensitive claims, revocation, URLs/code and server-data leakage; independent editorial and author review. | Actual stored-original matching, unsupported-quote/identity rejection, owner checks, exact-candidate approval and revocation tests passed. Human permission authenticity remains an author assertion. |
 | M3 — Shape/jobs/races | UI and server Shape gates; idempotent replay; two-worker lease race, correction/consent/source/manuscript change during generation and before commit/delivery; atomic stale-write rejection; private cache and access-loss behavior. | Real game job, token, consent/source invalidation and private HTTP-send race tests passed on disposable PostgreSQL; browser revocation removes play. Live provider/campaign evidence pending. |
 | M4 — regression/licenses/performance | Existing affected suites plus real browser accessibility and lifecycle tests; license ledger and retained notices; recorded device/browser/build and performance measurements with budget comparison. | Affected runtime/browser regression checks are retained under var/story-game-checks; no real-device performance budget claim. |
+| M5 — personal introduction across scenes | Author review confirms that NPC encounters introduce the intended experiences, interests and values; distinct scenes contribute to that introduction; repeated travel preserves controls and interaction state; the complete experience passes privacy review; reused resources have recorded origins and licenses. Rerun affected M0–M4 checks as the runtime expands. | Target specification. The two-scene prototype does not establish completion of this milestone. |
 
 Run the isolated checks from the repository root with the existing test extra's
 `jsonschema` dependency (no install is performed by this package):

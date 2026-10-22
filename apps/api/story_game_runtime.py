@@ -80,6 +80,7 @@ class GameRequestBody(LaneRequestBody):
 async def propose_game(packet, *, token):
     base = os.getenv('MEMORY_SPARK_LLM_BASE_URL', '').rstrip('/')
     model = os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL', '')
+    effort = os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low').strip() or 'low'
     key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
     parsed = urlsplit(base)
     if (not key or not model or parsed.scheme not in {'http', 'https'} or not parsed.hostname
@@ -88,7 +89,7 @@ async def propose_game(packet, *, token):
     instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(
         prompt_path('memoir/skills/memoir-story-game/proposal'))
     body = dict(model=model, instructions=instructions, input=json.dumps(packet, ensure_ascii=False),
-        store=False, max_output_tokens=2500, reasoning={'effort': 'low'},
+        store=False, max_output_tokens=2500, reasoning={'effort': effort},
         metadata={'generation_name': 'memoir-story-game', 'trace_name': 'memoir-story-game'},
         text={'format': {'type': 'json_schema', 'name': 'memoir_game_proposal', 'strict': True,
                          'schema': GameProposal.model_json_schema()}})
@@ -123,7 +124,9 @@ async def propose_game(packet, *, token):
     text = ''.join(part.get('text', '') for item in result.get('output', []) if item.get('type') == 'message'
                    for part in item.get('content', []) if part.get('type') == 'output_text')
     proposal = GameProposal.model_validate_json(text).model_dump(mode='json')
-    return proposal, dict(status='completed', response_id=result['id'], model=result['model'],prompt_manifest=manifest)
+    return proposal, dict(status='completed', response_id=result['id'], model=result['model'],
+        requested_reasoning_effort=effort, provider_reasoning_effort=(result.get('reasoning') or {}).get('effort'),
+        prompt_manifest=manifest)
 
 
 async def generate_story_game(broker, game_id, *, provider=None):
