@@ -4573,7 +4573,7 @@ begin
  end if;
  if jsonb_typeof(proposal) is distinct from 'object' or exists(select 1 from jsonb_object_keys(proposal) k where k not in ('strategy','objective','focus_event_ids'))
    or coalesce(proposal->>'strategy','') not in ('comfort','explore','shape')
-   or coalesce(proposal->>'objective','') not in ('gentle_entry','follow_story','clarify_order','clarify_identity','link_stories')
+   or coalesce(proposal->>'objective','') not in ('gentle_entry','follow_story','clarify_order','clarify_identity','link_stories','broaden_scope')
    or jsonb_typeof(proposal->'focus_event_ids') is distinct from 'array' or jsonb_array_length(proposal->'focus_event_ids')>8
    or (proposal->>'strategy'='shape' and proposal->>'objective' not in ('clarify_order','clarify_identity','link_stories'))
    or exists(select 1 from jsonb_array_elements(proposal->'focus_event_ids') e where not exists(select 1 from jsonb_array_elements(page->'events') v
@@ -5228,6 +5228,16 @@ begin
      select q into candidate from jsonb_array_elements(public.read_lifetime_prepared_questions(
        (p_fence->'identity'->>'conversation_id')::uuid)) q
        where q->'requires_confirmation'='true'::jsonb and q->>'id'=p_outcome->>'selected_candidate_id';
+     -- Public news has its own current authority; it need not belong to a B strategy plan.
+     if candidate is null and chosen->'context'->>'historical_clue_id'=p_outcome->>'selected_candidate_id' then
+       select jsonb_build_object('question',case when public.read_lifetime_pinned(
+         (p_fence->'identity'->>'conversation_id')::uuid)->>'language'='zh-CN'
+         then '这条公开历史线索会让您想起当时的什么吗？' else 'Does this bring any memory of that time to mind?' end)
+       into candidate from jsonb_array_elements(public.read_user_historical_news(project)->'clues') clue
+       where clue->>'id'=p_outcome->>'selected_candidate_id';
+       if candidate is not null and candidate->>'question' is distinct from question then
+         raise exception 'historical invitation must remain neutral' using errcode='22023';end if;
+     end if;
      if candidate is null then
        if p_outcome->>'plan_revision_seen' is null or context->'plan'->>'plan_revision' is distinct from p_outcome->>'plan_revision_seen' then
          raise exception 'pinned candidate dependencies changed' using errcode='PT409';end if;

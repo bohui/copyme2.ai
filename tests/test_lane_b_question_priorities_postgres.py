@@ -1,0 +1,120 @@
+"""Real SQL and API delivery; only model/public-source transports are controlled."""
+import json
+from pathlib import Path
+import subprocess
+from uuid import uuid4
+
+import httpx
+import pytest
+
+from apps.api.conversation_reply import reply_candidates
+from apps.api.historical_news import HistoricalResearch
+from apps.api.interview_plan import historical_acknowledgements
+from test_conversation_reply import proposal
+from test_historical_news import evidence, receipt
+from test_interview_strategy_runtime import client_fixture
+from test_two_lane_memory import (database, sql, event_database, private_database, attachment_database,
+    enable_only_disposable_database_rollout, lane, service)
+from test_shared_memory_events_postgres import literal, rpc
+
+
+def response(request, output):
+    return httpx.Response(200, json={'reply': json.dumps(output), 'thread_id': 'background-priorities', 'artifacts': []})
+
+
+@pytest.mark.parametrize('language', ['en-AU', 'zh-CN'])
+@pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate'])
+def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql, tmp_path, monkeypatch, language, reason):
+    from apps.api import agent_routes
+    calls = []
+    def provider(request):
+        context = json.loads(request.content)['interview_context']
+        calls.append(context)
+        output = proposal()
+        hints = reply_candidates(context)
+        news = next(((index, hint) for index, hint in enumerate(hints) if hint.get('historical_clue_id')), None)
+        if news:
+            index, hint = news
+            output.update(acknowledgement=sorted(historical_acknowledgements(context))[0],
+                hint=index, reason=reason, question=hint['question'])
+        return response(request, output)
+
+    class PublicSources:
+        async def discover(self, query, *, timeout):
+            assert sql('select count(*) from public.user_lifetime_reply;').stdout.strip() != '0'
+            assert sql('select count(*) from public.user_agent_turn_lease where expires_at>clock_timestamp();').stdout.strip() == '0'
+            return {'receipt': receipt(), 'events': [evidence()]}
+        async def inspect(self, url, *, timeout):
+            return dict(url=url, text=evidence()['excerpt'], source_title='Town archive', publisher='Town library',
+                        publication_date='2020-01-01', retrieved_at='2026-10-15T00:00:00Z')
+
+    monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS', '1')
+    with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
+        monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
+        agent_routes.runtime._news_engine = HistoricalResearch(PublicSources())
+        first = client.post('/v1/agent/turn', json=dict(text='I was born in Boston, USA, in 1960.', language=language))
+        assert first.status_code == 200, first.text
+        project = first.json()['project_id']
+        assert len(rpc(sql, 'read_user_historical_news', literal(project))['clues']) == 1
+        turn = str(uuid4())
+        payload = dict(project_id=project, text='What else could we explore?', language=language, client_turn_id=turn)
+        later = client.post('/v1/agent/turn', json=payload, headers={'accept': 'application/x-ndjson'})
+        assert later.status_code == 200, later.text
+        events = [json.loads(line) for line in later.text.splitlines()]
+        assert not [event for event in events if event['type'] == 'error'], later.text
+        saved = next(event['data'] for event in events if event['type'] == 'result')
+        assert saved['conversation_saved']
+        assert saved['historical_context']['source_url'] == evidence()['source_url']
+        assert rpc(sql, 'read_user_historical_news', literal(project))['clues'] == []
+        replay = client.post('/v1/agent/turn', json=payload)
+        assert replay.status_code == 200, replay.text
+        assert replay.json()['cached'] and replay.json()['historical_context'] == saved['historical_context']
+        rendered = subprocess.run(['node', 'tests/historical-news/replay-api.mjs'],
+            input=json.dumps(dict(saved=saved, replay=replay.json(), language=language)),
+            text=True, capture_output=True, timeout=20, cwd=Path(__file__).resolve().parents[1])
+        assert rendered.returncode == 0, rendered.stdout + rendered.stderr
+        assert len(calls) == 2, 'Exactly one reply call per new turn, none on replay'
+        outcome = json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o order by source_sequence desc limit 1;').stdout)
+        assert outcome['delivered'] and outcome['selected_candidate_id'] == saved['historical_context']['id']
+        assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'
+
+
+@pytest.mark.parametrize('kind,question', [
+    ('conflict', 'Was the move in 1962 or 1963?'),
+    ('identity', 'Which sister were you describing?'),
+    ('chronology', 'Did the shop open before or after the move?'),
+    ('broaden_scope', 'What changed in your life after school?'),
+])
+def test_background_pool_priority_reaches_actual_saved_reply(sql, tmp_path, monkeypatch, kind, question):
+    calls = []
+    def provider(request):
+        context = json.loads(request.content)['interview_context']
+        calls.append(context)
+        output = proposal()
+        if kind == 'broaden_scope' and len(calls) == 2:
+            hints = reply_candidates(context)
+            assert hints[0]['purpose'] == 'broaden_scope'
+            output.update(hint=0, reason='prepared_candidate', question=hints[0]['question'])
+        return response(request, output)
+
+    with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
+        monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
+        first = client.post('/v1/agent/turn', json={'text': 'I cannot remember whether my sister and I opened the shop before the move.'})
+        assert first.status_code == 200, first.text
+        identity = rpc(sql, 'resolve_lifetime_conversation', literal(first.json()['project_id']))
+        lane_id = lane(sql, identity)
+        page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
+        hint = dict(question=question, topic=kind, quote=page['source']['text'], requires_confirmation=kind != 'broaden_scope')
+        objective = 'broaden_scope' if kind == 'broaden_scope' else 'clarify_identity' if kind == 'identity' else 'clarify_order'
+        result = dict(events=[], place_journeys=[], prepared_questions=[hint], continuity_updates=[],
+            strategy_proposal=dict(strategy='explore', objective=objective, focus_event_ids=[]))
+        service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
+        plan = rpc(sql, 'read_lifetime_strategy_context', f"'{identity['conversation_id']}'")['plan']
+        assert plan['objective'] == objective
+        later = client.post('/v1/agent/turn', json=dict(project_id=identity['project_id'], text='Please go on.'))
+        assert later.status_code == 200, later.text
+        assert later.json()['reply'].endswith(question)
+        assert len(calls) == 2
+        outcome = json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o order by source_sequence desc limit 1;').stdout)
+        assert outcome['delivered'] and outcome['selected_candidate_id'] == plan['candidates'][0]['id']
+        assert rpc(sql, 'read_lifetime_strategy_context', f"'{identity['conversation_id']}'")['plan']['candidates'] == []
