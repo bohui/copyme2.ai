@@ -223,3 +223,47 @@ def test_hint_quote_mismatch_is_rejected_then_repaired_without_replacing_its_evi
     assert len(captured) == 2
     adapted = validate_governed_collector_result(json.loads(result['reply']), ctx)
     assert adapted['plan']['candidates'][0]['context']['evidence']['quote'] == candidate['quote']
+
+
+@pytest.mark.parametrize('language,current', [
+    ('en-AU', 'What else could we explore from those years?'),
+    ('zh-CN', '关于那些年，我们还可以聊些什么？'),
+])
+def test_question_reason_repair_keeps_the_current_invitation_and_ready_news_hint(tmp_path, monkeypatch, language, current):
+    import asyncio
+    from apps.api.lifetime_memory_engine import run_governed_collector
+    from test_conversation_reply_transport import install_reply_provider
+    from test_historical_news import ready_context
+    from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
+
+    governed, ctx = fixture()
+    ctx.update(deepcopy(ready_context()), reply_contract='reply-v2', two_lane_memory=True,
+        interview_language=language)
+    ctx['source']['text'] = current
+    packet = json.loads(governed.packet)
+    packet['current']['narrator'].update(original=current, char_end=len(current), language=language)
+    packet['pinned']['language'] = language
+    packet.update(instructions=reply_instructions(), interview_context={
+        key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
+    acknowledgement = ('我们可以按您的节奏继续回忆。' if language == 'zh-CN'
+                       else 'We can keep following your memories at your pace.')
+    invalid = {**proposal(), 'acknowledgement': acknowledgement, 'reason': 'direct_answer'}
+
+    def repaired(body):
+        feedback = body['input'][0]['content'][1]['text']
+        assert 'CONTRACT_16' in feedback and 'pause/direct_answer require question=null' in feedback
+        assert 'same-period ideas use the top relevant hint' in feedback
+        context = json.loads(body['input'][1]['content'])
+        hint = context['brief']['hints'][0]
+        assert hint['historical_clue_id'] == ctx['historical_news']['clues'][0]['id']
+        assert json.loads(body['input'][-1]['content'])['current']['narrator']['original'] == current
+        return {**invalid, 'reason': 'prepared_candidate', 'hint': 0, 'question': hint['question']}
+
+    captured = install_reply_provider(monkeypatch, [invalid, repaired])
+    result = asyncio.run(run_governed_collector(command=['forbidden'], home_root=tmp_path,
+        base_url='https://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
+        governed=encode(packet), interview_context=ctx, publisher=FakePublisher()))
+    assert len(captured) == 2
+    accepted = validate_governed_collector_result(json.loads(result['reply']), ctx)
+    assert accepted['historical_context']['source_url'] == ctx['historical_news']['clues'][0]['source_url']
+    assert accepted['acknowledgement'] == acknowledgement

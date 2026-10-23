@@ -1,0 +1,240 @@
+{
+  "schema_version": 1,
+  "acceptance": "pending_live",
+  "base_head": "b8d797d898a544e1b4da0d7642998b0d19811507",
+  "approval": "Approve focused fixes",
+  "candidate_actual_model_calls": 0,
+  "frozen_case_count": 34,
+  "call_cap": 80,
+  "compiled_reply_characters": 1997,
+  "offline_checks": {
+    "focused": 146,
+    "javascript": 604,
+    "api_database": 468,
+    "standalone": 95,
+    "cleanup_verified": true
+  },
+  "managed_artifacts": [
+    {
+      "source": "skills/memoir-interviewer/prompts/reply.md",
+      "candidate_sha256": "2885ff8f2d414c57820646ff5823b8280bbe824e2752ef0a6228af6db6524539",
+      "genuine_prior_receipt": {
+        "name": "memoir/skills/memoir-interviewer/reply",
+        "schema_version": 1,
+        "sha256": "71e8f40cebcba746b4d2ff1b9995fcf6b29e312d1fe3f8c615c58b50f19de9b1",
+        "type": "text",
+        "version": 4
+      },
+      "candidate_published": false
+    },
+    {
+      "source": "skills/memoir-interviewer/prompts/governed-repair/codes.md",
+      "candidate_sha256": "75b30543f26a6403207034afb520b6542166053edaec0179ad51e91e38741987",
+      "genuine_prior_receipt": {
+        "name": "memoir/skills/memoir-interviewer/repair-codes",
+        "schema_version": 1,
+        "sha256": "b9e84a4c730dacc0680ccbe1c1d0039237e8b5a1df3309964185b3c97803a917",
+        "type": "text",
+        "version": 6
+      },
+      "candidate_published": false
+    },
+    {
+      "source": "apps/api/prompts/shared/historical-acknowledgements.md",
+      "candidate_sha256": "0730513095aad3f4a95e2bc100cee04bcf677d21eaf83fb88c4bd50b10628b6b",
+      "genuine_prior_receipt": {
+        "name": "memoir/shared/historical-acknowledgements",
+        "schema_version": 1,
+        "sha256": "9e16e6c3ffed6779f0baead80e747dc762002a35317a1d1173472cf5828ce733",
+        "type": "text",
+        "version": 1
+      },
+      "candidate_published": false
+    }
+  ],
+  "archive_path": "docs/evidence/lane-b-news-controls-followup-20261024.json.gz",
+  "archive_sha256": "f22bb83674afa0907c50cbd3612b37b961282e6d534c2547828bf70edc93b370",
+  "uncompressed_sha256": "6d8f9079c197adfb2cb77d3fddf06bb7955a66831bd635672e396bb016115844",
+  "files": [
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/wait_for_backend.py",
+      "sha256": "8291917b199a116858498bafe7c69c19a1efb899b458a537cdf12a3ac64a491b",
+      "bytes": 883
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/plan.json",
+      "sha256": "d0423907886b45b657a5b525d55225d285334c81981a91d2311537ba090fec84",
+      "bytes": 2810
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/copy-compatibility-decision.json",
+      "sha256": "3a7c40ff88187b43a1111b1a825ac4ddca999172e426995757b775004dcc6066",
+      "bytes": 433
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/approval.json",
+      "sha256": "6537044ffafa3afe4d07c4cf010b8f6b3f0f9fefe6703be979e3e049041aff24",
+      "bytes": 312
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/heldouts.json",
+      "sha256": "2b26c7d2e76e9056fdbc8b693bc5633a9cbd40c4fe9232041fee7fd426a0b8d4",
+      "bytes": 5567
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/collector-route-comparison-plan.json",
+      "sha256": "55b36f01eeed3cf8f86bc2dcefdf89bdc7cd36760850162fa9a314f65ad04336",
+      "bytes": 1258
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/cases.json",
+      "sha256": "996496ed70a0c3b5f4b24cad0db2b2e2858cc3afdfe5b86f2cd5149d35c96f64",
+      "bytes": 15803
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/live.py",
+      "sha256": "8a0d5fcb86a4e39ec116b58e60a08a78b9a3bea32312def1ace6d4645779cc61",
+      "bytes": 18795
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/prepublication-refusal.json",
+      "sha256": "f2991d0fa5207a8f78d2f08aba725f98f4d27bf9dd6c4ef1ab9e990e7a1c161d",
+      "bytes": 447
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/11-news-controls/prepared-checks.json",
+      "sha256": "194fad306f08c4286dca796c6c93ec54b36638ca4a8435b10602b01d3a36da0f",
+      "bytes": 254
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-unit-final.json",
+      "sha256": "08b6e2c15d07e654fd86b4f69d0a3f65f6a8e847ea6dfdf4e0bb12aecf47b4e4",
+      "bytes": 964
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-unit-final.log",
+      "sha256": "2808df218aca6950cd6b6a158d08d245cc24e08c3b3fd72b72c648a153e619f0",
+      "bytes": 260
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-unit-cleanup.json",
+      "sha256": "1401fe167ca607f1abdea2ace7d8a36cf358e63f1e63ef1e31e8fb33f98515b0",
+      "bytes": 247
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-research.log",
+      "sha256": "4b15d00bf27e746204e48e187b5be3c203b5e5788a59dc9b8ac26b6a84bc969f",
+      "bytes": 125736
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-unit-r3.log",
+      "sha256": "9c06e05e9362db6996a29ddb978c5833dc760e05420e0e8ceac31beff6cb17c1",
+      "bytes": 180
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-research-final.log",
+      "sha256": "24300ea319b221be2a01421c45d55e262ac1053b62c6879b3b0282d2c6f9fcc0",
+      "bytes": 125711
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-unit.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-unit-r2.log",
+      "sha256": "6f16c6e183a154eea648424077bc7f08a2db47e93493dbfaa4418cd1d455b60c",
+      "bytes": 6612
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-research.json",
+      "sha256": "55595b82f6428fd8004bd461eff3c9ae576248bae673768b903935255ca13fc8",
+      "bytes": 842
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-unit-r2.json",
+      "sha256": "fd86cea82c46ea05275e0282c3d79fe2264e3d3065cfa7680c2f4e05e867a7e1",
+      "bytes": 962
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-unit.json",
+      "sha256": "768d53ca85ba2096a3a4e3c8150cd3edf5dd3d119daff8b58b9784b400f750b5",
+      "bytes": 827
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-research-final.json",
+      "sha256": "1943860b043d8ccb9093dbc2ce9d7a6e913b36154eab448a1da55ab095b739b9",
+      "bytes": 848
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/handoff-focused-fix-unit-r3.json",
+      "sha256": "38972fa1fb9a82700e197c9126d10e6a1aeb63a2b78606d15291f83c34a4124c",
+      "bytes": 961
+    },
+    {
+      "path": "apps/api/interview_plan.py",
+      "sha256": "0fc9db6af5d81f723a7ce4f8442387298ef690cd79a66eecf6f6c813fb20cc81",
+      "bytes": 17888
+    },
+    {
+      "path": "apps/api/prompts/shared/historical-acknowledgements.md",
+      "sha256": "0730513095aad3f4a95e2bc100cee04bcf677d21eaf83fb88c4bd50b10628b6b",
+      "bytes": 234
+    },
+    {
+      "path": "docs/optimise-all-skills.md",
+      "sha256": "1ea83410d069fe97690cf8f1606da293a756889de8dfa3b09bf7c998430df33a",
+      "bytes": 89295
+    },
+    {
+      "path": "skills/memoir-interviewer/prompts/governed-repair/codes.md",
+      "sha256": "75b30543f26a6403207034afb520b6542166053edaec0179ad51e91e38741987",
+      "bytes": 3621
+    },
+    {
+      "path": "skills/memoir-interviewer/prompts/reply.md",
+      "sha256": "2885ff8f2d414c57820646ff5823b8280bbe824e2752ef0a6228af6db6524539",
+      "bytes": 1883
+    },
+    {
+      "path": "tests/test_conversation_reply.py",
+      "sha256": "c476d2135c7dc32303a96df9a1291d07ca1fdf24aa4342e2cefb8945e3ba4eb2",
+      "bytes": 14291
+    },
+    {
+      "path": "tests/test_historical_news.py",
+      "sha256": "66290e69021e4127fc53d2e287b2562d009ef30bd38926a769085ed1795e126b",
+      "bytes": 23519
+    },
+    {
+      "path": "tests/test_lane_b_question_priorities_postgres.py",
+      "sha256": "df6aa675ad5a246e102de6270b675c951fe1a2caea6c617bba96d03d38d814f7",
+      "bytes": 11096
+    },
+    {
+      "path": "tests/test_reply_v2_contract_compatibility.py",
+      "sha256": "9ebdb95bee15cef20435385bed2ef5c2d35ec68aeb0b63f94518aadb507dc89f",
+      "bytes": 8207
+    },
+    {
+      "path": "docs/lane-b-news-controls-followup-20261024.md",
+      "sha256": "d8c394b72e6262af6112ae83a34a5001e34bc9c7899bc79a357a5720065304b4",
+      "bytes": 5344
+    },
+    {
+      "path": "skills/memoir-interviewer/prompts/reply.md.langfuse.json",
+      "sha256": "5edafcb6345d37601bbc06ab1c161176e32ca0f519c62ab9b4acc86f4bb696b8",
+      "bytes": 192
+    },
+    {
+      "path": "skills/memoir-interviewer/prompts/governed-repair/codes.md.langfuse.json",
+      "sha256": "d9f26987666c7e76f10e8b09e223c4f841d5ffc22d2b6c50c04909414f10d51d",
+      "bytes": 199
+    },
+    {
+      "path": "apps/api/prompts/shared/historical-acknowledgements.md.langfuse.json",
+      "sha256": "04eea4c94900b9ff9449ffe75b423d091fd544dec5049b802c2517936738c0b3",
+      "bytes": 195
+    }
+  ]
+}
