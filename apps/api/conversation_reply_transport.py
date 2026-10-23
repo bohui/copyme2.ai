@@ -44,13 +44,13 @@ class ReplyRequestBody(GovernedRequestBody):
             yield self.content
 
 
-async def _events(response):
+async def _events(response, *, max_response_bytes=None):
     pending = bytearray()
     data = []
     received = 0
     async for chunk in response.aiter_bytes():
         received += len(chunk)
-        if received > MAX_RESPONSE_BYTES:
+        if received > (MAX_RESPONSE_BYTES if max_response_bytes is None else max_response_bytes):
             raise RuntimeError('Interview provider response exceeds its byte limit')
         pending.extend(chunk)
         while b'\n' in pending:
@@ -101,6 +101,13 @@ async def stream_reply(*, view, prompt, schema, model, effort, budget, base_url,
         raise ValueError('Interview provider request exceeds the input budget')
     request = ReplyRequestBody(encoded, publisher=publisher,
         fence=fence.model_dump(mode='json'), issue14_admission=issue14_admission)
+    return await stream_document(request=request, content_length=len(encoded), base_url=base_url,
+        api_key=api_key, timeout=timeout, on_delta=on_delta, transport=transport)
+
+
+async def stream_document(*, request, content_length, base_url, api_key, timeout,
+                          on_delta=None, transport=None, max_response_bytes=None):
+    """Consume a bounded completed JSON document through its caller's guarded body."""
     deltas = []
     try:
         async with asyncio.timeout(timeout):
@@ -108,9 +115,9 @@ async def stream_reply(*, view, prompt, schema, model, effort, budget, base_url,
                                         trust_env=False, follow_redirects=False) as client:
                 async with client.stream('POST', base_url.rstrip('/') + '/responses', content=request,
                     headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json',
-                             'Content-Length': str(len(encoded)), 'Accept': 'text/event-stream'}) as response:
+                             'Content-Length': str(content_length), 'Accept': 'text/event-stream'}) as response:
                     response.raise_for_status()
-                    async for event in _events(response):
+                    async for event in _events(response, max_response_bytes=max_response_bytes):
                         kind = event.get('type')
                         if kind == 'response.output_text.delta':
                             delta = event.get('delta')

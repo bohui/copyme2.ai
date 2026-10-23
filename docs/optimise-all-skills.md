@@ -20,7 +20,7 @@ A fresh interviewer run was already starting when the user redirected work. It w
 | --- | --- | --- |
 | memoir-author-timeline | model; accepted_source | Approved coordinate fix implemented; four-case comparison passed, broader completion gate remains open |
 | memoir-place-journey | embedded; place_evidence | Pending |
-| memoir-memory-context | model; periodic | Pending |
+| memoir-memory-context | model; periodic | Approved direct profile/summary transport implemented; live model time reduced, full quality gate remains open |
 | memoir-composer | model; periodic | Pending |
 | memoir-historical-news-research | provider; place_selection | Pending |
 | memoir-place-photo-research | provider; place_selection | Pending |
@@ -172,7 +172,7 @@ Continue with `memoir-memory-context`, embedded place journey, composer, histori
 
 ## Memory-context round — live baseline, proposal awaiting approval
 
-The user authorized the next Lane B investigation and placed story-game optimization last. This round covers scheduled narrator-profile patches and the selective working-summary prompt owned by `memoir-memory-context`. The current application uses the timeline lane for both. No memory-context application, prompt, schema, transport or configuration change has been implemented.
+The user authorized the next Lane B investigation and placed story-game optimization last. This round covers scheduled narrator-profile patches and the selective working-summary prompt owned by `memoir-memory-context`. The current application uses the timeline lane for both. The baseline below predates the approved direct transport; managed prompts, schemas and runtime configuration remain unchanged.
 
 ### Execution and prompts
 
@@ -213,12 +213,50 @@ The six completed selected cases used ten actual model calls. The baseline has *
 
 First-response bytes from the relay are not meaningful UI text. All native allocations and SQL state were cleaned up. Profile/summary quality above is assistant review against the pre-dispatch rubric, not independent human evaluation. One profile semantic gate remains unmet, so this is not all-skill acceptance.
 
-### Proposed optimization: direct Responses for profile and summary only
+### Approved optimization: direct Responses for profile and summary only
 
 | Proposed change / affected code | Measured cost and expected gain | Retained quality contract | Verification / rollback |
 | --- | --- | --- | --- |
 | Route only `profile` and `summarize` in `lifetime_memory_lane_engine.run_bounded_lane` through the existing direct Responses approach, reusing bounded SSE/completion decoding and the immutable lane request-body guard. Keep event extraction/composer/interviewer routing unchanged. Add focused direct-transport and real-SQL fence regressions. | Remove the 4,684 tool tokens per measured request, generic framework input and fresh app-server session. No latency percentage is promised: most observed time is generation, and the first profile alone used 1,034 reasoning tokens. Measure actual gain rather than infer it from character counts. | Identical domain prompts, canonical input, output schema, configured model/effort/output allowance, source/policy/manual authority, Issue14 admission, actual-byte guarding, strict JSON/evidence validators, retries and durable commits. No source, quote or rejected proposal is discarded to make a result validate. | Repeat all six frozen scenarios with each arm's own saved state; require all frozen quality gates, including the protected-field case. Add held-out nonzero-window profile and summary evidence. Check stale owner/source/policy/token/manual changes at real provider-byte admission, cancellation, incomplete/tool output and unchanged prompt/schema hashes. At most 27 candidate plus nine held-out calls; combined round cap 54 including 14 baseline calls; 90 seconds/provider call, no judge calls. Restore the existing native path for these phases on failure. |
 
-This transport-only change needs no new prompt version. It remains **unapproved and unimplemented**. Shortening the profile instructions is a separate subsequent hypothesis so the cause of any measured change stays clear. Further parallelizing profile and timeline would require fresh admission/revision design, because profile commits can invalidate a concurrently captured page; no such scheduling change is proposed here.
+The user explicitly approved this change: “implement direct LLM calls for profile and summary, rerun profiling and quality checks, and update PR117 without merging.” It is implemented on `optimise-all-skills`, overriding the workflow skill's default main-checkout rule. This transport-only change needs no new prompt version. Shortening the profile instructions is a separate subsequent hypothesis so the cause of any measured change stays clear. Further parallelizing profile and timeline would require fresh admission/revision design, because profile commits can invalidate a concurrently captured page; no such scheduling change is proposed here.
 
 Full inputs, model outputs, saved state, exact requests, source/harness inventories, all failed runs and cleanup receipts: [memory-context baseline evidence](evidence/lane-b-memory-context-baseline-20261023.json).
+
+### Direct transport implementation and live comparison
+
+Only `profile` and `summarize` branch into direct Responses in `lifetime_memory_lane_engine.run_bounded_lane`. They skip native app-server/thread creation and use no tools. The existing reply transport's SSE/completion decoder is shared without changing the foreground request, cache key or 512KB response ceiling. Memory-context uses a bounded 2MB response ceiling. The immutable `LaneRequestBody` holds the real publication guard while HTTP consumes the body and rechecks Issue14 admission immediately before yielding bytes. Complete JSON proposals still pass the original semantic/evidence validation, three-attempt ceiling and fenced SQL commit. Event extraction and composer retain their native route.
+
+All ten selected baseline compiled prompt/schema contracts matched the candidate compiler byte for byte on the same captured fences. The direct request preserves canonical packet, schema field order, `codex_output_schema`, model alias `memoir-luna-low`, served `gpt-5.6-luna`, requested/served `low` effort, and the same effective diagnostic 16,384-token output ceiling. Native framework/tool context is the approved removed variable. Candidate cache hits were zero; baseline tool context included cached tokens, so this is not a controlled cache experiment. Each arm loads its own saved prior output; no baseline-generated summary or profile is injected into the candidate.
+
+| Frozen scenario | Model seconds before → after (all attempts) | Reduction | Controlled case to saved readback before → after | Calls before → after | Final quality |
+| --- | ---: | ---: | ---: | ---: | --- |
+| English opening profile | 28.20 → 8.49 | 69.9% | 30.94 → 11.21 s | 1 → 1 | Pass: all six narrator fields, exact source evidence; date wording `1960`. |
+| Chinese opening profile | 14.65 → 6.10 | 58.4% | 16.70 → 7.76 s | 1 → 1 | Pass: 林宁, 1963年4月, 河北承德, 天津; no gender/current-city inference. |
+| English saved-state correction | 15.94 → 9.02 | 43.4% | 22.84 → 14.79 s, five controlled turns | 2 → 2 | Pass: saved/reloaded 1960 → 1958, Hobart retained, three neutral turns make zero calls. |
+| Chinese protected fields / relative facts | 10.38 → 4.64 | 55.3% | 12.49 → 6.76 s | 1 → 1 | **Fail, unchanged category:** protected fields remain intact and father facts are not borrowed, but an unknown-date expression is still saved. |
+| English saved-prior summary | 22.82 → 7.66 | 66.4% | 38.95 → 22.59 s | 3 → 2 | Pass: 1958/Hobart and Brisbane/kite/year uncertainty retained; newest Sydney source excluded. |
+| Chinese correction summary | 16.38 → 7.58 | 53.8% | 31.78 → 23.25 s | 2 → 2 | Final checkpoint passes: 天津, purple explicitly corrected to blue, year unknown, both originals cited. |
+
+This selected cohort used nine candidate calls versus ten baseline calls. Input tokens total 74,873 → 15,769 (78.9% lower, including the avoided retry). Per-call median generation time was 8.96 → 4.53 seconds across different attempt counts; that descriptive statistic is not a paired latency distribution or a tail guarantee. There is one sample per scenario, taken later than baseline, with possible provider/load drift. The controlled case includes SQL intake, fixtures and readback; neither it nor relay first byte is browser paint or meaningful user-visible text. These are background completion times, so no 5/10-second foreground acceptance is claimed.
+
+Two held-out cases, frozen before implementation, used three additional calls:
+
+- Chinese nonzero-window profile processed real SQL windows starting at 0 and 1,792. The neutral first window returned no facts. The second saved 周岚, 1972, 南京 and 苏州 with absolute original evidence after host normalization, without gender inference. **The required birth-date expression was omitted**, so the complete held-out rubric fails. Model time 2.28 + 5.56 seconds; controlled case 10.62 seconds.
+- English attributed summary kept the aunt's unverified 1955/Dunedin statement separate from narrator 1974/Nelson, retained exact source quotes, covered seventeen older windows and excluded the newest Wellington source. Pass. Model time 3.04 seconds; controlled case 16.16 seconds. The model's miscounted quote coordinates were resolved by the existing exact-unique-quote validator; this transport change does not alter that validator.
+
+Inspection also found an existing intermediate citation weakness: in both arms, the first Chinese summary mentions the blue correction from `recent_dialogue` while citing only the current purple-kite original. The final checkpoint adds the second original and is correctly cited. This is retained as a separate quality concern; final-checkpoint success does not prove every intermediate proposal has complete semantic citation coverage.
+
+All six candidate cases and both held-out cases completed their SQL workflow and cleaned task-owned processes/databases. The round has 26 actual provider-bound completions: fourteen baseline/calibration, nine candidate and three held-out, within the approved 54-call ceiling; no judge calls. The candidate harness incorrectly labels its scope as native and states a 300-second per-case limit in two copied metadata fields; its actual code uses direct Responses and a 600-second case timeout. Source, wire requests and phase records establish the actual route, and this metadata defect is disclosed without rewriting the raw run.
+
+The observed speedup and transport/state guards pass their diagnostic checks. **Full quality acceptance fails** because the protected-profile gate and nonzero-window date-expression gate remain unmet; intermediate summary citation quality also needs follow-up. This candidate remains unmerged in draft PR117. No prompt publication, shared service activation, deployed-worker, Temporal or browser acceptance was performed. The existing native branch can be restored for these two phases without changing their domain contracts; this PR is not authorization to roll out the candidate as fully accepted.
+
+Verification retained the unsuccessful checks as well as passing ones:
+
+- 197 focused transport/profile/lane/reply/span checks passed. Ten direct profile SQL cases cover owner, source, policy, token, manual locks, stop, rollout and a manual change after send. Six focused summary SQL/feedback checks passed, including policy change after send. These SQL cases also pass in the broader lifecycle run.
+- `make test-place-research` passed: 601 JavaScript, 429 API/database and 95 standalone checks. This covers the shared decoder's existing foreground consumers and place/photo/news workflows.
+- The wider profile/summary/reply/worker run had 110 passes and 30 failures. The combined core/legacy-admission run had 233 passes and 33 failures. **All 63 failed test identities fail again when both changed transport modules are loaded from merged main `357b343e`**. Failures include older removed `_home`/legacy worker interfaces, request contracts and existing SQL profile/summary fixtures. They are not counted as passes or silently excluded from the report.
+- An initial summary regression test insertion misplaced an existing assertion, causing five `NameError` failures after the boundary assertions. The assertion was returned to its original test; the corrected six-case check passes. Both logs remain. One baseline replay launch was denied by the backend-operation lock while the place suite was active; it dispatched no models, was retried after completion, and is recorded separately.
+- Every completed native allocation/isolated check has verified cleanup. The live SQL databases were disposable synthetic state; no shared app process was restarted or reconfigured.
+
+Full candidate/held-out outputs, saved state, comparison metrics, prompt/schema equality, source and harness hashes/code, all check logs and cleanup receipts: [memory-context direct transport evidence](evidence/lane-b-memory-context-direct-20261023.json). The baseline evidence is retained unchanged. Next quality proposals must address unknown-date field meaning, date-expression completeness and intermediate summary citations without relaxing the frozen gates. The next separate optimization round remains Lane B; story-game is last.

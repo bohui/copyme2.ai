@@ -20,6 +20,7 @@ import os
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
+from urllib.parse import urlsplit
 
 import anyio
 import httpx
@@ -622,17 +623,20 @@ class LaneRequestBody:
     """Immutable single-use HTTP body, locked through transport consumption."""
     fence_type = LaneFence
 
-    def __init__(self, content, *, publisher, fence, after_send=None):
+    def __init__(self, content, *, publisher, fence, after_send=None, before_send=None):
         self._content = bytes(content)
         self._fence_json = serialize_packet(self.fence_type.model_validate(fence).model_dump(mode='json'))
         self._publisher = publisher
         self._iterator = None
         self._after_send = after_send
+        self._before_send = before_send
 
     async def _chunks(self):
         content = self._content
         snapshot = json.loads(self._fence_json)
         async with _admission(self._publisher,snapshot):
+            if self._before_send:
+                self._before_send()
             yield content
         if self._after_send:
             await self._after_send()
@@ -701,7 +705,8 @@ async def send_bounded_lane_request(*, worker_url, worker_secret, bounded_lane,
 
 async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
         bounded_lane, publisher=None, timeout=240, connection_factory=None,
-        issue14_admission=None, progress=None, uid=None, apply_owner=False, effort=None):
+        issue14_admission=None, progress=None, uid=None, apply_owner=False, effort=None,
+        provider_transport=None):
     check_lane_generation()
     bounded = _validated(bounded_lane,model)
     await validate_lane_payload(bounded)
@@ -715,6 +720,29 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     def request_admission():
         return _admission(publisher,json.loads(fence_json))
     instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode), fence=bounded.fence)
+    if bounded.phase in {'profile', 'summarize'}:
+        from .conversation_reply_transport import stream_document
+        endpoint = urlsplit(base_url)
+        if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
+                or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
+            raise ValueError('Memory context provider is not configured')
+        manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
+        payload = dict(model=model, instructions=instructions, input=bounded.packet,
+            store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
+            reasoning={'effort': effort or 'low', 'summary': 'auto'},
+            max_output_tokens=bounded.budget.output_headroom,
+            metadata={**manifest_metadata(manifest), 'generation_name':skill_name, 'trace_name':skill_name},
+            text={'format':{'type':'json_schema', 'name':'codex_output_schema', 'strict':True, 'schema':schema}})
+        encoded = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        request = LaneRequestBody(encoded, publisher=publisher, fence=bounded.fence,
+            before_send=lambda: check_issue14_dispatch(issue14_admission, role=role))
+        with trace_llm_call('memoir.' + bounded.phase, model,
+                metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}):
+            reply, receipt = await stream_document(request=request, content_length=len(encoded),
+                base_url=base_url, api_key=api_key, timeout=timeout, transport=provider_transport,
+                max_response_bytes=2_000_000)
+        _object(reply)
+        return {'thread_id':receipt['response_id'], 'reply':reply, 'artifacts':[]}
     root = Path(home_root).expanduser().resolve()
     root.mkdir(parents=True,exist_ok=True,mode=0o700)
     fence = bounded.fence

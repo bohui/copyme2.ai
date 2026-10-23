@@ -151,6 +151,63 @@ def test_summary_rejection_feedback_distinguishes_budget_without_private_text():
     assert summary_rejection_reason(ValueError('private output and instructions'))=='OUTPUT_SCHEMA'
 
 
+@pytest.mark.parametrize('change', ['none', 'source', 'policy', 'token', 'after_send_policy'])
+def test_direct_summary_guards_actual_http_and_stale_commit(sql, tmp_path, monkeypatch, change):
+    from apps.api.lifetime_memory_composer import lane_model_budget
+    from apps.api.lifetime_memory_lane_engine import build_bounded_lane_input, run_bounded_lane, LanePublication
+    from apps.api.lifetime_memory_summary import summary_packet, validate_summary
+    from apps.api.lifetime_memory_policy import PolicyUnavailable
+    from apps.api.lifetime_memory_publication import PublicationUnavailable
+    from test_conversation_reply_transport import events, sse
+
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
+    identity, lane_id, page, _ = setup_backlog(sql, tmp_path, monkeypatch)
+    budget = lane_model_budget()
+    bounded = build_bounded_lane_input(page, phase='summarize', packet=summary_packet(page), budget=budget)
+    sent = []
+
+    def mutate():
+        if change == 'source':
+            rpc(sql, 'change_user_narrator_source', f"{literal(identity['project_id'])},'{page['source']['id']}',1,'withdraw',null")
+        elif change in {'policy', 'after_send_policy'}:
+            sql('update public.user_memoir_project set policy_epoch=policy_epoch+1;')
+        elif change == 'token':
+            sql('update public.user_memoir_lane set token=gen_random_uuid();')
+
+    class Provider(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            if change != 'after_send_policy':
+                mutate()
+            async for chunk in request.stream:
+                sent.append(chunk)
+            if change == 'after_send_policy':
+                mutate()
+            return httpx.Response(200, content=sse(events(json.dumps(proposal(page)))))
+
+    async def generate():
+        return await run_bounded_lane(command=['must-not-start'], home_root=tmp_path / 'homes',
+            base_url='https://provider.invalid/v1', api_key='fixture-summary-key', model=budget.model,
+            bounded_lane=bounded, publisher=LanePublication(sql.publication_dsn, authenticated_owner=OWNER),
+            provider_transport=Provider(), timeout=5)
+
+    if change in {'none', 'after_send_policy'}:
+        output = validate_summary(json.loads(asyncio.run(generate())['reply']), page)
+        assert sent
+        def commit():
+            return service(sql, 'commit_lifetime_memory_summary_page',
+                f"'{lane_id}','{page['token']}',{page['memory_summary']['revision']},{literal(output)},'{page['page_digest']}'")
+        if change == 'none':
+            assert commit()['status'] == 'page_saved'
+        else:
+            with pytest.raises(AssertionError):
+                commit()
+    else:
+        with pytest.raises((PublicationUnavailable, PolicyUnavailable)):
+            asyncio.run(generate())
+        assert sent == []
+    assert not (tmp_path / 'homes').exists()
+
+
 def test_summary_repairs_unique_quote_offsets_but_rejects_ambiguous_matches():
     from apps.api.lifetime_memory_summary import validate_summary
     page = {'source': {'id': 'current-source', 'version': 1, 'text': '风筝是紫色的。', 'char_start': 20},
