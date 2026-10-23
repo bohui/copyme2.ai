@@ -30,7 +30,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .agent_routes_support import authenticated_storage
 from .namespaces import rewrite_memoir_path
 from .photo_memories import PhotoMemoryInput, photo_memory_state, update_photo_memory
-from .speech import SpeechProviderError, SpeechUnavailable, build_speech_service, speech_character
+from .speech import SpeechProviderError, SpeechUnavailable, build_speech_service, speech_synthesis_options
 from .store import MemoryStore, new_id, now_iso, sha256_bytes, sha256_json
 
 
@@ -1901,12 +1901,12 @@ def create_app(
         data = payload.model_dump(exclude_unset=True)
         text = str(session["question"].get("text") or "").strip()
         language = str(data.get("language") or project.get("profile", {}).get("preferred_language") or "en-AU")
-        character = speech_character(language, voice=data.get("voice"), prompt_name=data.get("prompt_name"))
+        character = speech_synthesis_options(selected_speech_service, language, voice=data.get("voice"),
+            prompt_name=data.get("prompt_name"), output_format=data.get('output_format'), model=data.get('model'))
         voice, instructions = character["voice"], character["instructions"]
         speed = character["speed"]
-        output_format = str(data.get("output_format") or "mp3")
-        model = str(data.get("model") or getattr(selected_speech_service, "tts_model", "gpt-4o-mini-tts"))
-        cache_key = sha256_json({"project_id": project["id"], "text": text, "language": language, "voice": voice, "instructions": instructions, "speed": speed, "output_format": output_format, "model": model})
+        output_format, model = character['output_format'], character['model']
+        cache_key = sha256_json({"project_id": project["id"], "text": text, "language": language, "voice": voice, "instructions": instructions, "speed": speed, "output_format": output_format, "model": model, "provider": character['provider']})
         existing = next((asset for asset in memory.speech_assets.values() if asset.get("cache_key") == cache_key), None)
 
         def response_for(asset: dict[str, Any], *, cached: bool, status_code: int) -> Response:

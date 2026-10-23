@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import base64
+import io
 import json
+import wave
 
 import httpx
 import pytest
 
 from apps.api import llm_tracing
-from apps.api.speech import OpenAISpeechService
+from apps.api.speech import DoubaoSpeechService, GeminiSpeechService, OpenAISpeechService
 
 
 class FakeObservation:
@@ -105,3 +108,35 @@ def test_speech_calls_are_traced_without_recording_audio_or_text(monkeypatch):
     assert client.observations[1].fields["input"] == {"kind": "text", "characters": len("private answer")}
     assert all("private" not in json.dumps(observation.fields,default=lambda p: {'name':p.name,'version':p.version}) for observation in client.observations)
     http_client.close()
+
+
+@pytest.mark.parametrize('provider', ['gemini', 'doubao'])
+def test_native_speech_tracing_keeps_text_audio_and_credentials_out_of_observations(monkeypatch, provider):
+    tracer = FakeLangfuse()
+    monkeypatch.setattr(llm_tracing, '_client_cache', tracer)
+    buffer = io.BytesIO()
+    with wave.open(buffer, 'wb') as audio:
+        audio.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
+        audio.writeframes(b'private audio bytes\x00')
+    encoded = base64.b64encode(buffer.getvalue()).decode()
+
+    def upstream(request):
+        if provider == 'gemini':
+            return httpx.Response(200, json={'candidates': [{'content': {'parts': [{'inlineData': {
+                'mimeType': 'audio/wav', 'data': encoded,
+            }}]}}]})
+        return httpx.Response(200, text=json.dumps({'code': 0, 'data': encoded}))
+
+    client = httpx.Client(base_url='https://speech.test', transport=httpx.MockTransport(upstream))
+    service = GeminiSpeechService('private-api-key', client=client) if provider == 'gemini' else DoubaoSpeechService('private-api-key', client=client)
+    service.synthesize('Private narrated memory.', language='en-AU' if provider == 'gemini' else 'zh-CN')
+    assert len(tracer.observations) == 1
+    observation = tracer.observations[0]
+    assert observation.fields['metadata']['provider'] == provider
+    assert observation.fields['metadata']['prompt_manifest']['artifacts']
+    serialized = json.dumps([observation.fields, observation.updates],
+                            default=lambda prompt: {'name': prompt.name, 'version': prompt.version})
+    assert 'Private narrated memory.' not in serialized
+    assert 'private-api-key' not in serialized
+    assert encoded not in serialized
+    assert observation.closed

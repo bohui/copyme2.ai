@@ -2,11 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
+import base64
+import binascii
+import gzip
+import io
+import json
 import os
 import re
+import struct
+import subprocess
+import wave
+import zlib
 from typing import Any
+from uuid import uuid4
 
 import httpx
+from websockets.exceptions import WebSocketException
+from websockets.asyncio.client import connect
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .model_request import prompt_manifest
 from .llm_tracing import mark_llm_trace_error, trace_llm_call, update_llm_trace
@@ -18,9 +31,13 @@ _SPEECH_CHARACTERS = {
 }
 
 
-def speech_prompt_name(language, prompt_name=None):
+def _speech_locale(language: str | None) -> str:
     locale = str(language or 'en-AU').strip().replace('_', '-').lower()
-    locale = {'zh': 'zh-cn', 'en': 'en-au'}.get(locale, locale)
+    return {'zh': 'zh-cn', 'en': 'en-au'}.get(locale, locale)
+
+
+def speech_prompt_name(language, prompt_name=None):
+    locale = _speech_locale(language)
     name = prompt_name or _SPEECH_CHARACTERS.get(locale, {}).get('prompt_name', 'memoir/speech/default')
     if name not in {'memoir/speech/default', 'memoir/speech/en-AU', 'memoir/speech/zh-CN'}:
         raise ValueError('Unknown managed speech prompt')
@@ -28,14 +45,13 @@ def speech_prompt_name(language, prompt_name=None):
 
 
 def speech_character(language: str | None, *, voice: str | None = None,
-                     prompt_name: str | None = None) -> dict[str, Any]:
+                     prompt_name: str | None = None, default_voice: str | None = None) -> dict[str, Any]:
     """Choose versioned delivery policy; voice remains a typed provider option."""
-    locale = str(language or 'en-AU').strip().replace('_', '-').lower()
-    locale = {'zh': 'zh-cn', 'en': 'en-au'}.get(locale, locale)
+    locale = _speech_locale(language)
     suffix = re.sub(r'[^A-Z0-9]', '_', locale.upper())
     default = _SPEECH_CHARACTERS.get(locale, {'voice': 'marin'})
     return {
-        'voice': (voice or '').strip() or os.getenv(f'MEMORY_SPARK_TTS_VOICE_{suffix}', '').strip() or default['voice'],
+        'voice': (voice or '').strip() or os.getenv(f'MEMORY_SPARK_TTS_VOICE_{suffix}', '').strip() or default_voice or default['voice'],
         'instructions': load_prompt_artifact(prompt_path(speech_prompt_name(language, prompt_name))),
         'speed': default.get('speed', 1.0),
     }
@@ -78,6 +94,7 @@ class OpenAISpeechService:
         timeout: float = 60.0,
         client: httpx.Client | None = None,
     ) -> None:
+        self.api_key = api_key
         self.stt_model = stt_model
         self.tts_model = tts_model
         self._client = client or httpx.Client(
@@ -87,6 +104,8 @@ class OpenAISpeechService:
         )
 
     def transcribe(self, audio: bytes, **options: Any) -> dict[str, Any]:
+        if not self.api_key:
+            raise SpeechUnavailable('English transcription requires OPENAI_API_KEY')
         filename = str(options.get("filename") or "recording.webm")
         mime_type = str(options.get("mime_type") or "application/octet-stream")
         data: dict[str, str] = {"model": str(options.get("model") or self.stt_model), "response_format": "json"}
@@ -113,12 +132,15 @@ class OpenAISpeechService:
                 mark_llm_trace_error(trace, "speech.transcription", exc)
                 raise SpeechProviderError("Speech transcription could not reach the provider") from exc
             if response.status_code >= 400:
-                error = SpeechProviderError("Speech transcription failed", retryable=response.status_code >= 500)
+                error = SpeechProviderError("Speech transcription failed",
+                                            retryable=response.status_code == 429 or response.status_code >= 500)
                 update_llm_trace(trace, metadata={"http_status": response.status_code})
                 mark_llm_trace_error(trace, "speech.transcription", error)
                 raise error
             try:
                 body = response.json()
+                if not isinstance(body, dict) or not isinstance(body.get('text'), str):
+                    raise ValueError('Invalid transcript')
             except ValueError as exc:
                 mark_llm_trace_error(trace, "speech.transcription", exc)
                 raise SpeechProviderError("Speech transcription returned invalid data", retryable=False) from exc
@@ -137,6 +159,8 @@ class OpenAISpeechService:
             return result
 
     def synthesize(self, text: str, **options: Any) -> dict[str, Any]:
+        if not self.api_key:
+            raise SpeechUnavailable('Speech synthesis requires OPENAI_API_KEY')
         if options.get('instructions') is not None:
             raise ValueError('Use a managed speech prompt_name')
         model = str(options.get("model") or self.tts_model)
@@ -199,13 +223,310 @@ def _audio_mime_type(output_format: str) -> str:
     }.get(output_format, "application/octet-stream")
 
 
-def build_speech_service() -> OpenAISpeechService | UnavailableSpeechService:
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key:
-        return UnavailableSpeechService()
-    return OpenAISpeechService(
-        api_key,
-        base_url=os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1"),
-        stt_model=os.getenv("MEMORY_SPARK_STT_MODEL", "gpt-4o-mini-transcribe"),
-        tts_model=os.getenv("MEMORY_SPARK_TTS_MODEL", "gpt-4o-mini-tts"),
+def _transcode_audio(content: bytes, output_format: str, *, sample_rate: int = 24000) -> bytes:
+    codecs = {'pcm': ('s16le', 'pcm_s16le'), 'wav': ('wav', 'pcm_s16le'),
+              'mp3': ('mp3', 'libmp3lame'), 'opus': ('ogg', 'libopus'),
+              'aac': ('adts', 'aac'), 'flac': ('flac', 'flac')}
+    if output_format not in codecs:
+        raise SpeechProviderError('Unsupported speech audio format', retryable=False)
+    container, codec = codecs[output_format]
+    try:
+        result = subprocess.run(
+            ['ffmpeg', '-nostdin', '-v', 'error', '-protocol_whitelist', 'pipe',
+             '-i', 'pipe:0', '-vn', '-ac', '1', '-ar', str(sample_rate),
+             '-acodec', codec, '-f', container, 'pipe:1'],
+            input=content, capture_output=True, timeout=60, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise SpeechProviderError('Speech audio conversion is unavailable') from exc
+    if result.returncode or not result.stdout:
+        raise SpeechProviderError('Speech audio could not be converted', retryable=False)
+    return result.stdout
+
+
+def _check_speech_response(response: httpx.Response) -> None:
+    if response.status_code >= 400:
+        raise SpeechProviderError('Speech provider rejected the request',
+                                  retryable=response.status_code == 429 or response.status_code >= 500)
+
+
+def _synthesis_metadata(provider: str, language: str | None, character: dict[str, Any],
+                        output_format: str, prompt_name: str | None) -> dict[str, Any]:
+    return {
+        'provider': provider, 'voice': character['voice'], 'response_format': output_format,
+        'prompt_manifest': prompt_manifest(
+            [speech_prompt_name(language, prompt_name)], character['instructions'], variant='speech'),
+    }
+
+
+class GeminiSpeechService:
+    provider = 'gemini'
+    default_voice = 'Kore'
+    default_format = 'wav'
+
+    def __init__(self, api_key: str, *, tts_model: str = 'gemini-3.8-flash-lite-tts',
+                 client: httpx.Client | None = None) -> None:
+        self.api_key = api_key
+        self.tts_model = tts_model
+        self._client = client or httpx.Client(
+            base_url='https://generativelanguage.googleapis.com/v1beta',
+            headers={'x-goog-api-key': api_key}, timeout=60,
+        )
+
+    def synthesize(self, text: str, **options: Any) -> dict[str, Any]:
+        if not self.api_key:
+            raise SpeechUnavailable('English speech synthesis requires GEMINI_API_KEY')
+        if options.get('instructions') is not None:
+            raise ValueError('Use a managed speech prompt_name')
+        language, prompt_name = options.get('language'), options.get('prompt_name')
+        character = speech_character(language, voice=options.get('voice'), prompt_name=prompt_name,
+                                     default_voice=self.default_voice)
+        model = str(options.get('model') or self.tts_model)
+        output_format = str(options.get('output_format') or self.default_format)
+        if _audio_mime_type(output_format) == 'application/octet-stream':
+            raise SpeechProviderError('Unsupported speech audio format', retryable=False)
+        payload = {
+            'contents': [{'role': 'user', 'parts': [{'text': text,
+                'speech_metadata': {'style': character['instructions']}}]}],
+            'generationConfig': {
+                'responseModalities': ['AUDIO'],
+                'responseFormat': {'audio': {'mimeType': 'AUDIO_WAV', 'sampleRate': 24000}},
+                'speechConfig': {'voiceConfig': {'voice': character['voice']}},
+            },
+        }
+        with trace_llm_call('speech.synthesis', model,
+                input_summary={'kind': 'text', 'characters': len(text)},
+                metadata=_synthesis_metadata(self.provider, language, character, output_format, prompt_name)) as trace:
+            try:
+                response = self._client.post(f'/models/{model}:generateContent', json=payload)
+                _check_speech_response(response)
+                parts = response.json()['candidates'][0]['content']['parts']
+                audio_part = next(part['inlineData'] for part in parts if 'inlineData' in part)
+                content = base64.b64decode(audio_part['data'], validate=True)
+                mime_type = audio_part['mimeType'].lower()
+                if not content:
+                    raise ValueError('Empty audio')
+                if mime_type.startswith(('audio/l16', 'audio/pcm')):
+                    # Older compatible models return raw PCM instead of a WAV container.
+                    buffer = io.BytesIO()
+                    with wave.open(buffer, 'wb') as audio_file:
+                        audio_file.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
+                        audio_file.writeframes(content)
+                    content = buffer.getvalue()
+                elif (mime_type not in {'audio/wav', 'audio/x-wav'} or len(content) < 44
+                      or content[:4] != b'RIFF' or content[8:12] != b'WAVE'):
+                    raise ValueError('Unexpected audio format')
+                if output_format != 'wav':
+                    content = _transcode_audio(content, output_format)
+            except (httpx.HTTPError, SpeechProviderError, ValueError, KeyError, IndexError,
+                    TypeError, AttributeError, StopIteration, binascii.Error) as exc:
+                mark_llm_trace_error(trace, 'speech.synthesis', exc)
+                if isinstance(exc, SpeechProviderError):
+                    raise
+                raise SpeechProviderError('Gemini speech synthesis failed',
+                                          retryable=isinstance(exc, httpx.HTTPError)) from exc
+            update_llm_trace(trace, output={'kind': 'audio', 'bytes': len(content)})
+            return {'content': content, 'mime_type': _audio_mime_type(output_format),
+                    'model': model, 'voice': character['voice'], 'provider': self.provider}
+
+
+def _doubao_frame(message_type: int, payload: bytes, *, final: bool = False) -> bytes:
+    compressed = gzip.compress(payload)
+    header = bytes((0x11, (message_type << 4) | (2 if final else 0),
+                    0x11 if message_type == 1 else 0x01, 0))
+    return header + struct.pack('>I', len(compressed)) + compressed
+
+
+def _doubao_result(message: bytes | str) -> tuple[dict[str, Any], bool]:
+    if not isinstance(message, bytes) or len(message) < 8 or message[0] >> 4 != 1:
+        raise SpeechProviderError('Doubao transcription returned an invalid frame', retryable=False)
+    message_type, flags = message[1] >> 4, message[1] & 15
+    offset = (message[0] & 15) * 4
+    if offset < 4 or len(message) < offset + 4:
+        raise SpeechProviderError('Doubao transcription returned an invalid frame', retryable=False)
+    if message_type == 15:
+        code = struct.unpack_from('>I', message, offset)[0]
+        raise SpeechProviderError(f'Doubao transcription failed (code {code})', retryable=code >= 50000000)
+    if message_type != 9 or message[2] >> 4 != 1 or message[2] & 15 not in (0, 1):
+        raise SpeechProviderError('Doubao transcription returned an unsupported frame', retryable=False)
+    if flags & 1:
+        offset += 4
+    if len(message) < offset + 4:
+        raise SpeechProviderError('Doubao transcription returned an incomplete frame', retryable=False)
+    size = struct.unpack_from('>I', message, offset)[0]
+    payload = message[offset + 4:]
+    try:
+        if size != len(payload):
+            raise ValueError('Incorrect frame size')
+        if message[2] & 15:
+            with gzip.GzipFile(fileobj=io.BytesIO(payload)) as compressed:
+                payload = compressed.read(4 * 1024 * 1024 + 1)
+        if len(payload) > 4 * 1024 * 1024:
+            raise ValueError('Oversized response')
+        result = json.loads(payload)
+        if not isinstance(result, dict):
+            raise ValueError('Invalid response')
+    except (ValueError, OSError, EOFError, zlib.error) as exc:
+        raise SpeechProviderError('Doubao transcription returned invalid data', retryable=False) from exc
+    return result, bool(flags & 2)
+
+
+class DoubaoSpeechService:
+    provider = 'doubao'
+    stt_model = 'doubao-seed-asr-2.0'
+    tts_model = 'doubao-seed-tts-2.0'
+    default_voice = 'zh_female_vv_uranus_bigtts'
+    default_format = 'mp3'
+
+    def __init__(self, api_key: str, *, client: httpx.Client | None = None) -> None:
+        self.api_key = api_key
+        self._client = client or httpx.Client(base_url='https://openspeech.bytedance.com', timeout=60)
+
+    async def _recognize(self, pcm: bytes) -> dict[str, Any]:
+        request = {
+            'audio': {'format': 'pcm', 'codec': 'raw', 'rate': 16000, 'bits': 16, 'channel': 1},
+            'request': {'model_name': 'bigmodel', 'enable_itn': True, 'enable_punc': True,
+                        'enable_ddc': False, 'show_utterances': True, 'result_type': 'full'},
+        }
+        request_id = str(uuid4())
+        headers = {'X-Api-Key': self.api_key, 'X-Api-Resource-Id': 'volc.seedasr.sauc.duration',
+                   'X-Api-Connect-Id': request_id, 'X-Api-Request-Id': request_id, 'X-Api-Sequence': '-1'}
+        async with asyncio.timeout(60):
+            async with connect('wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream',
+                               additional_headers=headers, open_timeout=15, close_timeout=2,
+                               max_size=4 * 1024 * 1024) as socket:
+                await socket.send(_doubao_frame(1, json.dumps(request).encode()))
+
+                async def send_audio():
+                    for start in range(0, len(pcm), 6400):
+                        await socket.send(_doubao_frame(2, pcm[start:start + 6400],
+                                                       final=start + 6400 >= len(pcm)))
+
+                # Read while uploading: some modes acknowledge chunks, others wait for the last one.
+                sender = asyncio.create_task(send_audio())
+                try:
+                    async for message in socket:
+                        body, complete = _doubao_result(message)
+                        if complete:
+                            await sender
+                            return body
+                finally:
+                    sender.cancel()
+                    await asyncio.gather(sender, return_exceptions=True)
+        raise SpeechProviderError('Doubao transcription ended before the final result')
+
+    def transcribe(self, audio: bytes, **options: Any) -> dict[str, Any]:
+        if not self.api_key:
+            raise SpeechUnavailable('Chinese transcription requires DOUBAO_API_KEY')
+        with trace_llm_call('speech.transcription', self.stt_model,
+                input_summary={'kind': 'audio', 'bytes': len(audio), 'mime_type': options.get('mime_type')},
+                metadata={'provider': self.provider, 'endpoint': 'sauc/bigmodel_nostream'}) as trace:
+            try:
+                pcm = _transcode_audio(audio, 'pcm', sample_rate=16000)
+                body = asyncio.run(self._recognize(pcm))
+                result = body.get('result')
+                if not isinstance(result, dict) or not isinstance(result.get('text'), str):
+                    raise SpeechProviderError('Doubao transcription returned no transcript', retryable=False)
+                result = {'text': result['text'].strip(), 'language': 'zh',
+                          'segments': result.get('utterances') or [], 'model': self.stt_model, 'provider': self.provider}
+            except (OSError, TimeoutError, WebSocketException, SpeechProviderError) as exc:
+                mark_llm_trace_error(trace, 'speech.transcription', exc)
+                if isinstance(exc, SpeechProviderError):
+                    raise
+                raise SpeechProviderError('Doubao transcription could not reach the provider') from exc
+            update_llm_trace(trace, output={'kind': 'transcript', 'characters': len(result['text']),
+                                           'segments': len(result['segments'])})
+            return result
+
+    def synthesize(self, text: str, **options: Any) -> dict[str, Any]:
+        if not self.api_key:
+            raise SpeechUnavailable('Chinese speech synthesis requires DOUBAO_API_KEY')
+        if options.get('instructions') is not None:
+            raise ValueError('Use a managed speech prompt_name')
+        language, prompt_name = options.get('language'), options.get('prompt_name')
+        character = speech_character(language, voice=options.get('voice'), prompt_name=prompt_name,
+                                     default_voice=self.default_voice)
+        output_format = str(options.get('output_format') or self.default_format)
+        if output_format not in {'mp3', 'pcm', 'wav', 'opus'}:
+            raise SpeechProviderError('Unsupported Doubao audio format', retryable=False)
+        payload = {'req_params': {
+            'text': text, 'speaker': character['voice'],
+            'audio_params': {'format': 'ogg_opus' if output_format == 'opus' else output_format,
+                             'sample_rate': 48000 if output_format == 'opus' else 24000,
+                             'speech_rate': round((character['speed'] - 1) * 100)},
+            'additions': json.dumps({'context_texts': [character['instructions']]}, ensure_ascii=False),
+        }}
+        headers = {'X-Api-Key': self.api_key, 'X-Api-Resource-Id': 'seed-tts-2.0',
+                   'X-Api-Request-Id': str(uuid4())}
+        with trace_llm_call('speech.synthesis', self.tts_model,
+                input_summary={'kind': 'text', 'characters': len(text)},
+                metadata=_synthesis_metadata(self.provider, language, character, output_format, prompt_name)) as trace:
+            try:
+                chunks = []
+                with self._client.stream('POST', '/api/v3/tts/unidirectional', json=payload, headers=headers) as response:
+                    _check_speech_response(response)
+                    for line in response.iter_lines():
+                        if not line.strip():
+                            continue
+                        body = json.loads(line)
+                        if body.get('code') == 20000000:
+                            break
+                        if body.get('code') != 0:
+                            raise SpeechProviderError('Doubao speech synthesis failed', retryable=False)
+                        if body.get('data'):
+                            chunks.append(base64.b64decode(body['data'], validate=True))
+                content = b''.join(chunks)
+                if not content:
+                    raise ValueError('Empty audio')
+            except (httpx.HTTPError, SpeechProviderError, ValueError, TypeError, AttributeError, binascii.Error) as exc:
+                mark_llm_trace_error(trace, 'speech.synthesis', exc)
+                if isinstance(exc, SpeechProviderError):
+                    raise
+                raise SpeechProviderError('Doubao speech synthesis failed',
+                                          retryable=isinstance(exc, httpx.HTTPError)) from exc
+            update_llm_trace(trace, output={'kind': 'audio', 'bytes': len(content)})
+            return {'content': content, 'mime_type': _audio_mime_type(output_format),
+                    'model': self.tts_model, 'voice': character['voice'], 'provider': self.provider}
+
+
+class LocalizedSpeechService:
+    """Use interview language for provider selection, with no cross-provider fallback."""
+
+    def __init__(self, openai: OpenAISpeechService, gemini: GeminiSpeechService,
+                 doubao: DoubaoSpeechService) -> None:
+        self.openai, self.gemini, self.doubao = openai, gemini, doubao
+
+    def transcribe(self, audio: bytes, **options: Any) -> dict[str, Any]:
+        service = self.doubao if _speech_locale(options.get('language')).split('-')[0] == 'zh' else self.openai
+        return service.transcribe(audio, **options)
+
+    def synthesis_options(self, language: str | None, *, voice: str | None = None,
+                          prompt_name: str | None = None, model: str | None = None,
+                          output_format: str | None = None) -> dict[str, Any]:
+        service = self.doubao if _speech_locale(language).split('-')[0] == 'zh' else self.gemini
+        return {**speech_character(language, voice=voice, prompt_name=prompt_name, default_voice=service.default_voice),
+                'model': service.tts_model if service is self.doubao else model or service.tts_model,
+                'provider': service.provider, 'output_format': output_format or service.default_format}
+
+    def synthesize(self, text: str, **options: Any) -> dict[str, Any]:
+        service = self.doubao if _speech_locale(options.get('language')).split('-')[0] == 'zh' else self.gemini
+        return service.synthesize(text, **options)
+
+
+def speech_synthesis_options(service: Any, language: str | None, **options: Any) -> dict[str, Any]:
+    if hasattr(service, 'synthesis_options'):
+        return service.synthesis_options(language, **options)
+    return {**speech_character(language, voice=options.get('voice'), prompt_name=options.get('prompt_name')),
+            'model': options.get('model') or getattr(service, 'tts_model', 'gpt-4o-mini-tts'),
+            'provider': getattr(service, 'provider', 'openai'), 'output_format': options.get('output_format') or 'mp3'}
+
+
+def build_speech_service() -> LocalizedSpeechService:
+    return LocalizedSpeechService(
+        OpenAISpeechService(os.getenv('OPENAI_API_KEY', '').strip(),
+            base_url=os.getenv('OPENAI_BASE_URL', 'https://api.openai.com/v1'),
+            stt_model=os.getenv('MEMORY_SPARK_STT_MODEL', 'gpt-4o-mini-transcribe')),
+        GeminiSpeechService(os.getenv('GEMINI_API_KEY', '').strip(),
+            tts_model=os.getenv('MEMORY_SPARK_TTS_MODEL', 'gemini-3.8-flash-lite-tts')),
+        DoubaoSpeechService(os.getenv('DOUBAO_API_KEY', '').strip()),
     )

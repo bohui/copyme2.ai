@@ -79,6 +79,8 @@ services:
       MEMORY_SPARK_HISTORICAL_NEWS_MODEL: "${MEMORY_SPARK_HISTORICAL_NEWS_MODEL:-}"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      DOUBAO_API_KEY: ${DOUBAO_API_KEY:-}
       # Direct speech and evaluator calls use the same Langfuse project as
       # the app's gateway-independent model calls. Payloads are minimized in
       # the application tracer; the gateway owns full request tracing.
@@ -91,11 +93,9 @@ services:
       LANGFUSE_TRACING_ENVIRONMENT: ${MEMORY_SPARK_LANGFUSE_ENVIRONMENT:-local}
       LANGFUSE_BASE_URL: ${MEMORY_SPARK_LANGFUSE_RUNTIME_BASE_URL:-http://192.168.65.1:3001}
       MEMORY_SPARK_STT_MODEL: ${MEMORY_SPARK_STT_MODEL:-gpt-4o-mini-transcribe}
-      MEMORY_SPARK_TTS_MODEL: ${MEMORY_SPARK_TTS_MODEL:-gpt-4o-mini-tts}
-      MEMORY_SPARK_TTS_VOICE_EN_AU: ${MEMORY_SPARK_TTS_VOICE_EN_AU:-marin}
-      MEMORY_SPARK_TTS_VOICE_ZH_CN: ${MEMORY_SPARK_TTS_VOICE_ZH_CN:-coral}
-      MEMORY_SPARK_TTS_INSTRUCTIONS_EN_AU: ${MEMORY_SPARK_TTS_INSTRUCTIONS_EN_AU:-}
-      MEMORY_SPARK_TTS_INSTRUCTIONS_ZH_CN: ${MEMORY_SPARK_TTS_INSTRUCTIONS_ZH_CN:-}
+      MEMORY_SPARK_TTS_MODEL: ${MEMORY_SPARK_TTS_MODEL:-gemini-3.8-flash-lite-tts}
+      MEMORY_SPARK_TTS_VOICE_EN_AU: ${MEMORY_SPARK_TTS_VOICE_EN_AU:-Kore}
+      MEMORY_SPARK_TTS_VOICE_ZH_CN: ${MEMORY_SPARK_TTS_VOICE_ZH_CN:-zh_female_vv_uranus_bigtts}
       MEMORY_SPARK_CODEX_WORKER_URL: http://codex-worker:8766
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_CODEX_WORKER_TIMEOUT: ${MEMORY_SPARK_CODEX_WORKER_TIMEOUT:-120}

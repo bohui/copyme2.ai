@@ -246,7 +246,7 @@ function reentryHarness({anonymous = true, saved = 'a', denied = null, historyDe
       return url.endsWith('/conversations') ? {items: []} : {};
     },
   });
-  load(context, 'render', 'renderLanding', 'renderPlatformLanding', 'renderMemoirLanding',
+  load(context, 'refreshOpeningMessageLocale', 'render', 'renderLanding', 'renderPlatformLanding', 'renderMemoirLanding',
     'navigateTo', 'refreshProject', 'boot', 'startMemoirStory', 'startStory');
   vm.runInContext(source.match(/window.addEventListener\("copyme2:ui-locale-change", \(\) => \{[^]*?\n\}\);/)[0], context);
   return {context, state, recovery, creates, starts, notices, hydrations, events, app, path: () => path,

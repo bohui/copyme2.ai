@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
+import wave
 
+import httpx
 import pytest
 
 from fastapi.testclient import TestClient
 
 from apps.api.main import create_app
 from apps.api.store import MemoryStore
+from apps.api.speech import speech_character
+from apps.api.speech import DoubaoSpeechService, GeminiSpeechService, LocalizedSpeechService, OpenAISpeechService
 
 
 class FakeSpeechService:
@@ -75,7 +80,8 @@ def test_spoken_replies_select_a_character_for_the_conversation_language(languag
     assert response.status_code == 201, response.text
     assert response.json()["voice"] == voice
     assert speech.synthesis_calls[0]["speed"] == (1.1 if voice == "coral" else 1.0)
-    assert delivery in speech.synthesis_calls[0]["instructions"]
+    assert delivery in speech_character(language)['instructions']
+    assert 'instructions' not in speech.synthesis_calls[0]
 
 
 def test_spoken_character_uses_saved_interview_language_when_request_omits_it():
@@ -89,7 +95,8 @@ def test_spoken_character_uses_saved_interview_language_when_request_omits_it():
     assert response.status_code == 201, response.text
     assert response.json()["voice"] == "coral"
     assert speech.synthesis_calls[0]["language"] == "zh-CN"
-    assert "普通话" in speech.synthesis_calls[0]["instructions"]
+    assert "普通话" in speech_character(speech.synthesis_calls[0]['language'])['instructions']
+    assert 'instructions' not in speech.synthesis_calls[0]
 
 
 def test_changing_a_localized_character_does_not_reuse_audio_from_the_previous_character(monkeypatch):
@@ -108,14 +115,14 @@ def test_changing_a_localized_character_does_not_reuse_audio_from_the_previous_c
     assert first.status_code == changed.status_code == 201
     assert replay.json()["cached"] is True
     assert changed.json()["voice"] == "shimmer"
-    assert speech.synthesis_calls[-1]["instructions"] == "温柔自然地说普通话。"
+    assert 'instructions' not in speech.synthesis_calls[-1]
     assert len(speech.synthesis_calls) == 2
     monkeypatch.setenv("MEMORY_SPARK_TTS_INSTRUCTIONS_ZH_CN", "轻松亲切地说普通话。")
     restyled = client.post("/v1/story/question-audio", json=request, headers=headers)
-    assert restyled.status_code == 201
+    assert restyled.status_code == 200
     assert restyled.json()["voice"] == "shimmer"
-    assert speech.synthesis_calls[-1]["instructions"] == "轻松亲切地说普通话。"
-    assert len(speech.synthesis_calls) == 3
+    assert 'instructions' not in speech.synthesis_calls[-1]
+    assert len(speech.synthesis_calls) == 2
 
 
 def test_a_first_spoken_reply_infers_chinese_from_text_without_using_the_interface_locale():
@@ -316,3 +323,95 @@ def test_disabled_retention_blocks_anonymous_transcription_and_keeps_question_pl
     assert answer.status_code == 200, answer.text
     assert answer.json()["transcript"] is None
     assert json.loads(storage._memories[0]["content"])["answer"] == typed
+
+
+def _native_speech_service():
+    audio = io.BytesIO()
+    with wave.open(audio, 'wb') as output:
+        output.setparams((1, 2, 24000, 0, 'NONE', 'not compressed'))
+        output.writeframes(b'\x00\x00' * 100)
+
+    def provider(request):
+        if request.url.path.endswith('generateContent'):
+            return httpx.Response(200, json={'candidates': [{'content': {'parts': [{'inlineData': {
+                'mimeType': 'audio/wav', 'data': base64.b64encode(audio.getvalue()).decode(),
+            }}]}}]})
+        return httpx.Response(200, text=json.dumps({'code': 0, 'data': base64.b64encode(b'doubao-mp3').decode()}))
+
+    def client():
+        return httpx.Client(base_url='https://native-speech.test', transport=httpx.MockTransport(provider))
+
+    return LocalizedSpeechService(OpenAISpeechService('test'),
+        GeminiSpeechService('test', client=client()), DoubaoSpeechService('test', client=client()))
+
+
+@pytest.mark.parametrize('language,model,voice,mime_type', [
+    ('zh-CN', 'doubao-seed-tts-2.0', 'zh_female_vv_uranus_bigtts', 'audio/mpeg'),
+    ('en-AU', 'gemini-3.8-flash-lite-tts', 'Kore', 'audio/wav'),
+])
+def test_story_audio_uses_native_provider_for_saved_interview_language(language, model, voice, mime_type):
+    service = _native_speech_service()
+    storage = FakeStoryStorage()
+    storage._profile = {'preferred_language': language, 'ui_locale': 'en-AU' if language == 'zh-CN' else 'zh-CN'}
+    client = TestClient(create_app(MemoryStore(), speech_service=service,
+                                  story_storage_factory=lambda authorization: storage))
+    response = client.post('/v1/story/question-audio', json={'text': 'A saved question.'},
+                           headers={'Authorization': 'Bearer story-token'})
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert (body['model'], body['voice'], body['mime_type']) == (model, voice, mime_type)
+    audio = base64.b64decode(body['audio_base64'])
+    assert audio.startswith(b'RIFF') if language == 'en-AU' else audio == b'doubao-mp3'
+    replay = client.post('/v1/story/question-audio', json={'text': 'A saved question.'},
+                         headers={'Authorization': 'Bearer story-token'})
+    assert replay.status_code == 200
+    assert replay.json()['cached'] is True
+
+
+def test_story_audio_cache_changes_when_the_configured_native_model_changes():
+    service = _native_speech_service()
+    client = TestClient(create_app(MemoryStore(), speech_service=service,
+                                  story_storage_factory=lambda authorization: FakeStoryStorage()))
+    headers, request = {'Authorization': 'Bearer story-token'}, {'text': 'Question', 'language': 'en-AU'}
+    assert client.post('/v1/story/question-audio', json=request, headers=headers).status_code == 201
+    assert client.post('/v1/story/question-audio', json=request, headers=headers).status_code == 200
+    service.gemini.tts_model = 'gemini-3.8-flash-tts'
+    changed = client.post('/v1/story/question-audio', json=request, headers=headers)
+    assert changed.status_code == 201
+    assert changed.json()['model'] == 'gemini-3.8-flash-tts'
+
+
+def test_session_question_audio_uses_the_native_model_and_playable_format():
+    client = TestClient(create_app(MemoryStore(), speech_service=_native_speech_service()))
+    project, session = _project_and_session(client)
+    headers = {'X-Account-Id': 'speech-owner'}
+    response = client.post(f"/v1/memory-sessions/{session['id']}/question-audio",
+                           json={'language': 'en-AU'}, headers=headers)
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body['model'] == 'gemini-3.8-flash-lite-tts'
+    assert body['voice'] == 'Kore'
+    assert body['mime_type'] == 'audio/wav'
+    audio = client.get(body['audio_url'], headers=headers)
+    assert audio.status_code == 200
+    assert audio.content.startswith(b'RIFF')
+
+
+def test_transcription_inherits_saved_interview_language_without_using_ui_locale(monkeypatch):
+    from apps.api.original_recordings import RecordingStore
+    languages = []
+
+    def transcribe(self, payload, service):
+        languages.append(payload.language)
+        return {'language': payload.language}
+
+    monkeypatch.setattr(RecordingStore, 'transcribe', transcribe)
+    storage = FakeStoryStorage()
+    storage._profile = {'conversation_language': {'locale': 'zh-CN'}, 'ui_locale': 'en-AU'}
+    client = TestClient(create_app(MemoryStore(), speech_service=_native_speech_service(),
+                                  story_storage_factory=lambda authorization: storage))
+    response = client.post('/v1/story/transcriptions', json={
+        'audio_base64': base64.b64encode(b'audio').decode(), 'filename': 'answer.webm', 'mime_type': 'audio/webm',
+    }, headers={'Authorization': 'Bearer story-token'})
+    assert response.status_code == 200, response.text
+    assert languages == ['zh-CN']

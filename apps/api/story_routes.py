@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field, model_validator
 from .agent_routes_support import authenticated_storage
 from .agent_storage import UserStorage
 from .family_context import family_features_enabled
-from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechService, speech_character
+from .speech import SpeechProviderError, SpeechUnavailable, UnavailableSpeechService, speech_synthesis_options
 from .conversation_locale import detect_reply_locale
 from .store import MemoryStore, new_id, sha256_json
 from .recall import storage_recall_status
@@ -113,7 +113,7 @@ class StorySpeechInput(BaseModel):
     language: str | None = None
     voice: str | None = None
     prompt_name: Literal['memoir/speech/default','memoir/speech/en-AU','memoir/speech/zh-CN'] | None = None
-    output_format: str = "mp3"
+    output_format: str | None = None
 
 
 class StoryCheckoutCreate(BaseModel):
@@ -637,6 +637,11 @@ def build_router(
         try:
             from .original_recordings import RecordingStore
             try:
+                if not payload.language:
+                    profile = storage.profile()
+                    saved_language = profile.get('conversation_language') or {}
+                    payload = payload.model_copy(update={'language': profile.get('preferred_language')
+                        or (saved_language.get('locale') if isinstance(saved_language, dict) else None)})
                 return RecordingStore(storage).transcribe(payload, speech_service)
             except httpx.HTTPError:
                 raise HTTPException(503, 'Recording storage is unavailable', headers={'X-Error-Code':'RECORDING_STORAGE_UNAVAILABLE'}) from None
@@ -704,9 +709,11 @@ def build_router(
                             or (saved_language.get("locale") if isinstance(saved_language, dict) else None)
                             or detect_reply_locale(payload.text) or "en-AU")
             options = {**payload.model_dump(exclude_none=True), "language": language,
-                       **speech_character(language, voice=payload.voice, prompt_name=payload.prompt_name)}
+                       **speech_synthesis_options(speech_service, language, voice=payload.voice,
+                           prompt_name=payload.prompt_name, output_format=payload.output_format)}
             cache_key = sha256_json({"user_id": storage.user_id, **options})
             options.pop("instructions", None)
+            options.pop("provider", None)
             existing = speech_cache.get(cache_key)
             if existing:
                 return JSONResponse(status_code=200, content={**existing, "cached": True})
@@ -747,6 +754,7 @@ def build_router(
             answer = payload.answer.strip()
             audio_source_path = payload.audio_source_path
             audio = None
+            transcription = None
             if payload.audio_base64:
                 try:
                     audio = base64.b64decode(payload.audio_base64.encode(), validate=True)
@@ -756,7 +764,10 @@ def build_router(
                     audio_source_path = storage.put_attachment(payload.audio_filename, audio, payload.audio_mime_type)
             if audio is not None and not answer:
                 try:
-                    transcription = speech_service.transcribe(audio, filename=payload.audio_filename, mime_type=payload.audio_mime_type)
+                    saved_language = profile.get('conversation_language') or {}
+                    transcription = speech_service.transcribe(audio, filename=payload.audio_filename,
+                        mime_type=payload.audio_mime_type, language=profile.get('preferred_language')
+                        or (saved_language.get('locale') if isinstance(saved_language, dict) else None))
                 except SpeechUnavailable as exc:
                     raise HTTPException(503, str(exc), headers={"X-Error-Code": "SPEECH_UNAVAILABLE"}) from exc
                 except SpeechProviderError as exc:
@@ -767,7 +778,8 @@ def build_router(
             if not answer:
                 raise HTTPException(422, "A story answer or recording is required.", headers={"X-Error-Code": "ANSWER_REQUIRED"})
             storage.save_memory(
-                json.dumps({"type": "story_round", "round": payload.round, "answer": answer, "transcription_method": "openai" if payload.audio_base64 else "typed"}),
+                json.dumps({"type": "story_round", "round": payload.round, "answer": answer,
+                            "transcription_method": (transcription or {}).get('provider', 'openai') if payload.audio_base64 else "typed"}),
                 kind="memoir",
                 source_paths=[f"story-round:{payload.round}", *([audio_source_path] if audio_source_path else [])],
             )
