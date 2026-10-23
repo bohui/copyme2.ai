@@ -36,11 +36,25 @@ A fresh interviewer run was already starting when the user redirected work. It w
 | memoir-memory-context | model; periodic | Approved direct profile/summary transport implemented; live model time reduced, full quality gate remains open |
 | memoir-composer | model; periodic | Approved direct transport implemented and measured: 33–64% faster checkpoint saves; full quality fails, held-out coverage incomplete; selected-outline profiling pending |
 | memoir-historical-news-research | provider; place_selection | Fresh bilingual live baseline:31–36s,0 verified clues; strict safety holds, usefulness unresolved; no application change |
-| memoir-place-photo-research | provider; place_selection | Pending |
+| memoir-place-photo-research | provider; place_selection | Live provider baseline: LLM disabled; cold first candidates 60.3s/17.5s, warm reuse works; source/fallback quality fails; no implementation |
 | memoir-place-groups | deterministic; place_change | Pending |
 | memoir-story-game | model; game_button | Pending |
 
 Family-tree generation is marked unwired by the production registry and remains excluded from the active-round count. Place grouping is deterministic and must not gain an LLM call merely for profiling.
+
+[The photo baseline](lane-b-photo-research-20261023.md) confirms the running
+worker uses SerpAPI, its configured CSE browser and Commons, with no enabled LLM
+discovery. Four cold/warm cases and a wrong-owner cursor check ran in a separate
+process/browser/cache with no shared repository. Cache replays made zero new
+provider calls. Chengde's failed strict search still triggered time relaxation;
+the alternatives included a source-described map and a geographically
+contradictory item. This fails quality before any speed change. The source and
+provider failure corrections are a separate proposal; the earlier focused
+interviewer handoff correction remains awaiting approval. Selected-outline
+composition remains the next unprofiled model-backed path; game is last.
+The fresh post-merge `make test-place-research` passed 604 JavaScript,
+466 API/database and 95 standalone checks with verified native cleanup. Live
+semantic acceptance remains failed despite those controlled regression passes.
 
 ## First Lane B round: author timeline
 

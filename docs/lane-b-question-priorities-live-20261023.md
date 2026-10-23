@@ -145,3 +145,9 @@ or counted as passing.
 counts, provenance and SHA-256 of its lossless gzip companion. The archive
 contains complete owned synthetic provider/ASGI/SQL records, the frozen cases,
 hash-matched harness versions, review drafts, failed runs and cleanup receipts.
+
+The subsequent post-merge `make test-place-research` run passed on the same
+application sources: 604 JavaScript, 466 API/database and 95 standalone checks,
+with verified native cleanup. These controlled regressions do not resolve the
+six live review failures. Its receipt/log are retained in the separate photo
+baseline evidence archive and the shared campaign's `checks/` directory.
