@@ -1,0 +1,50 @@
+{
+  "schema": "memoir-lane-b-handoff-review/1",
+  "source_commit": "527fc73f029a62c56061f2acc4cad95ec78bd8f1",
+  "scope": "Single samples and task-owned in-process runtime/SQL, with seeded B results. No deployed-worker, Temporal, browser paint, full pre-rollout-resume or actual live discovery usefulness claim.",
+  "acceptance": "fail",
+  "attempts": 52,
+  "completed": 51,
+  "intentional_cancellations": 1,
+  "unique_scenarios": 16,
+  "saved": 13,
+  "full_behavior_semantic_pass": 10,
+  "full_behavior_semantic_fail": 6,
+  "quality_passing_timing": {
+    "n": 10,
+    "median_s": 5.303839354484808,
+    "within_5s": 3,
+    "within_10s": 10,
+    "max_s": 8.228200208046474
+  },
+  "all_saved_timing": {
+    "n": 13,
+    "median_s": 5.502344790962525,
+    "within_5s": 3,
+    "within_10s": 11,
+    "over10": [
+      "en-identity",
+      "zh-news"
+    ]
+  },
+  "original_cap": 48,
+  "additional_controls_cap": 8,
+  "total_cap": 56,
+  "archive": {
+    "path": "docs/evidence/lane-b-handoff-review-20261023.json.gz",
+    "sha256": "3aaaac26bf14db425a48bc6a14156d88e39d736351e168dc304a5265567bde3b",
+    "uncompressed_sha256": "ca35ec48e5fb77ca2150735133da52cf017dffdc129fdfb34daf48578bfbcea9",
+    "files": 41,
+    "lossless": true
+  },
+  "prompt_versions": {
+    "reply": 2,
+    "strategy_proposal": 2,
+    "policy_review": 5
+  },
+  "runtime_activation": "No shared route/config/service activation. Genuine prompt receipts published and verified on main.",
+  "comparisons": "Current/low gateway mapping and live receipts agree on the same underlying model with max versus low effort; task-local ASGI only. Stateless probes labelled separately.",
+  "cleanup": "All final task-owned allocations verified; initial failed preparation/cleanup and lock-denied/cap-denied runs retained with follow-up receipts.",
+  "proposal": "Four focused corrections are unapplied, with review drafts retained in the archive. No validation relaxation or extra model phase.",
+  "reading": "import gzip,json; evidence=json.load(gzip.open('docs/evidence/lane-b-handoff-review-20261023.json.gz','rt')); print(evidence['summary'])"
+}

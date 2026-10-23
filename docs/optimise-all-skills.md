@@ -1,8 +1,18 @@
 # Active skill optimization campaign
 
-Branch: `optimise-all-skills`. Baseline: `d5dd21407bdf29ba35ef2686db4063ccba108420`.
+Original campaign branch: `optimise-all-skills`; PR117 is now merged. Current
+checkout is `main`. Original baseline: `d5dd21407bdf29ba35ef2686db4063ccba108420`.
 
 Each Lane B skill gets its own execution/prompt analysis, bounded live baseline, concrete proposal, approved implementation and quality comparison. The user changed the interviewer scope to review only. No service activation or feature-branch prompt publication is included.
+
+Post-merge update: the separately requested background-question handoff was
+reviewed live after publishing its two v2 prompt receipts on main (`527fc73`).
+All 93 prompt pins passed the remote check. [The fresh handoff review](lane-b-question-priorities-live-20261023.md)
+fails full acceptance: 13/16 low-route cases saved and 10/16 passed the frozen
+behavior/semantic gates. The configured pooled route enforces max effort; the
+existing dedicated low route was tested only in isolation. No shared route or
+running service was changed. Further contract/priority/privacy corrections are
+proposed, not implemented; all earlier Lane B quality blockers remain open.
 
 ## Interviewer review
 
