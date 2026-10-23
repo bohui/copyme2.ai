@@ -2110,8 +2110,8 @@ function normalizeHistoryOpening(messages) {
   const isOpening = message => message.role === "assistant" && openings.has(normalize(message.text));
   const existing = messages.find(isOpening);
   const opening = { ...(existing || {
-    id: "history-opening", role: "assistant", text: conversationMessage("opening"),
-  }), productCopy: "opening" };
+    id: "history-opening", role: "assistant",
+  }), text: conversationMessage("opening"), productCopy: "opening" };
   return [opening, ...messages.filter(message => !isOpening(message))];
 }
 
@@ -3381,7 +3381,7 @@ window.addEventListener("popstate", () => {
 window.addEventListener("pagehide", () => persistChatHistory());
 window.addEventListener("copyme2:ui-locale-change", () => {
   closeProfileMenu();
-  render();
+  if (!refreshOpeningMessageLocale()) render();
   const place = typeof placeWorkspaceSelection === "function"
     ? placeWorkspaceSelection({allowUnmapped: true}) || state.placeJourney
     : state.placeJourney;

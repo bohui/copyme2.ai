@@ -14,6 +14,7 @@ test('locale repaint refreshes localized place grouping even when the map is reu
       if (name === 'copyme2:ui-locale-change') listener = handler;
     }},
     closeProfileMenu() {},
+    refreshOpeningMessageLocale: () => false,
     render() {},
     placeWorkspaceSelection: () => journey,
     resolvePlaceMap: place => calls.push(place),
