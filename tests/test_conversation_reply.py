@@ -192,3 +192,34 @@ def test_repair_identifies_a_copied_stored_name_instead_of_repeating_a_generic_f
         governed=encode(packet), interview_context=ctx, publisher=FakePublisher()))
     assert len(captured) == 2
     assert json.loads(result['reply'])['work']['name'] is None
+
+
+def test_hint_quote_mismatch_is_rejected_then_repaired_without_replacing_its_evidence(tmp_path, monkeypatch):
+    import asyncio
+    from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
+    from test_conversation_reply_transport import install_reply_provider
+    from test_reply_v2_contract_compatibility import hint
+    from apps.api.lifetime_memory_engine import run_governed_collector
+    governed, ctx = fixture()
+    candidate = hint(ctx, 'a')
+    ctx.update(reply_contract='reply-v2', two_lane_memory=True, prepared_questions=[candidate])
+    packet = json.loads(governed.packet)
+    packet.update(instructions=reply_instructions(), interview_context={
+        key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
+    valid = {**proposal(), 'hint': 0, 'question': candidate['question'], 'reason': 'prepared_candidate'}
+    invalid = {**valid, 'quote': 'Invented evidence'}
+    before = deepcopy(invalid)
+    with pytest.raises(ValueError, match='cannot change its referenced passage'):
+        validate_governed_collector_result(invalid, ctx)
+    assert invalid == before
+    def repaired(body):
+        assert 'CONTRACT_31' in body['input'][0]['content'][1]['text']
+        assert 'set quote=null' in body['input'][0]['content'][1]['text']
+        return valid
+    captured = install_reply_provider(monkeypatch, [invalid, repaired])
+    result = asyncio.run(run_governed_collector(command=['forbidden'], home_root=tmp_path,
+        base_url='https://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
+        governed=encode(packet), interview_context=ctx, publisher=FakePublisher()))
+    assert len(captured) == 2
+    adapted = validate_governed_collector_result(json.loads(result['reply']), ctx)
+    assert adapted['plan']['candidates'][0]['context']['evidence']['quote'] == candidate['quote']

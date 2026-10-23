@@ -397,6 +397,7 @@ def test_revisable_validation_repair_can_replace_a_displayed_draft(monkeypatch,t
 @pytest.mark.parametrize('code,expected', [
     ('CONTRACT_24', 'precise absolute offsets'),
     ('CONTRACT_09', 'not the negated alternative'),
+    ('CONTRACT_31', 'set quote=null'),
     ('INVALID_JSON', 'Return valid JSON.'),
     ('INCOMPLETE_PROVIDER_OUTPUT', 'Return one complete structured object.'),
     ('SCHEMA_FIELD_work', 'typed schema'),

@@ -30,6 +30,7 @@
   "CONTRACT_28": "Unsupported biographical year",
   "CONTRACT_29": "Unsupported life stage",
   "CONTRACT_30": "work.name is a current narrator name update, never the stored addressing name. Use null unless this original source explicitly supplies the narrator's preferred name.",
+  "CONTRACT_31": "The selected hint owns its evidence. Keep its index, use prepared_candidate for its exact question or adapted_candidate for rewording, and set quote=null. Never substitute current narration for the hint's source.",
   "INVALID_JSON": "Return valid JSON.",
   "INCOMPLETE_PROVIDER_OUTPUT": "Return one complete structured object.",
   "SCHEMA_OR_OTHER_CONTRACT": "Follow the supplied typed schema and exact evidence constraints.",

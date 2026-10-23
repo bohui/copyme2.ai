@@ -14,11 +14,14 @@ REPLY_VERSION = 'reply-v2'
 
 class ReplyProposal(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
-    acknowledgement: str = Field(min_length=1, max_length=2000)
+    acknowledgement: str = Field(min_length=1, max_length=2000,
+        description='Grounded statement only. Leave facts awaiting clarification unresolved.')
     question: str | None = Field(min_length=1, max_length=800)
-    reason: SelectionReason
-    hint: int | None = Field(ge=0)
-    quote: str | None = Field(min_length=1, max_length=500)
+    reason: SelectionReason = Field(description='With hint: prepared_candidate for exact text, adapted_candidate for rewording. Without hint: current intent; continuation alone is return_context, not pacing.')
+    hint: int | None = Field(ge=0,
+        description='Index in brief.hints, highest priority first. Use the first relevant hint unless current intent overrides it.')
+    quote: str | None = Field(min_length=1, max_length=500,
+        description='With hint, null: its evidence is host-owned. Otherwise an exact unique CURRENT-source passage or null.')
     work: TurnWorkPlan
     resolved_questions: list[QuestionResolution] = Field(default_factory=list, max_length=5)
     associations: list[PhotoAssociation] = Field(default_factory=list, max_length=20)
@@ -134,6 +137,7 @@ def reply_packet(packet):
         preferences=packet.pinned.model_dump(mode='json'),
         original_evidence=[ref.model_dump(mode='json') for ref in packet.retrieved],
         brief=dict(covered_through_sequence=packet.coverage_end,
+                   hint_order='highest_priority_first',
                    objective=(state.get('plan') or {}).get('objective'),
                    items=[item.model_dump() for item in summary.items] if summary else [],
                    last_delivered_question=deepcopy(state.get('prior_delivered_question')),
