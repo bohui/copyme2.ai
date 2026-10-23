@@ -204,7 +204,7 @@ def run(tmp_path,bounded=None,publisher=None,**kwargs):
         connection_factory=Connection,**kwargs))
 
 
-@pytest.mark.parametrize('phase',['extract','prepare','draft','review'])
+@pytest.mark.parametrize('phase',['extract'])
 def test_each_lane_phase_is_fresh_bounded_and_fenced(tmp_path,phase):
     bounded=transport(phase);publisher=Publisher()
     result=run(tmp_path,bounded,publisher)

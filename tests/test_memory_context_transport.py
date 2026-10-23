@@ -1,4 +1,4 @@
-"""Profile/summary direct requests retain the canonical lane and HTTP boundary."""
+"""Direct JSON lane phases retain canonical packets and the HTTP boundary."""
 import asyncio
 from contextlib import asynccontextmanager
 from copy import deepcopy
@@ -16,7 +16,10 @@ from apps.api.lifetime_memory_publication import PublicationUnavailable
 from apps.api.lifetime_memory_summary import summary_packet
 from test_background_profile import profile_page
 from test_conversation_reply_transport import events, sse
-from test_lifetime_memory_lane_engine import BUDGET, page
+from test_lifetime_memory_lane_engine import BUDGET, page, packet_for
+
+
+PHASES = ['profile', 'summarize', 'prepare', 'draft', 'review']
 
 
 @pytest.fixture(autouse=True)
@@ -26,7 +29,10 @@ def isolate(monkeypatch):
 
 
 def bounded(phase):
-    if phase == 'profile':
+    if phase in {'prepare', 'draft', 'review'}:
+        current = page('composer')
+        packet = packet_for(current, phase)
+    elif phase == 'profile':
         current = profile_page()
         packet = profile_packet(current)
     else:
@@ -82,7 +88,7 @@ def run(tmp_path, current, publisher, provider, **kwargs):
         bounded_lane=current, publisher=publisher, provider_transport=provider, timeout=1, **kwargs))
 
 
-@pytest.mark.parametrize('phase', ['profile', 'summarize'])
+@pytest.mark.parametrize('phase', PHASES)
 def test_direct_calls_keep_prompt_packet_schema_effort_budget_and_actual_send_guard(tmp_path, phase):
     current = bounded(phase)
     publisher = Publisher()
@@ -97,14 +103,15 @@ def test_direct_calls_keep_prompt_packet_schema_effort_budget_and_actual_send_gu
     assert body['max_output_tokens'] == BUDGET.output_headroom
     assert body['tools'] == [] and body['tool_choice'] == 'none' and not body['parallel_tool_calls']
     assert body['store'] is False and body['stream'] is True
-    assert body['metadata']['generation_name'] == ('memoir-memory-context' if phase == 'profile' else 'memoir-author-timeline')
+    assert body['metadata']['generation_name'] == ('memoir-memory-context' if phase == 'profile'
+        else 'memoir-author-timeline' if phase == 'summarize' else 'memoir-composer')
     assert all(len(body['metadata'][key]) == 64 for key in ('prompt_sha256', 'schema_sha256', 'manifest_sha256'))
     assert publisher.fences == [current.fence.model_dump(mode='json')]
     assert result == dict(thread_id='resp_gateway_id==', reply=reply, artifacts=[])
     assert not (tmp_path / 'homes').exists()
 
 
-@pytest.mark.parametrize('phase', ['profile', 'summarize'])
+@pytest.mark.parametrize('phase', PHASES)
 @pytest.mark.parametrize('fault', ['stale', 'issue14', 'paused_at_send'])
 def test_unavailable_authority_releases_no_provider_body(tmp_path, monkeypatch, phase, fault):
     publisher = Publisher()
@@ -122,7 +129,7 @@ def test_unavailable_authority_releases_no_provider_body(tmp_path, monkeypatch, 
     assert provider.bodies == [] and not publisher.active
 
 
-@pytest.mark.parametrize('phase', ['profile', 'summarize'])
+@pytest.mark.parametrize('phase', PHASES)
 @pytest.mark.parametrize('fault', ['incomplete', 'mismatch', 'tool', 'duplicate', 'credential', 'invalid_json'])
 def test_partial_unsafe_or_non_json_output_cannot_return_a_proposal(tmp_path, phase, fault):
     publisher = Publisher()
@@ -142,8 +149,10 @@ def test_partial_unsafe_or_non_json_output_cannot_return_a_proposal(tmp_path, ph
     assert len(provider.bodies) == 1 and not publisher.active
 
 
-def test_cancelled_provider_stream_closes_without_a_native_session(tmp_path):
+@pytest.mark.parametrize('phase', ['profile', 'review'])
+def test_cancelled_provider_stream_closes_without_a_native_session(tmp_path, phase):
     publisher = Publisher()
+    current = bounded(phase)
     opened = asyncio.Event()
     closed = []
 
@@ -164,7 +173,7 @@ def test_cancelled_provider_stream_closes_without_a_native_session(tmp_path):
     async def exercise():
         task = asyncio.create_task(run_bounded_lane(command=['must-not-start'], home_root=tmp_path / 'homes',
             base_url='https://provider.invalid/v1', api_key='fixture-memory-key', model=BUDGET.model,
-            bounded_lane=bounded('profile'), publisher=publisher,
+            bounded_lane=current, publisher=publisher,
             provider_transport=Transport(publisher, events('{}')), timeout=5))
         await asyncio.wait_for(opened.wait(), 1)
         task.cancel()

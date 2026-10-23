@@ -720,12 +720,12 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     def request_admission():
         return _admission(publisher,json.loads(fence_json))
     instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode), fence=bounded.fence)
-    if bounded.phase in {'profile', 'summarize'}:
+    if bounded.phase in {'profile', 'summarize', 'prepare', 'draft', 'review'}:
         from .conversation_reply_transport import stream_document
         endpoint = urlsplit(base_url)
         if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
                 or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
-            raise ValueError('Memory context provider is not configured')
+            raise ValueError('Lane provider is not configured')
         manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
         payload = dict(model=model, instructions=instructions, input=bounded.packet,
             store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
