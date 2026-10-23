@@ -1,5 +1,16 @@
 # Active skill optimization campaign
 
+Latest continuation: [PR119's published live comparison](lane-b-handoff-comparison-20261024.md)
+retains all original cases and fresh controls. Quality coverage improved from
+10/16 to 15/16 on the first cohort, but a repeat still fails news selection and
+has a provider 502. Invalid completed privacy reviews now get one fresh
+reassessment within the original two-attempt limit; a captured-failure replay
+with a live reassessment/reply recovered in 7.14s. The final compact news-intent
+clarification needs reviewed-main publication before live confirmation.
+The original campaign and per-round history below remain for provenance;
+the goal is unfinished, all previous Lane B quality blockers remain open, and
+game is last.
+
 Original campaign branch: `optimise-all-skills`; PR117 is now merged. The
 post-merge live baseline is main `527fc73`; the checkout moved to
 `optimise-all-skills-2` during verification and that existing continuation
