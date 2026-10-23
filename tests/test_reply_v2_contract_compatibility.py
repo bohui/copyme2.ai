@@ -11,15 +11,51 @@ from test_conversation_reply import proposal, reply_context
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
-def test_historical_news_supplies_its_required_acknowledgement_without_a_conflicting_pattern(locale):
+@pytest.mark.parametrize('stopping', [False, True])
+def test_historical_news_supplies_its_required_acknowledgement_without_a_conflicting_pattern(locale, stopping):
     ctx = reply_context()
     ctx.update(interview_language=locale, historical_news={'enabled': True, 'clues': [{'id': 'public'}]})
     field = governed_collector_schema(ctx)['properties']['acknowledgement']
     assert set(field['enum']) == historical_acknowledgements(ctx)
     assert 'pattern' not in field
-    raw = {**proposal(), 'acknowledgement': next(iter(historical_acknowledgements(ctx)))}
+    acknowledgement = ({'en-AU': 'Understood. We’ll stop here for today.', 'zh-CN': '好的，今天就到这里。'}
+        if stopping else {'en-AU': 'We can keep following your memories at your pace.',
+                          'zh-CN': '我们可以按您的节奏继续回忆。'})[locale]
+    raw = {**proposal(), 'acknowledgement': acknowledgement}
+    if stopping:
+        raw.update(question=None, reason='pause', work={'mode': 'reply_only', 'name': None})
     validate(raw, governed_collector_schema(ctx))
-    assert validate_governed_collector_result(raw, ctx)['acknowledgement'] == raw['acknowledgement']
+    result = validate_governed_collector_result(raw, ctx)
+    assert result['acknowledgement'] == acknowledgement
+    if stopping:
+        assert result['reply'] == acknowledgement and not result['plan']['candidates']
+        assert result.get('historical_context') is None
+
+
+@pytest.mark.parametrize('locale,acknowledgement', [
+    ('en-AU', 'You witnessed the Boston fair in 1970.'),
+    ('zh-CN', '您1970年在波士顿参加了展会。'),
+    ('en-AU', '好的，今天就到这里。'),
+    ('zh-CN', 'Understood. We’ll stop here for today.'),
+])
+def test_news_stop_copies_do_not_admit_personal_facts_or_switch_language(locale, acknowledgement):
+    ctx = reply_context()
+    ctx.update(interview_language=locale, historical_news={'enabled': True, 'clues': [{'id': 'public'}]})
+    raw = {**proposal(), 'acknowledgement': acknowledgement, 'question': None, 'reason': 'pause'}
+    from jsonschema import ValidationError
+    with pytest.raises(ValidationError):
+        validate(raw, governed_collector_schema(ctx))
+    with pytest.raises(ValueError, match='Historical context cannot supply personal acknowledgement facts'):
+        validate_governed_collector_result(raw, ctx)
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_news_copy_reader_accepts_the_published_scalar_inventory_during_rollout(monkeypatch, locale):
+    from apps.api import interview_plan
+    legacy = {'en-AU': 'We can keep following your memories at your pace.', 'zh-CN': '我们可以按您的节奏继续回忆。'}
+    monkeypatch.setattr(interview_plan, 'load_prompt_artifact', lambda path: json.dumps(legacy))
+    assert historical_acknowledgements({'interview_language': locale}) == {legacy[locale]}
+    assert historical_acknowledgements({}) == set(legacy.values())
 
 
 def hint(ctx, identity, *, confirmation=False):

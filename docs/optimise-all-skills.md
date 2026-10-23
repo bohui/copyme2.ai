@@ -459,3 +459,36 @@ The user subsequently reported that completed historical research did not affect
 The fix connects already-ready news to the existing neutral, cited question path in both reply adapters and the strategy SQL transaction. It includes plan confirmations in priority/answer retirement and adds a bounded background `broaden_scope` objective with its prepared questions. Current user controls still win. Clarifications precede topic expansion, ready news and ordinary follow-ups; the model judges relevance with the existing reply call. No unfinished background job is awaited, no extra foreground model call is introduced, and combined reply instructions stay at 1,986 characters. [Behavior, regression scope and activation requirements](lane-b-question-priorities.md).
 
 The new controlled native checks verify real SQL and streamed API delivery, citation replay and exactly one reply generation per new turn in both languages. This is not live semantic/latency or deployed acceptance, and the earlier 0/2 useful-live-news result remains unresolved. The two prompt sources need merged-main publication and genuine receipts before activation. PR117 remains draft and unmerged; no service restart, schema deployment or prompt publication was performed.
+
+
+## Current checkpoint — 24 October 2026, after published PR120
+
+PR117's approved profile/summary/composer transport changes, PR119's background
+question handoff changes and PR120 are merged. PR120's genuine reply v4 receipt
+is committed in `b8d797d`; privacy/repair remain v6 and all 93 remote pins verify.
+Earlier sections retain their historical branch/publication state.
+
+The new [published confirmation](lane-b-handoff-confirmation-20261024.md) completes
+28 prepared turns: 25 pass their full gate, two fail and one cannot establish its
+intended ready-news condition. Two diagnostics retain the ready clue in the actual
+model input: explicit Sydney redirection passes at 14.68s; English stop reproduces
+the continuation-copy problem. All 62/64 attempts complete HTTP 200. There is no
+latency gain in the matched passing repeat: 5.30 → 5.69s versus the original low
+baseline. No failed or unexercised condition is removed from the comparison.
+
+The user approved the focused follow-up for positive same-period hint routing,
+question/reason repair feedback and explicit stopping copies within the finite
+news-safe allowlist. Candidate reply instructions compile to 1,997 characters.
+Its implementation and offline checks are separate from the v4 measurements;
+fresh live comparison requires reviewed-main prompt publication. The prepared
+34-case cohort repeats the exact 30 measured sources/inputs and adds four unseen
+paraphrases, within an 80-attempt ceiling including all repairs and no judges.
+
+The [full five-column profiling matrix](skill-scenario-profiling.md) contains
+83 rows across all ten registered skills, with failures, baseline-only work,
+pending and unwired paths explicit. The separate
+[selected-outline baseline](lane-b-selected-outline-baseline-20261024.md) is now
+versioned with its original lossless archive; it establishes no optimization gain
+and its proposed transport/source-guidance change is still unapproved. Profile,
+summary, composer, attribution, actual news/photo discovery and deployed acceptance
+remain open. Game remains last. The overall goal and issue53 are not complete.

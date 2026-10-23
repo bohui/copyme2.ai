@@ -15,7 +15,7 @@
   "CONTRACT_13": "Current pause requires no question",
   "CONTRACT_14": "Duplicate continuity update",
   "CONTRACT_15": "Inferred continuity requires explicit uncertainty",
-  "CONTRACT_16": "No-question outcome requires an explicit reason",
+  "CONTRACT_16": "With a question use a hinted candidate or supported current intent; pause/direct_answer require question=null. For same-period ideas use the top relevant hint; user_redirect needs an actual topic change.",
   "CONTRACT_17": "Only one immediate question is allowed",
   "CONTRACT_18": "Only one visible question is allowed",
   "CONTRACT_19": "Prepared candidate text changed",

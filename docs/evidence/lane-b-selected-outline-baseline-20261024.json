@@ -1,0 +1,335 @@
+{
+  "schema_version": 1,
+  "acceptance": "fail",
+  "source_revision": "8560b1f7f0affdb6f96ff688bda6999ff989ac36",
+  "analysis": {
+    "acceptance": "fail",
+    "calls": [
+      {
+        "case": "en-small-resumed",
+        "phase": "leaf",
+        "seconds": 6.713744499953464,
+        "model": "gpt-5.6-luna",
+        "effort": "max",
+        "input_tokens": 3591,
+        "cached_tokens": 0,
+        "framework_item_tokens": 1731,
+        "output_tokens": 502,
+        "reasoning_tokens": 437,
+        "status": "completed"
+      },
+      {
+        "case": "en-small-resumed",
+        "phase": "leaf",
+        "seconds": 3.5565432080766186,
+        "model": "gpt-5.6-luna",
+        "effort": "max",
+        "input_tokens": 3572,
+        "cached_tokens": 0,
+        "framework_item_tokens": 1731,
+        "output_tokens": 298,
+        "reasoning_tokens": 237,
+        "status": "completed"
+      },
+      {
+        "case": "en-small-resumed",
+        "phase": "merge",
+        "seconds": 7.891948124975897,
+        "model": "gpt-5.6-luna",
+        "effort": "max",
+        "input_tokens": 3722,
+        "cached_tokens": 0,
+        "framework_item_tokens": 1731,
+        "output_tokens": 975,
+        "reasoning_tokens": 860,
+        "status": "completed"
+      },
+      {
+        "case": "zh-small-resumed",
+        "phase": "leaf",
+        "seconds": 3.182769333012402,
+        "model": "gpt-5.6-luna",
+        "effort": "max",
+        "input_tokens": 3598,
+        "cached_tokens": 0,
+        "framework_item_tokens": 1731,
+        "output_tokens": 184,
+        "reasoning_tokens": 122,
+        "status": "completed"
+      },
+      {
+        "case": "zh-small-resumed",
+        "phase": "leaf",
+        "seconds": 4.546611082972959,
+        "model": "gpt-5.6-luna",
+        "effort": "max",
+        "input_tokens": 3584,
+        "cached_tokens": 0,
+        "framework_item_tokens": 1731,
+        "output_tokens": 436,
+        "reasoning_tokens": 365,
+        "status": "completed"
+      },
+      {
+        "case": "zh-small-resumed",
+        "phase": "merge",
+        "seconds": 5.400015083956532,
+        "model": "gpt-5.6-luna",
+        "effort": "max",
+        "input_tokens": 3707,
+        "cached_tokens": 0,
+        "framework_item_tokens": 1731,
+        "output_tokens": 592,
+        "reasoning_tokens": 484,
+        "status": "completed"
+      }
+    ],
+    "rows": [
+      {
+        "case": "en-small-resumed",
+        "worker_to_readback_seconds": 19.878620750037953,
+        "calls": 3,
+        "phases": [
+          {
+            "phase": "leaf",
+            "instruction_chars": 1110,
+            "packet_chars": 1402,
+            "output": {
+              "title": "A Walk to School",
+              "sections": [
+                {
+                  "title": "Walking to School with May in 1983",
+                  "memory_ids": [
+                    "634ef6df-ec65-4c7a-be64-0c9a16b799a0"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "phase": "leaf",
+            "instruction_chars": 1110,
+            "packet_chars": 1381,
+            "output": {
+              "title": "Moving to Sydney and repairing bicycles",
+              "sections": [
+                {
+                  "title": "Moving to Sydney and repairing bicycles",
+                  "memory_ids": [
+                    "19133ee5-442a-42d4-a690-e7a1ba03d976"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "phase": "merge",
+            "instruction_chars": 1111,
+            "packet_chars": 1540,
+            "output": {
+              "title": "Journeys and Bicycle Repairs",
+              "sections": [
+                {
+                  "title": "Walking to School with May in 1983",
+                  "section_ids": [
+                    "2fc24863-d8c5-44e1-ba6f-58c3b9fb2dc2:1"
+                  ]
+                },
+                {
+                  "title": "Moving to Sydney and Repairing Bicycles",
+                  "section_ids": [
+                    "f0dd5a75-11c1-4dec-9bcb-a8d7dc49c5b1:1"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "saved_title": "Journeys and Bicycle Repairs",
+        "sections": [
+          {
+            "id": "ee07338e-d8ce-4665-b6ed-44eb0060c65d:1",
+            "title": "Walking to School with May in 1983"
+          },
+          {
+            "id": "ee07338e-d8ce-4665-b6ed-44eb0060c65d:2",
+            "title": "Moving to Sydney and Repairing Bicycles"
+          }
+        ],
+        "exact_source_ancestry": "pass",
+        "resume_and_replay": "pass",
+        "private_proposal": "pass",
+        "semantic_review": "pass",
+        "semantic_note": "Grounded titles retain May, school year, Sydney and bicycle work; unknown age/month are not asserted.",
+        "fixture_note": null
+      },
+      {
+        "case": "zh-small-resumed",
+        "worker_to_readback_seconds": 14.317850542021915,
+        "calls": 3,
+        "phases": [
+          {
+            "phase": "leaf",
+            "instruction_chars": 1110,
+            "packet_chars": 1313,
+            "output": {
+              "title": "童年上学路",
+              "sections": [
+                {
+                  "title": "与姐姐同行上学",
+                  "memory_ids": [
+                    "7c8e9a76-cfca-495f-a05b-83965ff0fd3c"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "phase": "leaf",
+            "instruction_chars": 1110,
+            "packet_chars": 1315,
+            "output": {
+              "title": "1991年搬到悉尼与修自行车",
+              "sections": [
+                {
+                  "title": "搬到悉尼后的第一份工作",
+                  "memory_ids": [
+                    "6150bf81-cb33-4b9f-8680-4db98e5dabbc"
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "phase": "merge",
+            "instruction_chars": 1111,
+            "packet_chars": 1449,
+            "output": {
+              "title": "从童年上学到悉尼生活起点",
+              "sections": [
+                {
+                  "title": "童年上学路",
+                  "section_ids": [
+                    "2214e79f-2388-4517-b563-704cfc3b13ca:1"
+                  ]
+                },
+                {
+                  "title": "搬到悉尼后的第一份工作",
+                  "section_ids": [
+                    "ce5e3fe2-fa88-4e26-8617-98473c4f1877:1"
+                  ]
+                }
+              ]
+            }
+          }
+        ],
+        "saved_title": "从童年上学到悉尼生活起点",
+        "sections": [
+          {
+            "id": "2eb3e285-8adb-4036-b6ce-064d11a8e0dc:1",
+            "title": "童年上学路"
+          },
+          {
+            "id": "2eb3e285-8adb-4036-b6ce-064d11a8e0dc:2",
+            "title": "搬到悉尼后的第一份工作"
+          }
+        ],
+        "exact_source_ancestry": "pass",
+        "resume_and_replay": "pass",
+        "private_proposal": "pass",
+        "semantic_review": "fail",
+        "semantic_note": "Leaf/merge titles introduce 童年 (childhood), absent from the admitted original text. Treating school attendance as a confirmed age stage fails the conservative source-only rubric.",
+        "fixture_note": "Source helper defaults source.language to en-AU even for Chinese text. Edition locale is correctly zh-CN; source provenance is retained exactly, but a matching Chinese source-language confirmation is needed before candidate acceptance."
+      }
+    ],
+    "total_provider_bound_calls": 6,
+    "ceiling": 8,
+    "failed_prelaunch_calls": 0,
+    "initial_launch": "Both cases stopped before generation because an unrelated draft prompt component failed real receipt validation; retained separately.",
+    "cleanup": {
+      "verified": true,
+      "root_removed": true,
+      "postmasters_stopped": [],
+      "registered_roots": [
+        {
+          "root": "/tmp/memoir-controlled-pg-author-live-73wmwg4r",
+          "device": 16777231,
+          "inode": 953276342
+        }
+      ],
+      "command_groups_stopped": []
+    },
+    "source_revision": "8560b1f7f0affdb6f96ff688bda6999ff989ac36",
+    "quality_review": "Assistant review against the frozen source/uncertainty rubric; no independent human/model judge.",
+    "limits": [
+      "One sample per language; no distribution or latency improvement established.",
+      "Owned SQL/native engine and controlled HTTP-to-worker seam, not deployed-worker or Temporal acceptance.",
+      "Provider SSE was buffered only in the observer; outline has no partial public text. Browser timing unavailable.",
+      "Long-source, cross-child, privacy revocation and protected/attributed held-outs remain unmeasured.",
+      "Unrelated interviewer sources temporarily match their genuine prior receipts while PR119 awaits merge. Outline instructions and receipts unchanged."
+    ],
+    "next_proposal": {
+      "name": "Direct selected-outline transport with source-only stage guidance",
+      "transport": "Reuse the existing bounded direct Responses path for native leaf/merge organisation, retaining exact packet/schema/model/effort, JobRequestBody/JobPublication and strict ancestry validation.",
+      "measured_basis": "1,731 native additional_tools input tokens per call; 3,572–3,722 total input tokens, all uncached. No speed percentage promised.",
+      "guidance": "Clarify in shared outline guidance that school/work alone does not establish an age/life stage; titles must retain source uncertainty. This is a separately reviewed prompt change requiring main-only publication.",
+      "retain": "No phases, original references, eligibility, entitlement, policy, SQL fences, page checkpoints, bounded recovery or publication restrictions removed.",
+      "validation": "Repeat original exact texts and real saved-job resume on each arm; correct/declare source-language fixture before comparison; include long-window and cross-child held-outs plus stale/foreign/policy/lease and cancellation checks.",
+      "rollback": "Restore native leaf/merge dispatch. Do not combine unmeasured global routing changes with the transport comparison.",
+      "status": "Proposed only; not approved or implemented."
+    }
+  },
+  "archive_sha256": "96ac49d2f1d4d82037c06b347db9998c50f531d19ad992935787d824a9c1ad7a",
+  "uncompressed_sha256": "725afae471f23b78842a4c9ba8da26e6254903f27bc7a040d196d8fb070caa7c",
+  "files": 46,
+  "inventory": {
+    "var/optimise-all-skills-20261022/09-selected-outline/analyse.py": "5673a3dc7ec12c7e0b0aa9a82617d53305256b74e74fa5b6096a0eb6de766536",
+    "var/optimise-all-skills-20261022/09-selected-outline/analysis.json": "4bfebcaba124f9efe21a3553191ad0aebc78650004a27c5bcb2a5d0b493f4d9a",
+    "var/optimise-all-skills-20261022/09-selected-outline/baseline-live.json": "70f0fc2a1a3b89e8416f2823549c689e3f48a7b37d4dd3d8c192f666065ccc03",
+    "var/optimise-all-skills-20261022/09-selected-outline/baseline-r1-harness.py": "6e6f1d7d943564cf5aa719ee12eaae1a22c61afcc0e0c0eed332d36521f108d7",
+    "var/optimise-all-skills-20261022/09-selected-outline/baseline-r2-live.json": "dcbf22f3dcee9e14d0133f3e72686935d047113080e93f13c5f61ef9781b96b0",
+    "var/optimise-all-skills-20261022/09-selected-outline/live.py": "144186f89bf471942fce7e1acc9f28f7e626eb62d0de600690728b63b5601586",
+    "var/optimise-all-skills-20261022/09-selected-outline/package.py": "3a3c292cabad95ad479001be3587eab9ddebe0d42b2b104fb13b9e2b843bfa9a",
+    "var/optimise-all-skills-20261022/09-selected-outline/plan.json": "511e6f63eae1714fe1f8dea7e742475d8773d4d276b849697f54594dc6750c55",
+    "var/optimise-all-skills-20261022/09-selected-outline/setup-live.json": "4cffb8d5e9fb5b4a79fc92463e9ee481ebe4be37ab82fb205b320e24198c09da",
+    "apps/api/lifetime_memory_collection_jobs.py": "47fad9700978a3da1aab54e91ff3642f1f0c20c003d5ea9427a80077e80698b1",
+    "apps/api/lifetime_memory_job_engine.py": "c7292c76af26dc1d8e5f5c2043caef6ae39aaa91c6aaa1a7450d5de548e6c6b5",
+    "apps/api/lifetime_memory_lane_engine.py": "dabfef243a207d2d0937c580e33dcda3e8a8eb60175eb767a559351ea37fe396",
+    "apps/api/codex_agent.py": "bb247206ea8056b7f96f2f0b74915f23540b1a272f5bdb41432af2abcbf76bc2",
+    "apps/api/codex_worker_files.py": "e09e14042a0c3cac92da43845491ba764988989e7983f6c022e3a58835e59230",
+    "apps/api/lifetime_memory_execution.py": "9066bae52cb048655ca57e8682dd57d8e4b451c743e42a7ee62bf7328885d185",
+    "apps/api/lifetime_memory_publication.py": "e1d5a0f20811889ed0f1dfee31221409fb0e2c79e2e14617f5c89308e90d5649",
+    "apps/api/prompt_artifact.py": "e5469d95d654860ac656a7dc9f2c5193335849e912c4271f1a2b8650f326337a",
+    "apps/api/prompt_composition.py": "dfa854ce89af4c1f2d8a7294ae471c98145881c943c1d72e6bb42723b10a8e56",
+    "apps/api/model_request.py": "bb7adf7d5a038fb7d98861e13e00ef6d67df4046d36d5653cba8db6b25cfde13",
+    "scripts/evaluation_budget.py": "e4ec06256db3d94e9c3aee73a6344a7c0459629655fac5541ebc173f183ad44c",
+    "scripts/controlled_lifecycle.py": "4e15eea749e6bfbd807d2ced76cb0dabbb097d91dfe192929a0261b0ccda1be8",
+    "tests/test_agent_commit_postgres.py": "b3525376454ee160f949132ddd54a345de020c44ed7e83b8f37f264bc2b002c3",
+    "tests/test_lifetime_collection_jobs.py": "20bbf4626382c678d7dbd37e3ef60ee55a1d89bb570cbd320b6dd195b8464548",
+    "tests/test_lifetime_memory_postgres.py": "86c5c6398b926080c2e6c1dd9b3a67703c2e7f991853caf135515b8b7536a436",
+    "tests/test_shared_memory_events_postgres.py": "f766c4cfc2ea4f1053903503aaf348404ed26da4c78a04f7f2ad6ce6dbe2b92a",
+    "tests/controlled_policy.py": "e1fd1fd9902ad2cd78be8f370f2e926a0d7d5156264b4e0bcb907d48d88cab49",
+    "supabase/migrations/202610180001_initial_schema.sql": "31bf4cc9243fd30a08f26f10930779c92f53d2ed9bdda9b95920d33db4145f08",
+    "skills/memoir-composer/prompts/outline/leaf/en-AU.md.langfuse.json": "4d2814f550b5aa750bd9fb8558dd65f75a21ac9fae7df5b45175dd9168fd106c",
+    "skills/memoir-composer/prompts/outline/leaf/zh-CN.md.langfuse.json": "d39b8c047aadb6c857e84e30b59c94f300ac75551095ff0428d8625b03649eca",
+    "skills/memoir-composer/prompts/outline/leaf/zh-CN.md": "a3108ba8705f81ceccaeb85da14393b4ff18dba7d224f87b01bb9b0776340b2b",
+    "skills/memoir-composer/prompts/outline/leaf/en-AU.md": "a32e8ad5e53803c2b5c0ea3e0b77ed1793a3a393c86b3dc148dc1f4ad9a573f2",
+    "skills/memoir-composer/prompts/outline/merge/en-AU.md.langfuse.json": "7493db7c81ba8c12ccb0035fddddeeba5ea20837f412e7613d2c26d0d4001df0",
+    "skills/memoir-composer/prompts/outline/merge/zh-CN.md.langfuse.json": "94c771c3adb5b2da5d19b680301f0f172851a42f15fd9cdc4a3d9805288f6873",
+    "skills/memoir-composer/prompts/outline/merge/zh-CN.md": "80fdf1243c337012039ce5b94a3b37cb0d9cfffd9a45785ffbb788b25b3beb07",
+    "skills/memoir-composer/prompts/outline/merge/en-AU.md": "b1af3ebef85419e8344db5ad56b9524645e7b094e3f0386b0f12155b4e593aa5",
+    "skills/memoir-composer/prompts/outline/shared/prefix.md.langfuse.json": "65308929a63a7cd029a144d56183fc4573e1ce0cdaa71bf3b6a3e4ca8348ca1c",
+    "skills/memoir-composer/prompts/outline/shared/suffix.md.langfuse.json": "2fa79f1e1337c3b0fb3e89683e16a75a9a3bd904a8a401803ce1ddc765d749e5",
+    "skills/memoir-composer/prompts/outline/shared/suffix.md": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+    "skills/memoir-composer/prompts/outline/shared/prefix.md": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+    "var/optimise-all-skills-20261022/checks/selected-outline-setup.json": "8ed0dbbc959aa325320574fbdb63dd1dee86aab11e55c053e3c85509207e0902",
+    "var/optimise-all-skills-20261022/checks/selected-outline-setup.log": "2f00e2babbd552523dbf4d5b2ea8c0ea77066fc0781c63f327693a82931c8634",
+    "var/optimise-all-skills-20261022/checks/selected-outline-baseline.json": "fb5f1e8b2654956849b7d9f37f3452907e9193ffa17c990a8f4b5dc64f2185a5",
+    "var/optimise-all-skills-20261022/checks/selected-outline-baseline.log": "95a352760b15b341caf2a79f6a6d9ccd13252fcaa589edaca3f8a86c72b8a42a",
+    "var/optimise-all-skills-20261022/checks/selected-outline-baseline-r2.json": "658d3e7a94852087f15dfb16ea17a8aab4899e2c05d14eb8f71c35f7bc693176",
+    "var/optimise-all-skills-20261022/checks/selected-outline-baseline-r2.log": "79bcde1ea765b6c557458d2057130206787418e7ddb8ead4cc8e0a4b2ff2216a",
+    "var/optimise-all-skills-20261022/08-handoff-corrections/temporary-published-source-restoration.json": "3aaad7082491057595f21b292cbb19971695bd4612d02d49ed00069454c1bebd"
+  },
+  "archive_path": "docs/evidence/lane-b-selected-outline-baseline-20261024.json.gz",
+  "review_note": "Original diagnostic baseline; no new calls, implementation or approval. Chinese source-language fixture mismatch and semantic age-stage failure remain open."
+}

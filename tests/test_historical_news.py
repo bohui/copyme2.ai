@@ -327,7 +327,8 @@ def test_unparsed_move_always_blocks_stale_birthplace_fallback(text):
 def test_historical_invitation_cannot_switch_saved_interview_language():
     from apps.api.interview_plan import validate_collector_result,collector_schema
     ctx={**ready_context(),'interview_language':'zh-CN'}
-    assert collector_schema(ctx)['properties']['acknowledgement']['enum']==['我们可以按您的节奏继续回忆。']
+    assert set(collector_schema(ctx)['properties']['acknowledgement']['enum'])=={
+        '我们可以按您的节奏继续回忆。', '好的，今天就到这里。'}
     with pytest.raises(ValueError):validate_collector_result(news_proposal(),ctx)
 
 

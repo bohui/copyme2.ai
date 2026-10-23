@@ -79,6 +79,63 @@ def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql,
         assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'
 
 
+@pytest.mark.parametrize('language,text,acknowledgement', [
+    ('en-AU', 'Please stop for today. No more questions.', 'Understood. We’ll stop here for today.'),
+    ('zh-CN', '今天先不聊了，请不要继续提问。', '好的，今天就到这里。'),
+])
+def test_ready_news_can_save_and_replay_an_explicit_stop_without_touching_the_prior_reply(
+        sql, tmp_path, monkeypatch, language, text, acknowledgement):
+    from apps.api import agent_routes
+    calls = []
+
+    def provider(request):
+        context = json.loads(request.content)['interview_context']
+        calls.append(context)
+        output = proposal()
+        if len(calls) == 2:
+            assert context['historical_news']['clues'], 'Exercise a ready clue at actual reply admission'
+            assert any(hint.get('historical_clue_id') for hint in reply_candidates(context))
+            output.update(acknowledgement=acknowledgement, question=None, reason='pause',
+                work={'mode': 'reply_only', 'name': None})
+        return response(request, output)
+
+    class PublicSources:
+        async def discover(self, query, *, timeout):
+            return {'receipt': receipt(), 'events': [evidence()]}
+
+        async def inspect(self, url, *, timeout):
+            return dict(url=url, text=evidence()['excerpt'], source_title='Town archive', publisher='Town library',
+                publication_date='2020-01-01', retrieved_at='2026-10-15T00:00:00Z')
+
+    monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS', '1')
+    with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
+        monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
+        agent_routes.runtime._news_engine = HistoricalResearch(PublicSources())
+        first = client.post('/v1/agent/turn', json=dict(
+            text='I was born in Boston, USA, in 1960.', language=language))
+        assert first.status_code == 200, first.text
+        prior = first.json()
+        assert len(rpc(sql, 'read_user_historical_news', literal(prior['project_id']))['clues']) == 1
+        payload = dict(project_id=prior['project_id'], text=text, language=language, client_turn_id=str(uuid4()))
+        later = client.post('/v1/agent/turn', json=payload, headers={'accept': 'application/x-ndjson'})
+        assert later.status_code == 200, later.text
+        events = [json.loads(line) for line in later.text.splitlines()]
+        assert not any(event['type'] == 'error' for event in events), later.text
+        saved = next(event['data'] for event in events if event['type'] == 'result')
+        assert saved['conversation_saved'] and saved['reply'] == acknowledgement
+        assert saved.get('historical_context') is None
+        assert not any(event['type'] == 'question_validated' for event in events)
+        original = json.loads(sql('select collector from public.user_interview_turn order by sequence limit 1;').stdout)
+        assert original['reply'] == prior['reply']
+        outcome = json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o order by source_sequence desc limit 1;').stdout)
+        assert outcome['selection_reason'] == 'pause' and outcome['selected_candidate_id'] is None
+        assert outcome['question_delivered'] is None
+        replay = client.post('/v1/agent/turn', json=payload)
+        assert replay.status_code == 200 and replay.json()['cached']
+        assert replay.json()['reply'] == acknowledgement and len(calls) == 2
+        assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'
+
+
 @pytest.mark.parametrize('kind,question', [
     ('conflict', 'Was the move in 1962 or 1963?'),
     ('identity', 'Which sister were you describing?'),

@@ -1,0 +1,692 @@
+{
+  "as_of": "2026-10-24",
+  "columns": [
+    "skill name",
+    "work measured",
+    "before",
+    "after",
+    "result"
+  ],
+  "purpose": "Maintain a complete skill × work-scenario scorecard after every profiling round; five visible columns only.",
+  "scope": "Current all-skills campaign plus the separately dated 22 Oct parallel-flow cohort. Representative measured/control scenarios and pending acceptance paths; calibration attempts remain in source evidence.",
+  "conventions": [
+    "Before/after are paired within each named round, with its own configuration, not a single shared deployment revision.",
+    "Times are seconds unless marked milliseconds. The work-measured column names the boundary: acknowledgement/reply, whole case, save/readback or photo first/completion.",
+    "A failed baseline duration is time to failure, not successful-response latency.",
+    "Baseline-only, new held-out, unavailable, unwired and pending states stay explicit; missing timing is never zero.",
+    "Cold and warm cache are distinct baseline conditions, not before/after an implementation.",
+    "Most scenarios have one sample per arm. Provider/cache/load drift remains; no production percentile guarantee.",
+    "Latest handoff values use merged main b8d797d and published reply v4, privacy/repair v6; serial policy/reply on isolated low route. Shared service settings unchanged.",
+    "A per-case quality pass is not full skill acceptance. Full source reports retain failures, call budgets, retries, interrupted runs, provenance and cleanup.",
+    "Round10 completed28 prepared cases plus2 diagnostics:26 pass,3 fail,1 inconclusive overall; generic continuation on a stop is not a meaningful stop response. Prior77-row scorecard preserved in the raw evidence archive."
+  ],
+  "rows": [
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — english opening (retained acknowledgement / final save)",
+      "before": "9.41s ack / 9.72s save",
+      "after": "6.27s ack / 6.63s save",
+      "result": "Quality passed this case; historical cohort, latest combined flow unverified"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — english later (retained acknowledgement / final save)",
+      "before": "8.65s ack / 9.25s save",
+      "after": "5.62s ack / 6.05s save",
+      "result": "Quality passed this case; historical cohort, latest combined flow unverified"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — english privacy (retained acknowledgement / final save)",
+      "before": "13.54s ack / 13.86s save",
+      "after": "11.51s ack / 11.96s save",
+      "result": "Quality passed this case; retained acknowledgement exceeds 10s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — english resumed (retained acknowledgement / final save)",
+      "before": "8.01s ack / 8.38s save",
+      "after": "4.38s ack / 4.74s save",
+      "result": "Quality passed this case; historical cohort, latest combined flow unverified"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — english stop (retained acknowledgement / final save)",
+      "before": "7.14s ack / 11.84s save",
+      "after": "8.26s ack / 8.60s save",
+      "result": "Quality passed; retained acknowledgement slower"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — english correction (retained acknowledgement / final save)",
+      "before": "failed 19.00",
+      "after": "failed 55.35",
+      "result": "FAIL: correction after stop unresolved; original failures retained"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — chinese opening (retained acknowledgement / final save)",
+      "before": "10.14s ack / 10.69s save",
+      "after": "5.35s ack / 5.75s save",
+      "result": "Quality passed this case; historical cohort, latest combined flow unverified"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — chinese later (retained acknowledgement / final save)",
+      "before": "16.50s ack / 16.92s save",
+      "after": "5.60s ack / 5.96s save",
+      "result": "Quality passed this case; historical cohort, latest combined flow unverified"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — chinese privacy (retained acknowledgement / final save)",
+      "before": "12.28s ack / 12.77s save",
+      "after": "18.54s ack / 18.96s save",
+      "result": "Quality passed this case; retained acknowledgement exceeds 10s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — chinese resumed (retained acknowledgement / final save)",
+      "before": "8.09s ack / 14.23s save",
+      "after": "5.81s ack / 6.22s save",
+      "result": "Quality passed this case; historical cohort, latest combined flow unverified"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — chinese stop (retained acknowledgement / final save)",
+      "before": "8.16s ack / 12.74s save",
+      "after": "14.94s ack / 15.40s save",
+      "result": "Quality passed this case; retained acknowledgement exceeds 10s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "22 Oct parallel trial — chinese correction (retained acknowledgement / final save)",
+      "before": "84.91, policy incorrect",
+      "after": "failed 61.55",
+      "result": "FAIL: correction after stop unresolved; original failures retained"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — English ready-news selection (validated reply)",
+      "before": "6.62s (quality failed)",
+      "after": "9.72s (reply v4)",
+      "result": "PASS after one validation repair; ready cited clue selected; prior v3 recovery: 7.09s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — English conflicting dates (validated reply)",
+      "before": "5.50s",
+      "after": "5.72s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 5.05s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — English person identity clarification (validated reply)",
+      "before": "15.28s (quality failed)",
+      "after": "4.02s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 4.51s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — English event ordering (validated reply)",
+      "before": "5.12s",
+      "after": "4.73s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 4.35s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — English topic/period expansion (validated reply)",
+      "before": "Failed; no validated reply",
+      "after": "4.43s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 4.48s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — English explicit stop (validated reply)",
+      "before": "4.55s",
+      "after": "5.67s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 4.86s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — English explicit topic redirection (validated reply)",
+      "before": "4.75s",
+      "after": "5.75s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 5.68s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — English privacy exclusion + topic redirection (validated reply)",
+      "before": "5.35s",
+      "after": "12.02s (reply v4)",
+      "result": "Quality PASS;12.02s exceeds10s target; prior v3 recovery: 6.42s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — Chinese ready-news selection (validated reply)",
+      "before": "12.70s (quality failed)",
+      "after": "11.47s (reply v4)",
+      "result": "FAIL: same-period invitation still treated as a topic change; clue skipped after repair; prior v3 recovery: 5.85s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — Chinese conflicting dates (validated reply)",
+      "before": "8.23s",
+      "after": "4.83s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 5.02s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — Chinese person identity clarification (validated reply)",
+      "before": "5.56s",
+      "after": "5.09s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 5.02s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — Chinese event ordering (validated reply)",
+      "before": "4.87s",
+      "after": "9.96s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 5.12s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — Chinese topic/period expansion (validated reply)",
+      "before": "Failed; no validated reply",
+      "after": "6.29s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 5.17s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — Chinese explicit stop (validated reply)",
+      "before": "5.26s",
+      "after": "4.86s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 4.34s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — Chinese explicit topic redirection (validated reply)",
+      "before": "Failed; no validated reply",
+      "after": "5.86s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: 5.40s"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Current handoff — Chinese privacy exclusion + topic redirection (validated reply)",
+      "before": "7.06s",
+      "after": "8.74s (reply v4)",
+      "result": "Quality PASS; original sources and earlier reply retained; prior v3 recovery: Failed: provider HTTP 502"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh control then repeat — English person identity clarification (validated reply)",
+      "before": "No older matched baseline",
+      "after": "5.00s; repeat 6.13s; v4 6.42s",
+      "result": "PASS all three observations; repeated controls, no longer unseen"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh control then repeat — English explicit topic redirection (validated reply)",
+      "before": "No older matched baseline",
+      "after": "4.74s; repeat 4.10s; v4 4.63s",
+      "result": "PASS all three observations; repeated controls, no longer unseen"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh control then repeat — English privacy exclusion + topic redirection (validated reply)",
+      "before": "No older matched baseline",
+      "after": "5.36s; repeat 6.24s; v4 7.21s",
+      "result": "PASS all three observations; repeated controls, no longer unseen"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh control then repeat — English explicit stop (validated reply)",
+      "before": "No older matched baseline",
+      "after": "4.58s; repeat 4.78s; v4 5.42s",
+      "result": "PASS all three observations; repeated controls, no longer unseen"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh control then repeat — Chinese person identity clarification (validated reply)",
+      "before": "No older matched baseline",
+      "after": "4.55s; repeat 5.26s; v4 5.53s",
+      "result": "PASS all three observations; repeated controls, no longer unseen"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh control then repeat — Chinese explicit topic redirection (validated reply)",
+      "before": "No older matched baseline",
+      "after": "6.04s; repeat 5.28s; v4 5.73s",
+      "result": "PASS all three observations; repeated controls, no longer unseen"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh control then repeat — Chinese privacy exclusion + topic redirection (validated reply)",
+      "before": "No older matched baseline",
+      "after": "5.02s; repeat 6.02s; v4 5.44s",
+      "result": "PASS all three observations; repeated controls, no longer unseen"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh control then repeat — Chinese explicit stop (validated reply)",
+      "before": "No older matched baseline",
+      "after": "4.40s; repeat 5.64s; v4 4.50s",
+      "result": "PASS all three observations; repeated controls, no longer unseen"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Invalid completed privacy span → reassessment + reply (English)",
+      "before": "Rejected [0,40) for a 39-character quote; no reply",
+      "after": "7.14s",
+      "result": "PASS: controlled replay of actual bad output, then two live calls; exact [0,39) accepted"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Latest general conversation baseline: opening/later/privacy/resume; interrupted stop",
+      "before": "Four English turns delivered; fifth interrupted",
+      "after": "No matched candidate cohort",
+      "result": "INCONCLUSIVE: interrupted baseline is retained, not acceptance"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "PR120 reply v4 — original28-case live confirmation (validated meaningful reply)",
+      "before": "v3 recovery:14/16 originals passed;8/8 controls",
+      "after": "28/28 saved;25pass,2fail,1inconclusive;5.67s passing median",
+      "result": "FAIL full acceptance:7/25 within5s;24/25 within10s; no latency improvement established"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Deployed API/worker/proxy; pre-rollout resume, rollback and browser paint",
+      "before": "Not established on latest combined version",
+      "after": "Not established",
+      "result": "PENDING acceptance coverage"
+    },
+    {
+      "skill name": "memoir-author-timeline",
+      "work measured": "English childhood/1978 extraction → SQL save",
+      "before": "17.26s",
+      "after": "22.56s",
+      "result": "Quality PASS; application slower by 30.7%"
+    },
+    {
+      "skill name": "memoir-author-timeline",
+      "work measured": "Chinese childhood/1978 extraction → SQL save",
+      "before": "15.82s",
+      "after": "15.80s",
+      "result": "Quality PASS; effectively unchanged latency"
+    },
+    {
+      "skill name": "memoir-author-timeline",
+      "work measured": "English 1988–1992 bookshop extraction → SQL save",
+      "before": "59.53s to failure",
+      "after": "17.96s",
+      "result": "Baseline FAILED after 3 attempts; candidate saved after 1; not valid-latency comparison"
+    },
+    {
+      "skill name": "memoir-author-timeline",
+      "work measured": "Chinese 1988–1992 bookshop extraction → SQL save",
+      "before": "53.33s",
+      "after": "23.71s",
+      "result": "Quality PASS; 55.6% faster; 3→1 attempts; research window retained"
+    },
+    {
+      "skill name": "memoir-author-timeline",
+      "work measured": "English two-source saved-state continuation (whole case)",
+      "before": "No matched before measurement",
+      "after": "35.15s",
+      "result": "PASS saved-state preservation; two extraction roots completed"
+    },
+    {
+      "skill name": "memoir-author-timeline",
+      "work measured": "Chinese unique-padding/nonzero-window extraction (whole case)",
+      "before": "No matched before measurement",
+      "after": "26.73s",
+      "result": "Event/span save passes; optional derived-span repair not observed; attribution remains unresolved"
+    },
+    {
+      "skill name": "memoir-author-timeline",
+      "work measured": "Chinese repeated-placeholder attribution: clearer retry feedback (whole case)",
+      "before": "25.31s to failure",
+      "after": "33.35s to failure",
+      "result": "FAIL: ambiguous original spans still rejected after 3 attempts; no completion gain"
+    },
+    {
+      "skill name": "memoir-place-journey",
+      "work measured": "Place cues and research date-window extraction inside timeline pass",
+      "before": "Shared timeline request; no separate timing",
+      "after": "Shared timeline request; no extra call",
+      "result": "Embedded contract exercised by timeline cases; no independent skill speedup claimed"
+    },
+    {
+      "skill name": "memoir-memory-context",
+      "work measured": "English opening profile → saved readback",
+      "before": "30.94s",
+      "after": "11.21s",
+      "result": "PASS; 63.8% faster; six supported narrator fields"
+    },
+    {
+      "skill name": "memoir-memory-context",
+      "work measured": "Chinese opening profile → saved readback",
+      "before": "16.70s",
+      "after": "7.76s",
+      "result": "PASS; 53.5% faster; exact names/date/place preserved"
+    },
+    {
+      "skill name": "memoir-memory-context",
+      "work measured": "English saved-profile correction, five-turn case → readback",
+      "before": "22.84s",
+      "after": "14.79s",
+      "result": "PASS; 35.2% faster; saved correction and zero-call neutral turns"
+    },
+    {
+      "skill name": "memoir-memory-context",
+      "work measured": "Chinese protected profile / relative facts → readback",
+      "before": "12.49s",
+      "after": "6.76s",
+      "result": "FAIL quality despite faster save: unknown birth-date expression still stored"
+    },
+    {
+      "skill name": "memoir-memory-context",
+      "work measured": "English saved-prior selective summary → readback",
+      "before": "38.95s",
+      "after": "22.59s",
+      "result": "PASS final checkpoint; 42.0% faster"
+    },
+    {
+      "skill name": "memoir-memory-context",
+      "work measured": "Chinese correction summary → readback",
+      "before": "31.78s",
+      "after": "23.25s",
+      "result": "Final checkpoint PASS, 26.8% faster; intermediate citation weakness remains"
+    },
+    {
+      "skill name": "memoir-memory-context",
+      "work measured": "Chinese nonzero-window profile (whole case)",
+      "before": "No matched before measurement",
+      "after": "10.62s",
+      "result": "FAIL: required birth-date expression omitted"
+    },
+    {
+      "skill name": "memoir-memory-context",
+      "work measured": "English attributed summary (whole case)",
+      "before": "No matched before measurement",
+      "after": "16.16s",
+      "result": "PASS: aunt/narrator attribution and uncertain dates kept separate"
+    },
+    {
+      "skill name": "memoir-memory-context",
+      "work measured": "Chinese intermediate correction citation (semantic coverage, untimed)",
+      "before": "Blue correction cites only purple original",
+      "after": "Same intermediate weakness",
+      "result": "FAIL: later correct checkpoint does not clear intermediate citation defect"
+    },
+    {
+      "skill name": "memoir-composer",
+      "work measured": "English round 5: prepare + draft + review → saved chapter",
+      "before": "68.29s",
+      "after": "27.56s",
+      "result": "59.6% faster; PASS this checkpoint"
+    },
+    {
+      "skill name": "memoir-composer",
+      "work measured": "English round 10: prepare + draft + review → saved chapter",
+      "before": "75.65s",
+      "after": "27.61s",
+      "result": "63.5% faster; FAIL: unrelated school paragraph rewritten"
+    },
+    {
+      "skill name": "memoir-composer",
+      "work measured": "Chinese round 5: prepare + draft + review → saved chapter",
+      "before": "65.75s",
+      "after": "25.22s",
+      "result": "61.6% faster; PASS this checkpoint"
+    },
+    {
+      "skill name": "memoir-composer",
+      "work measured": "Chinese round 10: prepare + draft + review → saved chapter",
+      "before": "78.94s",
+      "after": "52.58s",
+      "result": "33.4% faster; PASS after 2 repair calls; unsupported chronology rejected then removed"
+    },
+    {
+      "skill name": "memoir-composer",
+      "work measured": "English protected/attributed continuation (two-checkpoint case)",
+      "before": "No matched before measurement",
+      "after": "64.13s to incomplete",
+      "result": "INCOMPLETE: budget stopped final review/save; attribution prose unverified"
+    },
+    {
+      "skill name": "memoir-composer",
+      "work measured": "Chinese protected/attributed continuation (two-checkpoint case)",
+      "before": "No matched before measurement",
+      "after": "53.55s",
+      "result": "Protected SQL bytes PASS; unsupported quantity wording; full quality not passed"
+    },
+    {
+      "skill name": "memoir-composer",
+      "work measured": "English selected outline: 2 leaves + merge → saved readback",
+      "before": "19.88s",
+      "after": "Not implemented / not measured",
+      "result": "Baseline quality PASS; transport proposal pending"
+    },
+    {
+      "skill name": "memoir-composer",
+      "work measured": "Chinese selected outline: 2 leaves + merge → saved readback",
+      "before": "14.32s",
+      "after": "Not implemented / not measured",
+      "result": "Baseline quality FAIL: unsupported childhood stage; source-language fixture also needs confirmation"
+    },
+    {
+      "skill name": "memoir-historical-news-research",
+      "work measured": "English Sydney/2000 discovery + source inspection + SQL finish",
+      "before": "36.41s",
+      "after": "No optimisation measured",
+      "result": "FAIL usefulness: zero verified clues; strict unsafe/unsupported-source rejection holds"
+    },
+    {
+      "skill name": "memoir-historical-news-research",
+      "work measured": "Chinese Sydney/2000 discovery + source inspection + SQL finish",
+      "before": "31.34s",
+      "after": "No optimisation measured",
+      "result": "FAIL usefulness: zero verified clues; strict unsafe/unsupported-source rejection holds"
+    },
+    {
+      "skill name": "memoir-historical-news-research",
+      "work measured": "Successful evidence-cache hit and actual discovered-clue → later question",
+      "before": "No successful discovery/cache witness",
+      "after": "Not measured",
+      "result": "PENDING: fixture-ready news in interviewer tests is separate from actual discovery"
+    },
+    {
+      "skill name": "memoir-place-photo-research",
+      "work measured": "English Chengde/1980s cold search (first candidate / completion)",
+      "before": "60.335s / 60.337s",
+      "after": "No optimisation measured",
+      "result": "FAIL: map, contradictory locality, and failure→time-relaxation bug; no 1980s match"
+    },
+    {
+      "skill name": "memoir-place-photo-research",
+      "work measured": "English Chengde/1980s warm cache (first candidate / completion)",
+      "before": "0.011s / 0.011s",
+      "after": "No optimisation measured",
+      "result": "FAIL: map, contradictory locality, and failure→time-relaxation bug; no 1980s match; cache made zero new calls"
+    },
+    {
+      "skill name": "memoir-place-photo-research",
+      "work measured": "Chinese Sydney/current cold search (first candidate / completion)",
+      "before": "17.471s / 21.932s",
+      "after": "No optimisation measured",
+      "result": "PARTIAL: 1/10 candidates; semantic/rights verification incomplete"
+    },
+    {
+      "skill name": "memoir-place-photo-research",
+      "work measured": "Chinese Sydney/current warm cache (first candidate / completion)",
+      "before": "0.002s / 0.002s",
+      "after": "No optimisation measured",
+      "result": "PARTIAL: 1/10 candidates; semantic/rights verification incomplete; cache made zero new calls"
+    },
+    {
+      "skill name": "memoir-place-photo-research",
+      "work measured": "Wrong-owner photo cursor rejection",
+      "before": "1.85ms",
+      "after": "No optimisation measured",
+      "result": "PASS isolation control: HTTP422; zero provider work"
+    },
+    {
+      "skill name": "memoir-place-photo-research",
+      "work measured": "Shared persistent cache / authenticated deployed worker / browser paint",
+      "before": "Not established",
+      "after": "Not established",
+      "result": "PENDING; in-memory warm reuse is the measured scope"
+    },
+    {
+      "skill name": "memoir-place-groups",
+      "work measured": "Deterministic place grouping on place change",
+      "before": "Not profiled",
+      "after": "Not profiled",
+      "result": "PENDING timing; no LLM call to optimise"
+    },
+    {
+      "skill name": "memoir-family-tree",
+      "work measured": "Relationship-evidence → family tree",
+      "before": "Not applicable",
+      "after": "Not applicable",
+      "result": "UNWIRED in production registry; excluded until integrated"
+    },
+    {
+      "skill name": "memoir-story-game",
+      "work measured": "Explicit game action → adaptation/review/private result",
+      "before": "Not profiled in this campaign",
+      "after": "Not profiled",
+      "result": "PENDING; intentionally last"
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh English same-period invitation with ready news (validated reply)",
+      "before": "No matched older baseline",
+      "after": "9.40s",
+      "result": "Quality PASS: Selects the ready cited clue and optional invitation without assuming the narrator attended the public fair."
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh Chinese same-period invitation with ready news (validated reply)",
+      "before": "No matched older baseline",
+      "after": "5.35s",
+      "result": "Quality PASS: Selects the ready cited clue, invites memories neutrally, and says remembering is optional."
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh English redirect after prior SQL-ready news (validated reply)",
+      "before": "No matched older baseline",
+      "after": "5.05s",
+      "result": "INCONCLUSIVE: Actual reply correctly follows Sydney over the remaining school hint, but canonical revalidation removed the prior SQL-ready news clue before reply input. Does not establish the intended ready-news-versus-redirect precedence gate. Failed zero-call original setup and controlled-prior-fixture amendment retained."
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Fresh Chinese stop with ready news in model input (validated reply)",
+      "before": "No matched older baseline",
+      "after": "4.76s",
+      "result": "FAIL: No question, no news card, and pause outcome saved, but visible reply says we can continue reminiscing at your pace instead of acknowledging the explicit stop. This generic wording cannot qualify as meaningful stop acknowledgement. The ready-news schema allows only this continuation literal; not a demonstrated PR120 regression."
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Diagnostic English redirect with ready news in model input (validated reply)",
+      "before": "No matched older baseline",
+      "after": "14.68s",
+      "result": "Quality PASS: Actual reply input contains the ready news clue and both prepared hints. Follows explicit Sydney-arrival topic instead, no news card or assumption of attendance; prior and source/state witnesses preserved. Meaningful validated reply14.68s exceeds target."
+    },
+    {
+      "skill name": "memoir-interviewer",
+      "work measured": "Diagnostic English stop with ready news in model input (validated reply)",
+      "before": "No matched older baseline",
+      "after": "4.55s",
+      "result": "FAIL: Actual reply input has ready news. Model saves pause and no question/card, but its sole visible line says we can keep following your memories at your pace. This fails clear stopping acknowledgement; a generic continuation line is not meaningful stop text. Existing news acknowledgement enum forces this sole English literal."
+    }
+  ],
+  "evidence_by_row": [
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/test-evidence/issue53-parallel-reply-20261022/report.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-comparison-20261024.md",
+    "docs/optimise-all-skills.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-comparison-20261024.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/lane-b-selected-outline-baseline-20261024.md",
+    "docs/lane-b-selected-outline-baseline-20261024.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/optimise-all-skills.md",
+    "docs/lane-b-photo-research-20261023.md",
+    "docs/lane-b-photo-research-20261023.md",
+    "docs/lane-b-photo-research-20261023.md",
+    "docs/lane-b-photo-research-20261023.md",
+    "docs/lane-b-photo-research-20261023.md",
+    "docs/lane-b-photo-research-20261023.md",
+    "apps/api/background_skills.py",
+    "apps/api/background_skills.py",
+    "apps/api/background_skills.py",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md",
+    "docs/lane-b-handoff-confirmation-20261024.md"
+  ],
+  "previous_snapshot_sha256": "7e0824074354efd49c90996710cfab9e6eee599d8316882426e77e20e5727454"
+}
