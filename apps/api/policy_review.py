@@ -113,16 +113,25 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
         parsed = (PolicyReviewOpening if opening else PolicyReview).model_validate(output)
         reason = parsed.reason.model_dump() if parsed.reason else None
         attempts.append(dict(response_id=receipt['response_id'], complete=parsed.complete, reason=reason))
+        invalid_review = False
         if parsed.complete:
-            break
+            try:
+                validate_review(parsed.model_dump(exclude={'acknowledgement'}), source)
+            except ValueError:
+                invalid_review = True
+                attempts[-1]['validation_error'] = 'invalid_review'
+            else:
+                break
         # Free-form audit detail stays in private model traces/receipts, never general logs.
-        log_diagnostic(diagnostic_logger, 'policy_review_incomplete', request_id,
+        log_diagnostic(diagnostic_logger, 'policy_review_invalid' if invalid_review else 'policy_review_incomplete', request_id,
             component='memoir.policy_review', status='retrying' if attempt == 0 else 'failed',
             call_type='initial' if attempt == 0 else 'retry', model=receipt['model'],
-            error_code=parsed.reason.code if parsed.reason else 'reason_missing')
+            error_code='invalid_review' if invalid_review else parsed.reason.code if parsed.reason else 'reason_missing')
         if attempt == 1:
             raise PolicyUnavailable()
         payload['previous_review'] = parsed.model_dump(exclude={'acknowledgement'})
+        if invalid_review:
+            payload['validation_error'] = 'invalid_review'
     receipt = {**receipt, 'policy_review_attempts': attempts}
     acknowledgement = None
     if opening:

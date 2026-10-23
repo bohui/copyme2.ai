@@ -35,9 +35,11 @@ collector-approved low route only in isolated SQL/runtime state. Shared model
 settings remain unchanged. Full source/receipt provenance, output, save,
 previous-reply and cached-retry witnesses are required.
 
-**Publication and live acceptance pending.** Three prompt sources changed;
-their prior genuine receipts are intentionally retained until the reviewed
-Markdown reaches main and the normal publisher creates the real versions.
-No feature-branch publication or live loader bypass is permitted. The
-[baseline review](lane-b-question-priorities-live-20261023.md) still fails
-acceptance; this implementation has not yet overturned it. Game remains last.
+**Publication complete; live acceptance still fails.** PR119 merged and the
+normal main-only publisher created reply v3, privacy review v6 and repair codes
+v6. All 93 pins verified. The [fresh before/after comparison](lane-b-handoff-comparison-20261024.md)
+retains both new cohorts and failures: the first improves from 10/16 to 15/16
+passing originals; its repeat has a news-selection failure and a provider 502.
+A bounded invalid-review recovery is implemented and verified, and the final
+news-intent clarification is prepared for review/publication. No feature-branch
+publication or live loader bypass was used. Game remains last.
