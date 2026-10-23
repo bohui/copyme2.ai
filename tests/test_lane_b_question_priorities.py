@@ -67,6 +67,7 @@ def test_broadening_plan_reaches_reply_and_ranks_before_optional_news():
     view = reply_packet(validate_governed_context(encode(packet), context))
 
     assert view['brief']['objective'] == 'broaden_scope'
+    assert view['brief']['hint_order'] == 'highest_priority_first'
     assert view['brief']['hints'][0]['id'] == broader['id']
     assert view['brief']['hints'][0]['purpose'] == 'broaden_scope'
     assert any(item.get('historical_clue_id') for item in view['brief']['hints'])

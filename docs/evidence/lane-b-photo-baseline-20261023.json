@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "round": "photo provider baseline",
+  "date": "2026-10-23",
+  "source_revision": "d1e624d3c9ddd1eaa365a71cfbc2571cbf262247",
+  "acceptance": "fail",
+  "rows": [
+    {
+      "id": "en-historical-cold",
+      "status": 200,
+      "error": null,
+      "first_candidate_seconds": 60.33497211100007,
+      "completion_seconds": 60.33731102799993,
+      "final_status": "READY",
+      "cached": false,
+      "count": 10,
+      "delivered_items": 10,
+      "shortfall": 0,
+      "new_calls": {
+        "serpapi_submissions": 6,
+        "catalogue_http_gets": 2,
+        "safe_source_and_image_fetches": 63,
+        "browser_page_calls": 25
+      },
+      "notes": [
+        "No requested-1980s photo delivered; every item is marked any_time/gps_time.",
+        "The source-described SVG location map is not a photograph.",
+        "One named street/building candidate has coordinates about 1,800 km from the requested centre; locality remains unproved.",
+        "All three requested-period providers failed; absence was treated as an empty result and time relaxation still ran."
+      ]
+    },
+    {
+      "id": "en-historical-warm",
+      "status": 200,
+      "error": null,
+      "first_candidate_seconds": 0.010613042000159112,
+      "completion_seconds": 0.01117466699997749,
+      "final_status": "READY",
+      "cached": true,
+      "count": 10,
+      "delivered_items": 10,
+      "shortfall": 0,
+      "new_calls": {
+        "serpapi_submissions": 0,
+        "catalogue_http_gets": 0,
+        "safe_source_and_image_fetches": 0,
+        "browser_page_calls": 0
+      },
+      "notes": [
+        "No requested-1980s photo delivered; every item is marked any_time/gps_time.",
+        "The source-described SVG location map is not a photograph.",
+        "One named street/building candidate has coordinates about 1,800 km from the requested centre; locality remains unproved.",
+        "All three requested-period providers failed; absence was treated as an empty result and time relaxation still ran."
+      ]
+    },
+    {
+      "id": "zh-current-cold",
+      "status": 200,
+      "error": null,
+      "first_candidate_seconds": 17.471101134000037,
+      "completion_seconds": 21.93175055200004,
+      "final_status": "PARTIAL",
+      "cached": false,
+      "count": 1,
+      "delivered_items": 1,
+      "shortfall": 9,
+      "new_calls": {
+        "serpapi_submissions": 2,
+        "catalogue_http_gets": 1,
+        "safe_source_and_image_fetches": 23,
+        "browser_page_calls": 13
+      },
+      "notes": [
+        "Only one in-radius current candidate delivered; target ten not met and PARTIAL/shortfall nine is honest.",
+        "Image identity, scene/copyright semantics and browser paint have not been independently confirmed."
+      ]
+    },
+    {
+      "id": "zh-current-warm",
+      "status": 200,
+      "error": null,
+      "first_candidate_seconds": 0.0023322909999023977,
+      "completion_seconds": 0.0023602909998317045,
+      "final_status": "PARTIAL",
+      "cached": true,
+      "count": 1,
+      "delivered_items": 1,
+      "shortfall": 9,
+      "new_calls": {
+        "serpapi_submissions": 0,
+        "catalogue_http_gets": 0,
+        "safe_source_and_image_fetches": 0,
+        "browser_page_calls": 0
+      },
+      "notes": [
+        "Only one in-radius current candidate delivered; target ten not met and PARTIAL/shortfall nine is honest.",
+        "Image identity, scene/copyright semantics and browser paint have not been independently confirmed."
+      ]
+    },
+    {
+      "id": "wrong-owner-cursor",
+      "status": 422,
+      "error": null,
+      "first_candidate_seconds": null,
+      "completion_seconds": 0.0018475419999504084,
+      "final_status": null,
+      "cached": null,
+      "count": null,
+      "delivered_items": 0,
+      "shortfall": null,
+      "new_calls": {
+        "serpapi_submissions": 0,
+        "catalogue_http_gets": 0,
+        "safe_source_and_image_fetches": 0,
+        "browser_page_calls": 0
+      },
+      "notes": [
+        "Wrong-owner cursor rejects with 422 and zero new provider/fetch work."
+      ]
+    }
+  ],
+  "gates": {
+    "no_model_calls": "pass",
+    "bounded_network_observations": "pass",
+    "in_memory_warm_reuse": "pass",
+    "wrong_owner_cursor": "pass",
+    "fallback_labels_retained": "pass",
+    "photo_identity": "fail",
+    "source_place_fidelity": "fail",
+    "failed_discovery_not_empty": "fail",
+    "target_count": "fail",
+    "browser_paint": "inconclusive",
+    "authenticated_api_and_deployed_worker": "inconclusive",
+    "shared_persistent_cache": "inconclusive",
+    "independent_visual_and_rights_review": "inconclusive"
+  },
+  "model_calls": 0,
+  "counts": {
+    "browser_page_calls": 38,
+    "catalogue_http_gets": 3,
+    "serpapi_submissions": 8,
+    "safe_source_and_image_fetches": 86
+  },
+  "cleanup": {
+    "jobs_done": true,
+    "pool_shutdown": true,
+    "warm_runtime_cleared": true,
+    "browser_closed": true,
+    "temporary_root_removed": true
+  },
+  "archive": "lane-b-photo-baseline-20261023.json.gz",
+  "archive_sha256": "ade93443b5c9acef3aa90c75e159ffcccde1764c3369c8353ed388d0ca837a1c",
+  "uncompressed_sha256": "4e86badf6d025eb34ae500ad55d9c188239424f0cdbe0dba0868560300fd6270",
+  "files": 64,
+  "inventory": {
+    "var/optimise-all-skills-20261022/07-place-photo/analyse.py": "8aa12bf43695b4080d9a735485a65dec7042faa9cd7885ea29cee7ce13e7455b",
+    "var/optimise-all-skills-20261022/07-place-photo/analysis.json": "a5d02d018921d6cf0a8c2c36bbfdcb331c3022ffd49e55553747f50a3bd7a9fb",
+    "var/optimise-all-skills-20261022/07-place-photo/baseline-live-r2.json": "e260c27187336e0d45b216787a1877478621b3c1ee173285626911c93c85c2bc",
+    "var/optimise-all-skills-20261022/07-place-photo/live_worker.py": "e3253b050a80d971d36ca694b0e53952638354c5c800b27cc7f38f614daef241",
+    "var/optimise-all-skills-20261022/07-place-photo/package.py": "44ad59baac1bde91e5e706093d1fbc7acc416c842e46a22b278b8cc817ae19b5",
+    "var/optimise-all-skills-20261022/07-place-photo/plan.json": "3a06c3b3fbc86d13cc31573cf133ce196278460472f3f31160e18ec8f78a4687",
+    "var/optimise-all-skills-20261022/07-place-photo/run-provenance-r2.json": "bf5924f489f33b79e6da94c713ffb8f70b4b87cdbd69b8da28e43171b926be05",
+    "var/optimise-all-skills-20261022/07-place-photo/run-provenance.json": "bf5924f489f33b79e6da94c713ffb8f70b4b87cdbd69b8da28e43171b926be05",
+    "var/optimise-all-skills-20261022/07-place-photo/run-r1-snapshot.py": "b7405a7967fe2626d87af988782145964754f31806b70e569a7f0ebb4fdb5d28",
+    "var/optimise-all-skills-20261022/07-place-photo/run.py": "0f7517222bfb1342e10b15d61d44f04361ad714d5d61f680f262dc1a3f89476a",
+    "var/optimise-all-skills-20261022/07-place-photo/worker-r1-snapshot.py": "e3253b050a80d971d36ca694b0e53952638354c5c800b27cc7f38f614daef241",
+    "var/optimise-all-skills-20261022/07-place-photo/worker-stderr-r2.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "var/optimise-all-skills-20261022/07-place-photo/worker-stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "var/optimise-all-skills-20261022/07-place-photo/worker-stdout-r2.log": "40fd9a128b7f02e7fb3d87cbcff4c84d7f4f41c474913c185a9424f86a6c0e31",
+    "var/optimise-all-skills-20261022/07-place-photo/worker-stdout.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "apps/api/agent_routes.py": "082d45365be0e1aa22ad407991e67c3d9007c63584a024cf356a9eb0923cff79",
+    "apps/api/background_skills.py": "5a81e7ce28394180cc3d394705e1c17c1d3d2959e9cb22a4ab4bb26b2099b2db",
+    "apps/api/place_photos.py": "67ad517fa23be6a6c8af22921a72175a2c30fc6f16049c8b9faec2716ec07906",
+    "apps/api/place_photo_pages.py": "f08b353a888f98038f042390222e9074b569f796030496f9d00d5012309f6417",
+    "apps/api/place_photo_repository.py": "222398a61a0dd3cdbbd1f510b6ead6f8968fed4d89c3e4235326d6a520015e76",
+    "apps/api/place_photo_transport.py": "6c27497808676e160d33fbd89a3d6ce8ed20068d35c503b23f1f9e5381cd334a",
+    "apps/api/photo_worker_service.py": "399b01d49287eba895d2982d529f132e411ebddc6501009894c3e9f5b3d9ecf2",
+    "apps/api/place_photo_browser.py": "a77a05c4e0ebd09f7bf1bcf029d4224bf015db34e8245f88c9819a79851a2fec",
+    "apps/api/place_photo_sources.py": "feafee8b764ebad6c907b72bbdb98b25c4f2de9ec5772301309c17a001278291",
+    "apps/api/place_photo_fingerprints.py": "d55c3530d26b274f8ef9792fe758f72dfc5e362e5c47fd2cf717081225a5a0a5",
+    "apps/api/place_photo_expansion.py": "20f8ad9863252a087d5d0e51eb7758d5355fda5321fafb407b160230d3cbc8ad",
+    "apps/api/prompt_artifact.py": "e5469d95d654860ac656a7dc9f2c5193335849e912c4271f1a2b8650f326337a",
+    "apps/api/prompt_catalog.py": "9ef91e98404cb4f689814c262fc09a356766ca1eb038ab6460edac9cb8a06655",
+    "apps/api/model_request.py": "bb7adf7d5a038fb7d98861e13e00ef6d67df4046d36d5653cba8db6b25cfde13",
+    "apps/api/llm_tracing.py": "b0f3cd1eec563cedbbada1b5920bcdcf2f065272e032c2273560494cb3425863",
+    "apps/api/turn_stream.py": "b363cc449c48d59ba312babf9913dd37b94c19b7a0bce251a3e640e7690ffa20",
+    "apps/web/client/memoir/client.js": "cf6840306cdccee270a234db2e629e5ae677379480afb5438a9186deebb21c25",
+    "scripts/backend_operation_lock.py": "967e2795e52ab7bb054d4efaf484a2dc883731bb472697b6a620f7c937ece5dc",
+    "scripts/run_isolated_check.py": "4aa336510f3d2d301bcf9bd17e9143abd8cd696ea728f2304d686ccb1108229c",
+    "scripts/controlled_lifecycle.py": "4e15eea749e6bfbd807d2ced76cb0dabbb097d91dfe192929a0261b0ccda1be8",
+    "compose.yml": "ad0968714e8939499d834646bd9f45192c5a9320739107ed271387fc9cad3028",
+    "AGENTS.md": "ec8281ff179f9d809fe6ee2bf1a1108f311f776aad05af2a0779558ccc21ee7d",
+    "skills/memoir-place-photo-research/README.md": "8d306f85badc135c1d1e688949dd80edda1b93c9aa6c89306ccd16222de1dc30",
+    "skills/memoir-place-photo-research/SKILL.md": "c796185cf190aea666fc7b69b6aadd80293831214f47bc9fd2b432157bcf50a7",
+    "skills/memoir-place-photo-research/SKILL.md.langfuse.json": "7d66663c139b75367e12f6b5686b01208e6e7226cc455f47a03b0bd9d2dba16d",
+    "skills/memoir-place-photo-research/VALIDATION.json": "734baebb9116b4cd19493d73ea927f9583a1c303187b9d104f32e1676ab3b399",
+    "skills/memoir-place-photo-research/examples/candidate-template.json": "5229cc23af29e2709212f2b315e4529ce060bd20b60f35d9dca271b13b5b1d5e",
+    "skills/memoir-place-photo-research/examples/prompts.md": "0dee2b03466b7d8472128968fd94a6d027ba80dca22a6b7b5ca7b1f9e06b7c01",
+    "skills/memoir-place-photo-research/prompts/discovery.md": "f101aad128deeb167e7363a38bd3ab4a36cefb54a7e63ebbab5a0cad158fdf46",
+    "skills/memoir-place-photo-research/prompts/discovery.md.langfuse.json": "37d7093618b25e0976fc104fcabe0eb660acdfbff6b5bb04df6b044debdaf003",
+    "skills/memoir-place-photo-research/references/llm-web-search.md": "642c43610834c2d6c634de2a892e29aeba1e5cbd0bd3c21c5110b1b8730bdb8b",
+    "skills/memoir-place-photo-research/references/record-format.md": "778106ca8e266195908c2948186142b77ee91f4efac4f5cd333bc352c47403ec",
+    "skills/memoir-place-photo-research/references/source-strategy.md": "689ba45db76927d5a5f66176a7ff8108617de849d6f6df86439591d9a0ed6c99",
+    "skills/memoir-place-photo-research/requirements-crawl4ai.txt": "4f11014a2985c4f96b6a571d6eb3ba730f52bb44aadceffd2b07be48ad29d392",
+    "skills/memoir-place-photo-research/requirements.txt": "d016685024e1be1fbc143a1f51494575d808862b6449b5e20b9486e5ab5ebe71",
+    "skills/memoir-place-photo-research/scripts/photo_prompt_adapter.py": "ee4d8964bda3c641fc16a808a0e9134e996ee5a7fb0e9a0b39dbd495f9a34ea4",
+    "skills/memoir-place-photo-research/scripts/photo_research.py": "7313f1d9a6340f5aad7c7825cbe8f7d9ea0ba3284b458f594e0a91ef69e9066d",
+    "skills/memoir-place-photo-research/scripts/photo_search.py": "cd6eef160fa7a0e9b359ad533f8b9d1f2b76a09c2e4b889b9b5fdf0d6a8a26e0",
+    "skills/memoir-place-photo-research/test-results.txt": "b0c842f402e499ed9d50f9677c64bbfe17749b75be8dc3b2e3df17957832f6d5",
+    "skills/memoir-place-photo-research/tests/photo_test_support/__init__.py": "591cd00ee0695a0f73603980f5b4b70020672d6cbd7b5f2d23a45b375686a7b7",
+    "skills/memoir-place-photo-research/tests/photo_test_support/offline_network.py": "b534b2cc6c7db140091a16159db0189b7903eda4d9bf101bb7723662203df66e",
+    "skills/memoir-place-photo-research/tests/test_parallel_search.py": "e0e82fea6b967031c950335fbd6b7ffeebf549c738591e0f09e32ab05188afa3",
+    "skills/memoir-place-photo-research/tests/test_photo_research.py": "b10f6aa48d262e3d3141e188f5c9bb0e429b6d741ebefefb300128efdac0fd08",
+    "var/optimise-all-skills-20261022/checks/photo-baseline-r1.json": "9f89517a945d7a2f2955fe31d1b40e4583353b53d6969b773f34436b6238b2b0",
+    "var/optimise-all-skills-20261022/checks/photo-baseline-r1.log": "f2ba2e85eb770fab534675e3906f232b34d72dd3fa6523dc52537044fb696524",
+    "var/optimise-all-skills-20261022/checks/photo-baseline-r2.json": "c97e92d516284ef4b534cf4ea29d4d0bdaeb14ce4389ed793e972b9b47fecb1e",
+    "var/optimise-all-skills-20261022/checks/photo-baseline-r2.log": "de2b94b7afd0943a5eb76c85555580f40288b874d1e1ffa4ddf1343c7e963f8d",
+    "var/optimise-all-skills-20261022/checks/postmerge-place-research.json": "7abeb2503cb44a8412a131c915b462c93f25a1a9e207dc7776621fd68fd4d907",
+    "var/optimise-all-skills-20261022/checks/postmerge-place-research.log": "f6ba437b3c2c62acf93dc9f470187e63cf1663e6b708a4b0f234ba9febb2800a"
+  },
+  "limits": [
+    "One sample per case",
+    "No implemented before/after comparison",
+    "No browser paint or authenticated API transport",
+    "No shared persistent-cache test",
+    "Independent visual/rights review unverified",
+    "Browser internal asset/robots requests not separately metered",
+    "First launch forwarded no stdin and consumed zero provider calls"
+  ]
+}
