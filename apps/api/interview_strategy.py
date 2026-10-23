@@ -28,7 +28,7 @@ SelectionReason=Literal['prepared_candidate','adapted_candidate','latest_story',
 class StrategyProposal(BaseModel):
     model_config=ConfigDict(extra='forbid',strict=True)
     strategy:Strategy
-    objective:Literal['gentle_entry','follow_story','clarify_order','clarify_identity','link_stories']
+    objective:Literal['gentle_entry','follow_story','clarify_order','clarify_identity','link_stories','broaden_scope']
     focus_event_ids:list[str]=Field(max_length=8)
 
 
@@ -105,10 +105,23 @@ def strategy_instructions(strategy):
 
 def selection_candidates(context):
     candidates = ((context.get('strategy_context') or {}).get('plan') or {}).get('candidates', [])
+    return prioritized_candidates(context, candidates)
+
+
+def prioritized_candidates(context, candidates):
+    from .historical_news import question_hints
     confirmation = pending_confirmation(context)
-    if confirmation:
-        return [confirmation, *[item for item in candidates if item['id'] != confirmation['id']]]
-    return candidates
+    plan = (context.get('strategy_context') or {}).get('plan') or {}
+    purpose = 'broaden_scope' if plan.get('objective') == 'broaden_scope' else 'follow_story'
+    planned = [dict(item, purpose='clarification' if item.get('requires_confirmation') else purpose)
+               for item in candidates]
+    news = question_hints(context)
+    ordered = ([dict(confirmation, purpose='clarification')] if confirmation else [])
+    ordered += planned + news if purpose == 'broaden_scope' else news + planned
+    unique = {}
+    for item in ordered:
+        unique.setdefault(item['id'], item)
+    return list(unique.values())
 
 
 def selector_schema(context=None):
@@ -147,7 +160,15 @@ def adapt_selection(raw,context):
     candidates=[] if item.question is None else [{'id':candidate_id,'question':item.question,
         'context':{'event_id':None,'photo_id':None,'life_stage':None,'year':None},'order':0,'bridge':''}]
     if candidates:
-        evidence = hint_evidence(available[item.selected_candidate_id], context) if item.selected_candidate_id else item.question_evidence
+        hint = available.get(item.selected_candidate_id) or {}
+        if hint.get('historical_clue_id'):
+            candidates[0]['context']['historical_clue_id'] = hint['historical_clue_id']
+            candidates[0]['bridge'] = hint['bridge']
+            if item.question_evidence is not None:
+                raise ValueError('Historical context cannot become personal evidence')
+            evidence = None
+        else:
+            evidence = hint_evidence(hint, context) if hint else item.question_evidence
         if evidence is not None:
             candidates[0]['context']['evidence'] = evidence.model_dump() if hasattr(evidence, 'model_dump') else evidence
     legacy={'acknowledgement':item.acknowledgement,'plan':{'candidates':candidates,

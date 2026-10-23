@@ -271,6 +271,76 @@ def test_profile_metadata_cascades_with_project_fixture_reset(sql):
     assert read(sql,lane,base)['profile_context']['work_mode']=='extract'
 
 
+@pytest.mark.parametrize('change', ['none', 'manual', 'confirm_all', 'token', 'source', 'policy',
+    'generation', 'rollout', 'owner', 'after_send_manual'])
+def test_direct_profile_guards_actual_http_bytes_and_rechecks_sql_commit(sql, monkeypatch, tmp_path, change):
+    import asyncio
+    import httpx
+    from apps.api.background_profile import profile_packet, validate_profile
+    from apps.api.lifetime_memory_lane_engine import build_bounded_lane_input, run_bounded_lane, LanePublication
+    from apps.api.lifetime_memory_policy import PolicyUnavailable
+    from apps.api.lifetime_memory_publication import PublicationUnavailable
+    from test_conversation_reply_transport import events, sse
+    from test_lifetime_memory_lane_engine import BUDGET
+
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
+    identity, sources, lane, base = setup(sql, text='I was born in 1960 in Hobart.')
+    p = read(sql, lane, base)
+    bounded = build_bounded_lane_input(p, phase='profile', packet=profile_packet(p), budget=BUDGET)
+    sent = []
+
+    def mutate():
+        if change in {'manual', 'after_send_manual'}:
+            manual(sql, {'birth_year': 1970})
+        elif change == 'confirm_all':
+            manual(sql, {'profile_confirm_all': True})
+        elif change == 'token':
+            sql('update public.user_memoir_lane set token=gen_random_uuid();')
+        elif change == 'source':
+            rpc(sql, 'change_user_narrator_source', f"{literal(identity['project_id'])},'{sources[0]['id']}',1,'withdraw',null")
+        elif change == 'policy':
+            sql('update public.user_memoir_project set policy_epoch=policy_epoch+1;')
+        elif change == 'generation':
+            sql('update public.user_lifetime_conversation set execution_generation=execution_generation+1;')
+        elif change == 'rollout':
+            sql('update public.lifetime_two_lane_rollout set enabled=false;')
+
+    class Provider(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request):
+            if change != 'after_send_manual':
+                mutate()
+            async for chunk in request.stream:
+                sent.append(chunk)
+            if change == 'after_send_manual':
+                mutate()
+            return httpx.Response(200, content=sse(events(json.dumps(result(p, 'birth_year', 1960)))))
+
+    async def generate():
+        return await run_bounded_lane(command=['must-not-start'], home_root=tmp_path / 'homes',
+            base_url='https://provider.invalid/v1', api_key='fixture-profile-key', model=BUDGET.model,
+            bounded_lane=bounded, publisher=LanePublication(sql.publication_dsn,
+                authenticated_owner=OTHER if change == 'owner' else OWNER),
+            provider_transport=Provider(), timeout=5)
+
+    if change in {'none', 'after_send_manual'}:
+        output = validate_profile(json.loads(asyncio.run(generate())['reply']), p)
+        assert sent
+        if change == 'none':
+            assert commit(sql, lane, p, output)['status'] == 'page_saved'
+            assert profile(sql)['birth_year'] == 1960
+        else:
+            with pytest.raises(AssertionError):
+                commit(sql, lane, p, output)
+            assert profile(sql)['birth_year'] == 1970
+            assert sql('select count(*) from public.user_lifetime_profile_receipt;').stdout.strip() == '0'
+    else:
+        with pytest.raises((PublicationUnavailable, PolicyUnavailable)):
+            asyncio.run(generate())
+        assert sent == []
+        assert sql('select count(*) from public.user_lifetime_profile_receipt;').stdout.strip() == '0'
+    assert not (tmp_path / 'homes').exists()
+
+
 def test_explicit_name_release_uses_canonical_authority_and_exact_invalidation(sql):
     identity,sources,lane,base=setup(sql,text='My name is Joan.')
     manual(sql,{'name':'Mary'})

@@ -1,0 +1,1183 @@
+{
+  "schema_version": 1,
+  "selected_skill": "memoir-author-timeline",
+  "approval": "User: yes follow that plan, 2026-10-23",
+  "baseline_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+  "change": "Map the existing attribution error to the existing PAGE_AMBIGUOUS retry code; no prompt/schema/model/validator/transport changes.",
+  "scope": "Real SQL and canonical lane dispatcher/checkpoint/extraction; native Codex extraction generations. Foreground intake, profile proposal, and API-to-worker seam are controlled fixtures. No deployed-worker, live-profile or Temporal claim.",
+  "requested_model": "memoir-luna-low",
+  "requested_effort": "low",
+  "native_version": "codex-cli 0.155.1",
+  "frozen_input": "（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）（这是分页测试占位文字，没有个人经历。）\n从1995年到1999年，我在深圳一家书店工作。我记得门外常常下雨。",
+  "quality": [
+    "Process the full accepted source as actual SQL source windows.",
+    "Preserve the supported bookshop period 1995–1999 in the later window without extracting invented events from placeholder text.",
+    "Final source references and any derived hints/research must have exact absolute coordinates beyond the first window."
+  ],
+  "terminal_status": "failed",
+  "error": "Attribution requires an exact unambiguous span",
+  "retry_codes": [
+    null,
+    "PAGE_AMBIGUOUS",
+    "PAGE_AMBIGUOUS"
+  ],
+  "elapsed_case_seconds": 33.3541291669826,
+  "calls": [
+    {
+      "index": 0,
+      "status": "completed",
+      "http_status": 200,
+      "provider_seconds": 10.335727547004353,
+      "started_s": 3.291196750011295,
+      "finished_s": 15.065934082958847,
+      "budget": {
+        "requests_started": 1,
+        "input_tokens_reported": 12932,
+        "output_tokens_reported": 370,
+        "input_tokens_accounted": 12932,
+        "output_tokens_accounted": 370,
+        "blocked_reason": null
+      },
+      "served_model": "gpt-5.6-luna",
+      "reasoning": {
+        "context": "all_turns",
+        "effort": "low",
+        "mode": "standard",
+        "summary": "detailed"
+      },
+      "usage": {
+        "input_tokens": 12932,
+        "input_tokens_details": {
+          "cached_tokens": 3712,
+          "cache_write_tokens": 0
+        },
+        "output_tokens": 370,
+        "output_tokens_details": {
+          "reasoning_tokens": 231
+        },
+        "total_tokens": 13302,
+        "attribution": {
+          "items": {
+            "msg_01a165a9-42ea-74f3-aeff-85a73518050c": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 353,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 353,
+              "output_tokens": 0
+            },
+            "msg_01a165a9-42f5-7b20-bad5-4a816490fdd0": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2113,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 2113,
+              "output_tokens": 0
+            },
+            "rs_00aa23bbd57d5ca9016ada898edd7087d0b69313128680b021": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 231
+            },
+            "msg_00aa23bbd57d5ca9016ada89937bec87d090fe99cc0802ff38": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 139
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 139
+            }
+          },
+          "request_fields": {
+            "tools": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 3712,
+              "input_tokens": 4684,
+              "output_tokens": 0
+            },
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 1872,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 3908,
+              "output_tokens": 0
+            }
+          }
+        }
+      },
+      "response_id": "resp_OEO7eoXahhTGsFYsn_SWN1ByR42thUfxaaea_-f7-NLER7Vw3x0YU7rzvcG0Bt2BHrq_coxRFX0bgPK4H8C6Tw2TI5_qDrBTQEgbE5_bddoKe3t1n43cOecJot3li7Gu6Ew_n01pnE_9tvIPPoQwnmpRjTfS0SbHl4IpvsJLMR1Y6qjyvXQIY87K3PoshG8fqlt7zHzM4I-lOa-g82C680dcG1uL_DwgH0ElGMegyIDX23jaJ6Ae3pZc2Fzk3bkJ5sWQhNypPeDLZx0LRwBMxaXFPP6Ky2zl87q3Z2Oe8lGnATrwRggEPy_1kp0ijsivFzzhPsrpmBcCbdUbLIbh3X3qyC_p6MyWs5Yy_MG3qfIRyMvlmjkBZk3iOEXpQvbb54GqDDB1954f94ooeH74ijRy5JxCHZVh9P3udcuqJqEX-HiPnT23L659JKcH1kDKILq1WlsamPP66KqX",
+      "full_model_output": "{\"events\":[],\"place_journeys\":[],\"prepared_questions\":[],\"strategy_proposal\":{\"strategy\":\"comfort\",\"objective\":\"gentle_entry\",\"focus_event_ids\":[]},\"event_places\":[],\"passage_dispositions\":[{\"disposition\":\"non_story\",\"reason\":\"no_supported_event\",\"source_ref\":{\"source_id\":\"3b0d2abd-5319-4358-b7cc-26b0d74a2c24\",\"version\":1,\"quote\":\"（这是分页测试占位文字，没有个人经历。）\",\"char_start\":0,\"char_end\":23,\"attribution\":null}}],\"continuity_updates\":[]}",
+      "request_sha256": "aee9c121f2453f07fa6b1276ae6dea6431712b15f4a7b82842b6d1b2c4dcde5c"
+    },
+    {
+      "index": 1,
+      "status": "completed",
+      "http_status": 200,
+      "provider_seconds": 9.801338171004318,
+      "started_s": 15.635911124991253,
+      "finished_s": 25.86912416596897,
+      "budget": {
+        "requests_started": 1,
+        "input_tokens_reported": 12938,
+        "output_tokens_reported": 311,
+        "input_tokens_accounted": 12938,
+        "output_tokens_accounted": 311,
+        "blocked_reason": null
+      },
+      "served_model": "gpt-5.6-luna",
+      "reasoning": {
+        "context": "all_turns",
+        "effort": "low",
+        "mode": "standard",
+        "summary": "detailed"
+      },
+      "usage": {
+        "input_tokens": 12938,
+        "input_tokens_details": {
+          "cached_tokens": 3712,
+          "cache_write_tokens": 0
+        },
+        "output_tokens": 311,
+        "output_tokens_details": {
+          "reasoning_tokens": 172
+        },
+        "total_tokens": 13249,
+        "attribution": {
+          "items": {
+            "msg_01a165a9-733f-76b1-9ba6-72046ebb838d": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 351,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 351,
+              "output_tokens": 0
+            },
+            "msg_01a165a9-7346-7d52-9905-885b25fa623b": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2122,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 2122,
+              "output_tokens": 0
+            },
+            "rs_09eb7b917f1f6923016ada899a928487d08a541d03013e1438": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 172
+            },
+            "msg_09eb7b917f1f6923016ada899eb71087d097dddf9f60587d13": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 139
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 139
+            }
+          },
+          "request_fields": {
+            "tools": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 3712,
+              "input_tokens": 4684,
+              "output_tokens": 0
+            },
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 1872,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 3907,
+              "output_tokens": 0
+            }
+          }
+        }
+      },
+      "response_id": "resp_TvuvCqwZIf_M5f6qKijyTXD9lweV-Zpz00gqBcgBBD6Ao3XKattk5t1gfm-2bD0REPw_6oVfOh95L5dBc7xWr_h-VzZnYU7op5aYntEDfmwVP2keom93fDrfLz4wAt87-DfObvWZj1TOZbv8XFtV8MoqkpP8x1HwZ7ZiVKH0N-6EIIj4nUo51JVi04Lp1-oigxnFtTaQU7j0ugnzfI-sTR4HkNQv4D1dHS8h7nXSDa8a4tMeMihSEDObNP9zQKenKvHU_cWn1zdGpapzKIe3s2Ryljjq603R1F8OBKmYYcUCsVV6dLqvLYq3kJghhc-23s3Wwr_FJga0QLeAt1wE1rNJLLqYO1CeWLDqn7lClvQi9aQtdqv-3zjYjl0mk4URXSut5SmijjX3dRdo_y8nMi7GxePLY3hTuXTWL0OwIy5n2XGcoGHzySY1lg4BRCOPEbXHAXbb4Yn1Keye",
+      "full_model_output": "{\"events\":[],\"place_journeys\":[],\"prepared_questions\":[],\"strategy_proposal\":{\"strategy\":\"comfort\",\"objective\":\"gentle_entry\",\"focus_event_ids\":[]},\"event_places\":[],\"passage_dispositions\":[{\"disposition\":\"non_story\",\"reason\":\"no_supported_event\",\"source_ref\":{\"source_id\":\"3b0d2abd-5319-4358-b7cc-26b0d74a2c24\",\"version\":1,\"quote\":\"（这是分页测试占位文字，没有个人经历。）\",\"char_start\":0,\"char_end\":22,\"attribution\":null}}],\"continuity_updates\":[]}",
+      "request_sha256": "4cdd71316cf450f48476afd50499f7fd509c20c55d44a31cc068bee7e4c0dcae"
+    },
+    {
+      "index": 2,
+      "status": "completed",
+      "http_status": 200,
+      "provider_seconds": 7.6311002540023765,
+      "started_s": 26.481800207984634,
+      "finished_s": 34.34754583297763,
+      "budget": {
+        "requests_started": 1,
+        "input_tokens_reported": 12938,
+        "output_tokens_reported": 282,
+        "input_tokens_accounted": 12938,
+        "output_tokens_accounted": 282,
+        "blocked_reason": null
+      },
+      "served_model": "gpt-5.6-luna",
+      "reasoning": {
+        "context": "all_turns",
+        "effort": "low",
+        "mode": "standard",
+        "summary": "detailed"
+      },
+      "usage": {
+        "input_tokens": 12938,
+        "input_tokens_details": {
+          "cached_tokens": 3712,
+          "cache_write_tokens": 0
+        },
+        "output_tokens": 282,
+        "output_tokens_details": {
+          "reasoning_tokens": 143
+        },
+        "total_tokens": 13220,
+        "attribution": {
+          "items": {
+            "msg_01a165a9-9d92-7f21-8a16-91d47a3046a5": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 351,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 351,
+              "output_tokens": 0
+            },
+            "msg_01a165a9-9d99-7812-91e1-d9adb08829fd": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 2122,
+                  "output_tokens": 0
+                }
+              ],
+              "input_tokens": 2122,
+              "output_tokens": 0
+            },
+            "rs_0a08bcc3ec8f005d016ada89a3c1d487d085f7d05489d35a33": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 2,
+              "output_tokens": 143
+            },
+            "msg_0a08bcc3ec8f005d016ada89a70c2887d08c3cba5fd1a1a288": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "content": [
+                {
+                  "cache_write_tokens": 0,
+                  "cached_tokens": 0,
+                  "input_tokens": 0,
+                  "output_tokens": 139
+                }
+              ],
+              "input_tokens": 0,
+              "output_tokens": 139
+            }
+          },
+          "request_fields": {
+            "tools": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 3712,
+              "input_tokens": 4684,
+              "output_tokens": 0
+            },
+            "text.format": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 1872,
+              "output_tokens": 0
+            },
+            "instructions": {
+              "cache_write_tokens": 0,
+              "cached_tokens": 0,
+              "input_tokens": 3907,
+              "output_tokens": 0
+            }
+          }
+        }
+      },
+      "response_id": "resp_MxLxjTbG7TSstekC6xmiEtGiif14AflfLnUrOGh8LvbS0WKb4Uwg3gqF61hSgcZW7vEF5Wo6_6Egp1Vp5aFNFR2af3DAavalYlRzENb1YqB8X6O1mXzv9s4avD67sSv36uM1pMtG_fo6tRSH6ov5Am4m_iSYKqtzRpFGj4sbXmitJTrOorJeXJIFpaiYfDDTJ7sb7r2OUZlyYkfR7Nw-DXAz79D6palIwkQkciK3HOT2VysXHNeZYwytWwQUPan8dyOWe9Oc6Wm7eLifkQvrGNnMKjnMfjq9RibgnEM9vHd8L3sEqchQFD_uzKS77wh1drkTeNSkTzx0iIPSRhh2j5b3lgEDqMIj7J2JSJmmsClepuhX3Sd31TCLum5PkkQJXRtLgRkURTZwa_ncK1Vb7L_1CYodxS8NZS0S1EaFMjY6Ewe33PI2mRTt1nAjOi-L3FOPP8UZK-wD4KPM",
+      "full_model_output": "{\"events\":[],\"place_journeys\":[],\"prepared_questions\":[],\"strategy_proposal\":{\"strategy\":\"comfort\",\"objective\":\"gentle_entry\",\"focus_event_ids\":[]},\"event_places\":[],\"passage_dispositions\":[{\"disposition\":\"non_story\",\"reason\":\"no_supported_event\",\"source_ref\":{\"source_id\":\"3b0d2abd-5319-4358-b7cc-26b0d74a2c24\",\"version\":1,\"quote\":\"（这是分页测试占位文字，没有个人经历。）\",\"char_start\":0,\"char_end\":23,\"attribution\":null}}],\"continuity_updates\":[]}",
+      "request_sha256": "a03aaf60d100fa516708ee028b7ef5f9d17feb6a78d84862d26eb5daeaa9f7ee"
+    }
+  ],
+  "unchanged_contract": {
+    "instructions_sha256": "99c3eb4028600f7f5c048a24db9c2334d5abd885bcce62d9e2ec18b5742fa936",
+    "schema_sha256": "5b2cc57e58c9d61bab48b885590583f3dfececb4d5aaa3af8e45066a2b5fa450"
+  },
+  "raw_report_sha256": "81afe1f57ab001b736177d399547a100b8d608dd252031de048ca8f8d7833207",
+  "harness": {
+    "source": "\"\"\"Task-local approved Lane B candidate: canonical extraction, real SQL, live Codex provider.\n\nForeground replies/policy are controlled intake fixtures. No hosted app state,\nrunning service or model prompt is changed. All paid sends cross the owned proxy.\n\"\"\"\nimport asyncio\nfrom contextlib import asynccontextmanager\nfrom copy import deepcopy\nimport hashlib\nimport json\nimport os\nfrom pathlib import Path\nimport shutil\nimport socket\nimport subprocess\nimport sys\nimport time\nfrom types import SimpleNamespace\nfrom uuid import uuid4\n\nHERE = Path(__file__).resolve().parent\nROOT = HERE.parents[2]\nsys.path[:0] = [str(ROOT), str(ROOT / 'tests')]\nimport httpx\nimport pytest\nimport uvicorn\nfrom dotenv import dotenv_values\nfrom fastapi import FastAPI, Request, Response\nfrom scripts.controlled_lifecycle import new_native_root, reconcile_native_directory, sigterm_cancellable\nfrom scripts.evaluation_budget import BudgetedProvider, BudgetLimits\nfrom scripts.canonical_turn import canonical_turn\nfrom test_agent_commit_postgres import database, OWNER\nfrom test_shared_memory_events_postgres import rpc, literal\nfrom test_lifetime_composer_capacity import service\nfrom memoir_postgres_workflow import PostgresRest\nfrom controlled_policy import install_policy_review_transport\nfrom apps.api.codex_runtime import CodexRuntime\nfrom apps.api.lifetime_memory_composer import _extract\nfrom apps.api.lifetime_memory_lane_engine import BoundedLaneInput, LanePublication, run_bounded_lane, lane_contract\n\nconfig = dotenv_values(ROOT / '.env', interpolate=False)\nkey = config['MEMORY_SPARK_LLM_API_KEY']\nendpoint = config['MEMORY_SPARK_LLM_BASE_URL'].replace('http://192.168.65.1:4000', 'http://192.168.65.27:4000').rstrip('/')\nrelay_container = 'llm-provider-litellm-1'\nmodel = config.get('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL') or config['MEMORY_SPARK_LLM_MODEL']\neffort = config.get('MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT') or 'low'\nfor name in ('MEMORY_SPARK_CODEX_WORKER_URL', 'MEMORY_SPARK_TASK_DB'):\n    os.environ.pop(name, None)\nos.environ.update(MEMORY_SPARK_LLM_BASE_URL=endpoint, MEMORY_SPARK_LLM_API_KEY=key,\n    MEMORY_SPARK_LLM_MODEL=config['MEMORY_SPARK_LLM_MODEL'], MEMORY_SPARK_MEMOIR_COMPOSER_MODEL=model,\n    MEMORY_SPARK_COLLECTOR_PROMPT_VERSION='reply-v2', MEMOIR_TWO_LANES='1',\n    MEMOIR_INTERVIEW_STRATEGY='1', MEMORY_SPARK_TEST_MODE='1',\n    MEMORY_SPARK_LLM_REASONING_EFFORT=effort, LANGFUSE_TRACING_ENABLED='false')\nRUN=sys.argv[1] if len(sys.argv)>1 else 'heldout'\nassert RUN.startswith('heldout') and '/' not in RUN\nOUTPUT = HERE / (RUN+'-live.json')\nassert not OUTPUT.exists(), 'Never overwrite previous model evidence'\ncases = [case for case in json.loads((HERE / 'heldout-cases.json').read_text()) if case['id']=='heldout-zh-window']\nassert len(cases)==1\nreport = dict(source_commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),\n    skill='memoir-author-timeline', phase='extract', model=model, requested_effort=effort,\n    scope='Real SQL and canonical lane dispatcher/checkpoint/extraction; native Codex extraction generations. Foreground intake, profile proposal, and API-to-worker seam are controlled fixtures. No deployed-worker, live-profile or Temporal claim.',\n    native_codex=subprocess.check_output(['codex','--version'],text=True,stderr=subprocess.DEVNULL).strip(),\n    cases_sha256=hashlib.sha256((HERE/'heldout-cases.json').read_bytes()).hexdigest(),\n    state_reset_per_case=True, gateway_network_address=endpoint, hard_calls=42, per_call_seconds=90, per_case_seconds=300, deadline_seconds=1000,\n    provider_transport='task-owned mocker exec relay to the same gateway localhost; no service mutation',\n    calls=[], cases=[], source_sha256={}, cleanup={}, active_case=None)\nfor folder in ('apps/api', 'skills'):\n    for p in sorted((ROOT/folder).rglob('*')):\n        if p.is_file() and p.suffix in {'.py','.md','.json'}:\n            report['source_sha256'][str(p.relative_to(ROOT))]=hashlib.sha256(p.read_bytes()).hexdigest()\nfor relative in ('supabase/migrations/202610180001_initial_schema.sql','scripts/evaluation_budget.py',\n                 'scripts/canonical_turn.py','scripts/controlled_lifecycle.py','tests/test_agent_commit_postgres.py',\n                 'tests/test_shared_memory_events_postgres.py','tests/test_lifetime_composer_capacity.py',\n                 'tests/memoir_postgres_workflow.py','tests/controlled_policy.py','tests/test_derived_evidence_spans.py'):\n    report['source_sha256'][relative]=hashlib.sha256((ROOT/relative).read_bytes()).hexdigest()\nreport['approved_change']='Attribution ambiguity uses existing PAGE_AMBIGUOUS feedback; validators/prompts/schema/model/transport unchanged.'\nreport['per_run_max_calls']=6\nreport['source_sha256']['tests/test_extraction_span_repair.py']=hashlib.sha256((ROOT/'tests/test_extraction_span_repair.py').read_bytes()).hexdigest()\nreport['harness_sha256']=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()\nstarted = time.monotonic()\ndef save():\n    body=json.dumps(report,ensure_ascii=False,indent=2,default=str)+'\\n'\n    assert key not in body\n    temp=OUTPUT.with_suffix('.tmp');temp.write_text(body);temp.replace(OUTPUT)\n\napp=FastAPI()\n@app.post('/v1/responses')\nasync def responses(request: Request):\n    if request.headers.get('authorization')!='Bearer '+key:\n        return Response(status_code=403)\n    earlier=sum(len(json.loads(p.read_text())['calls']) for p in HERE.glob('*-live.json') if p!=OUTPUT)\n    if earlier+len(report['calls'])>=report['hard_calls'] or time.monotonic()-started>report['deadline_seconds']:\n        return Response(status_code=429)\n    if len(report['calls'])>=6:return Response(status_code=429)\n    raw=await request.body()\n    if len(raw)>512_000:return Response(status_code=413)\n    body=json.loads(raw)\n    assert body['model']==model and body.get('stream') is True\n    # A finite diagnostic output ceiling, recorded separately from the original body.\n    bound=16384\n    original=deepcopy(body)\n    body['max_output_tokens']=min(body.get('max_output_tokens') or bound,bound)\n    row=dict(index=len(report['calls']),case=report['active_case'],original_request=original,\n        request=body,started_s=time.monotonic()-started,status='started')\n    report['calls'].append(row);save()\n    budget=BudgetedProvider(BudgetLimits(1,600_000,bound,bound),max_elapsed_seconds=90)\n    async def call(max_output_tokens):\n        code='''import json,sys,time,signal,urllib.request,urllib.error\nsignal.alarm(82)\nv=json.load(sys.stdin)\nt=time.monotonic()\nrequest=urllib.request.Request(\"http://127.0.0.1:4000/v1/responses\",data=json.dumps(v[\"body\"]).encode(),headers={\"Authorization\":\"Bearer \"+v[\"key\"],\"Content-Type\":\"application/json\"})\ntry:r=urllib.request.urlopen(request,timeout=80)\nexcept urllib.error.HTTPError as e:r=e\nstatus=r.status\nfirst=None\na=bytearray()\nwhile True:\n b=r.read1(65536)\n if not b:break\n if first is None:first=time.monotonic()-t\n a.extend(b)\n if len(a)>2000000:raise ValueError(\"Provider response exceeds diagnostic bound\")\nprint(json.dumps({\"status\":status,\"data\":a.decode(),\"provider_seconds\":time.monotonic()-t,\"first_provider_byte_seconds\":first}))\n'''\n        process=await asyncio.create_subprocess_exec('mocker','exec','-i',relay_container,'python','-c',code,\n            stdin=asyncio.subprocess.PIPE,stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE)\n        try:\n            out,err=await asyncio.wait_for(process.communicate(json.dumps(dict(key=key,body=body)).encode()),85)\n        finally:\n            if process.returncode is None:\n                process.terminate()\n                try:await asyncio.wait_for(process.wait(),2)\n                except TimeoutError:process.kill();await process.wait()\n        if process.returncode:\n            row['relay_error']=err.decode(errors='replace')[:1000].replace(key,'[redacted-provider-key]')\n            raise RuntimeError('Task-local relay failed')\n        result=json.loads(out)\n        row.update(http_status=result['status'],provider_seconds=result['provider_seconds'],\n            first_provider_byte_seconds=result['first_provider_byte_seconds'])\n        if result['status']>=400:\n            row['provider_error']=result['data'][:16384].replace(key,'[redacted-provider-key]')\n            raise RuntimeError('Gateway response was not successful')\n        row['raw_provider_response']=result['data']\n        for line in row['raw_provider_response'].splitlines():\n            if not line.startswith('data:'):continue\n            try:event=json.loads(line[5:])\n            except ValueError:continue\n            if isinstance(event.get('response'),dict):row['provider_response']=event['response']\n        return dict(data=result['data'].encode(),usage=row.get('provider_response',{}).get('usage'))\n    try:\n        result=await budget.call(call,input_tokens_upper_bound=600_000)\n        row['status']='completed'\n        return Response(content=result['data'],media_type='text/event-stream')\n    except BaseException as error:\n        row.update(status='cancelled' if isinstance(error,asyncio.CancelledError) else 'failed',error_type=type(error).__name__)\n        if isinstance(error,asyncio.CancelledError):raise\n        return Response(status_code=502,content='Bounded diagnostic provider failed')\n    finally:\n        row['finished_s']=time.monotonic()-started;row['budget']=budget.receipt();save()\n\n\n@asynccontextmanager\nasync def proxy():\n    sock=socket.socket();sock.bind(('127.0.0.1',0));sock.listen(16);sock.setblocking(False)\n    server=uvicorn.Server(uvicorn.Config(app,log_level='error',access_log=False,log_config=None,lifespan='off'))\n    task=asyncio.create_task(server.serve(sockets=[sock]))\n    try:\n        for _ in range(200):\n            if server.started:break\n            if task.done():await task\n            await asyncio.sleep(.01)\n        assert server.started\n        yield f'http://127.0.0.1:{sock.getsockname()[1]}/v1'\n    finally:\n        server.should_exit=True\n        await asyncio.wait_for(task,10)\n        sock.close()\n\n\nasync def intake(sql,text,language,project=None):\n    # The measured skill begins after this controlled, canonical A handoff.\n    from apps.api import policy_review\n    patches=pytest.MonkeyPatch()\n    install_policy_review_transport(patches)\n    def reply(request):\n        value=dict(acknowledgement=text[-200:],question='What do you remember most about that experience?' if language=='en-AU' else '关于这段经历，您印象最深的是什么？',\n            reason='latest_story',hint=None,quote=text[-200:],work=dict(mode='extract',name=None))\n        result=dict(thread_id='controlled-intake',reply=json.dumps(value),artifacts=[])\n        if request.headers.get('accept')=='application/x-ndjson':\n            return httpx.Response(200,headers={'content-type':'application/x-ndjson'},content='\\n'.join(json.dumps(event) for event in [dict(type='provider_complete',data=result),dict(type='result',data=result)])+'\\n')\n        return httpx.Response(200,json=result)\n    storage=PostgresRest(sql,OWNER).storage()\n    runtime=CodexRuntime(home_root=HERE/'intake-homes',worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(reply))\n    try:\n        result=await canonical_turn(runtime,storage,text,options=dict(language=language,client_turn_id=str(uuid4()),project_id=project))\n        return result['project_id']\n    finally:\n        storage.client.close();patches.undo()\n\n\n@sigterm_cancellable\nasync def run(sql):\n    from apps.api.lifetime_memory_composer import execute_lifetime_lane\n    os.environ['MEMOIR_PUBLICATION_DATABASE_URL']=sql.publication_dsn\n    sql('update public.lifetime_two_lane_rollout set enabled=true,strategy_enabled=true,strategy_shadow=false;')\n    class Broker:\n        async def rpc(self,name,**args):\n            query=','.join(k+'=>'+literal(v) for k,v in args.items())\n            result=await asyncio.to_thread(sql,\"set role service_role;select coalesce(to_jsonb(public.\"+name+\"(\"+query+\")),'null'::jsonb);\")\n            return json.loads(result.stdout.splitlines()[-1])\n    publisher=LanePublication(sql.publication_dsn,authenticated_owner=OWNER)\n    async with proxy() as url:\n        for case in cases:\n            row=dict(id=case['id'],input=case['text'],prior_input=case.get('prior_text'),language=case['language'],quality=case['quality'],started_s=time.monotonic()-started,phases=[],outcomes=[])\n            report['cases'].append(row);report['active_case']=case['id'];save()\n            try:\n                sql('truncate public.user_memoir_project cascade; truncate public.user_memory,public.user_agent_turn_lease,public.user_recall_usage cascade;')\n                sql(\"update public.user_profile set profile='{}'; update auth.users set is_anonymous=false;\")\n                async def worker(request):\n                    wire=json.loads(request.content)\n                    bounded=BoundedLaneInput.model_validate(wire['bounded_lane'])\n                    phase=dict(phase=bounded.phase,fence=bounded.fence.model_dump(mode='json'),packet=bounded.packet,started_s=time.monotonic()-started)\n                    row['phases'].append(phase);save()\n                    if bounded.phase=='profile':\n                        phase.update(controlled_fixture=True,status='completed',finished_s=time.monotonic()-started)\n                        save()\n                        return httpx.Response(200,json=dict(reply=json.dumps(dict(profile_patch=[]))))\n                    if bounded.phase!='extract':raise RuntimeError('Unplanned non-extraction model dependency: '+bounded.phase)\n                    instructions,schema=lane_contract('extract',bounded.fence.locale,two_lane=True,strategy=True,fence=bounded.fence)\n                    phase.update(instructions=instructions,schema=schema);save()\n                    result=await run_bounded_lane(command=[shutil.which('codex'),'app-server','-c','model_providers.llm_provider.request_max_retries=0','-c','model_providers.llm_provider.stream_max_retries=0'],\n                        home_root=HERE/'model-homes',base_url=url,api_key=key,model=model,bounded_lane=bounded,\n                        publisher=publisher,timeout=180,effort=effort)\n                    phase.update(reply=result['reply'],finished_s=time.monotonic()-started,status='completed');save()\n                    return httpx.Response(200,json=result)\n                scope=SimpleNamespace(broker=Broker(),worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(worker),lane_publisher=publisher)\n                project=None\n                texts=([case['prior_text']] if case.get('prior_text') else [])+[case['text']]\n                async with asyncio.timeout(600):\n                    for source_index,text in enumerate(texts):\n                        if source_index:row['saved_before_resume']=rpc(sql,'read_user_memory_events',literal(project));save()\n                        project=await intake(sql,text,case['language'],project)\n                        lane=sql(\"select id from public.user_memoir_lane where user_id='\"+OWNER+\"' and project_id=\"+literal(project)+\" and skill='timeline';\").stdout.strip()\n                        for claim_index in range(8):\n                            page=service(sql,'claim_memoir_lane',f\"'{lane}',600\")\n                            if page is None:raise RuntimeError('No owned lane page available')\n                            outcome=await execute_lifetime_lane(page,scope,page_quantum=8)\n                            row['outcomes'].append(dict(source_index=source_index,claim_index=claim_index,outcome=outcome));save()\n                            if outcome.get('retrieval_complete'):break\n                            if outcome.get('status')!='pending':raise RuntimeError('Held-out lane did not complete: '+str(outcome.get('status')))\n                        else:raise RuntimeError('Held-out lane exceeded its bounded claim count')\n                row['saved_events']=rpc(sql,'read_user_memory_events',literal(project))\n                identity=rpc(sql,'resolve_lifetime_conversation',literal(project))\n                row['prepared_questions']=rpc(sql,'read_lifetime_prepared_questions',\"'\"+identity['conversation_id']+\"'\")\n                row['saved_places']=rpc(sql,'read_lifetime_place_journeys',literal(project))\n                row['status']='completed'\n            except BaseException as error:\n                row.update(status='failed',error_type=type(error).__name__,error=str(error)[:500])\n                if isinstance(error,(asyncio.CancelledError,KeyboardInterrupt,SystemExit)):raise\n            finally:\n                row['finished_s']=time.monotonic()-started;save()\n                print(json.dumps(dict(case=case['id'],status=row['status'],seconds=round(row['finished_s']-row['started_s'],3),calls=len(report['calls']))),flush=True)\n\n\nroot=new_native_root('memoir-controlled-pg-author-live-')\ngenerator=database.__wrapped__(deadline=time.monotonic()+1200,directory_root=str(root))\nsave()\ntry:\n    sql=next(generator)\n    asyncio.run(run(sql))\nfinally:\n    try:generator.close()\n    finally:\n        report['cleanup']=reconcile_native_directory(root,os.environ.copy());save()\n",
+    "sha256": "6c7ce28123616f3cf5a942f5a819cd8339cf260ee3a62f21fcec785760889edb"
+  },
+  "dependency_sha256": {
+    "apps/api/__init__.py": "5bfca501341d722919faa362165a798c31ed249a7edcece9979001bb370e5fdd",
+    "apps/api/agent_lock.py": "8ff4166ca1078d00389a00a57c3971fc7b427d9ff17e43db076776a3a65d1c42",
+    "apps/api/agent_routes.py": "082d45365be0e1aa22ad407991e67c3d9007c63584a024cf356a9eb0923cff79",
+    "apps/api/agent_routes_support.py": "9c76c9c122f24b30c72c7f47f96e6782d4be98b1760d1374d622c758221242d2",
+    "apps/api/agent_storage.py": "754fd3160ca340f453a351c8cd47e9c5e28f511fd7bf921ecb127439f7dab840",
+    "apps/api/agent_tasks.py": "35f6c37dd25cac66c06c1b1b0c46ad32e2ac4729e7a10ad461db89c7a9563570",
+    "apps/api/background_profile.py": "8caa964f87539dff715d5e9becbf213e73367030efe04bff472cec91d2d5ae68",
+    "apps/api/background_skills.py": "5a81e7ce28394180cc3d394705e1c17c1d3d2959e9cb22a4ab4bb26b2099b2db",
+    "apps/api/canonical_composer.py": "6533bbf8c3121039ceaa4bea4b90b5ad81841a0e9a6e437701f6054c625f86c4",
+    "apps/api/codex_agent.py": "bb247206ea8056b7f96f2f0b74915f23540b1a272f5bdb41432af2abcbf76bc2",
+    "apps/api/codex_artifacts.py": "63c85456bce987739bd554d1b2f9446d1cc965e2b48c45862cb22ea77bb1149d",
+    "apps/api/codex_progress.py": "a97be1373372bd7656ae0e2afa604025a3ef51c9aabb58c11c19890f980619dd",
+    "apps/api/codex_runtime.py": "d450e85362b1747f5f35efe41e89cd8248b4979afaed4835f53a171d41548b07",
+    "apps/api/codex_timeout_policy.py": "1bc1333cb2c3b25a82571b24cb6ae30fb1829e0a0790db2801bdd96c8b54b7da",
+    "apps/api/codex_worker_files.py": "e09e14042a0c3cac92da43845491ba764988989e7983f6c022e3a58835e59230",
+    "apps/api/codex_worker_service.py": "e82d86069469c3e9fd221650a1c2c3abba55f6dea89aa131cf50740515e16d51",
+    "apps/api/collection_routes.py": "1661c395f577fa6de75ba3bcbe47dcb879fb3bdbdc154fd34e38f811c88424bc",
+    "apps/api/collector_configuration.py": "ef4271fb5a9965c89e2f6cd5216c4ed59ea130be1732d5be13b271873cd0ef99",
+    "apps/api/collector_prompt.py": "bbeb4d8c3166a7b0c4d93de17e6aaae298e48ab79b035a723d993dcd7f2d4fbd",
+    "apps/api/conversation_attribution.py": "b3321a7ab50f6c6d4f1cb2f32d2d0c10933e048d14fa70eaacc329578c5024e1",
+    "apps/api/conversation_locale.py": "00e0ad8fb1b894e70978d47b0abedbf7e3a1753f5a0bd60f1a31896895aea8a3",
+    "apps/api/conversation_recovery.py": "aa6fe9e1f4467205ba73ae56c86e7746787c240680aa9aabe333865a85e6302f",
+    "apps/api/conversation_reply.py": "fffd4aab393add96330760ac37d28ba9beabdf7d6f59ea0cddc45bbd9e61fe21",
+    "apps/api/conversation_reply_transport.py": "8144f3e49c30c045f9c27ccbae7b945188f08b1e91eb190ab46c20cf6ce22af5",
+    "apps/api/conversation_text.py": "d76ee38b03b2979759845df9f07da3bf8e1ff5b7232e2673402a3154b65c96ea",
+    "apps/api/diagnostics.py": "14e95fcdfa8490ff9b7364a941f56d51132e8f20866d5b9acc83b437a61f10cf",
+    "apps/api/draft_cache.py": "71bac916820289183ad65c98092a4705e9b723c32601d5a4bfbc63ee123a1276",
+    "apps/api/evaluation_cases.py": "d783aa284f5ae36ad8950d4e72c3ed579c212de1e636a41c982829c93a1b31db",
+    "apps/api/family_context.py": "6107b135df842bf2169aa52c99ef51dd22a54b75d4951ce616c1e47eb1f6571f",
+    "apps/api/family_photos.py": "6928be98ed71726cc36536266ec7408793cd41a017530d0f3e7b30d3595d571b",
+    "apps/api/formal_memoir.py": "12a3eeca983f8a842e73095345dd4fa70c18422e1926192a0e5d4517c8fdbbc8",
+    "apps/api/formal_memoir_routes.py": "aa1926c3d5f89dc609577299796f60517be0195db213a73a08d0f1055b8f48ad",
+    "apps/api/historical_news.py": "b2bd1f9e0721e9b8634e9f8e5b9f3bb112a2efcbc929386b08f422b6130c5895",
+    "apps/api/historical_news_provider.py": "45893f50fd0a2bf9ce8985f45d1d431dcc5a72cedd249ee7c1bd32a26d69c61a",
+    "apps/api/historical_news_routes.py": "9e40eeca252aeee1cee007a336da050c783e45596b67ffbfb19d4fe4f45886bc",
+    "apps/api/historical_news_source.py": "3f30a21866a4b3e59e37aa4e96f3744aa2ecd9f03e34cbbe9af74169032de6d8",
+    "apps/api/internal_tasks.py": "f293104003d9d6f1ed83fb437712f363ac0018c348dad3f551875fb92bd17cdb",
+    "apps/api/interview_photos.py": "157a7ff4d7a7947ae5e252ebc32b08e9f13169b8c83de318ebe275a375a3308c",
+    "apps/api/interview_plan.py": "3e0836cc65916b874482284bd5cfdb01a78bb3af63e51fe2f2cb913eda1529f1",
+    "apps/api/interview_questions.py": "c8fd62837eebf930bd494005f176116beab29f7f4791f51add8f6d45b2f700e6",
+    "apps/api/interview_strategy.py": "479db1ca85460724982450292de6205ca9ee33157fc8fa5ac1e1c25ef10749a0",
+    "apps/api/issue14_execution_admission.py": "a000c014b929233f668adcd4de671b8beab9c4eb63889d3a9585125e4dd76484",
+    "apps/api/lifetime_memory_activation.py": "506897d9a465aa0ec1bfa66dc4755fa3b533b1805d49e9d9cde0154fb4a0cdfa",
+    "apps/api/lifetime_memory_artifacts.py": "bb860056ab1045ad05766853e478ac1340f22180c3e049fb4a29e0436b4e47ba",
+    "apps/api/lifetime_memory_collection_jobs.py": "47fad9700978a3da1aab54e91ff3642f1f0c20c003d5ea9427a80077e80698b1",
+    "apps/api/lifetime_memory_collection_workflow.py": "4c4eeafa46470fc0f829e8aa9fb544d4526f1c98209f8b3d752153e96e8e0041",
+    "apps/api/lifetime_memory_composer.py": "37050ecf98b312b01f2bf854e6701a51c2d95f74dce45652e021b33b5536424c",
+    "apps/api/lifetime_memory_context.py": "8fd5e10dd08cfa19ebcf6bd5e3ba093690e97b295a85ba48b5d06ba73449eae6",
+    "apps/api/lifetime_memory_continuity.py": "ee0ac13899dbbc85dcb5ef5704635763675faf10cc09caf40e3ddb0277a8a6c9",
+    "apps/api/lifetime_memory_contracts.py": "f62ac73651aec6ba07df99d73809501ba2fe81316c9ddc26abb35733aba13e3c",
+    "apps/api/lifetime_memory_engine.py": "ee0949a90c826f725479f8f922c33c74150f422f7a2a0cbc109ea5762d585a14",
+    "apps/api/lifetime_memory_execution.py": "9066bae52cb048655ca57e8682dd57d8e4b451c743e42a7ee62bf7328885d185",
+    "apps/api/lifetime_memory_job_engine.py": "c7292c76af26dc1d8e5f5c2043caef6ae39aaa91c6aaa1a7450d5de548e6c6b5",
+    "apps/api/lifetime_memory_lane_engine.py": "01dcd045de54e71f5eea8bc8f14b47a0a34b0179e7a2b7901d25ef3d2c6ba213",
+    "apps/api/lifetime_memory_maintenance.py": "cf5bc3973157d70f0249e91b0ed6aaf35141886a84205b14fe2e2f12aff65c48",
+    "apps/api/lifetime_memory_outbox.py": "db3c39cced8dc2fdfb316ee72a57c2d1ed3ca227ed3db1f724c165f689627110",
+    "apps/api/lifetime_memory_policy.py": "0ff0884b3ee2a07a78b2b6db431e6e06a28a14ed62f5eae6e4d1cc78f4fc8429",
+    "apps/api/lifetime_memory_publication.py": "e1d5a0f20811889ed0f1dfee31221409fb0e2c79e2e14617f5c89308e90d5649",
+    "apps/api/lifetime_memory_read_api.py": "12778203b420f14485ec60e3ff2836b56a9745311c271c4a853f2ff93d1dfa85",
+    "apps/api/lifetime_memory_reads.py": "e4ce098effc6ad2a38317fc19f04c160140fe67c552e0ae551600acf0cde8cf4",
+    "apps/api/lifetime_memory_runtime.py": "a810f214a63ef9006c2999ec71b15882889f42d4552c221050cf45f3b0fdd4c1",
+    "apps/api/lifetime_memory_service.py": "2cb22c9945c3845d6eaabb88d1336fbb55b25584a4fb5ae4f863d84b127b444c",
+    "apps/api/lifetime_memory_summary.py": "d2567ccc0d2a6f65ef4dc57b804878bad7cc3000ce31a8bb4e45476cfbc512ff",
+    "apps/api/lifetime_memory_transport.py": "b3427d23eb1b2929865373baf9667c4ae399f2f0cdab1e48e6755a7f441a07fd",
+    "apps/api/llm_tracing.py": "b0f3cd1eec563cedbbada1b5920bcdcf2f065272e032c2273560494cb3425863",
+    "apps/api/main.py": "44f4024fb9314627a2de40e0463528c579fbc50fdba860a65c4fcc009f058797",
+    "apps/api/memoir_preview.py": "4020e16795b16a6937274f6a6fb7da917908ec1af134570ace74ad66792cd146",
+    "apps/api/memoir_story_game.py": "32897662c13ecc990e8ca96e6bb59a59ec73172e128167feef5d10b06a36bbea",
+    "apps/api/memoir_tasks.py": "5df24484acb9a9766371ba1ad087abe4175dda086ee06ee263ce9bac401a0ff7",
+    "apps/api/memory_event_worker.py": "a14407233d157d7efe37cc17a3419956c8038b9db0de7927523d5eea4236bd8f",
+    "apps/api/memory_events.py": "8e0b0371622649963f6b833ae63f80f3336ec3120146aaad4fb1deca986b1c88",
+    "apps/api/model_request.py": "bb7adf7d5a038fb7d98861e13e00ef6d67df4046d36d5653cba8db6b25cfde13",
+    "apps/api/namespaces.py": "0d79297549350dbbbd2778efaf1b7ab22ac2ae2dfd8b28b01baff6a5fc84c519",
+    "apps/api/original_recordings.py": "125f99876a4de96ee055d3c3eb0d6fe149d9011845b1a0b729bfa0ced7d96db8",
+    "apps/api/parallel_reply.py": "d1976559beb779eb4e0d97fbb1345b061fb935ff85255a5f2d43e284b4d27e4d",
+    "apps/api/photo_memories.py": "63c1343955bcb392bf3a29f7783387bcdea8f2aa9adbfb5c8dcf53b565e488ba",
+    "apps/api/photo_worker_service.py": "399b01d49287eba895d2982d529f132e411ebddc6501009894c3e9f5b3d9ecf2",
+    "apps/api/place_geocoding.py": "7167c80624a8a251e14ab2064fc9aa31717efcda1cecc5b9b1041a0d42b2cee1",
+    "apps/api/place_groups.py": "48564b806c5b8d81444571f7f65133ced4620986616b9a366604602b79dddf43",
+    "apps/api/place_identity.py": "9d35364abbd15f78230a5950f3e66a3ad00a72decd67bfdd1499921423ea46a8",
+    "apps/api/place_journey.py": "e717158bad45a1cd193c78d2cc8ca9a481ff8020aed84d43b4f1424720ec182e",
+    "apps/api/place_photo_browser.py": "a77a05c4e0ebd09f7bf1bcf029d4224bf015db34e8245f88c9819a79851a2fec",
+    "apps/api/place_photo_expansion.py": "20f8ad9863252a087d5d0e51eb7758d5355fda5321fafb407b160230d3cbc8ad",
+    "apps/api/place_photo_fingerprints.py": "d55c3530d26b274f8ef9792fe758f72dfc5e362e5c47fd2cf717081225a5a0a5",
+    "apps/api/place_photo_pages.py": "f08b353a888f98038f042390222e9074b569f796030496f9d00d5012309f6417",
+    "apps/api/place_photo_repository.py": "222398a61a0dd3cdbbd1f510b6ead6f8968fed4d89c3e4235326d6a520015e76",
+    "apps/api/place_photo_sources.py": "feafee8b764ebad6c907b72bbdb98b25c4f2de9ec5772301309c17a001278291",
+    "apps/api/place_photo_transport.py": "6c27497808676e160d33fbd89a3d6ce8ed20068d35c503b23f1f9e5381cd334a",
+    "apps/api/place_photos.py": "67ad517fa23be6a6c8af22921a72175a2c30fc6f16049c8b9faec2716ec07906",
+    "apps/api/place_research.py": "595f84d3ed982be724ff6f283717c6a7baf0900ada67afbb40e24e513dcd5879",
+    "apps/api/policy_review.py": "de6c2fb95ea4422962521de4d755c5e05d59d4e258e7ada89f6682d583418666",
+    "apps/api/preview_jobs.py": "2661dd51cdb425ee5bc274a7ff6836f45a557d4df795f9958617914a86a7459d",
+    "apps/api/private_draft_broker.py": "b577cbc844cbb9854024d57709f85d77331adead719b46c53d0bfe9efc29ad5e",
+    "apps/api/private_draft_jobs.py": "0c5a35fa3f0d229a30a172a063d6b0b2e0b79fa9f1809e9d03d539d93918071e",
+    "apps/api/private_draft_stream.py": "80ae4655c45479430a6c4d3afa84c64a86212f54f8ee54b106c4a950ba553f98",
+    "apps/api/private_drafts.py": "cdcd3e8d92b22f196deef4f4ec0f2063561e931ef086fc6ceff21904761b954c",
+    "apps/api/profile_intake.py": "fa2e05254ba8813dc77f97615620ca55ea192efe9f67e84477c1e3ed1824279e",
+    "apps/api/progressive_composer.py": "599e88e90e29fe93d6f7587e2965e6e1a3d05d6e22b3c292dc860806dbdfbc2d",
+    "apps/api/prompt_artifact.py": "e5469d95d654860ac656a7dc9f2c5193335849e912c4271f1a2b8650f326337a",
+    "apps/api/prompt_catalog.py": "9ef91e98404cb4f689814c262fc09a356766ca1eb038ab6460edac9cb8a06655",
+    "apps/api/prompt_composition.py": "dfa854ce89af4c1f2d8a7294ae471c98145881c943c1d72e6bb42723b10a8e56",
+    "apps/api/prompts/evaluation/probes/connectivity.md": "68b09e089f3fe6ce9e71be8870ed95c6be9ec4d751ac25a6153ab8bac5d923dd",
+    "apps/api/prompts/evaluation/probes/connectivity.md.langfuse.json": "a378daac3ef6957da120ee36b2a88cd47093c79cba1fd88fd88e37e3fd9e8b95",
+    "apps/api/prompts/evaluation/probes/web-search.md": "d117d3c1f26437d0c1d52cca51a1fb1cfb349ccbf8b68ad720317694b391b1d6",
+    "apps/api/prompts/evaluation/probes/web-search.md.langfuse.json": "c438a4bf84316baf5c87b86a1244e2be1e0e332a9c12622260ccecddab977026",
+    "apps/api/prompts/evaluation/probes/worker.md": "0f81c3837bd57f633c7b2a11a583d82ef3cb0298b56d6e068112454a886bab8d",
+    "apps/api/prompts/evaluation/probes/worker.md.langfuse.json": "330b50a4361cc85fd8f6068cff23dd5c3d7d18837680057675dca52cf0cdbe81",
+    "apps/api/prompts/evaluation/semantic-boundaries-judge.md": "e275dc874326b9826f5f816a47024df87ee6094d65bc62c9d8cc537b6a608724",
+    "apps/api/prompts/evaluation/semantic-boundaries-judge.md.langfuse.json": "02f2a26f0e1a6ac3e373d6c1362aadc2f95e30f7eff70c803b9c59ce9cba7056",
+    "apps/api/prompts/evaluation/trajectory-judge/rubric.md": "d8e9d743de1ad91da9ea6dce088d509c1edba6b5323f4fb9e8c4e29e98c9a0c3",
+    "apps/api/prompts/evaluation/trajectory-judge/rubric.md.langfuse.json": "141c9ef7932a5f78b4bdf4d2162d2cb59a840f8910be9e6d39591e77d7cbe0ab",
+    "apps/api/prompts/evaluation/trajectory-judge/system.md": "06a13cf8837a84f8e45c4fa15fc14310504c85edc9dcb634df51e9bd2bb81c3a",
+    "apps/api/prompts/evaluation/trajectory-judge/system.md.langfuse.json": "ba6379f30b38ceae01736e3399388a89f2f0df6f6535a6d3874286c3a0d59f80",
+    "apps/api/prompts/shared/bounded-context/en-AU.md": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+    "apps/api/prompts/shared/bounded-context/en-AU.md.langfuse.json": "f1b3d48688b3e7e59fe33a6c9908e40683fe2fc83223273a3f026070e5fec956",
+    "apps/api/prompts/shared/bounded-context/policy.md": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+    "apps/api/prompts/shared/bounded-context/policy.md.langfuse.json": "8de03010a390c05491322be0b563845d300fdf1e3f4d94435edcbcf250a202e0",
+    "apps/api/prompts/shared/bounded-context/zh-CN.md": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+    "apps/api/prompts/shared/bounded-context/zh-CN.md.langfuse.json": "9b6fdf844faf2de1c6bec326c7a8ba9d740082a183415c093719c7fb03eddf3f",
+    "apps/api/prompts/shared/historical-acknowledgements.md": "9e16e6c3ffed6779f0baead80e747dc762002a35317a1d1173472cf5828ce733",
+    "apps/api/prompts/shared/historical-acknowledgements.md.langfuse.json": "04eea4c94900b9ff9449ffe75b423d091fd544dec5049b802c2517936738c0b3",
+    "apps/api/prompts/shared/place-conflicts.md": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+    "apps/api/prompts/shared/place-conflicts.md.langfuse.json": "dc50e60596802218cb639aa603c43b55f56cff044006357149f917ced4335d0b",
+    "apps/api/prompts/speech/default.md": "90925ec99590f6f948bd6dcc5ffbd1a15ccd8609363d75bdc6bfd199c375b8f8",
+    "apps/api/prompts/speech/default.md.langfuse.json": "dde286f01c863b417dc83dd8c4fc7f4655dd2f9de2fc2d8a5cc8fc53427dc18b",
+    "apps/api/prompts/speech/en-AU.md": "e361615ad29303fed0d2e9870ebab92f819b8b4e6f449a68646b9cf8a5c8f968",
+    "apps/api/prompts/speech/en-AU.md.langfuse.json": "702246e46a03778e7e336cc020170f39ed0e5ed8fc9b272c27bfe7d761780481",
+    "apps/api/prompts/speech/zh-CN.md": "35bbc00ef5d92a6c250f8504fe3c0fa4e95f819bb46dc8b04e8638a008239191",
+    "apps/api/prompts/speech/zh-CN.md.langfuse.json": "19c681b1fb43c069098e4fa9a0fe6c27f0c57db9fcc9dab7ef86f916ac47d224",
+    "apps/api/recall.py": "179aab0be4364b8c023bf4446ed7478901786da2fc3fe674a5f24087991d55df",
+    "apps/api/speech.py": "3edbbc4bd3ae7a3e138f2c3457b720600e88530bef471171ef84d4b9097156f1",
+    "apps/api/stage_readiness.py": "c6bec164cd0acc3d8e117f7f119a8a7aa1969eaf7170e154119758ad6c96e7d1",
+    "apps/api/store.py": "3d9be5bf581a3e7e95f272676d028b3adf37983b8ccfafb0f333b9b2733f0193",
+    "apps/api/story_game_routes.py": "43f43dabe6455e996b1672043b3fb068398edf00335753da14debaf028375526",
+    "apps/api/story_game_runtime.py": "4f02c92829f06a220dcfb46388e45f571ea07a477d87de78d75b07cd8ae8a00e",
+    "apps/api/story_payments.py": "58927c59ef9ab0b60580d55bbf01f73fdeb0154ee2a22cd842981c8d489b3248",
+    "apps/api/story_routes.py": "825a9f25ce9b3dc5b225846cb0aa9d3a00b2c87cb8001cf9d5cfce2c6e5abe71",
+    "apps/api/supabase_routes.py": "171762bf37c76ce0580fd75c02709b1ac8392acc5aeee57c12c03a1e86ad1a41",
+    "apps/api/task_queue.py": "ec50348ff95c08e95d161af6456aa34c741654c2e8629270a9a6bccc22291193",
+    "apps/api/temporal_workflows.py": "21c49c72249bad30e2a5ab0adc2faa3746bef96b35e2681b215f5339ee15b11e",
+    "apps/api/trajectory_evaluation.py": "51fb901c84454ab265f506db9c70b3175ed75ab338e6d621071244ec95ad02bf",
+    "apps/api/turn_progress.py": "1f67d7f0fd2b08151173648f9b2d4562bdffaea5d4b60d0b0f2ed376627227aa",
+    "apps/api/turn_stream.py": "b363cc449c48d59ba312babf9913dd37b94c19b7a0bce251a3e640e7690ffa20",
+    "apps/api/two_lane_memory.py": "c8296e4ef006a5059735996c988e8fc06c5dd3c1357105c4543b97b67acc32cb",
+    "apps/api/workspace_memory_actions.py": "c327e52ca8ec910df47523ea2eda43c674bf7ca3c4ab24725cf19e17ec8c7f35",
+    "apps/api/workspace_merge.py": "1ff7bb335d2663d6e1b01591b67a5a7a25479fc46a8ed7211666ef2c5cb29c9e",
+    "skills/Memoir_Story_Game_Review_and_Playability_Plan.md": "c42c2ea407d4a97cbbeaff339fb4cadad5ec77a0975459b48cab3af316fb9477",
+    "skills/memoir-author-timeline/SKILL.md": "c79a9bf333ef128a06db6462c28d8e1fa60e55c80f84bf4764d540970c5461e4",
+    "skills/memoir-author-timeline/SKILL.md.langfuse.json": "d5e3f9a0cac4f5d66ad7afb3714bdb292e5fbadc8b595d89289e2ff7f8c0b6fd",
+    "skills/memoir-author-timeline/prompts/attribution.md": "cc01a7e1ad07676fa95950c71b4ecc63bd2d4db4db530d208ac9fbc2e72d5dc9",
+    "skills/memoir-author-timeline/prompts/attribution.md.langfuse.json": "a42fb3f26c12462d34d9895b98e2bed0172beafd820e15ba3ae8faf42da8dc0a",
+    "skills/memoir-author-timeline/prompts/continuity.md": "e4daebd5db07d3bf93d5561c1c7d7c5528157a3c5cb1213742614592345dcbd1",
+    "skills/memoir-author-timeline/prompts/continuity.md.langfuse.json": "f1b5e3ff4c667206dad45f9679580e3cb74ff4e62df1f630a87c858114b12f39",
+    "skills/memoir-author-timeline/prompts/derived-hints.md": "099e4117d961a2751a5d45da010ec3b4e8187b5fb7b91d655442a5dae4af68f8",
+    "skills/memoir-author-timeline/prompts/derived-hints.md.langfuse.json": "528f6dca8d2876b70be7a7a72937e7ea5a78c6bfd4e01982bdf4168ca8ae817a",
+    "skills/memoir-author-timeline/prompts/extract-with-hints.md": "38ad20878043ad6f8518404f5887e367d881b047e1cdbba481a223028835db24",
+    "skills/memoir-author-timeline/prompts/extract-with-hints.md.langfuse.json": "07e7a639d4530124fbef6bc53e245a17ec4dd93aeb816ef80e6fc5bad8dcb077",
+    "skills/memoir-author-timeline/prompts/extract.md": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
+    "skills/memoir-author-timeline/prompts/extract.md.langfuse.json": "322cf438be041e456d871a1a04998209642f27ac8e91d1f53795903373854822",
+    "skills/memoir-author-timeline/prompts/shared/grounding.md": "66bedf7ad003eca9584c9c4f6432461c47d978a00cd2d550d52c184c7c551fbc",
+    "skills/memoir-author-timeline/prompts/shared/grounding.md.langfuse.json": "5d2d15d2db583a47997349a2775671466aad3added50bf2a03230428ecaae1a3",
+    "skills/memoir-author-timeline/prompts/window.md": "42cc8858f0500ae355bf8db5e18361ca8b26f469ec20dd2530833d270fd1c01e",
+    "skills/memoir-author-timeline/prompts/window.md.langfuse.json": "5f80c75bc1205bff4385a3a80869c8ef9ce973a3ee07f3cbdba6e317dbe5f2ad",
+    "skills/memoir-author-timeline/references/contract.md": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
+    "skills/memoir-author-timeline/references/contract.md.langfuse.json": "5fcfa034bc1f152f3006fb711d5a76776640a4b8da883c4f345534070e9f5e32",
+    "skills/memoir-composer/README.md": "74753b99a6cc89a0daa1c665a97d925d1a74d525c31bd9a47b1bf3605afb3ab7",
+    "skills/memoir-composer/SKILL.md": "a97fbe52d61d699788619237226a21203290bec63f3202a1336cd3ae0e2f92e2",
+    "skills/memoir-composer/TEST_REPORT.md": "e6543acbab8312f19822b8f150b0e7e81ccee80dfffd1b78ca1b3aac288ceefa",
+    "skills/memoir-composer/examples/broad_trial/CHANGELOG.md": "649ff03689545a700157a759fca12ec1c0defe58f6c7e9306c5668dd8fb628bc",
+    "skills/memoir-composer/examples/broad_trial/composition-candidate.json": "24ec802e5202e155b603a1d01d04f491c6cc774e910fbfa13e27cf0c3e818aac",
+    "skills/memoir-composer/examples/broad_trial/draft.json": "24ec802e5202e155b603a1d01d04f491c6cc774e910fbfa13e27cf0c3e818aac",
+    "skills/memoir-composer/examples/broad_trial/manuscript.json": "9e64a5bba8a366cec858caf2b7d040461b04088f67bbeca87facb66d3d224486",
+    "skills/memoir-composer/examples/broad_trial/memoir.md": "d7fd5ab04b0e2a6d42cbb6b702911508726fce32cb4af58d3a4b947a77e81655",
+    "skills/memoir-composer/examples/broad_trial/outline.json": "76f032a29d76087cd6ab2b000e6a727cae52875cc331c604bbde031b0c84c855",
+    "skills/memoir-composer/examples/broad_trial/plan.json": "3914d2569bd9d041b18ab3751a1514586c40722b87f5e36567bb33f233bcd70d",
+    "skills/memoir-composer/examples/broad_trial/request.json": "9a9d08a164b33526774b2017fdfbe431a5839e4a9a3a2b3d293843728834f104",
+    "skills/memoir-composer/examples/broad_trial/source-summary.json": "94ca6b3bb37212cbeaecf35cbfbeef0ace6429965f669b2a1a4f9b70e1b56f42",
+    "skills/memoir-composer/examples/broad_trial/validation.json": "e8642b3b9531e808ae5d786014c7b5e4625c2f639311a5e8b8ca84990f203af1",
+    "skills/memoir-composer/examples/chinese_preview/CHANGELOG.md": "43109cf277a9d714edeb1e37a1202a4207e43764c0243d352f1cd25f9d40c1b4",
+    "skills/memoir-composer/examples/chinese_preview/composition-candidate.json": "eb2db477d1e0a5bab64fe2ae09dfaaece97166e05f5578cef42f3d1c456ce228",
+    "skills/memoir-composer/examples/chinese_preview/draft.json": "eb2db477d1e0a5bab64fe2ae09dfaaece97166e05f5578cef42f3d1c456ce228",
+    "skills/memoir-composer/examples/chinese_preview/manuscript.json": "e238b14feb6da79598e7497ffe0c01a59e61a4218463a533c8b32334b0e9b124",
+    "skills/memoir-composer/examples/chinese_preview/memoir.md": "3a8285b3b9554faa441893dab50fdc83bf2c63eed1567979195a4a43b0934617",
+    "skills/memoir-composer/examples/chinese_preview/outline.json": "4dd96c59fb7a164e0d69c3bb4589d57c0090c3c7f5cc822aa267d6b1600bedd2",
+    "skills/memoir-composer/examples/chinese_preview/plan.json": "a4fccf34b41213dd75a4be43a8b13153766e1b4d62dde559640b9a8c450ed58e",
+    "skills/memoir-composer/examples/chinese_preview/request.json": "140ed19d0b935447859415fa8e441f7c53503df65a71f75f821f1cf36d88c888",
+    "skills/memoir-composer/examples/chinese_preview/source-summary.json": "cbd5ab05676b500f6bfb44649268613d555d43af60858e0e64cc495a645f0f04",
+    "skills/memoir-composer/examples/chinese_preview/validation.json": "a742411955934ce3aa8e72cfe53f793508ea33ba727d5ce3162c8c9efc582c9c",
+    "skills/memoir-composer/examples/focused_trial/CHANGELOG.md": "43109cf277a9d714edeb1e37a1202a4207e43764c0243d352f1cd25f9d40c1b4",
+    "skills/memoir-composer/examples/focused_trial/composition-candidate.json": "211948503e69740e6816c79937ed114656cf69285946da9a6bf98516a40a9837",
+    "skills/memoir-composer/examples/focused_trial/draft.json": "211948503e69740e6816c79937ed114656cf69285946da9a6bf98516a40a9837",
+    "skills/memoir-composer/examples/focused_trial/manuscript.json": "f84884b2b9ac3f76ff92e561e10376776087ea1f2e81422bf65710902a1aceca",
+    "skills/memoir-composer/examples/focused_trial/memoir.md": "3b48717d29acb53eaabfe56e5494c80b622f0e559bfd8eace91fc69152cd60b2",
+    "skills/memoir-composer/examples/focused_trial/outline.json": "7f980070cde38d1e52b1e78bdc7dfe167a30a552946ed434f25b9433351ed091",
+    "skills/memoir-composer/examples/focused_trial/plan.json": "53dea857b2c47c6f568331ddde7001c62322c954a48da73cd94387f44dec4f6c",
+    "skills/memoir-composer/examples/focused_trial/request.json": "09d5d6566bac337c59ca4cfe37d7fcc2622299501a7d9d1b62f99034346da99c",
+    "skills/memoir-composer/examples/focused_trial/source-summary.json": "5ae4a3ae69d2b9719455c724c2b13fdc1d01750777eaa50e74c88b9ea121b680",
+    "skills/memoir-composer/examples/focused_trial/validation.json": "c350a1eff100e5a71e43e329fe213ea7aba2f98f5142b1330db3f82ef7886fe4",
+    "skills/memoir-composer/examples/formal_memoir/CHANGELOG.md": "503a499ead04bbd05e9339f7ca6e6f38a8b13b7278a08e6ef7f8626a30b6566e",
+    "skills/memoir-composer/examples/formal_memoir/composition-candidate.json": "69769188e901f3e01fc554caccf655b05bd4369986b1de6eb51cfd3a9bd1e6d4",
+    "skills/memoir-composer/examples/formal_memoir/draft.json": "69769188e901f3e01fc554caccf655b05bd4369986b1de6eb51cfd3a9bd1e6d4",
+    "skills/memoir-composer/examples/formal_memoir/manuscript.json": "790e6eba008da71fce11d947c21e9d6644495d4c94eab6931532c18d7f1dcb96",
+    "skills/memoir-composer/examples/formal_memoir/memoir.md": "ee3d8f8e5a5cbe8cd79d1579d972626ada19dbb33e6c1da5d1eac2fc385cb048",
+    "skills/memoir-composer/examples/formal_memoir/outline.json": "216f50cc402694ce76cfbee26608719be2301fd1d1ca4ba5cc7cfbeabd75ff04",
+    "skills/memoir-composer/examples/formal_memoir/plan.json": "a77984492ae40fa89c741487ecdcc9342055d0eedc29c050945b61ae88ea6cd1",
+    "skills/memoir-composer/examples/formal_memoir/request.json": "6bde1cb0a23e1633237c2c6d29f2cc0f8f7adc8497620c1dc28057f0cf3ed916",
+    "skills/memoir-composer/examples/formal_memoir/source-summary.json": "94ca6b3bb37212cbeaecf35cbfbeef0ace6429965f669b2a1a4f9b70e1b56f42",
+    "skills/memoir-composer/examples/formal_memoir/validation.json": "b7c7ebc3a8c71a178104620f0a5b86b6f26fa184128e7594500b0045128388bc",
+    "skills/memoir-composer/examples/progressive_update/CHANGELOG.md": "bf8ed31b9abb1819327ffa71f92e13c1866e55384ae172daefb1e871d9a6910e",
+    "skills/memoir-composer/examples/progressive_update/composition-candidate.json": "0cdf8685c98cc170c1c7049ef5304e1bf8680d55afc98ac1197e6f173057346c",
+    "skills/memoir-composer/examples/progressive_update/draft.json": "0cdf8685c98cc170c1c7049ef5304e1bf8680d55afc98ac1197e6f173057346c",
+    "skills/memoir-composer/examples/progressive_update/manuscript.json": "29d635f92ad566086db4138bfdd5eba531ec58c4d54008e348748cba44119cf6",
+    "skills/memoir-composer/examples/progressive_update/memoir.md": "460ba5c2f4a2a74a7c080863256a5bc7b6d0da1d52eb913666f3fe0035c74f62",
+    "skills/memoir-composer/examples/progressive_update/outline.json": "7ff484cd7c2617ba9b3e0b3ef72858d8a393b5f5fcf6cc080bce6aa44fda54e2",
+    "skills/memoir-composer/examples/progressive_update/plan.json": "a6aeebf9853ad3d3b90aafc9687e549a560104b199450efd64679522d92e7ace",
+    "skills/memoir-composer/examples/progressive_update/request.json": "08c7f92ab94753cbc58afc1379befe555ff21735755a2e9be86059fb932e68b9",
+    "skills/memoir-composer/examples/progressive_update/source-summary.json": "7a34780bfdd0cfe30d7636957a454031f3ad7df0bd299331a8ff29265972a03e",
+    "skills/memoir-composer/examples/progressive_update/validation.json": "b022f3258e6eeb424d4e1974bdb9ab192f57d1affab3ef449b38d1df2498ef1b",
+    "skills/memoir-composer/examples/protected_update/CHANGELOG.md": "d26cc654b322d03014953693bc7aa9c13adfe153a2e4973716fa841dc638d882",
+    "skills/memoir-composer/examples/protected_update/composition-candidate.json": "4430401fa5d97dcaa52dbd4fb642d24174020082c9d160247d49247ce0869eb5",
+    "skills/memoir-composer/examples/protected_update/draft.json": "4430401fa5d97dcaa52dbd4fb642d24174020082c9d160247d49247ce0869eb5",
+    "skills/memoir-composer/examples/protected_update/manuscript.json": "36db179442d5fd3153f9aebde54c91cc83b9ad786af4d2ea826ac2d49d697f29",
+    "skills/memoir-composer/examples/protected_update/memoir.md": "ee3d8f8e5a5cbe8cd79d1579d972626ada19dbb33e6c1da5d1eac2fc385cb048",
+    "skills/memoir-composer/examples/protected_update/outline.json": "216f50cc402694ce76cfbee26608719be2301fd1d1ca4ba5cc7cfbeabd75ff04",
+    "skills/memoir-composer/examples/protected_update/plan.json": "820e672ad3db9c460756a2722c69e10f006d63de532fed2eae97ed2f0a2d85d0",
+    "skills/memoir-composer/examples/protected_update/request.json": "ca646978a003ddb71f86754d327d62d7b6256b396c30f4581dd13cbbc1afed22",
+    "skills/memoir-composer/examples/protected_update/source-summary.json": "7a34780bfdd0cfe30d7636957a454031f3ad7df0bd299331a8ff29265972a03e",
+    "skills/memoir-composer/examples/protected_update/validation.json": "d7393f95a3cf86c5b8d1187ac6cc2bfa3ba4e0242262dfb6deb6055840881449",
+    "skills/memoir-composer/package.json": "d907cd46a201ac38a19c34caaad3bf20ab772a595f1ac2fc04226f2216136580",
+    "skills/memoir-composer/prompts/batch/compose.md": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+    "skills/memoir-composer/prompts/batch/compose.md.langfuse.json": "8561917ddebe7cf33457d20e184628a6f03b67563591cb395122cf8ed28bb7e3",
+    "skills/memoir-composer/prompts/batch/prepare.md": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
+    "skills/memoir-composer/prompts/batch/prepare.md.langfuse.json": "283077b74a5190ea529f530353c90b69e47212395d72e9975d01162890e60bcc",
+    "skills/memoir-composer/prompts/draft.md": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+    "skills/memoir-composer/prompts/draft.md.langfuse.json": "14c000d15ad81dd1baa813daec9071fcf7b70678da662c7fa70a74684852500d",
+    "skills/memoir-composer/prompts/outline/leaf/en-AU.md": "a32e8ad5e53803c2b5c0ea3e0b77ed1793a3a393c86b3dc148dc1f4ad9a573f2",
+    "skills/memoir-composer/prompts/outline/leaf/en-AU.md.langfuse.json": "4d2814f550b5aa750bd9fb8558dd65f75a21ac9fae7df5b45175dd9168fd106c",
+    "skills/memoir-composer/prompts/outline/leaf/zh-CN.md": "a3108ba8705f81ceccaeb85da14393b4ff18dba7d224f87b01bb9b0776340b2b",
+    "skills/memoir-composer/prompts/outline/leaf/zh-CN.md.langfuse.json": "d39b8c047aadb6c857e84e30b59c94f300ac75551095ff0428d8625b03649eca",
+    "skills/memoir-composer/prompts/outline/merge/en-AU.md": "b1af3ebef85419e8344db5ad56b9524645e7b094e3f0386b0f12155b4e593aa5",
+    "skills/memoir-composer/prompts/outline/merge/en-AU.md.langfuse.json": "7493db7c81ba8c12ccb0035fddddeeba5ea20837f412e7613d2c26d0d4001df0",
+    "skills/memoir-composer/prompts/outline/merge/zh-CN.md": "80fdf1243c337012039ce5b94a3b37cb0d9cfffd9a45785ffbb788b25b3beb07",
+    "skills/memoir-composer/prompts/outline/merge/zh-CN.md.langfuse.json": "94c771c3adb5b2da5d19b680301f0f172851a42f15fd9cdc4a3d9805288f6873",
+    "skills/memoir-composer/prompts/outline/shared/prefix.md": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+    "skills/memoir-composer/prompts/outline/shared/prefix.md.langfuse.json": "65308929a63a7cd029a144d56183fc4573e1ce0cdaa71bf3b6a3e4ca8348ca1c",
+    "skills/memoir-composer/prompts/outline/shared/suffix.md": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+    "skills/memoir-composer/prompts/outline/shared/suffix.md.langfuse.json": "2fa79f1e1337c3b0fb3e89683e16a75a9a3bd904a8a401803ce1ddc765d749e5",
+    "skills/memoir-composer/prompts/prepare.md": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+    "skills/memoir-composer/prompts/prepare.md.langfuse.json": "c91506f01a67234e16f7fdf28e1d943e94722523e07ed404313a15314df06e90",
+    "skills/memoir-composer/prompts/review.md": "0ea3aef24d8cc4a23481e52c78010a3d2855a94ddad1eea524ff1ef5c0a9d85c",
+    "skills/memoir-composer/prompts/review.md.langfuse.json": "fd9dcc2fca5abf3652d4c8dcc5cd5a4a24fd689e0fdc5cd47dcbf5384fbe5107",
+    "skills/memoir-composer/references/editorial-and-length.md": "6b2dce121207e51ad6364f8bda25829b2ea33a7b79ff26ba4f964d7c6a8ea3b2",
+    "skills/memoir-composer/references/editorial-review.prompt.md": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+    "skills/memoir-composer/references/editorial-review.prompt.md.langfuse.json": "d7847a6d1efcf9ead8792bfae1639caf266caa2a13424ae1210e6d1694e3d521",
+    "skills/memoir-composer/references/narrative-enrichment.md": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+    "skills/memoir-composer/references/narrative-enrichment.md.langfuse.json": "efcd041a1f998d3cd3f7d41cf12aef7aac9fdc0a2bd7ee47a308ef37cdb28e63",
+    "skills/memoir-composer/references/runtime-contract.md": "d3011108f18377a5711c68245e8b6a6196faf15186f9ec1d66658aa45472140e",
+    "skills/memoir-composer/references/sources.md": "677dcd23a54fa9e02654f9a482cc3e86c4269fa696da15c279a84360bc0c51d0",
+    "skills/memoir-composer/references/workflows.md": "b287f43de7232f28aa41405d9982c5e4ee34f492c75736afd1d5e3040a88502c",
+    "skills/memoir-composer/schemas/draft.schema.json": "d84a990f03f2b4585ee0cd8d87c8781011a27bb9ed3b311ea8c4df0d0dffcd61",
+    "skills/memoir-composer/schemas/request.schema.json": "ddd11392becf96bf30170565893ce6504c5d4313a7f7fc3281fdedfc60fb0c0d",
+    "skills/memoir-family-tree/SKILL.md": "5e6961f5109c4e1efdcb6ab7d9f364db1e5e884de86241ad3ad9471d77a63978",
+    "skills/memoir-family-tree/SKILL.md.langfuse.json": "3d76932a679808f959f394aa98542f38ac2e9a033962401b6d14d7e64fd465c2",
+    "skills/memoir-family-tree/references/contract.md": "c41b17f5f7c950190592530689198986f072232fd255256b997593e463cbd807",
+    "skills/memoir-historical-news-research/SKILL.md": "e31e6f403b0bd506eb044af2f94a86ef9a0fe4d633d7c68a646d02f8d18dd74a",
+    "skills/memoir-historical-news-research/SKILL.md.langfuse.json": "18152123cb69cadedaa1ea962c8a4fa6cb5969252cde8e25528295c233fb7a31",
+    "skills/memoir-historical-news-research/prompts/discovery.md": "92bced910bfb0de9ee5ab0b9ca89446b432d9ac3b4cbeea3e2d781df362ef0d9",
+    "skills/memoir-historical-news-research/prompts/discovery.md.langfuse.json": "023e18b766f947f86f7b8bfe047039354991b55d16beca87fd1dd8897744db7e",
+    "skills/memoir-historical-news-research/references/contract.md": "8b7a43b49b0dd1b7e94b7c18dd9074f8d8156dafceb47d14fec818d322742111",
+    "skills/memoir-historical-news-research/references/contract.md.langfuse.json": "1c399b94ea86154600670d4b71cd68b3722d49b57d289f2742d3f892a4e37531",
+    "skills/memoir-interviewer/prompts/background-memory.md": "9407ab2f75826baa74b2377df4062ef8a91cb45948810abd31fffe6c212a801e",
+    "skills/memoir-interviewer/prompts/background-memory.md.langfuse.json": "7bee9c3c3d0df1f169a69c1cd832810fbbb733b3a47ed49642f5e61e39161e99",
+    "skills/memoir-interviewer/prompts/collector-plan.md": "b996bd54abd5ad748c85dae29fce9e9c30728c0a95d5d72f63d75524d3d63212",
+    "skills/memoir-interviewer/prompts/collector-plan.md.langfuse.json": "68839aad710c4d1b1d4eaaac09d7e9ca2d1d047ce1e1ae3dc3595c08e98bb440",
+    "skills/memoir-interviewer/prompts/collector.md": "a3ead5e1d7c122c163d7481cb612c2899ecefbd9890a106a6f89a951462feb00",
+    "skills/memoir-interviewer/prompts/collector.md.langfuse.json": "8415066edaa101b1e89095977ae5ad29d44909a7f18c04fb1d1d47f4bb9b19f3",
+    "skills/memoir-interviewer/prompts/governed-continuity.md": "2a0c0f829ed1569cd98b6f600b36219b8b74c5c155f433bbf3b736a93849189f",
+    "skills/memoir-interviewer/prompts/governed-continuity.md.langfuse.json": "662dbaccb2e455a09fbe0a85ccc51117c73ce8e82458232b56091911fe047a74",
+    "skills/memoir-interviewer/prompts/governed-places.md": "1cf70ab51f86089cc0f96b35274aa52c0a075604c6a0fab6423e8695715f75e7",
+    "skills/memoir-interviewer/prompts/governed-places.md.langfuse.json": "9782a0f87e29c192056649c401f99994a8782fafe432b57fe7524bc2aa31f425",
+    "skills/memoir-interviewer/prompts/governed-repair/acknowledgement.md": "d12dad60b46e499f5074d3ba4195a07b2eef32a83629c08742f82f2ff22024d0",
+    "skills/memoir-interviewer/prompts/governed-repair/acknowledgement.md.langfuse.json": "2198459396d738c2372aa80130259b34688e3f3ba82f2dfe1fe31f627d7cd544",
+    "skills/memoir-interviewer/prompts/governed-repair/codes.md": "2a0512ba080b9698c711f5c229cb27640cc9b7f9f268393af5a2a96afe138da6",
+    "skills/memoir-interviewer/prompts/governed-repair/codes.md.langfuse.json": "e6328d17e77d164f8afc4809640435a196cbb3395b71455d50c4e8a73a625062",
+    "skills/memoir-interviewer/prompts/governed-repair/prefix.md": "67a7388ba9688410c9c1abae71620367fccf8871f9399f336dbb57e4ed20c07a",
+    "skills/memoir-interviewer/prompts/governed-repair/prefix.md.langfuse.json": "4902ab2b0f96f150dec94f7feab3dc24be2acb729839b7dca36e7cc138fcb36c",
+    "skills/memoir-interviewer/prompts/governed-repair/suffix.md": "97afeb5474b22e9a141f0c60a3f419b22138359b50082963be29b4506295229b",
+    "skills/memoir-interviewer/prompts/governed-repair/suffix.md.langfuse.json": "758e0afe7dab4357c47dc4fd584cec5334ed8a2b1b945cfae5a2b7e073adb649",
+    "skills/memoir-interviewer/prompts/governed-turn.md": "64e48428df35573c868f75d53f0c0469d945ad40ef335e1086a1b50d42dc9c4c",
+    "skills/memoir-interviewer/prompts/governed-turn.md.langfuse.json": "66ecd59c3d04958e607bad3b20727cffd6ece0ec9eae748ebabb0fc59a47a969",
+    "skills/memoir-interviewer/prompts/greeting/begin.md": "8c7ad73130cf38335f75c769321df74ca0f324fae25023f9e700cea52326615b",
+    "skills/memoir-interviewer/prompts/greeting/begin.md.langfuse.json": "ae4c1aad52994fa97706d4428faac7d9347f27adaf1665b181734c30ca8de05f",
+    "skills/memoir-interviewer/prompts/greeting/continue.md": "517c357872d5b4470fc395f353b7c9b2feab2152316598eab140514fec2718f3",
+    "skills/memoir-interviewer/prompts/greeting/continue.md.langfuse.json": "d26fd88af42fb22f6a097c0f6e3c569833760ff47726d864f62888fe926db6e4",
+    "skills/memoir-interviewer/prompts/guidance.md": "275d76668cfaefe46ec0d1d1c9aae31255df8fd594f93ff045607b0949799f17",
+    "skills/memoir-interviewer/prompts/guidance.md.langfuse.json": "6a7faa4c9282c007f62ac5d48ebe31e3709e3f6e19aec9a0ca851a383b4dbd66",
+    "skills/memoir-interviewer/prompts/language/en-AU.md": "39fa47b6449054f239c2d758f4dd0ebc33505f5e4864b8f5e5c6778d4c2eccb4",
+    "skills/memoir-interviewer/prompts/language/en-AU.md.langfuse.json": "f84ca599be7811ffca722990550aa0121f6f8ed88e57f6752a7f2f1423f6a9ae",
+    "skills/memoir-interviewer/prompts/language/zh-CN.md": "316e7866fca80f8b533edf4d4253ff0648e0a2955f345c2b9f69ba0d1ee2c163",
+    "skills/memoir-interviewer/prompts/language/zh-CN.md.langfuse.json": "2c17b08b20f44856ec68959bee5f3687c4ada711511b103fe7f8145213d03e70",
+    "skills/memoir-interviewer/prompts/policy-review-opening.md": "77d89fec0e93ba199b0d3e3fd760a6f0256316c7ad6d5e6b708dbad0c1e34a5b",
+    "skills/memoir-interviewer/prompts/policy-review-opening.md.langfuse.json": "0bb395384f2f768a2ceb91a3370da8f6fc9078e8b31562931cb3ee73f730adca",
+    "skills/memoir-interviewer/prompts/policy-review.md": "f29c6e4426dbc320864ae04ae9cdfa2e98e84e860200240ad45b4aad03145ad3",
+    "skills/memoir-interviewer/prompts/policy-review.md.langfuse.json": "efadd93944e29be80e07df1cc780b86cf8bb1373f206f378ad6ddc1c8585e622",
+    "skills/memoir-interviewer/prompts/privacy-guard.md": "0d1d5cac6b3e73ed48785a97b60f29061925d3cf09ef2f72b9bd3c989486b346",
+    "skills/memoir-interviewer/prompts/privacy-guard.md.langfuse.json": "5fc6cc01f9cf42d56c4c8fbbe00de5106294dee3d85b675572aaefcb3a49f092",
+    "skills/memoir-interviewer/prompts/reply.md": "160f4fcc30d25490dcd43d276ff15f57b14296051c7d1dd2fe6ca58ac3e93cb8",
+    "skills/memoir-interviewer/prompts/reply.md.langfuse.json": "381ac0a358a76db07970948fe5256f04d62d7cc638306015719e9ec7d6cff473",
+    "skills/memoir-interviewer/prompts/strategy/comfort.md": "84844e71a1dc98907b452c448cc895259987c79873e3e59465b89ae878eb621f",
+    "skills/memoir-interviewer/prompts/strategy/comfort.md.langfuse.json": "24579f0263f810dab40b844aa7abdc2831cb80b8e13a04d91fa50e62fd0abe51",
+    "skills/memoir-interviewer/prompts/strategy/explore.md": "2026dd118a8d6e04a58d40bb5441763ada65ac0985cd29d46a9ad0e051cb7947",
+    "skills/memoir-interviewer/prompts/strategy/explore.md.langfuse.json": "d43406496594f218630b6fb062ff06c94127c9c9b0a2022f80e5252c522d6876",
+    "skills/memoir-interviewer/prompts/strategy/proposal.md": "aa6553e3c0e81cb44cbb16508a37e6158266b63fba79709dfef155bd8f6ca017",
+    "skills/memoir-interviewer/prompts/strategy/proposal.md.langfuse.json": "d67e8d69d85b4da1e2e3772424585517f146c38b8724b366644817b35accea27",
+    "skills/memoir-interviewer/prompts/strategy/selection.md": "f6056a2410ef31de318cd4dd105d2f467618fa6863f9504773b1eb4f50c7fbb5",
+    "skills/memoir-interviewer/prompts/strategy/selection.md.langfuse.json": "c6147f194f8e698e12de301b0e56050869816a844d592a12ea437fa3e2a250fc",
+    "skills/memoir-interviewer/prompts/strategy/shape.md": "aed26acddbc9f311539f50d8a4c91ddfdcfaf7fd48f17fe38073e67f6e9f533b",
+    "skills/memoir-interviewer/prompts/strategy/shape.md.langfuse.json": "225239f76b0d569e091816988864fcad80e70bde45b56f35fd02c7c65eac5c65",
+    "skills/memoir-memory-context/SKILL.md": "a28a203eb72c78943460cd65a79faffe3ec063efff27be0f513424a59063f082",
+    "skills/memoir-memory-context/SKILL.md.langfuse.json": "b39694739607658c95d02dfd563f8528dc0a6c03a2e91812e280ec7629caed08",
+    "skills/memoir-memory-context/prompts/summary.md": "01e01f507ce1888fc1bc1cf912db861c321afff05e3cd43d71341b4089a0a4d8",
+    "skills/memoir-memory-context/prompts/summary.md.langfuse.json": "23ed27c19aed0e8119f3fd282d89f843435ed6fef62c76771ba5483e1ebd54d4",
+    "skills/memoir-place-groups/SKILL.md": "f03171f20d2c2d595b08e0fe579ed456a4da606da8e02c3555c27788e50fdda4",
+    "skills/memoir-place-groups/SKILL.md.langfuse.json": "1978313928b9fe59aedb22e083ac03e766788d4a50735e5dc269e2bda5263ef4",
+    "skills/memoir-place-groups/references/contract.md": "af4ef2b72cd5d8aecc3f273bf74c96bee78672ff33370c45ac7bfe60bf905824",
+    "skills/memoir-place-journey/SKILL.md": "a7e45041686e0be511db8fcfc6fdba4eb4c1970d90ac102901c751fd1abc0379",
+    "skills/memoir-place-journey/SKILL.md.langfuse.json": "37aa5aefe8a487e10f487be40776aeebf17ff04e3db6e66d3dadb4e2b7749179",
+    "skills/memoir-place-journey/references/contract.md": "c4e413a9b271ae4ea4ccf2c9cd3d3301c8a892eeb55ba2bc176715d4505e7b39",
+    "skills/memoir-place-journey/references/two-lane.md": "d2a4b04a177f3df72b5a90233f4c025a46bfc14870ac962f04004e0146791e4c",
+    "skills/memoir-place-journey/references/two-lane.md.langfuse.json": "33786df41ecd5c5d56fbd86b12a55c1369e13e0bac610ceb16a34fa22b36033b",
+    "skills/memoir-place-photo-research/README.md": "8d306f85badc135c1d1e688949dd80edda1b93c9aa6c89306ccd16222de1dc30",
+    "skills/memoir-place-photo-research/SKILL.md": "c796185cf190aea666fc7b69b6aadd80293831214f47bc9fd2b432157bcf50a7",
+    "skills/memoir-place-photo-research/SKILL.md.langfuse.json": "7d66663c139b75367e12f6b5686b01208e6e7226cc455f47a03b0bd9d2dba16d",
+    "skills/memoir-place-photo-research/VALIDATION.json": "734baebb9116b4cd19493d73ea927f9583a1c303187b9d104f32e1676ab3b399",
+    "skills/memoir-place-photo-research/examples/candidate-template.json": "5229cc23af29e2709212f2b315e4529ce060bd20b60f35d9dca271b13b5b1d5e",
+    "skills/memoir-place-photo-research/examples/prompts.md": "0dee2b03466b7d8472128968fd94a6d027ba80dca22a6b7b5ca7b1f9e06b7c01",
+    "skills/memoir-place-photo-research/prompts/discovery.md": "f101aad128deeb167e7363a38bd3ab4a36cefb54a7e63ebbab5a0cad158fdf46",
+    "skills/memoir-place-photo-research/prompts/discovery.md.langfuse.json": "37d7093618b25e0976fc104fcabe0eb660acdfbff6b5bb04df6b044debdaf003",
+    "skills/memoir-place-photo-research/references/llm-web-search.md": "642c43610834c2d6c634de2a892e29aeba1e5cbd0bd3c21c5110b1b8730bdb8b",
+    "skills/memoir-place-photo-research/references/record-format.md": "778106ca8e266195908c2948186142b77ee91f4efac4f5cd333bc352c47403ec",
+    "skills/memoir-place-photo-research/references/source-strategy.md": "689ba45db76927d5a5f66176a7ff8108617de849d6f6df86439591d9a0ed6c99",
+    "skills/memoir-place-photo-research/scripts/photo_prompt_adapter.py": "ee4d8964bda3c641fc16a808a0e9134e996ee5a7fb0e9a0b39dbd495f9a34ea4",
+    "skills/memoir-place-photo-research/scripts/photo_research.py": "7313f1d9a6340f5aad7c7825cbe8f7d9ea0ba3284b458f594e0a91ef69e9066d",
+    "skills/memoir-place-photo-research/scripts/photo_search.py": "cd6eef160fa7a0e9b359ad533f8b9d1f2b76a09c2e4b889b9b5fdf0d6a8a26e0",
+    "skills/memoir-place-photo-research/tests/photo_test_support/__init__.py": "591cd00ee0695a0f73603980f5b4b70020672d6cbd7b5f2d23a45b375686a7b7",
+    "skills/memoir-place-photo-research/tests/photo_test_support/offline_network.py": "b534b2cc6c7db140091a16159db0189b7903eda4d9bf101bb7723662203df66e",
+    "skills/memoir-place-photo-research/tests/test_parallel_search.py": "e0e82fea6b967031c950335fbd6b7ffeebf549c738591e0f09e32ab05188afa3",
+    "skills/memoir-place-photo-research/tests/test_photo_research.py": "b10f6aa48d262e3d3141e188f5c9bb0e429b6d741ebefefb300128efdac0fd08",
+    "skills/memoir-story-game/SKILL.md": "af639d19152e32ad7f08ed1c313ef44666b99843db48390c4fa8cbf6c49c3f2e",
+    "skills/memoir-story-game/SKILL.md.langfuse.json": "f0803ae3a4d2b735b7a7e1a57ed66e6b34ff4d0fe0a073d82aa5aca36b3e2ac4",
+    "skills/memoir-story-game/prompts/proposal.md": "fd3ba1bfaf42f941958f282f1003be96448f8a8923b764bbe326618773e6b103",
+    "skills/memoir-story-game/prompts/proposal.md.langfuse.json": "28bca49207a3e9f5b6edbd934ba8bb8baedf9a7a61a3d3ba9743465900c36058",
+    "skills/memoir-story-game/references/acceptance.md": "1bc047f8f03cca953ab7f1894f99259aac1f250cbd4a0b879d7fc274e9d2685d",
+    "skills/memoir-story-game/references/formal-workflow.md": "7917127d064aac201e9ebbc754bdc246c270ad5a54406cf01a87b9b9d3a4e7f3",
+    "skills/memoir-story-game/references/privacy-and-grounding.md": "a746186cf6aa92e4d1d78c8806853d1577d01a42c06965c520a2743a5b0bd4bb",
+    "skills/memoir-story-game/references/runtime-contract.md": "b2d8ae34f3fbc579094db920b6540f96d2217e9932daa32caefd9dc4b33dac6f",
+    "skills/memoir-story-game/references/runtime-contract.md.langfuse.json": "6bfe68b7bc54c9764b77592ccb89c43bb7f0e2f8021ce1abc5bffedae15109c2",
+    "skills/memoir-story-game/references/specification.md": "358046afba0ee33da700b9cec692a07cd8c6a62a9e91edc65d56ce467780446a",
+    "skills/memoir-story-game/schemas/candidate.schema.json": "17eb60ab866f683440a6eb9c0ccac9f14c7ce5640bc7c83bb496793d1e6c55ed",
+    "skills/memoir-story-game/schemas/formal-chapter.schema.json": "b7bc8846ab50c3ea734892b72d9a0e0f6890dd0e15e03ffaee5a0600e2efdafb",
+    "skills/memoir-story-game/schemas/game.schema.json": "2701c908dfe754666d2fc926066c7c77fdb7b5f0d0db72311047dcaf9effa97d",
+    "skills/memoir-story-game/schemas/request.schema.json": "1f5fb354a12a3662a75dc0436a33c5607f36fcfa43828f1b7e6187638c9c9fa3",
+    "skills/memoir-story-game/scripts/validate.py": "f6dc1c464755cfe52580c86d0423ca9abd1df9f17339ee27de4216d7a865e535",
+    "skills/memoir-story-game/tests/fixtures/candidate.json": "eb875ec9bac0f99ae425c89fc39c11c9a9477cc125a9aebe6e62235c4c1adf06",
+    "skills/memoir-story-game/tests/fixtures/formal-chapter.json": "92c884c5597d8246736199ddb6ada3efa350a1535bddcbc9ad6ace30326db467",
+    "skills/memoir-story-game/tests/fixtures/game.json": "0b5819a7ea378f79549705204edad44293b8bb726198d5d9949dd709598a65bd",
+    "skills/memoir-story-game/tests/fixtures/request.json": "d6be7877277ca7b1acb6cb34295d90463661af9db9b00434163ed7fa7b6f8d3c",
+    "skills/memoir-story-game/tests/test_contracts.py": "5f4a50ee52f5085d276c19b9c1be6d9a113caf8cc8055f8545b064cede32baec",
+    "supabase/migrations/202610180001_initial_schema.sql": "7ed18c78c2180d0ac7fb8a5af8d146fe7cee5c1d4c20807db757c12e0c2c1d41",
+    "scripts/evaluation_budget.py": "e4ec06256db3d94e9c3aee73a6344a7c0459629655fac5541ebc173f183ad44c",
+    "scripts/canonical_turn.py": "4c1433819bbfebd9769e3eef631fa0d56e4d1ebfeac83bd3bedd6c4901a3bbd4",
+    "scripts/controlled_lifecycle.py": "4e15eea749e6bfbd807d2ced76cb0dabbb097d91dfe192929a0261b0ccda1be8",
+    "tests/test_agent_commit_postgres.py": "b3525376454ee160f949132ddd54a345de020c44ed7e83b8f37f264bc2b002c3",
+    "tests/test_shared_memory_events_postgres.py": "f766c4cfc2ea4f1053903503aaf348404ed26da4c78a04f7f2ad6ce6dbe2b92a",
+    "tests/test_lifetime_composer_capacity.py": "78500595672c086a875768ce5e29a5d7213a42db4928685a2a1445c4d8abdc10",
+    "tests/memoir_postgres_workflow.py": "ef0431e8d714d9b4d454f069dc9cb2f70156c1b23cf0fa91d252909c24f07fd3",
+    "tests/controlled_policy.py": "e1fd1fd9902ad2cd78be8f370f2e926a0d7d5156264b4e0bcb907d48d88cab49",
+    "tests/test_derived_evidence_spans.py": "0a778224874debdc30ce94fc3fb59a469a44310678ddc5fe842270bac3f40124",
+    "tests/test_extraction_span_repair.py": "bf327b0b471d1d2975a72a773f1ccacbc237ee136e5d352b11e6f18ac1c9c4ce"
+  },
+  "cleanup": {
+    "verified": true,
+    "root_removed": true,
+    "postmasters_stopped": [],
+    "registered_roots": [
+      {
+        "root": "/tmp/memoir-controlled-pg-author-live-f9pxtqy5",
+        "device": 16777231,
+        "inode": 947032464
+      }
+    ],
+    "command_groups_stopped": []
+  },
+  "checks": [
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/post115-prompt-check.json",
+      "sha256": "c9f41c1aac43f509718b753be9375ea0ea1207125535e2485038f092005d3549",
+      "result": {
+        "name": "post115-prompt-check",
+        "command": [
+          "make",
+          "prompt-check"
+        ],
+        "exit_code": 0,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-a80ud7c5",
+        "command_group": {
+          "group_id": 82356,
+          "leader_started": "Fri Oct 23 09:04:26 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-a80ud7c5",
+              "device": 16777231,
+              "inode": 946974897
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 2.26
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-feedback-before.json",
+      "sha256": "d23cda2ea05c9e6677726b90463f681e4ac7abb9f4a4edadcb792d2c850f2b86",
+      "result": {
+        "name": "attribution-feedback-before",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_extraction_span_repair.py",
+          "-k",
+          "attribution_retry"
+        ],
+        "exit_code": 2,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "launch_failed",
+        "native_allocation_root": "/tmp/memoir-check-pg-32dv7fz1",
+        "failure_class": "PermissionError",
+        "cleanup": {
+          "owned_group_id": 82478,
+          "group_gone": true
+        },
+        "native_allocation_cleanup": {
+          "verified": false,
+          "retained_root": "/tmp/memoir-check-pg-32dv7fz1",
+          "failure_class": "PermissionError"
+        },
+        "child_returncode": -15,
+        "duration_seconds": 0.01
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-feedback-before-permitted.json",
+      "sha256": "1452fc49a47de7395b95468d0f35c6fd3f8458c32b8aa5c640e89b3135584ff1",
+      "result": {
+        "name": "attribution-feedback-before-permitted",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_extraction_span_repair.py",
+          "-k",
+          "attribution_retry"
+        ],
+        "exit_code": 1,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-t31ip1xu",
+        "command_group": {
+          "group_id": 82598,
+          "leader_started": "Fri Oct 23 09:05:25 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-t31ip1xu",
+              "device": 16777231,
+              "inode": 946980952
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 1,
+        "duration_seconds": 2.6
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-feedback-before-fixture-corrected.json",
+      "sha256": "74aa8b9c36684834f23703952e9e42cadbfd05ef9a6736bea221aeefdc6aed96",
+      "result": {
+        "name": "attribution-feedback-before-fixture-corrected",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_extraction_span_repair.py",
+          "-k",
+          "attribution_retry"
+        ],
+        "exit_code": 1,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-_qmlij3b",
+        "command_group": {
+          "group_id": 82700,
+          "leader_started": "Fri Oct 23 09:05:54 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-_qmlij3b",
+              "device": 16777231,
+              "inode": 946983806
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 1,
+        "duration_seconds": 2.26
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-feedback-before-cleanup.json",
+      "sha256": "a8ae528ef2088f6993e9e5ba9041f521f1a855e2b0306f50a6dee8398ad69392",
+      "result": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-32dv7fz1",
+            "device": 16777231,
+            "inode": 946979485
+          }
+        ],
+        "command_groups_stopped": []
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-feedback-after.json",
+      "sha256": "d3c40b39fc24ecf24dbaf4b9e19b0aef5d2e9b4c1f4063c3de19f38400cb0814",
+      "result": {
+        "name": "attribution-feedback-after",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_extraction_span_repair.py",
+          "tests/test_lifetime_memory_lane_engine.py",
+          "tests/test_derived_evidence_spans.py",
+          "tests/test_conversation_attribution.py"
+        ],
+        "exit_code": 124,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "timed_out",
+        "native_allocation_root": "/tmp/memoir-check-pg-clvbv9sp",
+        "command_group": {
+          "group_id": 82922,
+          "leader_started": "Fri Oct 23 09:06:29 2026"
+        },
+        "cleanup": {
+          "owned_group_id": 82922,
+          "group_gone": true
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-clvbv9sp",
+              "device": 16777231,
+              "inode": 946987976
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": -15,
+        "duration_seconds": 120.06
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-feedback-focused.json",
+      "sha256": "16a04d1fd2b9afd09d5bbd019d4d6a3b714aae01903f39475d0521bc66cef62d",
+      "result": {
+        "name": "attribution-feedback-focused",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "tests/test_extraction_span_repair.py",
+          "tests/test_lifetime_memory_lane_engine.py",
+          "tests/test_derived_evidence_spans.py"
+        ],
+        "exit_code": 0,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-fc6xwqdx",
+        "command_group": {
+          "group_id": 90724,
+          "leader_started": "Fri Oct 23 09:08:50 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-fc6xwqdx",
+              "device": 16777231,
+              "inode": 947029936
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 6.69
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-feedback-live.json",
+      "sha256": "29ca23f143cee244a8475dac768ddd39a8aa8e12de3dd174eb87681afecbdd03",
+      "result": {
+        "name": "attribution-feedback-live",
+        "command": [
+          "python3",
+          "var/optimise-all-skills-20261022/02-author-timeline/attribution-feedback.py",
+          "heldout-attribution-feedback"
+        ],
+        "exit_code": 0,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-zeuivo8w",
+        "command_group": {
+          "group_id": 90932,
+          "leader_started": "Fri Oct 23 09:09:09 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-zeuivo8w",
+              "device": 16777231,
+              "inode": 947032286
+            },
+            {
+              "root": "/tmp/memoir-controlled-pg-author-live-f9pxtqy5",
+              "device": 16777231,
+              "inode": 947032464
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 36.24
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-sql-failure-diagnosis.json",
+      "sha256": "e08971410d91780b86212797a00b895e44ff41cf003b258bdc4911387ec87e0c",
+      "result": {
+        "name": "attribution-sql-failure-diagnosis",
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-q",
+          "-x",
+          "tests/test_conversation_attribution.py::test_unrelated_event_correction_preserves_non_story_and_withheld_classifications",
+          "tests/test_conversation_attribution.py::test_author_removed_links_and_corrected_time_remain_authoritative"
+        ],
+        "exit_code": 1,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-9g5jyv71",
+        "command_group": {
+          "group_id": 91639,
+          "leader_started": "Fri Oct 23 09:09:56 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-9g5jyv71",
+              "device": 16777231,
+              "inode": 947040471
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 1,
+        "duration_seconds": 6.2
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-sql-merged-baseline.json",
+      "sha256": "4424696c85651b529bdee0b07c0c045d9a66af0249ccfcdf9239aae6d51fc1e1",
+      "result": {
+        "name": "attribution-sql-merged-baseline",
+        "command": [
+          "python3",
+          "var/optimise-all-skills-20261022/02-author-timeline/attribution-sql-baseline.py"
+        ],
+        "exit_code": 1,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-patfjsj6",
+        "command_group": {
+          "group_id": 92065,
+          "leader_started": "Fri Oct 23 09:10:42 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-patfjsj6",
+              "device": 16777231,
+              "inode": 947047469
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 1,
+        "duration_seconds": 8.7
+      }
+    },
+    {
+      "receipt": "var/optimise-all-skills-20261022/checks/attribution-place-regression.json",
+      "sha256": "fdbb0fc16b9617c954fb0f1f9124eab698893a03479c5fdaa05ba7aed3c01e35",
+      "result": {
+        "name": "attribution-place-regression",
+        "command": [
+          "make",
+          "test-place-research"
+        ],
+        "exit_code": 0,
+        "base_head": "357b343e7eb8c53c02312e0f16b80c45b748a1d3",
+        "tree": "2caf3081fb2b848c62e0db3df7d18e2b765af71e",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-vn6j8vsu",
+        "command_group": {
+          "group_id": 92853,
+          "leader_started": "Fri Oct 23 09:12:28 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-vn6j8vsu",
+              "device": 16777231,
+              "inode": 947062525
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 106.68
+      }
+    }
+  ],
+  "acceptance": {
+    "specific_feedback": "pass",
+    "strict_rejection_of_ambiguous_or_fabricated_evidence": "pass",
+    "same_failing_source_completion": "fail",
+    "speedup": "not established; failed original and candidate runs are not valid-completion latencies",
+    "runtime": "native local SQL phase path, controlled A/profile and worker seam; not deployed acceptance"
+  },
+  "sql_baseline_failures": {
+    "tests": [
+      "test_unrelated_event_correction_preserves_non_story_and_withheld_classifications",
+      "test_author_removed_links_and_corrected_time_remain_authoritative"
+    ],
+    "result": "Both reproduce using merged-main retry mapping; attribution GET returns HTTP503 because accepted conversation policy requires maintenance after author correction.",
+    "production_fix_included": false
+  },
+  "limitations": [
+    "The combined 179-check run reached its 120-second limit after displaying two failures; the 136 focused checks passed separately.",
+    "The first test launch was sandbox denied and a first fixture version omitted its schema_version; all failures and cleanup receipts are retained.",
+    "No model-quality or eventual-completion claim from the fixed-code mapping alone."
+  ]
+}
