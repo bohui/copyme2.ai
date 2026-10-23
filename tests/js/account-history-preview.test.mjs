@@ -41,7 +41,7 @@ function load(context, name) {
   vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
 }
 
-test('merged history starts with one original Mira greeting and retains every real turn', async () => {
+test('merged history starts with one localized Mira greeting and retains every real turn', async () => {
   const [opening, chineseOpening] = openingMessages;
   const state = { supabase: { user: { id: 'owner', is_anonymous: false } }, project: { id: 'project' },
     chat: [{ role: 'assistant', text: opening }, { role: 'assistant', text: chineseOpening }] };
@@ -57,7 +57,7 @@ test('merged history starts with one original Mira greeting and retains every re
   load(context, 'hydrateAccountHistory');
   await context.hydrateAccountHistory();
   assert.deepEqual(JSON.parse(JSON.stringify(state.chat.map(({ role, text }) => ({ role, text })))), [
-    { role: 'assistant', text: opening }, { role: 'user', text: 'My first memory' },
+    { role: 'assistant', text: chineseOpening }, { role: 'user', text: 'My first memory' },
     { role: 'assistant', text: 'Tell me more.' },
   ]);
 });

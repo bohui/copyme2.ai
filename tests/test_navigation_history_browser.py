@@ -98,6 +98,46 @@ def start_conversation(page):
     return page.url
 
 
+def test_profile_language_change_localizes_the_opening_and_survives_reload(navigation_browser):
+    page, context, _, _, _, client = navigation_browser
+    context.clear_cookies()
+    private_profile = {}
+    project = client.post('/v1/projects', headers={'Authorization': 'Bearer fixture-guest'},
+        json={'mode': 'family', 'storyteller_name': 'Synthetic narrator'})
+    assert project.status_code == 201
+    interview_url = os.environ['MEMOIR_BROWSER_URL'] + '/memoir/interview/' + project.json()['id']
+
+    def profile_api(route):
+        if route.request.method == 'PATCH':
+            private_profile.update(route.request.post_data_json)
+        route.fulfill(json=private_profile)
+
+    context.route('**/api/v1/memoir/agent/profile', profile_api)
+    context.route('**/api/v1/memoir/user/profile', profile_api)
+    page.goto(interview_url, wait_until='networkidle')
+    opening = page.locator('.assistant-opening .message-text')
+    expect(opening).to_contain_text('Hi, I’m Mira.')
+    page.locator('[data-action="toggle-chat-history"]').click()
+    expect(opening).to_be_visible()
+    page.locator('[data-profile-trigger]').click()
+    page.locator('[data-profile-action="settings"]').click()
+    dialog = page.locator('[data-profile-settings]')
+    dialog.locator('[name=preferred_language]').select_option('zh-CN')
+    dialog.locator('[type=submit]').click()
+
+    expect(dialog).to_have_count(0)
+    expect(page.locator('html')).to_have_attribute('lang', 'zh-CN')
+    chinese_opening = json.loads((ROOT / 'apps/web/messages/zh-CN.json').read_text())['Memoir']['conversation']['opening']
+    expect(opening).to_have_text(chinese_opening, use_inner_text=True)
+    page.reload(wait_until='networkidle')
+    expect(page).to_have_url(interview_url)
+    expect(page.locator('html')).to_have_attribute('lang', 'zh-CN')
+    page.locator('[data-action="toggle-chat-history"]').click()
+    expect(opening).to_be_visible()
+    expect(opening).to_contain_text('你好，我是 Mira，很高兴认识你。')
+    expect(opening).not_to_contain_text('Hi, I’m Mira.')
+
+
 def show_history(page):
     expect(page.locator('#chat-input')).to_be_visible(timeout=30000)
     toggle = page.locator('[data-action="toggle-chat-history"]')
