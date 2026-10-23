@@ -6,7 +6,7 @@ from .interview_plan import (PhotoAssociation, TurnWorkPlan, authorized_photos,
                              constrain_acknowledgement, historical_acknowledgements)
 from .interview_questions import (QuestionResolution, hint_evidence, question_candidates,
                                  resolution_schema, validate_question_evidence)
-from .interview_strategy import SelectionReason, selection_candidates
+from .interview_strategy import SelectionReason, selection_candidates, prioritized_candidates
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
 REPLY_VERSION = 'reply-v2'
@@ -26,7 +26,7 @@ class ReplyProposal(BaseModel):
 
 
 def reply_candidates(context):
-    return selection_candidates(context) if context.get('strategy_selector') else question_candidates(context)
+    return selection_candidates(context) if context.get('strategy_selector') else prioritized_candidates(context, question_candidates(context))
 
 
 def reply_instructions():
@@ -80,7 +80,7 @@ def adapt_reply(raw, context):
             raise ValueError('Candidate use requires its recorded reason')
         if item.reason == 'prepared_candidate' and item.question.strip() != hint['question'].strip():
             raise ValueError('Prepared candidate text changed')
-        evidence = hint_evidence(hint, context)
+        evidence = None if hint.get('historical_clue_id') else hint_evidence(hint, context)
         if item.quote is not None and (not evidence or item.quote != evidence['quote']):
             raise ValueError('Question candidate cannot change its referenced passage')
     else:
@@ -98,6 +98,9 @@ def adapt_reply(raw, context):
     questions = [] if item.question is None else [dict(id=identity, question=item.question,
         context=dict(event_id=None, photo_id=None, life_stage=None, year=None, evidence=evidence),
         order=0, bridge='')]
+    if questions and hint and hint.get('historical_clue_id'):
+        questions[0]['context']['historical_clue_id'] = hint['historical_clue_id']
+        questions[0]['bridge'] = hint['bridge']
     legacy = dict(acknowledgement=item.acknowledgement,
         plan=dict(candidates=questions, chosen_id=identity if questions else None,
                   active_event_id=None, work=dict(mode=item.work.mode,
@@ -131,6 +134,7 @@ def reply_packet(packet):
         preferences=packet.pinned.model_dump(mode='json'),
         original_evidence=[ref.model_dump(mode='json') for ref in packet.retrieved],
         brief=dict(covered_through_sequence=packet.coverage_end,
+                   objective=(state.get('plan') or {}).get('objective'),
                    items=[item.model_dump() for item in summary.items] if summary else [],
                    last_delivered_question=deepcopy(state.get('prior_delivered_question')),
                    hints=[dict(index=index, **deepcopy(hint))

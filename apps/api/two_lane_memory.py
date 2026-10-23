@@ -10,7 +10,7 @@ import os
 from pydantic import BaseModel, ConfigDict, Field
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .lifetime_memory_continuity import _Places
-from .interview_questions import question_span, hint_evidence
+from .interview_questions import question_span, hint_evidence, question_candidates
 
 
 def two_lanes_enabled():
@@ -98,16 +98,15 @@ def derived_hints(raw, page):
     return {'place_journeys':places,'prepared_questions':questions}
 
 
-def pending_confirmation(context):
-    return next((q for q in context.get('prepared_questions', [])
-                 if q.get('requires_confirmation') is True), None)
+def pending_confirmation(context, *, exclude_ids=()):
+    return next((q for q in question_candidates(context)
+                 if q.get('requires_confirmation') is True and q['id'] not in exclude_ids), None)
 
 
 def prioritize_confirmation(value, context, *, selection_reason):
     """Prioritize B only after validating the original plan and current intent."""
     resolved = {item['question_id'] for item in value['plan'].get('resolved_questions', [])}
-    question = pending_confirmation({**context, 'prepared_questions': [
-        item for item in context.get('prepared_questions', []) if item['id'] not in resolved]})
+    question = pending_confirmation(context, exclude_ids=resolved)
     if not question or value['stopped'] or selection_reason in {'current_correction', 'user_redirect', 'pacing'}:
         return value
     evidence = hint_evidence(question, context)

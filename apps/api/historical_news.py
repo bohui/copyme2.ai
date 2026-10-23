@@ -220,6 +220,28 @@ def public_clue(clue):
     return {k:deepcopy(v) for k,v in clue.items() if k in keys}
 
 
+HISTORICAL_INVITATIONS = {
+    'en-AU': ('Does this bring any memory of that time to mind?',
+              'An optional public-history clue; it is fine to skip.'),
+    'zh-CN': ('这条公开历史线索会让您想起当时的什么吗？',
+              '这是一条可选的公开历史线索，不记得也没关系。'),
+}
+
+
+def question_hints(context):
+    """Expose inspected public clues as optional questions, never narrator evidence."""
+    question, bridge = HISTORICAL_INVITATIONS.get(context.get('interview_language'), HISTORICAL_INVITATIONS['en-AU'])
+    hints = []
+    for clue in (context.get('historical_news') or {}).get('clues', [])[:5]:
+        try:
+            authorized_clue(context, clue.get('id'))
+        except ValueError:
+            continue
+        hints.append(dict(id=clue['id'], question=question, bridge=bridge,
+            historical_clue_id=clue['id'], purpose='historical_news', public_context=public_clue(clue)))
+    return hints
+
+
 class HistoricalResearch:
     """Public-only process cache; private relevance is never cached/shared."""
     def __init__(self, provider, *, clock=None):

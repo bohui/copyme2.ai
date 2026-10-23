@@ -217,12 +217,9 @@ def validate_collector_result(value, context):
         questions.append((candidate.question.strip().casefold(), None if c.evidence is None else
             (c.evidence.source_id, c.evidence.version, c.evidence.char_start, c.evidence.char_end)))
         if c.historical_clue_id is not None:
-            from .historical_news import authorized_clue, public_clue
+            from .historical_news import authorized_clue, public_clue, HISTORICAL_INVITATIONS
             clue = authorized_clue(context, c.historical_clue_id)
-            safe_invitations = {
-                'Does this bring any memory of that time to mind?': 'An optional public-history clue; it is fine to skip.',
-                '这条公开历史线索会让您想起当时的什么吗？': '这是一条可选的公开历史线索，不记得也没关系。',
-            }
+            safe_invitations = dict(HISTORICAL_INVITATIONS.values())
             if context.get('interview_language') in {'en-AU','zh-CN'} and (
                 ('这条' in candidate.question) != (context['interview_language']=='zh-CN')):
                 raise ValueError('Historical invitation must keep the interview language')

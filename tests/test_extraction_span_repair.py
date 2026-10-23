@@ -91,3 +91,54 @@ def test_bounded_extraction_retries_unavailable_person_ids_before_database_commi
     assert first==second
     assert 'person_ids' not in result['events'][0]
     assert result['events'][0]['source_refs'][0]['quote']==current['source']['text']
+
+
+@pytest.mark.parametrize('quote', ['No personal experience.', '没有个人经历。'])
+@pytest.mark.parametrize('outcome', ['recover', 'ambiguous', 'fabricated'])
+def test_attribution_retry_keeps_source_and_requires_exact_repeated_quote_offsets(monkeypatch, quote, outcome):
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
+    current = page(index=4, text=quote + quote)
+    current['two_lane'] = dict(task_version='two-lane-v1', execution_generation=1,
+        phase_revision=1, work_mode='extract', reply_contract='reply-v2')
+    current['attribution_context'] = dict(schema_version=1, decision='extract', reason='new_testimony',
+        delivered_event=None, recent_dialogue=[])
+    calls = []
+
+    class Broker:
+        async def rpc(self, name, **payload):
+            assert name == 'read_lifetime_lane_policy_source'
+            source = copy.deepcopy(current['source'])
+            source['text'] = 'x' * source['char_start'] + source['text']
+            return source
+
+    def model(request):
+        bounded = json.loads(request.content)['bounded_lane']
+        calls.append(bounded)
+        packet = json.loads(bounded['packet'])['payload']
+        resolved = outcome == 'recover' and packet.get('retry_reason') == 'PAGE_AMBIGUOUS'
+        ref = dict(source_id='source', version=1,
+            quote='fabricated testimony' if outcome == 'fabricated' else quote,
+            char_start=0 if resolved else None, char_end=len(quote) if resolved else None)
+        raw = dict(events=[], place_journeys=[], prepared_questions=[], continuity_updates=[],
+            event_places=[], passage_dispositions=[dict(disposition='non_story',
+                reason='no_supported_event', source_ref=ref)])
+        return httpx.Response(200, json={'reply': json.dumps(raw)})
+
+    worker = SimpleNamespace(broker=Broker(), worker_url='https://synthetic.invalid', worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(model), lane_publisher=Publisher())
+    if outcome == 'recover':
+        result = asyncio.run(_extract(current, worker))
+        ref = result['passage_dispositions'][0]['source_ref']
+        assert (ref['quote'], ref['char_start'], ref['char_end']) == (
+            quote, current['source']['char_start'], current['source']['char_start'] + len(quote))
+        assert len(calls) == 2 and result['events'] == []
+    else:
+        with pytest.raises(ValueError, match='Attribution requires an exact unambiguous span'):
+            asyncio.run(_extract(current, worker))
+        assert len(calls) == 3
+    first = json.loads(calls[0]['packet'])
+    for call in calls[1:]:
+        assert call['fence'] == calls[0]['fence']
+        retry = json.loads(call['packet'])
+        assert retry['payload'].pop('retry_reason') == 'PAGE_AMBIGUOUS'
+        assert retry == first

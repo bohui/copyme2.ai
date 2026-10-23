@@ -1,0 +1,2008 @@
+{
+  "schema_version": 1,
+  "skill": "memoir-composer",
+  "state": "baseline and named proposal only; no composer optimization approved or implemented",
+  "base_head": "7bfc119734a44ad6d6a46d4a366288b40adcf3ba",
+  "scope": "Periodic canonical batch prepare/draft/review. Separate selected-outline leaf/merge inventoried but not profiled; non-batch and deployed/Temporal/browser acceptance unverified.",
+  "plan": {
+    "skill": "memoir-composer",
+    "base_head": "7bfc119734a44ad6d6a46d4a366288b40adcf3ba",
+    "scope": "Analysis/live baseline only. Native production route unchanged. Two bilingual sequences, each round5 initial and round10 own SQL prior.",
+    "budgets": {
+      "baseline_provider_calls": 28,
+      "maximum_per_language": 14,
+      "candidate_reserved": 28,
+      "heldout_reserved": 14,
+      "total_round_cap": 70,
+      "judges": 0,
+      "per_provider_seconds": 180,
+      "per_language_seconds": 1200,
+      "total_baseline_seconds": 2600,
+      "outer_seconds": 2700,
+      "output_tokens_per_call": 16384
+    },
+    "fixtures": [
+      "Synthetic canonical narrator originals and source-exact events installed through actual SQL RPCs.",
+      "Completed-round scheduling rows are controlled fixture, no foreground/private user model calls.",
+      "Current policy fixture helper completes seeded reviews.",
+      "All selected prepare/draft/review calls use unchanged run_bounded_lane native app-server; no evaluator instructions added."
+    ],
+    "milestones": [
+      "claim",
+      "each phase start/finish",
+      "HTTP request/response first raw byte and completion",
+      "semantic/evidence validation",
+      "phase persistence",
+      "page/root SQL save",
+      "fresh head/records readback"
+    ],
+    "unobserved": [
+      "Meaningful user-visible text",
+      "Browser paint",
+      "Temporal/deployed worker scheduling"
+    ],
+    "approval": "Investigation authorized by continuing Lane B request; application/config/prompt changes still require named proposal approval."
+  },
+  "scenarios": [
+    {
+      "id": "composer-en-AU",
+      "language": "en-AU",
+      "initial": [
+        "As a child in Hobart, I repaired bicycles with my father in our shed.",
+        "At school in Hobart, Ms Vale taught me to read maps. I do not remember the year.",
+        "Father kept the bicycle tools in a blue tin.",
+        "On Saturdays I helped Father repair bicycles.",
+        "Thank you."
+      ],
+      "later": [
+        "Father also taught me to patch a punctured tyre.",
+        "We used a rubber patch and glue.",
+        "Thank you.",
+        "I practised patching tyres beside Father.",
+        "That is what I remember."
+      ],
+      "event_titles": [
+        "Bicycle repairs with Father",
+        "Map reading at school"
+      ],
+      "initial_event_indices": [
+        [
+          0,
+          2,
+          3
+        ],
+        [
+          1
+        ]
+      ],
+      "later_event_indices": [
+        0,
+        1,
+        3
+      ],
+      "max_provider_calls": 14,
+      "quality": [
+        "Actual SQL claim, phase checkpoints, strict draft validation, exact-candidate review, final save and fresh private-draft readback at rounds 5 and 10.",
+        "Both initial supported events appear as source-grounded first-person prose in target language. Preserve blue tin, map teacher and unknown school year; acknowledgements add no facts.",
+        "No invented facts, scenes, emotions, motives, chronology, relatives, gender, ownership or permissions. Actual source-supported scene detail may be paraphrased.",
+        "Round 10 loads its own persisted prior manuscript, adds tyre-patching/rubber/glue testimony to the bicycle event and preserves independent map-reading passage bytes and stable identities.",
+        "Every factual title/block uses canonical source evidence. No assistant, summary-only acknowledgement or prior generated prose becomes testimony. Publication stays false."
+      ]
+    },
+    {
+      "id": "composer-zh-CN",
+      "language": "zh-CN",
+      "initial": [
+        "小时候在成都，我和父亲在院子里修自行车。",
+        "在成都上学时，王老师教我看地图。我记不清是哪一年。",
+        "父亲把修自行车的工具放在蓝色铁盒里。",
+        "每个星期六我帮父亲修自行车。",
+        "谢谢。"
+      ],
+      "later": [
+        "父亲还教我给扎破的轮胎补胎。",
+        "我们用橡胶补片和胶水。",
+        "谢谢。",
+        "我在父亲身边练习补胎。",
+        "这就是我记得的事情。"
+      ],
+      "event_titles": [
+        "和父亲修自行车",
+        "在学校看地图"
+      ],
+      "initial_event_indices": [
+        [
+          0,
+          2,
+          3
+        ],
+        [
+          1
+        ]
+      ],
+      "later_event_indices": [
+        0,
+        1,
+        3
+      ],
+      "max_provider_calls": 14,
+      "quality": [
+        "Actual SQL claim, phase checkpoints, strict draft validation, exact-candidate review, final save and fresh private-draft readback at rounds 5 and 10.",
+        "Both initial supported events appear as source-grounded first-person prose in target language. Preserve blue tin, map teacher and unknown school year; acknowledgements add no facts.",
+        "No invented facts, scenes, emotions, motives, chronology, relatives, gender, ownership or permissions. Actual source-supported scene detail may be paraphrased.",
+        "Round 10 loads its own persisted prior manuscript, adds tyre-patching/rubber/glue testimony to the bicycle event and preserves independent map-reading passage bytes and stable identities.",
+        "Every factual title/block uses canonical source evidence. No assistant, summary-only acknowledgement or prior generated prose becomes testimony. Publication stays false."
+      ]
+    }
+  ],
+  "selected_baseline": [
+    {
+      "file": "baseline-r2-live.json",
+      "case": "composer-en-AU"
+    },
+    {
+      "file": "baseline-zh-r3-live.json",
+      "case": "composer-zh-CN"
+    }
+  ],
+  "heldout_plan_v1": {
+    "id": "composer-protected-attribution-heldout",
+    "scope": "Reserved for accepted candidate: real SQL human-protected passage plus attributed unverified family testimony and a neutral acknowledgement, bilingual.",
+    "max_provider_calls": 14,
+    "quality": [
+      "No overwrite of protected bytes; exact-base proposal only.",
+      "Do not convert another person's reported birth into narrator recollection; preserve uncertainty, canonical evidence, private publication status."
+    ]
+  },
+  "heldout_plan": {
+    "state": "Exact heldout cases frozen before composer implementation/proposal; original generic reservation retained as v1.",
+    "cases_file": "heldout-cases.json",
+    "sha256": "31bc7b1b75556057150dd0fff11d5d3df398ab5bab61725af010eb9f3312923a",
+    "total_max_provider_calls": 14
+  },
+  "heldout_cases": [
+    {
+      "id": "heldout-composer-en-AU",
+      "language": "en-AU",
+      "initial": [
+        "As a child in Nelson, I played chess with my brother.",
+        "My aunt says she rowed across the harbour in 1964. I have not checked the year.",
+        "My brother kept the chess pieces in a red bag.",
+        "We played chess on Sundays.",
+        "Thank you."
+      ],
+      "later": [
+        "My brother also taught me to write down chess moves.",
+        "We used an old notebook.",
+        "Thank you.",
+        "I practised writing the moves beside my brother.",
+        "That is what I remember."
+      ],
+      "max_provider_calls": 7,
+      "setup": "Use actual canonical SQL sources/events and real phase generation. After first saved checkpoint, mark the chess passage human-approved through the same fixture seam as current SQL protection tests, then process the real later checkpoint. Do not inject baseline prose.",
+      "quality": [
+        "Aunt's 1964 harbour story stays attributed and unverified, with no inferred harbour location or narrator direct recollection.",
+        "No invented concrete settings, dates, emotions, companions or chronology; supported metaphor is allowed.",
+        "Protected chess passage bytes/identity remain intact; enrich only in an exact-base proposal, with new original notebook/move evidence and no forged approval.",
+        "Private publication remains false; full SQL authority and exact-source evidence are required before dispatch and commit."
+      ]
+    },
+    {
+      "id": "heldout-composer-zh-CN",
+      "language": "zh-CN",
+      "initial": [
+        "小时候在武汉，我和哥哥下棋。",
+        "姑姑说她1964年划船横过港湾。我没有核实过这个年份。",
+        "哥哥把棋子装在一个红色袋子里。",
+        "我们星期天下棋。",
+        "谢谢。"
+      ],
+      "later": [
+        "哥哥还教我把走过的棋步记下来。",
+        "我们用一本旧笔记本。",
+        "谢谢。",
+        "我在哥哥身边练习记录棋步。",
+        "这就是我记得的事情。"
+      ],
+      "max_provider_calls": 7,
+      "setup": "Use actual canonical SQL sources/events and real phase generation. After first saved checkpoint, mark the chess passage human-approved through the same fixture seam as current SQL protection tests, then process the real later checkpoint. Do not inject baseline prose.",
+      "quality": [
+        "Aunt's 1964 harbour story stays attributed and unverified, with no inferred harbour location or narrator direct recollection.",
+        "No invented concrete settings, dates, emotions, companions or chronology; supported metaphor is allowed.",
+        "Protected chess passage bytes/identity remain intact; enrich only in an exact-base proposal, with new original notebook/move evidence and no forged approval.",
+        "Private publication remains false; full SQL authority and exact-source evidence are required before dispatch and commit."
+      ]
+    }
+  ],
+  "prompt_inventory": [
+    {
+      "name": "memoir/shared/bounded-context/en-AU",
+      "path": "apps/api/prompts/shared/bounded-context/en-AU.md",
+      "pin": {
+        "name": "memoir/shared/bounded-context/en-AU",
+        "schema_version": 1,
+        "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+        "type": "text",
+        "version": 2
+      },
+      "source_chars": 93,
+      "rendered_chars": 954,
+      "rendered_sha256": "c3049a8c8c9ee47496c2ceff218934a53a8539422bbbd2c8eb7c8e7779712bbf",
+      "condition": "Phase shared bounded-context suffix or attribution conflict context"
+    },
+    {
+      "name": "memoir/shared/bounded-context/policy",
+      "path": "apps/api/prompts/shared/bounded-context/policy.md",
+      "pin": {
+        "name": "memoir/shared/bounded-context/policy",
+        "schema_version": 1,
+        "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+        "type": "text",
+        "version": 1
+      },
+      "source_chars": 884,
+      "rendered_chars": 884,
+      "rendered_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+      "condition": "Phase shared bounded-context suffix or attribution conflict context"
+    },
+    {
+      "name": "memoir/shared/bounded-context/zh-CN",
+      "path": "apps/api/prompts/shared/bounded-context/zh-CN.md",
+      "pin": {
+        "name": "memoir/shared/bounded-context/zh-CN",
+        "schema_version": 1,
+        "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+        "type": "text",
+        "version": 2
+      },
+      "source_chars": 93,
+      "rendered_chars": 954,
+      "rendered_sha256": "274c42884c8cd153e46c03a5c31776c3e74721e3ddfff733b9cf86d2be13926c",
+      "condition": "Phase shared bounded-context suffix or attribution conflict context"
+    },
+    {
+      "name": "memoir/shared/place-conflicts",
+      "path": "apps/api/prompts/shared/place-conflicts.md",
+      "pin": {
+        "name": "memoir/shared/place-conflicts",
+        "schema_version": 1,
+        "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+        "type": "text",
+        "version": 1
+      },
+      "source_chars": 239,
+      "rendered_chars": 239,
+      "rendered_sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+      "condition": "Phase shared bounded-context suffix or attribution conflict context"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/batch/compose",
+      "path": "skills/memoir-composer/prompts/batch/compose.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/batch/compose",
+        "schema_version": 1,
+        "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+        "type": "text",
+        "version": 1
+      },
+      "source_chars": 578,
+      "rendered_chars": 578,
+      "rendered_sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+      "condition": "Periodic/compatibility canonical composer phases"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/batch/prepare",
+      "path": "skills/memoir-composer/prompts/batch/prepare.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/batch/prepare",
+        "schema_version": 1,
+        "sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
+        "type": "text",
+        "version": 1
+      },
+      "source_chars": 297,
+      "rendered_chars": 297,
+      "rendered_sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
+      "condition": "Periodic/compatibility canonical composer phases"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/draft",
+      "path": "skills/memoir-composer/prompts/draft.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/draft",
+        "schema_version": 1,
+        "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+        "type": "text",
+        "version": 2
+      },
+      "source_chars": 5406,
+      "rendered_chars": 9005,
+      "rendered_sha256": "6a026a010a48fb505cda7ce8edf16ef541c16412629b42a0c0f3fd5bfef9faa2",
+      "condition": "Periodic/compatibility canonical composer phases"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/leaf/en-AU",
+      "path": "skills/memoir-composer/prompts/outline/leaf/en-AU.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/outline/leaf/en-AU",
+        "schema_version": 1,
+        "sha256": "a32e8ad5e53803c2b5c0ea3e0b77ed1793a3a393c86b3dc148dc1f4ad9a573f2",
+        "type": "text",
+        "version": 2
+      },
+      "source_chars": 99,
+      "rendered_chars": 1110,
+      "rendered_sha256": "c5d24abd44364d5279afd4dae31730caac7d04563f4bb3bf7af4ee4b4787abaa",
+      "condition": "Separate user-selected BuildOutline collection job; not part of periodic prepare/draft/review cohort"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/leaf/zh-CN",
+      "path": "skills/memoir-composer/prompts/outline/leaf/zh-CN.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/outline/leaf/zh-CN",
+        "schema_version": 1,
+        "sha256": "a3108ba8705f81ceccaeb85da14393b4ff18dba7d224f87b01bb9b0776340b2b",
+        "type": "text",
+        "version": 2
+      },
+      "source_chars": 99,
+      "rendered_chars": 1110,
+      "rendered_sha256": "db597e31c8b105f0b03d8b1e82fbb081a0ae181f9078d6c6b557b81ea766e31d",
+      "condition": "Separate user-selected BuildOutline collection job; not part of periodic prepare/draft/review cohort"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/merge/en-AU",
+      "path": "skills/memoir-composer/prompts/outline/merge/en-AU.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/outline/merge/en-AU",
+        "schema_version": 1,
+        "sha256": "b1af3ebef85419e8344db5ad56b9524645e7b094e3f0386b0f12155b4e593aa5",
+        "type": "text",
+        "version": 2
+      },
+      "source_chars": 100,
+      "rendered_chars": 1111,
+      "rendered_sha256": "28f7054e492470f6c1e86cf6bee57f86b1e3c94dde8e2cd97d722d2770a1594f",
+      "condition": "Separate user-selected BuildOutline collection job; not part of periodic prepare/draft/review cohort"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/merge/zh-CN",
+      "path": "skills/memoir-composer/prompts/outline/merge/zh-CN.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/outline/merge/zh-CN",
+        "schema_version": 1,
+        "sha256": "80fdf1243c337012039ce5b94a3b37cb0d9cfffd9a45785ffbb788b25b3beb07",
+        "type": "text",
+        "version": 2
+      },
+      "source_chars": 100,
+      "rendered_chars": 1111,
+      "rendered_sha256": "8eabe5483888e9c70519f0b6786adc2983ad1897658916193a4ad90fe4ae55d6",
+      "condition": "Separate user-selected BuildOutline collection job; not part of periodic prepare/draft/review cohort"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/shared/prefix",
+      "path": "skills/memoir-composer/prompts/outline/shared/prefix.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/outline/shared/prefix",
+        "schema_version": 1,
+        "sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+        "type": "text",
+        "version": 1
+      },
+      "source_chars": 735,
+      "rendered_chars": 735,
+      "rendered_sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+      "condition": "Separate user-selected BuildOutline collection job; not part of periodic prepare/draft/review cohort"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/shared/suffix",
+      "path": "skills/memoir-composer/prompts/outline/shared/suffix.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/outline/shared/suffix",
+        "schema_version": 1,
+        "sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+        "type": "text",
+        "version": 1
+      },
+      "source_chars": 330,
+      "rendered_chars": 330,
+      "rendered_sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+      "condition": "Separate user-selected BuildOutline collection job; not part of periodic prepare/draft/review cohort"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/prepare",
+      "path": "skills/memoir-composer/prompts/prepare.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/prepare",
+        "schema_version": 1,
+        "sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+        "type": "text",
+        "version": 1
+      },
+      "source_chars": 720,
+      "rendered_chars": 720,
+      "rendered_sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+      "condition": "Periodic/compatibility canonical composer phases"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/review",
+      "path": "skills/memoir-composer/prompts/review.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/review",
+        "schema_version": 1,
+        "sha256": "0ea3aef24d8cc4a23481e52c78010a3d2855a94ddad1eea524ff1ef5c0a9d85c",
+        "type": "text",
+        "version": 3
+      },
+      "source_chars": 1611,
+      "rendered_chars": 8881,
+      "rendered_sha256": "d334813ff38ac0ac288ba00ffbde9f86097de8b9c56879e756a6c52086273208",
+      "condition": "Periodic/compatibility canonical composer phases"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/shared/editorial-review",
+      "path": "skills/memoir-composer/references/editorial-review.prompt.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/shared/editorial-review",
+        "schema_version": 1,
+        "sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+        "type": "text",
+        "version": 1
+      },
+      "source_chars": 3698,
+      "rendered_chars": 3698,
+      "rendered_sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+      "condition": "Periodic/compatibility canonical composer phases"
+    },
+    {
+      "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+      "path": "skills/memoir-composer/references/narrative-enrichment.md",
+      "pin": {
+        "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+        "schema_version": 1,
+        "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+        "type": "text",
+        "version": 1
+      },
+      "source_chars": 3630,
+      "rendered_chars": 3630,
+      "rendered_sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+      "condition": "Periodic/compatibility canonical composer phases"
+    }
+  ],
+  "compiled_inventory_without_fence": [
+    {
+      "locale": "en-AU",
+      "batch": false,
+      "phase": "prepare",
+      "compiled_instruction_chars": 1674,
+      "instruction_sha256": "5de096d91055976019dc34721909382f5d791d3e07901fb1740245a9140795be",
+      "unbound_schema_chars": 917,
+      "schema_sha256": "4674e62a8a3206595b300bbfb9a5f72442895e2554d9876e760bb1eb05fe64f1"
+    },
+    {
+      "locale": "en-AU",
+      "batch": false,
+      "phase": "draft",
+      "compiled_instruction_chars": 9959,
+      "instruction_sha256": "1467197b3af6e66ddf914f84d6ede0b89550f52c2dd396abfcd0ece9bc274624",
+      "unbound_schema_chars": 6970,
+      "schema_sha256": "e0f356628e21ccd5d52f471070dab5f6f6a1b1dc81900bac8c8120a7535bb81b"
+    },
+    {
+      "locale": "en-AU",
+      "batch": false,
+      "phase": "review",
+      "compiled_instruction_chars": 9835,
+      "instruction_sha256": "02a8fc6b0a03e8c615d5dd08394a1ec42433d29a7c8ca91350500d991d256b35",
+      "unbound_schema_chars": 428,
+      "schema_sha256": "a8459715df326ec4ca361f4f63af0684328f59e192c9f646232b687f10da00ba"
+    },
+    {
+      "locale": "en-AU",
+      "batch": true,
+      "phase": "prepare",
+      "compiled_instruction_chars": 1971,
+      "instruction_sha256": "6eac579211675673da105bd77df357b7658c3e57e7cc623c25442792130e590b",
+      "unbound_schema_chars": 917,
+      "schema_sha256": "4674e62a8a3206595b300bbfb9a5f72442895e2554d9876e760bb1eb05fe64f1"
+    },
+    {
+      "locale": "en-AU",
+      "batch": true,
+      "phase": "draft",
+      "compiled_instruction_chars": 10537,
+      "instruction_sha256": "ea15c7734ad2af5c270ba15059e9aa369bbefcb26356ccd17cd82299c4defc60",
+      "unbound_schema_chars": 6970,
+      "schema_sha256": "e0f356628e21ccd5d52f471070dab5f6f6a1b1dc81900bac8c8120a7535bb81b"
+    },
+    {
+      "locale": "en-AU",
+      "batch": true,
+      "phase": "review",
+      "compiled_instruction_chars": 10413,
+      "instruction_sha256": "2ea1f926b78e321960456a553878a81fc446454dd55295b49341d961cae0db2a",
+      "unbound_schema_chars": 428,
+      "schema_sha256": "a8459715df326ec4ca361f4f63af0684328f59e192c9f646232b687f10da00ba"
+    },
+    {
+      "locale": "zh-CN",
+      "batch": false,
+      "phase": "prepare",
+      "compiled_instruction_chars": 1674,
+      "instruction_sha256": "38e72babf5e0960d9f0fce1df39a6985adf7f1dbb954f49fcb81261a2c7d7378",
+      "unbound_schema_chars": 917,
+      "schema_sha256": "4674e62a8a3206595b300bbfb9a5f72442895e2554d9876e760bb1eb05fe64f1"
+    },
+    {
+      "locale": "zh-CN",
+      "batch": false,
+      "phase": "draft",
+      "compiled_instruction_chars": 9959,
+      "instruction_sha256": "f844d2f77763eff6b10ef7664c49a3e25cf029c4a8107d7b7fb53d49750b788e",
+      "unbound_schema_chars": 6970,
+      "schema_sha256": "e0f356628e21ccd5d52f471070dab5f6f6a1b1dc81900bac8c8120a7535bb81b"
+    },
+    {
+      "locale": "zh-CN",
+      "batch": false,
+      "phase": "review",
+      "compiled_instruction_chars": 9835,
+      "instruction_sha256": "d9259a73c992974db47cd9e2af7472ef1ef6725858e8df4aa8666016ff6f4288",
+      "unbound_schema_chars": 428,
+      "schema_sha256": "a8459715df326ec4ca361f4f63af0684328f59e192c9f646232b687f10da00ba"
+    },
+    {
+      "locale": "zh-CN",
+      "batch": true,
+      "phase": "prepare",
+      "compiled_instruction_chars": 1971,
+      "instruction_sha256": "8c3e8a5d6a581f57a6c7c2c3b9da5f2ee8a853be5e0aba0967d3768ec44470bc",
+      "unbound_schema_chars": 917,
+      "schema_sha256": "4674e62a8a3206595b300bbfb9a5f72442895e2554d9876e760bb1eb05fe64f1"
+    },
+    {
+      "locale": "zh-CN",
+      "batch": true,
+      "phase": "draft",
+      "compiled_instruction_chars": 10537,
+      "instruction_sha256": "658e4898d94a54fa91f11689d0997d05b9e959fe260d535869069905a92dd90b",
+      "unbound_schema_chars": 6970,
+      "schema_sha256": "e0f356628e21ccd5d52f471070dab5f6f6a1b1dc81900bac8c8120a7535bb81b"
+    },
+    {
+      "locale": "zh-CN",
+      "batch": true,
+      "phase": "review",
+      "compiled_instruction_chars": 10413,
+      "instruction_sha256": "b862ed4e2fe1b8b833b5f85038cd660095f115afb63d8b6c4c6dc360bc3047a4",
+      "unbound_schema_chars": 428,
+      "schema_sha256": "a8459715df326ec4ca361f4f63af0684328f59e192c9f646232b687f10da00ba"
+    }
+  ],
+  "phase_metrics": [
+    {
+      "case": "composer-en-AU",
+      "round": 5,
+      "phase": "prepare",
+      "provider_s": 12.822639046993572,
+      "phase_s": 16.55375741701573,
+      "input_tokens": 7439,
+      "cached_tokens": 3712,
+      "output_tokens": 531,
+      "tool_tokens": 4684,
+      "instruction_chars": 2210,
+      "schema_chars": 917
+    },
+    {
+      "case": "composer-en-AU",
+      "round": 5,
+      "phase": "draft",
+      "provider_s": 43.00725218601292,
+      "phase_s": 43.72609883407131,
+      "input_tokens": 12985,
+      "cached_tokens": 3712,
+      "output_tokens": 2207,
+      "tool_tokens": 4684,
+      "instruction_chars": 10776,
+      "schema_chars": 8242
+    },
+    {
+      "case": "composer-en-AU",
+      "round": 5,
+      "phase": "review",
+      "provider_s": 5.365620336000575,
+      "phase_s": 6.104274375014938,
+      "input_tokens": 13593,
+      "cached_tokens": 3712,
+      "output_tokens": 181,
+      "tool_tokens": 4684,
+      "instruction_chars": 10652,
+      "schema_chars": 428
+    },
+    {
+      "case": "composer-en-AU",
+      "round": 10,
+      "phase": "prepare",
+      "provider_s": 9.721355628993479,
+      "phase_s": 10.623488000012003,
+      "input_tokens": 7446,
+      "cached_tokens": 3712,
+      "output_tokens": 442,
+      "tool_tokens": 4684,
+      "instruction_chars": 2210,
+      "schema_chars": 917
+    },
+    {
+      "case": "composer-en-AU",
+      "round": 10,
+      "phase": "draft",
+      "provider_s": 54.3385325249983,
+      "phase_s": 55.191195834078826,
+      "input_tokens": 15938,
+      "cached_tokens": 3712,
+      "output_tokens": 2887,
+      "tool_tokens": 4684,
+      "instruction_chars": 10776,
+      "schema_chars": 9436
+    },
+    {
+      "case": "composer-en-AU",
+      "round": 10,
+      "phase": "review",
+      "provider_s": 6.096987753000576,
+      "phase_s": 7.0684345830231905,
+      "input_tokens": 16945,
+      "cached_tokens": 3712,
+      "output_tokens": 180,
+      "tool_tokens": 4684,
+      "instruction_chars": 10652,
+      "schema_chars": 428
+    },
+    {
+      "case": "composer-zh-CN",
+      "round": 5,
+      "phase": "prepare",
+      "provider_s": 12.34158817199932,
+      "phase_s": 13.42739254096523,
+      "input_tokens": 7479,
+      "cached_tokens": 3712,
+      "output_tokens": 523,
+      "tool_tokens": 4684,
+      "instruction_chars": 2210,
+      "schema_chars": 917
+    },
+    {
+      "case": "composer-zh-CN",
+      "round": 5,
+      "phase": "draft",
+      "provider_s": 42.95938556100009,
+      "phase_s": 43.732469541952014,
+      "input_tokens": 13128,
+      "cached_tokens": 3712,
+      "output_tokens": 2264,
+      "tool_tokens": 4684,
+      "instruction_chars": 10776,
+      "schema_chars": 8242
+    },
+    {
+      "case": "composer-zh-CN",
+      "round": 5,
+      "phase": "review",
+      "provider_s": 6.093248919991311,
+      "phase_s": 6.74531308398582,
+      "input_tokens": 13808,
+      "cached_tokens": 3712,
+      "output_tokens": 235,
+      "tool_tokens": 4684,
+      "instruction_chars": 10652,
+      "schema_chars": 428
+    },
+    {
+      "case": "composer-zh-CN",
+      "round": 10,
+      "phase": "prepare",
+      "provider_s": 11.449695880000945,
+      "phase_s": 12.187574915937148,
+      "input_tokens": 7452,
+      "cached_tokens": 3712,
+      "output_tokens": 447,
+      "tool_tokens": 4684,
+      "instruction_chars": 2210,
+      "schema_chars": 917
+    },
+    {
+      "case": "composer-zh-CN",
+      "round": 10,
+      "phase": "draft",
+      "provider_s": 53.772729274001904,
+      "phase_s": 55.825921625015326,
+      "input_tokens": 16015,
+      "cached_tokens": 3712,
+      "output_tokens": 2865,
+      "tool_tokens": 4684,
+      "instruction_chars": 10776,
+      "schema_chars": 9436
+    },
+    {
+      "case": "composer-zh-CN",
+      "round": 10,
+      "phase": "review",
+      "provider_s": 6.025456460993155,
+      "phase_s": 8.39837183302734,
+      "input_tokens": 16975,
+      "cached_tokens": 3712,
+      "output_tokens": 210,
+      "tool_tokens": 4684,
+      "instruction_chars": 10652,
+      "schema_chars": 428
+    }
+  ],
+  "quality_review": {
+    "method": "Assistant semantic review and actual SQL readback byte comparison; no independent human/LLM judge",
+    "cases": [
+      {
+        "id": "composer-en-AU",
+        "status": "completed",
+        "case_seconds": 145.27291012497153,
+        "checkpoints": [
+          {
+            "round": 5,
+            "claim_to_root_seconds": 68.29041679098736,
+            "phases": [
+              {
+                "phase": "prepare",
+                "wall_seconds": 16.55375741701573
+              },
+              {
+                "phase": "draft",
+                "wall_seconds": 43.72609883407131
+              },
+              {
+                "phase": "review",
+                "wall_seconds": 6.104274375014938
+              }
+            ]
+          },
+          {
+            "round": 10,
+            "claim_to_root_seconds": 75.65476254199166,
+            "phases": [
+              {
+                "phase": "prepare",
+                "wall_seconds": 10.623488000012003
+              },
+              {
+                "phase": "draft",
+                "wall_seconds": 55.191195834078826
+              },
+              {
+                "phase": "review",
+                "wall_seconds": 7.0684345830231905
+              }
+            ]
+          }
+        ],
+        "saved_rounds": [
+          5,
+          10
+        ],
+        "publication_approved": [
+          false,
+          false
+        ],
+        "school_passage_byte_preserved": true,
+        "school_passages": [
+          {
+            "partition_key": "progressive:10c5ddfb-0aae-4b2e-98de-567ca59a704c:chapter-childhood-hobart__chapter-childhood-hobart-paragraph-2",
+            "content": "At school in Hobart, Ms Vale taught me to read maps. I do not remember the year. The shed and the classroom belong to the same remembered landscape, though I am not placing them in a precise order here: one held bicycle tools in a blue tin, and the other opened maps for me.",
+            "event_ids": null,
+            "source_id": "80788ff5-40f1-4483-95b3-d2b47aa334bd"
+          },
+          {
+            "partition_key": "progressive:10c5ddfb-0aae-4b2e-98de-567ca59a704c:chapter-childhood-hobart__chapter-childhood-hobart-paragraph-2",
+            "content": "At school in Hobart, Ms Vale taught me to read maps. I do not remember the year. The shed and the classroom belong to the same remembered landscape, though I am not placing them in a precise order here: one held bicycle tools in a blue tin, and the other opened maps for me.",
+            "event_ids": null,
+            "source_id": "80788ff5-40f1-4483-95b3-d2b47aa334bd"
+          }
+        ],
+        "explicit_classroom_in_sources": false,
+        "classroom_in_saved_prose": true,
+        "assistant_semantic_review": "FAIL: classroom concretely adds a setting absent from testimony; school wording retained, but its evidence also touches bicycle sources, so strictly independent-event preservation is not fully exercised."
+      },
+      {
+        "id": "composer-zh-CN",
+        "status": "completed",
+        "case_seconds": 145.9157483340241,
+        "checkpoints": [
+          {
+            "round": 5,
+            "claim_to_root_seconds": 65.74682220898103,
+            "phases": [
+              {
+                "phase": "prepare",
+                "wall_seconds": 13.42739254096523
+              },
+              {
+                "phase": "draft",
+                "wall_seconds": 43.732469541952014
+              },
+              {
+                "phase": "review",
+                "wall_seconds": 6.74531308398582
+              }
+            ]
+          },
+          {
+            "round": 10,
+            "claim_to_root_seconds": 78.93915274995379,
+            "phases": [
+              {
+                "phase": "prepare",
+                "wall_seconds": 12.187574915937148
+              },
+              {
+                "phase": "draft",
+                "wall_seconds": 55.825921625015326
+              },
+              {
+                "phase": "review",
+                "wall_seconds": 8.39837183302734
+              }
+            ]
+          }
+        ],
+        "saved_rounds": [
+          5,
+          10
+        ],
+        "publication_approved": [
+          false,
+          false
+        ],
+        "school_passage_byte_preserved": false,
+        "school_passages": [
+          {
+            "partition_key": "progressive:0d11b51a-4b9f-46d5-9215-12397801e7d4:chapter-childhood-bicycle-map__block-map-school",
+            "content": "在成都上学时，王老师教我看地图。自行车和地图属于不同的场景，却都留在这段童年的记忆里：一边是在院子里和父亲一起动手，另一边是在学校里跟着老师辨认地图。我记不清王老师教我看地图是哪一年。",
+            "event_ids": null,
+            "source_id": "74b1a9e4-3c0e-4daf-8a94-0019c6ed9d00"
+          },
+          {
+            "partition_key": "progressive:aae9b0e5-50c2-416b-a029-7be5729db633:chapter-childhood-bicycle-map__block-map-school",
+            "content": "在成都上学时，王老师教我看地图。自行车和地图属于不同的场景，却都留在这段童年的记忆里：一边是在院子里和父亲一起动手，另一边是在学校里跟着老师看地图。我记不清王老师教我看地图是哪一年。",
+            "event_ids": null,
+            "source_id": "74b1a9e4-3c0e-4daf-8a94-0019c6ed9d00"
+          }
+        ],
+        "explicit_classroom_in_sources": false,
+        "classroom_in_saved_prose": false,
+        "assistant_semantic_review": "FAIL against frozen exact-preservation gate: school wording changed 辨认地图 → 看地图 and its stored partition key changed. Main facts, teacher and unknown year remain; this is not demonstrated fabrication. Mixed bicycle/school refs leave strict independent-event coverage incomplete."
+      }
+    ],
+    "overall": "Full frozen baseline quality is not passing"
+  },
+  "reviewed_dependency_hashes": {
+    "tests/browser_auth_reminder.py": "0e4260a20d20fef770bbad98d7bfc6eb17ff595caac759b37dcb232fa1b96306",
+    "tests/browser_collection_pagination.py": "2fae5a17c00c755133b6fd36383b842d516423da3dffe4c4f22a0c7efada0249",
+    "tests/browser_collection_review.py": "6606ab3c3e61b73dd8b36a2f6af321431dccadd0670d68de135f7e2ae06c3b36",
+    "tests/browser_e2e.py": "582b80c04b52dcac692a54a549c7a284d7c5eae536e480d6c169e6036979b980",
+    "tests/browser_family_e2e.py": "06ed2d95553708d4802a7e2ce7569e0e039873f2fdab272c0f17d4d327c933eb",
+    "tests/browser_family_gate_e2e.py": "81d4e9072079eb69b39b57d04f97facf218ccdf9e44b7021af37315559eec872",
+    "tests/browser_family_renderers_e2e.py": "0363ea1cfe96cec4322b8b90f3309bd7c8befa2c9465abcb24b2a39976d912d9",
+    "tests/browser_fast_conversation_e2e.py": "cb9fb233c78855696f163e37416c355cff390974574ef2f3058c89b75ae78afa",
+    "tests/browser_first_reply_localization.py": "fd480bd49944ea73b160de770ee9948c86bc0fc50cd31dd4e2120217ad359616",
+    "tests/browser_lifetime_reads.py": "e13279fd7037dfe4e48f23f60bae066365da574bc29bbd383e8ff8a25763b8a8",
+    "tests/browser_localization_e2e.py": "3024aaa5d2a5696eafdaa6d0d194e591c0852300e23e5fd662439f4fa2f86082",
+    "tests/browser_memoir_progressive_e2e.py": "72cfeb1a6ae4cbf4ec7c2f7156d90c57708bf7fa46680ef44400f1ac27fb3ef4",
+    "tests/browser_optional_fonts.py": "024eb95e6fdf6c758d8f7fd461eed834ca5e5337de8a5d169fc929597640e423",
+    "tests/browser_photo_progress_e2e.py": "e3acf432b33fc098b8c8fdee1dc58dabdb1c12f99d4a7c1bed4e55a5ab7156e5",
+    "tests/browser_place_groups_e2e.py": "5f58411f63388b98c7737ce4ec3f3c5f97f8dad340badb6c0ade78e465c1bba8",
+    "tests/browser_place_map_e2e.py": "4649d9665e08a627cbd8c772f1c7cc73f6b6cb18cc7ad09dc5a2d89bc3027fc0",
+    "tests/browser_place_photo_pagination.py": "cf3a0e0238437a5612e5bdaf486878925e42fb7acd4f9a236f7af5757dd9b88e",
+    "tests/browser_place_photos_e2e.py": "1f5757278f2d83f9bcfc46a895dea2508caf8dd324996944c396ba68e26c1081",
+    "tests/browser_place_preview_e2e.py": "d5ffc947ead26e55d2411e4b296244302be91732346b582e740bfed776d9a341",
+    "tests/browser_profile_history.py": "c832257724394e43dc039329107074e11b0b37d2bfa191855d89539de68e4ccf",
+    "tests/browser_profile_settings.py": "7893dcc6a0ceec9dbe2ac92b5b7cd7a867feabc9c4dda52a19ed7b3a354fca52",
+    "tests/browser_recovery_fixture.py": "ec1f9262675aeb08a98d80efcf893545e432e189d312d95a381a49f7879e5d79",
+    "tests/browser_skill_eval_application.py": "225a8705e11c6ad98f720a37d3a24bddea28bbfa3dd66b1dee2ac14b05abec7f",
+    "tests/browser_smoke.py": "3f2f3062ab22770a8b47cd0fae23e810e966d3ae8d0a452960dc3fe048e25fe5",
+    "tests/browser_start_flow.py": "beeaf1277580b1ee6bd0f1448243c5e95bbb43d60e0f5e8ebf2cb59902a2349d",
+    "tests/browser_story_history_fixture.py": "1984d7271b134338944ffe60f22ba4f2f68f154560c8189fdc450e4c39cff82f",
+    "tests/browser_streaming_e2e.py": "8dfb642674459d0c9146f4b988326cf609d535bced002d7d97ae4b21c13f9a6f",
+    "tests/browser_supabase_fixture.py": "a1f970f991c8d9f92a66c90d547c11fbc78070b0213749f4f71c60f2be955b74",
+    "tests/browser_ten_round_e2e.py": "e76f46821aad6c3e9a7c9ee8ab0c6fbe60f25766a9248be9d456179728561e57",
+    "tests/browser_thirty_round_e2e.py": "06e73b55c0aa8c858ee76d4ddb9eb75eb9f79adf78b85bd29b8e7ec20b07c06e",
+    "tests/browser_voice_controls.py": "ca675bae9ae734cf9c346c1582ba578f93dd6e51d436c89b7e589767520b6ed4",
+    "tests/browser_workspace_gate.py": "90e5e036dfee4edcc3384f575d845c786e6ad02211b7d49e1040822682bb1c80",
+    "tests/browser_workspace_history.py": "7cae2bd9b88841d71fce6ce499c6bd7123c18ffc128055bf9fff8cfa395c758b",
+    "tests/browser_workspace_image_lifecycle.py": "6d602a27ff7d02bd72b936c51c807851ff3899e3e833f3d00c8409880f88f2a7",
+    "tests/browser_workspace_responsive.py": "c8ddfcc841b236d2366b40812d45e875c81bb6ecb23b7a91ee9a86e4ff8ad576",
+    "tests/conftest.py": "41d550bbefad3905587617a0ca174c11520c70af6009bb802c4b80980826a843",
+    "tests/controlled_collector.py": "1314d84ab6a039877a0f5efaf35febb741353860ff8688b065e55f0c4e9c5db8",
+    "tests/controlled_policy.py": "e1fd1fd9902ad2cd78be8f370f2e926a0d7d5156264b4e0bcb907d48d88cab49",
+    "tests/fixtures/browser_guard_redirect_canary.py": "57a46996ccb5b0dc7c07d6c0a317af5ddad782d9fe263a6d3e29fb18663ececc",
+    "tests/fixtures/browser_memory_events.py": "0ace4789c5f94712ce8e3ddef9be0fcfe977990803d5de1b261f2936e3bfd1ae",
+    "tests/fixtures/browser_network_guard.py": "f4665fbd62769e0f7197c871d460b598a75306bf6d3d578fd6a2edeaf685e508",
+    "tests/fixtures/canary_audited_app_server.py": "f558a7767e3b999d274de262b5ad2da46379932feea605de72791950090b99e5",
+    "tests/fixtures/canary_integrated_stdio_actor.py": "e5483911dc9ecf2ba500650dd5afd5cf0ed7586392a0a751979710705737e285",
+    "tests/fixtures/canary_stdio_actor.py": "3a87a6280f78e2930021c19756d1811308a8179254ead45815e00c87ffd7ba61",
+    "tests/fixtures/issue6_controlled_app_server.py": "e8e0d0a3f857d333ab1ee55c6be12ae7a4aa4a691de5fac21d95e4bda4b1ceb9",
+    "tests/fixtures/redirect_url_policy_check.py": "61e1554d7a74f8d50e960e44058308907e8bf995e871bd28f8d86c98172affdb",
+    "tests/frozen_subscription_source.py": "1653f71a63d6e4be9ab347b208e8459c5ca13abc6aacd0470029f190f60cca25",
+    "tests/interview_postgres_single.py": "3ed091c4939f14ed11b7a1371b46ce63094d7f01bbf9ced413237a3634543d47",
+    "tests/memoir_checkpoint_fixture.py": "b563a3738a9b4b3f55cbe44964af783a4da05547a06b63fbf29d82f05252d53e",
+    "tests/memoir_postgres_workflow.py": "ef0431e8d714d9b4d454f069dc9cb2f70156c1b23cf0fa91d252909c24f07fd3",
+    "tests/stage_progress_fixture.py": "7491fc11edfc9ac1c0cb14e991410532c630500e508812d32cbf28794b97cf64",
+    "tests/synthetic_staff_auth.py": "ae0d58d6c826c09f334845aec626cf87ba27104969fc4d48336f76ec61a5c0db",
+    "tests/temporal_test_server.py": "1ac6e4bae95131379d4afc9bfabd11ad694a2a944b59dd22d9950b47880ced80",
+    "tests/test_acceptance_core.py": "597630089649ecbbe38caedd9e2714f1f95b9e5ae0bda79df31fcae78928cdb2",
+    "tests/test_account_conversation_history.py": "04bfe110483333785987d137c2aca11b92f69f9e36f31d8235150b2ac39951e2",
+    "tests/test_account_recovery_browser.py": "b5197c623c521d62d348c6531add98a4e81b5af43b57eba261f26708b8cc32e0",
+    "tests/test_agent_commit_postgres.py": "b3525376454ee160f949132ddd54a345de020c44ed7e83b8f37f264bc2b002c3",
+    "tests/test_agent_lock.py": "b3ebbc17d607f7572a92f425c918aeff362175302e7f8dbcdc2be00bc7272ec0",
+    "tests/test_agent_routes.py": "866306942662961a313e81f2b68af75d722b2eac0f83c24dbc728aebf233f1d1",
+    "tests/test_agent_storage.py": "958855fef7250783ba08b25e5003cf75b294380c2052182e50992dc1d007ce24",
+    "tests/test_agent_task_runtime.py": "928b6ffad760bd90533e8e6bfc0878b9d6edb2d7b9aa0f0577360cefb3f609df",
+    "tests/test_anonymous_project_initialization.py": "5c051fbfc00e7d722c5afb5f1f3d35b0a7bec09ffcf7fa39b37f208bb56db56c",
+    "tests/test_backend_operation_lock.py": "d08ffe6db793d4f626021eaa327be84c4db8490300b5a8364d5aa50dbd74afa0",
+    "tests/test_background_profile.py": "a163b9edd138e200f494749f33f052e4ee02d5d58875c5a5ef4f5f91c192f73f",
+    "tests/test_background_profile_postgres.py": "4607a850e548bf72dfb767206200808bc01ada3b11606a62d10e992b7c9acafe",
+    "tests/test_background_profile_workflow.py": "4b7cf9a65361c83bde60c077ca4221c36e61a208814c9cdfa225fa7a6bcbb116",
+    "tests/test_background_skill_browser.py": "dca2380c8afafd51f279ec89af8ef38e507c3be317cc71b64892ea6d7842f6c2",
+    "tests/test_background_skill_workflow.py": "b6bfedbb1b8fbcfbfba4402cccf9772b47bff22a747dc966dc58247b0425feb9",
+    "tests/test_browser_collection_fixture.py": "058e4606d31eca0499688860d50a6b29c2add03fd1ef34b19cc4f8d6fef341a2",
+    "tests/test_browser_navigation_interactions.py": "7d5a92dfa2270f308348cc57e0f40c348e7c5cf88d700be42c00dbddbcb55549",
+    "tests/test_browser_recovery_fixture.py": "61a09f98aab11a8d7c7e204e586f6c1b3b0b966c64f7c27a6309256f779485e7",
+    "tests/test_browser_recovery_routes.py": "d44e4371822aa9c9582425043212651580b1cc8ccc26a8b6c96f56b4891944d9",
+    "tests/test_browser_story_routes.py": "a5028efc074a77ab5d54a1b05b07db1cbad5040e0b56bd290010599a347ddd73",
+    "tests/test_browser_supabase_fixture.py": "c31ec9a7954e9b4eea51a902ec430e7632097d5be1230c5f7d5529530150cc75",
+    "tests/test_browser_workspace_history.py": "004a0a0a8c2649fd779d2f2d65d545512f5ccb0552b6f18949351374a446e28b",
+    "tests/test_canary_app_launcher.py": "14792423c81f7eb8bbb2112b420f0f770cc2d9712997c6035b4b327c6f01f497",
+    "tests/test_canary_application_native.py": "4e00d1d576d47e18dc23cc4c80ae373973d0f4908cbb8e829d2e020343421698",
+    "tests/test_canary_gateway_actor.py": "cb79f9341b2ac4ecdcba694f1c18b7b12f354695c0ad0d1a9d3d1bc1ca893f2f",
+    "tests/test_canary_gateway_auth.py": "bb1a227615ca8f49b9c578ea449963937ff605fc49ecff9d8a90f44493fa2579",
+    "tests/test_canary_gateway_binding.py": "f2a50d51914ad8bb77acd88145a3b9f85e0fe63a6d75195210f464d68fc127e1",
+    "tests/test_canary_gateway_bridge.py": "d69b74d1abbb7c8720440d007116762cc1d03173ac4f5e6a82e003c98b83c555",
+    "tests/test_canary_gateway_settlement.py": "bf7d0fa3cc23dc3af7fe43bea156ca26a6057094b0c4e654119a92f80b2b9582",
+    "tests/test_canary_integrated_protocol.py": "70c17e942cd37520dcbd4ec193db44c130c9cedad54a91575d46d45da75ea25b",
+    "tests/test_canary_send_guard.py": "7d4ac36ee6bf1dbfab76513c18e70184b92117cf72ebdf5a42a9200c3a432d30",
+    "tests/test_canary_worker.py": "a2ba1260642cfa6b7c46c9ef87120b1d7fb937a607f567117d25425a6d375e65",
+    "tests/test_canonical_composer_provenance.py": "5e4bd9cd638c37193507cf2df537242b6b62e68f0c69161816bacf886577d254",
+    "tests/test_canonical_controlled_profile.py": "58529e97df77b5687fac0b3e3d587e978b4bde27f5bd56b2a0d97e7d15dbe6b7",
+    "tests/test_canonical_draft_budget.py": "426a707f2118884077f2c97e08eacbc037639c1ee36ec505d844c404b8303061",
+    "tests/test_canonical_evaluation.py": "e43ded4149bb5a4bf53565551b1110492f527ca8985da7899bb4019ca0d52f49",
+    "tests/test_canonical_evaluation_cli.py": "e2139a411e7175e17b7676f9b738daa4e6f4090e39bb6850d79aadff4ae7ec5d",
+    "tests/test_canonical_fixture_authority.py": "98b6aaf1f86d6f753f2794913ac5592467a289bd73e5f99bf3c4bb54d1deea08",
+    "tests/test_canonical_fixture_lifecycle.py": "bafb550140ec0573eaaff9731ff5efd67190837e0fc188eee36646a3d352f680",
+    "tests/test_canonical_guest_conversation.py": "90f2fca0825b0692ac6eb1c390c147348527e39202662795c1a1d28addce0e80",
+    "tests/test_canonical_native_launcher.py": "7ae696508e91c07a4b7dcdaa0d278e29020647a1c0e1f5217d7761c3ca5e1276",
+    "tests/test_canonical_only_conversation.py": "5fa86a098b8c5989f2573de945a5ef4189aa74a0ea525c45a8dd49c4f102a4a1",
+    "tests/test_canonical_only_postgres.py": "01ea30e2e2444124144934d3aae39a19b3026f69f56be07d55b81be88cff8eb0",
+    "tests/test_canonical_turn_publication.py": "34282b0aef22853870e0954a21d700613dbb658c1303d68a5eff59eb841c0d19",
+    "tests/test_chapter_entitlements.py": "f58be7b21ce1fa6ac1def3c08b938da369ed8df82e4cd5b92b06a65ebdabf55c",
+    "tests/test_chapter_tools.py": "5c8bc9a0634a4c558fef9f979ec05c96b32a55925d45f21b976b951c74f15be8",
+    "tests/test_codex_agent.py": "b4e3e434aa38b1a7d5876e30e1aa953c854df9744660c109e9bcd2371614fff1",
+    "tests/test_codex_lease_failures.py": "970211f0163935ef2e2a38f5414632c87a8a1069015f6e53d9908a5ecb461be5",
+    "tests/test_codex_worker.py": "d1fc80476b41170a83e3b6530d9e35a598087aa5234deb5bf31fd8d5213c0a27",
+    "tests/test_codexlb_canary_cli.py": "e7befbecc418c5ec054bfa75981a2a9e8452a81306e744075bf67f46183c2c53",
+    "tests/test_collection_routes.py": "2d107b2705629e1237e2945a8ad0252225615637756b63f09603bb11e7063373",
+    "tests/test_collector_canonical_schema.py": "37dacf95b5103eecd0646f0697220a6745046724f9942c00261846878f6ff6a3",
+    "tests/test_collector_compose_config.py": "5ffd5e961dc03df8a6f941a4df97ebcd76f3aa457e3cabd2f7cc4326bc306621",
+    "tests/test_collector_configuration.py": "3426b52a6a52534dd99925ed5fa8ba45c075af6a12230eadd29fb66430a0ab38",
+    "tests/test_collector_high_checkpoint.py": "3025897ad5eb6d5a0bf0b7aa18415792b453610bf0c5869fd7bfa3a58b87d26a",
+    "tests/test_collector_preparation.py": "bdd9baf72de0eebd52f3844e0632fc43a473193d1a3afb4bc3972265b59124ea",
+    "tests/test_composer_repair_budget.py": "e900ff34b9afad330e76bcc22c7a8a35a4cc47edea6610a6483a3becbc17f275",
+    "tests/test_container_startup.py": "a28129230cbcca3e062ca81947516f410f468e6f1b338ddf6f57a9610e42afe5",
+    "tests/test_container_verifier.py": "209df534889407acf3f34fed7675bc7112b37149510922f633d188c7a6d4e9d7",
+    "tests/test_controlled_emergency_cleanup.py": "02cd2f0cb54734e2b7bc1d7670cac61bdce13a8b4170d229c5acfca8708b2c1d",
+    "tests/test_controlled_five_case_lifecycle.py": "0842154863e6ffe9ff6482811a6ad2c1213fae9d23589bdc1ba93a02aad97867",
+    "tests/test_controlled_lifecycle.py": "58dafc98e5474776fdddf6abb09eb1e4cc6825984430824d589ac66a8528a340",
+    "tests/test_controlled_native_state.py": "ecba4ee6d0270ad52898ddf28b5595fefc1ce4c7f322ac78501e88277822f975",
+    "tests/test_controlled_outer_cleanup.py": "9d80e401fc3790ea8863e794164f5f67abcf6600e12db38ea01e2fc74f8f6d0b",
+    "tests/test_controlled_process_portability.py": "a0dac97e9ff6cb54fe700b665fa3f71b640f8fca48dd740922667a8ff1a55a81",
+    "tests/test_controlled_process_snapshot.py": "33e07f87b23f15e397b903240eaaaeb8804ac1bb68f01e8b241529c34cfb0524",
+    "tests/test_controlled_supervisor_lifecycle.py": "300def786a0db56a38402f3008527da9b327aa1d26a80e4a38f689c706d4f02a",
+    "tests/test_conversation_attribution.py": "d088192c096792a33642f70b1444af6efb4a81987715f472ee744a2467f807c4",
+    "tests/test_conversation_history_postgres.py": "5c4dfc698b73cea1292c8cb3b9fe5ccbf67a06c7b411287ef1597e0ba5043268",
+    "tests/test_conversation_language.py": "fcd724210dc0d01e92faf1f6d87e34962e05af9453ad4dad32d81ee37bbe4c6b",
+    "tests/test_conversation_locale_browser.py": "a89d5bfc815fffbc411aa04c3bece81ec306a8041291b7cfa079486353e6f516",
+    "tests/test_conversation_locale_directives.py": "4041e782eb056f36bcff8140e558df32e5072ec64429bd5e212d6d729ed80fb7",
+    "tests/test_conversation_milestones.py": "5e07508a08053ed674b90a3f41e66b47f7562a1437114bc89d67af4ff0787854",
+    "tests/test_conversation_phase_retirement.py": "085ce286d5c6cd019d7b6b501ecc8ab25e04da26884ffc078a39dcc3bf628b36",
+    "tests/test_conversation_recovery_api.py": "a5b1298be22804ce619cb510be865eb632697bc3fab8ccac42ec8024c55750a3",
+    "tests/test_conversation_reply.py": "d186a13b73bc839c0f29b17a9b27f7286a183e69282c077f3336096196d662e7",
+    "tests/test_conversation_reply_runtime.py": "d11aba76b4bbff2245a53ce7724de0c84fa285517d87f5d8bd7ec680bb3debbc",
+    "tests/test_conversation_reply_transport.py": "496118db554ac4ab5d7b601b1c8d7d6935c64a14b07ab011b90fb13a4d8c55fe",
+    "tests/test_conversation_scroll_browser.py": "56d45dc50c3752941dcd68789c2119b0fea854cf35286216787c5620b27d43bd",
+    "tests/test_conversation_text.py": "bfa422438e09d305f92069393cf410c044583955aad773d8574cfd4e9f278205",
+    "tests/test_database_baseline.py": "a7464aa6d51440758d10f0166c3897e47f1cbd8ff05eef42f2a8e4ae33533978",
+    "tests/test_derived_evidence_spans.py": "0a778224874debdc30ce94fc3fb59a469a44310678ddc5fe842270bac3f40124",
+    "tests/test_diagnostics.py": "79a37d874443ae054268b69ca6989f4f939b8ff5aaadd9c3945997fc5b197297",
+    "tests/test_domain_edges.py": "339c51a2a76d8b02b8e2eda3cd3631d0b7cec1c6768915076a98dc75ec5f014e",
+    "tests/test_evaluation_budget.py": "54ba1e6bdc28e2962d13c00507f6baf2e4ff81bf290266cd2e8432c7d9d0728f",
+    "tests/test_evaluation_cases.py": "301822b0b2596824467e65f6a942af21b50cbe0227442ecd64ebd50a2a954943",
+    "tests/test_extraction_span_repair.py": "bf327b0b471d1d2975a72a773f1ccacbc237ee136e5d352b11e6f18ac1c9c4ce",
+    "tests/test_family_agent.py": "c72bcda77c0bda79e885512ff0233c0b15724f039f368ccf5071006d77d938b9",
+    "tests/test_family_context.py": "1ac2c26b1b9532fc3e0d2cadc7c616a3a779e04ed69b483660ef4520cd2b0bf9",
+    "tests/test_family_photos.py": "54988e62248e99668ec52a5756c56bb53fd22c19e1b2590120e2ae9026ee3f32",
+    "tests/test_family_tree_browser.py": "badf39c062547bcdf10912284eb15704adfe77bbbc7428d8fe9e11f7b1a61c44",
+    "tests/test_fifty_round_budget_contract.py": "2bb0b42a2102ccced14b2d66dce011c14e1d0f9edfd1c583f8145d86cc49500f",
+    "tests/test_fifty_round_campaign_adapter.py": "7cd08fde7773f37d807793230948da25abe5aefd2b24c361bb51f1dbd5197278",
+    "tests/test_fifty_round_dispatch_budget.py": "4b836795136741e570504f6651bb0cbf4b0e7a5b19b64a71c93a261d2c43e64b",
+    "tests/test_first_reply_profiler.py": "471df68d02b63b9300c0eb06aa6a616926b7247b031467d79d6f3fc58a11c55c",
+    "tests/test_formal_memoir_postgres.py": "14ca451b6e0c9d48a115bd629620d64fe0d83d572c0dbedbf782ed7ce1c09901",
+    "tests/test_formal_memoir_routes.py": "1e622473c9ba3df1c4a7cabe8d59c92c9cfc14698967aaed769e5145f174349c",
+    "tests/test_formal_memoir_worker.py": "c4afe66220f19604b19643e7385d66f3ef363a27e7720fe7f043c5a495b34f87",
+    "tests/test_full_acceptance.py": "1735ac8d2e13460d80f24df4f53e452af1fa54a947bf08fbeaa748ba16335297",
+    "tests/test_governed_place_journeys.py": "ce87fc88030e559a411e9b5677e31df75422f7c024dd9ef3f9efb032eec9bcf6",
+    "tests/test_guest_conversation_transfer.py": "46983ad612c9abf88d6765d0db5675588f5134a18bda77ab14c272cfa194fe4b",
+    "tests/test_guest_project_transfer.py": "44459c9000b42509388cfe01882d0152c0f8a2ed067f0b029d7ba34bc23b25f7",
+    "tests/test_historical_news.py": "d47433f9940c3207e61af95584b7715b713b894dc7b9331e872e9255cb7f8416",
+    "tests/test_historical_news_browser.py": "b4f63fb85f4fa47490f77b81ab76ebbfc178b8a76ca051c304bbfe072228a9e4",
+    "tests/test_historical_news_canonical_postgres.py": "5c1c97e0e16670c6d5b5d52e93d2faac5de42764b46e1c4b2dac309e7c5a5139",
+    "tests/test_historical_news_postgres.py": "5c8f2f86831c92b1393b3b434bd3c39b41be66e14f43b4a9cb70dffe6b0cc3c9",
+    "tests/test_historical_news_provider.py": "be4775f8ac68884bdcff12aaedc5bd9f372744a0651497a7ed80de8b7b059dfc",
+    "tests/test_historical_news_runtime.py": "7db43ad80014b45628cdecc6467f6df5f0b0e77e90175759355c39f946613c61",
+    "tests/test_install_codex_skill.py": "98de222cdf665226ee41e3a6a9791fab5a115e8744ee6388c2bca7e5f2f3908c",
+    "tests/test_integrated_timeline_contracts.py": "a2862cca07267dc52767e946b6368fffd8b0a0b243f6bc2ad406e9ed64491f7a",
+    "tests/test_interview_photo_acceptance.py": "de9cf60495aa3c03e3a829191cffce065198d974e439a71b8d6dd05bdd04f836",
+    "tests/test_interview_photo_composer.py": "d8761cd9c9986aab18b391b640de71232f7eb6a31de4ce65e12501c4e5f6ceb3",
+    "tests/test_interview_photo_runtime.py": "e04ee69e10a1a0560cad96d627170109ac1372bda845dc86bf55cbac087646b1",
+    "tests/test_interview_photo_turns_browser.py": "10b141ca3d4156a77b1d9d33cd03e591dc527e4a0ef30c40c25d27c8f61a0863",
+    "tests/test_interview_photos_postgres.py": "ae39f4eb8ccad7c11a760cc707259cd7491e81fdacc08535c48f8d342c3e35fe",
+    "tests/test_interview_plan.py": "8664e374f8df10cc19a2ecc04c47256d4982bf36afdaa071b7d1b70af4d22ae3",
+    "tests/test_interview_private_photos.py": "0edd7da7e3c2446f0eb119f6dfe20e23d62b25c84a91dfc5262359283e0924e2",
+    "tests/test_interview_project_recovery.py": "a9fc918a71de3969951fae8406916cecc2229b9764214ed1ec598199df51dfa9",
+    "tests/test_interview_questions.py": "7479e3b4d0e089b06b5f6ec4299c29abba4d94f9716f6ad8b1a042dee3f6789b",
+    "tests/test_interview_stage_transitions.py": "80dc57ceb1cffe2d5045230d1c87b45dc64f1ca1bafe0be49175cd920cf54c3a",
+    "tests/test_interview_strategy.py": "c0dc5a66860de6f5c51e2dd19755616f9310d5d72ea35990b8f168dfaf307d5d",
+    "tests/test_interview_strategy_postgres.py": "abb1da8180bee953dc85a4b1c6c11dc6bb1176bc95a5f29126db0cf189cc8bd6",
+    "tests/test_interview_strategy_runtime.py": "3b8c0722e3a05f5fcb2f1c4c1559d985ca946e49629c896accd8e268ba0f54e3",
+    "tests/test_interview_work_plan_postgres.py": "5b560cba092fa1c9b5a5e9437110566398a9c6ec61b78d9b004db745be0ee24d",
+    "tests/test_interview_workspace_browser.py": "509c6c23246508d0e8604224ff4bb0fb2a911413c7a3d77d47eab7cbbf9229ce",
+    "tests/test_interviewer_conversation_cases.py": "92fb8c4c48ebcc4f3c0d04bf3642671ca3ad3408b4dd668e59a23b36fd5d3838",
+    "tests/test_isolated_check_runner.py": "d64018c3ae504bae3a32ef411ccbf434006fe560777ed9416d314a56ac9f4eb3",
+    "tests/test_issue14_execution_admission.py": "cd5a90396d2c010902dd5c4f7ed24699038faa1679f35d400b2def332f1b66a6",
+    "tests/test_issue14_progressive_readback.py": "328b035a5b2a79dcd481e560390bb5f9559758156ca657c65da56c90044b2e1e",
+    "tests/test_issue14_provider_protocol.py": "cf1b2f822aa8baeb21a9ea61f05c0f55bf09cdbe2e3a3bc5c16cdc5fcc8fcbc4",
+    "tests/test_issue14_source_contract.py": "85cb1c13875dba406e1903f4a1112586073ecaf046c41766d2b371e7cd2d4585",
+    "tests/test_issue14_subscription_launcher.py": "f37301bd6ff9661f7ce81a21694d3913561f0bd34028ecfd52a2af3f53034d87",
+    "tests/test_issue14_subscription_runner.py": "f930284d6dd687129819a322d128dfaa0649eca004c47d70ed922429b57731a6",
+    "tests/test_issue14_subscription_session.py": "90e051cd682fdb3aeeeab7487b3273df5a079e4e204e9ba6c0252dc344426931",
+    "tests/test_issue14_subscription_source_contract.py": "aa11c18adaf6040735fd156bcc312f2500932a82aa9efbc0e9eae7f10273e693",
+    "tests/test_issue14_subscription_source_contract_v4.py": "ab9ff26324afe379b78440b2d73db8bef1bbe584e2526adf5ae90776f4bd8cd4",
+    "tests/test_issue14_subscription_source_contract_v5.py": "9ff4aa405ac4d61603585c7a8745b4c6d993dccda4fb2297fab86b5c09cecf6b",
+    "tests/test_issue14_subscription_source_contract_v6.py": "eb8570c2d777c0613c3eaa11d382c8211f34f3c53c44eacb43a8521989ab3110",
+    "tests/test_issue14_subscription_transport.py": "1a8bb23f09895861ed6e092587b032744cdadceb91fa48add2296964c36d672a",
+    "tests/test_issue53_offline_coverage.py": "98188b76e1778a26aef64459ee5fe1a0caa55b9f481f7068c43ff417bdbd932d",
+    "tests/test_issue53_privacy_evaluation.py": "f33c96d4f9b92d3c359342373b00eb1110c7519aec62eeb9f180f3c33d2af721",
+    "tests/test_issue53_profile_sequences.py": "eb9fc13d5608bf49f1ab00c639be604047ba653c1ef65bcb7ed3e14301c00228",
+    "tests/test_issue53_saved_plan.py": "fd72fefbc4cae51efc29d715c15466910b0b2a044a49b52261dbe351834ec6fa",
+    "tests/test_issue53_sequence_application.py": "9c594f66ba864dd92553fa52e616cd35bc24990436f70015148a267d4534b255",
+    "tests/test_issue6_semantic_evaluation.py": "44a4ba468a72cc39e487236a8e56775ca82dc97c67cad4a27bde87841d5eff5b",
+    "tests/test_issue70_review_repairs.py": "0f430994de3571ef00a06be0594b22f1f7043273df0ef32ffccaa2a0e65c0fa9",
+    "tests/test_issue70_strategy_review_repairs.py": "fb210ffe178665a4136cfc90f26fabee01a6bea63496c3c1019134cd16b0567a",
+    "tests/test_journey.py": "c0594edb94ee80dc0dcd01c42d1ed91b1a631863034a33cf0657dd6ef17946d6",
+    "tests/test_lane_clarifications.py": "daae1a9c8b964ac766c5f3b4be25b3f7f5acdfc1bd210786e3c1998c3783ff76",
+    "tests/test_langfuse_evaluation_cli.py": "0fe0a4979d1fd8641d412ba6784110a05a797ceaac7f65720b038ed97ce3212a",
+    "tests/test_langfuse_score_replay_process.py": "5cbc581f2bf0f6b572ebad96360b6ffc87946a2966699df206829918385b6503",
+    "tests/test_lifetime_activation_setup.py": "064986744ce5588ea37893c4f06aabee22bfd8c22961c81a3189baa8e8b6dc92",
+    "tests/test_lifetime_actual_engines.py": "1d18371e2821c91abb0cc01193810ae74090b41537b9488fdf982452a93e0c09",
+    "tests/test_lifetime_clearance_receipts.py": "761f10bdf29bb5fb99a9a808ca43524841d3cb73fddbe4bd4643f7041e0aa75f",
+    "tests/test_lifetime_collection_dispatch.py": "8331194b0d57c00b3345b1b1aafe9589736b500f301260f050f94a7135d36ff8",
+    "tests/test_lifetime_collection_jobs.py": "20bbf4626382c678d7dbd37e3ef60ee55a1d89bb570cbd320b6dd195b8464548",
+    "tests/test_lifetime_collection_policy.py": "c55d35931a09b900d46d5123a9a59cf97a70f244f7d22efc0df5273507344068",
+    "tests/test_lifetime_collection_routes.py": "cd3a6e838517e836e5d4820611de5351700d5800492e2f46f2c2a6006ea62ab7",
+    "tests/test_lifetime_composer_capacity.py": "78500595672c086a875768ce5e29a5d7213a42db4928685a2a1445c4d8abdc10",
+    "tests/test_lifetime_composer_clearance.py": "76c55161fc7c40da440ea250447527a29adc694a42f6f3c2c7d3f10885f44a9a",
+    "tests/test_lifetime_composer_policy.py": "dd4a0c53f82b9497ba3ebfc780d24166d53e30bc54fdd39ac667bdc8cb93f48a",
+    "tests/test_lifetime_continuity_offsets.py": "e673978ea20e32cdfe81f1d400b34efca2cba5c9cb7cb1ffa12f5dca00db7c58",
+    "tests/test_lifetime_draft_capacity.py": "fb549bcfdd6a1b13f8bd154ff8df27e3879dce6bed2fbdb6bf68586f8fcfee0b",
+    "tests/test_lifetime_draft_coalescing.py": "6a8ede49ec90be32ae807e73fb35d2302725f083614382ae0bea5b999a37aa6c",
+    "tests/test_lifetime_draft_progress.py": "6f10d9a358197980292377f10c301245d53cf3ae63488ffd9733843b17f0bcf2",
+    "tests/test_lifetime_event_context.py": "6e49fb92974a7b495cb5dd2e30140542bc9811deb9528a7a9def0bc78ea351b5",
+    "tests/test_lifetime_home_recovery.py": "213e1c696159647ac56fad2d0952f53988319aff053a9e036388d98e12cb435d",
+    "tests/test_lifetime_memory_artifacts.py": "b113d8beffe0b41e39c9cceaa9a200da6cff93f45397df2b86c4f1d837e0b825",
+    "tests/test_lifetime_memory_capacity.py": "b453b55b694c085512e4c9258d389e8b924bd1f73b7af0cdebe22c50a9febcc2",
+    "tests/test_lifetime_memory_checkpoints.py": "e3b59b951c3772fdb0e241cc1489f2cf995cf85240602fec02c52c851e3aa48f",
+    "tests/test_lifetime_memory_commit.py": "21075a845a5d1278aff5b5e6c0a51c640d4ff63217d04558a7ca27319de6284a",
+    "tests/test_lifetime_memory_context.py": "4e697355a06fe74f61f8a7492286a4d6e4ee0f408d50e1a5bbea296d353f0e72",
+    "tests/test_lifetime_memory_continuity.py": "03ffc582e341e0397f0d7b947ef127108dd78b59f066b701dff26f6e5a638d4d",
+    "tests/test_lifetime_memory_contracts.py": "64ccbef7df94b3587b204084d8332d795f7c8f346b76375d6d4222a23626b9a4",
+    "tests/test_lifetime_memory_dispatch.py": "a70c95da82c5396ae405f83ce3492dcc40d8fb1a4a482d54d681ad2e8d666c5b",
+    "tests/test_lifetime_memory_engine.py": "aa8b166c6832f7372a23a962c6c1e25375bc6e3824d4a514d4aaa57c96417be3",
+    "tests/test_lifetime_memory_execution.py": "7dac3cb625e59e53ecf18248c43a30ab3544248b8125d5be7d0b261fc210c4c9",
+    "tests/test_lifetime_memory_job_engine.py": "aa6077206abfcca74ceb7ca02918900bd1145c91832fba770677afb3f2d014f2",
+    "tests/test_lifetime_memory_lane_engine.py": "c97d4ffa057c0be8c0b193d0e9b1ebd03e947396735186d9468439a81dad53b4",
+    "tests/test_lifetime_memory_outbox.py": "19bbd960cc7465c9fdb9b4d3e8dfd7fd8db7f9534862b2c471607eece02c9c24",
+    "tests/test_lifetime_memory_postgres.py": "86c5c6398b926080c2e6c1dd9b3a67703c2e7f991853caf135515b8b7536a436",
+    "tests/test_lifetime_memory_publication.py": "16f963d89164e484e0f254e0fa15dc9995eea312ff6c84c51f48ab1d699e83c2",
+    "tests/test_lifetime_memory_read_api.py": "d2069ee555da875ed6f23a7315e15e91ecac54fdd1f996a261fe67463d91a858",
+    "tests/test_lifetime_memory_reads.py": "48e174262d0cd61becfac11245d4f835076583c8f480c7ac9bd5628d85144f5c",
+    "tests/test_lifetime_memory_runtime.py": "93babd50dcf07605d6bce3b10530ec9c4af18469c56c4545a8b1aa0093b40cca",
+    "tests/test_lifetime_memory_service.py": "6007f06e329cfb9163cb3cce02b38e91662b699122d4a7ac49f39b6100824062",
+    "tests/test_lifetime_memory_source_pages.py": "7293127b7a95c1e68fbe948d161df338867684a1e3bffb00a642c26336fe1361",
+    "tests/test_lifetime_memory_transport.py": "44016971cc203152dd6a63f349c0aea70aedb0f04a43bce0229991af0ee1cf71",
+    "tests/test_lifetime_name_provenance.py": "90ddcbe8708f744fbfc9b9ab62b6a9db7b92cd084315579bd945babf54139b11",
+    "tests/test_lifetime_obligation_worker.py": "b236c9e202f361f4f08a10e20f2a8318dcab8805d274bc1535fe2c3118237268",
+    "tests/test_lifetime_obligation_worker_postgres.py": "149b8ee0b40ac66903ac4c001ba5ec651020f16b40cf8eb99b868491cc93777f",
+    "tests/test_lifetime_outbox_postgres.py": "a556e810f69c6ef3598402be935418736650f26b184e20d7711a180d9e3dc767",
+    "tests/test_lifetime_outer_publication.py": "2a1f5c09a2dc0388708d0dc2df5aacd68c30de284d78ea7bb3a5a3dd10b4761e",
+    "tests/test_lifetime_policy_atomic_postgres.py": "7ccbd380a6c25f47acfe6ac912a40063cc04e6e6eed13759b8d8bd8f3d7563bc",
+    "tests/test_lifetime_policy_engine.py": "df1da1c15a1053e0849b4477eda3003b103821405daed3888e3d40b001228111",
+    "tests/test_lifetime_publication_setup.py": "2b550415abb6519605f013cb8f2c85cecfdedfe6fb1380e41560cd461725f2cb",
+    "tests/test_lifetime_realtime_clearance.py": "4e0ebb30b7fec246a0e69f91293f3ac315adb3511672c33e2fef37be191186ad",
+    "tests/test_lifetime_review_repairs.py": "a4237fb36ccf5a653e1e84d4d4f912a08290b38abe086cb39036ddc1819fde68",
+    "tests/test_lifetime_semantic_checkpoint.py": "ca95e3fc1e395ffde0a907cb91998548d6240f4db656a22bfe647a696d09b2c3",
+    "tests/test_lifetime_turn_progress.py": "356258ac9fa8faccf4b2a1dd5d180389b375cadb637b986b0ba8d5d1affd2f74",
+    "tests/test_lifetime_workspace_adapters.py": "da7138af8f3df8ff5856643d63d49c1f363fcab957fd132cca56c23caefdf195",
+    "tests/test_llm_boundary_regressions.py": "58e9482634c6aa648ed09177cfc4fcfe8ae4eb1874f7d1fde0fab3cd6209a6d1",
+    "tests/test_llm_place_photos.py": "61e7341e76f966071fe977d7908861843fd2a5fded17c0ad13eb806095e2f617",
+    "tests/test_llm_tracing.py": "842a9e99a4338e392a804b5daee09d8b423ce115ef459b99cf99ef3eccb71e20",
+    "tests/test_localization_review_manifest.py": "9ea1cbbab7868a660dcd43874893bb0672f0c67a20b1fb9430a5f7d95b89a135",
+    "tests/test_media_uploads.py": "3bbda03d678edd95be18daae45d56de4fa79e929eb7c5c7a6a3d10f410559150",
+    "tests/test_memoir_fifty_browser.py": "ba92bb4c406ca61bf69e5b85a65d8c16051d6abd22a340faa937b252d4199f31",
+    "tests/test_memoir_fifty_browser_runner.py": "d89e1681fe51a7bfccdaef872ff34bc6b0a472d9dfb3ddc70627fc6213ff9a0e",
+    "tests/test_memoir_fifty_coverage.py": "80db6f85968880fcba7314a694c65f9ac428c07548664d1d035b4419c3dc1933",
+    "tests/test_memoir_fifty_photo.py": "f23b314707b5712f1ef0848050061f7698c05435f49d2e429c3f46a452ea4bc9",
+    "tests/test_memoir_fifty_profile.py": "6e1e83f1f278fdd9bc21f47baffdc30eff76b3d66b5f737e37220b385692b5a4",
+    "tests/test_memoir_fifty_readback.py": "bbd41678d4f51841c1589931d21497c8cd35914b3072ced5ed94949783fa5528",
+    "tests/test_memoir_fifty_runner.py": "372f3298991d3e6e501054dcf506a10096dee25b171b74c5c7bfdff8323a7ab6",
+    "tests/test_memoir_fifty_session.py": "dfb9585459b2ea412da94eb1c4b020c9b6cd5e797a33eba0c668a8d1f5ff9ab8",
+    "tests/test_memoir_fifty_transport.py": "1dd1bd92149e09634e8f1de2749094a2a4268eb7dfca692ec1e2d7ee3d6a25a1",
+    "tests/test_memoir_five_case_evaluator.py": "adb2e8219c11634215cda92a10595ad3e7aae159804e6edc1ff43bba82e1b8cb",
+    "tests/test_memoir_game_ui_acceptance.py": "ebca2c7f4b92aa949f223de3474bbbbf2dcd8989060820d001d295db6555cdbc",
+    "tests/test_memoir_lane_logging.py": "bc80a10ba17f35b4a6df6fc967608d70706e17f35c6a7a2aaff91858afd745d2",
+    "tests/test_memoir_lanes_temporal.py": "de83c8336efa182d19948953725cda422dc6338d67da7ef6dfb24f408208368e",
+    "tests/test_memoir_live_skills.py": "9f3af8c6dd31a045f27ad997b4aac094725257fdfcc059882f68b9564396e556",
+    "tests/test_memoir_migration_contract.py": "b3fec69f5a57432323949380f284e0153e68a850fbcde945e369dd933c2cc3fc",
+    "tests/test_memoir_model_configuration.py": "f45f03c9067957137897912efd6528393331dd42d02f8e1fcef0c39671cbc3e4",
+    "tests/test_memoir_postgres_artifacts.py": "b90e27a29352c94b25aac2482c02cb03a7d6f79c0a9867b056a8da9b89bb7e17",
+    "tests/test_memoir_postgres_rest_framing.py": "ddb0d7d1d64502b5d3eb02cd30ad40e4f870df4535057e222458511741920091",
+    "tests/test_memoir_postgres_runtime_readback.py": "923bae154bba66d9017fe631acd0ee6dba977f0c63d0e693a0b6ffd34a703ae6",
+    "tests/test_memoir_preview.py": "c1e39da2cbe0e94e4532ec125cce333285815e2cd70ad3d0f9d6caebc34ffb95",
+    "tests/test_memoir_progressive_verification.py": "5f78fe62b7b1820d7f9d294f28ab03c17b6ec796f553e06650d7447b8161d1b8",
+    "tests/test_memoir_skill_acceptance.py": "ef3a17e9b009d4981e2c6afa957934d2a515531449a295051f1605c5687b22d3",
+    "tests/test_memoir_skill_evaluation.py": "a54055db37380352a5da8257953af0a9f00544da7f0bde648efea666126e3fef",
+    "tests/test_memoir_source_claim_pilot.py": "7a3a375fcbc4fe1f35869d899703e16a24486c2fc47d72243b5f3452cb44fefa",
+    "tests/test_memoir_story_game.py": "e558cc7c61584f2590200fcda5a174c2d0b133f6c9d0c16a6cccc4675a9f72ba",
+    "tests/test_memoir_supabase_evaluation.py": "f23a4f39150aaf203225913a852d5405e4a874f68df1f95196f91c26f5794b81",
+    "tests/test_memoir_tasks.py": "29a22b1952e78d43472319ba113689fa9aa29a441f598db48b9811055d040e9c",
+    "tests/test_memory_context_transport.py": "7f1cf5f6db78ead9cae38ec2846293c1b472f90cb6e05fe8fe88dfd5dfbee175",
+    "tests/test_memory_event_date_evidence.py": "143965b363fdcaea34d7efd52516f7a0911dc58e83b972a63577a5dada80ad8a",
+    "tests/test_memory_session_recovery.py": "87653c819838aeb42ef5b67f4b56bfd8d15f53f105329652e0ab31cc1ef756e6",
+    "tests/test_mobile_openapi_contract.py": "4b6f2262b503e0f6b504bd8656f3ec061e066ae944c910c2f00e948a8ed94b0a",
+    "tests/test_mocker_compose_hosts.py": "08d78c5c896ff43bcd1fbf5b2867435fecd9520391ed133e83007f7212c45193",
+    "tests/test_model_boundaries.py": "a76b1297e4b614ea4187f255dd13f7792ffbc63d6fa71db83aaaa9294145954b",
+    "tests/test_name_only_opening.py": "304406b0b2382d636f5cef3ee23a14133d2ae1be84c170d9c10d466d1b314d92",
+    "tests/test_native_canary_launcher.py": "44a7377a2f639209c47e93e62e24f2940fa89e488e9030addde9de902c38889c",
+    "tests/test_native_collector_timeout.py": "7e17a20ca78f7362ae3aa996915f5c51a5e529ffc94d46c2b7d7e4f9d0bfbf3d",
+    "tests/test_navigation_history_browser.py": "9685cbd79b8df7f9b4d7f24eb4db67cac8a63d29e396bb170742d7ce098d5720",
+    "tests/test_original_recordings.py": "07d160b98e4c1251226e5c1ed91ed7d99e83235b808acd3dd02031e50d61bbda",
+    "tests/test_original_recordings_http.py": "beafa91e35492d3b844a57e539d1ad9f7899f7b95dfd82f33a4243a0e8ca594e",
+    "tests/test_original_recordings_postgres.py": "7e4c85a0d6b39fbc7ebee918cf6f886c67eefdb0fb00ff09d5e27a9f0d0ab199",
+    "tests/test_parallel_reply.py": "b837672284b881e1ae9da3fe85d4d7ae642ebf29da6bc0cf53f90ed6bb7ed998",
+    "tests/test_parallel_reply_postgres.py": "62d2bf5657a29dbccc9fc0b040651e6183cf4a416ddd80b36fa42a2430fb5ffa",
+    "tests/test_parallel_reply_runtime.py": "831d8ca8ce85bc0549d74538917007cddc69e7ec3a1acc7eb66d9804538b4515",
+    "tests/test_pending_turn_recovery.py": "d51d408419d5cf070c2ecbdedbdf70db10ddc089dcf8b406ed76eb3f2c67147f",
+    "tests/test_persistence.py": "8316e3a5e556c2dbfe1097cffeb9f240a7f93247a73360f4f6a25e6d26f705d8",
+    "tests/test_phone_map_albums_browser.py": "17cff702d1f010eef7f0566e1dc8e9770afa0416774dde2fa5a81cd6884ca966",
+    "tests/test_photo_capture_assertions.py": "b9cd86a08dec6720fea03135e5a2c8bf8c526f46271cea8fa3062accd8a99471",
+    "tests/test_photo_memories.py": "185578295a6546f1c62543b41d1112f1548737b6146cb4474789e7ef14b40805",
+    "tests/test_photo_memories_browser.py": "65e21202732c7866dd21edc8e0b721c4139f11763c4de857798722993df25775",
+    "tests/test_photo_progress.py": "cb567a75958626f4d64b748757299f3db069d492b467c16978603f80a3948633",
+    "tests/test_photo_worker.py": "2c0e0a5312141247e4e493a8262a624c605e8438f69091c5c7fbfa295f1cde53",
+    "tests/test_place_geocoding.py": "7998fe5d6e44c3a0a0f72ea71350356df98ec4ca0f9b5504d9f37bd1dbbf370d",
+    "tests/test_place_groups.py": "039fd974a2516dc9b3d387f9e018c9e9e9e53cea93ce154271b52ecaa2c4590e",
+    "tests/test_place_identity_evaluation.py": "a1186283aa833317fc08ac2fb85106789b74de4f42c9649469b9fc6bbefbe241",
+    "tests/test_place_journey.py": "8b02dc12648e636e64f8bc7296bf6c540d1dbead8511640268544d03fe61db82",
+    "tests/test_place_map_failure_browser.py": "f40d9599a869f3ad91b167d5eaf6ead447df7d0d99c805ce6ce97579043d8bf9",
+    "tests/test_place_photo_browser.py": "0306e5402509b1b5e206daabb38398880fa37347c6623afa24c0a30a76cb46e4",
+    "tests/test_place_photo_discovery.py": "128be7d9b4d949a6a22c1cd599bc9a659eb1be802c18301533f58d6497417047",
+    "tests/test_place_photo_fallback.py": "83d3b0852b48cf8f6e3d2f8b1e75c2c73d8efde95b23a3e85f820ccc488fcded",
+    "tests/test_place_photo_pages.py": "8736e72618f4535c1b281c3ecaa50d725d5a0c8be20431c8a7c59a629fe9aa8d",
+    "tests/test_place_photo_persistence.py": "5dfa72bda57e77e5667b7926226c0ab1079067cd722e1f205524d470297bfd78",
+    "tests/test_place_photo_relevance.py": "350c567865fee45e50447f7ffb243a852641f7498374dea3afb83032cb8fc92a",
+    "tests/test_place_research_context.py": "71faa826c6660ffddcb11c1d0c9aa2ee22aa399f3122e81d1d39d91854c9592b",
+    "tests/test_place_workspace.py": "ba118a0a5be4b03c21feae5dc8cac04effe69c648241493ac85456df14679c92",
+    "tests/test_policy_early_ack.py": "a20c348845f4bb9d90bc655428ba440e253f0d5d337fa437f62dec1771cd6c90",
+    "tests/test_policy_review_recovery.py": "55b9c8f8f66180f716cf5003afe455a2282ad51f6ab92809e38d18093a91cb84",
+    "tests/test_postgres_fixture_transport.py": "283b9308e83533305c0cb10216d353e552f57808bb0e4e1bf2542d14b0e7591a",
+    "tests/test_postgrest_application_conflicts.py": "95cfc5dd6d05fccbec527cd6bcf60fd31f6aae3549bf052a3d31f7e2e053ab02",
+    "tests/test_preview_jobs.py": "0937bd85eba45b53e4cf836a33a71ec91d6fce54f2e63b280958a00148428074",
+    "tests/test_private_draft_broker.py": "b3b898eb0e67312201c26dd31d531b07a56afb5f55a4ef0a125cb3ef5a807819",
+    "tests/test_private_draft_stream.py": "dd9f3e3db62911d5573281438d3372818c9c2a27132347150030ace769192ea2",
+    "tests/test_private_draft_stream_browser.py": "b865baea3623e16a23ba72057bf1e6e00a87cf130400262b508ad651f326ff47",
+    "tests/test_private_drafts.py": "c9d4849b36c68798bc5c2d213f1f5b53f3d8bcea85a801acc070b4d1f013ad49",
+    "tests/test_private_rounds_postgres.py": "d43ee9d1877b48b76a23a82557b88075fc341cd8fdc7b01e49e17ac275683fb3",
+    "tests/test_product_namespace.py": "08b78ed2636a58a999a1747afee87410c66aa720c501cdb90cf38c91450ef6cf",
+    "tests/test_profile_intake.py": "afd4a32bcfd62afb0346988d3aa820e69c49fd273e1c8618279d66bbc984f0c3",
+    "tests/test_profile_settings.py": "609b5580ba60e9736c8a8fc5775febd77d7100ff5466c377e2249bccc92428ea",
+    "tests/test_profile_settings_ui.py": "b53744ebe582cd6972a4b3409563385ed8817231771c46fc6956c28bcaf5d20b",
+    "tests/test_progressive_composer.py": "69985a8e789a5475123299dc140e071ec29cb3864c59511e94e5309503d94148",
+    "tests/test_progressive_memoir_navigation_browser.py": "59ceb0804206c69886138f9ac95c4bb18786d7874ba4ba19a1bba441c66f18bb",
+    "tests/test_progressive_memoir_workflow_postgres.py": "fe01bc6b88b0733cf32ae187f8e39a2f252fe22a2ca5a2a8574c476952d72b98",
+    "tests/test_progressive_photo_invalidation.py": "c9303b5e24ef9f7b67d5dae7a5ccc0b2600502a9bbd6824da836507e3afc68ce",
+    "tests/test_progressive_rework_proposal_overlap.py": "f9f518a280d53c7e2fec867c44595f7a86b8786397f5512fe4a1f5f9220c08b2",
+    "tests/test_project_place_hints.py": "dddece5445258b0a1e7a296a40095465a5a695c587d20f1852081060c9dcf94b",
+    "tests/test_prompt_artifact.py": "83aa2726756cc5898ed001058f3bb3c70368761405ff5668b9face52671c6239",
+    "tests/test_prompt_composition.py": "716ff62edccd65dae9c31522a358b5c4cb87fdf851de2daf6d598f1be4359f3e",
+    "tests/test_prompt_publication.py": "b1aaf83c3ec55bf683be28b316dd031e3518e32aafba8541be8f4f3f799babdc",
+    "tests/test_publication.py": "a4d4e85982e982ec346e4e1b22297f7244dfc6d3ebc95bf41995da0a7cb38fdc",
+    "tests/test_publication_compose_config.py": "32c90dc2b487c4d9e2e2c529162f5275af7ec60a3a6497640f7c38e787c794fd",
+    "tests/test_readonly_project_recovery.py": "3ddd49b35e77664814773930894b11623c62810ab831b459bc13cd608435f8cf",
+    "tests/test_recall.py": "370fea49ed7a926932c40e8080697bf9731e4ee867a407af86fefc0c4a314910",
+    "tests/test_recall_browser.py": "b229cc42618defe6b91d64b343eadf1821d512b4f4ed12a476dcb8cdc42ebc16",
+    "tests/test_recall_usage.py": "6e0fbbbb814f7a551efd5c921e9695319226d5686b30a7a8b6773ae481b82061",
+    "tests/test_recovered_project_ownership.py": "0d78a77ae286b8b425451066f8953b2990553443f67ddd02d3e3f1684d78130e",
+    "tests/test_reply_revision_browser.py": "d0f3635518e738afd423255a9aab9897eebb7668e444bc54d0aaf9da002c75e4",
+    "tests/test_reply_v2_contract_compatibility.py": "58d95be1ba7a0d78f27ad043a42e874a1829934f4dcf46fe03852a702e07b78b",
+    "tests/test_response_stage_index.py": "ad0c19dc130b44d0f1b5e6fdfedbc7b147cf5e186ebca9f47463fa4b0a8f7ef3",
+    "tests/test_runtime_configuration.py": "373dd451b308d7b228689814406d676ab01bf8690c5b052e9c1132229c342d3d",
+    "tests/test_scoped_interview_strategy_rollout.py": "0deececb41b45d91a695183f04d0bcee48af581290a47c38522216ffd97bd789",
+    "tests/test_security_and_lifecycle.py": "59d696013f5359280958c06b84ec5ac318d86cddb61ae853dad0f437ebc8614f",
+    "tests/test_setup_memoir_test_accounts.py": "8ad7f09b8521bfa8a47b1617bcdacb25f6e4b837f87fc7329e312f86f038bf4a",
+    "tests/test_shared_memory_browser.py": "bb4a8943397c40288613308eb818a5c7cc22bad9f8e762e92f37bc25473018d5",
+    "tests/test_shared_memory_events_postgres.py": "f766c4cfc2ea4f1053903503aaf348404ed26da4c78a04f7f2ad6ce6dbe2b92a",
+    "tests/test_shared_preview_recovery.py": "616037f0dafc03fc80c940c56fe0350d93cc525aea7fb45b55b76d88cae0ef6b",
+    "tests/test_single_collector_entrypoint.py": "4323a74ca230846d7e45464098f32f1485dba775299149c05d47ac1749077218",
+    "tests/test_single_collector_observation.py": "007b4806ca642ac1d597a97f1d659fd4d0e1d5660cd02464fc31fe155e500748",
+    "tests/test_single_collector_process.py": "3b7b4c3d18f22dc4c4dab7d295e8eea5438e1857158e9f170500a5d89ae7caf0",
+    "tests/test_single_fifty_campaign.py": "7513167c6de045d3e23f058a7b2877a4281c806a3024857b32caa276edb384e7",
+    "tests/test_skill_eval_application.py": "42df1c2f59b37059571c7599d01b32c90efcb5c58fdd8cc297dd031ccbd39d8f",
+    "tests/test_skill_eval_assets.py": "32b809791ac9f8d825b65b9bb760022d9ff26a239be8eed3fb7932b48256e275",
+    "tests/test_skill_eval_interviewer.py": "ab40bb33751cf5743e02f4b36a8841aa2db41bce6f5920f734883302c77abef0",
+    "tests/test_skill_eval_receipt_replay.py": "7c2cd1e7622b0061189422747cb3e31fbee05eaf2ac7351240d5de6a70a6c6df",
+    "tests/test_skill_eval_review_regressions.py": "8ba900b3435bb858ad30ee6e1ca39fcf669a8f73e204d22f3eac151e2b4f7967",
+    "tests/test_skill_eval_sdk_readback.py": "f4b055485bc7c0dd148f1752756aa4bad7706bfd5913ccd47d471cb4e7e8e41d",
+    "tests/test_skill_eval_suite.py": "0954696d6a411ba84744757d27a19f1adb5152d067e52208ebe4116c81278b7f",
+    "tests/test_skill_eval_workflows.py": "981755bb868079aeef90c8cd02863858f73d1e7274831234bdde267bfdb1c1be",
+    "tests/test_spec_contract_routes.py": "20bff4c908acc4fb4e0c24876c219efdcf66f011158b95f889eb834600a81f90",
+    "tests/test_spec_invariants.py": "a5944d73e72a17c776728dd20f0030c4262797a6aa85ab6b05b44556f1483b1c",
+    "tests/test_speech.py": "e213ffd24633a2b38882993b15acb4827387a2eba7766f719f659561a9e4e20f",
+    "tests/test_speech_compose_config.py": "4f0e146cf694ae0e154ec0a235740809150b654401d3744dbed37ca8ce2402c8",
+    "tests/test_speech_integration.py": "eb4fb4e99aa82805dfa24a5ca358d848cd7d3973a76010ed35164d23b4ea1dd9",
+    "tests/test_stage_application_conflicts.py": "8a9d3b42f0b9e6c1ef19b1acebd10a9a33dc10f1e1a41ea80d25861e266aa35f",
+    "tests/test_stage_progress_regression.py": "427c63c3129555f7a6ad570713dd4e08b275fa57aa064899469ec85c3dd4e2ca",
+    "tests/test_stage_progress_rpc_browser.py": "774671ff2c4fd8067a8c74d52326d3d6a91cc46640275bb47ad102e26c1a2cd4",
+    "tests/test_stage_progress_rpc_lifecycle.py": "b307e407744f5bf5c15785f22f10fd0cb8d840775652cb1f3ca560f26febe0b0",
+    "tests/test_stage_progress_transfer.py": "785967ba192484dc1e593cebcafd57e2b5910c6b5a1d5a1d82fd32153210d890",
+    "tests/test_stage_readiness.py": "695ad9b4d7400b23178d3979d0910782c0ff7e75e3c0abf2b8cc817181103e6a",
+    "tests/test_stage_readiness_browser.py": "f4a2acc8508da4cead05838d00b2f6bd8de460b520c1c29412c8883ea00ec135",
+    "tests/test_stage_readiness_provenance.py": "3ca13a388957c715007249813dcf358f8e30ceedfa5215189f4e3c86d1a53611",
+    "tests/test_stage_readiness_resume_browser.py": "1d57a7ec7e741b97a4e7b101dd0f6e590904dc1f206ba921011d175f8f7decb7",
+    "tests/test_story_flow.py": "055cbf34379772b4655585b6377c2c0f80a6761ee9322e7290d3c90fb66bbd7c",
+    "tests/test_story_game_browser.py": "15a43db26e596c722cad76d1fcb7872bdb12dfa2fefc4d99cf3cb9767e94939f",
+    "tests/test_story_game_runtime.py": "761dc0149bad72adc266b432b10b0cf6dc230ea1dbb5ff68e2b9a2d968449191",
+    "tests/test_story_game_runtime_postgres.py": "f915acfaac860b97abdfd3b2d9f549048b5dbd8a59d8e875d7bf8e56627ad03a",
+    "tests/test_story_payments.py": "89f4c475e246a499bd368a2daa72ea99aa993bb7ba4d878317c352ca9e70cb78",
+    "tests/test_subscription_case_selection.py": "cfaa5a133546f58ac3b1792a832a787dde6bb7ea2ca31063d9d26128909b1254",
+    "tests/test_subscription_local_checkout.py": "6d2aed891d9c2cbe74d42fa02650a0bf7cf6bcc8932f39359dac7f8be64ed052",
+    "tests/test_subscription_sse_bom_position.py": "b64fcffde1a6c457caeafa53d1ccc6b1f1e7dbe62ec30f0c2afdb0aaf9f6ae49",
+    "tests/test_subscription_stream_diagnostics.py": "f11021b70f1cef73a78510410839a23d3bf21f0ad0395d8317ca9fa175c987ac",
+    "tests/test_subscription_stream_review_repair.py": "8826d6fd2cfe7646b319a86b92e8cd7691837a99a0042e1942f7627af0ea3265",
+    "tests/test_supabase_migration_push.py": "75ff0bee228856f6cb10ab13a0ce21f366e91121f97d856ec967a2a20cdf9687",
+    "tests/test_task_publisher.py": "e577f72d77778d56b5817dda6c544b6aaa5cb5aefe72527168fb39133808189d",
+    "tests/test_task_queue.py": "8cda1466170bde4caf256bbc852774ee629523fd8d8d43acda125da470c36eec",
+    "tests/test_task_runtime.py": "75e800829fd2e579ada787d6a7aa55040e0cde250e84c7c2bd21ddea8a4d1093",
+    "tests/test_temporal_dispatch.py": "923bcbd8d6009c7b487d0f6c82cf6b389f51d15e80759c325eea60b15912b6ff",
+    "tests/test_temporal_fixture_options.py": "30a1279e367f2af0798cc803137da705249dbab42be3a8ba5e4defb8d5e249e6",
+    "tests/test_timeout_diagnostics.py": "75558834654f1ff4e0f6b265258d2a21cc96c812438cf874c46bf4a968e218b5",
+    "tests/test_trajectory_evaluation.py": "d14702146c81fd13c8eca06f0f5165fa4c8293b769a1d8e8505c1f1ce6e8f7cb",
+    "tests/test_trajectory_retention.py": "3dd0662c233677b8066ba847b7d6e5d65be0dbba450c0a4b7ce3628eec3fda20",
+    "tests/test_truncate_local_data.py": "d93000266d7fa5464993905107859a5b93353105c2743163c401121bc9d11bdb",
+    "tests/test_truncate_scope_contract.py": "3a4b7e6b35fbb396fdb7928cbfe76f774475251053128f0f1c05bf4466692c23",
+    "tests/test_turn_stream.py": "15dcb3217bee929decb6c966edd0537ef8702b192d36f9ffc4eabd23622853b6",
+    "tests/test_two_lane_browser.py": "4b3ea65bbfaf244ce25b8542ae1d10bde46784b5bec60f9acea7494a3a1031ea",
+    "tests/test_two_lane_memory.py": "9637c50c8b4d3c278a8bbbe3b47e571c4280fd57994956e73876a65fdcf18e9b",
+    "tests/test_ui_locale_account_http.py": "ede19eee9d653b8d37bfcc7d86cdb1bb14092d42dc83bbf7517a0dabbd986417",
+    "tests/test_ui_locale_negotiation_browser.py": "f2177c7733e4ecdf9727ce3b0fc7f75fb1ea01ed3db35a5fee694ddf40ae3ade",
+    "tests/test_ui_locale_negotiation_http.py": "bc1e541209dee7d93fce0c9505e2f459d241984a2471aa8a25591763f05b7916",
+    "tests/test_ui_locale_preference_postgres.py": "41448c7f34a10b95c9b994c564e3554647736cea0f17d833b6b238a7e19e09e1",
+    "tests/test_voice_character.py": "210422a35a848f969c861df601d7072303021a50b332222235f3f09aad0dc9a0",
+    "tests/test_web_container_config.py": "488e0b7496e838de78775636aabedf88a0b60517af6eb333b2ca8da01f67a8c6",
+    "tests/test_worker.py": "70ee1549e76cba2d27772a228aa2414ab40b4f24be3cd3b8ed05e4f0d1fdf3b8",
+    "tests/test_workspace_latency.py": "19078c085e0e6982582b4a2d7e0f48aef2fbb1f00efd045b1a25fe4cfe047791",
+    "tests/test_workspace_memory_actions.py": "4ee277bb42d26617349bf59978a157644bfcaeb66328799dd20d898457486a70",
+    "tests/test_workspace_memory_actions_browser.py": "5b05a60c6a2716cf07704dcc4a14b903e46899bb18c540f5669dc0b88ad9a610",
+    "tests/test_workspace_merge.py": "712d7687785e47723db88ab1438c4defa794add96842d48abea86d8ff1a6e848",
+    "scripts/audit_spec_routes.py": "4a73bebb30fe8b40e2e5a528afb3f9369ca3f067276826ef7b768241aedcffdd",
+    "scripts/backend_operation_lock.py": "967e2795e52ab7bb054d4efaf484a2dc883731bb472697b6a620f7c937ece5dc",
+    "scripts/backup_store.py": "d6b1b07718a5d76747394c074abc6bf2aa6bb44a1460a8b1c114d25b066c22b2",
+    "scripts/benchmark_memoir_composer_incremental.py": "fae903abb03d8dc8f5f28d846c650cb8d2b54a0140ba11b39b7d0789ac3b5891",
+    "scripts/canary_app_launcher.py": "3bdf4646e0b2dbf2a4c930dc43414f96797bcd34f0ec5bb4b87602fc76918f91",
+    "scripts/canary_gateway_actor.py": "641b3cbd4fb568eda1335469f4fd989262c85d08df48a8d161589ca47aca5831",
+    "scripts/canary_gateway_auth.py": "f4948c13c8e92aa851d4d714667828c88bfad85bf7a2c7ca905f4ce8c9db1cf0",
+    "scripts/canary_gateway_binding.py": "14727d8e8c9228dcd5ec228e59de9865bc449476efaffb7951221e56918c4b17",
+    "scripts/canary_gateway_bridge.py": "c3daa332d7e758637d2b5abb5460197c296efa271e19c1518b86dc4abecb9324",
+    "scripts/canary_send_guard.py": "42594b4a928560dfc667ec952c68fe7df25deffc04d180b441c2f6a15227761e",
+    "scripts/canary_worker.py": "9ac69ccf66538b669c438c9082fd55e01bf5ee46729319537b8aacc0467744a4",
+    "scripts/canonical_evaluation.py": "8c274d90a301acabf3deab9aa9834d834fb0e899d7b54c7128d297c41895fd9b",
+    "scripts/canonical_native_fixture.py": "dda60a7d2bb463f212a832315be7ef5dd87fec033df3d22283f902b426617278",
+    "scripts/canonical_turn.py": "4c1433819bbfebd9769e3eef631fa0d56e4d1ebfeac83bd3bedd6c4901a3bbd4",
+    "scripts/check_localization_catalog.py": "95b836d8a0e5358162db11ce28effd028e0ab7617dedc342d90786ef1abe7fb1",
+    "scripts/check_mobile_openapi.py": "1fb9b28bf1252e536899a8b5db2f1d3cdb6533d31e7779ecddcfdf28291714f9",
+    "scripts/controlled_five_case.py": "8ad885b1b673ef77c3e59ca23e7bc15684d1296e23cfb00b650406cac518bd0c",
+    "scripts/controlled_lifecycle.py": "4e15eea749e6bfbd807d2ced76cb0dabbb097d91dfe192929a0261b0ccda1be8",
+    "scripts/controlled_native_state.py": "8aa754378e7fdca4b1898029eac51a189a2414560bf1567ab3b45cead94b17b2",
+    "scripts/dispatch_outbox.py": "9d70c857aaaabe5bb3900f926bb239a5db63fec2ba0404192f72abd2eeb27256",
+    "scripts/evaluate_langfuse_prompt.py": "ea3c2ed1f8aa8019d5a36e65b754cccd6f2da9b7e53f56066fa85b51dd5a683d",
+    "scripts/evaluate_llm_boundaries.py": "c82e4adec8bb03a7fe8321050d536d71fdd75341865eb650d6885397709bbf3d",
+    "scripts/evaluate_place_journeys.py": "5a98d98f7aca0f09c540df5411b88c9aec1606b86f316bbfe2fc0290651943e7",
+    "scripts/evaluation_budget.py": "e4ec06256db3d94e9c3aee73a6344a7c0459629655fac5541ebc173f183ad44c",
+    "scripts/export_langfuse_prompt.py": "b08754c0fbfab4c3366f8edc33340ad131ceff02bc07fa23d6e2f10593f12590",
+    "scripts/export_langfuse_prompts.py": "382aa59ca1ba5c6cbfeaa6178d5aa8a1bba8f59c1077fc73b946717987e14a9d",
+    "scripts/fifty_round_budget_contract.py": "95f59f97f555b5f5792c488214319b83e58b32d6948f7af8378aae3ac58fb2e8",
+    "scripts/fifty_round_campaign_adapter.py": "f320fcd4eb50ae8dcfda3b6f16d45190271d2cd1c4c6168345d788448e47e098",
+    "scripts/fifty_round_dispatch_budget.py": "419e878bdcf23b2a3996f2bcc237fdb6eacc3821d13a3a0cee1037030b5a625e",
+    "scripts/install_codex_skill.py": "95d94107fdfd2d20d67f46f6b895f5dddbdfd06c29526a2a154009879a9d2e3d",
+    "scripts/interviewer_conversation_cases.py": "52d7cc3e2cf7c6a4964a749afe839bf696aef876ba0beafe201bf2a9cf34ae54",
+    "scripts/issue14_progressive_readback.py": "445ace4dd196fbe0b4e0aa774a1b1d718e2d02cc68384949c0ed494ff16872c7",
+    "scripts/issue14_provider_budget.py": "0361381cbe83eb61820b3123c0a0f422f631380a69c53bc75ec732f88baad8dd",
+    "scripts/issue14_provider_transport.py": "35b54171bafd47bb78af2f385f0954c9b4c474208c64bc6cf706a9c168ee2db7",
+    "scripts/issue14_response_observation.py": "4ce24717bf08a9f89b8fc7b2a72930884ea60cf3f43b6b94514891219ee2c67c",
+    "scripts/issue14_source_contract.py": "60880f1eb7cad584c85a66c1b9d97d7b5c486fe8dba1998fa1978ea0d0aba78e",
+    "scripts/issue14_subscription_runner.py": "b79e9cac8d8b4aa0d31b17d60314468fbdcc4c1faacfe29b3a7c5daf6253e2f2",
+    "scripts/issue14_subscription_session.py": "903723c30e733588c942b9237691c27a7ed4783092c6f1c8a41ef535e127c613",
+    "scripts/issue14_subscription_source_contract.py": "e1cd56fc3f3c961a8ef435baf366666e93fe81cc4f207db36323978b9680712d",
+    "scripts/issue14_subscription_source_contract_v4.py": "555038bbf3d26e34343739e4f5e61c714bef19020bae3e492d36986aa2dcf927",
+    "scripts/issue14_subscription_source_contract_v5.py": "294db5d8aef39d9595a42fe52b2746734059e5124c73f13f66660448ea1826db",
+    "scripts/issue14_subscription_source_contract_v6.py": "ca474b7f957f90fc688ff31d60bf9c0a108a516469a3ecc678d6a5b58a1d74b0",
+    "scripts/issue14_subscription_transport.py": "5c0a0c0dd3ddc9fa10f293cf985d37d6e05329a0a60dbf8116a6908453a14c1f",
+    "scripts/issue53_profile_sequences.py": "ff62924fe4fec1fa90bee2b14aa5b9bedca4d4a41ac4beb59c957874f58d560d",
+    "scripts/issue53_sequence_application.py": "6deb015accf932b217adf0369d33c58c16669c036e8b23eb83c67fcbc8d72fbb",
+    "scripts/issue6_semantic_evaluation.py": "979560b162713d750a3cd92b0295c635e3611c92ba23bf80d27063b604089d96",
+    "scripts/langfuse_prompt_client.py": "efd190215f9004a3714fd1704706c14977d0d524bd6b85e2867da8f0e9b67bb7",
+    "scripts/lifetime_memory_inventory.py": "6be4a32a1696ced3777495c7f8884bb00eb3a25a08d6f5ffa9bd5ff7127bc0e7",
+    "scripts/memoir_checkpoint_readback.py": "d1b93e72334e3d0c3040903d76fcea1a08b4979729e55599974389503edeb9d6",
+    "scripts/memoir_codex_worker_smoke_probe.py": "39df926f74ddcc40d14590cd05b24f611d95f78bf9517b33a0f18b5e400f97c9",
+    "scripts/memoir_fifty_browser.py": "aba5736ef90ecf71b6cb82421cccc74668c41a7b0e702649f0460efbe0a95bc8",
+    "scripts/memoir_fifty_browser_runner.py": "a8132780632d566a9e4c10a6451769dcaf80583a7acf1ab6de705688e909b0c4",
+    "scripts/memoir_fifty_coverage.py": "e77a871a6c8dfd5a6b5cbc733b64aac238c60a69b611b2a8db6b458d14153d92",
+    "scripts/memoir_fifty_photo.py": "534589b5613b73443787d0c8779b2d6b9eab7d2a613fa0b726afcf1e934332b8",
+    "scripts/memoir_fifty_readback.py": "143cc1bf334e93abb71f14e04faef82140659dd5e7ee9db6875211269989b60a",
+    "scripts/memoir_five_case_evaluator.py": "ec987b21363c4dd519b1d2e712c36e77e6b6342dae0973a7286f5f8f5167b2f0",
+    "scripts/memoir_live_skill_cases.py": "bab674c2696bedacd3172b5e37e8089d84bb972f2021d3c4cdcbf5bc0317ab9f",
+    "scripts/memoir_progressive_verification.py": "cf3a80f7db9e60875a4c6a220fbebf63d5b31d9c5819c2cefed3b608f91ee98c",
+    "scripts/memoir_provider_connectivity_probe.py": "7a525c44ae041e277266d4a813ad73b102c776e5148c7cfa234dc71431b9dea8",
+    "scripts/memoir_provider_web_search_probe.py": "04ac9ebf5981d1244866476649f421acd0f2d1509d460b4ab47bcfe9798d65f7",
+    "scripts/memoir_skill_eval_application.py": "9161b081ba0f1b0bd40aedc1f5fcda7c701e3f48fd409a9dc88ee4e1e382444f",
+    "scripts/memoir_skill_eval_assets.py": "456685b5109ca3b2c33d2f9751eae98a9c423316f2c09b502e194919b4e15eb9",
+    "scripts/memoir_skill_eval_browser.py": "8fa4da82dd1ea5c663720678d7f64b45ceebf0345fb9067c87fded8ec9028747",
+    "scripts/memoir_skill_eval_suite.py": "c479970c2586189a6796bb1a685b1607bf61ee9875f90ffece8db0a9a20f2677",
+    "scripts/memoir_skill_eval_workflows.py": "1f7d805e925c175215e8183ff0e56ee6c8bda31c5cefce197a68ed910e6f43cf",
+    "scripts/memoir_skill_scenarios.py": "57b766df51d463b0442f8dc4c27a717f6965de9723ec82fcb484eeb1c0839df9",
+    "scripts/memoir_subscription_profiles.py": "aec6508db3feb3325db6dbd14ce52f341764c53340bb16bf016170982a62c3b6",
+    "scripts/native_canary_launcher.py": "1c91c1cdd2bd3fc8e0bfc54dd6059c1f957751ef105cca88d185fad13be1fd14",
+    "scripts/profile_canonical_controlled.py": "6261722a6497538f3311b1d04acf431079d8f589a5143ee3f0206dca5fe6aa28",
+    "scripts/profile_first_reply.py": "8d80437af0b8c0417ff257912bcca93390b5cd876cb39118137132b419f730ac",
+    "scripts/prompt_registry.py": "f1fa45475884012d3d6adeb1ed09116876d82d6558cf8edfa6d491e288cb8516",
+    "scripts/publish_langfuse_prompts.py": "b88e1c371d77bc7cd943b62762f824fdcfd0e5651974925d94e087fcd1f02100",
+    "scripts/refresh_mocker_compose_hosts.py": "bf6ba498283d43e522bd26d1cf93fd9d47399b39d55754416de44ed606695bda",
+    "scripts/restore_store.py": "db49c25b6b3220b03df1bf656a77cda38a94a3e26da91a58cc4ac725cb4a2214",
+    "scripts/run_acceptance_evidence.py": "1b549cab8b165a4ba24892ff44bdacfae44c8d3dc467db7818a3f1da4efec4e5",
+    "scripts/run_canonical_five_case_evaluation.py": "4726e01300000ef1084242d92384c376dcbd4bc276fff85406ad4f4ac3e03e38",
+    "scripts/run_codexlb_canary.py": "ea820030ef8c5c2f9f8733c7b3fa8cc6f45ae087f0b58b02d31f8595b497c2ae",
+    "scripts/run_isolated_check.py": "4aa336510f3d2d301bcf9bd17e9143abd8cd696ea728f2304d686ccb1108229c",
+    "scripts/run_issue14_evaluation.py": "0f2b063afe42950ea0929ce201ae20d16cd9cb6a7d4e37472c6a3500725e4d69",
+    "scripts/run_issue14_subscription_evaluation.py": "232b79179bd7b35e78c8c6a79411b13a6fb8d879b30e9c5cff29b9ddbddadec1",
+    "scripts/run_langfuse_evaluation.py": "625c9105d1b9ea9df614fa55191ed725ace74f4accd8e727a7136ffd7d657702",
+    "scripts/run_memoir_five_case_evaluation.py": "08ffd07a94d03333faee98289ec12efbfea2fc47b3cd1fb9ffee225c8ac40c37",
+    "scripts/run_memoir_five_case_semantic_judge.py": "755b0cc383047fd8e775e9c1f4f8632b24d16066e4001d30e2cc34a4e6923a9b",
+    "scripts/run_memoir_game_ui_acceptance.py": "f58e3f0420d7ff3c5f9bf32c11cec34b08133f547dca8181dff9f0482218d965",
+    "scripts/run_memoir_live_skills.py": "8033ca4b6c3be529396de598c79f14609f5567861b057aaa7d35c8e5eed29ec3",
+    "scripts/run_memoir_skill_evaluation.py": "019aef28ea21b90938cfdb59a41c0a1a9150a6ccf59c6bf340b3aaad228d15ce",
+    "scripts/run_memoir_supabase_evaluation.py": "a6fd30d9500737bbc93ac9ee92f544040998f02e55416cb8ca7f50f0f6c4d588",
+    "scripts/setup_memoir_test_accounts.py": "8be52071aac4f2b07227f04c2195c2f5e30a926f1299269589a29a8719ba1163",
+    "scripts/single_collector_observation.py": "3675bd5e92bbcbb8165d51d039b24fc1682ae1bad931d09398fe93c39dcb54a6",
+    "scripts/single_fifty_campaign.py": "d54fb5c64f32a50d15dc5966141aed27191355c020289fa8b656b3014eb63ee1",
+    "scripts/smoke_conversation_proxy.py": "a39f528e28e3b0e86385bf03b0531a51965f24a35d0a096575c50cbbba8c6640",
+    "scripts/start_container_stack.py": "a77e08553f62e6053a36d4a168d6b14f6dc98b1494e57389a2eafbe35e4c5eab",
+    "scripts/task_runtime.py": "332ca7992afd1decd61cb4647e5e95cce680b4e9a92a075121c52f1d5b1863a6",
+    "scripts/temporal_runtime.py": "00014b820568fed5329ac3e4978175d09e46721af2a47b0e13db19a17af60357",
+    "scripts/truncate_local_data.py": "34eac791f512fc687832b02c97a0aa548a9194a87425fe11d718659e3c2aae59",
+    "scripts/verify_codex_worker_isolation.py": "514ed630c7a3345e41a21d48797bc0ff9045115e062779c25287b423c897cb6c",
+    "scripts/verify_container_stack.py": "85e8937c9705395545bd2478e1bf3a285cd62cf27ed099d9ed14ac0f511574e6",
+    "scripts/verify_task_isolation.py": "a783e23f5b7eb8e9c63ea67ee72958d4ef86058ec9ae6ee09530133a9a89160f",
+    "scripts/verify_task_pipeline.py": "3431930241ddf0abb8c3be5705b1a6f1f69d21de278a1cad3c8c4c9db384d292",
+    "scripts/worker.py": "943798c030d8b2ac11fa1d317a4015022de7b0e6f76192ca21d094ba2304c8f0"
+  },
+  "failure_accounting": {
+    "provider_bound_attempts": 20,
+    "completed_generations": 19,
+    "upstream_failed_usage_unavailable": 1,
+    "calibration_no_heartbeat_completed_generations": 6,
+    "selected_successful_workflow_generations": 12,
+    "judge_calls": 0,
+    "budget": "Original baseline max28 includes calibration and upstream failure; candidate28 + heldout14 reserved, composer round max70. No additional calls for failed zero-call setup or postprocessing."
+  },
+  "gates": {
+    "real_worker_sql_workflows": "4/4 checkpoints saved/read back in selected cohort; both arms reload their own SQL prior",
+    "authority_heartbeat": "real MemoryEventWorker wrapper; six observed heartbeats per successful language sequence",
+    "strict_deterministic_validation": "passed for all four accepted checkpoints",
+    "model_review": "ready with no findings for all four; this does not certify full quality",
+    "frozen_semantic_quality": "FAIL: English classroom absent from sources; Chinese school paragraph not byte-preserved; strict independent-event coverage incomplete",
+    "optimization_speedup": "unmeasured; proposal only",
+    "deployed_worker_temporal_browser": "unverified"
+  },
+  "proposal": {
+    "name": "direct tool-free composer phase transport",
+    "files": [
+      "apps/api/lifetime_memory_lane_engine.py",
+      "phase-specific transport and SQL regression tests"
+    ],
+    "change": "Extend existing direct Responses branch only to prepare/draft/review, retaining all three phases and separate exact candidate review before save. Selected-outline remains native.",
+    "retained": "Domain prompts, schema, canonical packets, configured model/effort/output cap, owner/source/policy/artifact admission, actual body guards, worker heartbeat, phase proofs/checkpoints, three draft attempt ceiling, deterministic/prose/evidence/protected/SQL contracts.",
+    "hypothesis": "Remove measured 4684 tool-context input tokens per call and native framework/session overhead. Composer time gain unknown; draft output consumes most generation time.",
+    "approval": "pending for this new named change set",
+    "validation": "Same four checkpoints using own priors plus exact frozen bilingual protection/attribution heldouts. Baseline quality defects cannot relax candidate gates. Candidate28 + heldout14 calls reserved.",
+    "rollback": "Remove only prepare/draft/review from the direct branch, preserving profile/summary and all domain contracts."
+  },
+  "limitations": [
+    "One sample per language/checkpoint, different run times/cache; no latency percentiles.",
+    "Selected source events, policy and completed-round scheduling are disclosed real-SQL setup fixtures, not actual A generation/production cadence acceptance.",
+    "Controlled SQL case wall and worker claim→root timings are not browser paint or user-visible first text.",
+    "A header-200 upstream timeout had no final document/usage and remains a failed attempt with full budget reservation; not counted as completion.",
+    "Paid no-heartbeat calibration failures are harness omissions, not demonstrated deployed-worker defects; raw outputs remain.",
+    "Main facts retained does not excuse classroom/byte-preservation failures. Semantic review is by assistant, not independent human.",
+    "No composer app/prompt/config changes, Langfuse publication, shared-service restart or merge.",
+    "A postprocessing script initially looked for SQL section content in wrong field, then used actual bundle.preview.text; raw readbacks were not changed."
+  ],
+  "full_evidence_archive": {
+    "path": "lane-b-composer-baseline-20261023.json.gz",
+    "compression": "gzip",
+    "sha256": "e8b95223affaf8a927bfb5a47832357592363d8cc7bce378b91ad8e2006c0164",
+    "uncompressed_sha256": "69ba8e54beac6695502001ab4be26a8640e97a2dd5456543e4e8cbae35f17de6",
+    "uncompressed_bytes": 11956697,
+    "contents": "All raw runs, complete provider requests/outputs, SQL persisted state, every harness/helper source, failed checks and cleanup receipts. Standard gzip JSON; no evidence dropped.",
+    "read_example": "python3 -c 'import gzip,json; d=json.load(gzip.open(\"docs/evidence/lane-b-composer-baseline-20261023.json.gz\")); print(d[\"gates\"])'"
+  },
+  "run_inventory": [
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/setup-live.json",
+      "sha256": "998feaf037669a8284d8e2335f46e5852c7c608964f1f308c1aa67cc45037e62",
+      "cases": [
+        {
+          "id": "composer-en-AU",
+          "status": "failed"
+        },
+        {
+          "id": "composer-zh-CN",
+          "status": "failed"
+        }
+      ],
+      "provider_attempts": 0,
+      "harness_sha256": "5c89dec475652da6ff62d1ce884bbac1de487d174a262e52efb39325be30830d",
+      "cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-controlled-pg-author-live-e0cngwzm",
+            "device": 16777231,
+            "inode": 951349204
+          }
+        ],
+        "command_groups_stopped": [],
+        "model_homes_created": false,
+        "model_homes_removed": true
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/setup-r2-live.json",
+      "sha256": "7afe0e1a294a077f9c0b5c14a45e20d2d7e4cb776dfcc493915098d16716fb8d",
+      "cases": [
+        {
+          "id": "composer-en-AU",
+          "status": "setup_ready"
+        },
+        {
+          "id": "composer-zh-CN",
+          "status": "failed"
+        }
+      ],
+      "provider_attempts": 0,
+      "harness_sha256": "7046047b2210178cf93006499b160a92859a029df6393cc547f9912993bc85be",
+      "cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-controlled-pg-author-live-was7yf2r",
+            "device": 16777231,
+            "inode": 951354603
+          }
+        ],
+        "command_groups_stopped": [],
+        "model_homes_created": false,
+        "model_homes_removed": true
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/setup-r3-live.json",
+      "sha256": "ebd167e32418737233a7d1fb296ab1d9c5a91d82b989cf31c3100fac87ffa3bc",
+      "cases": [
+        {
+          "id": "composer-en-AU",
+          "status": "setup_ready"
+        },
+        {
+          "id": "composer-zh-CN",
+          "status": "setup_ready"
+        }
+      ],
+      "provider_attempts": 0,
+      "harness_sha256": "96a96730e3642c8d1f99ae6d22b93479a1597202e7ebfa1b686460c532ccf028",
+      "cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-controlled-pg-author-live-mykau8l2",
+            "device": 16777231,
+            "inode": 951363331
+          }
+        ],
+        "command_groups_stopped": [],
+        "model_homes_created": false,
+        "model_homes_removed": true
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/setup-r4-live.json",
+      "sha256": "162fabd09938b2cb6d8952464fb872cb5626be30ad0bede04ba12673fd648339",
+      "cases": [
+        {
+          "id": "composer-en-AU",
+          "status": "setup_ready"
+        },
+        {
+          "id": "composer-zh-CN",
+          "status": "setup_ready"
+        }
+      ],
+      "provider_attempts": 0,
+      "harness_sha256": "d4786a72fc6d63536c6e022006d2da0895538b7696d21c4611dfe20c12c42ca9",
+      "cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-controlled-pg-author-live-cucxouf7",
+            "device": 16777231,
+            "inode": 951397781
+          }
+        ],
+        "command_groups_stopped": [],
+        "model_homes_created": false,
+        "model_homes_removed": true
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/baseline-live.json",
+      "sha256": "99418bff00bc4fbb710985d3d27de98c10fec05658f630ddc52035338f42c275",
+      "cases": [
+        {
+          "id": "composer-en-AU",
+          "status": "failed"
+        },
+        {
+          "id": "composer-zh-CN",
+          "status": "failed"
+        }
+      ],
+      "provider_attempts": 6,
+      "harness_sha256": "96a96730e3642c8d1f99ae6d22b93479a1597202e7ebfa1b686460c532ccf028",
+      "cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-controlled-pg-author-live-lc_7m8n8",
+            "device": 16777231,
+            "inode": 951369850
+          }
+        ],
+        "command_groups_stopped": [],
+        "model_homes_created": true,
+        "model_homes_removed": true
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/baseline-r2-live.json",
+      "sha256": "3b459bb9591e5bb8fb5e04c7a212c3e6a475a72af7bcbfdf16aa4c4c09f1f130",
+      "cases": [
+        {
+          "id": "composer-en-AU",
+          "status": "completed"
+        },
+        {
+          "id": "composer-zh-CN",
+          "status": "failed"
+        }
+      ],
+      "provider_attempts": 8,
+      "harness_sha256": "d4786a72fc6d63536c6e022006d2da0895538b7696d21c4611dfe20c12c42ca9",
+      "cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-controlled-pg-author-live-syongmse",
+            "device": 16777231,
+            "inode": 951404401
+          }
+        ],
+        "command_groups_stopped": [],
+        "model_homes_created": true,
+        "model_homes_removed": true
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/baseline-zh-r3-live.json",
+      "sha256": "a3d9a659b465b888f1effe2f91e6439e0eb251cd466cedc8bfa4b93ba83cf0de",
+      "cases": [
+        {
+          "id": "composer-zh-CN",
+          "status": "completed"
+        }
+      ],
+      "provider_attempts": 6,
+      "harness_sha256": "cd475478bcfbca6262c3ea0a85282983eace610f8fe8a4e3b4f689ad3ee2c86c",
+      "cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-controlled-pg-author-live-hjsgp4ph",
+            "device": 16777231,
+            "inode": 951436535
+          }
+        ],
+        "command_groups_stopped": [],
+        "model_homes_created": true,
+        "model_homes_removed": true
+      }
+    }
+  ],
+  "harness_inventory": [
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/live-setup-v1.py",
+      "sha256": "5c89dec475652da6ff62d1ce884bbac1de487d174a262e52efb39325be30830d"
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/live-setup-v2.py",
+      "sha256": "7046047b2210178cf93006499b160a92859a029df6393cc547f9912993bc85be"
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/live-no-heartbeat-v1.py",
+      "sha256": "96a96730e3642c8d1f99ae6d22b93479a1597202e7ebfa1b686460c532ccf028"
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/live-worker-v2.py",
+      "sha256": "d4786a72fc6d63536c6e022006d2da0895538b7696d21c4611dfe20c12c42ca9"
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/04-composer/live.py",
+      "sha256": "cd475478bcfbca6262c3ea0a85282983eace610f8fe8a4e3b4f689ad3ee2c86c"
+    }
+  ],
+  "helper_inventory": {
+    "scripts/evaluation_budget.py": "e4ec06256db3d94e9c3aee73a6344a7c0459629655fac5541ebc173f183ad44c",
+    "scripts/canonical_turn.py": "4c1433819bbfebd9769e3eef631fa0d56e4d1ebfeac83bd3bedd6c4901a3bbd4",
+    "scripts/controlled_lifecycle.py": "4e15eea749e6bfbd807d2ced76cb0dabbb097d91dfe192929a0261b0ccda1be8",
+    "scripts/backend_operation_lock.py": "967e2795e52ab7bb054d4efaf484a2dc883731bb472697b6a620f7c937ece5dc",
+    "scripts/run_isolated_check.py": "4aa336510f3d2d301bcf9bd17e9143abd8cd696ea728f2304d686ccb1108229c",
+    "tests/controlled_policy.py": "e1fd1fd9902ad2cd78be8f370f2e926a0d7d5156264b4e0bcb907d48d88cab49",
+    "tests/test_agent_commit_postgres.py": "b3525376454ee160f949132ddd54a345de020c44ed7e83b8f37f264bc2b002c3",
+    "tests/test_shared_memory_events_postgres.py": "f766c4cfc2ea4f1053903503aaf348404ed26da4c78a04f7f2ad6ce6dbe2b92a",
+    "tests/memoir_postgres_workflow.py": "ef0431e8d714d9b4d454f069dc9cb2f70156c1b23cf0fa91d252909c24f07fd3",
+    "tests/test_lifetime_composer_capacity.py": "78500595672c086a875768ce5e29a5d7213a42db4928685a2a1445c4d8abdc10",
+    "tests/test_lifetime_memory_postgres.py": "86c5c6398b926080c2e6c1dd9b3a67703c2e7f991853caf135515b8b7536a436",
+    "tests/test_progressive_composer.py": "69985a8e789a5475123299dc140e071ec29cb3864c59511e94e5309503d94148",
+    "tests/test_private_rounds_postgres.py": "d43ee9d1877b48b76a23a82557b88075fc341cd8fdc7b01e49e17ac275683fb3",
+    "tests/test_guest_conversation_transfer.py": "46983ad612c9abf88d6765d0db5675588f5134a18bda77ab14c272cfa194fe4b"
+  },
+  "check_inventory": [
+    {
+      "path": "var/optimise-all-skills-20261022/checks/composer-native-baseline-r2.json",
+      "receipt": {
+        "name": "composer-native-baseline-r2",
+        "command": [
+          "python3",
+          "var/optimise-all-skills-20261022/04-composer/live.py",
+          "baseline-r2"
+        ],
+        "exit_code": 0,
+        "base_head": "7bfc119734a44ad6d6a46d4a366288b40adcf3ba",
+        "tree": "b424945f39db8707346618f0f8932f6a4177d621",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-bcjha9i1",
+        "command_group": {
+          "group_id": 530,
+          "leader_started": "Fri Oct 23 19:38:33 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-bcjha9i1",
+              "device": 16777231,
+              "inode": 951404378
+            },
+            {
+              "root": "/tmp/memoir-controlled-pg-author-live-syongmse",
+              "device": 16777231,
+              "inode": 951404401
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 172.06
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/composer-native-baseline-zh-r3.json",
+      "receipt": {
+        "name": "composer-native-baseline-zh-r3",
+        "command": [
+          "python3",
+          "var/optimise-all-skills-20261022/04-composer/live.py",
+          "baseline-zh-r3"
+        ],
+        "exit_code": 0,
+        "base_head": "7bfc119734a44ad6d6a46d4a366288b40adcf3ba",
+        "tree": "b424945f39db8707346618f0f8932f6a4177d621",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-2e__f0fn",
+        "command_group": {
+          "group_id": 2419,
+          "leader_started": "Fri Oct 23 19:42:40 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-2e__f0fn",
+              "device": 16777231,
+              "inode": 951436492
+            },
+            {
+              "root": "/tmp/memoir-controlled-pg-author-live-hjsgp4ph",
+              "device": 16777231,
+              "inode": 951436535
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 148.82
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/composer-native-baseline.json",
+      "receipt": {
+        "name": "composer-native-baseline",
+        "command": [
+          "python3",
+          "var/optimise-all-skills-20261022/04-composer/live.py",
+          "baseline"
+        ],
+        "exit_code": 0,
+        "base_head": "7bfc119734a44ad6d6a46d4a366288b40adcf3ba",
+        "tree": "b424945f39db8707346618f0f8932f6a4177d621",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-i12xc0s4",
+        "command_group": {
+          "group_id": 98702,
+          "leader_started": "Fri Oct 23 19:34:15 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-i12xc0s4",
+              "device": 16777231,
+              "inode": 951369767
+            },
+            {
+              "root": "/tmp/memoir-controlled-pg-author-live-lc_7m8n8",
+              "device": 16777231,
+              "inode": 951369850
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 135.33
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/composer-setup-r2.json",
+      "receipt": {
+        "name": "composer-setup-r2",
+        "command": [
+          "python3",
+          "var/optimise-all-skills-20261022/04-composer/live.py",
+          "setup-r2"
+        ],
+        "exit_code": 0,
+        "base_head": "7bfc119734a44ad6d6a46d4a366288b40adcf3ba",
+        "tree": "b424945f39db8707346618f0f8932f6a4177d621",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-0xl3p68j",
+        "command_group": {
+          "group_id": 98087,
+          "leader_started": "Fri Oct 23 19:32:38 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-0xl3p68j",
+              "device": 16777231,
+              "inode": 951354529
+            },
+            {
+              "root": "/tmp/memoir-controlled-pg-author-live-was7yf2r",
+              "device": 16777231,
+              "inode": 951354603
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 3.7
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/composer-setup-r3.json",
+      "receipt": {
+        "name": "composer-setup-r3",
+        "command": [
+          "python3",
+          "var/optimise-all-skills-20261022/04-composer/live.py",
+          "setup-r3"
+        ],
+        "exit_code": 0,
+        "base_head": "7bfc119734a44ad6d6a46d4a366288b40adcf3ba",
+        "tree": "b424945f39db8707346618f0f8932f6a4177d621",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-b3gluf13",
+        "command_group": {
+          "group_id": 98441,
+          "leader_started": "Fri Oct 23 19:33:38 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-b3gluf13",
+              "device": 16777231,
+              "inode": 951363290
+            },
+            {
+              "root": "/tmp/memoir-controlled-pg-author-live-mykau8l2",
+              "device": 16777231,
+              "inode": 951363331
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 4.37
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/composer-setup-r4.json",
+      "receipt": {
+        "name": "composer-setup-r4",
+        "command": [
+          "python3",
+          "var/optimise-all-skills-20261022/04-composer/live.py",
+          "setup-r4"
+        ],
+        "exit_code": 0,
+        "base_head": "7bfc119734a44ad6d6a46d4a366288b40adcf3ba",
+        "tree": "b424945f39db8707346618f0f8932f6a4177d621",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-6insxl4d",
+        "command_group": {
+          "group_id": 175,
+          "leader_started": "Fri Oct 23 19:37:52 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-6insxl4d",
+              "device": 16777231,
+              "inode": 951397635
+            },
+            {
+              "root": "/tmp/memoir-controlled-pg-author-live-cucxouf7",
+              "device": 16777231,
+              "inode": 951397781
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 5.31
+      }
+    },
+    {
+      "path": "var/optimise-all-skills-20261022/checks/composer-setup.json",
+      "receipt": {
+        "name": "composer-setup",
+        "command": [
+          "python3",
+          "var/optimise-all-skills-20261022/04-composer/live.py",
+          "setup"
+        ],
+        "exit_code": 0,
+        "base_head": "7bfc119734a44ad6d6a46d4a366288b40adcf3ba",
+        "tree": "b424945f39db8707346618f0f8932f6a4177d621",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-z6vm46oi",
+        "command_group": {
+          "group_id": 97882,
+          "leader_started": "Fri Oct 23 19:32:11 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-z6vm46oi",
+              "device": 16777231,
+              "inode": 951349189
+            },
+            {
+              "root": "/tmp/memoir-controlled-pg-author-live-e0cngwzm",
+              "device": 16777231,
+              "inode": 951349204
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 2.81
+      }
+    }
+  ],
+  "route_model_effort": {
+    "selected_periodic": {
+      "route": "memoir-luna-low",
+      "served_model": "gpt-5.6-luna",
+      "requested_effort": "low",
+      "observed_effort": "low",
+      "native_cli": "codex-cli 0.155.1"
+    },
+    "selection": "Bounded composer model from composer env/global fallback; worker explicit effort override or composer effort env/default low.",
+    "conditional_selected_outline": "Bounded job/global model; worker or native global effort. Actual served settings unmeasured."
+  }
+}
