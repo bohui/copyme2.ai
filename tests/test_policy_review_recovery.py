@@ -158,6 +158,91 @@ def test_audit_reason_is_bounded_and_typed(reason):
         policy_review.PolicyReview.model_validate(dict(complete=False, restrictions=[], reason=reason))
 
 
+@pytest.mark.parametrize('language,opening', [('en-AU', False), ('zh-CN', True)])
+@pytest.mark.parametrize('fault', ['span', 'duplicate', 'completed_reason'])
+@pytest.mark.parametrize('recover', [False, True])
+def test_invalid_completed_review_reassesses_exact_source_before_any_reply_or_save(
+        sql, tmp_path, monkeypatch, caplog, language, opening, fault, recover):
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'compact-v1')
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '0')
+    monkeypatch.setenv('MEMORY_SPARK_PARALLEL_POLICY_REVIEW', '0')
+    monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK', '1' if opening else '0')
+    restriction = ('Please do not bring up my father again.' if language == 'en-AU'
+                   else '以后请不要再提我父亲。')
+    text = restriction + (' Let us talk about Sydney.' if language == 'en-AU' else '我们聊悉尼。')
+    acknowledgement = 'We can focus on Sydney.' if language == 'en-AU' else '我们可以聊悉尼。'
+    question = 'What do you remember about Sydney?' if language == 'en-AU' else '您对悉尼有什么回忆？'
+    requests, outputs, replies = [], [], []
+
+    def review_provider(request):
+        body = json.loads(request.content)
+        requests.append(json.loads(body['input']))
+        control = dict(kind='excluded_topic', quote=restriction, char_start=0, char_end=len(restriction))
+        output = dict(complete=True, restrictions=[control], reason=None)
+        if len(requests) == 1 or not recover:
+            if fault == 'span':
+                control['char_end'] += 1
+            elif fault == 'duplicate':
+                output['restrictions'] *= 2
+            else:
+                output['reason'] = REASON
+        if opening:
+            output['acknowledgement'] = acknowledgement
+        outputs.append(output)
+        return httpx.Response(200, json=dict(id=f'validation-review-{len(requests)}', status='completed',
+            output=[dict(type='message', content=[dict(type='output_text', text=json.dumps(output))])]))
+
+    async def review(*args, **kwargs):
+        kwargs.update(base_url='http://127.0.0.1:1/v1', api_key='controlled-policy-key',
+                      transport=httpx.MockTransport(review_provider))
+        return await complete_json(*args, **kwargs)
+
+    def collector(request):
+        body = json.loads(request.content)
+        replies.append(body)
+        assert len(requests) == 2
+        assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip() == '0'
+        assert restriction in json.dumps(body['interview_context'], ensure_ascii=False)
+        output = proposal(mode='extract', name=None, question=question)
+        output['acknowledgement'] = acknowledgement
+        return worker_reply(request, dict(reply=json.dumps(output), thread_id='review-recovery', artifacts=[]))
+
+    monkeypatch.setattr(policy_review, 'complete_json', review)
+    monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda _: PostgresRest(sql, OWNER).storage())
+    monkeypatch.setattr(agent_routes, 'runtime', CodexRuntime(home_root=tmp_path / 'homes',
+        worker_url='http://controlled.invalid', worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(collector)))
+    payload = dict(client_turn_id=str(uuid4()), text=text, language=language)
+    with TestClient(create_app(MemoryStore())) as client:
+        response = client.post('/v1/agent/turn', headers={'Accept': 'application/x-ndjson'}, json=payload)
+        events = [json.loads(line) for line in response.text.splitlines()]
+        assert len(requests) == 2
+        assert requests[0]['source'] == requests[1]['source']
+        assert requests[1]['previous_review'] == {k: v for k, v in outputs[0].items() if k != 'acknowledgement'}
+        assert requests[1]['validation_error'] == 'invalid_review'
+        assert sql('select count(*) from public.user_narrator_source;').stdout.strip() == '1'
+        if recover:
+            assert events[-1]['type'] == 'result', events
+            result = events[-1]['data']
+            assert result['conversation_saved'] and len(replies) == 1
+            saved = json.loads(sql('select review from public.user_lifetime_source_policy_receipt;').stdout)
+            assert saved['output'] == {k: v for k, v in outputs[1].items() if k not in {'reason', 'acknowledgement'}}
+            assert saved['receipt']['policy_review_attempts'][0]['validation_error'] == 'invalid_review'
+            assert len(saved['receipt']['policy_review_attempts']) == 2
+            replay = client.post('/v1/agent/turn', json={**payload, 'project_id': result['project_id']})
+            assert replay.status_code == 200 and replay.json()['cached']
+            assert len(requests) == 2 and len(replies) == 1
+        else:
+            assert events[-1]['type'] == 'error'
+            assert not any(e['type'] in {'text_delta', 'conversation_saved', 'result'} for e in events)
+            assert not replies
+            assert sql('select count(*) from public.user_lifetime_source_policy_receipt;').stdout.strip() == '0'
+            assert sql('select count(*) from public.user_completed_round;').stdout.strip() == '0'
+        assert restriction not in caplog.text and REASON['detail'] not in caplog.text
+
+
 @pytest.mark.parametrize('restricted', [False, True])
 def test_explicit_retry_after_incomplete_review_regenerates_reply_v2_under_valid_controls(
         sql, tmp_path, monkeypatch, restricted):
