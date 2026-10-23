@@ -1,7 +1,10 @@
 # Active skill optimization campaign
 
-Original campaign branch: `optimise-all-skills`; PR117 is now merged. Current
-checkout is `main`. Original baseline: `d5dd21407bdf29ba35ef2686db4063ccba108420`.
+Original campaign branch: `optimise-all-skills`; PR117 is now merged. The
+post-merge live baseline is main `527fc73`; the checkout moved to
+`optimise-all-skills-2` during verification and that existing continuation
+branch retains the review report. Original baseline:
+`d5dd21407bdf29ba35ef2686db4063ccba108420`.
 
 Each Lane B skill gets its own execution/prompt analysis, bounded live baseline, concrete proposal, approved implementation and quality comparison. The user changed the interviewer scope to review only. No service activation or feature-branch prompt publication is included.
 
