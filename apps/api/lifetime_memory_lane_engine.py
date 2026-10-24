@@ -60,6 +60,7 @@ EXTRACTION_REJECTION_REASONS = {
     'Evidence span exceeds claimed source page': 'PAGE_SPAN',
     'Evidence quote outside claimed source page': 'PAGE_QUOTE',
     'Whole-source policy authority changed': 'POLICY_SOURCE',
+    'Event place hierarchy must retain its exact source label': 'PLACE_HIERARCHY',
 }
 
 
