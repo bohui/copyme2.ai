@@ -99,3 +99,10 @@ The rerun used 26 of the fixed 40 allowed HTTP submissions: 12 policy and 14 rep
 The frozen live core fixture has inactive strategy rollout, matching its prior cohort, so it does not save strategy-outcome rows. The two controlled-provider API/database/client regressions exercise active strategy, persist the correction outcome, and assert that no new news research is queued. Four focused unit regressions fail before the adapter fix; both API saves still fail until the SQL guard is fixed. Current checks pass: 346 foreground, 604 web, 487 required Python and 95 skill tests, plus all 93 published prompt pins. Source hashes and frozen inputs were reverified, and disposable live state cleanup is verified.
 
 The original 34-case results and failures remain in the structured evidence alongside this follow-up; the other 32 table cases were not rerun on this fix. Live background extraction, deployed worker/Temporal, browser paint and production acceptance remain unmeasured. No prompts were published and no shared service was deployed.
+
+
+## Main integration follow-up
+
+PR #123 merged into `main` at `b1ae1067990f05ef96dd40f785f3085f5bfce21f`, but PR #124 merged into the former `codex/interviewer-stop-latency-pr` stack branch at `3af6e734eff5a6804183cd912f33d1be4854e61a`. The correction fix was therefore still absent from `main`. The follow-up reapplies the same six-file delta onto that current main base and targets `main` directly. The original delta’s stable patch ID matches; interviewer prompt files remain identical to the benchmark.
+
+Revalidation on this main-based branch passes 346 foreground checks, `make test-place-research` (604 web, 487 Python, 95 skill tests), and all 94 current published prompt pins. This includes the bilingual active-strategy API/database/client correction replay. No additional live model calls were made. The 6.35s / 5.17s measurements remain the original `50aa0c8` cohort, rather than a new timing run on this integration branch. The fix remains pending merge into main; no merge, prompt publication or deployment was performed by this task.

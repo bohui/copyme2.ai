@@ -2184,6 +2184,28 @@
       "prompt_publication": false,
       "deployment": false
     },
-    "cohort_note": "Original 34-case metrics and failed receipts above are preserved; only the Markdown correction row uses this follow-up. No new 34-case run or production latency SLO is claimed."
+    "cohort_note": "Original 34-case metrics and failed receipts above are preserved; only the Markdown correction row uses this follow-up. No new 34-case run or production latency SLO is claimed.",
+    "main_integration": {
+      "main_base": "b1ae1067990f05ef96dd40f785f3085f5bfce21f",
+      "prior_pr": 124,
+      "prior_merge_base_branch": "codex/interviewer-stop-latency-pr",
+      "prior_merge_commit": "3af6e734eff5a6804183cd912f33d1be4854e61a",
+      "prior_pr_head": "f379ce3b21fc0d9cd3ad6424a1a33cd706988c81",
+      "reapplied_code_commit": "3c91407217822c13f3c10c0bda963b45fca51618",
+      "review_base": "main",
+      "six_file_delta_verified_identical_before_integration_note": true,
+      "patch_id": "5771f2cdccb3b02ea508f1609423438357dbd86a",
+      "interviewer_prompts_identical_to_benchmark": true,
+      "foreground_passed": 346,
+      "required_web_passed": 604,
+      "required_python_passed": 487,
+      "required_skill_unit_passed": 95,
+      "published_pins_verified": 94,
+      "additional_live_provider_calls": 0,
+      "latency_source": "50aa0c89f2229e51c5953d079877bff4ebc47297",
+      "merged_to_main": false,
+      "deployed": false,
+      "prompt_publication": false
+    }
   }
 }
