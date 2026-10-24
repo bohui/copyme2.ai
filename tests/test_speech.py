@@ -41,10 +41,10 @@ def test_transcription_converts_regional_locale_to_provider_language_code() -> N
 
 
 @pytest.mark.parametrize("language,voice,delivery", [
-    ("zh-CN", "coral", "普通话"), ("zh_CN", "coral", "普通话"),
-    ("zh", "coral", "普通话"), ("en-AU", "marin", "Australian English"),
-    ("en", "marin", "Australian English"),
-    ("fr-FR", "marin", "language of the supplied text"),
+    ("zh-CN", "longwan_v3", "普通话"), ("zh_CN", "longwan_v3", "普通话"),
+    ("zh", "longwan_v3", "普通话"), ("en-AU", "longwan_v3", "Australian English"),
+    ("en", "longwan_v3", "Australian English"),
+    ("fr-FR", "longwan_v3", "language of the supplied text"),
 ])
 def test_provider_receives_the_localized_voice_and_delivery(language, voice, delivery):
     requests = []
@@ -58,7 +58,7 @@ def test_provider_receives_the_localized_voice_and_delivery(language, voice, del
     result = speech.synthesize("A short memory.", language=language)
     assert result["voice"] == voice
     assert requests[0]["voice"] == voice
-    assert requests[0]["speed"] == (1.1 if voice == "coral" else 1.0)
+    assert requests[0]["speed"] == (1.1 if language.startswith("zh") else 1.0)
     assert delivery in requests[0]["instructions"]
     assert "language" not in requests[0]  # Language selects delivery; it is not a speech API field.
 
