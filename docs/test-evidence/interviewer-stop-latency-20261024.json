@@ -1786,5 +1786,20 @@
       "saving_s": 6.3771675830939785,
       "saving_percent": 40.37417856464078
     }
-  ]
+  ],
+  "post_benchmark_review_fix": {
+    "source": "c8f5711dc7973c15c7b0344f2408ffb93524902f",
+    "regression_failed_before": 6,
+    "regression_passed_after": 6,
+    "foreground_passed": 309,
+    "required_web_passed": 604,
+    "required_python_passed": 485,
+    "required_skill_unittest_passed": 95,
+    "live_provider_calls": 0,
+    "production_validation": false,
+    "latency_reprofiled": false,
+    "benchmark_source": "711050cab208a5dfca8cbd2361ed6c2463d86929",
+    "full_acceptance": "unclaimed",
+    "fix": "Preserve the full queue next unresolved clarification; consult projected candidates only when none remains."
+  }
 }

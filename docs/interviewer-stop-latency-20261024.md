@@ -1,6 +1,6 @@
 # Interviewer stop/news fixes and latency — 24 October 2026
 
-Committed application source: `711050cab208a5dfca8cbd2361ed6c2463d86929`; before: `f190c33`. No prompt text, prompt receipts, schema baseline, provider credentials or gateway settings changed.
+Benchmarked application source: `711050cab208a5dfca8cbd2361ed6c2463d86929`; before: `f190c33`. No prompt text, prompt receipts, schema baseline, provider credentials or gateway settings changed.
 
 Both ready-news stop failures are fixed. The host renders explicit stopping, the fixed optional news invitation, and neutral prepared-clarification acknowledgements from validated state; the model still determines current intent. Prepared and continuation selections honor the highest unresolved hint. Current correction/redirect/pacing/stop decisions and exact question resolution retain precedence. The opted-in pooled + low + reply-v2 configuration dispatches policy/reply through the existing dedicated low-policy alias.
 
@@ -75,3 +75,7 @@ Two earlier topic-ending controls are inconclusive for queued expansion: privacy
 The optimization made 377 additional metered HTTP submissions within expanded fixed caps totaling 522; the existing before cohort had 77. This includes rejected trials, controls, validation retries and the gateway failure, with zero judge calls. Every disposable live database root has verified cleanup. Full outputs and failed attempts are preserved locally. The public data contains metrics and status checks, with no request/response payloads, provider identifiers, local paths, credentials or environment files.
 
 This is local canonical ASGI/disposable SQL with a local PostgREST adapter and controlled seed/Lane B findings. Live discovery, deployed worker/Temporal, browser paint, simultaneous Lane B contention, and long-history cross-route checkpoint warming remain unmeasured. No shared-service deployment or prompt publication was performed. Five seconds and the two existing correction-after-stop failures remain the next interviewer work.
+
+## Review follow-up: two pending clarifications
+
+After the benchmark, review found that resolving the first clarification could let a projected news/ordinary hint replace a second unresolved clarification from an older plan. Commit `c8f5711dc7973c15c7b0344f2408ffb93524902f` keeps the full queue’s next unresolved clarification and consults projected candidates only when none remains. Six reason/news combinations fail on the prior head and pass with the fix; 309 foreground checks plus the required 604 web, 485 Python and 95 skill checks pass. No live provider calls or production validation were performed for this follow-up. The timing table remains measured at `711050c`; full acceptance remains unclaimed.
