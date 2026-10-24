@@ -5203,7 +5203,7 @@ begin
    or jsonb_typeof(p_outcome->'question_delivered') not in ('string','null') then raise exception 'invalid immediate outcome' using errcode='22023';end if;
  select q into chosen from jsonb_array_elements(p_plan->'candidates') q where q->>'id'=p_plan->>'chosen_id';
  question:=chosen->>'question';
- if question is distinct from p_outcome->>'question_delivered' or (question is null and p_outcome->>'selection_reason' not in ('pause','direct_answer'))
+ if question is distinct from p_outcome->>'question_delivered' or (question is null and p_outcome->>'selection_reason' not in ('pause','direct_answer','current_correction'))
    or (question is not null and (length(question)>800 or length(public.lifetime_question_text(question))=0
      or strpos(p_reply,public.lifetime_question_text(question))=0))
    or jsonb_array_length(p_plan->'candidates')>1 then raise exception 'outcome must match the saved immediate question' using errcode='22023';end if;

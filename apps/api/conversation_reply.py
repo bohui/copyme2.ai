@@ -71,7 +71,8 @@ def adapt_reply(raw, context):
     source = context.get('source') or {}
     if name is not None and (not name.strip() or name not in source.get('text', '')):
         raise ValueError('Opening name requires exact current narrator wording')
-    if (item.question is None) != (item.reason in {'pause', 'direct_answer'}):
+    if ((item.question is None and item.reason not in {'pause', 'direct_answer', 'current_correction'})
+            or (item.question is not None and item.reason in {'pause', 'direct_answer'})):
         raise ValueError('No-question outcome requires an explicit reason')
     candidates = reply_candidates(context)
     hint = None
@@ -120,7 +121,7 @@ def adapt_reply(raw, context):
         selected_candidate_id=hint['id'] if hint else None, selection_reason=item.reason,
         used_strategy=context.get('active_strategy') or plan.get('strategy') or 'explore',
         question_delivered=item.question, work_hint=item.work.mode) if context.get('strategy_selector') else None
-    return legacy, item.reason, outcome, item.reason == 'pause', name
+    return legacy, item.reason, outcome, item.question is None and item.reason != 'direct_answer', name
 
 
 def reply_packet(packet):

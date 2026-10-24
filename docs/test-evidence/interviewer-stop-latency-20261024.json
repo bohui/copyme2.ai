@@ -1801,5 +1801,411 @@
     "benchmark_source": "711050cab208a5dfca8cbd2361ed6c2463d86929",
     "full_acceptance": "unclaimed",
     "fix": "Preserve the full queue next unresolved clarification; consult projected candidates only when none remains."
+  },
+  "correction_after_stop_followup": {
+    "source_before": "711050cab208a5dfca8cbd2361ed6c2463d86929",
+    "source_after": "50aa0c89f2229e51c5953d079877bff4ebc47297",
+    "cases_sha256": "ab05cf71285764fa467d92731f6b7161c24b1d89de452b846385cb9b7a4bd881",
+    "samples_per_language": 1,
+    "prior_turns": "Each language reran the complete unchanged six-turn sequence with its own saved replies, privacy restriction and stop; fresh runtime/storage on each turn.",
+    "measurement": "Canonical submission to retained text identifying the corrected room location, then reply completion and durable save. Generic prefixes do not qualify. Primary return excludes cached replay.",
+    "scope": "Same canonical ASGI/disposable PostgreSQL/local PostgREST/live policy and reply scope as original core. Frozen core strategy rollout is inactive; active-strategy outcome persistence and suppression of new news research are covered by the bilingual controlled-provider API/database/client regression.",
+    "gates": {
+      "correction_quality": "pass: 2/2",
+      "state_and_source_fidelity": "pass: 12/12",
+      "within_5_seconds": "fail: 0/2 corrections",
+      "within_10_seconds": "pass: 2/2 corrections",
+      "browser_and_deployed_worker": "inconclusive: not observed",
+      "background_extraction": "not measured: extract work and original correction source saved"
+    },
+    "pairs": [
+      {
+        "language": "en-AU",
+        "before": {
+          "status": "failed",
+          "quality": "fail",
+          "qualified_response_s": null,
+          "attempt_s": 9.65076491702348,
+          "provider_calls": 4,
+          "usage": {
+            "input_tokens": 8924,
+            "output_tokens": 389
+          },
+          "reason": "No-question current_correction rejected; no validated reply saved."
+        },
+        "after": {
+          "status": "completed",
+          "quality": "pass",
+          "qualified_response_s": 6.345889625023119,
+          "first_public_text_s": 6.345889625023119,
+          "reply_complete_s": 6.866702332976274,
+          "saved_s": 6.8786966250045225,
+          "primary_return_s": 7.030824249959551,
+          "provider_calls": 2,
+          "usage": {
+            "input_tokens": 3302,
+            "output_tokens": 152
+          },
+          "policy_s": 2.9077774999896064,
+          "reply_s": 2.234358916990459,
+          "checks": {
+            "saved": true,
+            "prior_saved_replies_unchanged": true,
+            "current_source_preserved": true,
+            "policy_review_complete": true,
+            "no_question": true,
+            "current_correction_proposal": true,
+            "extract_work": true,
+            "no_news_reference": true,
+            "no_question_event": true,
+            "stream_matches_saved": true,
+            "replay_exact_no_model_call": true,
+            "father_exclusion_preserved": true
+          }
+        }
+      },
+      {
+        "language": "zh-CN",
+        "before": {
+          "status": "failed",
+          "quality": "fail",
+          "qualified_response_s": null,
+          "attempt_s": 10.637906292104162,
+          "provider_calls": 4,
+          "usage": {
+            "input_tokens": 9314,
+            "output_tokens": 627
+          },
+          "reason": "No-question current_correction rejected; no validated reply saved."
+        },
+        "after": {
+          "status": "completed",
+          "quality": "pass",
+          "qualified_response_s": 5.168220833991654,
+          "first_public_text_s": 5.168220833991654,
+          "reply_complete_s": 5.653644499951042,
+          "saved_s": 5.661931958980858,
+          "primary_return_s": 5.759504667017609,
+          "provider_calls": 2,
+          "usage": {
+            "input_tokens": 3392,
+            "output_tokens": 236
+          },
+          "policy_s": 2.19370720803272,
+          "reply_s": 2.2616202499484643,
+          "checks": {
+            "saved": true,
+            "prior_saved_replies_unchanged": true,
+            "current_source_preserved": true,
+            "policy_review_complete": true,
+            "no_question": true,
+            "current_correction_proposal": true,
+            "extract_work": true,
+            "no_news_reference": true,
+            "no_question_event": true,
+            "stream_matches_saved": true,
+            "replay_exact_no_model_call": true,
+            "father_exclusion_preserved": true
+          }
+        }
+      }
+    ],
+    "submissions": {
+      "maximum": 40,
+      "actual": 26,
+      "policy": 12,
+      "reply": 14,
+      "judge": 0,
+      "correction_retries": 0,
+      "other_repairs": "One resumed-turn reply per language used direct_answer with a question and was repaired; both attempts retained.",
+      "usage": {
+        "input_tokens": 35238,
+        "output_tokens": 2853
+      },
+      "cached_input_tokens": 0,
+      "served_efforts": {
+        "low": 26
+      }
+    },
+    "sequence_witnesses": [
+      {
+        "id": "opening",
+        "language": "en-AU",
+        "status": "completed",
+        "saved_s": 7.63154349999968,
+        "primary_return_s": 7.809462249977514,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 1729,
+          "output_tokens": 182
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "later",
+        "language": "en-AU",
+        "status": "completed",
+        "saved_s": 6.797248249989934,
+        "primary_return_s": 6.916599291027524,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2236,
+          "output_tokens": 205
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "privacy",
+        "language": "en-AU",
+        "status": "completed",
+        "saved_s": 8.654388166964054,
+        "primary_return_s": 8.929691083962098,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2193,
+          "output_tokens": 365
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "resumed",
+        "language": "en-AU",
+        "status": "completed",
+        "saved_s": 9.168554625008255,
+        "primary_return_s": 9.328831000020728,
+        "provider_calls": 3,
+        "usage": {
+          "input_tokens": 4800,
+          "output_tokens": 286
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "stop",
+        "language": "en-AU",
+        "status": "completed",
+        "saved_s": 5.640241125016473,
+        "primary_return_s": 5.925454415963031,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3131,
+          "output_tokens": 206
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "correction",
+        "language": "en-AU",
+        "status": "completed",
+        "saved_s": 6.8786966250045225,
+        "primary_return_s": 7.030824249959551,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3302,
+          "output_tokens": 152
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true,
+          "no_question": true,
+          "current_correction_proposal": true,
+          "extract_work": true,
+          "no_news_reference": true,
+          "no_question_event": true,
+          "stream_matches_saved": true,
+          "replay_exact_no_model_call": true,
+          "father_exclusion_preserved": true
+        }
+      },
+      {
+        "id": "opening",
+        "language": "zh-CN",
+        "status": "completed",
+        "saved_s": 6.978638041997328,
+        "primary_return_s": 7.086075249942951,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 1738,
+          "output_tokens": 212
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "later",
+        "language": "zh-CN",
+        "status": "completed",
+        "saved_s": 6.3263225419213995,
+        "primary_return_s": 6.516081374953501,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2309,
+          "output_tokens": 210
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "privacy",
+        "language": "zh-CN",
+        "status": "completed",
+        "saved_s": 7.4567955419188365,
+        "primary_return_s": 7.5321309169521555,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2222,
+          "output_tokens": 399
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "resumed",
+        "language": "zh-CN",
+        "status": "completed",
+        "saved_s": 8.51466904208064,
+        "primary_return_s": 8.616067708004266,
+        "provider_calls": 3,
+        "usage": {
+          "input_tokens": 4988,
+          "output_tokens": 291
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "stop",
+        "language": "zh-CN",
+        "status": "completed",
+        "saved_s": 5.291394582949579,
+        "primary_return_s": 5.423985332949087,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3198,
+          "output_tokens": 109
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true
+        }
+      },
+      {
+        "id": "correction",
+        "language": "zh-CN",
+        "status": "completed",
+        "saved_s": 5.661931958980858,
+        "primary_return_s": 5.759504667017609,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3392,
+          "output_tokens": 236
+        },
+        "checks": {
+          "saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true,
+          "policy_review_complete": true,
+          "no_question": true,
+          "current_correction_proposal": true,
+          "extract_work": true,
+          "no_news_reference": true,
+          "no_question_event": true,
+          "stream_matches_saved": true,
+          "replay_exact_no_model_call": true,
+          "father_exclusion_preserved": true
+        }
+      }
+    ],
+    "semantic_review": {
+      "reviewer": "Codex",
+      "variant_labels": "known",
+      "human_review": false,
+      "separate_judge_calls": 0,
+      "result": "All 12 visible replies pass frozen source/intent review. Corrections relocate only the room, ask no question, preserve the father exclusion and add no invented facts."
+    },
+    "verification": {
+      "unit_regressions_failed_before": 4,
+      "api_regressions_failed_before_sql_fix": 2,
+      "api_client_regressions_passed": 2,
+      "foreground_passed": 346,
+      "required_web_passed": 604,
+      "required_python_passed": 487,
+      "required_skill_unit_passed": 95,
+      "published_pins_verified": 93,
+      "live_correction_client_replays_passed": 2,
+      "source_hashes_reverified": true,
+      "frozen_cases_unchanged": true,
+      "cleanup_verified": true,
+      "prompt_publication": false,
+      "deployment": false
+    },
+    "cohort_note": "Original 34-case metrics and failed receipts above are preserved; only the Markdown correction row uses this follow-up. No new 34-case run or production latency SLO is claimed.",
+    "main_integration": {
+      "main_base": "b1ae1067990f05ef96dd40f785f3085f5bfce21f",
+      "prior_pr": 124,
+      "prior_merge_base_branch": "codex/interviewer-stop-latency-pr",
+      "prior_merge_commit": "3af6e734eff5a6804183cd912f33d1be4854e61a",
+      "prior_pr_head": "f379ce3b21fc0d9cd3ad6424a1a33cd706988c81",
+      "reapplied_code_commit": "3c91407217822c13f3c10c0bda963b45fca51618",
+      "review_base": "main",
+      "six_file_delta_verified_identical_before_integration_note": true,
+      "patch_id": "5771f2cdccb3b02ea508f1609423438357dbd86a",
+      "interviewer_prompts_identical_to_benchmark": true,
+      "foreground_passed": 346,
+      "required_web_passed": 604,
+      "required_python_passed": 487,
+      "required_skill_unit_passed": 95,
+      "published_pins_verified": 94,
+      "additional_live_provider_calls": 0,
+      "latency_source": "50aa0c89f2229e51c5953d079877bff4ebc47297",
+      "merged_to_main": false,
+      "deployed": false,
+      "prompt_publication": false
+    }
   }
 }
