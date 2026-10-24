@@ -374,6 +374,23 @@ def test_cosyvoice_synthesis_uses_the_authenticated_lan_tts_endpoint():
     assert result['mime_type'] == 'audio/wav'
     assert result['provider'] == 'cosyvoice'
 
+    client = httpx.Client(
+        base_url='http://192.168.0.50:50001', transport=httpx.MockTransport(provider),
+    )
+    result = speech.CosyVoiceSpeechService('cosyvoice-test', client=client).synthesize(
+        'What do you remember?', language='en-AU',
+    )
+    request = requests[0]
+    assert request.url.path == '/tts'
+    assert request.headers['Authorization'] == 'Bearer cosyvoice-test'
+    payload = json.loads(request.content)
+    assert payload == {
+        'text': 'What do you remember?',
+        'voice': 'longwan_v3', 'speed': 1.0,
+    }
+    assert result['content'] == wav_audio()
+    assert result['mime_type'] == 'audio/wav'
+    assert result['provider'] == 'cosyvoice'
 
 def test_cosyvoice_retries_a_busy_request_once_using_retry_after():
     requests = []
