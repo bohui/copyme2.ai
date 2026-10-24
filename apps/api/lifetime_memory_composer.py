@@ -170,15 +170,15 @@ async def _extract(page,worker):
             result={'events':extraction_events({'events':raw['events']},page,original)}
             if page.get('two_lane'):
                 from .two_lane_memory import derived_hints
-                result.update(derived_hints(raw,page))
-                if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
-                    from .lifetime_memory_continuity import validate_continuity_updates
-                    result['continuity_updates'] = validate_continuity_updates(
-                        raw['continuity_updates'], page['source'], background=True)
                 if page.get('attribution_context'):
                     from .conversation_attribution import validate_attribution, policy_dispositions
                     result.update(validate_attribution(raw, page, result['events']))
                     result['passage_dispositions'].extend(policy_dispositions(page, original))
+                result.update(derived_hints(raw, page, attribution=result if page.get('attribution_context') else None))
+                if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
+                    from .lifetime_memory_continuity import validate_continuity_updates
+                    result['continuity_updates'] = validate_continuity_updates(
+                        raw['continuity_updates'], page['source'], background=True)
                 if (page.get('two_lane') or {}).get('strategy_mode'):
                     from .interview_strategy import validate_proposal
                     result['strategy_proposal']=validate_proposal(raw['strategy_proposal'],page)

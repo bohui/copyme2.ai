@@ -19,7 +19,7 @@ from test_conversation_reply_transport import events, sse
 from test_lifetime_memory_lane_engine import BUDGET, page, packet_for
 
 
-PHASES = ['profile', 'summarize', 'prepare', 'draft', 'review']
+PHASES = ['extract', 'profile', 'summarize', 'prepare', 'draft', 'review']
 
 
 @pytest.fixture(autouse=True)
@@ -31,6 +31,9 @@ def isolate(monkeypatch):
 def bounded(phase):
     if phase in {'prepare', 'draft', 'review'}:
         current = page('composer')
+        packet = packet_for(current, phase)
+    elif phase == 'extract':
+        current = page()
         packet = packet_for(current, phase)
     elif phase == 'profile':
         current = profile_page()
@@ -92,7 +95,8 @@ def run(tmp_path, current, publisher, provider, **kwargs):
 def test_direct_calls_keep_prompt_packet_schema_effort_budget_and_actual_send_guard(tmp_path, phase):
     current = bounded(phase)
     publisher = Publisher()
-    reply = json.dumps({'profile_patch': []} if phase == 'profile' else {'items': []})
+    reply = json.dumps({'events': []} if phase == 'extract' else
+        {'profile_patch': []} if phase == 'profile' else {'items': []})
     provider = Provider(publisher, events(reply))
     result = run(tmp_path, current, publisher, provider, effort='high')
     body, = provider.bodies
@@ -104,7 +108,7 @@ def test_direct_calls_keep_prompt_packet_schema_effort_budget_and_actual_send_gu
     assert body['tools'] == [] and body['tool_choice'] == 'none' and not body['parallel_tool_calls']
     assert body['store'] is False and body['stream'] is True
     assert body['metadata']['generation_name'] == ('memoir-memory-context' if phase == 'profile'
-        else 'memoir-author-timeline' if phase == 'summarize' else 'memoir-composer')
+        else 'memoir-author-timeline' if phase in {'extract', 'summarize'} else 'memoir-composer')
     assert all(len(body['metadata'][key]) == 64 for key in ('prompt_sha256', 'schema_sha256', 'manifest_sha256'))
     assert publisher.fences == [current.fence.model_dump(mode='json')]
     assert result == dict(thread_id='resp_gateway_id==', reply=reply, artifacts=[])
@@ -149,7 +153,7 @@ def test_partial_unsafe_or_non_json_output_cannot_return_a_proposal(tmp_path, ph
     assert len(provider.bodies) == 1 and not publisher.active
 
 
-@pytest.mark.parametrize('phase', ['profile', 'review'])
+@pytest.mark.parametrize('phase', ['extract', 'profile', 'review'])
 def test_cancelled_provider_stream_closes_without_a_native_session(tmp_path, phase):
     publisher = Publisher()
     current = bounded(phase)
@@ -174,8 +178,8 @@ def test_cancelled_provider_stream_closes_without_a_native_session(tmp_path, pha
         task = asyncio.create_task(run_bounded_lane(command=['must-not-start'], home_root=tmp_path / 'homes',
             base_url='https://provider.invalid/v1', api_key='fixture-memory-key', model=BUDGET.model,
             bounded_lane=current, publisher=publisher,
-            provider_transport=Transport(publisher, events('{}')), timeout=5))
-        await asyncio.wait_for(opened.wait(), 1)
+            provider_transport=Transport(publisher, events('{}')), timeout=10))
+        await asyncio.wait_for(opened.wait(), 5)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task

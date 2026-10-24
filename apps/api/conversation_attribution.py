@@ -79,8 +79,12 @@ def validate_attribution(raw, page, events):
             if len(matches) != 1:
                 raise ValueError('Place association requires one unambiguous event proposal')
             item['event_index'] = matches[0]
-            if not validate_place_journey(item['place']) or item['place']['place'] not in quote:
+            normalized = validate_place_journey(item['place'])
+            if not normalized or item['place']['place'] not in quote:
                 raise ValueError('Event place requires a named coarse place in its own evidence')
+            if (item['place']['hierarchy'][-1] != item['place']['place']
+                    or any(item['place'][key] != normalized[key] for key in CoarsePlace.model_fields)):
+                raise ValueError('Event place hierarchy must retain its exact source label')
             if not any(r['source_id'] == ref['source_id'] and r['version'] == ref['version']
                     and r['char_start'] <= ref['char_start'] < ref['char_end'] <= r['char_end']
                     for r in events[item['event_index']]['source_refs']):

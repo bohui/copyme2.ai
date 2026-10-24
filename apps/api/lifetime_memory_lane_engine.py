@@ -1,9 +1,8 @@
 """Fresh bounded composer/timeline execution and atomic request admission.
 
 A lane page is a disposable projection of one canonical partition. PostgreSQL
-locks bind its immutable snapshot/page digest through actual HTTP body or
-app-server pipe delivery. Downstream provider timing is opaque; admitted work is
-in flight, and result commits must independently revalidate the same lane token.
+locks bind its immutable snapshot/page digest through actual HTTP body delivery.
+Downstream provider timing is opaque; admitted work is in flight, and result commits must independently revalidate the same lane token.
 """
 from __future__ import annotations
 
@@ -17,7 +16,6 @@ import json
 import hashlib
 import re
 import os
-from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
 from urllib.parse import urlsplit
@@ -28,12 +26,9 @@ from pydantic import Field, model_validator
 
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .prompt_composition import render_prompt_artifact
-from .codex_agent import CodexConnection, provider_config
-from .codex_worker_files import write_config
-from .issue14_execution_admission import check_issue14_dispatch, issue14_connection_options
+from .issue14_execution_admission import check_issue14_dispatch
 from .lifetime_memory_context import serialize_packet
 from .lifetime_memory_contracts import Contract, ContextBudget, PinnedContinuity
-from .lifetime_memory_execution import open_execution
 from .lifetime_memory_publication import PublicationUnavailable
 
 # The configured memoir alias routes to the same byte-token model as the
@@ -65,6 +60,7 @@ EXTRACTION_REJECTION_REASONS = {
     'Evidence span exceeds claimed source page': 'PAGE_SPAN',
     'Evidence quote outside claimed source page': 'PAGE_QUOTE',
     'Whole-source policy authority changed': 'POLICY_SOURCE',
+    'Event place hierarchy must retain its exact source label': 'PLACE_HIERARCHY',
 }
 
 
@@ -190,7 +186,7 @@ def _object(value):
     return parsed
 
 
-def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False, fence=None):
+def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False, fence=None, retry_reason=None):
     """Use server code, never client-supplied instructions or output schemas."""
     if phase == 'profile':
         from .background_profile import profile_contract
@@ -215,6 +211,14 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
         evidence=schema['$defs']['EvidenceRef']['properties']
         evidence['source_id']['enum']=[fence.source['id']]
         evidence['version']['enum']=[fence.source['version']]
+        if retry_reason == 'PAGE_AMBIGUOUS':
+            length = len(fence.source['text'])
+            evidence['char_start'] = {'type': 'integer', 'minimum': 0, 'maximum': length - 1}
+            evidence['char_end'] = {'type': 'integer', 'minimum': 1, 'maximum': length}
+        if retry_reason == 'PLACE_HIERARCHY' and 'CoarsePlace' in schema['$defs']:
+            schema['$defs']['CoarsePlace']['properties']['hierarchy']['description'] = (
+                'Begin with Earth. The final item must exactly equal this object\'s place field, '
+                'using the original source spelling without adding an administrative suffix.')
         identities=sorted({event['id'] for event in fence.events})
         event=schema['$defs']['EventProposal']['properties']
         event['id']={'type':'null'}
@@ -338,13 +342,47 @@ def _required_artifacts(phase, payload):
     return result
 
 
-def lane_extraction_packet(fence):
-    return {'schema_version':1,'sources':[deepcopy(fence.source)],'events':deepcopy(fence.events),
+def source_quote_occurrences(source):
+    """Original Unicode positions are hints, never a choice of occurrence."""
+    if not isinstance(source, dict) or not isinstance(source.get('text'), str) or not 0 < len(source['text']) <= 2304:
+        raise ValueError('Invalid canonical source window')
+    text = source['text']
+    result = {'source_id': source['id'], 'version': source['version'],
+        'coordinate_system': 'window_unicode_codepoints', 'quotes': []}
+    quotes = dict.fromkeys(match.group().strip() for match in
+        re.finditer(r'[^.!?。！？\n]+[.!?。！？]?', text))
+    candidates = []
+    for quote in quotes:
+        if not 1 <= len(quote) <= 500:
+            continue
+        spans = []
+        start = text.find(quote)
+        while start >= 0 and len(spans) < 32:
+            spans.append({'char_start': start, 'char_end': start + len(quote)})
+            start = text.find(quote, start + 1)
+        candidates.append({'quote': quote, 'spans': spans})
+    # Keep repeated quotes first when the bounded catalog cannot fit everything.
+    candidates.sort(key=lambda item: len(item['spans']) == 1)
+    for item in candidates:
+        candidate = {**result, 'quotes': [*result['quotes'], item]}
+        if len(serialize_packet(candidate).encode('utf-8')) > 8192:
+            continue
+        result = candidate
+        if len(result['quotes']) == 16:
+            break
+    return result
+
+
+def lane_extraction_packet(fence, *, retry_reason=None):
+    packet = {'schema_version':1,'sources':[deepcopy(fence.source)],'events':deepcopy(fence.events),
         'interview_context':fence.attribution_context.model_dump(mode='json') if fence.attribution_context else {},
         'preferences':fence.preferences.model_dump(mode='json'),
         'coverage':{'scope':'source_window','snapshot_id':str(fence.snapshot_id),
             'source_high_water':fence.source_high_water,'complete':False},
         'window_contract':EXTRACTION_WINDOW_CONTRACT}
+    if retry_reason == 'PAGE_AMBIGUOUS':
+        packet['quote_occurrences'] = source_quote_occurrences(fence.source)
+    return packet
 
 
 def canonical_lane_request(fence):
@@ -456,7 +494,7 @@ def _validate_phase_packet(fence,phase,payload):
         if 'retry_reason' in payload and (not isinstance(payload['retry_reason'],str)
                 or payload['retry_reason'] not in {*EXTRACTION_REJECTION_REASONS.values(),'OUTPUT_SCHEMA'}):
             raise ValueError('Unsupported extraction retry reason')
-        if {key:value for key,value in payload.items() if key!='retry_reason'}!=lane_extraction_packet(fence):
+        if {key:value for key,value in payload.items() if key!='retry_reason'}!=lane_extraction_packet(fence, retry_reason=payload.get('retry_reason')):
             raise ValueError('Extraction payload differs from authoritative page evidence')
     elif phase=='prepare':
         if (set(payload)!={'preparation_id','partition','sources'}
@@ -520,7 +558,7 @@ async def validate_lane_payload(bounded):
         raise ValueError('Candidate validation differs from the canonical page proof')
 
 def lane_request_tokens(bounded_lane: BoundedLaneInput) -> int:
-    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode), fence=bounded_lane.fence)
+    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode), fence=bounded_lane.fence, retry_reason=_object(bounded_lane.packet)['payload'].get('retry_reason'))
     return (bounded_lane.budget.count(instructions) + bounded_lane.budget.count(bounded_lane.packet)
         + bounded_lane.budget.count(serialize_packet(schema)) + bounded_lane.budget.framing_headroom)
 
@@ -532,6 +570,8 @@ def build_bounded_lane_input(page, *, phase, packet, budget):
     payload = _object(packet) if isinstance(packet, str) else deepcopy(packet)
     if not isinstance(payload, dict):
         raise ValueError('A bounded lane payload must be an object')
+    if phase == 'extract' and payload.get('retry_reason') == 'PAGE_AMBIGUOUS' and 'quote_occurrences' not in payload:
+        payload['quote_occurrences'] = source_quote_occurrences(fence.source)
     proofs = _required_artifacts(phase,payload)
     fence = fence.model_copy(update={'prior_outputs':proofs})
     return BoundedLaneInput(fence=fence, budget=budget, phase=phase,
@@ -716,53 +756,26 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
         'author_timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}[role]
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
-    fence_json = serialize_packet(bounded.fence.model_dump(mode='json'))
-    def request_admission():
-        return _admission(publisher,json.loads(fence_json))
-    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode), fence=bounded.fence)
-    if bounded.phase in {'profile', 'summarize', 'prepare', 'draft', 'review'}:
-        from .conversation_reply_transport import stream_document
-        endpoint = urlsplit(base_url)
-        if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
-                or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
-            raise ValueError('Lane provider is not configured')
-        manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
-        payload = dict(model=model, instructions=instructions, input=bounded.packet,
-            store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
-            reasoning={'effort': effort or 'low', 'summary': 'auto'},
-            max_output_tokens=bounded.budget.output_headroom,
-            metadata={**manifest_metadata(manifest), 'generation_name':skill_name, 'trace_name':skill_name},
-            text={'format':{'type':'json_schema', 'name':'codex_output_schema', 'strict':True, 'schema':schema}})
-        encoded = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-        request = LaneRequestBody(encoded, publisher=publisher, fence=bounded.fence,
-            before_send=lambda: check_issue14_dispatch(issue14_admission, role=role))
-        with trace_llm_call('memoir.' + bounded.phase, model,
-                metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}):
-            reply, receipt = await stream_document(request=request, content_length=len(encoded),
-                base_url=base_url, api_key=api_key, timeout=timeout, transport=provider_transport,
-                max_response_bytes=2_000_000)
-        _object(reply)
-        return {'thread_id':receipt['response_id'], 'reply':reply, 'artifacts':[]}
-    root = Path(home_root).expanduser().resolve()
-    root.mkdir(parents=True,exist_ok=True,mode=0o700)
-    fence = bounded.fence
-    home = root / (f'lane-{fence.user_id}-{fence.conversation_id}-{fence.snapshot_id}'
-        f'-epoch-{fence.policy_epoch}-page-{fence.page_number}-{uuid4()}')
-    home.mkdir(mode=0o700)
-    write_config(home,root,os.getuid() if uid is None else uid,
-        provider_config(base_url,model,governed=True),apply_owner=apply_owner)
-    async with (connection_factory or CodexConnection)(command,home,
-            provider_env={'MEMORY_SPARK_LLM_API_KEY':api_key},timeout=timeout,progress=progress,
-            request_admission=request_admission,**issue14_connection_options(issue14_admission)) as connection:
-        opened = await open_execution(connection,thread_id=None,compatible=False,
-            start_params={'cwd':str(home),'ephemeral':True,'modelProvider':'llm_provider',
-                'model':model,'approvalPolicy':'never','sandbox':'read-only','baseInstructions':instructions},
-            identity={'owner_id':str(fence.user_id),'conversation_id':str(fence.conversation_id)})
-        manifest = instruction_manifest(instructions + ('\n' + EXTRACTION_WINDOW_CONTRACT if bounded.phase == 'extract' else ''),
-            schema, variant=bounded.phase)
-        with trace_llm_call('memoir.' + str(bounded.phase), model, metadata={'contract_version': 'lifetime-lane-v1', 'prompt_manifest': manifest}):
-            reply = await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
-                **({'effort':effort} if effort else {}),
-                responsesapi_client_metadata={**manifest_metadata(manifest),'generation_name': skill_name, 'trace_name': skill_name})
-        _object(reply)  # Semantic/evidence validation and fenced commit remain with the lane owner.
-    return {'thread_id':opened['thread_id'],'reply':reply,'artifacts':[]}
+    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode), fence=bounded.fence, retry_reason=_object(bounded.packet)['payload'].get('retry_reason'))
+    from .conversation_reply_transport import stream_document
+    endpoint = urlsplit(base_url)
+    if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
+            or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
+        raise ValueError('Lane provider is not configured')
+    manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
+    payload = dict(model=model, instructions=instructions, input=bounded.packet,
+        store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
+        reasoning={'effort': effort or 'low', 'summary': 'auto'},
+        max_output_tokens=bounded.budget.output_headroom,
+        metadata={**manifest_metadata(manifest), 'generation_name':skill_name, 'trace_name':skill_name},
+        text={'format':{'type':'json_schema', 'name':'codex_output_schema', 'strict':True, 'schema':schema}})
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    request = LaneRequestBody(encoded, publisher=publisher, fence=bounded.fence,
+        before_send=lambda: check_issue14_dispatch(issue14_admission, role=role))
+    with trace_llm_call('memoir.' + bounded.phase, model,
+            metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}):
+        reply, receipt = await stream_document(request=request, content_length=len(encoded),
+            base_url=base_url, api_key=api_key, timeout=timeout, transport=provider_transport,
+            max_response_bytes=2_000_000)
+    _object(reply)
+    return {'thread_id':receipt['response_id'], 'reply':reply, 'artifacts':[]}

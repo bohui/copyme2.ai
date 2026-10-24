@@ -73,14 +73,31 @@ def extraction_contract(*, strategy=False, attribution=False, continuity=False, 
     return instructions,schema
 
 
-def derived_hints(raw, page):
+def derived_hints(raw, page, *, attribution=None):
     from .place_journey import validate_place_journey, grounded_place_journeys
     hints=DerivedHints.model_validate({key:raw[key] for key in ('place_journeys','prepared_questions')},
         context={'derived_source':page['source']})
     places=[validate_place_journey(place.model_dump()) for place in hints.place_journeys
             if place.hierarchy[-1]==place.place]
-    places=grounded_place_journeys([place for place in places if place],page['source']['text'],
-        source_offset=page['source'].get('char_start') or 0)
+    source = page['source']
+    text = source['text']
+    if attribution is not None:
+        blocked = [item['source_ref'] for item in attribution['passage_dispositions']
+            if item['disposition'] != 'non_story' or item['reason'] != 'profile_introduction']
+        narrator = {'narrator', 'storyteller', 'self', '我', '本人', page['user_id']}
+        blocked.extend(ref for event in attribution['events'] for ref in event['source_refs']
+            if any(label and label.casefold() not in narrator
+                for label in (ref.get('attribution'), event.get('attribution'))))
+        characters = list(text)
+        for ref in blocked:
+            if ref['source_id'] == source['id'] and ref['version'] == source['version']:
+                lo = max(0, ref['char_start'] - source['char_start'])
+                hi = min(len(text), ref['char_end'] - source['char_start'])
+                # Preserve offsets and keep another narrator occurrence of the same place.
+                characters[lo:hi] = ' ' * max(0, hi - lo)
+        text = ''.join(characters)
+    places=grounded_place_journeys([place for place in places if place],text,
+        source_offset=source.get('char_start') or 0)
     questions=[]
     for item in hints.prepared_questions:
         try:
