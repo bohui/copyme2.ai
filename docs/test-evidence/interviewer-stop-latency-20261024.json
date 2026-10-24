@@ -1,0 +1,1790 @@
+{
+  "source_before": "f190c33afc0645cb9f446db90a8ca55566178f21",
+  "source_after": "711050cab208a5dfca8cbd2361ed6c2463d86929",
+  "scope": "Live policy/reply through canonical ASGI and disposable PostgreSQL; local PostgREST adapter and controlled saved seed/Lane B hints/news. Producer discovery, browser paint, deployed workers, long-history cross-route checkpoint warming and shared-load behavior unmeasured.",
+  "summary": {
+    "before": {
+      "attempts": 34,
+      "passing": 30,
+      "failing": 4,
+      "within_5_s": 0,
+      "within_10_s": 12,
+      "all_attempts_over_10_s": [
+        "en-core-opening",
+        "en-core-later",
+        "en-core-privacy",
+        "en-core-resumed",
+        "en-core-correction",
+        "zh-core-later",
+        "zh-core-privacy",
+        "zh-core-resumed",
+        "zh-core-stop",
+        "zh-core-correction",
+        "en-conflict",
+        "en-news",
+        "en-stop",
+        "en-privacy",
+        "en-answered",
+        "en-current-correction",
+        "zh-identity",
+        "zh-chronology",
+        "zh-news",
+        "zh-broaden_scope",
+        "zh-privacy",
+        "zh-competing",
+        "zh-answered",
+        "zh-current-correction"
+      ],
+      "over_10_s": [
+        "en-core-opening",
+        "en-core-later",
+        "en-core-privacy",
+        "en-core-resumed",
+        "zh-core-later",
+        "zh-core-privacy",
+        "zh-core-resumed",
+        "zh-core-stop",
+        "en-conflict",
+        "en-news",
+        "en-answered",
+        "en-current-correction",
+        "zh-identity",
+        "zh-news",
+        "zh-broaden_scope",
+        "zh-privacy",
+        "zh-competing",
+        "zh-current-correction"
+      ],
+      "passing_subset_median_s": 11.165754396060947,
+      "provider_calls": 77,
+      "usage": {
+        "input_tokens": 113241,
+        "output_tokens": 38369
+      },
+      "served_efforts": {
+        "max": 77
+      },
+      "provider_models": {
+        "gpt-5.6-luna-pooled": 34,
+        "gpt-5.6-luna": 43
+      },
+      "cache_tokens": 5504,
+      "verified_cleanup": true
+    },
+    "after": {
+      "attempts": 34,
+      "passing": 32,
+      "failing": 2,
+      "within_5_s": 8,
+      "within_10_s": 32,
+      "all_attempts_over_10_s": [
+        "zh-core-correction"
+      ],
+      "over_10_s": [],
+      "passing_subset_median_s": 5.5277785414946266,
+      "provider_calls": 76,
+      "usage": {
+        "input_tokens": 107913,
+        "output_tokens": 9122
+      },
+      "served_efforts": {
+        "low": 76
+      },
+      "provider_models": {
+        "gpt-5.6-luna-memoir-low": 35,
+        "gpt-5.6-luna": 41
+      },
+      "cache_tokens": 2688,
+      "verified_cleanup": true
+    },
+    "common_passing_pairs": {
+      "count": 30,
+      "before_median_s": 11.165754396060947,
+      "after_median_s": 5.547870999958832,
+      "median_paired_saving_s": 5.166519791062456
+    }
+  },
+  "gates": {
+    "stop_with_news": "pass",
+    "frozen_handoff_priorities_source_privacy_replay": "pass:22/22",
+    "no_new_regression_in_30_formerly_passing_cases": "pass:30/30",
+    "fresh_negation_quotation_controls": "pass:4/4 per arm",
+    "all_original_scenarios": "fail: two existing correction-after-stop cases remain",
+    "five_seconds": "fail:8/34",
+    "ten_seconds_for_all_attempts": "fail:32/34; all 32 successful responses meet it",
+    "topic_ending_after_privacy_filter": "inconclusive: two earlier held-out cases lost the planned hint before reply admission"
+  },
+  "fresh_controls": {
+    "before_passed": 4,
+    "after_passed": 4,
+    "count_per_arm": 4
+  },
+  "validation": {
+    "foreground_passed": 303,
+    "web_passed": 604,
+    "python_passed": 479,
+    "skill_unittest_passed": 95,
+    "policy_streaming_passed": 32,
+    "published_prompt_pins_verified": 93,
+    "new_prompt_versions": 0,
+    "legacy_configuration_failures_on_untouched_main": 32
+  },
+  "cases": [
+    {
+      "id": "en-core-opening",
+      "language": "en-AU",
+      "cohort": "core",
+      "scenario": "opening",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 26.569038917077705,
+        "question_delivered_s": 26.569038917077705,
+        "saved_s": 26.596911625005305,
+        "attempt_s": 26.706417249981314,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 1733,
+          "output_tokens": 696
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 7.72840600006748,
+        "question_delivered_s": 7.72840600006748,
+        "saved_s": 7.741899042041041,
+        "attempt_s": 7.8180679170181975,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 1738,
+          "output_tokens": 194
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 18.840632917010225,
+      "saving_percent": 70.9119850959309
+    },
+    {
+      "id": "en-core-later",
+      "language": "en-AU",
+      "cohort": "core",
+      "scenario": "later",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 12.129499166971073,
+        "question_delivered_s": 12.129499166971073,
+        "saved_s": 12.142235458944924,
+        "attempt_s": 12.242083541932516,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2254,
+          "output_tokens": 622
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.476473000016995,
+        "question_delivered_s": 5.476473000016995,
+        "saved_s": 5.490203833091073,
+        "attempt_s": 5.5579066660720855,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2254,
+          "output_tokens": 200
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 6.653026166954078,
+      "saving_percent": 54.84996598268816
+    },
+    {
+      "id": "en-core-privacy",
+      "language": "en-AU",
+      "cohort": "core",
+      "scenario": "privacy",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 23.70505329198204,
+        "question_delivered_s": 23.70505329198204,
+        "saved_s": 23.718091082992032,
+        "attempt_s": 23.815967333037406,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2186,
+          "output_tokens": 1480
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 8.398493624990806,
+        "question_delivered_s": 8.398493624990806,
+        "saved_s": 8.41553720808588,
+        "attempt_s": 8.481475415988825,
+        "provider_calls": 3,
+        "usage": {
+          "input_tokens": 2901,
+          "output_tokens": 477
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 15.306559666991234,
+      "saving_percent": 64.57087220372755
+    },
+    {
+      "id": "en-core-resumed",
+      "language": "en-AU",
+      "cohort": "core",
+      "scenario": "resumed",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 15.612496708054096,
+        "question_delivered_s": 15.612496708054096,
+        "saved_s": 15.630427250056528,
+        "attempt_s": 15.72316170798149,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2658,
+          "output_tokens": 1178
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 7.256048499955796,
+        "question_delivered_s": 7.256048499955796,
+        "saved_s": 7.272454167017713,
+        "attempt_s": 7.364981792052276,
+        "provider_calls": 3,
+        "usage": {
+          "input_tokens": 4832,
+          "output_tokens": 283
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 8.3564482080983,
+      "saving_percent": 53.524099087799435
+    },
+    {
+      "id": "en-core-stop",
+      "language": "en-AU",
+      "cohort": "core",
+      "scenario": "stop",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 7.1919204170117155,
+        "question_delivered_s": null,
+        "saved_s": 7.768178709084168,
+        "attempt_s": 7.85335237509571,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3125,
+          "output_tokens": 365
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 4.993513667024672,
+        "question_delivered_s": null,
+        "saved_s": 5.328340208041482,
+        "attempt_s": 5.4467065000208095,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3130,
+          "output_tokens": 99
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 2.1984067499870434,
+      "saving_percent": 30.56772909759886
+    },
+    {
+      "id": "en-core-correction",
+      "language": "en-AU",
+      "cohort": "core",
+      "scenario": "correction",
+      "before": {
+        "quality": "fail",
+        "qualified_response_s": null,
+        "question_delivered_s": null,
+        "saved_s": null,
+        "attempt_s": 15.434476500027813,
+        "provider_calls": 4,
+        "usage": {
+          "input_tokens": 8912,
+          "output_tokens": 1153
+        },
+        "checks": {
+          "completed_and_saved": false,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "fail",
+        "qualified_response_s": null,
+        "question_delivered_s": null,
+        "saved_s": null,
+        "attempt_s": 9.65076491702348,
+        "provider_calls": 4,
+        "usage": {
+          "input_tokens": 8924,
+          "output_tokens": 389
+        },
+        "checks": {
+          "completed_and_saved": false,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": null,
+      "saving_percent": null
+    },
+    {
+      "id": "zh-core-opening",
+      "language": "zh-CN",
+      "cohort": "core",
+      "scenario": "opening",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 9.834210750064813,
+        "question_delivered_s": 9.834210750064813,
+        "saved_s": 9.860372625058517,
+        "attempt_s": 9.995622375048697,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 1730,
+          "output_tokens": 620
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.539723749971017,
+        "question_delivered_s": 5.539723749971017,
+        "saved_s": 5.5516844160156325,
+        "attempt_s": 5.624910666025244,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 1744,
+          "output_tokens": 205
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 4.294487000093795,
+      "saving_percent": 43.668852633298435
+    },
+    {
+      "id": "zh-core-later",
+      "language": "zh-CN",
+      "cohort": "core",
+      "scenario": "later",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 12.205009375000373,
+        "question_delivered_s": 12.205009375000373,
+        "saved_s": 12.232375750085339,
+        "attempt_s": 12.323318083072081,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2274,
+          "output_tokens": 725
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.978953375015408,
+        "question_delivered_s": 5.978953375015408,
+        "saved_s": 5.995145666995086,
+        "attempt_s": 6.058780041988939,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2294,
+          "output_tokens": 210
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 6.226055999984965,
+      "saving_percent": 51.01230002115238
+    },
+    {
+      "id": "zh-core-privacy",
+      "language": "zh-CN",
+      "cohort": "core",
+      "scenario": "privacy",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 19.25650895794388,
+        "question_delivered_s": 19.25650895794388,
+        "saved_s": 19.27451541693881,
+        "attempt_s": 19.425408457987942,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2214,
+          "output_tokens": 1573
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.8430638330755755,
+        "question_delivered_s": 5.8430638330755755,
+        "saved_s": 5.85521691699978,
+        "attempt_s": 5.919090292067267,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2240,
+          "output_tokens": 374
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 13.413445124868304,
+      "saving_percent": 69.6566815623912
+    },
+    {
+      "id": "zh-core-resumed",
+      "language": "zh-CN",
+      "cohort": "core",
+      "scenario": "resumed",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 17.43120466696564,
+        "question_delivered_s": 17.43120466696564,
+        "saved_s": 17.45658437500242,
+        "attempt_s": 17.557153082918376,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2703,
+          "output_tokens": 1213
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.107229167013429,
+        "question_delivered_s": 5.107229167013429,
+        "saved_s": 5.119251459022053,
+        "attempt_s": 5.182166374986991,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2726,
+          "output_tokens": 152
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 12.323975499952212,
+      "saving_percent": 70.70065285451969
+    },
+    {
+      "id": "zh-core-stop",
+      "language": "zh-CN",
+      "cohort": "core",
+      "scenario": "stop",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 14.839574290905148,
+        "question_delivered_s": null,
+        "saved_s": 23.33887670794502,
+        "attempt_s": 23.457708249916323,
+        "provider_calls": 3,
+        "usage": {
+          "input_tokens": 5914,
+          "output_tokens": 949
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 4.004364124964923,
+        "question_delivered_s": null,
+        "saved_s": 4.590816999902017,
+        "attempt_s": 4.722845957963727,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3184,
+          "output_tokens": 189
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": 10.835210165940225,
+      "saving_percent": 73.01564016281039
+    },
+    {
+      "id": "zh-core-correction",
+      "language": "zh-CN",
+      "cohort": "core",
+      "scenario": "correction",
+      "before": {
+        "quality": "fail",
+        "qualified_response_s": null,
+        "question_delivered_s": null,
+        "saved_s": null,
+        "attempt_s": 24.10551487491466,
+        "provider_calls": 4,
+        "usage": {
+          "input_tokens": 9357,
+          "output_tokens": 1974
+        },
+        "checks": {
+          "completed_and_saved": false,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "after": {
+        "quality": "fail",
+        "qualified_response_s": null,
+        "question_delivered_s": null,
+        "saved_s": null,
+        "attempt_s": 10.637906292104162,
+        "provider_calls": 4,
+        "usage": {
+          "input_tokens": 9314,
+          "output_tokens": 627
+        },
+        "checks": {
+          "completed_and_saved": false,
+          "prior_saved_replies_unchanged": true,
+          "current_source_preserved": true
+        }
+      },
+      "saving_s": null,
+      "saving_percent": null
+    },
+    {
+      "id": "en-conflict",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "conflict",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 12.99081450002268,
+        "question_delivered_s": 12.99081450002268,
+        "saved_s": 13.012103792047128,
+        "attempt_s": 13.492463500006124,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2367,
+          "output_tokens": 666
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.354240332962945,
+        "question_delivered_s": 5.354240332962945,
+        "saved_s": 5.369986874982715,
+        "attempt_s": 5.6737750000320375,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2400,
+          "output_tokens": 170
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "saving_s": 7.6365741670597345,
+      "saving_percent": 58.78441391836057
+    },
+    {
+      "id": "en-identity",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "identity",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 7.519055249984376,
+        "question_delivered_s": 7.519055249984376,
+        "saved_s": 7.544532542000525,
+        "attempt_s": 8.044912041979842,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2377,
+          "output_tokens": 507
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 4.568779790890403,
+        "question_delivered_s": 4.568779790890403,
+        "saved_s": 4.584646040922962,
+        "attempt_s": 4.891506665968336,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2376,
+          "output_tokens": 203
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "saving_s": 2.950275459093973,
+      "saving_percent": 39.237315872896446
+    },
+    {
+      "id": "en-chronology",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "chronology",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 8.902613040991127,
+        "question_delivered_s": 8.902613040991127,
+        "saved_s": 8.917573665967211,
+        "attempt_s": 9.236263458034955,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2386,
+          "output_tokens": 615
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.1807210829574615,
+        "question_delivered_s": 5.1807210829574615,
+        "saved_s": 5.193463083007373,
+        "attempt_s": 5.5530318330274895,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2390,
+          "output_tokens": 183
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "saving_s": 3.721891958033666,
+      "saving_percent": 41.80673630198924
+    },
+    {
+      "id": "en-news",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "news",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 24.871957374969497,
+        "question_delivered_s": 24.839444917044602,
+        "saved_s": 24.88090062502306,
+        "attempt_s": 25.578524542041123,
+        "provider_calls": 3,
+        "usage": {
+          "input_tokens": 5044,
+          "output_tokens": 2462
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "selected_cited_news": true,
+          "saved_reference": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 7.214726499980316,
+        "question_delivered_s": 7.20322970894631,
+        "saved_s": 7.225672584027052,
+        "attempt_s": 7.892115417052992,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2792,
+          "output_tokens": 219
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "selected_cited_news": true,
+          "saved_reference": true
+        }
+      },
+      "saving_s": 17.65723087498918,
+      "saving_percent": 70.99252627683806
+    },
+    {
+      "id": "en-broaden_scope",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "broaden_scope",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 8.699598500039428,
+        "question_delivered_s": 8.699598500039428,
+        "saved_s": 8.717106458032504,
+        "attempt_s": 9.798463665996678,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2867,
+          "output_tokens": 613
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "broadening_first": true,
+          "selected_broadening": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 4.536015667021275,
+        "question_delivered_s": 4.536015667021275,
+        "saved_s": 4.548798458999954,
+        "attempt_s": 5.075315042049624,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2864,
+          "output_tokens": 174
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "broadening_first": true,
+          "selected_broadening": true
+        }
+      },
+      "saving_s": 4.163582833018154,
+      "saving_percent": 47.85948263013843
+    },
+    {
+      "id": "en-stop",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "stop",
+      "before": {
+        "quality": "fail",
+        "qualified_response_s": null,
+        "question_delivered_s": null,
+        "saved_s": 10.83962608303409,
+        "attempt_s": 11.237915290985256,
+        "provider_calls": 3,
+        "usage": {
+          "input_tokens": 5315,
+          "output_tokens": 840
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_question": true,
+          "no_candidate_selected": true,
+          "no_news_reference": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 4.784636916941963,
+        "question_delivered_s": null,
+        "saved_s": 4.807431833003648,
+        "attempt_s": 5.214397458010353,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2878,
+          "output_tokens": 202
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_question": true,
+          "no_candidate_selected": true,
+          "no_news_reference": true
+        }
+      },
+      "saving_s": null,
+      "saving_percent": null
+    },
+    {
+      "id": "en-redirect",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "redirect",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 8.922334584058262,
+        "question_delivered_s": 8.922334584058262,
+        "saved_s": 8.937192584038712,
+        "attempt_s": 9.546190166962333,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2915,
+          "output_tokens": 667
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_news_reference": true,
+          "latest_topic_reason": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 4.928699958953075,
+        "question_delivered_s": 4.928699958953075,
+        "saved_s": 4.940646333969198,
+        "attempt_s": 5.464561042026617,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2920,
+          "output_tokens": 194
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_news_reference": true,
+          "latest_topic_reason": true
+        }
+      },
+      "saving_s": 3.9936346251051873,
+      "saving_percent": 44.759973832865505
+    },
+    {
+      "id": "en-privacy",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "privacy",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 9.476190750021487,
+        "question_delivered_s": 9.476190750021487,
+        "saved_s": 9.492350292042829,
+        "attempt_s": 10.165833292063326,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2526,
+          "output_tokens": 881
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_news_reference": true,
+          "latest_topic_reason": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 6.004265957977623,
+        "question_delivered_s": 6.004265957977623,
+        "saved_s": 6.0167810410493985,
+        "attempt_s": 6.60464925004635,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2530,
+          "output_tokens": 356
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_news_reference": true,
+          "latest_topic_reason": true
+        }
+      },
+      "saving_s": 3.4719247920438647,
+      "saving_percent": 36.63840126937073
+    },
+    {
+      "id": "en-competing",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "competing",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 7.221482082968578,
+        "question_delivered_s": 7.221482082968578,
+        "saved_s": 7.23448104201816,
+        "attempt_s": 7.875384666956961,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3065,
+          "output_tokens": 498
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "confirmation_first": true,
+          "broaden_hint_present": true,
+          "news_hint_present": true,
+          "selected_first_confirmation": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.556018249946646,
+        "question_delivered_s": 5.556018249946646,
+        "saved_s": 5.567580500035547,
+        "attempt_s": 6.084312333026901,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3063,
+          "output_tokens": 207
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "confirmation_first": true,
+          "broaden_hint_present": true,
+          "news_hint_present": true,
+          "selected_first_confirmation": true
+        }
+      },
+      "saving_s": 1.6654638330219314,
+      "saving_percent": 23.06263193465266
+    },
+    {
+      "id": "en-answered",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "answered",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 11.630938042071648,
+        "question_delivered_s": 11.630938042071648,
+        "saved_s": 11.654148624977097,
+        "attempt_s": 12.077288500033319,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2515,
+          "output_tokens": 1212
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "answered_confirmation_not_selected": true,
+          "answered_confirmation_removed": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 9.238035500049591,
+        "question_delivered_s": 9.238035500049591,
+        "saved_s": 9.254653915995732,
+        "attempt_s": 9.668242707964964,
+        "provider_calls": 3,
+        "usage": {
+          "input_tokens": 4542,
+          "output_tokens": 533
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "answered_confirmation_not_selected": true,
+          "answered_confirmation_removed": true
+        }
+      },
+      "saving_s": 2.392902542022057,
+      "saving_percent": 20.573598908070913
+    },
+    {
+      "id": "en-current-correction",
+      "language": "en-AU",
+      "cohort": "handoff",
+      "scenario": "current_correction",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 16.11441024998203,
+        "question_delivered_s": 16.11441024998203,
+        "saved_s": 16.128663292038254,
+        "attempt_s": 16.47921158396639,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2457,
+          "output_tokens": 1724
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "stale_confirmation_not_selected": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.557808957993984,
+        "question_delivered_s": 5.557808957993984,
+        "saved_s": 5.571635458036326,
+        "attempt_s": 5.973895458038896,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2421,
+          "output_tokens": 247
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "stale_confirmation_not_selected": true
+        }
+      },
+      "saving_s": 10.556601291988045,
+      "saving_percent": 65.51031733848167
+    },
+    {
+      "id": "zh-conflict",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "conflict",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 8.53829079202842,
+        "question_delivered_s": 8.53829079202842,
+        "saved_s": 8.552358375047334,
+        "attempt_s": 8.965740208979696,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2381,
+          "output_tokens": 542
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 6.408213375019841,
+        "question_delivered_s": 6.408213375019841,
+        "saved_s": 6.426672165980563,
+        "attempt_s": 7.005470832926221,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2384,
+          "output_tokens": 155
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "saving_s": 2.1300774170085788,
+      "saving_percent": 24.94735151205294
+    },
+    {
+      "id": "zh-identity",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "identity",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 11.784233874990605,
+        "question_delivered_s": 11.784233874990605,
+        "saved_s": 11.806286124978215,
+        "attempt_s": 12.398275207960978,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2374,
+          "output_tokens": 746
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.069586417055689,
+        "question_delivered_s": 5.069586417055689,
+        "saved_s": 5.081114958971739,
+        "attempt_s": 5.4521571670193225,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2366,
+          "output_tokens": 224
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "saving_s": 6.714647457934916,
+      "saving_percent": 56.97992359253197
+    },
+    {
+      "id": "zh-chronology",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "chronology",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 9.63941187504679,
+        "question_delivered_s": 9.63941187504679,
+        "saved_s": 9.652500209049322,
+        "attempt_s": 10.013908041990362,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2409,
+          "output_tokens": 632
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 4.868566208984703,
+        "question_delivered_s": 4.868566208984703,
+        "saved_s": 4.884077124996111,
+        "attempt_s": 5.250719000003301,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2381,
+          "output_tokens": 182
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true
+        }
+      },
+      "saving_s": 4.770845666062087,
+      "saving_percent": 49.49311978682236
+    },
+    {
+      "id": "zh-news",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "news",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 57.229062083992176,
+        "question_delivered_s": 57.22252612491138,
+        "saved_s": 57.236132166930474,
+        "attempt_s": 57.92079050000757,
+        "provider_calls": 4,
+        "usage": {
+          "input_tokens": 7552,
+          "output_tokens": 7564
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "selected_cited_news": true,
+          "saved_reference": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.59911737497896,
+        "question_delivered_s": 5.590288207982667,
+        "saved_s": 5.607401708024554,
+        "attempt_s": 6.2845859579974785,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2856,
+          "output_tokens": 226
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "selected_cited_news": true,
+          "saved_reference": true
+        }
+      },
+      "saving_s": 51.629944709013216,
+      "saving_percent": 90.21630414497896
+    },
+    {
+      "id": "zh-broaden_scope",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "broaden_scope",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 10.148638374987058,
+        "question_delivered_s": 10.148638374987058,
+        "saved_s": 10.170292209018953,
+        "attempt_s": 10.909082124941051,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2937,
+          "output_tokens": 562
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "broadening_first": true,
+          "selected_broadening": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 6.464846416027285,
+        "question_delivered_s": 6.464846416027285,
+        "saved_s": 6.482414499972947,
+        "attempt_s": 7.116137082921341,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2925,
+          "output_tokens": 198
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "broadening_first": true,
+          "selected_broadening": true
+        }
+      },
+      "saving_s": 3.683791958959773,
+      "saving_percent": 36.2983862745476
+    },
+    {
+      "id": "zh-stop",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "stop",
+      "before": {
+        "quality": "fail",
+        "qualified_response_s": null,
+        "question_delivered_s": null,
+        "saved_s": 6.62233595806174,
+        "attempt_s": 7.1029372500488535,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2977,
+          "output_tokens": 346
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_question": true,
+          "no_candidate_selected": true,
+          "no_news_reference": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 4.884657582966611,
+        "question_delivered_s": null,
+        "saved_s": 4.902217915980145,
+        "attempt_s": 5.205475457943976,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2980,
+          "output_tokens": 170
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_question": true,
+          "no_candidate_selected": true,
+          "no_news_reference": true
+        }
+      },
+      "saving_s": null,
+      "saving_percent": null
+    },
+    {
+      "id": "zh-redirect",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "redirect",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 7.990787999937311,
+        "question_delivered_s": 7.990787999937311,
+        "saved_s": 8.010084124980494,
+        "attempt_s": 8.729837624938227,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3013,
+          "output_tokens": 567
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_news_reference": true,
+          "latest_topic_reason": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.515833333018236,
+        "question_delivered_s": 5.515833333018236,
+        "saved_s": 5.533384791924618,
+        "attempt_s": 6.15460783301387,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3007,
+          "output_tokens": 240
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_news_reference": true,
+          "latest_topic_reason": true
+        }
+      },
+      "saving_s": 2.474954666919075,
+      "saving_percent": 30.972598283654772
+    },
+    {
+      "id": "zh-privacy",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "privacy",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 10.665473915985785,
+        "question_delivered_s": 10.665473915985785,
+        "saved_s": 10.681921499897726,
+        "attempt_s": 11.58306683297269,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2581,
+          "output_tokens": 1010
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_news_reference": true,
+          "latest_topic_reason": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 8.006336249993183,
+        "question_delivered_s": 8.006336249993183,
+        "saved_s": 8.022832709015347,
+        "attempt_s": 8.70306533400435,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2573,
+          "output_tokens": 421
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "no_news_reference": true,
+          "latest_topic_reason": true
+        }
+      },
+      "saving_s": 2.6591376659926027,
+      "saving_percent": 24.932203547064084
+    },
+    {
+      "id": "zh-competing",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "competing",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 10.700570750050247,
+        "question_delivered_s": 10.700570750050247,
+        "saved_s": 10.737442583078519,
+        "attempt_s": 11.352631875080988,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3109,
+          "output_tokens": 553
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "confirmation_first": true,
+          "broaden_hint_present": true,
+          "news_hint_present": true,
+          "selected_first_confirmation": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.138376833987422,
+        "question_delivered_s": 5.138376833987422,
+        "saved_s": 5.149467334034853,
+        "attempt_s": 5.612260958994739,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 3104,
+          "output_tokens": 178
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "ready_news_in_actual_reply_input": true,
+          "confirmation_first": true,
+          "broaden_hint_present": true,
+          "news_hint_present": true,
+          "selected_first_confirmation": true
+        }
+      },
+      "saving_s": 5.562193916062824,
+      "saving_percent": 51.98034802056428
+    },
+    {
+      "id": "zh-answered",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "answered",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 9.988118540961295,
+        "question_delivered_s": 9.988118540961295,
+        "saved_s": 10.002416832954623,
+        "attempt_s": 10.406763999955729,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2559,
+          "output_tokens": 780
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "answered_confirmation_not_selected": true,
+          "answered_confirmation_removed": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 5.435396499931812,
+        "question_delivered_s": 5.435396499931812,
+        "saved_s": 5.4491051658988,
+        "attempt_s": 5.768790749949403,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2543,
+          "output_tokens": 306
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "answered_confirmation_not_selected": true,
+          "answered_confirmation_removed": true
+        }
+      },
+      "saving_s": 4.552722041029483,
+      "saving_percent": 45.58137773754647
+    },
+    {
+      "id": "zh-current-correction",
+      "language": "zh-CN",
+      "cohort": "handoff",
+      "scenario": "current_correction",
+      "before": {
+        "quality": "pass",
+        "qualified_response_s": 15.79516366601456,
+        "question_delivered_s": 15.79516366601456,
+        "saved_s": 15.8276633330388,
+        "attempt_s": 16.243540416006,
+        "provider_calls": 2,
+        "usage": {
+          "input_tokens": 2455,
+          "output_tokens": 1834
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "stale_confirmation_not_selected": true
+        }
+      },
+      "after": {
+        "quality": "pass",
+        "qualified_response_s": 9.417996082920581,
+        "question_delivered_s": 9.417996082920581,
+        "saved_s": 9.42931391694583,
+        "attempt_s": 9.74724175001029,
+        "provider_calls": 3,
+        "usage": {
+          "input_tokens": 4337,
+          "output_tokens": 735
+        },
+        "checks": {
+          "completed_and_saved": true,
+          "cached_replay": true,
+          "replay_reply_identical": true,
+          "replay_reference_identical": true,
+          "prior_saved_reply_unchanged": true,
+          "original_source_unchanged": true,
+          "stale_confirmation_not_selected": true
+        }
+      },
+      "saving_s": 6.3771675830939785,
+      "saving_percent": 40.37417856464078
+    }
+  ]
+}
