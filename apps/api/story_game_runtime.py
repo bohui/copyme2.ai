@@ -57,9 +57,12 @@ def validate_scenes(packet, proposal):
         quote = scene['quote']
         supported = set(chapter['event_ids'])
         if (chapter['blocks'][index]['text'].count(quote) != 1
-                or scene['title'] not in quote or scene['person'] and scene['person'] not in quote
+                or scene['person'] and scene['person'] not in quote
                 or not set(scene['event_ids']) <= supported & event_ids):
             raise ValueError('game_scene_grounding_invalid')
+        if scene['title'] not in quote:
+            # Titles are presentation; replace paraphrases with supported text.
+            scene['title'] = quote[:100].rsplit(' ', 1)[0] if len(quote) > 100 and ' ' in quote[:100] else quote[:100]
         covered.update(scene['event_ids'])
     if covered != event_ids:
         raise ValueError('game_timeline_coverage_required')

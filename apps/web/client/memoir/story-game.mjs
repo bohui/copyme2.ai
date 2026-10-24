@@ -247,7 +247,8 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       if (status.composer_ready === false) {
         markup = `<p role="status">${escapeHtml(t("composerRequired"))}</p>`;
       } else if (content?.status === "published") {
-        markup = `<div data-story-game-player></div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
+        markup = `<a data-game-page-link href="/memoir/game/${encodeURIComponent(view.scope.projectId)}">${escapeHtml(t("openGamePage"))}</a>
+          <div data-story-game-player></div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
       } else {
         markup = `<p>${escapeHtml(t("consentIntro"))}</p><form data-game-consent>
           <button type="submit" data-generate-game ${disabled}>${escapeHtml(t("generate"))}</button></form>`;

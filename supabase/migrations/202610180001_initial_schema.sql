@@ -14497,12 +14497,217 @@ begin
    'chapters',material->'chapters','timeline',material->'timeline');
 end $$;
 
+-- A project URL publishes a game artifact, never its underlying memoir sources.
+create table public.user_story_game_page (
+ project_id text primary key, user_id uuid not null,
+ game_id uuid references public.user_story_game(id) on delete cascade,
+ example jsonb,
+ visibility text not null default 'private' check(visibility in ('private','friends','public')),
+ revision bigint not null default 1, content_revision bigint not null default 1,
+ updated_at timestamptz not null default clock_timestamp(),
+ foreign key(user_id,project_id) references public.user_memoir_project(user_id,project_id) on delete cascade,
+ check(num_nonnulls(game_id,example)=1),
+ check(example is null or octet_length(example::text)<=262144)
+);
+create table public.user_story_game_invitation (
+ id uuid primary key default gen_random_uuid(),
+ project_id text not null references public.user_story_game_page(project_id) on delete cascade,
+ content_revision bigint not null, email text not null check(length(email) between 3 and 254),
+ token_digest text not null unique, expires_at timestamptz not null,
+ accepted_by uuid references auth.users(id) on delete cascade,
+ revoked_at timestamptz,
+ unique(project_id,content_revision,email)
+);
+alter table public.user_story_game_page enable row level security;
+alter table public.user_story_game_invitation enable row level security;
+revoke all on public.user_story_game_page,public.user_story_game_invitation from public,anon,authenticated,service_role;
+
+create function public.link_story_game_page(p_game_id uuid) returns void
+language plpgsql security definer set search_path='' as $$
+declare game public.user_story_game%rowtype;
+begin
+ select * into strict game from public.user_story_game where id=p_game_id and state='published';
+ insert into public.user_story_game_page as page(project_id,user_id,game_id)
+ values(game.project_id,game.user_id,game.id)
+ on conflict(project_id) do update set game_id=excluded.game_id,example=null,visibility='private',
+   revision=page.revision+1,content_revision=page.content_revision+1,updated_at=clock_timestamp()
+ where page.user_id=excluded.user_id;
+ if not found then raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
+end $$;
+
+create function public.story_game_page_allowed(p_page public.user_story_game_page) returns boolean
+language sql stable security definer set search_path='' as $$
+ select p_page.user_id=auth.uid() or p_page.visibility='public' or
+   (p_page.visibility='friends' and exists(select 1 from public.user_story_game_invitation invitation
+     where invitation.project_id=p_page.project_id and invitation.content_revision=p_page.content_revision
+       and invitation.accepted_by=auth.uid() and invitation.revoked_at is null))
+$$;
+
+create function public.read_story_game_page(p_project_id text) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare page public.user_story_game_page%rowtype; locked public.user_story_game_page%rowtype;
+ game public.user_story_game%rowtype; content jsonb;
+begin
+ select * into page from public.user_story_game_page where project_id=p_project_id;
+ if not found or not coalesce(public.story_game_page_allowed(page),false) then
+   raise exception 'GAME_UNAVAILABLE' using errcode='PT404';end if;
+ -- Canonical source locks precede the page lock, matching generation's order.
+ if page.game_id is not null then
+   game:=public.lock_story_game(page.game_id);
+   if game.state<>'published' then raise exception 'GAME_UNAVAILABLE' using errcode='PT404';end if;
+ end if;
+ select * into locked from public.user_story_game_page where project_id=p_project_id for update;
+ if not found or locked.content_revision<>page.content_revision then
+   raise exception 'GAME_CHANGED' using errcode='PT409';end if;
+ if not coalesce(public.story_game_page_allowed(locked),false) then
+   raise exception 'GAME_UNAVAILABLE' using errcode='PT404';end if;
+ content:=case when page.game_id is not null then game.candidate->'game' else locked.example->'game' end;
+ return jsonb_build_object('project_id',locked.project_id,'status','published','game',content,
+   'visibility',locked.visibility,'revision',locked.revision,'example',locked.example is not null,
+   'can_manage',coalesce(locked.user_id=auth.uid(),false),
+   'invitations',case when locked.user_id=auth.uid() then coalesce((select jsonb_agg(jsonb_build_object(
+     'id',invitation.id,'email',invitation.email,'accepted',invitation.accepted_by is not null,
+     'expires_at',invitation.expires_at) order by invitation.email)
+     from public.user_story_game_invitation invitation where invitation.project_id=p_project_id
+       and invitation.content_revision=locked.content_revision and invitation.revoked_at is null),'[]') else '[]' end);
+end $$;
+
+create function public.set_story_game_visibility(p_project_id text,p_visibility text,p_expected_revision bigint) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare page public.user_story_game_page%rowtype;
+begin
+ select * into page from public.user_story_game_page where project_id=p_project_id and user_id=auth.uid() for update;
+ if not found then raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
+ if page.revision<>p_expected_revision then raise exception 'GAME_CHANGED' using errcode='PT409';end if;
+ if p_visibility not in ('private','friends','public') or p_visibility is null then
+   raise exception 'GAME_VISIBILITY_INVALID' using errcode='22023';end if;
+ update public.user_story_game_page set visibility=p_visibility,revision=revision+1,updated_at=clock_timestamp()
+   where project_id=p_project_id returning * into page;
+ return jsonb_build_object('visibility',page.visibility,'revision',page.revision);
+end $$;
+
+create function public.invite_story_game_viewer(p_project_id text,p_email text,p_expected_revision bigint) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare page public.user_story_game_page%rowtype; invitation public.user_story_game_invitation%rowtype;
+ token text:=replace(gen_random_uuid()::text||gen_random_uuid()::text,'-',''); invite_email text:=lower(btrim(p_email));
+begin
+ select * into page from public.user_story_game_page where project_id=p_project_id and user_id=auth.uid() for update;
+ if not found then raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
+ if page.revision<>p_expected_revision or page.visibility<>'friends' then
+   raise exception 'GAME_CHANGED' using errcode='PT409';end if;
+ if invite_email is null or length(invite_email)>254 or invite_email !~ '^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$' then
+   raise exception 'GAME_EMAIL_INVALID' using errcode='22023';end if;
+ insert into public.user_story_game_invitation as old(project_id,content_revision,email,token_digest,expires_at)
+ values(p_project_id,page.content_revision,invite_email,public.formal_memoir_digest(to_jsonb(token)),clock_timestamp()+interval '7 days')
+ on conflict(project_id,content_revision,email) do update set token_digest=excluded.token_digest,
+   expires_at=excluded.expires_at,accepted_by=null,revoked_at=null
+ where old.accepted_by is null or old.revoked_at is not null returning * into invitation;
+ if not found then raise exception 'GAME_ALREADY_INVITED' using errcode='PT409';end if;
+ update public.user_story_game_page set revision=revision+1,updated_at=clock_timestamp() where project_id=p_project_id;
+ return jsonb_build_object('invitation_id',invitation.id,'email',invite_email,'token',token,'expires_at',invitation.expires_at);
+end $$;
+
+create function public.accept_story_game_invitation(p_project_id text,p_token text) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare page public.user_story_game_page%rowtype; invitation public.user_story_game_invitation%rowtype; email text;
+begin
+ if auth.uid() is null then raise exception 'GAME_SIGN_IN_REQUIRED' using errcode='42501';end if;
+ select * into page from public.user_story_game_page where project_id=p_project_id for update;
+ select * into invitation from public.user_story_game_invitation where project_id=p_project_id
+   and token_digest=public.formal_memoir_digest(to_jsonb(p_token)) and revoked_at is null;
+ if page.project_id is null or invitation.id is null or page.visibility<>'friends'
+   or invitation.content_revision<>page.content_revision then
+   raise exception 'GAME_INVITATION_UNAVAILABLE' using errcode='PT404';end if;
+ if invitation.accepted_by=auth.uid() then return jsonb_build_object('accepted',true);end if;
+ select lower(u.email) into email from auth.users u where u.id=auth.uid() and u.email_confirmed_at is not null and not u.is_anonymous;
+ if email is null or email<>invitation.email or invitation.expires_at<=clock_timestamp()
+   or invitation.accepted_by is not null then
+   raise exception 'GAME_INVITATION_UNAVAILABLE' using errcode='PT404';end if;
+ update public.user_story_game_invitation set accepted_by=auth.uid() where id=invitation.id;
+ return jsonb_build_object('accepted',true);
+end $$;
+
+create function public.revoke_story_game_invitation(p_project_id text,p_invitation_id uuid,p_expected_revision bigint) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare page public.user_story_game_page%rowtype;
+begin
+ select * into page from public.user_story_game_page where project_id=p_project_id and user_id=auth.uid() for update;
+ if not found then raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
+ if page.revision<>p_expected_revision then raise exception 'GAME_CHANGED' using errcode='PT409';end if;
+ update public.user_story_game_invitation set revoked_at=clock_timestamp()
+   where id=p_invitation_id and project_id=p_project_id and revoked_at is null;
+ update public.user_story_game_page set revision=revision+1,updated_at=clock_timestamp() where project_id=p_project_id;
+ return jsonb_build_object('revoked',true);
+end $$;
+
+-- Only the trusted live-example runner can attach a labelled fictional artifact.
+create function public.save_story_game_example(p_owner uuid,p_project_id text,p_result jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare payload jsonb;
+begin
+ if p_result->'synthetic' is distinct from 'true'::jsonb
+   or p_result->'steps'->'scenes'->>'status' is distinct from 'completed'
+   or p_result->'steps'->'webpage'->>'status' is distinct from 'completed'
+   or p_result->'steps'->'webpage'->>'requested_model' is distinct from 'gpt-6-astra'
+   or octet_length(p_result->>'html') not between 100 and 150000
+   or jsonb_typeof(p_result->'scenes') is distinct from 'array' then
+   raise exception 'GAME_EXAMPLE_INVALID' using errcode='22023';end if;
+ payload:=jsonb_build_object('game',public.story_game_package(p_result->'scenes',p_result->>'html',p_result->>'locale'),
+   'receipt',p_result->'steps','input_sha256',p_result->'input_sha256');
+ insert into public.user_story_game_page as page(project_id,user_id,example) values(p_project_id,p_owner,payload)
+ on conflict(project_id) do update set game_id=null,example=excluded.example,visibility='private',
+   revision=page.revision+1,content_revision=page.content_revision+1,updated_at=clock_timestamp()
+ where page.user_id=excluded.user_id;
+ if not found then raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
+ return jsonb_build_object('project_id',p_project_id,'visibility','private','example',true);
+end $$;
+
+revoke all on function public.link_story_game_page(uuid),public.story_game_page_allowed(public.user_story_game_page),
+ public.read_story_game_page(text),public.set_story_game_visibility(text,text,bigint),
+ public.invite_story_game_viewer(text,text,bigint),public.accept_story_game_invitation(text,text),
+ public.revoke_story_game_invitation(text,uuid,bigint),public.save_story_game_example(uuid,text,jsonb)
+ from public,anon,authenticated,service_role;
+grant execute on function public.read_story_game_page(text) to anon,authenticated;
+grant execute on function public.set_story_game_visibility(text,text,bigint),public.invite_story_game_viewer(text,text,bigint),
+ public.accept_story_game_invitation(text,text),public.revoke_story_game_invitation(text,uuid,bigint) to authenticated;
+grant execute on function public.save_story_game_example(uuid,text,jsonb) to service_role;
+
+create function public.story_game_package(p_plan jsonb,p_html text,p_locale text) returns jsonb
+language plpgsql set search_path='' as $$
+declare scene_ids uuid[]; title_ids uuid[]; alias_ids uuid[]; line_ids uuid[];
+ author_id uuid:=gen_random_uuid(); texts jsonb:='[]'; scenes jsonb:='[]'; npcs jsonb:='[]';
+ item jsonb; i integer:=0; total integer:=jsonb_array_length(p_plan);
+begin
+ if total not between 1 and 128 then raise exception 'GAME_SCENE_INVALID' using errcode='22023';end if;
+ select array_agg(gen_random_uuid()),array_agg(gen_random_uuid()),array_agg(gen_random_uuid()),array_agg(gen_random_uuid())
+   into scene_ids,title_ids,alias_ids,line_ids from generate_series(1,total);
+ for item in select value from jsonb_array_elements(p_plan) loop
+   i:=i+1;
+   texts:=texts||jsonb_build_array(jsonb_build_object('id',title_ids[i],'text',item->>'title'),
+     jsonb_build_object('id',alias_ids[i],'text',coalesce(item->>'person',
+       case when p_locale='zh-CN' then '回忆 ' else 'Memory ' end||i)),
+     jsonb_build_object('id',line_ids[i],'text',item->>'quote'));
+   scenes:=scenes||jsonb_build_array(jsonb_build_object('id',scene_ids[i],'title_text_id',title_ids[i],
+     'asset_key','generic-garden','width',1280,'spawn_x',80,
+     'left',case when i=1 then null else jsonb_build_object('scene_id',scene_ids[i-1],'spawn_x',1100) end,
+     'right',case when i=total then null else jsonb_build_object('scene_id',scene_ids[i+1],'spawn_x',80) end));
+   npcs:=npcs||jsonb_build_array(jsonb_build_object('id',gen_random_uuid(),'scene_id',scene_ids[i],'x',640,
+     'alias_text_id',alias_ids[i],'asset_key','generic-adult','dialogue_text_ids',jsonb_build_array(line_ids[i])));
+ end loop;
+ texts:=texts||jsonb_build_array(jsonb_build_object('id',author_id,'text',case when p_locale='zh-CN' then '我' else 'Me' end));
+ return jsonb_build_object('schema_version','memoir-story-game-play/1','package_id',gen_random_uuid(),
+   'renderer','fixed-side-scroll-v1','audience','private','title_text_id',title_ids[1],'texts',texts,
+   'protagonist',jsonb_build_object('id',gen_random_uuid(),'alias_text_id',author_id,'asset_key','generic-author'),
+   'start_scene_id',scene_ids[1],'scenes',scenes,'npcs',npcs,
+   'controls',jsonb_build_object('keyboard',true,'touch',true,'text_equivalent',true,'reduced_motion',true),
+   'webpage',p_html);
+end $$;
+revoke all on function public.story_game_package(jsonb,text,text) from public,anon,authenticated,service_role;
+
 create function public.stage_story_game(p_game_id uuid,p_token uuid,p_proposal jsonb,p_model_receipt jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare game public.user_story_game%rowtype; item jsonb; chapter jsonb; block jsonb; material jsonb;
- scene_ids uuid[]; title_ids uuid[]; alias_ids uuid[]; line_ids uuid[]; count_scenes integer; covered jsonb:='[]';
- author_id uuid:=gen_random_uuid(); texts jsonb:='[]'; scenes jsonb:='[]'; npcs jsonb:='[]';
- package jsonb; prepared jsonb; i integer:=0; quote_text text; label text; offset_in_block integer;
+ covered jsonb:='[]'; package jsonb; prepared jsonb; quote_text text; label text; offset_in_block integer;
 begin
  game:=public.lock_story_game(p_game_id,p_token,true);
  if jsonb_typeof(p_proposal) is distinct from 'object' or (select count(*) from jsonb_object_keys(p_proposal))<>2
@@ -14515,11 +14720,7 @@ begin
    or p_model_receipt->'steps'->'webpage'->>'status' is distinct from 'completed' then
    raise exception 'GAME_PROPOSAL_INVALID' using errcode='22023';end if;
  material:=public.read_story_game_input(p_game_id,p_token);
- count_scenes:=jsonb_array_length(p_proposal->'scenes');
- select array_agg(gen_random_uuid()),array_agg(gen_random_uuid()),array_agg(gen_random_uuid()),array_agg(gen_random_uuid())
-   into scene_ids,title_ids,alias_ids,line_ids from generate_series(1,count_scenes);
  for item in select value from jsonb_array_elements(p_proposal->'scenes') loop
-   i:=i+1;
    if jsonb_typeof(item)<>'object' or (select count(*) from jsonb_object_keys(item))<>6
      or not (item ?& array['chapter_id','block_index','title','person','quote','event_ids'])
      or exists(select 1 from unnest(array['chapter_id','title','quote']) k where jsonb_typeof(item->k) is distinct from 'string')
@@ -14543,30 +14744,15 @@ begin
    if offset_in_block<0 or strpos(substring(block->>'text' from offset_in_block+2),quote_text)>0 then
      raise exception 'GAME_EXACT_QUOTE_REQUIRED' using errcode='22023';end if;
    covered:=covered||(item->'event_ids');
-   texts:=texts||jsonb_build_array(jsonb_build_object('id',title_ids[i],'text',item->>'title'),
-     jsonb_build_object('id',alias_ids[i],'text',coalesce(label,
-       case when game.authority->>'locale'='zh-CN' then '回忆 ' else 'Memory ' end||i)),
-     jsonb_build_object('id',line_ids[i],'text',quote_text));
-   scenes:=scenes||jsonb_build_array(jsonb_build_object('id',scene_ids[i],'title_text_id',title_ids[i],
-     'asset_key','generic-garden','width',1280,'spawn_x',80,
-     'left',case when i=1 then null else jsonb_build_object('scene_id',scene_ids[i-1],'spawn_x',1100) end,
-     'right',case when i=count_scenes then null else jsonb_build_object('scene_id',scene_ids[i+1],'spawn_x',80) end));
-   npcs:=npcs||jsonb_build_array(jsonb_build_object('id',gen_random_uuid(),'scene_id',scene_ids[i],'x',640,
-     'alias_text_id',alias_ids[i],'asset_key','generic-adult','dialogue_text_ids',jsonb_build_array(line_ids[i])));
  end loop;
  if exists(select 1 from jsonb_array_elements(material->'timeline') e where not covered ? (e->>'id')) then
    raise exception 'GAME_TIMELINE_COVERAGE_REQUIRED' using errcode='22023';end if;
- texts:=texts||jsonb_build_array(jsonb_build_object('id',author_id,'text',case when game.authority->>'locale'='zh-CN' then '我' else 'Me' end));
- package:=jsonb_build_object('schema_version','memoir-story-game-play/1','package_id',gen_random_uuid(),
-   'renderer','fixed-side-scroll-v1','audience','private','title_text_id',title_ids[1],'texts',texts,
-   'protagonist',jsonb_build_object('id',gen_random_uuid(),'alias_text_id',author_id,'asset_key','generic-author'),
-   'start_scene_id',scene_ids[1],'scenes',scenes,'npcs',npcs,
-   'controls',jsonb_build_object('keyboard',true,'touch',true,'text_equivalent',true,'reduced_motion',true),
-   'webpage',p_proposal->>'html');
+ package:=public.story_game_package(p_proposal->'scenes',p_proposal->>'html',game.authority->>'locale');
  prepared:=jsonb_build_object('game',package,'scene_plan',p_proposal-'html');
  update public.user_story_game set candidate=prepared,candidate_digest=public.formal_memoir_digest(prepared),
    model_receipt=p_model_receipt,state='published',review=null,token=null,lease_until=null,updated_at=clock_timestamp()
    where id=game.id returning * into game;
+ perform public.link_story_game_page(game.id);
  return public.story_game_status_record(game);
 end $$;
 

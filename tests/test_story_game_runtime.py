@@ -104,6 +104,14 @@ def test_single_scene_without_a_second_person_is_supported():
     assert validate_scenes(current, value) == value
 
 
+def test_paraphrased_display_title_becomes_a_source_excerpt():
+    value = proposal()
+    value['scenes'][0]['title'] = 'Learning to garden'
+    prepared = validate_scenes(packet(), value)
+    assert prepared['scenes'][0]['title'] == 'My father tended the garden.'
+    assert prepared['scenes'][0]['quote'] == value['scenes'][0]['quote']
+
+
 def test_full_timeline_can_exceed_sixteen_scenes():
     chapters = [dict(chapter_id=f'chapter-{i}', event_ids=[f'event-{i}'],
         blocks=[{'text': f'At eight I planted bed {i}.'}]) for i in range(50)]
