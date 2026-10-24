@@ -979,5 +979,102 @@
     "required_make_exit": 2,
     "required_make_reason": "Native fixture deadline reached; no assertion mismatch; fresh single-case retry passed",
     "earlier_attempts": "Baseline focused run hit its 180-second outer deadline; aggregate candidate run had a 1-second cancellation-fixture setup timeout; the setup bound was raised and focused checks passed."
+  },
+  "historical_live_measurement_commit": "07c02f12996b7b39b87ad4ed296d5605c59fb247",
+  "offline_repair_followup": {
+    "base_commit": "07c02f12996b7b39b87ad4ed296d5605c59fb247",
+    "runtime_sha256": "5d716b86b6570d12494d5805580146e6a0b5fd6968d5ae01e506277c46fd457d",
+    "new_live_provider_requests": 0,
+    "root_cause": "The PAGE_AMBIGUOUS repair schema still allowed null EvidenceRef offsets, so the same rejected response remained schema-valid.",
+    "change": "Only PAGE_AMBIGUOUS repairs require window-relative integer offsets; a canonically recomputed bounded quote-position catalog supplies original Unicode positions.",
+    "catalog_limits": {
+      "utf8_bytes": 8192,
+      "quotes": 16,
+      "spans_per_quote": 32,
+      "quote_characters": 500,
+      "source_window_characters": 2304
+    },
+    "checks": [
+      {
+        "name": "red",
+        "status": "completed",
+        "exit_code": 1,
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-x",
+          "-q",
+          "tests/test_timeline_span_repair.py"
+        ],
+        "log_sha256": "503ac27a0980e0ddb29eb634f7b6f2659c9de19842621be9adc8285ccd67b6cd",
+        "native_cleanup_verified": true
+      },
+      {
+        "name": "reviewed-focused",
+        "status": "completed",
+        "exit_code": 0,
+        "command": [
+          "python3",
+          "-m",
+          "pytest",
+          "-x",
+          "-q",
+          "tests/test_timeline_span_repair.py",
+          "tests/test_memory_context_transport.py",
+          "tests/test_lifetime_memory_lane_engine.py",
+          "tests/test_lifetime_memory_job_engine.py",
+          "tests/test_lifetime_composer_capacity.py",
+          "-k",
+          "not test_pg_ and not 10000_mixed_language_packets"
+        ],
+        "log_sha256": "6f5916555747900b4951f60057a57cbaf77a39a513d50fea15f93c193fe46109",
+        "native_cleanup_verified": true
+      },
+      {
+        "name": "final-postgres",
+        "status": "completed",
+        "exit_code": 0,
+        "command": [
+          "python3",
+          "scripts/backend_operation_lock.py",
+          "--",
+          "python3",
+          "-m",
+          "pytest",
+          "-x",
+          "-q",
+          "tests/test_timeline_span_repair_postgres.py"
+        ],
+        "log_sha256": "6009185efe2152f8daa3498d8d7a089de8889a62a9ebd5f6dd541a958d926465",
+        "native_cleanup_verified": true
+      },
+      {
+        "name": "place-research",
+        "status": "completed",
+        "exit_code": 0,
+        "command": [
+          "python3",
+          "scripts/backend_operation_lock.py",
+          "--",
+          "make",
+          "test-place-research"
+        ],
+        "log_sha256": "dfe5a745a57732d6103604423cf84ae65774cbd26cae373d9d2be8b8939c6a46",
+        "native_cleanup_verified": true
+      }
+    ],
+    "summary": {
+      "focused_passed": 212,
+      "postgres_passed": 6,
+      "web_passed": 604,
+      "place_backend_passed": 487,
+      "photo_skill_passed": 95,
+      "required_make_exit": 0
+    },
+    "acceptance": "Offline regression and SQL-fence verification pass. Current-head live quality and latency remain unmeasured; historical 8/9 result remains unchanged. Keep PR draft.",
+    "publication": "No prompt Markdown or Langfuse receipts changed; no publication, merge or deployment.",
+    "remote_main_observed": "23eade77e4134e0388ff4f39bcab79d6d2012384",
+    "integration_scope": "Tests ran on the existing PR branch based on 613930a. Remote-main changes are story-game/speech; timeline extraction files and timeline SQL functions are unchanged. Remote main was not merged into this branch."
   }
 }

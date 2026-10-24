@@ -185,7 +185,7 @@ def _object(value):
     return parsed
 
 
-def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False, fence=None):
+def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False, fence=None, retry_reason=None):
     """Use server code, never client-supplied instructions or output schemas."""
     if phase == 'profile':
         from .background_profile import profile_contract
@@ -210,6 +210,10 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
         evidence=schema['$defs']['EvidenceRef']['properties']
         evidence['source_id']['enum']=[fence.source['id']]
         evidence['version']['enum']=[fence.source['version']]
+        if retry_reason == 'PAGE_AMBIGUOUS':
+            length = len(fence.source['text'])
+            evidence['char_start'] = {'type': 'integer', 'minimum': 0, 'maximum': length - 1}
+            evidence['char_end'] = {'type': 'integer', 'minimum': 1, 'maximum': length}
         identities=sorted({event['id'] for event in fence.events})
         event=schema['$defs']['EventProposal']['properties']
         event['id']={'type':'null'}
@@ -333,13 +337,47 @@ def _required_artifacts(phase, payload):
     return result
 
 
-def lane_extraction_packet(fence):
-    return {'schema_version':1,'sources':[deepcopy(fence.source)],'events':deepcopy(fence.events),
+def source_quote_occurrences(source):
+    """Original Unicode positions are hints, never a choice of occurrence."""
+    if not isinstance(source, dict) or not isinstance(source.get('text'), str) or not 0 < len(source['text']) <= 2304:
+        raise ValueError('Invalid canonical source window')
+    text = source['text']
+    result = {'source_id': source['id'], 'version': source['version'],
+        'coordinate_system': 'window_unicode_codepoints', 'quotes': []}
+    quotes = dict.fromkeys(match.group().strip() for match in
+        re.finditer(r'[^.!?。！？\n]+[.!?。！？]?', text))
+    candidates = []
+    for quote in quotes:
+        if not 1 <= len(quote) <= 500:
+            continue
+        spans = []
+        start = text.find(quote)
+        while start >= 0 and len(spans) < 32:
+            spans.append({'char_start': start, 'char_end': start + len(quote)})
+            start = text.find(quote, start + 1)
+        candidates.append({'quote': quote, 'spans': spans})
+    # Keep repeated quotes first when the bounded catalog cannot fit everything.
+    candidates.sort(key=lambda item: len(item['spans']) == 1)
+    for item in candidates:
+        candidate = {**result, 'quotes': [*result['quotes'], item]}
+        if len(serialize_packet(candidate).encode('utf-8')) > 8192:
+            continue
+        result = candidate
+        if len(result['quotes']) == 16:
+            break
+    return result
+
+
+def lane_extraction_packet(fence, *, retry_reason=None):
+    packet = {'schema_version':1,'sources':[deepcopy(fence.source)],'events':deepcopy(fence.events),
         'interview_context':fence.attribution_context.model_dump(mode='json') if fence.attribution_context else {},
         'preferences':fence.preferences.model_dump(mode='json'),
         'coverage':{'scope':'source_window','snapshot_id':str(fence.snapshot_id),
             'source_high_water':fence.source_high_water,'complete':False},
         'window_contract':EXTRACTION_WINDOW_CONTRACT}
+    if retry_reason == 'PAGE_AMBIGUOUS':
+        packet['quote_occurrences'] = source_quote_occurrences(fence.source)
+    return packet
 
 
 def canonical_lane_request(fence):
@@ -451,7 +489,7 @@ def _validate_phase_packet(fence,phase,payload):
         if 'retry_reason' in payload and (not isinstance(payload['retry_reason'],str)
                 or payload['retry_reason'] not in {*EXTRACTION_REJECTION_REASONS.values(),'OUTPUT_SCHEMA'}):
             raise ValueError('Unsupported extraction retry reason')
-        if {key:value for key,value in payload.items() if key!='retry_reason'}!=lane_extraction_packet(fence):
+        if {key:value for key,value in payload.items() if key!='retry_reason'}!=lane_extraction_packet(fence, retry_reason=payload.get('retry_reason')):
             raise ValueError('Extraction payload differs from authoritative page evidence')
     elif phase=='prepare':
         if (set(payload)!={'preparation_id','partition','sources'}
@@ -515,7 +553,7 @@ async def validate_lane_payload(bounded):
         raise ValueError('Candidate validation differs from the canonical page proof')
 
 def lane_request_tokens(bounded_lane: BoundedLaneInput) -> int:
-    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode), fence=bounded_lane.fence)
+    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode), fence=bounded_lane.fence, retry_reason=_object(bounded_lane.packet)['payload'].get('retry_reason'))
     return (bounded_lane.budget.count(instructions) + bounded_lane.budget.count(bounded_lane.packet)
         + bounded_lane.budget.count(serialize_packet(schema)) + bounded_lane.budget.framing_headroom)
 
@@ -527,6 +565,8 @@ def build_bounded_lane_input(page, *, phase, packet, budget):
     payload = _object(packet) if isinstance(packet, str) else deepcopy(packet)
     if not isinstance(payload, dict):
         raise ValueError('A bounded lane payload must be an object')
+    if phase == 'extract' and payload.get('retry_reason') == 'PAGE_AMBIGUOUS' and 'quote_occurrences' not in payload:
+        payload['quote_occurrences'] = source_quote_occurrences(fence.source)
     proofs = _required_artifacts(phase,payload)
     fence = fence.model_copy(update={'prior_outputs':proofs})
     return BoundedLaneInput(fence=fence, budget=budget, phase=phase,
@@ -711,7 +751,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
         'author_timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}[role]
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
-    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode), fence=bounded.fence)
+    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode), fence=bounded.fence, retry_reason=_object(bounded.packet)['payload'].get('retry_reason'))
     from .conversation_reply_transport import stream_document
     endpoint = urlsplit(base_url)
     if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname

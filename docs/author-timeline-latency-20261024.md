@@ -2,6 +2,8 @@
 
 Baseline: `613930a263b0ed49ada3ea3b817f78d43fe81af5`, current remote main at round start. Selected skill: `memoir-author-timeline`. Configured local path: two lanes, `reply-v2`, strategy enabled, background model `memoir-luna-low`, requested effort `low`. Provider receipts report low effort on both measured transports; internal provider policy remains opaque. This is a background completion study; browser delivery and deployed-worker timings are unobserved.
 
+**Offline follow-up:** the ambiguous-span repair now requires explicit window-relative offsets and supplies a bounded catalogue of original positions. It passes the offline checks described below. The live before/after numbers remain measurements of transport-only commit `07c02f1`; the new repair has not had another live-provider comparison. PR #127 remains a draft.
+
 ## Requests by scenario, before optimization
 
 These are model requests, not prompt-file counts. Counts assume valid first attempts and current source policy. E is unfinished extraction windows, P is eligible uncovered profile windows, S is eligible semantic-summary windows.
@@ -88,9 +90,9 @@ After: canonical page → existing guarded direct Responses transport with no to
 | --- | --- | --- | --- |
 | Reuse direct transport in `apps/api/lifetime_memory_lane_engine.py`; extend existing transport/admission tests | First four matched cases: median input 11760 → 5998.5 tokens (49.0% lower), output 773 → 671 tokens. Native cached input was 3712 per call; candidate cached input was zero. Overall passing-subset latency below. | Same published task instructions, model/effort, exact source packet, schema, output bound, single-use guarded HTTP body, policy/owner/source/token checks, and canonical validator/commit. Future questions still require accepted hints; no deferral or reordering. | 205 focused checks; required place replay below. Revert the transport commit to roll back. Quality gate prevents merging this draft. |
 
-Prompt compression and changing periodic profile scheduling were deferred: they alter governed instructions or a different skill. Expanding the SQL stop fast path changes semantic admission. No new cache, scheduler, dependency or provider configuration was introduced. The failed quote-coordinate experiment is absent from the final diff.
+Prompt compression and changing periodic profile scheduling were deferred: they alter governed instructions or a different skill. Expanding the SQL stop fast path changes semantic admission. No new cache, scheduler, dependency or provider configuration was introduced. The transport-only commit excluded the unsuccessful hints-only experiment; the later offline follow-up pairs bounded coordinates with required repair-schema offsets.
 
-## Live before/after comparison
+## Historical live comparison at 07c02f1
 
 One live sample per scenario and arm. The three affected baseline fixtures were rerun after correcting bounded intake fields, lease renewal and policy-change release. The table uses those completed baseline rows; the original failures remain in the ledger. Both arms use their own saved correction state. Times sum private extraction-start through validated JSON across each scenario’s windows/turns; they exclude controlled Lane A intake. Durable page-save timings, tokens, hashes and all attempts are in [sanitized evidence](evidence/author-timeline-latency-20261024.json). Full synthetic source packets and outputs remain in the ignored local round directory.
 
@@ -140,7 +142,25 @@ Next work stays on this skill: repair the ambiguous repeated-evidence selection 
 - Focused transport/admission/budget/compatibility checks: **205 passed**, excluding PostgreSQL cases and the unchanged 10,000-packet stress loop. The earlier aggregate completed that stress loop but had one cancellation-fixture setup timeout; a one-second setup bound was raised to five seconds, and the focused checks passed. An initial baseline check also hit its 180-second outer deadline; all logs remain local.
 - Required `make test-place-research`: **604 web passed; 486 backend passed**, with one failure when the module's disposable native fixture reached its deadline. The exact failing `broaden_scope` priority case then passed in a fresh fixture (**1 passed, 3 deselected**), covering all **487** backend cases without changing application code. The original make command exited 2 and is not represented as an all-green run.
 - The photo-skill stage that make did not reach was run separately: **95 passed**.
-- The discarded coordinate experiment had its own 207-test check; that result is not used to claim acceptance of the removed code. The retained runtime's SHA-256 exactly matches the initial measured direct candidate.
+- The discarded coordinate experiment had its own 207-test check; that result is not used to claim acceptance of the removed code. At transport-only commit `07c02f1`, the runtime's SHA-256 matched the initial measured direct candidate. The offline follow-up has a new runtime hash and requires renewed live comparison.
 - Remote main was rechecked at `613930a263b0ed49ada3ea3b817f78d43fe81af5`. Only the transport, its tests, this report and sanitized metrics are proposed. No prompt publication, merge or deployment. Raw synthetic prompts/outputs and profiler scripts stay local under ignored `var/optimise-author-timeline-20261024`.
 
 The PR is a draft because the long-source quality gate failed. It should remain unmerged until that case passes a renewed comparison.
+
+## Offline ambiguous-span repair follow-up
+
+The regression follows `_extract` through the actual worker/provider request builders. Before the fix, the second request still accepted null `EvidenceRef.char_start/char_end` after `PAGE_AMBIGUOUS`; the controlled provider could repeat exactly the response that failed validation. The regression was run red before production changes.
+
+Only that fixed repair code now narrows the actual outgoing schema to integer offsets within the current window. The request also carries original sentence/line positions in a bounded, source-ID/version-scoped catalogue. Repeated quotes take priority; the catalogue contains at most 16 quotes, 32 positions per quote and 8192 UTF-8 bytes, from the existing 2304-character maximum window. It is a helper rather than an exhaustive quote index. The host does not select an occurrence. Metadata is recomputed from the immutable source and forged IDs, versions, coordinate systems or positions are rejected before dispatch.
+
+Initial requests and unrelated repair codes retain their existing contracts. The budget calculation and request manifest use the same narrowed schema sent to the provider. Source text, ownership, revisions, current privacy, exact quote checks, absolute-offset restoration and SQL commit fences remain unchanged. No model-prompt Markdown or published receipt changes are involved.
+
+Offline verification on the final repair code:
+
+- **212 focused checks passed**, including repeated English/Chinese sentences, newline-separated copied text, emoji/code-point offsets, later windows, choosing the second occurrence, bounded metadata, forged-context rejection, actual schema hashes and budget accounting.
+- **6 disposable PostgreSQL cases passed**. Three rejected attempts leave the first window's event and receipt intact and its cursor at 2048. A new token resumes the second window; a conforming controlled response preserves the first event and commits the correct second occurrence. A deliberately wrong integer span is still rejected after all attempts without moving the cursor. Wrong owner or withdrawn source releases no provider body; withdrawal before commit rejects the obsolete result.
+- **`make test-place-research` passed**: 604 web, 487 backend and 95 photo-skill checks, without the fixture retry needed in the earlier transport-only run.
+
+There were **zero new live-provider calls**. These checks exercise controlled response contracts and real canonical SQL, and cannot prove that the actual model chooses the right occurrence or establish new latency numbers. The recorded 8/9 historical live score is unchanged. The PR stays draft until renewed bounded live quality/latency verification succeeds.
+
+During the follow-up, remote `main` advanced to `23eade77e4134e0388ff4f39bcab79d6d2012384` with story-game/speech changes. The selected timeline extraction files and timeline SQL functions are unchanged. This offline verification ran on the existing PR branch based on `613930a`; it does not claim testing of a merge with the newer main.
