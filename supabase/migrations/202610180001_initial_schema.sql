@@ -14371,6 +14371,40 @@ create unique index one_current_story_game on public.user_story_game(user_id,pro
 alter table public.user_story_game enable row level security;
 revoke all on public.user_story_game from public,anon,authenticated,service_role;
 
+create function public.story_game_composer(p_owner uuid,p_project text,p_material boolean default false) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare previous_owner text; head jsonb; page jsonb; item jsonb; chapters jsonb:='[]'; timeline jsonb;
+ cursor_id text; event_ids jsonb; steps integer:=0;
+begin
+ previous_owner:=current_setting('request.jwt.claim.sub',true);
+ perform set_config('request.jwt.claim.sub',p_owner::text,true);
+ head:=public.read_lifetime_private_draft_head(p_project);
+ if head->>'status' is distinct from 'ready' or head->>'snapshot_state' is distinct from 'completed'
+   or head->'event_revision' is distinct from head->'current_event_revision' then
+   raise exception 'GAME_COMPOSER_REQUIRED' using errcode='PT409';end if;
+ if p_material then
+   loop
+     page:=public.read_lifetime_private_draft_page(p_project,(head->>'snapshot_id')::uuid,cursor_id,8);
+     for item in select value from jsonb_array_elements(page->'records') loop
+       if coalesce(length(item->'preview'->>'text'),0)=0 then continue;end if;
+       event_ids:=jsonb_build_array(item->>'event_id');
+       chapters:=chapters||jsonb_build_array(jsonb_build_object('chapter_id',item->>'id',
+         'title',coalesce(item->'preview'->>'title','Memory'),'event_ids',event_ids,
+         'blocks',jsonb_build_array(jsonb_build_object('text',item->'preview'->>'text','source_refs',item->'source_refs'))));
+     end loop;
+     steps:=steps+1;
+     exit when (page->>'complete')::boolean;
+     if steps>=16 then raise exception 'GAME_MANUSCRIPT_CAPACITY' using errcode='55000';end if;
+     cursor_id:=page->>'next_cursor';
+   end loop;
+   select coalesce(jsonb_agg(public.memory_event_record(e) order by e.change_sequence,e.id),'[]') into timeline
+     from public.user_memory_event e where e.user_id=p_owner and e.project_id=p_project and e.status='active';
+ end if;
+ perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+ return jsonb_build_object('composer_snapshot_id',head->'snapshot_id','composer_root_digest',head->'root_digest',
+   'composer_revision',head->'revision')||case when p_material then jsonb_build_object('chapters',chapters,'timeline',timeline) else '{}' end;
+end $$;
+
 create function public.story_game_context(p_owner uuid,p_project text) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare context jsonb; edition public.user_formal_memoir_edition%rowtype;
@@ -14391,7 +14425,7 @@ begin
  perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
  if mode is null or mode->>'mode'<>'shape' or mode->>'reply_id' is null then
    raise exception 'GAME_CURRENT_SHAPE_REQUIRED' using errcode='PT409';end if;
- return context||jsonb_build_object('edition_id',edition.id,'manuscript_digest',edition.digest,
+ return context||public.story_game_composer(p_owner,p_project)||jsonb_build_object('edition_id',edition.id,'manuscript_digest',edition.digest,
    'consent_revision',head.consent_revision,'reply_id',mode->>'reply_id');
 end $$;
 
@@ -14446,83 +14480,92 @@ begin
  if game.state='running' and game.lease_until>clock_timestamp() then
    return public.story_game_status_record(game)||jsonb_build_object('status','busy');end if;
  if game.attempts>=3 then raise exception 'GAME_ATTEMPT_LIMIT' using errcode='55000';end if;
- update public.user_story_game set state='running',token=gen_random_uuid(),lease_until=clock_timestamp()+interval '180 seconds',
+ update public.user_story_game set state='running',token=gen_random_uuid(),lease_until=clock_timestamp()+interval '360 seconds',
    attempts=attempts+1,updated_at=clock_timestamp() where id=p_game_id returning * into game;
  return public.story_game_status_record(game)||jsonb_build_object('token',game.token,'authority',game.authority);
 end $$;
 
 create function public.read_story_game_input(p_game_id uuid,p_token uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare game public.user_story_game%rowtype; chapters jsonb;
+declare game public.user_story_game%rowtype; material jsonb;
 begin
  game:=public.lock_story_game(p_game_id,p_token,true);
- select jsonb_agg(c.chapter order by c.ordinal) into chapters from public.user_formal_memoir_chapter c
-   join public.user_formal_memoir_edition e on e.run_id=c.run_id where e.id=game.edition_id and e.active;
- if chapters is null or octet_length(chapters::text)>200000 then
+ material:=public.story_game_composer(game.user_id,game.project_id,true);
+ if jsonb_array_length(material->'chapters')=0 or octet_length(material::text)>200000 then
    raise exception 'GAME_MANUSCRIPT_CAPACITY' using errcode='55000';end if;
- return jsonb_build_object('game_id',game.id,'authority',game.authority,'chapters',chapters);
+ return jsonb_build_object('game_id',game.id,'authority',game.authority,
+   'chapters',material->'chapters','timeline',material->'timeline');
 end $$;
 
 create function public.stage_story_game(p_game_id uuid,p_token uuid,p_proposal jsonb,p_model_receipt jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare game public.user_story_game%rowtype; item jsonb; chapter jsonb; block jsonb; scene jsonb;
- scene_ids uuid[]:=array[gen_random_uuid(),gen_random_uuid()]; title_ids uuid[]:=array[gen_random_uuid(),gen_random_uuid()];
- alias_ids uuid[]:=array[gen_random_uuid(),gen_random_uuid()]; line_ids uuid[]:=array[gen_random_uuid(),gen_random_uuid()];
- author_id uuid:=gen_random_uuid(); texts jsonb:='[]'; scenes jsonb:='[]'; npcs jsonb:='[]'; people jsonb:='[]';
- package jsonb; prepared jsonb; i integer:=0; names text[]:='{}'; quote_text text; label text; offset_in_block integer; person uuid;
+declare game public.user_story_game%rowtype; item jsonb; chapter jsonb; block jsonb; material jsonb;
+ scene_ids uuid[]; title_ids uuid[]; alias_ids uuid[]; line_ids uuid[]; count_scenes integer; covered jsonb:='[]';
+ author_id uuid:=gen_random_uuid(); texts jsonb:='[]'; scenes jsonb:='[]'; npcs jsonb:='[]';
+ package jsonb; prepared jsonb; i integer:=0; quote_text text; label text; offset_in_block integer;
 begin
  game:=public.lock_story_game(p_game_id,p_token,true);
- if jsonb_typeof(p_proposal) is distinct from 'object' or (select count(*) from jsonb_object_keys(p_proposal))<>1
-   or jsonb_typeof(p_proposal->'scenes') is distinct from 'array' or jsonb_array_length(p_proposal->'scenes')<>2
+ if jsonb_typeof(p_proposal) is distinct from 'object' or (select count(*) from jsonb_object_keys(p_proposal))<>2
+   or jsonb_typeof(p_proposal->'scenes') is distinct from 'array' or jsonb_array_length(p_proposal->'scenes') not between 1 and 128
+   or jsonb_typeof(p_proposal->'html') is distinct from 'string' or octet_length(p_proposal->>'html') not between 100 and 150000
+   or p_proposal->>'html'~*'<[[:space:]]*(script|iframe|object|embed|base|link|form)([[:space:]>])'
    or jsonb_typeof(p_model_receipt) is distinct from 'object' or p_model_receipt->>'status' is distinct from 'completed'
-   or coalesce(length(p_model_receipt->>'response_id'),0)=0 or coalesce(length(p_model_receipt->>'model'),0)=0 then
+   or coalesce(length(p_model_receipt->>'response_id'),0)=0 or coalesce(length(p_model_receipt->>'model'),0)=0
+   or p_model_receipt->'steps'->'scenes'->>'status' is distinct from 'completed'
+   or p_model_receipt->'steps'->'webpage'->>'status' is distinct from 'completed' then
    raise exception 'GAME_PROPOSAL_INVALID' using errcode='22023';end if;
+ material:=public.read_story_game_input(p_game_id,p_token);
+ count_scenes:=jsonb_array_length(p_proposal->'scenes');
+ select array_agg(gen_random_uuid()),array_agg(gen_random_uuid()),array_agg(gen_random_uuid()),array_agg(gen_random_uuid())
+   into scene_ids,title_ids,alias_ids,line_ids from generate_series(1,count_scenes);
  for item in select value from jsonb_array_elements(p_proposal->'scenes') loop
    i:=i+1;
    if jsonb_typeof(item)<>'object' or (select count(*) from jsonb_object_keys(item))<>6
-     or not (item ?& array['chapter_id','block_index','title','person','quote','art'])
-     or exists(select 1 from unnest(array['chapter_id','title','person','quote','art']) k where jsonb_typeof(item->k) is distinct from 'string')
+     or not (item ?& array['chapter_id','block_index','title','person','quote','event_ids'])
+     or exists(select 1 from unnest(array['chapter_id','title','quote']) k where jsonb_typeof(item->k) is distinct from 'string')
+     or jsonb_typeof(item->'person') not in ('string','null')
      or jsonb_typeof(item->'block_index') is distinct from 'number' or item->>'block_index' !~ '^[0-7]$'
-     or item->>'art' not in ('generic-garden','generic-workroom') then
+     or jsonb_typeof(item->'event_ids') is distinct from 'array' or jsonb_array_length(item->'event_ids') not between 1 and 128
+     or exists(select 1 from jsonb_array_elements(item->'event_ids') e where jsonb_typeof(e)<>'string') then
      raise exception 'GAME_SCENE_INVALID' using errcode='22023';end if;
-   select c.chapter into chapter from public.user_formal_memoir_chapter c
-     join public.user_formal_memoir_edition e on e.run_id=c.run_id where e.id=game.edition_id
-       and c.chapter->>'chapter_id'=item->>'chapter_id';
+   select c into chapter from jsonb_array_elements(material->'chapters') c where c->>'chapter_id'=item->>'chapter_id';
    block:=chapter->'blocks'->(item->>'block_index')::integer;
    quote_text:=item->>'quote'; label:=item->>'person';
    if chapter is null or block is null or length(quote_text) not between 1 and 400
-     or length(label) not between 2 and 80 or length(item->>'title') not between 1 and 100
+     or (label is not null and length(label) not between 2 and 80) or length(item->>'title') not between 1 and 100
      or quote_text~'[<>[:cntrl:]]' or label~'[<>[:cntrl:]]'
-     or strpos(quote_text,label)=0 or strpos(quote_text,item->>'title')=0
-     or lower(trim(label))=any(names) or lower(trim(label)) in ('myself','the author','author','自己','作者') then
+     or (label is not null and strpos(quote_text,label)=0) or strpos(quote_text,item->>'title')=0
+     or not ((chapter->'event_ids') @> (item->'event_ids'))
+     or exists(select 1 from jsonb_array_elements_text(item->'event_ids') id where not exists(
+       select 1 from jsonb_array_elements(material->'timeline') e where e->>'id'=id)) then
      raise exception 'GAME_GROUNDING_INVALID' using errcode='22023';end if;
    offset_in_block:=strpos(block->>'text',quote_text)-1;
    if offset_in_block<0 or strpos(substring(block->>'text' from offset_in_block+2),quote_text)>0 then
      raise exception 'GAME_EXACT_QUOTE_REQUIRED' using errcode='22023';end if;
-   names:=array_append(names,lower(trim(label))); person:=gen_random_uuid();
+   covered:=covered||(item->'event_ids');
    texts:=texts||jsonb_build_array(jsonb_build_object('id',title_ids[i],'text',item->>'title'),
-     jsonb_build_object('id',alias_ids[i],'text',case when game.authority->>'locale'='zh-CN' then '人物 ' else 'Character ' end||i),
+     jsonb_build_object('id',alias_ids[i],'text',coalesce(label,
+       case when game.authority->>'locale'='zh-CN' then '回忆 ' else 'Memory ' end||i)),
      jsonb_build_object('id',line_ids[i],'text',quote_text));
    scenes:=scenes||jsonb_build_array(jsonb_build_object('id',scene_ids[i],'title_text_id',title_ids[i],
-     'asset_key',item->>'art','width',1280,'spawn_x',80,
-     'left',case when i=1 then null else jsonb_build_object('scene_id',scene_ids[1],'spawn_x',1100) end,
-     'right',case when i=2 then null else jsonb_build_object('scene_id',scene_ids[2],'spawn_x',80) end));
+     'asset_key','generic-garden','width',1280,'spawn_x',80,
+     'left',case when i=1 then null else jsonb_build_object('scene_id',scene_ids[i-1],'spawn_x',1100) end,
+     'right',case when i=count_scenes then null else jsonb_build_object('scene_id',scene_ids[i+1],'spawn_x',80) end));
    npcs:=npcs||jsonb_build_array(jsonb_build_object('id',gen_random_uuid(),'scene_id',scene_ids[i],'x',640,
      'alias_text_id',alias_ids[i],'asset_key','generic-adult','dialogue_text_ids',jsonb_build_array(line_ids[i])));
-   people:=people||jsonb_build_array(jsonb_build_object('person_id',person,'label',label,'alias_text_id',alias_ids[i],
-     'line_text_id',line_ids[i],'chapter_id',item->>'chapter_id','source_id',block->>'source_id',
-     'source_version',block->'version','char_start',(block->>'char_start')::integer+offset_in_block,
-     'char_end',(block->>'char_start')::integer+offset_in_block+length(quote_text)));
  end loop;
+ if exists(select 1 from jsonb_array_elements(material->'timeline') e where not covered ? (e->>'id')) then
+   raise exception 'GAME_TIMELINE_COVERAGE_REQUIRED' using errcode='22023';end if;
  texts:=texts||jsonb_build_array(jsonb_build_object('id',author_id,'text',case when game.authority->>'locale'='zh-CN' then '我' else 'Me' end));
  package:=jsonb_build_object('schema_version','memoir-story-game-play/1','package_id',gen_random_uuid(),
    'renderer','fixed-side-scroll-v1','audience','private','title_text_id',title_ids[1],'texts',texts,
    'protagonist',jsonb_build_object('id',gen_random_uuid(),'alias_text_id',author_id,'asset_key','generic-author'),
    'start_scene_id',scene_ids[1],'scenes',scenes,'npcs',npcs,
-   'controls',jsonb_build_object('keyboard',true,'touch',true,'text_equivalent',true,'reduced_motion',true));
- prepared:=jsonb_build_object('game',package,'people',people);
+   'controls',jsonb_build_object('keyboard',true,'touch',true,'text_equivalent',true,'reduced_motion',true),
+   'webpage',p_proposal->>'html');
+ prepared:=jsonb_build_object('game',package,'scene_plan',p_proposal-'html');
  update public.user_story_game set candidate=prepared,candidate_digest=public.formal_memoir_digest(prepared),
-   model_receipt=p_model_receipt,state='review_required',token=null,lease_until=null,updated_at=clock_timestamp()
+   model_receipt=p_model_receipt,state='published',review=null,token=null,lease_until=null,updated_at=clock_timestamp()
    where id=game.id returning * into game;
  return public.story_game_status_record(game);
 end $$;
@@ -14579,12 +14622,22 @@ end $$;
 
 create function public.read_story_game_status(p_project_id text) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare game public.user_story_game%rowtype; eligibility jsonb;
+declare game public.user_story_game%rowtype; eligibility jsonb; composer jsonb;
 begin
  eligibility:=public.read_story_game_eligibility(p_project_id);
+ composer:=public.read_lifetime_private_draft_head(p_project_id);
  select * into game from public.user_story_game where user_id=auth.uid() and project_id=p_project_id
    order by created_at desc,id desc limit 1;
+ if game.id is not null and game.state<>'stale' and
+   (game.authority->'composer_snapshot_id' is distinct from composer->'snapshot_id'
+    or game.authority->'composer_root_digest' is distinct from composer->'root_digest'
+    or game.authority->'composer_revision' is distinct from composer->'revision') then
+   update public.user_story_game set state='stale',candidate=null,review=null,token=null,lease_until=null,
+     updated_at=clock_timestamp() where id=game.id returning * into game;
+ end if;
  return jsonb_build_object('eligibility',eligibility,'formal',public.read_formal_memoir_status(p_project_id),
+   'composer_ready',coalesce(composer->>'status'='ready' and composer->>'snapshot_state'='completed'
+     and composer->'event_revision'=composer->'current_event_revision',false),
    'adaptation',case when game.id is not null then public.story_game_status_record(game) end);
 end $$;
 
@@ -14600,7 +14653,7 @@ create trigger story_game_edition_invalidation after update of active on public.
 create trigger story_game_consent_invalidation after update of consent_revision on public.user_formal_memoir_head
  for each row when(old.consent_revision is distinct from new.consent_revision) execute function public.invalidate_story_games();
 
-revoke all on function public.story_game_context(uuid,text),public.lock_story_game(uuid,uuid,boolean),
+revoke all on function public.story_game_composer(uuid,text,boolean),public.story_game_context(uuid,text),public.lock_story_game(uuid,uuid,boolean),
  public.story_game_status_record(public.user_story_game),public.begin_story_game(text,uuid),
  public.claim_story_game(uuid),public.read_story_game_input(uuid,uuid),public.stage_story_game(uuid,uuid,jsonb,jsonb),
  public.read_story_game(text,uuid,boolean),public.publish_story_game(text,uuid,text,jsonb),public.fail_story_game(uuid,uuid),

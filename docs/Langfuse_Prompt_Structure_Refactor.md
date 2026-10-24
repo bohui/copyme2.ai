@@ -48,7 +48,7 @@ memoir/
     memoir-historical-news-research/{instructions,contract,discovery}
     memoir-family-tree/instructions
     memoir-place-groups/instructions
-    memoir-story-game/{instructions,runtime-contract}
+    memoir-story-game/{instructions,proposal,webpage,runtime-contract}
     memoir-place-photo-research/instructions
   shared/
     bounded-context/{policy,en-AU,zh-CN}
@@ -92,6 +92,13 @@ versions. The matching receipts are exported from the renamed records; the
 exporter and dataset evaluator share that catalog. `prompt_path` resolves local
 files; runtime generation does not contact Langfuse. Each exported file has an
 exact numeric version and SHA-256 receipt.
+
+Story-game generation has two phases: `proposal` turns composer chapters and the
+canonical timeline into scenes; `webpage` turns validated scenes into an Astra
+HTML/CSS game. Both reuse `instructions` as their shared system prompt. The
+`runtime-contract` is consumed only by a separate host-admission evaluation probe;
+it is not a third generation phase. Saving, author review and publication belong
+to the host. The generation flow has no review or publish prompt.
 
 `apps/api/prompt_composition.py` expands curated shared references. Fourteen task
 templates reuse policy from a single owning source. Budget validation and worker

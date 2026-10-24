@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Approve/play fictional campaign games through the real UI after 50 saved turns."""
+"""Build/play fictional campaign games through the real UI after 50 saved turns."""
 import argparse
 from datetime import datetime, timezone
-import hashlib
 import json
 from pathlib import Path
 import sys
+import time
 from urllib.parse import urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,9 +40,9 @@ def exercise(case, original, base, output, settings):
     from playwright.sync_api import expect, sync_playwright
     import psycopg
     result = dict(case_id=case['case_id'], owner_id=case['owner_id'], project_id=case['project_id'],
-        status='running', scope='fictional author approval; real UI, Auth, API, Supabase and provider',
+        status='running', scope='fictional two-step game; real UI, Auth, API, Supabase and provider',
         started_at=datetime.now(timezone.utc).isoformat(), conversation_turns_submitted=0,
-        synthetic_person_permissions=True, errors=[], game_responses=[], photo_responses=[])
+        errors=[], game_responses=[], photo_responses=[])
     output.mkdir(parents=True, exist_ok=True, mode=0o700)
     receipt_path = output / 'receipt.json'
     save(receipt_path, result)
@@ -113,45 +113,43 @@ def exercise(case, original, base, output, settings):
                 opener.click()
                 modal = page.locator('.story-game-modal')
                 expect(modal).to_be_visible()
-                complete = page.locator('[data-complete-memoir]')
-                if complete.count():
-                    complete.click()
-                    expect(page.locator('[data-game-consent]')).to_be_visible(timeout=180000)
-                consent = page.locator('[data-game-consent]')
-                if consent.count():
-                    consent.locator('input').check()
-                    consent.locator('[data-generate-game]').click()
-                    expect(page.locator('[data-game-review]')).to_be_visible(timeout=180000)
-                review = page.locator('[data-game-review]')
-                result['author_review_performed'] = bool(review.count())
-                if review.count():
-                    expect(review.locator('[data-game-permission]')).to_have_count(2)
-                    expect(page.locator('[data-story-game-player]')).to_have_count(0)
-                    result['exact_candidate_review_sha256'] = hashlib.sha256(review.inner_text().encode()).hexdigest()
-                    for checkbox in review.locator('input').all():
-                        checkbox.check()
-                    review.locator('[data-publish-game]').click()
-                player = page.locator('[data-story-game-player]')
-                expect(player).to_be_visible(timeout=30000)
+                create = page.locator('[data-generate-game]')
+                if create.count():
+                    create.click()
+                iframe = page.locator('iframe.story-game-frame')
+                expect(iframe).to_be_visible(timeout=360000)
+                expect(page.locator('[data-game-review], [data-publish-game]')).to_have_count(0)
+                frame = page.frame_locator('iframe.story-game-frame')
+                player = frame.locator('#memoir-game')
+                expect(player).to_have_attribute('data-game-position', '80')
                 first = player.get_attribute('data-game-scene')
-                stage = page.locator('.game-stage')
+                stage = frame.locator('.game-stage')
+                def move_past(position):
+                    deadline = time.monotonic() + 10
+                    while time.monotonic() < deadline:
+                        if float(player.get_attribute('data-game-position')) > position:
+                            return
+                        page.wait_for_timeout(25)
+                    raise AssertionError('game_movement_timeout')
                 stage.focus(); page.keyboard.down('ArrowRight')
-                page.wait_for_function("Number(document.querySelector('[data-story-game-player]').dataset.gamePosition)>540")
+                move_past(540)
                 page.keyboard.up('ArrowRight')
-                page.locator('[data-game-interact]').click()
-                expect(page.locator('.game-dialogue')).to_be_visible()
+                frame.locator('[data-game-interact]').click()
+                expect(frame.locator('.game-dialogue')).to_be_visible()
                 stage.focus(); page.keyboard.down('ArrowRight')
-                page.wait_for_function("first=>document.querySelector('[data-story-game-player]').dataset.gameScene!==first", arg=first)
+                expect(player).not_to_have_attribute('data-game-scene', first)
                 page.keyboard.up('ArrowRight')
-                page.locator('.game-text-equivalent summary').click()
-                assert page.locator('.game-text-equivalent section').count() == 2
-                result.update(two_scenes_travelled=True, reviewed_dialogue_visible=True, text_equivalent_visible=True)
+                frame.locator('.game-text-equivalent summary').click()
+                scene_count = frame.locator('.game-text-equivalent section').count()
+                assert scene_count >= 2
+                result.update(two_scenes_travelled=True, grounded_dialogue_visible=True,
+                    text_equivalent_visible=True, scene_count=scene_count)
                 page.screenshot(path=str(output / 'published-game.png'))
                 page.reload()
                 opener = page.locator('[data-story-game]').filter(visible=True).first
                 expect(opener).to_be_visible(timeout=45000)
                 opener.click()
-                expect(player).to_be_visible(timeout=30000)
+                expect(iframe).to_be_visible(timeout=30000)
                 result['published_game_recovers_after_reload'] = True
                 # The browser never receives provider receipts or original lineage.
                 with psycopg.connect(settings['MEMOIR_PUBLICATION_DATABASE_URL']) as connection:
@@ -160,7 +158,8 @@ def exercise(case, original, base, output, settings):
                         from public.user_story_game where user_id=%s and project_id=%s and state='published' ''',
                         (case['owner_id'], case['project_id'])).fetchone()
                     assert row and row[2]['status'] == 'completed' and row[2].get('response_id') and row[2].get('model')
-                    assert row[4:] == (2, 2)
+                    assert all(row[2]['steps'][step]['status'] == 'completed' for step in ('scenes', 'webpage'))
+                    assert row[4:] == (scene_count, scene_count)
                     result.update(game_id=str(row[0]), model_receipt=row[2], candidate_digest=row[3])
                 result['status'] = 'passed'
             finally:
@@ -181,7 +180,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-dir', type=Path, required=True)
     parser.add_argument('--case', choices=CASE_IDS)
-    parser.add_argument('--execute', action='store_true', help='Approve fictional adults/candidate and privately publish via UI')
+    parser.add_argument('--execute', action='store_true', help='Build and play fictional campaign games through the UI')
     parser.add_argument('--web-base', default='http://127.0.0.1:3011')
     parser.add_argument('--env-file', type=Path, default=ROOT / '.env')
     args = parser.parse_args()

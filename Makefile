@@ -83,10 +83,10 @@ prompt-sync-install: ## Enable automatic prompt sync after main pulls in this cl
 	@python3 scripts/publish_langfuse_prompts.py --install-hook
 
 prompt-sync: ## Publish changed prompts from committed origin/main and refresh receipts.
-	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)"
+	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
 prompt-sync-check: ## Check merged main prompt changes without publishing.
-	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check
+	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
 prompt-export: ## Recovery: export current Langfuse versions into repo artifacts; optional PROMPT_NAME=collector.
 	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)

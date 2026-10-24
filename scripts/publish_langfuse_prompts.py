@@ -61,11 +61,17 @@ def install_hook(root: Path) -> None:
     git(root, "config", "--local", "core.hooksPath", ".githooks")
 
 
-def publish(client, *, root: Path, revision: str, check: bool = False) -> list[dict]:
+def publish(client, *, root: Path, revision: str, check: bool = False,
+            names: list[str] | None = None) -> list[dict]:
     if main_revision(root) != revision:
         raise ValueError("Git main changed before publication; retry after pulling main")
+    registry = prompt_registry(root, include_unpublished=True)
+    if names and set(names) - registry.keys():
+        raise ValueError('Unknown managed prompt name; use its full Langfuse name')
     plan = []
-    for name, target in prompt_registry(root, include_unpublished=True).items():
+    for name, target in registry.items():
+        if names and name not in names:
+            continue
         text = git(root, "show", f"{revision}:{target}")
         if not text.strip() or (root / target).read_text(encoding="utf-8") != text:
             raise ValueError(f"Prompt differs from committed main: {target}")
@@ -118,6 +124,7 @@ def main(argv=None, *, root: Path = ROOT) -> int:
     parser.add_argument("--credential-file", type=Path,
         default=Path(os.environ.get("PROMPT_CREDENTIAL_FILE", str(Path.home() / "llm_provider/.env"))))
     parser.add_argument("--check", action="store_true", help="Report changes without publishing or writing receipts")
+    parser.add_argument("--name", action="append", help="Sync one full prompt name; repeat to select several")
     parser.add_argument("--after-pull", action="store_true", help="Git hook: quietly skip branches other than main")
     parser.add_argument("--install-hook", action="store_true", help="Enable the tracked post-merge hook in this clone")
     args = parser.parse_args(argv)
@@ -136,7 +143,7 @@ def main(argv=None, *, root: Path = ROOT) -> int:
             fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
             revision = main_revision(root)
             client = prompt_client(args.credential_file)
-            results = publish(client, root=root, revision=revision, check=args.check)
+            results = publish(client, root=root, revision=revision, check=args.check, names=args.name)
         print(json.dumps({"mode": "check" if args.check else "sync", "main_commit": revision,
                           "artifacts": len(results),
                           "published": sum(row["published"] for row in results),

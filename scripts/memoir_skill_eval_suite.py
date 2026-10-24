@@ -188,7 +188,7 @@ def packet(item):
     elif skill == 'memoir-story-game' and item['phase'] == 'proposal':
         from apps.api.memoir_story_game import load_story_game_skill
         from apps.api.story_game_runtime import GameProposal
-        instructions = load_story_game_skill() + '\n' + load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/proposal'))
+        instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/proposal'))
         schema, payload = GameProposal.model_json_schema(), task
     else:
         raise ValueError('requires_application_adapter')
@@ -292,14 +292,8 @@ def validate(item, output):
         if item['case'] == 'privacy' and any(p.get('visibility') != 'private' or p.get('include_in_print') is not False for p in people):
             raise ValueError('family_privacy')
     elif skill == 'memoir-story-game':
-        from apps.api.story_game_runtime import GameProposal
-        proposal = GameProposal.model_validate(output).model_dump(mode='json')
-        chapters = {c['id']: c for c in task['chapters']}
-        for scene in proposal['scenes']:
-            chapter = chapters.get(scene['chapter_id'])
-            if (chapter is None or scene['block_index'] >= len(chapter['blocks'])
-                or scene['quote'] not in chapter['blocks'][scene['block_index']]['text']):
-                raise ValueError('game_original_quote_grounding')
+        from apps.api.story_game_runtime import validate_scenes
+        validate_scenes(task, output)
         raise LookupError('missing_application_authority_and_original_chapter_witness')
     else:
         raise LookupError('missing_application_witness_adapter')

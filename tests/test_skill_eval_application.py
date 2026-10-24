@@ -2,6 +2,7 @@
 import asyncio
 from copy import deepcopy
 import json
+import os
 
 import pytest
 
@@ -9,20 +10,20 @@ from scripts import memoir_skill_eval_suite as suite
 from scripts.memoir_skill_eval_application import ControlledApplication, verify_witness
 
 
-@pytest.mark.parametrize('case', ['proposal', 'review', 'missing-consent', 'stale-edition',
-                                  'person-permission', 'publication', 'revoked-consent'])
+@pytest.mark.parametrize('case', ['proposal', 'webpage', 'missing-consent', 'stale-edition',
+                                  'timeline-coverage', 'unsafe-webpage', 'revoked-consent'])
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
 def test_game_phases_use_application_authority_and_independent_sql_readbacks(tmp_path, case, locale):
     planned = suite.plan(case=[f'memoir-story-game/{case}/{locale}'])
-    result = asyncio.run(suite.run(planned, tmp_path, application=ControlledApplication(), max_skill_calls=16))
+    result = asyncio.run(suite.run(planned, tmp_path, application=ControlledApplication(), max_skill_calls=32))
     row, = result['results']
     assert row['contract']['status'] == 'pass', row
-    assert row['canonical_delivery'] is (case in {'proposal', 'review', 'publication'})
-    assert row['positive_delivery'] is (case in {'proposal', 'review', 'publication'})
+    assert row['canonical_delivery'] is (case in {'proposal', 'webpage'})
+    assert row['positive_delivery'] is (case in {'proposal', 'webpage'})
     witness = json.loads((tmp_path / row['witnesses']['receipt_path']).read_text())
     assert witness['scope'] == 'controlled_disposable_application'
     assert witness['item_id'] == planned['items'][0]['id']
-    assert witness['source_readbacks'] and witness['completed_turns'] == 2
+    assert witness['source_readbacks'] and witness['completed_turns'] == 5
     assert witness['database_removed'] is True
     assert result['budgets']['skill']['dispatched'] >= 5
     assert row['quality']['status'] == 'unavailable'
@@ -62,6 +63,20 @@ def test_play_without_browser_configuration_is_explicitly_blocked(tmp_path):
     result = asyncio.run(suite.run(suite.plan(case=['memoir-story-game/play/en-AU']),
         tmp_path, application=ControlledApplication()))
     assert result['results'][0]['reason'] == 'browser_origin_required'
+
+
+@pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated source frontend')
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_play_uses_saved_webpage_in_browser(tmp_path, locale):
+    application = ControlledApplication(browser_url=os.environ['MEMOIR_BROWSER_URL'],
+        browser_executable=os.getenv('MEMOIR_BROWSER_EXECUTABLE'))
+    result = asyncio.run(suite.run(suite.plan(case=[f'memoir-story-game/play/{locale}']),
+        tmp_path, application=application, max_skill_calls=32))
+    row, = result['results']
+    assert row['contract']['status'] == 'pass', row
+    witness = json.loads((tmp_path / row['witnesses']['receipt_path']).read_text())
+    assert witness['game']['browser']['verified']
+    assert witness['game']['browser']['visits'] == ['initial', 'reload', 'new_context']
 
 
 def test_cli_controlled_canonical_delivery_is_not_live_acceptance(tmp_path):

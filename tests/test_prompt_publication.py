@@ -172,6 +172,24 @@ def test_new_merged_prompt_is_created_without_a_bootstrap_escape_hatch(repo):
     assert load_prompt_artifact(root / TARGET) == 'Original prompt\n'
 
 
+def test_named_sync_only_publishes_selected_prompts(repo, monkeypatch):
+    root, _, client = repo
+    other = 'skills/unrelated.md'
+    (root / other).write_text('Unrelated prompt\n')
+    merged_edit(root)
+    monkeypatch.setattr(publication, 'prompt_registry',
+        lambda root, **kwargs: {NAME: TARGET, 'fixture/unrelated': other})
+    assert publication.main(['--name', NAME], root=root) == 0
+    assert [item['name'] for item in client.creates] == [NAME]
+    assert not (root / (other + '.langfuse.json')).exists()
+
+
+def test_named_sync_rejects_unknown_prompts(repo):
+    root, _, client = repo
+    assert publication.main(['--name', 'fixture/unknown'], root=root) == 1
+    assert not client.creates
+
+
 def test_retry_after_uncertain_create_reuses_the_created_version(repo):
     root, _, client = repo
     merged_edit(root)

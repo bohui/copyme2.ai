@@ -243,12 +243,12 @@ def test_family_direction_is_checked_independently_and_integration_stays_unwired
 def test_game_schema_and_exact_chapter_quotes_do_not_create_authority():
     item = suite.plan(case=['memoir-story-game/proposal/en-AU'])['items'][0]
     chapter = item['task']['chapters'][0]
-    proposal = dict(scenes=[dict(chapter_id=chapter['id'], block_index=i, person=person,
-        title=person, quote=chapter['blocks'][i]['text'], art='generic-garden')
-        for i, person in enumerate(('father', 'mother'))])
+    proposal = dict(scenes=[dict(chapter_id=chapter['chapter_id'], block_index=i, person=None,
+        title=block['text'][:10], quote=block['text'], event_ids=[item['task']['timeline'][i]['id']])
+        for i, block in enumerate(chapter['blocks'])])
     with pytest.raises(LookupError, match='authority'): suite.validate(item, proposal)
     proposal['scenes'][0]['quote'] = 'An invented childhood story.'
-    with pytest.raises(ValueError, match='quote'): suite.validate(item, proposal)
+    with pytest.raises(ValueError, match='grounding'): suite.validate(item, proposal)
 
 
 def test_response_size_is_bounded_before_retaining_application_evidence(tmp_path):
