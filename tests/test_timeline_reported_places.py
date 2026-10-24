@@ -67,6 +67,22 @@ def ref(quote):
     return dict(source_id='source', version=1, quote=quote, char_start=None, char_end=None)
 
 
+def test_research_quote_can_cross_masked_attribution(monkeypatch):
+    father = '父亲说他小时候在承德修自行车。'
+    narrator = '后来我在承德学会了做陶器。'
+    text = father + narrator
+    research = dict(year_start=1980, year_end=1989, anchor_year=1983, basis='birth_decade',
+        quote=text, char_start=0, char_end=len(text))
+    raw = dict(events=[dict(kind='event', title='Learning pottery', source_refs=[ref(narrator)])],
+        place_journeys=[dict(place='承德', hierarchy=['Earth', '中国', '河北省', '承德'],
+            granularity='city', latitude=None, longitude=None, research=research)],
+        prepared_questions=[], event_places=[], continuity_updates=[], passage_dispositions=[
+            dict(disposition='non_story', reason='no_supported_event', source_ref=ref(father))])
+    result = extract_places(monkeypatch, text, raw)
+    assert [place['place'] for place in result['place_journeys']] == ['承德']
+    assert result['place_journeys'][0]['research']['quote'] == text
+
+
 @pytest.mark.parametrize('offset', [0, 2048])
 @pytest.mark.parametrize('same_place', [False, True])
 @pytest.mark.parametrize('reported_as', ['non_story', 'event', 'evidence'])

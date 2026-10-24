@@ -97,7 +97,7 @@ def derived_hints(raw, page, *, attribution=None):
                 characters[lo:hi] = ' ' * max(0, hi - lo)
         text = ''.join(characters)
     places=grounded_place_journeys([place for place in places if place],text,
-        source_offset=source.get('char_start') or 0)
+        source_offset=source.get('char_start') or 0, source_text=source['text'])
     questions=[]
     for item in hints.prepared_questions:
         try:
