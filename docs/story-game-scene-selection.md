@@ -41,7 +41,9 @@ outside its export capabilities.
 - `POST .../story-game` prepares the pool and returns `selection_required`.
 - `GET .../story-game/:gameId` returns the owner's pool and recommendations.
 - `POST .../story-game/:gameId/selection` accepts `expected_pool_digest` and
-  `scene_ids`, saves human confirmation, composes the brief and builds the game.
+  `scene_ids`, saves human confirmation and returns immediately. The confirmed
+  brief and build run in the background; the existing UI polls the durable job.
+  This avoids the web proxy's four-minute request limit for larger games.
 - Repeating a confirmed selection retries the same durable job and saved brief.
   Published jobs return the saved result without model calls. An altered selection
   or stale authority is rejected before dispatch.

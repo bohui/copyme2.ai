@@ -277,3 +277,55 @@ def test_game_routes_require_auth_and_reject_browser_supplied_authority(monkeypa
         assert client.get(root + '/story-game/' + GAME).status_code == 401
         assert client.post(root + '/story-game', json={
             'request_id': GAME, 'owner_id': GAME, 'chapters': [], 'timeline': []}).status_code == 422
+
+
+@pytest.mark.parametrize('status', ['pending', 'published'])
+def test_confirmation_response_is_sent_before_a_long_build(monkeypatch, status):
+    from fastapi import FastAPI
+    from types import SimpleNamespace
+    from apps.api import story_game_routes, story_game_runtime, memory_event_worker
+    app = FastAPI()
+    app.include_router(story_game_routes.router)
+    async def storage(*_): return SimpleNamespace(client=SimpleNamespace(close=lambda: None))
+    async def rpc(*args, **values): return dict(game_id=GAME, status=status, phase='build')
+    async def close(): pass
+    monkeypatch.setattr(story_game_routes, 'owned_storage', storage)
+    monkeypatch.setattr(story_game_routes, 'rpc', rpc)
+    monkeypatch.setattr(memory_event_worker, 'MemoirLaneBroker', lambda: SimpleNamespace(client=SimpleNamespace(aclose=close)))
+
+    async def scenario():
+        delivered, release, started = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        sent = []
+        async def build(*_):
+            assert delivered.is_set(), 'A slow build must not hold the confirmation response open'
+            started.set()
+            await release.wait()
+        monkeypatch.setattr(story_game_runtime, 'generate_story_game', build)
+        body = json.dumps(dict(expected_pool_digest='a'*64, scene_ids=['scene-1'])).encode()
+        consumed = False
+        async def receive():
+            nonlocal consumed
+            if consumed: return {'type':'http.disconnect'}
+            consumed = True
+            return {'type':'http.request','body':body,'more_body':False}
+        async def send(value):
+            sent.append(value)
+            if value['type']=='http.response.body' and not value.get('more_body'):
+                delivered.set()
+        scope = dict(type='http', asgi={'version':'3.0'}, http_version='1.1', method='POST',
+            scheme='http', root_path='', path='/projects/project/story-game/'+GAME+'/selection',
+            query_string=b'', headers=[(b'content-type',b'application/json')])
+        task = asyncio.create_task(app(scope, receive, send))
+        try:
+            await asyncio.wait_for(delivered.wait(), 2)
+            assert sent[0]['status'] == 202
+            if status == 'pending':
+                await asyncio.wait_for(started.wait(), 2)
+                assert not task.done()
+            else:
+                await task
+                assert not started.is_set()
+        finally:
+            release.set()
+            await task
+    asyncio.run(scenario())
