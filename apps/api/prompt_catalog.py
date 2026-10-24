@@ -78,6 +78,8 @@ PROMPT_PATHS = {
     'memoir/skills/memoir-place-journey/instructions': 'skills/memoir-place-journey/SKILL.md',
     'memoir/skills/memoir-story-game/instructions': 'skills/memoir-story-game/SKILL.md',
     'memoir/skills/memoir-story-game/proposal': 'skills/memoir-story-game/prompts/proposal.md',
+    'memoir/skills/memoir-story-game/brief': 'skills/memoir-story-game/prompts/brief.md',
+    'memoir/skills/memoir-story-game/higgsfield': 'skills/memoir-story-game/prompts/higgsfield.md',
     'memoir/skills/memoir-story-game/webpage': 'skills/memoir-story-game/prompts/webpage.md',
     'memoir/skills/memoir-story-game/runtime-contract': 'skills/memoir-story-game/references/runtime-contract.md',
     'memoir/skills/memoir-place-photo-research/instructions': 'skills/memoir-place-photo-research/SKILL.md',

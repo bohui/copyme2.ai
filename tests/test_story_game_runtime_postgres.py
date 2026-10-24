@@ -20,7 +20,8 @@ from test_agent_commit_postgres import database as base_database
 
 @pytest.fixture(scope='module')
 def database():
-    yield from base_database.__wrapped__(publication_tcp=True, deadline=time.monotonic() + 480)
+    # Pool/selection fixtures add two durable phases to every canonical replay.
+    yield from base_database.__wrapped__(publication_tcp=True, deadline=time.monotonic() + 900)
 
 
 MEMORIES = ('My father repaired bicycles in our shed.', 'My mother grew roses in the garden.',
@@ -60,11 +61,31 @@ def begin_game(sql, project, request=None, **kwargs):
     return rpc(sql, 'begin_story_game', f"{literal(project)},'{request or uuid4()}'", **kwargs)
 
 
-def prepare(sql, project):
+def prepare_pool(sql, project):
     game = begin_game(sql, project)
     claim = service(sql, 'claim_story_game', f"'{game['game_id']}'")
     packet = service(sql, 'read_story_game_input', f"'{game['game_id']}','{claim['token']}'")
-    return game, claim, packet, proposal_from_packet(packet)
+    proposal = proposal_from_packet(packet)
+    saved = service(sql, 'save_story_game_pool', f"'{game['game_id']}','{claim['token']}',"
+        + literal(pool_from_packet(packet)) + ',' + literal(receipt()))
+    return game, saved, packet, proposal
+
+
+def prepare(sql, project, *, count=None):
+    game, saved, packet, proposal = prepare_pool(sql, project)
+    ids = [f'scene-{i+1}' for i in range(count or len(proposal['scenes']))]
+    rpc(sql, 'confirm_story_game_scenes', f"{literal(project)},'{game['game_id']}',"
+        + literal(saved['pool_digest']) + ',' + literal(ids))
+    claim = service(sql, 'claim_story_game', f"'{game['game_id']}'")
+    packet = service(sql, 'read_story_game_input', f"'{game['game_id']}','{claim['token']}'")
+    brief = dict(design_brief='A coherent journey through the confirmed memories.', scene_indices=list(range(len(ids))))
+    service(sql, 'save_story_game_brief', f"'{game['game_id']}','{claim['token']}'," + literal(brief) + ',' + literal(receipt('brief')))
+    return game, claim, packet, {'scenes': proposal['scenes'][:len(ids)]}
+
+
+def pool_from_packet(packet):
+    return {'scenes': [{**s, 'recommended': True, 'reason': 'A supported memory with an interaction.'}
+        for s in proposal_from_packet(packet)['scenes']]}
 
 
 def proposal_from_packet(packet):
@@ -82,7 +103,9 @@ def proposal_from_packet(packet):
 
 def stage(sql, game, claim, proposal, **kwargs):
     proposal = {**proposal, **webpage()}
-    model_receipt = {**receipt('webpage'), 'steps': {'scenes': receipt(), 'webpage': receipt('webpage')}}
+    selection_digest = json.loads(sql(f"select to_jsonb(selection_digest) from public.user_story_game where id='{game['game_id']}';").stdout.strip() or 'null')
+    model_receipt = {**receipt('higgsfield'), 'requested_model': 'gpt-6-astra', 'skill': 'higgsfield-websites',
+        'skill_sha256': 'a'*64, 'selection_digest': selection_digest}
     return service(sql, 'stage_story_game', f"'{game['game_id']}','{claim['token']}',{literal(proposal)},"
         + literal(model_receipt), **kwargs)
 
@@ -98,7 +121,6 @@ def test_two_steps_are_saved_for_immediate_private_play(sql, ready):
     assert len(packet['timeline']) == len(MEMORIES)
     formal_ids = set(sql("select chapter->>'chapter_id' from public.user_formal_memoir_chapter;").stdout.splitlines())
     assert all(chapter['chapter_id'] not in formal_ids for chapter in packet['chapters'])
-    proposal['scenes'][0]['person'] = None
     assert service(sql, 'claim_story_game', f"'{game['game_id']}'")['status'] == 'busy'
     staged = stage(sql, game, claim, proposal)
     assert staged['status'] == 'published'
@@ -110,27 +132,20 @@ def test_two_steps_are_saved_for_immediate_private_play(sql, ready):
     assert played['game']['webpage'] == webpage()['html']
     assert sql('select review is null from public.user_story_game;').stdout.strip() == 't'
     alias = played['game']['npcs'][0]['alias_text_id']
-    assert next(t['text'] for t in played['game']['texts'] if t['id'] == alias).startswith('Memory ')
+    assert next(t['text'] for t in played['game']['texts'] if t['id'] == alias) == proposal['scenes'][0]['person']
     for npc, scene in zip(played['game']['npcs'][1:], proposal['scenes'][1:]):
         assert next(t['text'] for t in played['game']['texts'] if t['id'] == npc['alias_text_id']) == scene['person']
     assert 'people' not in played and 'authority' not in played
     assert read(sql, project, game, owner=OTHER, check=False).returncode
 
 
-def test_fifty_scene_game_builds_connected_routes(sql, ready):
+def test_owner_can_build_one_scene_from_the_full_pool(sql, ready):
     project, _, _ = ready
-    game, claim, _, proposal = prepare(sql, project)
-    proposal['scenes'] *= 10
+    game, claim, _, proposal = prepare(sql, project, count=1)
     stage(sql, game, claim, proposal)
     played = read(sql, project, game)['game']
-    from jsonschema import validate
-    schema = json.loads((Path(__file__).resolve().parents[1] / 'skills/memoir-story-game/schemas/game.schema.json').read_text())
-    validate(played, schema)
-    assert len(played['scenes']) == len(played['npcs']) == 50
-    assert len(played['texts']) == 151
-    for left, right in zip(played['scenes'], played['scenes'][1:]):
-        assert left['right']['scene_id'] == right['id']
-        assert right['left']['scene_id'] == left['id']
+    assert len(played['scenes']) == len(played['npcs']) == 1
+    assert sql("select jsonb_array_length(scene_pool->'scenes') from public.user_story_game;").stdout.strip() == str(len(MEMORIES))
 
 
 def test_status_reports_gates_without_claiming_or_generating(sql, ready):
@@ -140,6 +155,46 @@ def test_status_reports_gates_without_claiming_or_generating(sql, ready):
     assert status['formal']['edition']['status'] == 'completed'
     assert status['adaptation'] is None
     assert sql('select count(*) from public.user_story_game;').stdout.strip() == '0'
+
+
+def test_saved_pool_waits_for_owner_and_confirmation_is_idempotent(sql, ready):
+    project, _, _ = ready
+    game, saved, _, _ = prepare_pool(sql, project)
+    assert saved['status'] == 'selection_required'
+    assert service(sql, 'claim_story_game', f"'{game['game_id']}'")['status'] == 'selection_required'
+    offered = read(sql, project, game)
+    assert len(offered['pool']['scenes']) == len(MEMORIES)
+    assert all(s['life_stage'] and 'recommended' in s for s in offered['pool']['scenes'])
+    assert offered['selected_scene_ids'] is None
+    assert 'chapter_id' not in json.dumps(offered['pool'])
+    arguments = f"{literal(project)},'{game['game_id']}',{literal(saved['pool_digest'])}," + literal(['scene-1'])
+    assert rpc(sql, 'confirm_story_game_scenes', arguments, owner=OTHER, check=False).returncode
+    confirmed = rpc(sql, 'confirm_story_game_scenes', arguments)
+    assert confirmed['status'] == 'pending' and confirmed['phase'] == 'build' and confirmed['selected_count'] == 1
+    assert rpc(sql, 'confirm_story_game_scenes', arguments) == confirmed
+    assert sql("select brief is null and candidate is null from public.user_story_game;").stdout.strip() == 't'
+    changed = arguments.rsplit(',', 1)[0] + ',' + literal(['scene-2'])
+    assert rpc(sql, 'confirm_story_game_scenes', changed, check=False).returncode
+
+
+@pytest.mark.parametrize('chosen', [[], ['scene-1','scene-1'], ['forged-scene']])
+def test_empty_duplicate_and_unknown_selections_never_authorize_build(sql, ready, chosen):
+    project, _, _ = ready
+    game, saved, _, _ = prepare_pool(sql, project)
+    assert rpc(sql, 'confirm_story_game_scenes', f"{literal(project)},'{game['game_id']}',"
+        + literal(saved['pool_digest']) + ',' + literal(chosen), check=False).returncode
+    assert read(sql, project, game)['status'] == 'selection_required'
+
+
+def test_old_pool_digest_or_revoked_consent_cannot_confirm(sql, ready):
+    project, edition, _ = ready
+    game, saved, _, _ = prepare_pool(sql, project)
+    args = f"{literal(project)},'{game['game_id']}'," + literal('f'*64) + ',' + literal(['scene-1'])
+    assert rpc(sql, 'confirm_story_game_scenes', args, check=False).returncode
+    consent(sql, project, edition, 2, 'revoke')
+    args = f"{literal(project)},'{game['game_id']}'," + literal(saved['pool_digest']) + ',' + literal(['scene-1'])
+    assert rpc(sql, 'confirm_story_game_scenes', args, check=False).returncode
+    assert sql('select scene_pool is null and selection is null from public.user_story_game;').stdout.strip() == 't'
 
 
 @pytest.mark.parametrize('mutation', ['quote', 'person', 'chapter', 'null', 'injection', 'coverage', 'event'])
@@ -273,7 +328,7 @@ def test_revocation_before_provider_body_send_transmits_no_manuscript(sql, ready
                     transmitted.extend(chunk)
                 packet = json.loads(json.loads(transmitted)['input'])
                 return httpx.Response(200, json=dict(id='resp-controlled', model='controlled', status='completed',
-                    output=[dict(type='message', content=[dict(type='output_text', text=json.dumps(proposal_from_packet(packet)))])]))
+                    output=[dict(type='message', content=[dict(type='output_text', text=json.dumps(pool_from_packet(packet)))])]))
 
         client_type = httpx.AsyncClient
         monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=Transport(), **kwargs))
@@ -338,7 +393,7 @@ def test_provider_body_holds_authority_only_until_transmission_finishes(sql, rea
                 transmitted.append(bytes(body))
                 packet = json.loads(json.loads(body)['input'])
                 assert 'token' not in packet
-                output = webpage() if 'scenes' in packet else proposal_from_packet(packet)
+                output = pool_from_packet(packet)
                 return httpx.Response(200, json=dict(id='resp-controlled', model='controlled', status='completed',
                     output=[dict(type='message', content=[dict(type='output_text', text=json.dumps(output))])]))
 
@@ -350,8 +405,8 @@ def test_provider_body_holds_authority_only_until_transmission_finishes(sql, rea
                     await generate_story_game(Broker(sql), game['game_id'])
             else:
                 result = await generate_story_game(Broker(sql), game['game_id'])
-                assert result['status'] == 'published'
-                assert len(transmitted) == 2
+                assert result['status'] == 'selection_required'
+                assert len(transmitted) == 1
             assert transmitted
         finally:
             if revocation is not None:

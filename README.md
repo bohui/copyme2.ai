@@ -53,8 +53,11 @@ the game private, allow anyone with its URL to play, or create invitation links
 bound to friends' verified account emails. Invitations do not send email; the
 owner copies the link. Removing an invitation withdraws that player's access.
 Replacing a game resets it to private and invalidates invitations for the previous
-content. Publishing and sharing are application controls outside the two model
-steps. The fictional age-eight benchmark is labelled as an example and stored
+content. The game action prepares a full scene pool by life stage and waits for
+the owner's chosen scenes and count. The composer model plans the pool and brief;
+the separate, independently updatable Higgsfield skill builds with Astra. See the
+[scene-selection setup](docs/story-game-scene-selection.md). Publishing and sharing
+are application controls outside the planning steps. The fictional age-eight benchmark is labelled as an example and stored
 separately from the owner's memories.
 
 ## Repository layout

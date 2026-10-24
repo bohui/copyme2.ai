@@ -21,6 +21,12 @@ class GameRequest(BaseModel):
     request_id: UUID
 
 
+class SceneSelection(BaseModel):
+    model_config = {'extra': 'forbid'}
+    expected_pool_digest: str = Field(pattern=r'^[a-f0-9]{64}$')
+    scene_ids: list[str] = Field(min_length=1, max_length=128)
+
+
 class FormalAdvance(BaseModel):
     model_config = {'extra': 'forbid'}
     run_id: UUID
@@ -161,6 +167,29 @@ async def read_game(project_id: str, game_id: UUID, review: bool = False,
         return StoryGameResponse(storage.user_id, project_id, game_id, review=review)
     finally:
         await asyncio.to_thread(storage.client.close)
+
+
+@router.post('/projects/{project_id}/story-game/{game_id}/selection', status_code=202)
+async def confirm_scenes(project_id: str, game_id: UUID, payload: SceneSelection,
+                         authorization: str | None = Header(default=None)):
+    from .story_game_runtime import generate_story_game
+    from .memory_event_worker import MemoirLaneBroker
+    storage = await owned_storage(project_id, authorization)
+    broker = None
+    try:
+        await rpc(storage, 'confirm_story_game_scenes', project_id, p_game_id=str(game_id),
+            p_expected_digest=payload.expected_pool_digest, p_scene_ids=payload.scene_ids)
+        broker = MemoirLaneBroker()
+        result = await generate_story_game(broker, game_id)
+        return JSONResponse(result, status_code=202, headers={'Cache-Control': 'no-store'})
+    except httpx.HTTPStatusError as error:
+        raise _rpc_error(error) from None
+    except (httpx.RequestError, ValueError, KeyError, TimeoutError):
+        raise HTTPException(503, 'Game build was not completed. Your scene selection is saved; retry it.') from None
+    finally:
+        await asyncio.to_thread(storage.client.close)
+        if broker is not None:
+            await broker.client.aclose()
 
 
 @router.post('/projects/{project_id}/story-game/{game_id}/publish')

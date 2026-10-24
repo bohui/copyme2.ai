@@ -1,4 +1,4 @@
-"""Chapters/timeline to scenes, then Astra to a validated game webpage."""
+"""Scene pool → owner selection → brief → independently installed game skill."""
 import asyncio
 from contextlib import asynccontextmanager
 import json
@@ -14,21 +14,8 @@ from .memoir_story_game import load_story_game_skill
 from .lifetime_memory_lane_engine import LaneRequestBody, _settle
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .story_game_webpage import validate_webpage
-
-
-class SceneProposal(BaseModel):
-    model_config = {'extra': 'forbid'}
-    chapter_id: str = Field(min_length=1, max_length=200)
-    block_index: int = Field(ge=0, le=7, strict=True)
-    title: str = Field(min_length=1, max_length=100)
-    person: str | None = Field(min_length=2, max_length=80)
-    quote: str = Field(min_length=1, max_length=400)
-    event_ids: list[str] = Field(min_length=1, max_length=128)
-
-
-class GameProposal(BaseModel):
-    model_config = {'extra': 'forbid'}
-    scenes: list[SceneProposal] = Field(min_length=1, max_length=128)
+from .story_game_selection import (GameProposal, SceneProposal, ScenePool, GameBrief,
+    validate_scenes, validate_pool, selected_scenes, public_scenes, validate_brief)
 
 
 class GameWebpage(BaseModel):
@@ -42,31 +29,6 @@ def game_ui(locale):
     labels = json.loads(path.read_text())['Memoir']['game']
     return {key: labels[key] for key in ('title', 'framing', 'movement', 'controls',
         'left', 'right', 'interact', 'textVersion')}
-
-
-def validate_scenes(packet, proposal):
-    proposal = GameProposal.model_validate(proposal).model_dump(mode='json')
-    chapters = {c['chapter_id']: c for c in packet['chapters']}
-    event_ids = {e['id'] for e in packet['timeline']}
-    covered = set()
-    for scene in proposal['scenes']:
-        chapter = chapters.get(scene['chapter_id'])
-        index = scene['block_index']
-        if not chapter or index >= len(chapter['blocks']):
-            raise ValueError('game_chapter_required')
-        quote = scene['quote']
-        supported = set(chapter['event_ids'])
-        if (chapter['blocks'][index]['text'].count(quote) != 1
-                or scene['person'] and scene['person'] not in quote
-                or not set(scene['event_ids']) <= supported & event_ids):
-            raise ValueError('game_scene_grounding_invalid')
-        if scene['title'] not in quote:
-            # Titles are presentation; replace paraphrases with supported text.
-            scene['title'] = quote[:100].rsplit(' ', 1)[0] if len(quote) > 100 and ' ' in quote[:100] else quote[:100]
-        covered.update(scene['event_ids'])
-    if covered != event_ids:
-        raise ValueError('game_timeline_coverage_required')
-    return proposal
 
 
 class GameFence(BaseModel):
@@ -119,9 +81,7 @@ class GameRequestBody(LaneRequestBody):
 
 async def _game_response(packet, *, token, phase, payload):
     base = os.getenv('MEMORY_SPARK_LLM_BASE_URL', '').rstrip('/')
-    building = phase == 'webpage'
-    model = (os.getenv('MEMORY_SPARK_STORY_GAME_BUILD_MODEL', 'gpt-6-astra') if building else
-        os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL', ''))
+    model = (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL', ''))
     effort = os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low').strip() or 'low'
     key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
     parsed = urlsplit(base)
@@ -129,12 +89,12 @@ async def _game_response(packet, *, token, phase, payload):
             or parsed.username or parsed.password or parsed.query or parsed.fragment):
         raise ValueError('game_provider_unavailable')
     instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(
-        prompt_path('memoir/skills/memoir-story-game/' + ('webpage' if building else 'proposal')))
-    output = GameWebpage if building else GameProposal
+        prompt_path('memoir/skills/memoir-story-game/' + ('brief' if phase == 'brief' else 'proposal')))
+    output = GameBrief if phase == 'brief' else ScenePool
     schema = output.model_json_schema()
     name = 'memoir-story-game-' + phase
     body = dict(model=model, instructions=instructions, input=json.dumps(payload, ensure_ascii=False),
-        store=False, max_output_tokens=16384 if building else 32768, reasoning={'effort': effort},
+        store=False, max_output_tokens=8192 if phase == 'brief' else 32768, reasoning={'effort': effort},
         metadata={'generation_name': name, 'trace_name': name},
         text={'format': {'type': 'json_schema', 'name': 'memoir_game_' + phase, 'strict': True,
                          'schema': schema}})
@@ -148,7 +108,7 @@ async def _game_response(packet, *, token, phase, payload):
     try:
         from .llm_tracing import trace_llm_call
         with trace_llm_call('story.game.' + phase, model, metadata={'prompt_manifest': manifest}):
-            async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=180 if building else 120) as client:
+            async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=120) as client:
                 async with client.stream('POST', base + '/responses', content=request,
                                          headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
                                                   'Content-Length': str(len(content))}) as response:
@@ -180,32 +140,62 @@ async def propose_game(packet, *, token):
         'locale': packet['authority']['locale']})
 
 
-async def build_game(packet, proposal, *, token):
-    # The page designer needs scene text and public UI labels, not source/job IDs.
+async def compose_game_brief(packet, proposal, *, token):
     payload = dict(locale=packet['authority']['locale'], ui=game_ui(packet['authority']['locale']),
-        scenes=[dict(index=i, title=s['title'], person=s['person'], quote=s['quote'])
-                for i, s in enumerate(proposal['scenes'])])
-    return await _game_response(packet, token=token, phase='webpage', payload=payload)
+        scenes=public_scenes(proposal))
+    return await _game_response(packet, token=token, phase='brief', payload=payload)
 
 
-async def generate_story_game(broker, game_id, *, provider=None, builder=None):
+async def build_game(packet, proposal, *, token):
+    """The worker loads the installed skill and the saved, confirmed brief itself."""
+    base = os.getenv('MEMORY_SPARK_CODEX_WORKER_URL', '').rstrip('/')
+    secret = os.getenv('MEMORY_SPARK_CODEX_WORKER_SECRET', '')
+    if not base or not secret:
+        raise ValueError('game_worker_unavailable')
+    content = json.dumps(dict(game_id=packet['game_id'], token=token, authority=packet['authority'])).encode()
+    request = GameRequestBody(content, publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
+        fence=dict(game_id=packet['game_id'], token=token, authority=packet['authority']))
+    try:
+        async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=790) as client:
+            response = await client.post(base + '/internal/story-game/build', content=request,
+                headers={'X-Codex-Worker-Secret': secret, 'Content-Type': 'application/json',
+                    'Content-Length': str(len(content))})
+            response.raise_for_status()
+        result = response.json()
+        return result['webpage'], result['receipt']
+    finally:
+        await request.aclose()
+
+
+async def generate_story_game(broker, game_id, *, provider=None, composer=None, builder=None):
     game_id = str(UUID(str(game_id)))
     claim = await broker.rpc('claim_story_game', p_game_id=game_id)
     if claim['status'] != 'running':
         return claim
     token = str(UUID(claim['token']))
     try:
-        async with asyncio.timeout(330):
+        async with asyncio.timeout(840 if claim.get('phase') == 'build' else 150):
             packet = await broker.rpc('read_story_game_input', p_game_id=game_id, p_token=token)
-            proposal, receipt = await provider(packet) if provider else await propose_game(packet, token=token)
-            proposal = validate_scenes(packet, proposal)
+            if claim.get('phase') != 'build':
+                pool, receipt = await provider(packet) if provider else await propose_game(packet, token=token)
+                pool = validate_pool(packet, pool)
+                return await broker.rpc('save_story_game_pool', p_game_id=game_id, p_token=token,
+                    p_pool=pool, p_model_receipt=receipt)
+            proposal = selected_scenes(packet)
+            if not packet.get('brief'):
+                brief, receipt = (await composer(packet, proposal) if composer else
+                    await compose_game_brief(packet, proposal, token=token))
+                brief = validate_brief(brief, len(proposal['scenes']))
+                await broker.rpc('save_story_game_brief', p_game_id=game_id, p_token=token,
+                    p_brief=brief, p_model_receipt=receipt)
+                packet['brief'] = brief
             webpage, build_receipt = (await builder(proposal) if builder else
                 await build_game(packet, proposal, token=token))
             webpage = GameWebpage.model_validate(webpage).model_dump(mode='json')
             validate_webpage(webpage['html'], game_ui(packet['authority']['locale']))
             return await broker.rpc('stage_story_game', p_game_id=game_id, p_token=token,
                 p_proposal={**proposal, **webpage}, p_model_receipt={**build_receipt,
-                    'steps': {'scenes': receipt, 'webpage': build_receipt}})
+                    'selection_digest': packet['selection_digest']})
     except BaseException:
         # The same durable job can be retried explicitly; an old lease cannot stage.
         try:

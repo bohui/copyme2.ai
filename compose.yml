@@ -193,6 +193,7 @@ services:
       MEMOIR_INTERVIEW_STRATEGY: ${MEMOIR_INTERVIEW_STRATEGY:-0}
       CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
+      MEMOIR_HIGGSFIELD_SKILL_PATH: /opt/memoir/external-skills/higgsfield-websites
       MEMORY_SPARK_TASK_STORE_URL: http://api:8000
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_CODEX_WORKER_TIMEOUT: ${MEMORY_SPARK_CODEX_WORKER_TIMEOUT:-120}
@@ -211,6 +212,7 @@ services:
       PYTHONUNBUFFERED: "1"
     volumes:
       - codex-worker-home:/var/lib/memory-spark/codex-users
+      - ./var/external-skills:/opt/memoir/external-skills:ro
       - ./apps/__init__.py:/app/apps/__init__.py:ro
       - ./apps/api:/app/apps/api:ro
       - ./README.md:/app/README.md:ro

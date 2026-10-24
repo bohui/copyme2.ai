@@ -17,6 +17,8 @@ from uuid import UUID
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+import httpx
+from .story_game_runtime import GameFence
 from .turn_stream import STREAM_HEADERS, turn_events
 from .lifetime_memory_activation import ActivationPublication, CanonicalActivationUnavailable
 from .lifetime_memory_policy import PolicyUnavailable
@@ -450,6 +452,35 @@ def _require_worker_secret(provided: str | None):
 @app.get("/health")
 def health():
     return {"status": "ok", "service": "memory-spark-codex-worker"}
+
+
+@app.post('/internal/story-game/build')
+async def build_story_game(payload: 'GameFence', request: Request,
+                           x_codex_worker_secret: str | None = Header(default=None)):
+    from .higgsfield_game import run_higgsfield_game
+    _require_worker_secret(x_codex_worker_secret)
+    lock = worker._lock(str(payload.game_id), 'higgsfield')
+    if lock.locked():
+        raise HTTPException(409, 'This game build is already running')
+    async def build():
+        async with lock:
+            return await run_higgsfield_game(payload,
+                issue14_admission=getattr(worker, '_issue14_admission', None))
+    task = asyncio.create_task(build())
+    try:
+        while not task.done():
+            if await request.is_disconnected():
+                task.cancel()
+                break
+            await asyncio.wait({task}, timeout=.1)
+        return await task
+    except AdmissionDenied:
+        raise HTTPException(403, 'Evaluation admission denied') from None
+    except (ValueError, OSError, TimeoutError, httpx.HTTPError):
+        raise HTTPException(503, 'Higgsfield game build could not be completed') from None
+    finally:
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 @app.post("/internal/codex/turn")
