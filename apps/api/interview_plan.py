@@ -35,6 +35,16 @@ def historical_acknowledgement_allowed(value, context):
     return not (state.get('enabled') and state.get('clues')) or value in historical_acknowledgements(context)
 
 
+def neutral_acknowledgement(context):
+    copies = json.loads(load_prompt_artifact(prompt_path('memoir/shared/historical-acknowledgements')))
+    return copies.get(context.get('interview_language'), copies['en-AU'])
+
+
+def defer_prepared_acknowledgement(context):
+    from .two_lane_memory import pending_confirmation
+    return bool(context.get('historical_news', {}).get('clues') or pending_confirmation(context))
+
+
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 

@@ -71,6 +71,15 @@ def test_stop_keeps_new_story_work_without_a_followup():
     assert result['plan']['work']['mode'] == 'extract'
 
 
+def test_stop_accepts_an_exact_current_anchor_without_creating_question_evidence():
+    current = 'Please stop. No more questions today.'
+    raw = {**proposal(), 'question': None, 'reason': 'pause', 'quote': current}
+    result = validate_governed_collector_result(raw, reply_context(current))
+    assert result['stopped'] and result['plan']['candidates'] == []
+    with pytest.raises(ValueError):
+        validate_governed_collector_result({**raw, 'quote': 'Invented narrator wording'}, reply_context(current))
+
+
 def test_explicit_current_name_update_survives_extract_work_without_weakening_legacy_plan():
     raw = {**proposal(), 'work': {'mode': 'extract', 'name': 'Avery'}}
     result = validate_governed_collector_result(raw, reply_context('Please call me Avery. I grew up in Perth.'))
@@ -251,8 +260,7 @@ def test_question_reason_repair_keeps_the_current_invitation_and_ready_news_hint
 
     def repaired(body):
         feedback = body['input'][0]['content'][1]['text']
-        assert 'CONTRACT_16' in feedback and 'pause/direct_answer require question=null' in feedback
-        assert 'same-period ideas use the top relevant hint' in feedback
+        assert 'CONTRACT_16' in feedback and 'No-question outcome requires an explicit reason' in feedback
         context = json.loads(body['input'][1]['content'])
         hint = context['brief']['hints'][0]
         assert hint['historical_clue_id'] == ctx['historical_news']['clues'][0]['id']
@@ -267,3 +275,47 @@ def test_question_reason_repair_keeps_the_current_invitation_and_ready_news_hint
     accepted = validate_governed_collector_result(json.loads(result['reply']), ctx)
     assert accepted['historical_context']['source_url'] == ctx['historical_news']['clues'][0]['source_url']
     assert accepted['acknowledgement'] == acknowledgement
+
+
+@pytest.mark.parametrize('language,current,continuation,stopped', [
+    ('en-AU', 'Please stop. No more questions today.',
+     'We can keep following your memories at your pace.', 'Understood. We’ll stop here for today.'),
+    ('zh-CN', '今天到这里，请不要再问了。',
+     '我们可以按您的节奏继续回忆。', '好的，今天就到这里。'),
+])
+@pytest.mark.parametrize('revisable', [False, True])
+@pytest.mark.parametrize('anchored', [False, True])
+def test_ready_news_pause_delivers_an_explicit_stop_instead_of_the_continuation_copy(
+        tmp_path, monkeypatch, language, current, continuation, stopped, revisable, anchored):
+    import asyncio
+    from apps.api.lifetime_memory_engine import run_governed_collector
+    from test_conversation_reply_transport import install_reply_provider
+    from test_historical_news import ready_context
+    from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
+
+    governed, ctx = fixture()
+    ctx.update(deepcopy(ready_context()), reply_contract='reply-v2', two_lane_memory=True,
+        interview_language=language, revisable_reply=revisable)
+    monkeypatch.setenv('MEMORY_SPARK_PARALLEL_POLICY_REVIEW', '1' if revisable else '0')
+    ctx['source']['text'] = current
+    packet = json.loads(governed.packet)
+    packet['current']['narrator'].update(original=current, char_end=len(current), language=language)
+    packet['pinned']['language'] = language
+    packet.update(instructions=reply_instructions(), interview_context={
+        key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
+    raw = {**proposal(), 'acknowledgement': continuation, 'question': None, 'reason': 'pause',
+        'quote': current if anchored else None, 'work': {'mode': 'reply_only', 'name': None}}
+    captured = install_reply_provider(monkeypatch, [raw])
+    visible = []
+    async def delta(value):
+        visible.append(json.loads(value)['acknowledgement'])
+
+    result = asyncio.run(run_governed_collector(command=['forbidden'], home_root=tmp_path,
+        base_url='https://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
+        governed=encode(packet), interview_context=ctx, publisher=FakePublisher(), on_delta=delta))
+
+    accepted = validate_governed_collector_result(json.loads(result['reply']), ctx)
+    assert accepted['reply'] == stopped
+    assert visible == [stopped]
+    assert accepted['plan']['candidates'] == [] and accepted.get('historical_context') is None
+    assert len(captured) == 1

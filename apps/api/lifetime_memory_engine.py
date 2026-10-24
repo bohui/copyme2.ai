@@ -384,12 +384,17 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         return _admission(publisher, json.loads(fence_snapshot))
     # Snapshot validation-only data before awaiting provider work.
     interview_context = deepcopy(interview_context)
-    from .interview_plan import CollectorVisibleStream, historical_acknowledgement_allowed
+    from .interview_plan import (CollectorVisibleStream, historical_acknowledgement_allowed,
+                                defer_prepared_acknowledgement)
     visible = CollectorVisibleStream()
     streamed_acknowledgement = None
+    defer_acknowledgement = defer_prepared_acknowledgement(interview_context)
 
     async def model_delta(chunk):
         nonlocal streamed_acknowledgement
+        # Prepared copy depends on the validated current intent and chosen question.
+        if defer_acknowledgement:
+            return
         if revisable:
             await on_delta(chunk)
             return
@@ -515,8 +520,9 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn',reason=reason) from None
-    if on_delta and streamed_acknowledgement is None and not revisable:
-        await on_delta(reply)
+    if on_delta and streamed_acknowledgement is None and (not revisable or defer_acknowledgement):
+        await on_delta(json.dumps({'acknowledgement': validated['acknowledgement']}, ensure_ascii=False)
+                       if defer_acknowledgement else reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
         'cold_resume_reason':'unvalidated_transcript' if thread_id else 'missing'}
     if trajectory is not None:

@@ -240,6 +240,14 @@ and commit those shared memoir lanes. Set
 consumer key in `MEMORY_SPARK_LLM_API_KEY` authorized for both model routes; the
 `codex-lb` key stays in the provider stack.
 
+For the opted-in `reply-v2` interviewer, requesting
+`MEMORY_SPARK_COLLECTOR_REASONING_EFFORT=low` with
+`gpt-5.6-luna-pooled` resolves to the existing
+`gpt-5.6-luna-memoir-low` route for both policy review and reply generation.
+The gateway must authorize that route with a dedicated low-policy key. Other
+routes and collector versions retain their configured behavior; use `max` to
+retain the pooled policy. Requested effort alone does not prove served effort.
+
 ### Public hostname through Cloudflare Tunnel
 
 The local Apple Container stack can serve [https://copyme2.ai](https://copyme2.ai)

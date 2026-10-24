@@ -206,18 +206,25 @@ def validate_governed_collector_result(raw, context):
         value = {key: item for key, item in value.items() if key != 'selection_reason'}
     ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
+    if selection_reason == 'pause' and context.get('historical_news', {}).get('clues'):
+        # The news wire permits neutral continuation copy; the host renders a validated stop.
+        acknowledgement = ('好的，今天就到这里。' if context.get('interview_language') == 'zh-CN'
+                           else 'Understood. We’ll stop here for today.')
+        result.update(acknowledgement=acknowledgement, reply=acknowledgement)
     if (context.get('reviewed_acknowledgement') is not None
             and result['acknowledgement'] != context['reviewed_acknowledgement']):
         raise ValueError('Correction cannot replace the streamed acknowledgement')
     ordinary['stopped'] = result['stopped']
     if selection_reason in {'pause', 'direct_answer'} and result['plan']['candidates']:
         raise ValueError('A pause or direct answer requires no question')
-    from .two_lane_memory import pending_confirmation, prioritize_confirmation
-    if pending_confirmation(context):
+    from .two_lane_memory import pending_confirmation, prioritize_question
+    selects_background = (context.get('reply_contract') == 'reply-v2'
+        and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context'})
+    if pending_confirmation(context) or selects_background:
         # A validated stop already carries intent; a follow-up needs the model's signal.
         if selection_reason is None and not result['stopped']:
             raise ValueError('Pending confirmation requires selection_reason')
-        prioritized = prioritize_confirmation(ordinary, context, selection_reason=selection_reason)
+        prioritized = prioritize_question(ordinary, context, selection_reason=selection_reason)
         if prioritized is not ordinary:
             result = validate_collector_result(prioritized, context)
             if outcome is not None:
@@ -225,6 +232,15 @@ def validate_governed_collector_result(raw, context):
                 outcome = {**outcome, 'selected_candidate_id': chosen['id'],
                            'selection_reason': 'prepared_candidate', 'question_delivered': chosen['question']}
     if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
+    if context.get('reply_contract') == 'reply-v2' and context.get('reviewed_acknowledgement') is None:
+        from .interview_questions import question_candidates
+        from .interview_plan import neutral_acknowledgement
+        if any(q['id'] == result['plan']['chosen_id'] and q.get('requires_confirmation')
+               for q in question_candidates(context)):
+            # A prepared clarification is the sole question, including unpunctuated speech.
+            acknowledgement = neutral_acknowledgement(context)
+            result['reply'] = acknowledgement + result['reply'][len(result['acknowledgement'].strip()):]
+            result['acknowledgement'] = acknowledgement
     source = _current_source(context)
     updates = validate_continuity_updates(value.get('continuity_updates', []), source)
 
