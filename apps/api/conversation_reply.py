@@ -81,6 +81,10 @@ def adapt_reply(raw, context):
         hint = candidates[item.hint]
         if item.reason not in {'prepared_candidate', 'adapted_candidate'} or item.question is None:
             raise ValueError('Candidate use requires its recorded reason')
+        if hint.get('historical_clue_id'):
+            # Public clues use the host's optional invitation, never model-written biography.
+            item.question = hint['question']
+            item.reason = 'prepared_candidate'
         if item.reason == 'prepared_candidate' and item.question.strip() != hint['question'].strip():
             raise ValueError('Prepared candidate text changed')
         evidence = None if hint.get('historical_clue_id') else hint_evidence(hint, context)
@@ -95,8 +99,6 @@ def adapt_reply(raw, context):
             evidence = validate_question_evidence(dict(source_id=source.get('id'),
                 version=source.get('version'), quote=item.quote, char_start=None,
                 char_end=None, attribution=None), context).model_dump()
-    if item.question is None and evidence is not None:
-        raise ValueError('No question cannot deliver question evidence')
     identity = hint['id'] if hint else 'immediate-' + (context.get('source') or {}).get('id', 'fallback')
     questions = [] if item.question is None else [dict(id=identity, question=item.question,
         context=dict(event_id=None, photo_id=None, life_stage=None, year=None, evidence=evidence),

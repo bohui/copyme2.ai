@@ -29,4 +29,7 @@ def collector_configuration(default_model: str) -> CollectorConfiguration:
         raise CollectorConfigurationError('Invalid collector reasoning effort configuration')
     if version not in {'compact-v1', 'two-lane-v1', 'reply-v2'}:
         raise CollectorConfigurationError('Invalid collector prompt version configuration')
+    if version == 'reply-v2' and effort == 'low' and model == 'gpt-5.6-luna-pooled':
+        # The pooled key enforces max; this existing same-model route has a low-policy key.
+        model = 'gpt-5.6-luna-memoir-low'
     return CollectorConfiguration(model, effort, version)

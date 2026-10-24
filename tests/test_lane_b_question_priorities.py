@@ -90,9 +90,30 @@ def test_news_uses_the_existing_neutral_cited_reply_and_never_narrator_evidence(
     assert candidate['context'].get('evidence') is None
     assert bridge in result['reply'] and result['reply'].endswith(question)
     assert result['historical_context']['id'] == candidate['id']
-    for changed in ({'quote': context['source']['text']}, {'question': 'You were at the fair, right?'}):
-        with pytest.raises(ValueError):
-            validate_governed_collector_result({**raw, **changed}, context)
+    with pytest.raises(ValueError):
+        validate_governed_collector_result({**raw, 'quote': context['source']['text']}, context)
+
+
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+@pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate'])
+def test_selected_news_renders_the_host_invitation_instead_of_model_rewriting(locale, reason):
+    from apps.api.historical_news import HISTORICAL_INVITATIONS
+    context = reply_context('What else could we explore from those years?')
+    context.update(deepcopy(ready_context()), strategy_selector=True,
+        strategy_context={'mode': 'active', 'plan': None}, interview_language=locale)
+    raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
+        'hint': 0, 'reason': reason, 'question': 'You were at the fair, right?'}
+
+    result = validate_governed_collector_result(raw, context)
+
+    question, bridge = HISTORICAL_INVITATIONS[locale]
+    assert result['plan']['candidates'][0]['question'] == question
+    assert result['strategy_outcome']['question_delivered'] == question
+    assert result['strategy_outcome']['selection_reason'] == 'prepared_candidate'
+    assert result['reply'].endswith(bridge + ' ' + question)
+    assert raw['question'] not in result['reply']
+    assert result['historical_context']['source_url'] == context['historical_news']['clues'][0]['source_url']
+    assert result['plan']['candidates'][0]['context'].get('evidence') is None
 
 
 @pytest.mark.parametrize('fault', ['disabled', 'used', 'uninspected', 'stale', 'foreign', 'missing_receipt'])

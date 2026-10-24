@@ -307,7 +307,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 from .interview_plan import historical_acknowledgement_allowed
                 opening=None if revisable else reviewed_acknowledgement(reviewed_opening or policy_status.get('reviewed_acknowledgement'),
                     source,selected_language)
-                if opening and historical_acknowledgement_allowed(opening,context):
+                if (opening and not context.get('historical_news', {}).get('clues')
+                        and historical_acknowledgement_allowed(opening,context)):
                     context['reviewed_acknowledgement']=opening
                 else:
                     opening=None
@@ -377,6 +378,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 generation_state={'active':True, 'visible':visible}
                 async def delta(chunk, _state=generation_state):
                     if not _state['active']: return
+                    if context.get('historical_news', {}).get('clues'): return
                     value=_state['visible'].feed(chunk)
                     if value and on_delta:await on_delta(value)
                 async def collector_event(event, _state=generation_state, _pending=pending_review):

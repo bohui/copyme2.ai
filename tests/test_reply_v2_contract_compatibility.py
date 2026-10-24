@@ -18,18 +18,20 @@ def test_historical_news_supplies_its_required_acknowledgement_without_a_conflic
     field = governed_collector_schema(ctx)['properties']['acknowledgement']
     assert set(field['enum']) == historical_acknowledgements(ctx)
     assert 'pattern' not in field
-    acknowledgement = ({'en-AU': 'Understood. We’ll stop here for today.', 'zh-CN': '好的，今天就到这里。'}
-        if stopping else {'en-AU': 'We can keep following your memories at your pace.',
-                          'zh-CN': '我们可以按您的节奏继续回忆。'})[locale]
+    acknowledgement = {'en-AU': 'We can keep following your memories at your pace.',
+                       'zh-CN': '我们可以按您的节奏继续回忆。'}[locale]
     raw = {**proposal(), 'acknowledgement': acknowledgement}
     if stopping:
         raw.update(question=None, reason='pause', work={'mode': 'reply_only', 'name': None})
     validate(raw, governed_collector_schema(ctx))
     result = validate_governed_collector_result(raw, ctx)
-    assert result['acknowledgement'] == acknowledgement
     if stopping:
-        assert result['reply'] == acknowledgement and not result['plan']['candidates']
+        expected = {'en-AU': 'Understood. We’ll stop here for today.', 'zh-CN': '好的，今天就到这里。'}[locale]
+        assert result['acknowledgement'] == result['reply'] == expected
+        assert not result['plan']['candidates']
         assert result.get('historical_context') is None
+    else:
+        assert result['acknowledgement'] == acknowledgement
 
 
 @pytest.mark.parametrize('locale,acknowledgement', [

@@ -206,6 +206,11 @@ def validate_governed_collector_result(raw, context):
         value = {key: item for key, item in value.items() if key != 'selection_reason'}
     ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
+    if selection_reason == 'pause' and context.get('historical_news', {}).get('clues'):
+        # The news wire permits neutral continuation copy; the host renders a validated stop.
+        acknowledgement = ('好的，今天就到这里。' if context.get('interview_language') == 'zh-CN'
+                           else 'Understood. We’ll stop here for today.')
+        result.update(acknowledgement=acknowledgement, reply=acknowledgement)
     if (context.get('reviewed_acknowledgement') is not None
             and result['acknowledgement'] != context['reviewed_acknowledgement']):
         raise ValueError('Correction cannot replace the streamed acknowledgement')

@@ -387,9 +387,13 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     from .interview_plan import CollectorVisibleStream, historical_acknowledgement_allowed
     visible = CollectorVisibleStream()
     streamed_acknowledgement = None
+    defer_news_acknowledgement = bool(interview_context.get('historical_news', {}).get('clues'))
 
     async def model_delta(chunk):
         nonlocal streamed_acknowledgement
+        # A ready-news acknowledgement depends on the validated pause decision.
+        if defer_news_acknowledgement:
+            return
         if revisable:
             await on_delta(chunk)
             return
@@ -515,8 +519,9 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn',reason=reason) from None
-    if on_delta and streamed_acknowledgement is None and not revisable:
-        await on_delta(reply)
+    if on_delta and streamed_acknowledgement is None and (not revisable or defer_news_acknowledgement):
+        await on_delta(json.dumps({'acknowledgement': validated['acknowledgement']}, ensure_ascii=False)
+                       if defer_news_acknowledgement else reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
         'cold_resume_reason':'unvalidated_transcript' if thread_id else 'missing'}
     if trajectory is not None:

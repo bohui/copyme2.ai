@@ -36,7 +36,8 @@ def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql,
         if news:
             index, hint = news
             output.update(acknowledgement=sorted(historical_acknowledgements(context))[0],
-                hint=index, reason=reason, question=hint['question'])
+                hint=index, reason=reason,
+                question='You were at the fair, right?' if reason == 'adapted_candidate' else hint['question'])
         return response(request, output)
 
     class PublicSources:
@@ -64,6 +65,8 @@ def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql,
         assert not [event for event in events if event['type'] == 'error'], later.text
         saved = next(event['data'] for event in events if event['type'] == 'result')
         assert saved['conversation_saved']
+        from apps.api.historical_news import HISTORICAL_INVITATIONS
+        assert saved['reply'].endswith(HISTORICAL_INVITATIONS[language][0])
         assert saved['historical_context']['source_url'] == evidence()['source_url']
         assert rpc(sql, 'read_user_historical_news', literal(project))['clues'] == []
         replay = client.post('/v1/agent/turn', json=payload)
@@ -95,7 +98,7 @@ def test_ready_news_can_save_and_replay_an_explicit_stop_without_touching_the_pr
         if len(calls) == 2:
             assert context['historical_news']['clues'], 'Exercise a ready clue at actual reply admission'
             assert any(hint.get('historical_clue_id') for hint in reply_candidates(context))
-            output.update(acknowledgement=acknowledgement, question=None, reason='pause',
+            output.update(acknowledgement=sorted(historical_acknowledgements(context))[0], question=None, reason='pause',
                 work={'mode': 'reply_only', 'name': None})
         return response(request, output)
 
@@ -123,6 +126,7 @@ def test_ready_news_can_save_and_replay_an_explicit_stop_without_touching_the_pr
         assert not any(event['type'] == 'error' for event in events), later.text
         saved = next(event['data'] for event in events if event['type'] == 'result')
         assert saved['conversation_saved'] and saved['reply'] == acknowledgement
+        assert ''.join(event.get('text', '') for event in events if event['type'] == 'text_delta') == acknowledgement
         assert saved.get('historical_context') is None
         assert not any(event['type'] == 'question_validated' for event in events)
         original = json.loads(sql('select collector from public.user_interview_turn order by sequence limit 1;').stdout)
