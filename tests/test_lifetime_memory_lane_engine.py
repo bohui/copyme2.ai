@@ -5,7 +5,6 @@ from copy import deepcopy
 import json
 import hashlib
 from pathlib import Path
-import tomllib
 from uuid import UUID
 
 import httpx
@@ -170,6 +169,7 @@ class Publisher:
 
 
 class Connection:
+    """Native selected-collection job tests reuse this fixture."""
     instances=[]
     failure=None
     def __init__(self,command,home,**options):
@@ -188,10 +188,25 @@ class Connection:
         return '{"events":[]}'
 
 
+class Provider(httpx.AsyncBaseTransport):
+    bodies=[]
+    failure=None
+    async def handle_async_request(self,request):
+        from test_conversation_reply_transport import events, sse
+        content=b''.join([chunk async for chunk in request.stream])
+        self.bodies.append(json.loads(content))
+        if self.failure:raise self.failure
+        return httpx.Response(200,content=sse(events('{"events":[]}')))
+
+
+def forbidden_connection(*args,**kwargs):
+    raise AssertionError('Bounded lanes must not start a native agent')
+
+
 @pytest.fixture(autouse=True)
 def isolate(monkeypatch):
     monkeypatch.setenv("MEMOIR_LIFETIME_MEMORY","true")
-    Connection.instances=[];Connection.failure=None
+    Provider.bodies=[];Provider.failure=None
     for name in ('MEMOIR_PUBLICATION_DATABASE_URL','MEMORY_SPARK_COLLECTOR_MODEL',
         'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL','MEMOIR_LIFETIME_GENERATION_PAUSED'):
         monkeypatch.delenv(name,raising=False)
@@ -201,46 +216,40 @@ def run(tmp_path,bounded=None,publisher=None,**kwargs):
     return asyncio.run(run_bounded_lane(command=['fake'],home_root=tmp_path,
         base_url='http://provider.invalid',api_key='transient-secret',model=BUDGET.model,
         bounded_lane=bounded or transport(),publisher=publisher or Publisher(),
-        connection_factory=Connection,**kwargs))
+        connection_factory=forbidden_connection,provider_transport=Provider(),**kwargs))
 
 
-@pytest.mark.parametrize('phase',['extract'])
-def test_each_lane_phase_is_fresh_bounded_and_fenced(tmp_path,phase):
-    bounded=transport(phase);publisher=Publisher()
+def test_extraction_request_keeps_exact_packet_schema_manifest_and_http_fence(tmp_path):
+    bounded=transport();publisher=Publisher()
     result=run(tmp_path,bounded,publisher)
-    instance=Connection.instances[0]
-    assert [method for method,_ in instance.requests]==['thread/start']
-    assert instance.requests[0][1]['ephemeral'] is True
-    assert instance.turns[0][1]==bounded.packet
-    expected_skill = ('memoir-author-timeline' if phase == 'extract' else 'memoir-composer')
-    metadata=instance.turns[0][2]['responsesapi_client_metadata']
-    assert metadata['generation_name']==metadata['trace_name']==expected_skill
+    body,=Provider.bodies
+    assert body['input']==bounded.packet
+    assert body['tools']==[] and body['tool_choice']=='none'
+    metadata=body['metadata']
+    assert metadata['generation_name']==metadata['trace_name']=='memoir-author-timeline'
     assert set(metadata)=={'generation_name','trace_name','prompt_sha256','schema_sha256','manifest_sha256'}
     assert len(bytes.fromhex(metadata['manifest_sha256']))==32
-    assert 'A narrow original window.' not in instance.requests[0][1]['baseInstructions']
-    assert len(publisher.snapshots)==2 and all(s==bounded.fence.model_dump(mode='json') for s in publisher.snapshots)
+    assert publisher.snapshots==[bounded.fence.model_dump(mode='json')]
+    assert not publisher.active
     assert lane_request_tokens(bounded)<=bounded.budget.input_budget
     from apps.api.lifetime_memory_lane_engine import lane_contract
-    instructions,schema=lane_contract(phase,bounded.fence.locale,fence=bounded.fence)
-    from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
-    static=instructions + ('\n' + EXTRACTION_WINDOW_CONTRACT if phase=='extract' else '')
-    assert metadata['prompt_sha256']==hashlib.sha256(static.encode()).hexdigest()
+    instructions,schema=lane_contract('extract',bounded.fence.locale,fence=bounded.fence)
+    assert body['instructions']==instructions
+    assert body['text']['format']['schema']==schema
+    assert metadata['prompt_sha256']==hashlib.sha256(instructions.encode()).hexdigest()
     assert metadata['schema_sha256']==hashlib.sha256(json.dumps(schema,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
-    assert instance.requests[0][1]['baseInstructions']==instructions
     assert lane_request_tokens(bounded)==(bounded.budget.count(instructions)
         +bounded.budget.count(bounded.packet)+bounded.budget.count(serialize_packet(schema))
         +bounded.budget.framing_headroom)
-    config=tomllib.loads((instance.home/'config.toml').read_text())
-    assert config['memories']=={'generate_memories':False,'use_memories':False}
-    assert config['project_doc_max_bytes']==0
-    assert 'transient-secret' not in (instance.home/'config.toml').read_text()
-    assert result['artifacts']==[] and result['thread_id']=='fresh-lane'
-    assert str(bounded.fence.snapshot_id) in instance.home.name
+    assert result=={'artifacts':[],'thread_id':'resp_gateway_id==','reply':'{"events":[]}'}
+    assert not list(tmp_path.iterdir())
 
 
-def test_each_page_attempt_has_new_home(tmp_path):
+def test_lane_attempts_cannot_resume_a_prior_native_session(tmp_path):
     run(tmp_path);run(tmp_path)
-    assert Connection.instances[0].home!=Connection.instances[1].home
+    assert len(Provider.bodies)==2
+    assert Provider.bodies[0]['input']==Provider.bodies[1]['input']
+    assert not list(tmp_path.iterdir())
 
 
 @pytest.mark.parametrize('phase,role,setting',[
@@ -286,7 +295,7 @@ def test_actual_prompt_and_schema_overflow_is_rejected_before_home(tmp_path):
     # The packet alone fits; the actual server instructions and schema do not.
     tight=bounded.model_copy(update={'budget':BUDGET.model_copy(update={'input_budget':len(bounded.packet)+20})})
     with pytest.raises(ValueError,match='budget'):run(tmp_path,tight)
-    assert not Connection.instances and not list(tmp_path.iterdir())
+    assert not Provider.bodies and not list(tmp_path.iterdir())
 
 
 @pytest.mark.parametrize('field,value',[('page_number',-1),('token','not-a-token'),('root_digest','bad')])
@@ -298,26 +307,26 @@ def test_lane_fence_is_strict(field,value):
 def test_fence_stale_before_engine_dispatch_prevents_packet_send(tmp_path):
     publisher=Publisher();publisher.stale=True
     with pytest.raises(PublicationUnavailable):run(tmp_path,publisher=publisher)
-    assert Connection.instances[0].requests==[] and Connection.instances[0].turns==[]
+    assert not Provider.bodies
 
 
 @pytest.mark.parametrize('error',[PermissionError('auth'),TimeoutError('timeout'),RuntimeError('provider')])
 def test_provider_failures_never_retry_as_missing_state(tmp_path,error):
-    Connection.failure=error
+    Provider.failure=error
     with pytest.raises(type(error)):run(tmp_path)
-    assert len(Connection.instances)==1
+    assert len(Provider.bodies)==1
 
 
 def test_worker_uses_bounded_branch_and_missing_database_fails_closed(tmp_path,monkeypatch):
     import apps.api.codex_worker_service as worker_module
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
-    monkeypatch.setattr(worker_module,'CodexConnection',Connection)
+    monkeypatch.setattr(worker_module,'CodexConnection',forbidden_connection)
     bounded=transport()
     payload=WorkerTurnInput(user_id=bounded.fence.user_id,project_id=bounded.fence.project_id,
         agent_role='author_timeline',model=BUDGET.model,bounded_lane=bounded)
     with pytest.raises(PublicationUnavailable):
         asyncio.run(CodexWorker(home_root=tmp_path,model=BUDGET.model).turn(payload))
-    assert not Connection.instances and not list(tmp_path.glob('lane-*'))
+    assert not Provider.bodies and not list(tmp_path.glob('lane-*'))
 
 
 def test_http_body_guard_covers_write_and_releases_before_response():
@@ -365,13 +374,13 @@ def test_preference_revision_cannot_disagree_with_page_fence():
 def test_bounded_composer_does_not_probe_provider_without_admission(tmp_path,monkeypatch):
     import apps.api.codex_worker_service as worker_module
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
-    monkeypatch.setattr(worker_module,'CodexConnection',Connection)
+    monkeypatch.setattr(worker_module,'CodexConnection',forbidden_connection)
     bounded=transport('draft')
     worker=CodexWorker(home_root=tmp_path,model=BUDGET.model)
     payload=WorkerTurnInput(user_id=bounded.fence.user_id,project_id=bounded.fence.project_id,
         agent_role='composer',composer_phase='draft',model=BUDGET.model,bounded_lane=bounded)
     with pytest.raises(PublicationUnavailable):asyncio.run(worker.turn(payload))
-    assert not Connection.instances
+    assert not Provider.bodies
 
 
 def test_packet_cannot_omit_fenced_privacy_preferences():
@@ -458,7 +467,7 @@ def test_forged_host_plan_is_rejected_before_provider_home(tmp_path):
     packet['plan']['unreviewed_context']='Personal bytes smuggled through host plan'
     bounded=build_bounded_lane_input(current,phase='draft',packet=packet,budget=BUDGET)
     with pytest.raises(ValueError,match='plan'):run(tmp_path,bounded)
-    assert not Connection.instances and not list(tmp_path.iterdir())
+    assert not Provider.bodies and not list(tmp_path.iterdir())
 
 
 def test_forged_host_validation_is_rejected_before_provider_home(tmp_path):
@@ -466,7 +475,7 @@ def test_forged_host_validation_is_rejected_before_provider_home(tmp_path):
     packet['validation']['unreviewed_context']='Personal bytes smuggled through validation'
     bounded=build_bounded_lane_input(current,phase='review',packet=packet,budget=BUDGET)
     with pytest.raises(ValueError,match='validation'):run(tmp_path,bounded)
-    assert not Connection.instances and not list(tmp_path.iterdir())
+    assert not Provider.bodies and not list(tmp_path.iterdir())
 
 
 def test_draft_digest_ignores_only_host_pins_and_keeps_personal_prose():
@@ -480,7 +489,7 @@ def test_paused_generation_fails_retryably_before_home(tmp_path,monkeypatch):
     monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
     with pytest.raises(PublicationUnavailable) as error:run(tmp_path)
     assert error.value.code=='LIFETIME_GENERATION_PAUSED' and error.value.retryable
-    assert not Connection.instances and not list(tmp_path.iterdir())
+    assert not Provider.bodies and not list(tmp_path.iterdir())
 
 
 def test_pause_after_build_is_rechecked_at_http_body_admission(monkeypatch):
@@ -511,7 +520,7 @@ def test_review_requires_real_registered_candidate():
         asyncio.run(validate_lane_payload(bounded))
 
 
-def test_pause_while_waiting_for_lane_guard_blocks_actual_pipe(tmp_path,monkeypatch):
+def test_pause_while_waiting_for_lane_guard_blocks_actual_http_body(tmp_path,monkeypatch):
     class PausePublisher(Publisher):
         @asynccontextmanager
         async def guard(self,fence):
@@ -520,7 +529,7 @@ def test_pause_while_waiting_for_lane_guard_blocks_actual_pipe(tmp_path,monkeypa
                 yield
     publisher=PausePublisher()
     with pytest.raises(PublicationUnavailable):run(tmp_path,publisher=publisher)
-    assert Connection.instances[0].requests==[] and not publisher.active
+    assert not Provider.bodies and not publisher.active
 
 
 def test_remote_worker_pause_is_typed_and_retryable():
@@ -556,7 +565,7 @@ def test_worker_pause_response_has_retryable_machine_code(tmp_path,monkeypatch):
     assert response.status_code==503
     assert response.headers['X-Error-Code']=='LIFETIME_GENERATION_PAUSED'
     assert response.headers['Retry-After']=='60'
-    assert not Connection.instances
+    assert not Provider.bodies
 
 
 @pytest.mark.parametrize('remaining,expect_timeout',[(2.0,False),(0.05,False),(2.0,True)])
@@ -651,7 +660,7 @@ def test_generation_pause_blocks_governed_lane_before_home(tmp_path,monkeypatch)
     from apps.api.lifetime_memory_lane_engine import LaneGenerationPaused
     monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED','true')
     with pytest.raises(LaneGenerationPaused):run(tmp_path)
-    assert not Connection.instances and not list(tmp_path.iterdir())
+    assert not Provider.bodies and not list(tmp_path.iterdir())
 
 
 def test_lane_fence_requires_authoritative_token_independent_input_digest():

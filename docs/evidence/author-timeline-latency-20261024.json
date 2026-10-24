@@ -1,0 +1,983 @@
+{
+  "baseline_commit": "613930a263b0ed49ada3ea3b817f78d43fe81af5",
+  "candidate_runtime_sha256": "c969e686471e763b2b7186dd98660714bcdb276552537f2f19fa4900ac8b5e0e",
+  "configured_route": "memoir-luna-low",
+  "reported_provider_model": "gpt-5.6-luna",
+  "requested_effort": "low",
+  "reported_effort": "low",
+  "scope": "Live provider plus actual canonical SQL admission, validation and saves; controlled policy/foreground reply/worker HTTP seam; no browser, Temporal or deployed worker.",
+  "samples_per_scenario_per_variant": 1,
+  "quality_review": "Codex semantic review of full synthetic outputs and saved-state witnesses, plus deterministic structural validation; no separate LLM judge or human review.",
+  "paired_quality_passing_subset": {
+    "n": 8,
+    "total_scenarios": 9,
+    "before_median_seconds": 28.355,
+    "after_median_seconds": 7.591,
+    "median_reduction_percent": 73.2
+  },
+  "baseline_calls_in_comparison": 13,
+  "candidate_calls_in_comparison": 14,
+  "all_physical_provider_requests": 39,
+  "admission_rejected_attempts_without_provider_dispatch": 1,
+  "initial_hard_budget": 32,
+  "revised_hard_budget": 40,
+  "budget_revision_reason": "One bounded extension for observed repeated-quote quality failure and held-out checks; all failed variants retained; no further expansion.",
+  "meaningful_visible_text_seconds": null,
+  "browser_paint_seconds": null,
+  "user_visible_5s_10s_gate": "unobserved and not directly applicable to background JSON completion",
+  "cases_sha256": "6cc19c76bc7e414ed0efe118b7151c4f31d3a7d8004b268f1863d715465b3dad",
+  "heldout_sha256": "9ea8a92e24b2a915b99fab51ea978459e64fb225d2ac3c3b1f5b12174b60d159",
+  "comparison": [
+    {
+      "case_id": "en-source",
+      "scenario": "English childhood testimony",
+      "before": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 49.566,
+        "durable_page_seconds": 50.315,
+        "attempt_elapsed_seconds": 57.407,
+        "successful_windows": 1,
+        "input_tokens": 11751,
+        "cached_input_tokens": 3712,
+        "output_tokens": 909,
+        "provider_seconds": [
+          30.253
+        ],
+        "tool_definitions": [
+          3
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "a0f884c6063f3a829ce895f0b034fb632d19f94fd50aabdc7f6d203b7ae8a876"
+        ]
+      },
+      "after": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 12.308,
+        "durable_page_seconds": 12.501,
+        "attempt_elapsed_seconds": 14.702,
+        "successful_windows": 1,
+        "input_tokens": 6002,
+        "cached_input_tokens": 0,
+        "output_tokens": 875,
+        "provider_seconds": [
+          10.966
+        ],
+        "tool_definitions": [
+          0
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "c250341a41f12edf723af39f4e9d58ad5eff889cad326ace8b5ee2bddb97a2c9"
+        ]
+      },
+      "saved_result_review": "Supported childhood violin event and 1978 retained.",
+      "quality": "pass",
+      "saved_seconds": 37.258,
+      "improvement_percent": 75.2
+    },
+    {
+      "case_id": "zh-source",
+      "scenario": "Chinese childhood testimony",
+      "before": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 29.309,
+        "durable_page_seconds": 30.95,
+        "attempt_elapsed_seconds": 35.421,
+        "successful_windows": 1,
+        "input_tokens": 11742,
+        "cached_input_tokens": 3712,
+        "output_tokens": 651,
+        "provider_seconds": [
+          21.065
+        ],
+        "tool_definitions": [
+          3
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "23a6eee4d00ae47270d4de7f44bc0b71020b566e5dd981256e3cb8a51065d655"
+        ]
+      },
+      "after": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 7.419,
+        "durable_page_seconds": 7.578,
+        "attempt_elapsed_seconds": 8.669,
+        "successful_windows": 1,
+        "input_tokens": 5978,
+        "cached_input_tokens": 0,
+        "output_tokens": 667,
+        "provider_seconds": [
+          6.532
+        ],
+        "tool_definitions": [
+          0
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "97b1d8ef8b7bcd189035852a2106cd1e1f826a4068d1ab2445abb79a4e1a9d95"
+        ]
+      },
+      "saved_result_review": "Chinese source, childhood and 1978 retained.",
+      "quality": "pass",
+      "saved_seconds": 21.89,
+      "improvement_percent": 74.7
+    },
+    {
+      "case_id": "en-period",
+      "scenario": "English life period",
+      "before": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 27.581,
+        "durable_page_seconds": 28.104,
+        "attempt_elapsed_seconds": 34.431,
+        "successful_windows": 1,
+        "input_tokens": 11769,
+        "cached_input_tokens": 3712,
+        "output_tokens": 748,
+        "provider_seconds": [
+          23.116
+        ],
+        "tool_definitions": [
+          3
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "313d20bacba662a8e2ce8f403ab7c24ea09c24e27fd98f0c5f67fddde080f17a"
+        ]
+      },
+      "after": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 7.74,
+        "durable_page_seconds": 8.011,
+        "attempt_elapsed_seconds": 9.233,
+        "successful_windows": 1,
+        "input_tokens": 5995,
+        "cached_input_tokens": 0,
+        "output_tokens": 633,
+        "provider_seconds": [
+          6.868
+        ],
+        "tool_definitions": [
+          0
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "fb5d9ab797797c3d17fac3977dbb5ed9bf4819f803033cf5f22a340c91ef07e6"
+        ]
+      },
+      "saved_result_review": "Bookshop work remains a 1988–1992 period.",
+      "quality": "pass",
+      "saved_seconds": 19.841,
+      "improvement_percent": 71.9
+    },
+    {
+      "case_id": "zh-period",
+      "scenario": "Chinese life period",
+      "before": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 29.128,
+        "durable_page_seconds": 30.062,
+        "attempt_elapsed_seconds": 34.593,
+        "successful_windows": 1,
+        "input_tokens": 11781,
+        "cached_input_tokens": 3712,
+        "output_tokens": 798,
+        "provider_seconds": [
+          22.239
+        ],
+        "tool_definitions": [
+          3
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "56ba3575e8d9691c8f9150a44e462b119f197d91da121ff6a47d1d7fd1b51c1a"
+        ]
+      },
+      "after": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 7.441,
+        "durable_page_seconds": 7.639,
+        "attempt_elapsed_seconds": 9.567,
+        "successful_windows": 1,
+        "input_tokens": 6015,
+        "cached_input_tokens": 0,
+        "output_tokens": 675,
+        "provider_seconds": [
+          6.159
+        ],
+        "tool_definitions": [
+          0
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "9ae5babcd8c26d1549e55a7043a380f1ec74915111c94e85b1c9a4fa3f1066bf"
+        ]
+      },
+      "saved_result_review": "Chinese 1988–1992 work period retained.",
+      "quality": "pass",
+      "saved_seconds": 21.687,
+      "improvement_percent": 74.5
+    },
+    {
+      "case_id": "en-uncertainty",
+      "scenario": "Uncertain year",
+      "before": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 26.416,
+        "durable_page_seconds": 26.911,
+        "attempt_elapsed_seconds": 32.237,
+        "successful_windows": 1,
+        "input_tokens": 11743,
+        "cached_input_tokens": 3712,
+        "output_tokens": 837,
+        "provider_seconds": [
+          22.502
+        ],
+        "tool_definitions": [
+          3
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "14b561c77589559144085854edfdc652e31cf554aaaf492a5f61c2f8003c7baa"
+        ]
+      },
+      "after": {
+        "status": "completed",
+        "provider_requests": 2,
+        "page_windows": 1,
+        "validated_extraction_seconds": 14.905,
+        "durable_page_seconds": 15.114,
+        "attempt_elapsed_seconds": 16.309,
+        "successful_windows": 1,
+        "input_tokens": 11967,
+        "cached_input_tokens": 4864,
+        "output_tokens": 1468,
+        "provider_seconds": [
+          6.26,
+          6.896
+        ],
+        "tool_definitions": [
+          0,
+          0
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "bcf50a5a4fcf8e670d12786cfba56b9e8460f8d7256d27ceb81ec346e72b8350"
+        ]
+      },
+      "saved_result_review": "Approximate 1983 wording and possible later year remain uncertain.",
+      "quality": "pass",
+      "saved_seconds": 11.511,
+      "improvement_percent": 43.6
+    },
+    {
+      "case_id": "zh-recording-boundary",
+      "scenario": "Scoped recording veto plus allowed memory",
+      "before": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 27.444,
+        "durable_page_seconds": 28.267,
+        "attempt_elapsed_seconds": 37.231,
+        "successful_windows": 1,
+        "input_tokens": 11807,
+        "cached_input_tokens": 3712,
+        "output_tokens": 726,
+        "provider_seconds": [
+          19.644
+        ],
+        "tool_definitions": [
+          3
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "5ba1ca36502ad93a1b8f9b436aae4c016b618afaf777e18c461aed6fb1fd1155"
+        ]
+      },
+      "after": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 7.172,
+        "durable_page_seconds": 7.336,
+        "attempt_elapsed_seconds": 8.886,
+        "successful_windows": 1,
+        "input_tokens": 6032,
+        "cached_input_tokens": 0,
+        "output_tokens": 718,
+        "provider_seconds": [
+          6.006
+        ],
+        "tool_definitions": [
+          0
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "8355ae56956a97823d8b2ceb145c0cce76d2fd6eb9be5efa0ec59280b2efc375"
+        ]
+      },
+      "saved_result_review": "Only permitted pottery memory/place retained; vetoed residence excluded.",
+      "quality": "pass",
+      "saved_seconds": 20.272,
+      "improvement_percent": 73.9
+    },
+    {
+      "case_id": "en-long-window",
+      "scenario": "Long source, two windows, repeated quotations",
+      "before": {
+        "status": "completed",
+        "provider_requests": 4,
+        "page_windows": 2,
+        "validated_extraction_seconds": 138.775,
+        "durable_page_seconds": 140.198,
+        "attempt_elapsed_seconds": 143.757,
+        "successful_windows": 2,
+        "input_tokens": 49086,
+        "cached_input_tokens": 14848,
+        "output_tokens": 5036,
+        "provider_seconds": [
+          22.513,
+          32.963,
+          28.537,
+          34.608
+        ],
+        "tool_definitions": [
+          3,
+          3,
+          3,
+          3
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb",
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "044cde19b0b8ee978a5f3402d74d198eefbb1cf77bca40cce677525fb272df99",
+          "ff88ebb5c3820d544bf768cc04f743d396fe7be1e293d6117ff91c5b345c0b82"
+        ]
+      },
+      "after": {
+        "status": "failed",
+        "provider_requests": 4,
+        "page_windows": 2,
+        "validated_extraction_seconds": null,
+        "durable_page_seconds": null,
+        "attempt_elapsed_seconds": 43.327,
+        "successful_windows": 1,
+        "input_tokens": 26087,
+        "cached_input_tokens": 11392,
+        "output_tokens": 5055,
+        "provider_seconds": [
+          7.068,
+          8.953,
+          9.993,
+          10.843
+        ],
+        "tool_definitions": [
+          0,
+          0,
+          0,
+          0
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb",
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "ab542fc6c6a89131a3b58b2f474e7aba6edffc3664269d2ec1fc79b2cd43be07",
+          "a196be02da983b013a7ec3623c946c3d96541fad986e69df49008db4550872db"
+        ]
+      },
+      "saved_result_review": "Before saves both events; candidate saves window one, then rejects ambiguous evidence in window two after all three attempts. Cursor does not falsely advance.",
+      "quality": "fail",
+      "saved_seconds": null,
+      "improvement_percent": null
+    },
+    {
+      "case_id": "en-pause",
+      "scenario": "Paraphrased stop outside SQL exact list",
+      "before": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 18.404,
+        "durable_page_seconds": 18.893,
+        "attempt_elapsed_seconds": 24.72,
+        "successful_windows": 1,
+        "input_tokens": 11484,
+        "cached_input_tokens": 3712,
+        "output_tokens": 172,
+        "provider_seconds": [
+          9.206
+        ],
+        "tool_definitions": [
+          3
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "020d5943e46f35a4ef12e1122ff4f870d576bad4fa5af8f784e3bef643e6fa5f"
+        ]
+      },
+      "after": {
+        "status": "completed",
+        "provider_requests": 1,
+        "page_windows": 1,
+        "validated_extraction_seconds": 5.51,
+        "durable_page_seconds": 5.735,
+        "attempt_elapsed_seconds": 7.496,
+        "successful_windows": 1,
+        "input_tokens": 5722,
+        "cached_input_tokens": 0,
+        "output_tokens": 184,
+        "provider_seconds": [
+          4.122
+        ],
+        "tool_definitions": [
+          0
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "49cb22bb655a2f2ab888bcc93d2d47aba7a8a69d9c6d77bfe2a3dbcaf11c3cbc"
+        ]
+      },
+      "saved_result_review": "One model request; empty event result.",
+      "quality": "pass",
+      "saved_seconds": 12.894,
+      "improvement_percent": 70.1
+    },
+    {
+      "case_id": "en-resumed-correction",
+      "scenario": "Saved first turn followed by date correction",
+      "before": {
+        "status": "completed",
+        "provider_requests": 2,
+        "page_windows": 2,
+        "validated_extraction_seconds": 50.03,
+        "durable_page_seconds": 50.928,
+        "attempt_elapsed_seconds": 55.958,
+        "successful_windows": 2,
+        "input_tokens": 24093,
+        "cached_input_tokens": 7424,
+        "output_tokens": 1256,
+        "provider_seconds": [
+          17.002,
+          22.756
+        ],
+        "tool_definitions": [
+          3,
+          3
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb",
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "92724409fac9be6ed43d8c5efc04665d7d57e6103dd26b2fa3d4ab9de6235ced",
+          "a342d87bd9d45b9863111096cc615036a698623639b63bca6037e3c56461c65f"
+        ]
+      },
+      "after": {
+        "status": "completed",
+        "provider_requests": 2,
+        "page_windows": 2,
+        "validated_extraction_seconds": 18.159,
+        "durable_page_seconds": 18.486,
+        "attempt_elapsed_seconds": 21.648,
+        "successful_windows": 2,
+        "input_tokens": 12548,
+        "cached_input_tokens": 0,
+        "output_tokens": 1175,
+        "provider_seconds": [
+          6.592,
+          7.574
+        ],
+        "tool_definitions": [
+          0,
+          0
+        ],
+        "governed_instruction_sha256": [
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb",
+          "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+        ],
+        "schema_sha256": [
+          "b48bd1d823175554f060259607029b3f2899a133950f385788a8de19a50c4303",
+          "89ff5cdd72228afca5edfa34a00d44317c768c824db58948d5bc0993a71ae489"
+        ]
+      },
+      "saved_result_review": "Second turn reads its own saved event and saves 1984 on the same canonical identity.",
+      "quality": "pass",
+      "saved_seconds": 31.871,
+      "improvement_percent": 63.7
+    }
+  ],
+  "heldout": [
+    {
+      "case_id": "held-zh-attributed",
+      "quality": "pass",
+      "status": "completed",
+      "provider_requests": 1,
+      "page_windows": 1,
+      "validated_extraction_seconds": 19.649,
+      "durable_page_seconds": 20.171,
+      "attempt_elapsed_seconds": 26.203,
+      "successful_windows": 1,
+      "input_tokens": 5987,
+      "cached_input_tokens": 0,
+      "output_tokens": 1349,
+      "provider_seconds": [
+        16.845
+      ],
+      "tool_definitions": [
+        0
+      ],
+      "governed_instruction_sha256": [
+        "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+      ],
+      "schema_sha256": [
+        "813e9a30ce2affcfdf1e62702882047e70df0574dda3cde1aed9427a60c323f8"
+      ]
+    },
+    {
+      "case_id": "held-en-identity",
+      "quality": "pass",
+      "status": "completed",
+      "provider_requests": 1,
+      "page_windows": 1,
+      "validated_extraction_seconds": 11.003,
+      "durable_page_seconds": 11.486,
+      "attempt_elapsed_seconds": 17.039,
+      "successful_windows": 1,
+      "input_tokens": 5978,
+      "cached_input_tokens": 0,
+      "output_tokens": 528,
+      "provider_seconds": [
+        8.108
+      ],
+      "tool_definitions": [
+        0
+      ],
+      "governed_instruction_sha256": [
+        "28561f58dfeb073eda426a7347c4203641772102cb6328caf017b087e67da3cb"
+      ],
+      "schema_sha256": [
+        "49d14cfec6726c529ded51862e609a6c720b131f2f7894762ff2f87d4c9219ec"
+      ]
+    },
+    {
+      "case_id": "held-exact-stop",
+      "quality": "pass",
+      "status": "completed",
+      "provider_requests": 0,
+      "page_windows": 1,
+      "validated_extraction_seconds": 0.072,
+      "durable_page_seconds": 0.714,
+      "attempt_elapsed_seconds": 6.035,
+      "successful_windows": 1,
+      "input_tokens": 0,
+      "cached_input_tokens": 0,
+      "output_tokens": 0,
+      "provider_seconds": [],
+      "tool_definitions": [],
+      "governed_instruction_sha256": [],
+      "schema_sha256": []
+    }
+  ],
+  "attempt_ledger": [
+    {
+      "run": "baseline",
+      "case_id": "en-source",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 57.407
+    },
+    {
+      "run": "baseline",
+      "case_id": "zh-source",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 35.421
+    },
+    {
+      "run": "baseline",
+      "case_id": "en-period",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 34.431
+    },
+    {
+      "run": "baseline",
+      "case_id": "zh-period",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 34.593
+    },
+    {
+      "run": "baseline",
+      "case_id": "en-uncertainty",
+      "status": "failed",
+      "error_type": "AssertionError",
+      "provider_requests": 2,
+      "elapsed_seconds": 67.687
+    },
+    {
+      "run": "baseline",
+      "case_id": "zh-recording-boundary",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 37.231
+    },
+    {
+      "run": "baseline",
+      "case_id": "en-long-window",
+      "status": "failed",
+      "error_type": "CanonicalTurnFailed",
+      "provider_requests": 0,
+      "elapsed_seconds": 4.241
+    },
+    {
+      "run": "baseline",
+      "case_id": "en-pause",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 24.72
+    },
+    {
+      "run": "baseline",
+      "case_id": "en-resumed-correction",
+      "status": "failed",
+      "error_type": "AssertionError",
+      "provider_requests": 2,
+      "elapsed_seconds": 83.177
+    },
+    {
+      "run": "baseline-recovery",
+      "case_id": "en-uncertainty",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 32.237
+    },
+    {
+      "run": "baseline-recovery",
+      "case_id": "en-long-window",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 4,
+      "elapsed_seconds": 143.757
+    },
+    {
+      "run": "baseline-recovery",
+      "case_id": "en-resumed-correction",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 2,
+      "elapsed_seconds": 55.958
+    },
+    {
+      "run": "candidate",
+      "case_id": "en-source",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 14.702
+    },
+    {
+      "run": "candidate",
+      "case_id": "zh-source",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 8.669
+    },
+    {
+      "run": "candidate",
+      "case_id": "en-period",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 9.233
+    },
+    {
+      "run": "candidate",
+      "case_id": "zh-period",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 9.567
+    },
+    {
+      "run": "candidate",
+      "case_id": "en-uncertainty",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 2,
+      "elapsed_seconds": 16.309
+    },
+    {
+      "run": "candidate",
+      "case_id": "zh-recording-boundary",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 8.886
+    },
+    {
+      "run": "candidate",
+      "case_id": "en-long-window",
+      "status": "failed",
+      "error_type": "ValueError",
+      "provider_requests": 4,
+      "elapsed_seconds": 43.327
+    },
+    {
+      "run": "candidate",
+      "case_id": "en-pause",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 7.496
+    },
+    {
+      "run": "candidate",
+      "case_id": "en-resumed-correction",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 2,
+      "elapsed_seconds": 21.648
+    },
+    {
+      "run": "candidate-repair",
+      "case_id": "en-long-window",
+      "status": "failed",
+      "error_type": "PublicationUnavailable",
+      "provider_requests": 2,
+      "elapsed_seconds": 45.308
+    },
+    {
+      "run": "candidate-repair-final",
+      "case_id": "en-long-window",
+      "status": "failed",
+      "error_type": "ValueError",
+      "provider_requests": 4,
+      "elapsed_seconds": 62.788
+    },
+    {
+      "run": "held-out",
+      "case_id": "held-zh-attributed",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 26.203
+    },
+    {
+      "run": "held-out",
+      "case_id": "held-en-identity",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 1,
+      "elapsed_seconds": 17.039
+    },
+    {
+      "run": "held-out",
+      "case_id": "held-exact-stop",
+      "status": "completed",
+      "error_type": null,
+      "provider_requests": 0,
+      "elapsed_seconds": 6.035
+    }
+  ],
+  "cleanup_verified": true,
+  "gates": {
+    "latency_on_quality_passing_cases": "pass",
+    "main_scenario_quality": "fail: long-source second window unresolved",
+    "heldout": "pass",
+    "strict_fail_closed_validation": "pass",
+    "deployed_acceptance": "inconclusive: not observed",
+    "merge_readiness": "fail; keep draft"
+  },
+  "publication": "No prompt source or Langfuse receipt changes. No prompt publication, merge or deployment.",
+  "limits": [
+    "One sample per variant; no tail-percentile or significance claims.",
+    "Provider-managed cache/load drift; cached tokens recorded per case.",
+    "Foreground policy/reply and HTTP worker seam controlled.",
+    "A/B cases have independent saved state. Three baseline fixture failures were repaired and rerun; all originals retained.",
+    "Two quote-coordinate follow-up trials did not establish acceptance; that experimental code was removed. Final runtime is byte-identical to the initial measured direct candidate."
+  ],
+  "verification": [
+    {
+      "name": "baseline-unit",
+      "status": "timed_out",
+      "exit_code": 124,
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_memory_context_transport.py",
+        "tests/test_lifetime_memory_lane_engine.py",
+        "tests/test_lifetime_composer_capacity.py"
+      ],
+      "log_sha256": "c94d2658b2c2fdaab9b83ac3cc1f9b11648d3eb0caebacbcc9131a51d7b23c22"
+    },
+    {
+      "name": "candidate-unit",
+      "status": "completed",
+      "exit_code": 1,
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_memory_context_transport.py",
+        "tests/test_lifetime_memory_lane_engine.py",
+        "tests/test_lifetime_memory_job_engine.py",
+        "tests/test_lifetime_composer_capacity.py",
+        "-k",
+        "not test_pg_"
+      ],
+      "log_sha256": "5f15052309c8227cdd7547d45c5a95970415377c4ff31cfb8197b8cad240564d"
+    },
+    {
+      "name": "cancel-diagnostic",
+      "status": "completed",
+      "exit_code": 0,
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-x",
+        "-vv",
+        "tests/test_memory_context_transport.py::test_cancelled_provider_stream_closes_without_a_native_session[review]"
+      ],
+      "log_sha256": "b59182023fb512a76cf4ad41afa4d6701671bb4bf7998949ba54c338696fe453"
+    },
+    {
+      "name": "candidate-focused",
+      "status": "completed",
+      "exit_code": 0,
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-x",
+        "-q",
+        "tests/test_memory_context_transport.py",
+        "tests/test_lifetime_memory_lane_engine.py",
+        "tests/test_lifetime_memory_job_engine.py",
+        "tests/test_lifetime_composer_capacity.py",
+        "-k",
+        "not test_pg_ and not 10000_mixed_language_packets"
+      ],
+      "log_sha256": "c5e55871d876aa12856a763f832f9c607b5661c8ecaf44d29fef3e814388c9d4"
+    },
+    {
+      "name": "required-place-research",
+      "status": "completed",
+      "exit_code": 2,
+      "command": [
+        "python3",
+        "scripts/backend_operation_lock.py",
+        "--",
+        "make",
+        "test-place-research"
+      ],
+      "log_sha256": "370448a66933ecbe920643f9ea127c82f2b03cfe768b4b14436ee64eb6761fe1"
+    },
+    {
+      "name": "priority-fresh-retry",
+      "status": "completed",
+      "exit_code": 0,
+      "command": [
+        "python3",
+        "scripts/backend_operation_lock.py",
+        "--",
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_lane_b_question_priorities_postgres.py::test_background_pool_priority_reaches_actual_saved_reply",
+        "-k",
+        "broaden_scope"
+      ],
+      "log_sha256": "050667aa0debe9fe30cd9b1256710055143a448262964f45e227e69438d7c591"
+    },
+    {
+      "name": "photo-skill",
+      "status": "completed",
+      "exit_code": 0,
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "skills/memoir-place-photo-research/tests"
+      ],
+      "log_sha256": "7146151bc87c7dcf01670c6f797cc9a21de894d53be9633c0fa7d46f967f9c81"
+    }
+  ],
+  "verification_summary": {
+    "focused": "205 passed",
+    "web": "604 passed",
+    "place_backend": "486 passed and one expired-fixture failure in make; that single case passed with a fresh database (487 cases covered)",
+    "photo_skill": "95 passed",
+    "required_make_exit": 2,
+    "required_make_reason": "Native fixture deadline reached; no assertion mismatch; fresh single-case retry passed",
+    "earlier_attempts": "Baseline focused run hit its 180-second outer deadline; aggregate candidate run had a 1-second cancellation-fixture setup timeout; the setup bound was raised and focused checks passed."
+  }
+}

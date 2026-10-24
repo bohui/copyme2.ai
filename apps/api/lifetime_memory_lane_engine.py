@@ -1,9 +1,8 @@
 """Fresh bounded composer/timeline execution and atomic request admission.
 
 A lane page is a disposable projection of one canonical partition. PostgreSQL
-locks bind its immutable snapshot/page digest through actual HTTP body or
-app-server pipe delivery. Downstream provider timing is opaque; admitted work is
-in flight, and result commits must independently revalidate the same lane token.
+locks bind its immutable snapshot/page digest through actual HTTP body delivery.
+Downstream provider timing is opaque; admitted work is in flight, and result commits must independently revalidate the same lane token.
 """
 from __future__ import annotations
 
@@ -17,7 +16,6 @@ import json
 import hashlib
 import re
 import os
-from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID, uuid4
 from urllib.parse import urlsplit
@@ -28,12 +26,9 @@ from pydantic import Field, model_validator
 
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .prompt_composition import render_prompt_artifact
-from .codex_agent import CodexConnection, provider_config
-from .codex_worker_files import write_config
-from .issue14_execution_admission import check_issue14_dispatch, issue14_connection_options
+from .issue14_execution_admission import check_issue14_dispatch
 from .lifetime_memory_context import serialize_packet
 from .lifetime_memory_contracts import Contract, ContextBudget, PinnedContinuity
-from .lifetime_memory_execution import open_execution
 from .lifetime_memory_publication import PublicationUnavailable
 
 # The configured memoir alias routes to the same byte-token model as the
@@ -716,53 +711,26 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
         'author_timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}[role]
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
-    fence_json = serialize_packet(bounded.fence.model_dump(mode='json'))
-    def request_admission():
-        return _admission(publisher,json.loads(fence_json))
     instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode), fence=bounded.fence)
-    if bounded.phase in {'profile', 'summarize', 'prepare', 'draft', 'review'}:
-        from .conversation_reply_transport import stream_document
-        endpoint = urlsplit(base_url)
-        if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
-                or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
-            raise ValueError('Lane provider is not configured')
-        manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
-        payload = dict(model=model, instructions=instructions, input=bounded.packet,
-            store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
-            reasoning={'effort': effort or 'low', 'summary': 'auto'},
-            max_output_tokens=bounded.budget.output_headroom,
-            metadata={**manifest_metadata(manifest), 'generation_name':skill_name, 'trace_name':skill_name},
-            text={'format':{'type':'json_schema', 'name':'codex_output_schema', 'strict':True, 'schema':schema}})
-        encoded = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-        request = LaneRequestBody(encoded, publisher=publisher, fence=bounded.fence,
-            before_send=lambda: check_issue14_dispatch(issue14_admission, role=role))
-        with trace_llm_call('memoir.' + bounded.phase, model,
-                metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}):
-            reply, receipt = await stream_document(request=request, content_length=len(encoded),
-                base_url=base_url, api_key=api_key, timeout=timeout, transport=provider_transport,
-                max_response_bytes=2_000_000)
-        _object(reply)
-        return {'thread_id':receipt['response_id'], 'reply':reply, 'artifacts':[]}
-    root = Path(home_root).expanduser().resolve()
-    root.mkdir(parents=True,exist_ok=True,mode=0o700)
-    fence = bounded.fence
-    home = root / (f'lane-{fence.user_id}-{fence.conversation_id}-{fence.snapshot_id}'
-        f'-epoch-{fence.policy_epoch}-page-{fence.page_number}-{uuid4()}')
-    home.mkdir(mode=0o700)
-    write_config(home,root,os.getuid() if uid is None else uid,
-        provider_config(base_url,model,governed=True),apply_owner=apply_owner)
-    async with (connection_factory or CodexConnection)(command,home,
-            provider_env={'MEMORY_SPARK_LLM_API_KEY':api_key},timeout=timeout,progress=progress,
-            request_admission=request_admission,**issue14_connection_options(issue14_admission)) as connection:
-        opened = await open_execution(connection,thread_id=None,compatible=False,
-            start_params={'cwd':str(home),'ephemeral':True,'modelProvider':'llm_provider',
-                'model':model,'approvalPolicy':'never','sandbox':'read-only','baseInstructions':instructions},
-            identity={'owner_id':str(fence.user_id),'conversation_id':str(fence.conversation_id)})
-        manifest = instruction_manifest(instructions + ('\n' + EXTRACTION_WINDOW_CONTRACT if bounded.phase == 'extract' else ''),
-            schema, variant=bounded.phase)
-        with trace_llm_call('memoir.' + str(bounded.phase), model, metadata={'contract_version': 'lifetime-lane-v1', 'prompt_manifest': manifest}):
-            reply = await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
-                **({'effort':effort} if effort else {}),
-                responsesapi_client_metadata={**manifest_metadata(manifest),'generation_name': skill_name, 'trace_name': skill_name})
-        _object(reply)  # Semantic/evidence validation and fenced commit remain with the lane owner.
-    return {'thread_id':opened['thread_id'],'reply':reply,'artifacts':[]}
+    from .conversation_reply_transport import stream_document
+    endpoint = urlsplit(base_url)
+    if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
+            or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
+        raise ValueError('Lane provider is not configured')
+    manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
+    payload = dict(model=model, instructions=instructions, input=bounded.packet,
+        store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
+        reasoning={'effort': effort or 'low', 'summary': 'auto'},
+        max_output_tokens=bounded.budget.output_headroom,
+        metadata={**manifest_metadata(manifest), 'generation_name':skill_name, 'trace_name':skill_name},
+        text={'format':{'type':'json_schema', 'name':'codex_output_schema', 'strict':True, 'schema':schema}})
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    request = LaneRequestBody(encoded, publisher=publisher, fence=bounded.fence,
+        before_send=lambda: check_issue14_dispatch(issue14_admission, role=role))
+    with trace_llm_call('memoir.' + bounded.phase, model,
+            metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}):
+        reply, receipt = await stream_document(request=request, content_length=len(encoded),
+            base_url=base_url, api_key=api_key, timeout=timeout, transport=provider_transport,
+            max_response_bytes=2_000_000)
+    _object(reply)
+    return {'thread_id':receipt['response_id'], 'reply':reply, 'artifacts':[]}
