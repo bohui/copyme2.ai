@@ -2,7 +2,38 @@
 
 Baseline: `613930a263b0ed49ada3ea3b817f78d43fe81af5`, current remote main at round start. Selected skill: `memoir-author-timeline`. Configured local path: two lanes, `reply-v2`, strategy enabled, background model `memoir-luna-low`, requested effort `low`. Provider receipts report low effort on both measured transports; internal provider policy remains opaque. This is a background completion study; browser delivery and deployed-worker timings are unobserved.
 
-**Final bounded result:** implementation and live testing are finished. The nine matched main scenarios pass with median validated background extraction **29.13s → 6.64s (77.2% lower)** and **13 → 11 provider requests**. Final implementation is `f9fe4916da6a4ecd34a6b29650a234e32a3318fc`. The final held-out cohort passes two of three semantic checks: a father's reported experience still produces an unattributed Chengde map cue. Overall quality acceptance therefore **fails**, and PR #127 stays draft. No user-visible five-second result is claimed.
+**Current follow-up result:** the reported-place fix is implemented and its three bounded live cases pass on `7f7349fe3b7ed076322b045d70f5ccbdee29bb3d`. The original father-only case saves no narrator event or Chengde cue. The mixed case keeps the father’s event explicitly attributed and stores only the narrator’s Hobart map cue. An ordinary narrator case retains Hobart and 1994. The model still proposed Chengde in both reported cases, so the live run exercises the host fix rather than relying on changed model behavior.
+
+The earlier nine matched main scenarios retain their **29.13s → 6.64s median** and **13 → 11 requests** as historical live measurements. All 12 preceding scenario outputs replay through the new validator; only the father cue changes. That replay verifies output compatibility, not new latency numbers. PR #127 stays draft: review/newer-main integration is pending, and expanded checks exposed two pre-existing correction/policy-maintenance 503s.
+
+## Reported-place fix: completed before/after
+
+These are private extraction-start through validated-JSON times, including repairs, on the actual configured gateway and canonical validator/SQL path. One sample per case; foreground policy/reply and the worker HTTP seam are controlled fixtures. Before is the previously retained final held-out sample on `f9fe491`, which failed semantic quality. No speed improvement is claimed from that failed baseline. The two added scope checks have no measured before arm.
+
+| Scenario | Before | After | Calls before → after | Result |
+| --- | ---: | ---: | ---: | --- |
+| Father-only Chinese memory | 5.93s, FAIL | 8.31s, PASS | 1 → 1 | Chengde cue removed; no narrator event. |
+| Mixed father/narrator stories | Not measured | 10.79s, PASS | — → 1 | Only narrator Hobart map cue; father event remains explicitly attributed. |
+| Ordinary narrator story | Not measured | 5.88s, PASS | — → 1 | Hobart and 1994 preserved. |
+
+Durable page-save times are **8.48s**, **10.92s** and **6.02s**, respectively. All three sources read back `processing_status=succeeded`. The follow-up uses **3 of its 9 allowed submissions**, one per case, with no repairs, paid policy or judge calls. The mixed background case exceeds ten seconds; these measurements establish no visible five-second target. Cleanup of every task-owned runtime is verified.
+
+## Reported-place implementation and tests
+
+The existing extractor validated place labels against every word in the source before considering accepted passage/event attribution. A place inside a passage already classified non-story could therefore leak into narrator map cues. `_extract` now validates attribution and current policy dispositions first. Derived place grounding uses a same-length masked copy of excluded original spans and other-subject event/evidence spans. The original source, exact offsets, event-place associations, questions and correctly attributed relative records remain intact. A separate narrator occurrence can preserve the same place. Ordinary non-story profile introductions can still provide place cues without inventing an event; withheld/unresolved classifications take precedence.
+
+This adds no language classifier, model dispatch, managed prompt/schema change, SQL migration or dependency. Initial prompt versions remain unchanged. It applies to the canonical path with attribution context; the legacy path retains its prior behavior. Existing persisted cues are not backfilled.
+
+- **26 new regression cases pass**, covering the exact Chinese live failure, English/Chinese mixed subjects, same-place repetition, emoji/newlines, later-window offsets, conflicting attribution and ordinary/profile places.
+- Four cases drive the real canonical SQL worker and API readiness response through production `applyDerivedWorkspace` client code: father-only clears a stale map cue, mixed stories keep only narrator places, same-place narrator evidence survives, and an ordinary narrator story still activates its cue. They are included in `make test-place-research`.
+- **`make test-place-research` passes: 604 web, 513 backend and 95 photo-skill checks.**
+- **222 focused checks pass** before an expanded correction check fails; **41 remaining attribution checks pass** with one further correction failure. These cover the existing transport/admission/repair tests and six real PostgreSQL span-fence cases.
+- Both failed correction checks return “Accepted conversation policy requires maintenance before private content can be used” after a manual author correction. Each failure is reproduced with the two changed modules restored in-process from committed `a40d74e`; no checkout files were overwritten. They are pre-existing failures, not claimed passes: `test_unrelated_event_correction_preserves_non_story_and_withheld_classifications` and `test_author_removed_links_and_corrected_time_remain_authoritative`.
+- A broad check was interrupted during the unrelated 10,000-packet stress test. One simultaneous probe failed native PostgreSQL startup because shared-memory IDs were exhausted; subsequent probes ran sequentially. All failed/interrupted receipts and successful cleanup remain recorded.
+
+The deterministic red command was `python3 -m pytest -q tests/test_timeline_reported_places.py` before the production edit: it returned the unwanted Chengde cue and failed the exact assertion. The same case passed after the fix. The frozen live follow-up separately confirms model/accepted/SQL place labels; it does not replace offline boundary testing.
+
+
 
 ## Requests by scenario, before optimization
 
@@ -45,7 +76,7 @@ Foreground policy review and interview generation belong to `memoir-interviewer`
 | 7. `lifetime_memory_composer.py:135` | Source window, work_mode | SQL attribution chooses work mode, overriding the collector hint; reply_only returns empty locally; otherwise read whole-source policy authority and assemble bounded packet | Original evidence, candidate metadata, hints and constraints | B; zero calls for skip |
 | 8. `lifetime_memory_lane_engine.py:655`, `:706` | Validated page/fence | API-to-worker request under guard; worker checks role, budget, canonical payload and publication authority | Actual provider dispatch with compiled instructions/schema | B; baseline extracts via fresh native app-server; final implementation uses guarded direct Responses |
 | 9. `two_lane_memory.py:37`, `lifetime_memory_lane_engine.py:193` | two-lane, strategy, attribution, reply-v2 flags | Compose governed artifacts and strict scoped schema into the same request | Event/place/question/continuity/strategy JSON | B; components do not each create calls |
-| 10. `lifetime_memory_composer.py:156` | Complete provider output | Parse, schema, quotes/spans, whole-source recording veto, identity/revision and derived proposal validation; fixed retry code on failure | Validated proposal, at most two extra model requests | B; no partial proposal publication |
+| 10. `lifetime_memory_composer.py:156` | Complete provider output | Parse, schema, quotes/spans, whole-source recording veto, identity/revision; validate attribution/policy before derived place grounding; fixed retry code on failure | Validated proposal, at most two extra model requests | B; no partial proposal publication |
 | 11. `lifetime_memory_composer.py:296` | Validated current page | Atomic SQL commit rechecks token, scope, policy, source and event revisions; empty/no-op advances coverage | Canonical events plus queued hints and progress | B; later interview can consume oldest pending clarification; composer uses canonical evidence |
 | 12. `lifetime_memory_composer.py:274`, SQL `advance_two_lane_checkpoint` | Exhausted extraction pages | Lossless checkpoint without model, or bounded semantic summaries on prior history | Accepted context checkpoint for future A; originals remain retrievable | B; serial; can yield after eight pages per lease quantum |
 | 13. `memory_event_worker.py:229` | Cancellation/failure/deadline or more work | Release/yield or durable bounded retry; preserve saved pages | Eventual catch-up, no false success | B; next source may coalesce into a later snapshot |
@@ -88,15 +119,15 @@ After: canonical page → existing guarded direct Responses transport with no to
 
 | Change and affected files | Measured cost / gain | Retained contract and dependency | Validation / rollback |
 | --- | --- | --- | --- |
-| Reuse direct transport in `apps/api/lifetime_memory_lane_engine.py`; extend existing transport/admission tests | Final first four matched cases: median input 11760 → 5999.5 tokens (49.0% lower), output 773 → 702 tokens. Native cached input was 3712 per call; candidate cached input was zero. All nine main scenarios are included below. | Same published task instructions, model/effort, exact source packet, schema, output bound, single-use guarded HTTP body, policy/owner/source/token checks, and canonical validator/commit. Future questions still require accepted hints; no deferral or reordering. | 216 focused checks; required place replay below. Revert the transport commit to roll back. The held-out place-attribution issue prevents overall acceptance. |
+| Reuse direct transport in `apps/api/lifetime_memory_lane_engine.py`; extend existing transport/admission tests | Final first four matched cases: median input 11760 → 5999.5 tokens (49.0% lower), output 773 → 702 tokens. Native cached input was 3712 per call; candidate cached input was zero. All nine main scenarios are included below. | Same published task instructions, model/effort, exact source packet, schema, output bound, single-use guarded HTTP body, policy/owner/source/token checks, and canonical validator/commit. Future questions still require accepted hints; no deferral or reordering. | 216 focused checks; required place replay below. Revert the transport commit to roll back. The reported-place issue is repaired by the later follow-up above; baseline correction failures and review remain pending. |
 
 Prompt compression and changing periodic profile scheduling were deferred: they alter governed instructions or a different skill. Expanding the SQL stop fast path changes semantic admission. No new cache, scheduler, dependency or provider configuration was introduced. The unsuccessful hints-only experiment was removed. The final implementation pairs bounded original coordinates with required repair offsets and rejects malformed event-place hierarchies before SQL.
 
-## Completed before/after comparison
+## Retained main before/after comparison
 
 One sample per frozen scenario and arm, same route `memoir-luna-low`, requested and reported effort `low`, reported provider model `gpt-5.6-luna`. Times below sum extraction start through validated JSON across the scenario's windows/turns, including repairs. They measure private Lane B completion and exclude controlled foreground intake and separate profile/summary work. They do not measure chat delivery or browser paint.
 
-The completed baseline uses the original run plus three fixture-recovery rows, as in the historical comparison. The original failed attempts remain in the ledger. Five main scenarios and all three held-out cases ran on final commit `f9fe491`. Four completed main cases from `2586583` are retained: their exact compiled instructions/schema are identical on final code, and replay through final attribution validation succeeds. These are not claimed as additional live samples. Per-row commits, full-record hashes, source-processing witnesses, usage and durable-save timings are in the [sanitized evidence](evidence/author-timeline-latency-20261024.json).
+The completed baseline uses the original run plus three fixture-recovery rows, as in the historical comparison. The original failed attempts remain in the ledger. In that preceding round, five main scenarios and all three held-out cases ran on commit `f9fe491`. Four completed main cases from `2586583` were retained after exact compiled instruction/schema equality and attribution replay. The later `7f7349f` follow-up replays all prior outputs as described above. These are not claimed as additional live samples. Per-row commits, full-record hashes, source-processing witnesses, usage and durable-save timings are in the [sanitized evidence](evidence/author-timeline-latency-20261024.json).
 
 | Scenario | Calls before → after | Before (s) | After (s) | Reduction | Quality |
 | --- | ---: | ---: | ---: | ---: | --- |
@@ -114,63 +145,31 @@ Across all nine matched main scenarios, median validated extraction is **29.13s 
 
 One of nine background scenarios finishes under five seconds. The long-source total (17.57s) and two-turn correction total (11.02s) exceed ten seconds. These are background totals across windows/turns; the agreed meaningful-visible-reply target remains unobserved. One sample cannot establish tail percentiles or isolate provider/cache/load effects. The baseline's first four cases each report 3712 cached input tokens; the corresponding final cases report zero. All direct requests use zero tools; the native baseline carried three.
 
-## Final held-out review
+## Held-out status after the follow-up
 
-These are candidate-only confirmation cases; there is no matched before latency. Semantic review is by Codex against the original source and saved state, supplemented by structural assertions. No separate paid judge or human review is claimed.
+The original father-only case now passes its actual live source/SQL review. The earlier uncertain Alex and exact-stop outputs are unchanged in the 12-case offline replay; they are retained live evidence rather than new provider measurements. The father’s previous semantic failure is preserved in the JSON ledger and earlier report snapshot. It is not substituted with an earlier passing sample.
 
-| Scenario | Calls | Validated / durable seconds | Quality and actual result |
-| --- | ---: | ---: | --- |
-| Father’s reported Chinese memory | 1 | 5.93 / 6.04 | FAIL — No narrator event or childhood placement, and exact Chinese quote survives. However Chengde is emitted as an unassociated place_journey from the father's reported experience; the cue does not retain subject attribution. |
-| Uncertain Alex identity/kinship | 1 | 5.51 / 5.64 | PASS — Kite memory retained with unknown timing and unresolved identity/kinship; no person ID or definite family link. |
-| Exact “Please stop.” | 0 | 0.04 / 0.14 | PASS — Zero provider submissions; no event or follow-up question. |
-
-The father case saves no narrator event or childhood stage and retains the exact source quote, but emits `place_journeys=[承德]` without its reported subject. Its `event_places` array is empty. This is a semantic limitation in the broader extraction contract, even though schema validation and SQL saving succeed. It prevents full acceptance; the earlier passing held-out attempt is not substituted for this final failure.
-
-## Implemented validation repairs
-
-Repeated evidence previously returned null offsets on every repair because the schema continued to permit them. Only `PAGE_AMBIGUOUS` now narrows `EvidenceRef.char_start/char_end` to integer positions within the transmitted window. It supplies source-ID/version-scoped original sentence/line positions: at most 16 quotes, 32 positions per quote and 8192 UTF-8 bytes, from the existing maximum 2304-character window. Repeated quotes take priority. The host recomputes this helper from original text and rejects forged metadata; it never selects an occurrence or relaxes exact quote validation. Budget accounting and request manifests use the actual outgoing repair schema.
-
-The renewed live run also exposed a Python/SQL mismatch: `place=成都` with hierarchy ending `成都市` passed Python but failed the SQL event-place check. Python now rejects noncanonical root/leaf/normalization shapes before commit, and `_extract` can repair with `PLACE_HIERARCHY`. Only that retry's schema explicitly requires the original place spelling at the hierarchy leaf. It does not silently rewrite geography. The final Chinese cases conformed on their first requests; live causal evidence for that new guidance is therefore unavailable. Controlled regression covers the repair path. The earlier `7e5975a` long-source live run did exercise `PAGE_AMBIGUOUS` and then save both windows; the final long-source sample needed no repair.
-
-No managed prompt Markdown or published receipt changed. These are transport, host validation, bounded source data and runtime schema changes. Publication, merge and deployment remain outside this round.
-
-## Verification
-
-- **216 focused checks passed** on the final file contents committed as `f9fe491`, covering direct transport/admission, timeline job/capacity behavior, repeated evidence and four new place-repair cases.
-- **`make test-place-research` passed** on those contents: 604 web, 487 backend and 95 photo-skill checks, including API-to-client replay.
-- The preceding span repair passed **6 real disposable-PostgreSQL cases** on `7e5975a`: rejection preserves the first saved window and cursor; a new lease resumes; English/Chinese second-occurrence selection works; wrong integer spans, stale owner/source and withdrawal fail closed. The final place-only repair does not alter those paths.
-- Final live extraction/admission/commit uses canonical code plus disposable PostgreSQL and the actual configured gateway. Foreground policy/reply and the HTTP worker seam are controlled fixtures. A deployed worker, Temporal and browser are not exercised.
-- Exact final-code contract equality and attribution replay verify the four retained main cases. All owned runtime cleanup receipts report verified removal/stopped processes. Temporary dependency symlinks were removed.
-
-The first final-guidance check launch accidentally selected Homebrew Python 3.14 without installed `pytest`/`httpx`: its focused launch failed and six web planning checks failed. The complete rerun with the installed Python 3.12 passed; both original check receipts are retained. The earlier red regression and fixture failures also remain recorded.
-
-## Retained failures and call budget
-
-The historical phase used 39 forwarded provider attempts and one additional admission-rejected submission. Its initial 32-call plan was extended once to 40; the original transport candidate passed 8/9 and exhausted repeated-quote repairs. Two unsuccessful hints-only experiments were removed from production. The original baseline fixture failures involved a short lease, oversized controlled-intake fields and an obsolete policy token; their corrected recovery rows are explicit.
-
-The user's renewed request authorized a separate frozen **36-submission** segment. It finished with **35 submissions / forwarded provider attempts**, zero paid policy calls and zero paid judges:
-
-| Run | Code | Attempts | Outcome |
-| --- | --- | ---: | --- |
-| Implemented span repair | `7e5975a` | 14 | 11/12 SQL completions; long source recovered after one repair; Chinese hierarchy reached SQL and failed. |
-| Strict Python hierarchy validation | `2586583` | 12 | Chinese hierarchy repeated through two repairs and failed closed. Run stopped during the long-source retry; cancellation and cleanup retained. |
-| Final affected cases plus exact stop | `f9fe491` | 7 | All six cases complete; five main cases and exact-stop skip. |
-| Final remaining held-outs | `f9fe491` | 2 | Both save; one semantic pass and the father-place cue failure above. |
-
-Across both segments there are **74 forwarded provider attempts** plus the historical rejected admission. The cancelled attempt is counted conservatively and not claimed as a successful response. No failure is scored as a latency improvement. Full synthetic requests, responses and saved-state witnesses remain local under ignored `var/optimise-author-timeline-20261024`; the public JSON exports metrics, hashes and concise synthetic excerpts rather than raw provider packets.
-
-## Decision and remaining gate
-
-| Gate | Result |
+| Gate | Current result |
 | --- | --- |
-| Faster background extraction | PASS — 77.2% lower median across nine matched main scenarios, single-sample evidence. |
-| Main scenario quality and eventual source processing | PASS — 9/9. |
-| Held-out semantic quality | FAIL — 2/3; father’s place cue lacks subject attribution. |
-| Strict spans, ownership/policy and durable commit fences | PASS in observed live/offline coverage. |
-| Meaningful visible text within five seconds | INCONCLUSIVE — not measured by this Lane B study. |
-| Browser/deployed-worker/Temporal acceptance | INCONCLUSIVE — not exercised. |
-| Overall acceptance / merge readiness | FAIL — keep PR #127 draft. |
+| Frozen main outputs | PASS in final-validator replay; original matched live timings retained. |
+| Father/Chengde held-out | PASS live after fix: model cue removed; no narrator event/place. |
+| Mixed/ordinary place scope | PASS live and in SQL/API/client regressions. |
+| Other held-outs | PASS in retained live evidence plus unchanged final-validator replay. |
+| Required place-research checks | PASS: 604 web, 513 backend, 95 photo. |
+| Expanded correction/API suite | NOT ALL GREEN: two reproduced pre-existing policy-maintenance 503s. |
+| Visible reply, browser, deployed-worker or Temporal acceptance | INCONCLUSIVE: not measured. |
+| Release / merge readiness | INCONCLUSIVE; keep PR #127 draft for review, baseline failures and newer-main integration. |
 
-Next work stays on this skill: preserve the subject of reported place cues, then repeat the failed held-out case in a newly bounded live round. Any managed prompt wording change must follow review/merge/publication on `main`. The remaining one submission is not enough to validate another implementation and its repairs under the current plan; no further calls are made.
+## Previous repairs and retained evidence
 
-Remote `main` advanced to `fcd7fb499cbbb8be79bdf936dc04ed885a50258c` with story-game/speech work. The additional commit since the previously observed `23eade7` changes only story-game code/tests and its SQL functions. The measured timeline modules/functions remain unchanged. Tests ran on the dedicated PR branch based on `613930a`; no integration with the newer main is claimed. Root-checkout speech work was preserved.
+The preceding ambiguous-span repair narrows `EvidenceRef` offsets only after `PAGE_AMBIGUOUS` and supplies a source-scoped original-position catalogue bounded to 16 quotes, 32 positions per quote and 8192 UTF-8 bytes. The host never chooses an occurrence; exact quote/offset validation and source/owner/policy/token/revision fences remain strict. Rejection preserves the first saved window and unfinished cursor. The later-window English/Chinese PostgreSQL checks pass again in the focused follow-up.
+
+The preceding `PLACE_HIERARCHY` repair rejects noncanonical place root/leaf/normalization before SQL and describes exact source spelling in that retry schema. It does not silently rewrite geography. Its tests pass in this follow-up. No governed prompt Markdown or published receipt changed in any of these commits.
+
+Historical transport-only measurements at `07c02f1` passed 8/9, failing repeated evidence. Two unsuccessful hints-only experiments were removed; their attempts remain in the ledger. Baseline fixture failures and their corrected recovery rows are retained, including bounded intake, lease renewal and obsolete policy-token handling. Historical provider attempts total 39 plus one additional admission-rejected submission.
+
+The preceding implementation/live segment used 35 of 36 submissions: 14 on `7e5975a`, 12 on `2586583`, seven final affected-case calls on `f9fe491`, and two final held-out calls. Its Chinese hierarchy failures, cancelled long-source repair, final main passes and father place-cue failure remain recorded. This follow-up adds only **three attempts within a separate nine-attempt bound** under the user’s request to continue the fix/test plan. Across segments: **77 forwarded attempts plus the historical admission rejection**. No paid policy/judge calls. No failure is reported as a passing latency.
+
+[Sanitized evidence](evidence/author-timeline-latency-20261024.json) includes per-row live commits, actual usage/cache counts, source/instruction/schema and raw-record hashes, previous/final gates, replay witnesses and check receipts. Raw synthetic requests, model replies and saved-state witnesses remain under ignored `var/optimise-author-timeline-20261024`; they are not published. All task-owned database/relay cleanup is verified and temporary dependency links are removed.
+
+The branch remains based on `613930a`. Remote main is observed at `fcd7fb499cbbb8be79bdf936dc04ed885a50258c`; it adds story-game/speech work and has not been integrated into this branch. No release, prompt publication, merge or deployment is claimed. Root-checkout speech work is preserved.
