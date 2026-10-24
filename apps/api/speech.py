@@ -860,7 +860,7 @@ def build_speech_service() -> LocalizedSpeechService:
         ),
         CosyVoiceSpeechService(
             os.getenv('COSYVOICE_API_KEY', '').strip(),
-            base_url=os.getenv('COSYVOICE_BASE_URL', 'http://192.168.0.50:50001/v1'),
+            base_url=os.getenv('COSYVOICE_BASE_URL', 'http://192.168.0.50:50001'),
             tts_model=os.getenv('MEMORY_SPARK_TTS_MODEL', 'cosyvoice-v3-flash'),
         ),
         QwenASRService(
