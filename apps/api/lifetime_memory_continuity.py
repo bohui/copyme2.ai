@@ -217,12 +217,14 @@ def validate_governed_collector_result(raw, context):
     ordinary['stopped'] = result['stopped']
     if selection_reason in {'pause', 'direct_answer'} and result['plan']['candidates']:
         raise ValueError('A pause or direct answer requires no question')
-    from .two_lane_memory import pending_confirmation, prioritize_confirmation
-    if pending_confirmation(context):
+    from .two_lane_memory import pending_confirmation, prioritize_question
+    selects_background = (context.get('reply_contract') == 'reply-v2'
+        and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context'})
+    if pending_confirmation(context) or selects_background:
         # A validated stop already carries intent; a follow-up needs the model's signal.
         if selection_reason is None and not result['stopped']:
             raise ValueError('Pending confirmation requires selection_reason')
-        prioritized = prioritize_confirmation(ordinary, context, selection_reason=selection_reason)
+        prioritized = prioritize_question(ordinary, context, selection_reason=selection_reason)
         if prioritized is not ordinary:
             result = validate_collector_result(prioritized, context)
             if outcome is not None:

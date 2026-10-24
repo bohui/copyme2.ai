@@ -116,6 +116,38 @@ def test_selected_news_renders_the_host_invitation_instead_of_model_rewriting(lo
     assert result['plan']['candidates'][0]['context'].get('evidence') is None
 
 
+@pytest.mark.parametrize('objective', ['follow_story', 'broaden_scope'])
+@pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate', 'return_context'])
+def test_prepared_selection_honors_the_highest_unresolved_background_priority(objective, reason):
+    context = reply_context('What else could we explore from those years?')
+    ordinary = hint(context, 'a')
+    context.update(deepcopy(ready_context()), strategy_selector=True,
+        strategy_context={'mode': 'active', 'plan': dict(plan_revision=1, strategy='explore',
+            objective=objective, candidates=[ordinary])}, interview_language='en-AU')
+    hints = reply_candidates(context)
+    lower = hints[1]
+    raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
+        'reason': reason, 'hint': None if reason == 'return_context' else 1, 'question': lower['question']}
+
+    result = validate_governed_collector_result(raw, context)
+
+    assert result['plan']['chosen_id'] == hints[0]['id']
+    assert result['strategy_outcome']['selected_candidate_id'] == hints[0]['id']
+    assert result['strategy_outcome']['question_delivered'] == hints[0]['question']
+    assert bool(result.get('historical_context')) == (objective == 'follow_story')
+
+
+def test_adaptation_of_the_highest_ordinary_hint_is_preserved():
+    context = reply_context()
+    ordinary = hint(context, 'a')
+    context.update(strategy_selector=True, strategy_context={'mode': 'active',
+        'plan': dict(plan_revision=1, strategy='explore', candidates=[ordinary])})
+    raw = {**proposal(), 'reason': 'adapted_candidate', 'hint': 0}
+    result = validate_governed_collector_result(raw, context)
+    assert result['strategy_outcome']['selection_reason'] == 'adapted_candidate'
+    assert result['strategy_outcome']['question_delivered'] == raw['question']
+
+
 @pytest.mark.parametrize('fault', ['disabled', 'used', 'uninspected', 'stale', 'foreign', 'missing_receipt'])
 def test_unavailable_news_never_enters_selectable_hints(fault):
     context = reply_context()

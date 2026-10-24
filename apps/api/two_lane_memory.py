@@ -103,16 +103,25 @@ def pending_confirmation(context, *, exclude_ids=()):
                  if q.get('requires_confirmation') is True and q['id'] not in exclude_ids), None)
 
 
-def prioritize_confirmation(value, context, *, selection_reason):
+def prioritize_question(value, context, *, selection_reason):
     """Prioritize B only after validating the original plan and current intent."""
     resolved = {item['question_id'] for item in value['plan'].get('resolved_questions', [])}
     question = pending_confirmation(context, exclude_ids=resolved)
+    if (context.get('reply_contract') == 'reply-v2'
+            and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context'}):
+        from .conversation_reply import reply_candidates
+        question = next((item for item in reply_candidates(context) if item['id'] not in resolved), None)
     if not question or value['stopped'] or selection_reason in {'current_correction', 'user_redirect', 'pacing'}:
         return value
-    evidence = hint_evidence(question, context)
+    if value['plan']['chosen_id'] == question['id'] and not question.get('requires_confirmation'):
+        return value
+    evidence = None if question.get('historical_clue_id') else hint_evidence(question, context)
     return {**value, 'plan': {**value['plan'], 'chosen_id': question['id'], 'active_event_id': None,
-        'candidates': [{'id': question['id'], 'question': question['question'], 'order': 0, 'bridge': '',
+        'candidates': [{'id': question['id'], 'question': question['question'], 'order': 0,
+                        'bridge': question.get('bridge', ''),
                         'context': {'event_id': None, 'photo_id': None, 'life_stage': None, 'year': None,
+                                    **({'historical_clue_id': question['historical_clue_id']}
+                                       if question.get('historical_clue_id') else {}),
                                     **({'evidence': evidence} if evidence else {})}}]}}
 
 
