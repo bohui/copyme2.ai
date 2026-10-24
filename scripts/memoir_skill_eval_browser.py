@@ -1,6 +1,7 @@
 """Browser witnesses against the real frontend and disposable application routes."""
 from pathlib import Path
 import json
+import time
 from urllib.parse import urlsplit
 
 
@@ -77,19 +78,25 @@ def exercise_game(conversation, sql, item, base, executable, folder, sources, re
             opener = page.locator('[data-story-game]').first
             expect(opener).to_be_visible(timeout=60000)
             opener.click()
-            player = page.locator('[data-story-game-player]')
+            expect(page.locator('iframe.story-game-frame')).to_be_visible(timeout=30000)
+            frame = page.frame_locator('iframe.story-game-frame')
+            player = frame.locator('#memoir-game')
             expect(player).to_be_visible(timeout=30000)
             visits.append('initial')
             scene = player.get_attribute('data-game-scene')
-            page.locator('.game-stage').focus()
+            frame.locator('.game-stage').focus()
             page.keyboard.down('ArrowRight')
             try:
-                page.wait_for_function("Number(document.querySelector('[data-story-game-player]').dataset.gamePosition)>560", timeout=5000)
+                deadline = time.monotonic() + 5
+                while float(player.get_attribute('data-game-position')) <= 560:
+                    if time.monotonic() >= deadline:
+                        raise ValueError('browser_game_movement_timeout')
+                    page.wait_for_timeout(25)
             finally:
                 page.keyboard.up('ArrowRight')
-            page.locator('[data-game-interact]').click()
-            expect(page.locator('.game-dialogue')).to_be_visible()
-            dialogue = page.locator('.game-dialogue').inner_text()
+            frame.locator('[data-game-interact]').click()
+            expect(frame.locator('.game-dialogue')).to_be_visible()
+            dialogue = frame.locator('.game-dialogue').inner_text()
             if not any(s['text'] in dialogue for s in sources): raise ValueError('browser_dialogue_not_original')
             page.screenshot(path=str(Path(folder) / 'play.png'))
             page.reload()

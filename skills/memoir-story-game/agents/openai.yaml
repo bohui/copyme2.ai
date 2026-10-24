@@ -1,4 +1,4 @@
 interface:
   display_name: "Memoir Story Game"
-  short_description: "Private, grounded games from completed memoirs"
-  default_prompt: "Use $memoir-story-game to prepare a private game adaptation after the host verifies Shape, composition completion and separate adaptation consent."
+  short_description: "Turn memoir chapters and timelines into a game"
+  default_prompt: "Use $memoir-story-game to turn my composer chapters and timeline into scenes, then build a playable webpage with Astra."

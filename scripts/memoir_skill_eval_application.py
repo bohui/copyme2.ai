@@ -159,7 +159,8 @@ async def _execute(value):
     from memoir_postgres_workflow import PostgresRest
     from test_shared_memory_events_postgres import literal, rpc
     from test_formal_memoir_postgres import completed, consent
-    from test_story_game_runtime_postgres import begin_game, read, permissions, publish, proposal_from_packet
+    from test_story_game_runtime_postgres import begin_game, read, proposal_from_packet, compose_game_chapters
+    from test_story_game_runtime import webpage, receipt
     from test_background_profile_workflow import Broker
     from apps.api.story_game_runtime import generate_story_game
 
@@ -231,9 +232,10 @@ async def _execute(value):
                 completed_turns=int(sql(f'select count(*) from public.user_completed_round where user_id={literal(OWNER)};').stdout),
                 context=value['context'], canonical_delivery=True, database_removed=False)
             if game_case:
+                await compose_game_chapters(conversation)
                 edition = completed(sql, project, {'revision': 0})
                 case = item['case']
-                phase = dict(case=case, edition_id=edition['edition_id'], synthetic_permissions_only=True, verified=False)
+                phase = dict(case=case, edition_id=edition['edition_id'], private_fixture_only=True, verified=False)
                 if case != 'missing-consent': consent(sql, project, edition, 1)
                 if case == 'stale-edition':
                     rpc(sql, 'change_user_narrator_source',
@@ -249,41 +251,50 @@ async def _execute(value):
                     async def provider(packet):
                         class Fixture:
                             async def call(self, request):
-                                return dict(output=proposal_from_packet(packet), response_id='fixture-game-proposal',
+                                proposal = proposal_from_packet(packet)
+                                if case == 'timeline-coverage': proposal['scenes'].pop()
+                                return dict(output=proposal, response_id='fixture-game-scenes',
                                             model='controlled-application-fixture', usage=None)
-                        reply = await budget.dispatch(Fixture(), dict(item_id=item['id'], kind='game_proposal', input=packet))
+                        reply = await budget.dispatch(Fixture(), dict(item_id=item['id'], kind='game_scenes', input=packet))
                         return reply['output'], dict(status='completed', response_id=reply['response_id'], model=reply['model'])
-                    generated = await generate_story_game(Broker(sql), game['game_id'], provider=provider)
-                    if generated['status'] != 'review_required': raise ValueError('game_not_staged')
-                    phase.update(game_id=game['game_id'], staged_status=generated['status'])
-                    hidden = read(sql, project, game)
-                    if 'game' in hidden: raise ValueError('unreviewed_game_visible')
-                    output['game'] = dict(game_id=game['game_id'], status='review_required')
-                    if case != 'proposal':
-                        reviewed = read(sql, project, game, True)
-                        phase.update(candidate_digest=reviewed['candidate_digest'], review=reviewed)
+                    async def builder(scenes):
+                        class Fixture:
+                            async def call(self, request):
+                                document = webpage(item['locale'])
+                                if case == 'unsafe-webpage':
+                                    document['html'] = document['html'].replace('</head>', '<script>alert(1)</script></head>')
+                                return dict(output=document, response_id='fixture-game-webpage',
+                                            model='controlled-astra-boundary', usage=None)
+                        reply = await budget.dispatch(Fixture(), dict(item_id=item['id'], kind='game_webpage', input=scenes))
+                        return reply['output'], dict(status='completed', response_id=reply['response_id'], model=reply['model'])
+                    try:
+                        generated = await generate_story_game(Broker(sql), game['game_id'], provider=provider, builder=builder)
+                    except ValueError as error:
+                        expected = {'timeline-coverage': 'game_timeline_coverage_required',
+                                    'unsafe-webpage': 'game_webpage_element_invalid'}
+                        if str(error) != expected.get(case): raise
+                        phase.update(generation_denied=True, denial_code=str(error))
+                        witness['canonical_delivery'] = False
+                        output['game'] = dict(status='generation_denied')
+                    else:
+                        if generated['status'] != 'published': raise ValueError('game_not_saved')
+                        played = read(sql, project, game)
+                        if 'game' not in played or not played['game'].get('webpage'):
+                            raise ValueError('webpage_not_delivered')
+                        phase.update(game_id=game['game_id'], staged_status=generated['status'],
+                                     published_game=played['game'])
+                        output['game'] = played
                         if case == 'revoked-consent':
                             consent(sql, project, edition, 2, 'revoke')
-                            denied = publish(sql, project, game, reviewed['candidate_digest'], permissions(reviewed), check=False)
-                            if not denied.returncode: raise ValueError('revoked_consent_published')
-                            phase['publication_denied'] = True
+                            if not read(sql, project, game, check=False).returncode:
+                                raise ValueError('revoked_game_delivered')
+                            phase['access_denied'] = True
                             witness['canonical_delivery'] = False
-                        elif case == 'person-permission':
-                            denied = publish(sql, project, game, reviewed['candidate_digest'], permissions(reviewed)[:1], check=False)
-                            if not denied.returncode: raise ValueError('missing_person_permission_published')
-                            phase['publication_denied'] = True
-                            witness['canonical_delivery'] = False
-                        elif case in {'publication', 'play'}:
-                            publication = publish(sql, project, game, reviewed['candidate_digest'], permissions(reviewed))
-                            played = read(sql, project, game)
-                            if publication['status'] != 'published' or played['game'] != reviewed['preview']:
-                                raise ValueError('publication_readback_mismatch')
-                            phase.update(publication=publication, published_game=played['game'])
-                            output['game'] = dict(game_id=game['game_id'], status='published', game=played['game'])
-                            if case == 'play':
-                                from scripts.memoir_skill_eval_browser import exercise_game
-                                phase['browser'] = await asyncio.to_thread(exercise_game, conversation, sql, item,
-                                    value['browser_url'], value['browser_executable'], folder, stored, result)
+                            output['game'] = dict(status='access_denied')
+                        elif case == 'play':
+                            from scripts.memoir_skill_eval_browser import exercise_game
+                            phase['browser'] = await asyncio.to_thread(exercise_game, conversation, sql, item,
+                                value['browser_url'], value['browser_executable'], folder, stored, result)
                     phase['verified'] = True
                 phase['final_state'] = json.loads(sql('select coalesce(json_agg(r),\'[]\') from '
                     f'(select id,state,candidate_digest from public.user_story_game where user_id={literal(OWNER)}) r;').stdout)

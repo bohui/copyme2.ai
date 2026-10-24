@@ -1,0 +1,16 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "html": {
+      "maxLength": 150000,
+      "minLength": 100,
+      "title": "Html",
+      "type": "string"
+    }
+  },
+  "required": [
+    "html"
+  ],
+  "title": "GameWebpage",
+  "type": "object"
+}

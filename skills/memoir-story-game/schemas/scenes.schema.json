@@ -1,0 +1,82 @@
+{
+  "$defs": {
+    "SceneProposal": {
+      "additionalProperties": false,
+      "properties": {
+        "chapter_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Chapter Id",
+          "type": "string"
+        },
+        "block_index": {
+          "maximum": 7,
+          "minimum": 0,
+          "title": "Block Index",
+          "type": "integer"
+        },
+        "title": {
+          "maxLength": 100,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "person": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 2,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Person"
+        },
+        "quote": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "event_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Event Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "chapter_id",
+        "block_index",
+        "title",
+        "person",
+        "quote",
+        "event_ids"
+      ],
+      "title": "SceneProposal",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "scenes": {
+      "items": {
+        "$ref": "#/$defs/SceneProposal"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "title": "Scenes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "scenes"
+  ],
+  "title": "GameProposal",
+  "type": "object"
+}
