@@ -164,8 +164,11 @@ class OpenAISpeechService:
         if options.get('instructions') is not None:
             raise ValueError('Use a managed speech prompt_name')
         model = str(options.get("model") or self.tts_model)
-        character = speech_character(options.get("language"), voice=options.get("voice"),
-                                     prompt_name=options.get("prompt_name"))
+        language = options.get("language")
+        legacy_voice = 'coral' if _speech_locale(language).split('-')[0] == 'zh' else 'marin'
+        character = speech_character(language, voice=options.get("voice"),
+                                     prompt_name=options.get("prompt_name"),
+                                     default_voice=legacy_voice)
         payload: dict[str, Any] = {
             "model": model,
             "input": text,
