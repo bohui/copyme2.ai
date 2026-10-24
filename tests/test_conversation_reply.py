@@ -80,6 +80,31 @@ def test_stop_accepts_an_exact_current_anchor_without_creating_question_evidence
         validate_governed_collector_result({**raw, 'quote': 'Invented narrator wording'}, reply_context(current))
 
 
+@pytest.mark.parametrize('language,current,acknowledgement', [
+    ('en-AU', 'One correction: the room was in Newcastle, not Sydney. Please use Newcastle for the room.',
+     'Understood—the room was in Newcastle, not Sydney. We’ll leave it there for today.'),
+    ('zh-CN', '更正一下：那个房间在纽卡斯尔，不在悉尼。关于那个房间，请用纽卡斯尔。',
+     '已更正：那个房间在纽卡斯尔。今天先聊到这里。'),
+])
+@pytest.mark.parametrize('with_quote', [False, True])
+def test_correction_without_a_followup_keeps_extract_work_and_no_question_outcome(
+        language, current, acknowledgement, with_quote):
+    ctx = {**reply_context(current), 'interview_language': language, 'strategy_selector': True}
+    raw = {**proposal(), 'acknowledgement': acknowledgement, 'question': None,
+           'reason': 'current_correction', 'quote': current if with_quote else None}
+    before = deepcopy(raw)
+    result = validate_governed_collector_result(raw, ctx)
+    assert result['reply'] == acknowledgement and result['stopped']
+    assert result['plan']['candidates'] == [] and result['plan']['chosen_id'] is None
+    assert result['plan']['work'] == {'mode': 'extract', 'name': None}
+    assert result['strategy_outcome']['selection_reason'] == 'current_correction'
+    assert result['strategy_outcome']['question_delivered'] is None
+    assert result['strategy_outcome']['selected_candidate_id'] is None
+    assert raw == before
+    with pytest.raises(ValueError):
+        validate_governed_collector_result({**raw, 'quote': 'Invented narrator wording'}, ctx)
+
+
 def test_explicit_current_name_update_survives_extract_work_without_weakening_legacy_plan():
     raw = {**proposal(), 'work': {'mode': 'extract', 'name': 'Avery'}}
     result = validate_governed_collector_result(raw, reply_context('Please call me Avery. I grew up in Perth.'))
