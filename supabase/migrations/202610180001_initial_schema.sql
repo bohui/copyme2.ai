@@ -14358,7 +14358,9 @@ create table public.user_story_game (
  edition_id uuid not null references public.user_formal_memoir_edition(id) on delete cascade,
  request_id uuid not null,
  authority jsonb not null,
- state text not null default 'pending' check(state in ('pending','running','review_required','published','failed','stale')),
+ state text not null default 'pending' check(state in ('pending','running','selection_required','review_required','published','failed','stale')),
+ phase text not null default 'scenes' check(phase in ('scenes','build')),
+ scene_pool jsonb, pool_digest text, selection jsonb, selection_digest text, brief jsonb,
  token uuid, lease_until timestamptz, attempts integer not null default 0,
  candidate jsonb, candidate_digest text, review jsonb, model_receipt jsonb,
  created_at timestamptz not null default clock_timestamp(), updated_at timestamptz not null default clock_timestamp(),
@@ -14367,7 +14369,7 @@ create table public.user_story_game (
  check(candidate is null or octet_length(candidate::text)<=262144)
 );
 create unique index one_current_story_game on public.user_story_game(user_id,project_id)
- where state in ('pending','running','review_required','published');
+ where state in ('pending','running','selection_required','review_required','published');
 alter table public.user_story_game enable row level security;
 revoke all on public.user_story_game from public,anon,authenticated,service_role;
 
@@ -14447,7 +14449,8 @@ end $$;
 create function public.story_game_status_record(p_game public.user_story_game) returns jsonb
 language sql stable security definer set search_path='' as $$
  select jsonb_build_object('game_id',p_game.id,'edition_id',p_game.edition_id,'status',p_game.state,
-   'candidate_digest',p_game.candidate_digest,'attempts',p_game.attempts)
+   'candidate_digest',p_game.candidate_digest,'attempts',p_game.attempts,'phase',p_game.phase,
+   'pool_digest',p_game.pool_digest,'selected_count',jsonb_array_length(p_game.selection->'scene_ids'))
 $$;
 
 CREATE FUNCTION public.begin_story_game(p_project_id text,p_request_id uuid) returns jsonb
@@ -14460,11 +14463,11 @@ begin
  if found then
    game:=public.lock_story_game(game.id);return public.story_game_status_record(game);
  end if;
- update public.user_story_game set state='stale',candidate=null,review=null,token=null,lease_until=null,
+ update public.user_story_game set state='stale',candidate=null,review=null,scene_pool=null,pool_digest=null,selection=null,selection_digest=null,brief=null,token=null,lease_until=null,
    updated_at=clock_timestamp() where user_id=owner and project_id=p_project_id and authority is distinct from context
-   and state in ('pending','running','review_required','published');
+   and state in ('pending','running','selection_required','review_required','published');
  select * into game from public.user_story_game where user_id=owner and project_id=p_project_id
-   and state in ('pending','running','review_required','published');
+   and state in ('pending','running','selection_required','review_required','published');
  if found then game:=public.lock_story_game(game.id);return public.story_game_status_record(game);end if;
  insert into public.user_story_game(user_id,project_id,edition_id,request_id,authority)
  values(owner,p_project_id,(context->>'edition_id')::uuid,p_request_id,context) returning * into game;
@@ -14476,11 +14479,14 @@ language plpgsql security definer set search_path='' as $$
 declare game public.user_story_game%rowtype;
 begin
  game:=public.lock_story_game(p_game_id);
- if game.state in ('review_required','published') then return public.story_game_status_record(game);end if;
+ if game.state in ('selection_required','review_required','published') then return public.story_game_status_record(game);end if;
+ if game.phase='build' and (game.selection is null or game.selection_digest is null) then
+   raise exception 'GAME_HUMAN_SELECTION_REQUIRED' using errcode='PT409';end if;
  if game.state='running' and game.lease_until>clock_timestamp() then
    return public.story_game_status_record(game)||jsonb_build_object('status','busy');end if;
  if game.attempts>=3 then raise exception 'GAME_ATTEMPT_LIMIT' using errcode='55000';end if;
- update public.user_story_game set state='running',token=gen_random_uuid(),lease_until=clock_timestamp()+interval '360 seconds',
+ update public.user_story_game set state='running',token=gen_random_uuid(),lease_until=clock_timestamp()+
+   case when phase='build' then interval '900 seconds' else interval '180 seconds' end,
    attempts=attempts+1,updated_at=clock_timestamp() where id=p_game_id returning * into game;
  return public.story_game_status_record(game)||jsonb_build_object('token',game.token,'authority',game.authority);
 end $$;
@@ -14494,7 +14500,126 @@ begin
  if jsonb_array_length(material->'chapters')=0 or octet_length(material::text)>200000 then
    raise exception 'GAME_MANUSCRIPT_CAPACITY' using errcode='55000';end if;
  return jsonb_build_object('game_id',game.id,'authority',game.authority,
-   'chapters',material->'chapters','timeline',material->'timeline');
+   'chapters',material->'chapters','timeline',material->'timeline','phase',game.phase,
+   'scene_pool',game.scene_pool,'selection',game.selection,'selection_digest',game.selection_digest,'brief',game.brief);
+end $$;
+
+create function public.validate_story_game_scenes(p_material jsonb,p_scenes jsonb,p_coverage boolean) returns void
+language plpgsql set search_path='' as $$
+declare item jsonb; chapter jsonb; block jsonb; quote_text text; label text; start_at integer; covered jsonb:='[]';
+begin
+ if jsonb_typeof(p_scenes) is distinct from 'array' or jsonb_array_length(p_scenes) not between 1 and 128 then
+   raise exception 'GAME_SCENE_INVALID' using errcode='22023';end if;
+ for item in select value from jsonb_array_elements(p_scenes) loop
+   if jsonb_typeof(item)<>'object' or (select count(*) from jsonb_object_keys(item))<>6
+     or not (item ?& array['chapter_id','block_index','title','person','quote','event_ids'])
+     or exists(select 1 from unnest(array['chapter_id','title','quote']) k where jsonb_typeof(item->k) is distinct from 'string')
+     or jsonb_typeof(item->'person') not in ('string','null')
+     or jsonb_typeof(item->'block_index') is distinct from 'number' or item->>'block_index' !~ '^[0-7]$'
+     or jsonb_typeof(item->'event_ids') is distinct from 'array' or jsonb_array_length(item->'event_ids') not between 1 and 128
+     or exists(select 1 from jsonb_array_elements(item->'event_ids') e where jsonb_typeof(e)<>'string') then
+     raise exception 'GAME_SCENE_INVALID' using errcode='22023';end if;
+   select c into chapter from jsonb_array_elements(p_material->'chapters') c where c->>'chapter_id'=item->>'chapter_id';
+   block:=chapter->'blocks'->(item->>'block_index')::integer;
+   quote_text:=item->>'quote';label:=item->>'person';
+   if chapter is null or block is null or length(quote_text) not between 1 and 400
+     or (label is not null and length(label) not between 2 and 80) or length(item->>'title') not between 1 and 100
+     or quote_text~'[<>[:cntrl:]]' or label~'[<>[:cntrl:]]'
+     or (label is not null and strpos(quote_text,label)=0) or strpos(quote_text,item->>'title')=0
+     or not ((chapter->'event_ids') @> (item->'event_ids'))
+     or (select count(distinct value) from jsonb_array_elements(item->'event_ids'))<>jsonb_array_length(item->'event_ids')
+     or exists(select 1 from jsonb_array_elements_text(item->'event_ids') id where not exists(
+       select 1 from jsonb_array_elements(p_material->'timeline') e where e->>'id'=id)) then
+     raise exception 'GAME_GROUNDING_INVALID' using errcode='22023';end if;
+   start_at:=strpos(block->>'text',quote_text)-1;
+   if start_at<0 or strpos(substring(block->>'text' from start_at+2),quote_text)>0 then
+     raise exception 'GAME_EXACT_QUOTE_REQUIRED' using errcode='22023';end if;
+   covered:=covered||(item->'event_ids');
+ end loop;
+ if p_coverage and exists(select 1 from jsonb_array_elements(p_material->'timeline') e where not covered ? (e->>'id')) then
+   raise exception 'GAME_TIMELINE_COVERAGE_REQUIRED' using errcode='22023';end if;
+end $$;
+
+create function public.save_story_game_pool(p_game_id uuid,p_token uuid,p_pool jsonb,p_model_receipt jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare game public.user_story_game%rowtype; material jsonb; bare jsonb; item jsonb; stages text[];
+ options jsonb:='[]'; prepared jsonb; i integer:=0;
+begin
+ game:=public.lock_story_game(p_game_id,p_token,true);
+ if game.phase<>'scenes' or game.selection is not null or jsonb_typeof(p_pool) is distinct from 'object'
+   or (select count(*) from jsonb_object_keys(p_pool))<>1 or jsonb_typeof(p_pool->'scenes') is distinct from 'array'
+   or p_model_receipt->>'status' is distinct from 'completed' or coalesce(length(p_model_receipt->>'response_id'),0)=0
+   or coalesce(length(p_model_receipt->>'model'),0)=0 then
+   raise exception 'GAME_POOL_INVALID' using errcode='22023';end if;
+ material:=public.read_story_game_input(p_game_id,p_token);
+ select jsonb_agg(value-'recommended'-'reason') into bare from jsonb_array_elements(p_pool->'scenes');
+ perform public.validate_story_game_scenes(material,bare,true);
+ for item in select value from jsonb_array_elements(p_pool->'scenes') loop
+   if (select count(*) from jsonb_object_keys(item))<>8 or jsonb_typeof(item->'recommended') is distinct from 'boolean'
+     or jsonb_typeof(item->'reason') is distinct from 'string' or length(item->>'reason') not between 1 and 240
+     or exists(select 1 from jsonb_array_elements(options) o where o->>'chapter_id'=item->>'chapter_id'
+       and o->'block_index'=item->'block_index' and o->>'quote'=item->>'quote') then
+     raise exception 'GAME_POOL_INVALID' using errcode='22023';end if;
+   select array_agg(distinct coalesce(nullif(e->>'life_stage',''),'unplaced')) into stages
+     from jsonb_array_elements(material->'timeline') e where item->'event_ids' ? (e->>'id');
+   if cardinality(stages)<>1 then raise exception 'GAME_POOL_MIXED_STAGE' using errcode='22023';end if;
+   i:=i+1;
+   options:=options||jsonb_build_array(item||jsonb_build_object('id','scene-'||i,'life_stage',stages[1]));
+ end loop;
+ if exists(select 1 from jsonb_array_elements(options) o where not exists(select 1 from jsonb_array_elements(options) r
+   where r->>'life_stage'=o->>'life_stage' and r->'recommended'='true')) then
+   raise exception 'GAME_STAGE_RECOMMENDATION_REQUIRED' using errcode='22023';end if;
+ prepared:=jsonb_build_object('scenes',options);
+ update public.user_story_game set scene_pool=prepared,pool_digest=public.formal_memoir_digest(prepared),
+   state='selection_required',token=null,lease_until=null,attempts=0,
+   model_receipt=jsonb_build_object('steps',jsonb_build_object('scenes',p_model_receipt)),updated_at=clock_timestamp()
+   where id=game.id returning * into game;
+ return public.story_game_status_record(game);
+end $$;
+
+create function public.confirm_story_game_scenes(p_project_id text,p_game_id uuid,p_expected_digest text,p_scene_ids jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare game public.user_story_game%rowtype; chosen jsonb; confirmed jsonb;
+begin
+ if not exists(select 1 from public.user_story_game where id=p_game_id and user_id=auth.uid() and project_id=p_project_id) then
+   raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
+ game:=public.lock_story_game(p_game_id);
+ if game.pool_digest is null or game.pool_digest is distinct from p_expected_digest then
+   raise exception 'GAME_POOL_CHANGED' using errcode='PT409';end if;
+ if jsonb_typeof(p_scene_ids) is distinct from 'array' or jsonb_array_length(p_scene_ids) not between 1 and 128
+   or exists(select 1 from jsonb_array_elements(p_scene_ids) id where jsonb_typeof(id)<>'string')
+   or (select count(distinct value) from jsonb_array_elements(p_scene_ids))<>jsonb_array_length(p_scene_ids) then
+   raise exception 'GAME_SELECTION_INVALID' using errcode='22023';end if;
+ select jsonb_agg(o->'id' order by position) into chosen
+   from jsonb_array_elements(game.scene_pool->'scenes') with ordinality as option(o,position) where p_scene_ids ? (o->>'id');
+ if chosen is null or jsonb_array_length(chosen)<>jsonb_array_length(p_scene_ids) then
+   raise exception 'GAME_SELECTION_INVALID' using errcode='22023';end if;
+ if game.selection is not null then
+   if game.selection->'scene_ids' is distinct from chosen then raise exception 'GAME_SELECTION_CHANGED' using errcode='PT409';end if;
+   return public.story_game_status_record(game);
+ end if;
+ if game.state<>'selection_required' then raise exception 'GAME_SELECTION_NOT_READY' using errcode='PT409';end if;
+ confirmed:=jsonb_build_object('scene_ids',chosen,'pool_digest',game.pool_digest);
+ update public.user_story_game set selection=confirmed||jsonb_build_object('confirmed_by',auth.uid(),'confirmed_at',clock_timestamp()),
+   selection_digest=public.formal_memoir_digest(confirmed),phase='build',state='pending',attempts=0,updated_at=clock_timestamp()
+   where id=game.id returning * into game;
+ return public.story_game_status_record(game);
+end $$;
+
+create function public.save_story_game_brief(p_game_id uuid,p_token uuid,p_brief jsonb,p_model_receipt jsonb) returns void
+language plpgsql security definer set search_path='' as $$
+declare game public.user_story_game%rowtype; expected jsonb;
+begin
+ game:=public.lock_story_game(p_game_id,p_token,true);
+ select jsonb_agg(i) into expected from generate_series(0,jsonb_array_length(game.selection->'scene_ids')-1) i;
+ if game.phase<>'build' or game.selection is null or jsonb_typeof(p_brief) is distinct from 'object'
+   or (select count(*) from jsonb_object_keys(p_brief))<>2 or p_brief->'scene_indices' is distinct from expected
+   or jsonb_typeof(p_brief->'design_brief') is distinct from 'string' or length(p_brief->>'design_brief') not between 1 and 6000
+   or p_model_receipt->>'status' is distinct from 'completed' or coalesce(length(p_model_receipt->>'response_id'),0)=0
+   or coalesce(length(p_model_receipt->>'model'),0)=0 then raise exception 'GAME_BRIEF_INVALID' using errcode='22023';end if;
+ if game.brief is not null and game.brief is distinct from p_brief then raise exception 'GAME_BRIEF_CHANGED' using errcode='PT409';end if;
+ update public.user_story_game set brief=p_brief,model_receipt=jsonb_set(model_receipt,'{steps,brief}',p_model_receipt),
+   updated_at=clock_timestamp() where id=game.id;
 end $$;
 
 -- A project URL publishes a game artifact, never its underlying memoir sources.
@@ -14706,52 +14831,33 @@ revoke all on function public.story_game_package(jsonb,text,text) from public,an
 
 create function public.stage_story_game(p_game_id uuid,p_token uuid,p_proposal jsonb,p_model_receipt jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare game public.user_story_game%rowtype; item jsonb; chapter jsonb; block jsonb; material jsonb;
- covered jsonb:='[]'; package jsonb; prepared jsonb; quote_text text; label text; offset_in_block integer;
+declare game public.user_story_game%rowtype; material jsonb; expected jsonb; package jsonb; prepared jsonb;
 begin
  game:=public.lock_story_game(p_game_id,p_token,true);
- if jsonb_typeof(p_proposal) is distinct from 'object' or (select count(*) from jsonb_object_keys(p_proposal))<>2
-   or jsonb_typeof(p_proposal->'scenes') is distinct from 'array' or jsonb_array_length(p_proposal->'scenes') not between 1 and 128
+ if game.phase<>'build' or game.selection is null or game.brief is null
+   or p_model_receipt->>'selection_digest' is distinct from game.selection_digest
+   or p_model_receipt->>'status' is distinct from 'completed'
+   or coalesce(length(p_model_receipt->>'response_id'),0)=0
+   or coalesce(length(p_model_receipt->>'model'),0)=0
+   or p_model_receipt->>'requested_model' is distinct from 'gpt-6-astra'
+   or p_model_receipt->>'skill' is distinct from 'higgsfield-websites'
+   or p_model_receipt->>'skill_sha256' !~ '^[a-f0-9]{64}$'
+   or p_model_receipt->>'skill_sha256' is null
+   or jsonb_typeof(p_proposal) is distinct from 'object' or (select count(*) from jsonb_object_keys(p_proposal))<>2
    or jsonb_typeof(p_proposal->'html') is distinct from 'string' or octet_length(p_proposal->>'html') not between 100 and 150000
-   or p_proposal->>'html'~*'<[[:space:]]*(script|iframe|object|embed|base|link|form)([[:space:]>])'
-   or jsonb_typeof(p_model_receipt) is distinct from 'object' or p_model_receipt->>'status' is distinct from 'completed'
-   or coalesce(length(p_model_receipt->>'response_id'),0)=0 or coalesce(length(p_model_receipt->>'model'),0)=0
-   or p_model_receipt->'steps'->'scenes'->>'status' is distinct from 'completed'
-   or p_model_receipt->'steps'->'webpage'->>'status' is distinct from 'completed' then
+   or p_proposal->>'html'~*'<[[:space:]]*(script|iframe|object|embed|base|link|form)([[:space:]>])' then
    raise exception 'GAME_PROPOSAL_INVALID' using errcode='22023';end if;
+ select jsonb_agg(o-'id'-'life_stage'-'recommended'-'reason' order by position) into expected
+   from jsonb_array_elements(game.scene_pool->'scenes') with ordinality as option(o,position)
+   where game.selection->'scene_ids' ? (o->>'id');
+ if p_proposal->'scenes' is distinct from expected then raise exception 'GAME_SELECTION_CHANGED' using errcode='PT409';end if;
  material:=public.read_story_game_input(p_game_id,p_token);
- for item in select value from jsonb_array_elements(p_proposal->'scenes') loop
-   if jsonb_typeof(item)<>'object' or (select count(*) from jsonb_object_keys(item))<>6
-     or not (item ?& array['chapter_id','block_index','title','person','quote','event_ids'])
-     or exists(select 1 from unnest(array['chapter_id','title','quote']) k where jsonb_typeof(item->k) is distinct from 'string')
-     or jsonb_typeof(item->'person') not in ('string','null')
-     or jsonb_typeof(item->'block_index') is distinct from 'number' or item->>'block_index' !~ '^[0-7]$'
-     or jsonb_typeof(item->'event_ids') is distinct from 'array' or jsonb_array_length(item->'event_ids') not between 1 and 128
-     or exists(select 1 from jsonb_array_elements(item->'event_ids') e where jsonb_typeof(e)<>'string') then
-     raise exception 'GAME_SCENE_INVALID' using errcode='22023';end if;
-   select c into chapter from jsonb_array_elements(material->'chapters') c where c->>'chapter_id'=item->>'chapter_id';
-   block:=chapter->'blocks'->(item->>'block_index')::integer;
-   quote_text:=item->>'quote'; label:=item->>'person';
-   if chapter is null or block is null or length(quote_text) not between 1 and 400
-     or (label is not null and length(label) not between 2 and 80) or length(item->>'title') not between 1 and 100
-     or quote_text~'[<>[:cntrl:]]' or label~'[<>[:cntrl:]]'
-     or (label is not null and strpos(quote_text,label)=0) or strpos(quote_text,item->>'title')=0
-     or not ((chapter->'event_ids') @> (item->'event_ids'))
-     or exists(select 1 from jsonb_array_elements_text(item->'event_ids') id where not exists(
-       select 1 from jsonb_array_elements(material->'timeline') e where e->>'id'=id)) then
-     raise exception 'GAME_GROUNDING_INVALID' using errcode='22023';end if;
-   offset_in_block:=strpos(block->>'text',quote_text)-1;
-   if offset_in_block<0 or strpos(substring(block->>'text' from offset_in_block+2),quote_text)>0 then
-     raise exception 'GAME_EXACT_QUOTE_REQUIRED' using errcode='22023';end if;
-   covered:=covered||(item->'event_ids');
- end loop;
- if exists(select 1 from jsonb_array_elements(material->'timeline') e where not covered ? (e->>'id')) then
-   raise exception 'GAME_TIMELINE_COVERAGE_REQUIRED' using errcode='22023';end if;
- package:=public.story_game_package(p_proposal->'scenes',p_proposal->>'html',game.authority->>'locale');
+ perform public.validate_story_game_scenes(material,expected,false);
+ package:=public.story_game_package(expected,p_proposal->>'html',game.authority->>'locale');
  prepared:=jsonb_build_object('game',package,'scene_plan',p_proposal-'html');
  update public.user_story_game set candidate=prepared,candidate_digest=public.formal_memoir_digest(prepared),
-   model_receipt=p_model_receipt,state='published',review=null,token=null,lease_until=null,updated_at=clock_timestamp()
-   where id=game.id returning * into game;
+   model_receipt=jsonb_set(game.model_receipt,'{steps,higgsfield}',p_model_receipt),state='published',
+   review=null,token=null,lease_until=null,updated_at=clock_timestamp() where id=game.id returning * into game;
  perform public.link_story_game_page(game.id);
  return public.story_game_status_record(game);
 end $$;
@@ -14764,6 +14870,12 @@ begin
    raise exception 'GAME_OWNER_REQUIRED' using errcode='42501';end if;
  game:=public.lock_story_game(p_game_id);
  if game.state='published' then return jsonb_build_object('game_id',game.id,'status','published','game',game.candidate->'game');end if;
+ if game.scene_pool is not null then
+   return public.story_game_status_record(game)||jsonb_build_object('pool',jsonb_build_object('scenes',
+     (select jsonb_agg(o-'chapter_id'-'block_index'-'event_ids' order by position)
+      from jsonb_array_elements(game.scene_pool->'scenes') with ordinality as option(o,position))),
+     'selected_scene_ids',game.selection->'scene_ids');
+ end if;
  if p_review and game.state='review_required' then
    return public.story_game_status_record(game)||jsonb_build_object('preview',game.candidate->'game','people',
      (select jsonb_agg(person-'chapter_id'-'source_id'-'source_version'-'char_start'-'char_end') from jsonb_array_elements(game.candidate->'people') person));
@@ -14818,7 +14930,7 @@ begin
    (game.authority->'composer_snapshot_id' is distinct from composer->'snapshot_id'
     or game.authority->'composer_root_digest' is distinct from composer->'root_digest'
     or game.authority->'composer_revision' is distinct from composer->'revision') then
-   update public.user_story_game set state='stale',candidate=null,review=null,token=null,lease_until=null,
+   update public.user_story_game set state='stale',candidate=null,review=null,scene_pool=null,pool_digest=null,selection=null,selection_digest=null,brief=null,token=null,lease_until=null,
      updated_at=clock_timestamp() where id=game.id returning * into game;
  end if;
  return jsonb_build_object('eligibility',eligibility,'formal',public.read_formal_memoir_status(p_project_id),
@@ -14830,7 +14942,7 @@ end $$;
 create function public.invalidate_story_games() returns trigger
 language plpgsql security definer set search_path='' as $$
 begin
- update public.user_story_game set state='stale',candidate=null,review=null,token=null,lease_until=null,updated_at=clock_timestamp()
+ update public.user_story_game set state='stale',candidate=null,review=null,scene_pool=null,pool_digest=null,selection=null,selection_digest=null,brief=null,token=null,lease_until=null,updated_at=clock_timestamp()
    where user_id=new.user_id and project_id=new.project_id and state<>'stale';
  return new;
 end $$;
@@ -14843,7 +14955,11 @@ revoke all on function public.story_game_composer(uuid,text,boolean),public.stor
  public.story_game_status_record(public.user_story_game),public.begin_story_game(text,uuid),
  public.claim_story_game(uuid),public.read_story_game_input(uuid,uuid),public.stage_story_game(uuid,uuid,jsonb,jsonb),
  public.read_story_game(text,uuid,boolean),public.publish_story_game(text,uuid,text,jsonb),public.fail_story_game(uuid,uuid),
- public.read_story_game_status(text),public.invalidate_story_games() from public,anon,authenticated,service_role;
+ public.read_story_game_status(text),public.invalidate_story_games(),public.validate_story_game_scenes(jsonb,jsonb,boolean),
+ public.save_story_game_pool(uuid,uuid,jsonb,jsonb),public.confirm_story_game_scenes(text,uuid,text,jsonb),
+ public.save_story_game_brief(uuid,uuid,jsonb,jsonb) from public,anon,authenticated,service_role;
+ grant execute on function public.confirm_story_game_scenes(text,uuid,text,jsonb) to authenticated;
+ grant execute on function public.save_story_game_pool(uuid,uuid,jsonb,jsonb),public.save_story_game_brief(uuid,uuid,jsonb,jsonb) to service_role;
 grant execute on function public.begin_story_game(text,uuid),public.read_story_game(text,uuid,boolean),
  public.publish_story_game(text,uuid,text,jsonb),public.read_story_game_status(text) to authenticated;
 grant execute on function public.claim_story_game(uuid),public.read_story_game_input(uuid,uuid),

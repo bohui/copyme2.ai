@@ -48,7 +48,7 @@ memoir/
     memoir-historical-news-research/{instructions,contract,discovery}
     memoir-family-tree/instructions
     memoir-place-groups/instructions
-    memoir-story-game/{instructions,proposal,webpage,runtime-contract}
+    memoir-story-game/{instructions,proposal,brief,higgsfield,webpage,runtime-contract}
     memoir-place-photo-research/instructions
   shared/
     bounded-context/{policy,en-AU,zh-CN}
@@ -93,12 +93,15 @@ exporter and dataset evaluator share that catalog. `prompt_path` resolves local
 files; runtime generation does not contact Langfuse. Each exported file has an
 exact numeric version and SHA-256 receipt.
 
-Story-game generation has two phases: `proposal` turns composer chapters and the
-canonical timeline into scenes; `webpage` turns validated scenes into an Astra
-HTML/CSS game. Both reuse `instructions` as their shared system prompt. The
-`runtime-contract` is consumed only by a separate host-admission evaluation probe;
-it is not a third generation phase. Saving, author review and publication belong
-to the host. The generation flow has no review or publish prompt.
+Story-game planning has two composer-model phases: `proposal` creates the full
+pool with recommendations by life stage; after explicit owner selection, `brief`
+composes the creative request for exactly the chosen scenes. Both reuse
+`instructions`. The delegated Astra builder consumes `higgsfield` plus `webpage`
+for the Memoir export target, and reads the separately installed upstream skill
+at runtime. Its content digest is recorded independently; upstream updates do not
+edit Memoir's Langfuse prompts. `runtime-contract` remains the host-admission
+evaluation context. Selection is a required human gate; private saving, sharing
+and publication remain host concerns, without another publishing-review prompt.
 
 `apps/api/prompt_composition.py` expands curated shared references. Fourteen task
 templates reuse policy from a single owning source. Budget validation and worker

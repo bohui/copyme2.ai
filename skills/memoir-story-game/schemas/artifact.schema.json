@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "artifact_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Artifact Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_sha256"
+  ],
+  "title": "BuildArtifact",
+  "type": "object"
+}
