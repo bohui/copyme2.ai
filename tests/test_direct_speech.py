@@ -373,3 +373,21 @@ def test_cosyvoice_synthesis_uses_the_authenticated_lan_tts_endpoint():
     assert result['content'] == wav_audio()
     assert result['mime_type'] == 'audio/wav'
     assert result['provider'] == 'cosyvoice'
+
+def test_cosyvoice_retries_a_busy_request_once_using_retry_after():
+    requests = []
+
+    def provider(request):
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(429, headers={'Retry-After': '0'})
+        return httpx.Response(200, content=wav_audio(), headers={'content-type': 'audio/wav'})
+
+    client = httpx.Client(
+        base_url='http://192.168.0.50:50001', transport=httpx.MockTransport(provider),
+    )
+    result = speech.CosyVoiceSpeechService('cosyvoice-test', client=client).synthesize(
+        'Try again', language='en-AU',
+    )
+    assert len(requests) == 2
+    assert result['content'] == wav_audio()

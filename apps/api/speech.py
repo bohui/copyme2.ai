@@ -12,6 +12,7 @@ import os
 import re
 import struct
 import subprocess
+import time
 import wave
 import zlib
 from typing import Any
@@ -729,6 +730,19 @@ class CosyVoiceSpeechService:
         if client is not None and api_key:
             self._client.headers.update(headers)
 
+    def _post_tts(self, payload: dict[str, Any]) -> httpx.Response:
+        response = self._client.post('/tts', json=payload)
+        if response.status_code != 429:
+            return response
+        retry_after = response.headers.get('Retry-After', '0').strip()
+        try:
+            delay = min(max(float(retry_after), 0.0), 5.0)
+        except ValueError:
+            delay = 0.0
+        if delay:
+            time.sleep(delay)
+        return self._client.post('/tts', json=payload)
+
     def synthesize(self, text: str, **options: Any) -> dict[str, Any]:
         if not self.api_key:
             raise SpeechUnavailable('Speech synthesis requires COSYVOICE_API_KEY')
@@ -758,7 +772,7 @@ class CosyVoiceSpeechService:
             metadata=_synthesis_metadata(self.provider, language, character, output_format, prompt_name),
         ) as trace:
             try:
-                response = self._client.post('/tts', json=payload)
+                response = self._post_tts(payload)
                 _check_speech_response(response)
                 content = response.content
                 if not content:
