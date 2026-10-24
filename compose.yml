@@ -79,8 +79,12 @@ services:
       MEMORY_SPARK_HISTORICAL_NEWS_MODEL: "${MEMORY_SPARK_HISTORICAL_NEWS_MODEL:-}"
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      DOUBAO_API_KEY: ${DOUBAO_API_KEY:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      GROQ_BASE_URL: ${GROQ_BASE_URL:-https://api.groq.com/openai/v1}
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      DASHSCOPE_WORKSPACE_ID: ${DASHSCOPE_WORKSPACE_ID:-}
+      DASHSCOPE_REGION: ${DASHSCOPE_REGION:-ap-southeast-1}
+      DASHSCOPE_COSYVOICE_WS_URL: ${DASHSCOPE_COSYVOICE_WS_URL:-}
       # Direct speech and evaluator calls use the same Langfuse project as
       # the app's gateway-independent model calls. Payloads are minimized in
       # the application tracer; the gateway owns full request tracing.
@@ -92,10 +96,11 @@ services:
       LANGFUSE_SECRET_KEY: ${MEMORY_SPARK_LANGFUSE_SECRET_KEY:-}
       LANGFUSE_TRACING_ENVIRONMENT: ${MEMORY_SPARK_LANGFUSE_ENVIRONMENT:-local}
       LANGFUSE_BASE_URL: ${MEMORY_SPARK_LANGFUSE_RUNTIME_BASE_URL:-http://192.168.65.1:3001}
-      MEMORY_SPARK_STT_MODEL: ${MEMORY_SPARK_STT_MODEL:-gpt-4o-mini-transcribe}
-      MEMORY_SPARK_TTS_MODEL: ${MEMORY_SPARK_TTS_MODEL:-gemini-3.8-flash-lite-tts}
-      MEMORY_SPARK_TTS_VOICE_EN_AU: ${MEMORY_SPARK_TTS_VOICE_EN_AU:-Kore}
-      MEMORY_SPARK_TTS_VOICE_ZH_CN: ${MEMORY_SPARK_TTS_VOICE_ZH_CN:-zh_female_vv_uranus_bigtts}
+      MEMORY_SPARK_STT_MODEL: ${MEMORY_SPARK_STT_MODEL:-whisper-large-v3-turbo}
+      MEMORY_SPARK_QWEN_STT_MODEL: ${MEMORY_SPARK_QWEN_STT_MODEL:-qwen3-asr-flash}
+      MEMORY_SPARK_TTS_MODEL: ${MEMORY_SPARK_TTS_MODEL:-cosyvoice-v3-flash}
+      MEMORY_SPARK_TTS_VOICE_EN_AU: ${MEMORY_SPARK_TTS_VOICE_EN_AU:-longwan_v3}
+      MEMORY_SPARK_TTS_VOICE_ZH_CN: ${MEMORY_SPARK_TTS_VOICE_ZH_CN:-longwan_v3}
       MEMORY_SPARK_CODEX_WORKER_URL: http://codex-worker:8766
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_CODEX_WORKER_TIMEOUT: ${MEMORY_SPARK_CODEX_WORKER_TIMEOUT:-120}
