@@ -48,3 +48,21 @@ def test_place_hierarchy_repairs_same_source_before_sql_commit(sql, tmp_path, mo
         place = result['items'][0]['event']['places'][0]['place']
         assert place['place'] == place['hierarchy'][-1] == '成都'
         assert place['hierarchy'][0] == 'Earth'
+
+
+def test_place_hierarchy_guidance_is_scoped_to_that_repair():
+    from apps.api.lifetime_memory_lane_engine import lane_contract
+    from test_lifetime_composer_capacity import page
+    from test_lifetime_memory_lane_engine import fence_for
+    current = page(text='小时候，我在成都学拉小提琴，那是在1978年。')
+    current['two_lane'] = dict(schema_version=1, task_version='two-lane-v1', execution_generation=1,
+        phase_revision=0, work_mode='extract', reply_contract='reply-v2')
+    current['attribution_context'] = dict(schema_version=1, decision='extract', reason='new_testimony', delivered_event=None)
+    fence = fence_for(current)
+    normal_instructions, normal = lane_contract('extract', fence.locale, two_lane=True, fence=fence)
+    _, unrelated = lane_contract('extract', fence.locale, two_lane=True, fence=fence, retry_reason='DATE_NUMERIC')
+    repair_instructions, repair = lane_contract('extract', fence.locale, two_lane=True, fence=fence, retry_reason='PLACE_HIERARCHY')
+    guidance = repair['$defs']['CoarsePlace']['properties']['hierarchy'].pop('description')
+    assert 'must exactly equal' in guidance and 'place field' in guidance
+    assert normal_instructions == repair_instructions
+    assert normal == unrelated == repair

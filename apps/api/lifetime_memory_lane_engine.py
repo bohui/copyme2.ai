@@ -215,6 +215,10 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
             length = len(fence.source['text'])
             evidence['char_start'] = {'type': 'integer', 'minimum': 0, 'maximum': length - 1}
             evidence['char_end'] = {'type': 'integer', 'minimum': 1, 'maximum': length}
+        if retry_reason == 'PLACE_HIERARCHY' and 'CoarsePlace' in schema['$defs']:
+            schema['$defs']['CoarsePlace']['properties']['hierarchy']['description'] = (
+                'Begin with Earth. The final item must exactly equal this object\'s place field, '
+                'using the original source spelling without adding an administrative suffix.')
         identities=sorted({event['id'] for event in fence.events})
         event=schema['$defs']['EventProposal']['properties']
         event['id']={'type':'null'}
