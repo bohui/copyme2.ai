@@ -240,11 +240,11 @@ def test_gemini_can_honor_an_explicit_mp3_request():
 
 
 @pytest.mark.parametrize('language,provider,model,voice,output_format', [
-    ('zh-CN', 'doubao', 'doubao-seed-tts-2.0', 'zh_female_vv_uranus_bigtts', 'mp3'),
-    ('zh_CN', 'doubao', 'doubao-seed-tts-2.0', 'zh_female_vv_uranus_bigtts', 'mp3'),
-    ('zh', 'doubao', 'doubao-seed-tts-2.0', 'zh_female_vv_uranus_bigtts', 'mp3'),
-    ('en-AU', 'gemini', 'gemini-3.8-flash-lite-tts', 'Kore', 'wav'),
-    ('en', 'gemini', 'gemini-3.8-flash-lite-tts', 'Kore', 'wav'),
+    ('zh-CN', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
+    ('zh_CN', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
+    ('zh', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
+    ('en-AU', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
+    ('en', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
 ])
 def test_localized_synthesis_resolves_the_exact_provider_model_voice_and_format(monkeypatch, language, provider, model, voice, output_format):
     monkeypatch.delenv('MEMORY_SPARK_TTS_VOICE_EN_AU', raising=False)
@@ -255,39 +255,151 @@ def test_localized_synthesis_resolves_the_exact_provider_model_voice_and_format(
 
 
 def test_partial_credentials_do_not_dispatch_to_another_provider(monkeypatch):
-    monkeypatch.setenv('OPENAI_API_KEY', 'test-openai')
-    monkeypatch.delenv('GEMINI_API_KEY', raising=False)
-    monkeypatch.delenv('DOUBAO_API_KEY', raising=False)
+    monkeypatch.delenv('GROQ_API_KEY', raising=False)
+    monkeypatch.delenv('DASHSCOPE_API_KEY', raising=False)
+    monkeypatch.delenv('DASHSCOPE_WORKSPACE_ID', raising=False)
     service = speech.build_speech_service()
-    with pytest.raises(speech.SpeechUnavailable, match='DOUBAO_API_KEY'):
+    with pytest.raises(speech.SpeechUnavailable, match='GROQ_API_KEY'):
         service.transcribe(b'audio', language='zh-CN')
-    with pytest.raises(speech.SpeechUnavailable, match='DOUBAO_API_KEY'):
+    with pytest.raises(speech.SpeechUnavailable, match='DASHSCOPE_API_KEY'):
         service.synthesize('你好', language='zh-CN')
-    with pytest.raises(speech.SpeechUnavailable, match='GEMINI_API_KEY'):
+    with pytest.raises(speech.SpeechUnavailable, match='DASHSCOPE_API_KEY'):
         service.synthesize('Hello', language='en-AU')
-    assert service.openai.api_key == 'test-openai'
+    assert service.stt.api_key == ''
 
 
-def test_transcription_routes_chinese_to_doubao_and_english_to_openai(monkeypatch):
+def test_transcription_routes_through_groq_and_qwen_fallback(monkeypatch):
     service = speech.build_speech_service()
     calls = []
 
-    def openai(audio, **options):
-        calls.append(('openai', audio, options['language']))
+    def groq(audio, **options):
+        calls.append(('groq', audio, options['language']))
         return {'text': 'An English memory.'}
 
-    def doubao(audio, **options):
-        calls.append(('doubao', audio, options['language']))
+    def qwen(audio, **options):
+        calls.append(('qwen', audio, options['language']))
         return {'text': '童年的回忆。'}
 
-    monkeypatch.setattr(service.openai, 'transcribe', openai)
-    monkeypatch.setattr(service.doubao, 'transcribe', doubao)
+    monkeypatch.setattr(service.stt, 'transcribe', groq)
+    monkeypatch.setattr(service.fallback, 'transcribe', qwen)
     assert service.transcribe(b'english', language='en-AU')['text'] == 'An English memory.'
+    def unavailable(*args, **kwargs):
+        raise speech.SpeechProviderError('Groq unavailable')
+    monkeypatch.setattr(service.stt, 'transcribe', unavailable)
     assert service.transcribe(b'chinese', language='zh_CN')['text'] == '童年的回忆。'
-    assert calls == [('openai', b'english', 'en-AU'), ('doubao', b'chinese', 'zh_CN')]
+    assert calls == [('groq', b'english', 'en-AU'), ('qwen', b'chinese', 'zh_CN')]
 
 
 @pytest.mark.parametrize('service', [speech.GeminiSpeechService, speech.DoubaoSpeechService])
 def test_native_speech_services_only_accept_managed_delivery_prompts(service):
     with pytest.raises(ValueError, match='managed'):
         service('test').synthesize('Hello', instructions='Unreviewed model instructions')
+
+
+def test_groq_transcription_uses_whisper_turbo_and_openai_compatible_multipart():
+    requests = []
+
+    def provider(request):
+        requests.append(request)
+        return httpx.Response(200, json={'text': 'A remembered place.', 'language': 'en', 'segments': []})
+
+    client = httpx.Client(
+        base_url='https://groq.test/openai/v1', transport=httpx.MockTransport(provider),
+    )
+    result = speech.GroqSpeechService('groq-test', client=client).transcribe(
+        b'private audio', filename='memory.webm', mime_type='audio/webm', language='en-AU',
+    )
+    request = requests[0]
+    assert request.url.path == '/openai/v1/audio/transcriptions'
+    assert request.headers['Authorization'] == 'Bearer groq-test'
+    body = request.content
+    assert b'name="model"' in body and b'whisper-large-v3-turbo' in body
+    assert b'name="language"' in body and b'en' in body
+    assert b'filename="memory.webm"' in body
+    assert result == {
+        'text': 'A remembered place.', 'language': 'en', 'segments': [],
+        'model': 'whisper-large-v3-turbo', 'provider': 'groq',
+    }
+
+
+def test_qwen_fallback_sends_dashscope_data_url_payload():
+    requests = []
+
+    def provider(request):
+        requests.append(request)
+        return httpx.Response(200, json={
+            'choices': [{'message': {'content': '童年的回忆。'}}],
+        })
+
+    client = httpx.Client(
+        base_url='https://dashscope.test', transport=httpx.MockTransport(provider),
+    )
+    result = speech.QwenASRService(
+        'dashscope-test', workspace_id='workspace-test', client=client,
+    ).transcribe(b'abc', mime_type='audio/webm', language='zh-CN')
+    request = requests[0]
+    assert request.url.path == '/compatible-mode/v1/chat/completions'
+    assert request.headers['Authorization'] == 'Bearer dashscope-test'
+    payload = json.loads(request.content)
+    audio_data = payload['messages'][0]['content'][0]['input_audio']['data']
+    assert payload['model'] == 'qwen3-asr-flash'
+    assert audio_data == 'data:audio/webm;base64,YWJj'
+    assert payload['asr_options'] == {'enable_itn': False}
+    assert result['text'] == '童年的回忆。'
+    assert result['provider'] == 'qwen'
+
+
+class CosyVoiceSocket:
+    def __init__(self):
+        self.sent = []
+        self.messages = [
+            json.dumps({'header': {'event': 'task-started'}}),
+            b'first-audio',
+            b'second-audio',
+            json.dumps({'header': {'event': 'task-finished'}}),
+        ]
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        return None
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        if not self.messages:
+            raise StopAsyncIteration
+        return self.messages.pop(0)
+
+    async def send(self, message):
+        self.sent.append(json.loads(message))
+
+
+def test_cosyvoice_synthesis_uses_bilingual_voice_and_duplex_task_protocol(monkeypatch):
+    socket = CosyVoiceSocket()
+    connections = []
+
+    def connect(url, **options):
+        connections.append((url, options))
+        return socket
+
+    monkeypatch.setattr(speech, 'connect', connect)
+    result = speech.CosyVoiceSpeechService(
+        'dashscope-test', workspace_id='workspace-test', region='ap-southeast-1',
+    ).synthesize('What do you remember?', language='en-AU')
+    assert connections[0][0] == 'wss://workspace-test.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference'
+    headers = connections[0][1]['additional_headers']
+    assert headers['Authorization'] == 'Bearer dashscope-test'
+    assert headers['X-DashScope-WorkSpace'] == 'workspace-test'
+    assert [message['header']['action'] for message in socket.sent] == [
+        'run-task', 'continue-task', 'finish-task',
+    ]
+    assert socket.sent[0]['payload']['model'] == 'cosyvoice-v3-flash'
+    assert socket.sent[0]['payload']['parameters']['voice'] == 'longwan_v3'
+    assert socket.sent[1]['payload']['input']['text'] == 'What do you remember?'
+    assert result == {
+        'content': b'first-audiosecond-audio', 'mime_type': 'audio/mpeg',
+        'model': 'cosyvoice-v3-flash', 'voice': 'longwan_v3', 'provider': 'cosyvoice',
+    }

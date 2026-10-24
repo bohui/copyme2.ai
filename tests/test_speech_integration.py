@@ -27,7 +27,8 @@ class FakeSpeechService:
             "text": "我小时候和二舅一起走去学校。",
             "language": "zh",
             "segments": [],
-            "model": "gpt-4o-mini-transcribe",
+            "model": "whisper-large-v3-turbo",
+            "provider": "groq",
         }
 
     def synthesize(self, text: str, **options):
@@ -36,8 +37,8 @@ class FakeSpeechService:
             "content": b"fake-mp3-audio",
             "mime_type": "audio/mpeg",
             "model": "gpt-4o-mini-tts",
-            "voice": options.get("voice", "marin"),
-            "provider": "openai",
+            "voice": options.get("voice", "longwan_v3"),
+            "provider": "cosyvoice",
         }
 
 
@@ -65,9 +66,9 @@ class FakeStoryStorage:
 
 
 @pytest.mark.parametrize("language,voice,delivery", [
-    ("zh-CN", "coral", "普通话"),
-    ("zh_CN", "coral", "普通话"),
-    ("en-AU", "marin", "Australian English"),
+    ("zh-CN", "longwan_v3", "普通话"),
+    ("zh_CN", "longwan_v3", "普通话"),
+    ("en-AU", "longwan_v3", "Australian English"),
 ])
 def test_spoken_replies_select_a_character_for_the_conversation_language(language, voice, delivery):
     speech = FakeSpeechService()
@@ -79,7 +80,7 @@ def test_spoken_replies_select_a_character_for_the_conversation_language(languag
                            headers={"Authorization": "Bearer story-token"})
     assert response.status_code == 201, response.text
     assert response.json()["voice"] == voice
-    assert speech.synthesis_calls[0]["speed"] == (1.1 if voice == "coral" else 1.0)
+    assert speech.synthesis_calls[0]["speed"] == (1.1 if language.startswith("zh") else 1.0)
     assert delivery in speech_character(language)['instructions']
     assert 'instructions' not in speech.synthesis_calls[0]
 
@@ -93,7 +94,7 @@ def test_spoken_character_uses_saved_interview_language_when_request_omits_it():
     response = client.post("/v1/story/question-audio", json={"text": "那时候，你住在哪里？"},
                            headers={"Authorization": "Bearer story-token"})
     assert response.status_code == 201, response.text
-    assert response.json()["voice"] == "coral"
+    assert response.json()["voice"] == "longwan_v3"
     assert speech.synthesis_calls[0]["language"] == "zh-CN"
     assert "普通话" in speech_character(speech.synthesis_calls[0]['language'])['instructions']
     assert 'instructions' not in speech.synthesis_calls[0]
@@ -134,7 +135,7 @@ def test_a_first_spoken_reply_infers_chinese_from_text_without_using_the_interfa
     response = client.post("/v1/story/question-audio", json={"text": "你还记得那条街吗？"},
                            headers={"Authorization": "Bearer story-token"})
     assert response.status_code == 201, response.text
-    assert response.json()["voice"] == "coral"
+    assert response.json()["voice"] == "longwan_v3"
     assert speech.synthesis_calls[0]["language"] == "zh-CN"
 
 
@@ -193,7 +194,7 @@ def test_audio_answer_is_transcribed_before_the_memory_turn_is_created() -> None
     body = answered.json()
     assert body["turns"][0]["text"] == "我小时候和二舅一起走去学校。"
     assert body["source_version"]["source_kind"] == "transcript"
-    assert body["source_version"]["transcription_method"] == "openai"
+    assert body["source_version"]["transcription_method"] == "groq"
     assert body["source_version"]["original_asset_id"]
     assert speech.transcription_calls[0]["audio"] == raw_audio
     assert speech.transcription_calls[0]["filename"] == "answer.webm"
