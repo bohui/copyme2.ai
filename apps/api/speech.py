@@ -12,6 +12,7 @@ import os
 import re
 import struct
 import subprocess
+import time
 import wave
 import zlib
 from typing import Any
@@ -699,113 +700,52 @@ class DoubaoSpeechService:
 
 
 class CosyVoiceSpeechService:
-    """Bilingual streaming TTS adapter for Alibaba Cloud Model Studio CosyVoice."""
+    """HTTP adapter for the authenticated CosyVoice server on the LAN."""
 
     provider = 'cosyvoice'
     tts_model = 'cosyvoice-v3-flash'
     default_voice = 'longwan_v3'
-    default_format = 'mp3'
+    default_format = 'wav'
 
     def __init__(
         self,
         api_key: str,
         *,
-        workspace_id: str = '',
-        region: str = 'ap-southeast-1',
+        base_url: str = 'http://192.168.0.50:50001',
         tts_model: str = 'cosyvoice-v3-flash',
-        ws_url: str | None = None,
-        timeout: float = 60.0,
+        timeout: float = 120.0,
+        client: httpx.Client | None = None,
+        default_format: str = 'wav',
+        default_voice: str = 'longwan_v3',
     ) -> None:
         self.api_key = api_key
-        self.workspace_id = workspace_id.strip()
-        self.region = _dashscope_region(region)
         self.tts_model = tts_model
-        self.ws_url = (ws_url or '').strip()
+        self.default_format = default_format
+        self.default_voice = default_voice
         self.timeout = timeout
+        headers = {'Authorization': f'Bearer {api_key}'} if api_key else {}
+        self._client = client or httpx.Client(
+            base_url=base_url.rstrip('/'), headers=headers, timeout=timeout,
+        )
+        if client is not None and api_key:
+            self._client.headers.update(headers)
 
-    def _websocket_url(self) -> str:
-        if self.ws_url:
-            return self.ws_url
-        if not self.workspace_id:
-            raise SpeechUnavailable('CosyVoice speech synthesis requires DASHSCOPE_WORKSPACE_ID')
-        return f'wss://{self.workspace_id}.{self.region}.maas.aliyuncs.com/api-ws/v1/inference'
-
-    async def _synthesize(self, text: str, *, model: str, voice: str, output_format: str,
-                          speed: float) -> bytes:
-        task_id = str(uuid4())
-        headers = {'Authorization': f'Bearer {self.api_key}'}
-        if self.workspace_id:
-            headers['X-DashScope-WorkSpace'] = self.workspace_id
-        parameters = {
-            'text_type': 'PlainText',
-            'voice': voice,
-            'format': output_format,
-            'sample_rate': 22050,
-            'volume': 50,
-            'rate': speed,
-            'pitch': 1,
-            'enable_ssml': False,
-        }
-        run_task = {
-            'header': {'action': 'run-task', 'task_id': task_id, 'streaming': 'duplex'},
-            'payload': {
-                'task_group': 'audio',
-                'task': 'tts',
-                'function': 'SpeechSynthesizer',
-                'model': model,
-                'parameters': parameters,
-                'input': {},
-            },
-        }
-        continue_task = {
-            'header': {'action': 'continue-task', 'task_id': task_id, 'streaming': 'duplex'},
-            'payload': {'input': {'text': text}},
-        }
-        finish_task = {
-            'header': {'action': 'finish-task', 'task_id': task_id, 'streaming': 'duplex'},
-            'payload': {'input': {}},
-        }
-        chunks: list[bytes] = []
-        async with asyncio.timeout(self.timeout):
-            async with connect(
-                self._websocket_url(),
-                additional_headers=headers,
-                open_timeout=15,
-                close_timeout=2,
-                max_size=4 * 1024 * 1024,
-            ) as socket:
-                await socket.send(json.dumps(run_task, ensure_ascii=False))
-                started = False
-                async for message in socket:
-                    if isinstance(message, bytes):
-                        chunks.append(message)
-                        continue
-                    try:
-                        body = json.loads(message)
-                    except (TypeError, ValueError) as exc:
-                        raise SpeechProviderError(
-                            'CosyVoice speech synthesis returned invalid data', retryable=False,
-                        ) from exc
-                    header = body.get('header') if isinstance(body, dict) else None
-                    event = header.get('event') if isinstance(header, dict) else None
-                    if event in {'task-failed', 'error'}:
-                        raise SpeechProviderError('CosyVoice speech synthesis failed', retryable=False)
-                    if event == 'task-started' and not started:
-                        started = True
-                        await socket.send(json.dumps(continue_task, ensure_ascii=False))
-                        await socket.send(json.dumps(finish_task, ensure_ascii=False))
-                    elif event == 'task-finished':
-                        content = b''.join(chunks)
-                        if not content:
-                            raise SpeechProviderError(
-                                'CosyVoice speech synthesis returned no audio', retryable=False,
-                            )
-                        return content
-        raise SpeechProviderError('CosyVoice speech synthesis ended before completion')
+    def _post_tts(self, payload: dict[str, Any]) -> httpx.Response:
+        response = self._client.post('/tts', json=payload)
+        if response.status_code != 429:
+            return response
+        retry_after = response.headers.get('Retry-After', '0').strip()
+        try:
+            delay = min(max(float(retry_after), 0.0), 5.0)
+        except ValueError:
+            delay = 0.0
+        if delay:
+            time.sleep(delay)
+        return self._client.post('/tts', json=payload)
 
     def synthesize(self, text: str, **options: Any) -> dict[str, Any]:
         if not self.api_key:
-            raise SpeechUnavailable('Speech synthesis requires DASHSCOPE_API_KEY')
+            raise SpeechUnavailable('Speech synthesis requires COSYVOICE_API_KEY')
         if options.get('instructions') is not None:
             raise ValueError('Use a managed speech prompt_name')
         language, prompt_name = options.get('language'), options.get('prompt_name')
@@ -820,6 +760,11 @@ class CosyVoiceSpeechService:
         if output_format not in {'mp3', 'wav', 'pcm', 'opus'}:
             raise SpeechProviderError('Unsupported CosyVoice audio format', retryable=False)
         speed = float(options.get('speed') or character['speed'])
+        payload = {
+            'text': text,
+            'voice': character['voice'],
+            'speed': speed,
+        }
         with trace_llm_call(
             'speech.synthesis',
             model,
@@ -827,19 +772,20 @@ class CosyVoiceSpeechService:
             metadata=_synthesis_metadata(self.provider, language, character, output_format, prompt_name),
         ) as trace:
             try:
-                content = asyncio.run(self._synthesize(
-                    text,
-                    model=model,
-                    voice=character['voice'],
-                    output_format=output_format,
-                    speed=speed,
-                ))
-            except (OSError, TimeoutError, WebSocketException, SpeechProviderError, ValueError) as exc:
+                response = self._post_tts(payload)
+                _check_speech_response(response)
+                content = response.content
+                if not content:
+                    raise ValueError('Empty audio')
+                if output_format != 'wav':
+                    content = _transcode_audio(content, output_format)
+            except (httpx.HTTPError, SpeechProviderError, ValueError) as exc:
                 mark_llm_trace_error(trace, 'speech.synthesis', exc)
                 if isinstance(exc, SpeechProviderError):
                     raise
                 raise SpeechProviderError(
-                    'CosyVoice speech synthesis could not reach the provider',
+                    'CosyVoice speech synthesis failed',
+                    retryable=isinstance(exc, httpx.HTTPError),
                 ) from exc
             update_llm_trace(trace, output={'kind': 'audio', 'bytes': len(content)})
             return {
@@ -927,11 +873,9 @@ def build_speech_service() -> LocalizedSpeechService:
             stt_model=os.getenv('MEMORY_SPARK_STT_MODEL', 'whisper-large-v3-turbo'),
         ),
         CosyVoiceSpeechService(
-            dashscope_key,
-            workspace_id=workspace_id,
-            region=region,
+            os.getenv('COSYVOICE_API_KEY', '').strip(),
+            base_url=os.getenv('COSYVOICE_BASE_URL', 'http://192.168.0.50:50001'),
             tts_model=os.getenv('MEMORY_SPARK_TTS_MODEL', 'cosyvoice-v3-flash'),
-            ws_url=os.getenv('DASHSCOPE_COSYVOICE_WS_URL'),
         ),
         QwenASRService(
             dashscope_key,

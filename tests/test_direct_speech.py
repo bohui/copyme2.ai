@@ -240,11 +240,11 @@ def test_gemini_can_honor_an_explicit_mp3_request():
 
 
 @pytest.mark.parametrize('language,provider,model,voice,output_format', [
-    ('zh-CN', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
-    ('zh_CN', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
-    ('zh', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
-    ('en-AU', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
-    ('en', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'mp3'),
+    ('zh-CN', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'wav'),
+    ('zh_CN', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'wav'),
+    ('zh', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'wav'),
+    ('en-AU', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'wav'),
+    ('en', 'cosyvoice', 'cosyvoice-v3-flash', 'longwan_v3', 'wav'),
 ])
 def test_localized_synthesis_resolves_the_exact_provider_model_voice_and_format(monkeypatch, language, provider, model, voice, output_format):
     monkeypatch.delenv('MEMORY_SPARK_TTS_VOICE_EN_AU', raising=False)
@@ -261,9 +261,9 @@ def test_partial_credentials_do_not_dispatch_to_another_provider(monkeypatch):
     service = speech.build_speech_service()
     with pytest.raises(speech.SpeechUnavailable, match='GROQ_API_KEY'):
         service.transcribe(b'audio', language='zh-CN')
-    with pytest.raises(speech.SpeechUnavailable, match='DASHSCOPE_API_KEY'):
+    with pytest.raises(speech.SpeechUnavailable, match='COSYVOICE_API_KEY'):
         service.synthesize('你好', language='zh-CN')
-    with pytest.raises(speech.SpeechUnavailable, match='DASHSCOPE_API_KEY'):
+    with pytest.raises(speech.SpeechUnavailable, match='COSYVOICE_API_KEY'):
         service.synthesize('Hello', language='en-AU')
     assert service.stt.api_key == ''
 
@@ -349,57 +349,46 @@ def test_qwen_fallback_sends_dashscope_data_url_payload():
     assert result['provider'] == 'qwen'
 
 
-class CosyVoiceSocket:
-    def __init__(self):
-        self.sent = []
-        self.messages = [
-            json.dumps({'header': {'event': 'task-started'}}),
-            b'first-audio',
-            b'second-audio',
-            json.dumps({'header': {'event': 'task-finished'}}),
-        ]
+def test_cosyvoice_synthesis_uses_the_authenticated_lan_tts_endpoint():
+    requests = []
 
-    async def __aenter__(self):
-        return self
+    def provider(request):
+        requests.append(request)
+        return httpx.Response(200, content=wav_audio(), headers={'content-type': 'audio/x-wav'})
 
-    async def __aexit__(self, *args):
-        return None
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        if not self.messages:
-            raise StopAsyncIteration
-        return self.messages.pop(0)
-
-    async def send(self, message):
-        self.sent.append(json.loads(message))
-
-
-def test_cosyvoice_synthesis_uses_bilingual_voice_and_duplex_task_protocol(monkeypatch):
-    socket = CosyVoiceSocket()
-    connections = []
-
-    def connect(url, **options):
-        connections.append((url, options))
-        return socket
-
-    monkeypatch.setattr(speech, 'connect', connect)
-    result = speech.CosyVoiceSpeechService(
-        'dashscope-test', workspace_id='workspace-test', region='ap-southeast-1',
-    ).synthesize('What do you remember?', language='en-AU')
-    assert connections[0][0] == 'wss://workspace-test.ap-southeast-1.maas.aliyuncs.com/api-ws/v1/inference'
-    headers = connections[0][1]['additional_headers']
-    assert headers['Authorization'] == 'Bearer dashscope-test'
-    assert headers['X-DashScope-WorkSpace'] == 'workspace-test'
-    assert [message['header']['action'] for message in socket.sent] == [
-        'run-task', 'continue-task', 'finish-task',
-    ]
-    assert socket.sent[0]['payload']['model'] == 'cosyvoice-v3-flash'
-    assert socket.sent[0]['payload']['parameters']['voice'] == 'longwan_v3'
-    assert socket.sent[1]['payload']['input']['text'] == 'What do you remember?'
-    assert result == {
-        'content': b'first-audiosecond-audio', 'mime_type': 'audio/mpeg',
-        'model': 'cosyvoice-v3-flash', 'voice': 'longwan_v3', 'provider': 'cosyvoice',
+    client = httpx.Client(
+        base_url='http://192.168.0.50:50001', transport=httpx.MockTransport(provider),
+    )
+    result = speech.CosyVoiceSpeechService('cosyvoice-test', client=client).synthesize(
+        'What do you remember?', language='en-AU',
+    )
+    request = requests[0]
+    assert request.url.path == '/tts'
+    assert request.headers['Authorization'] == 'Bearer cosyvoice-test'
+    payload = json.loads(request.content)
+    assert payload == {
+        'text': 'What do you remember?',
+        'voice': 'longwan_v3', 'speed': 1.0,
     }
+    assert result['content'] == wav_audio()
+    assert result['mime_type'] == 'audio/wav'
+    assert result['provider'] == 'cosyvoice'
+
+
+def test_cosyvoice_retries_a_busy_request_once_using_retry_after():
+    requests = []
+
+    def provider(request):
+        requests.append(request)
+        if len(requests) == 1:
+            return httpx.Response(429, headers={'Retry-After': '0'})
+        return httpx.Response(200, content=wav_audio(), headers={'content-type': 'audio/wav'})
+
+    client = httpx.Client(
+        base_url='http://192.168.0.50:50001', transport=httpx.MockTransport(provider),
+    )
+    result = speech.CosyVoiceSpeechService('cosyvoice-test', client=client).synthesize(
+        'Try again', language='en-AU',
+    )
+    assert len(requests) == 2
+    assert result['content'] == wav_audio()
