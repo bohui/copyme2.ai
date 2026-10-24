@@ -11,7 +11,7 @@ exactly once inside a root with id `memoir-game`:
 - `.game-framing`: an empty paragraph for the perspective notice.
 - `.game-stage`: a focusable region (`tabindex="0"`) containing `.game-world`,
   which contains `.game-player`. The stage clips its horizontally moving world.
-- `.game-scene-label`: an empty heading or paragraph with `aria-live="polite".
+- `.game-scene-label`: an empty heading or paragraph with `aria-live="polite"`.
 - `.game-controls`: a group containing buttons with `data-game-move="-1"`,
   `data-game-interact`, and `data-game-move="1"`.
 - `.game-dialogue`: an initially hidden element with `role="status".
