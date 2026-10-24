@@ -1,12 +1,12 @@
 # Interviewer stop/news fixes and latency — 24 October 2026
 
-Benchmarked application source: `711050cab208a5dfca8cbd2361ed6c2463d86929`; before: `f190c33`. No prompt text, prompt receipts, schema baseline, provider credentials or gateway settings changed.
+Original cohort source: `711050cab208a5dfca8cbd2361ed6c2463d86929`; before: `f190c33`. The correction follow-up below uses `50aa0c89f2229e51c5953d079877bff4ebc47297` and updates the fresh-install SQL baseline in place. Prompt text, prompt receipts, provider credentials and gateway settings are unchanged.
 
 Both ready-news stop failures are fixed. The host renders explicit stopping, the fixed optional news invitation, and neutral prepared-clarification acknowledgements from validated state; the model still determines current intent. Prepared and continuation selections honor the highest unresolved hint. Current correction/redirect/pacing/stop decisions and exact question resolution retain precedence. The opted-in pooled + low + reply-v2 configuration dispatches policy/reply through the existing dedicated low-policy alias.
 
-Across the 30 cases that pass in both arms, median correct-response time fell **11.17s → 5.55s (50.3%)**. Before: 30/34 meaningful replies; after: 32/34. The two existing correction-after-stop failures remain. One sample per case; these medians compare distinct scenarios and are not production percentiles.
+Across the 30 cases that pass in both arms, median correct-response time fell **11.17s → 5.55s (50.3%)**. Before: 30/34 meaningful replies; after: 32/34. Both remaining correction-after-stop failures now pass the follow-up below. The 32/34 count describes the original cohort, and the other cases have not been reprofiled on the new fix. One sample per case; these medians compare distinct scenarios and are not production percentiles.
 
-Timing starts at canonical submission and counts the correct delivered question; selected news also requires validated citation metadata. A stop requires a retained explicit stop acknowledgement with no question/news. Generic acknowledgement and progress text do not satisfy the target. Values below are **English / Chinese**.
+Timing starts at canonical submission and counts the correct delivered question; selected news also requires validated citation metadata. A stop requires a retained explicit stop acknowledgement with no question/news. Generic acknowledgement and progress text do not satisfy the target. Values below are **English / Chinese**. The correction row uses the new follow-up; every other after-row remains from `711050c`.
 
 | skill name | work scenario measured | before | after |
 | --- | --- | --- | --- |
@@ -26,11 +26,11 @@ Timing starts at canonical submission and counts the correct delivered question;
 | memoir-interviewer | Core: Privacy exclusion | 23.71s / 19.26s | 8.40s / 5.84s |
 | memoir-interviewer | Core: Resumed saved conversation | 15.61s / 17.43s | 7.26s / 5.11s |
 | memoir-interviewer | Core: Stop without news | 7.19s / 14.84s | 4.99s / 4.00s |
-| memoir-interviewer | Core: Correction after stop | FAIL / FAIL | FAIL / FAIL |
+| memoir-interviewer | Core: Correction after stop | FAIL / FAIL | 6.35s / 5.17s (follow-up) |
 
-The failed before-news stops saved generic continuation copy at 10.84s / 6.62s. The failed core correction attempts took 15.43s / 24.11s before and 9.65s / 10.64s after; none delivered a validated reply. They use current_correction with question=null, which the existing contract rejects.
+The failed before-news stops saved generic continuation copy at 10.84s / 6.62s. The original core correction attempts took 15.43s / 24.11s before and 9.65s / 10.64s in the first after-cohort; none delivered a validated reply. Both reason guards formerly rejected current_correction with question=null. These failed receipts remain in the evidence; the follow-up now saves both replies.
 
-## Gates and measured path
+## Original 34-case gates and measured path
 
 | Gate | Before | After |
 | --- | --- | --- |
@@ -42,7 +42,7 @@ The failed before-news stops saved generic continuation copy at 10.84s / 6.62s. 
 | Reported input / output tokens | 113,241 / 38,369 | 107,913 / 9,122 |
 | Reported cached input tokens | 5,504 | 2,688 |
 
-Every successful after-response is under ten seconds. The Chinese core correction failure is the only after-attempt over ten seconds (10.64s). All timings, including failures and durable-save milestones, are in the evidence. Provider load/cache were not controlled; each sequential arm consumed its own saved replies/state. Monetary cost, provider-internal retries and hidden processing remain unknown.
+In the original 34-case after-cohort, every successful response was under ten seconds. Its Chinese core correction failure was the only after-attempt over ten seconds (10.64s). All timings, including failures and durable-save milestones, are in the evidence. Provider load/cache were not controlled; each sequential arm consumed its own saved replies/state. Monetary cost, provider-internal retries and hidden processing remain unknown.
 
 Observed successful-case policy/reply span medians fell 3.36s/5.75s → 2.06s/2.35s; the remaining local/context/save span median fell 1.87s → 1.25s. These are separate diagnostic medians, not additive estimates of one typical turn. Policy remains before reply; privacy review, source/version/ownership guards and fenced saves remain active. Lane B production is not moved into the current reply.
 
@@ -74,8 +74,35 @@ Two earlier topic-ending controls are inconclusive for queued expansion: privacy
 
 The optimization made 377 additional metered HTTP submissions within expanded fixed caps totaling 522; the existing before cohort had 77. This includes rejected trials, controls, validation retries and the gateway failure, with zero judge calls. Every disposable live database root has verified cleanup. Full outputs and failed attempts are preserved locally. The public data contains metrics and status checks, with no request/response payloads, provider identifiers, local paths, credentials or environment files.
 
-This is local canonical ASGI/disposable SQL with a local PostgREST adapter and controlled seed/Lane B findings. Live discovery, deployed worker/Temporal, browser paint, simultaneous Lane B contention, and long-history cross-route checkpoint warming remain unmeasured. No shared-service deployment or prompt publication was performed. Five seconds and the two existing correction-after-stop failures remain the next interviewer work.
+This is local canonical ASGI/disposable SQL with a local PostgREST adapter and controlled seed/Lane B findings. Live discovery, deployed worker/Temporal, browser paint, simultaneous Lane B contention, and long-history cross-route checkpoint warming remain unmeasured. No shared-service deployment or prompt publication was performed. The correction follow-up resolves both remaining failures. Five seconds remains unmet.
 
 ## Review follow-up: two pending clarifications
 
-After the benchmark, review found that resolving the first clarification could let a projected news/ordinary hint replace a second unresolved clarification from an older plan. Commit `c8f5711dc7973c15c7b0344f2408ffb93524902f` keeps the full queue’s next unresolved clarification and consults projected candidates only when none remains. Six reason/news combinations fail on the prior head and pass with the fix; 309 foreground checks plus the required 604 web, 485 Python and 95 skill checks pass. No live provider calls or production validation were performed for this follow-up. The timing table remains measured at `711050c`; full acceptance remains unclaimed.
+After the benchmark, review found that resolving the first clarification could let a projected news/ordinary hint replace a second unresolved clarification from an older plan. Commit `c8f5711dc7973c15c7b0344f2408ffb93524902f` keeps the full queue’s next unresolved clarification and consults projected candidates only when none remains. Six reason/news combinations fail on the prior head and pass with the fix; 309 foreground checks plus the required 604 web, 485 Python and 95 skill checks pass. No live provider calls or production validation were performed for this follow-up. The original cohort remains measured at `711050c`; the correction row is updated by the next section. Full latency acceptance remains unclaimed.
+
+
+## Correction after stop follow-up
+
+Commit `50aa0c89f2229e51c5953d079877bff4ebc47297` permits a correction with no follow-up in both the reply-v2 adapter and the SQL save guard. Such a reply retains `current_correction`, extraction work and a no-question outcome, so it does not start new news research. Corrections with a question still work; pauses/direct answers cannot carry a question, other missing-question reasons still reject, and fabricated current-source anchors still reject. The SQL change stays in the fresh-install baseline as required by `AGENTS.md`.
+
+Both original six-turn conversations were rerun unchanged, with a fresh runtime/storage loading each language’s own saved replies, privacy restriction and stop. All 12 turns saved. Both corrections acknowledge only the room’s Newcastle location, preserve the excluded father topic, and contain no follow-up question or invitation. Exact cached replay made no additional model calls. Both actual saved live corrections and their cached replies also pass the production client VM replay, preserving the prior stop bubble.
+
+| work scenario measured | previous failing run (`711050c`) | after (`50aa0c8`) | durable save |
+| --- | --- | --- | --- |
+| English correction after stop | FAIL after 9.65s; 4 calls | PASS, meaningful text 6.35s; 2 calls | 6.88s |
+| Chinese correction after stop | FAIL after 10.64s; 4 calls | PASS, meaningful text 5.17s; 2 calls | 5.66s |
+
+Meaningful time starts at canonical submission and requires text identifying the corrected room location; a generic prefix does not qualify. Completion was 6.87s / 5.65s, with primary return at 7.03s / 5.76s. Both corrections pass ten seconds; neither meets five seconds. A failed baseline has no quality-qualified response time, so no percentage improvement in meaningful latency is claimed.
+
+The rerun used 26 of the fixed 40 allowed HTTP submissions: 12 policy and 14 reply, zero judges. Each correction needed one policy and one reply call, without repair. One resumed-turn reply per language incorrectly used `direct_answer` with a question and was repaired under the existing guard; both attempts are retained. Reported usage was 35,238 input / 2,853 output tokens, zero cached input tokens, and all 26 calls reported low effort. Provider load/cache remain uncontrolled; one sample per case does not establish a latency SLO.
+
+The frozen live core fixture has inactive strategy rollout, matching its prior cohort, so it does not save strategy-outcome rows. The two controlled-provider API/database/client regressions exercise active strategy, persist the correction outcome, and assert that no new news research is queued. Four focused unit regressions fail before the adapter fix; both API saves still fail until the SQL guard is fixed. Current checks pass: 346 foreground, 604 web, 487 required Python and 95 skill tests, plus all 93 published prompt pins. Source hashes and frozen inputs were reverified, and disposable live state cleanup is verified.
+
+The original 34-case results and failures remain in the structured evidence alongside this follow-up; the other 32 table cases were not rerun on this fix. Live background extraction, deployed worker/Temporal, browser paint and production acceptance remain unmeasured. No prompts were published and no shared service was deployed.
+
+
+## Main integration follow-up
+
+PR #123 merged into `main` at `b1ae1067990f05ef96dd40f785f3085f5bfce21f`, but PR #124 merged into the former `codex/interviewer-stop-latency-pr` stack branch at `3af6e734eff5a6804183cd912f33d1be4854e61a`. The correction fix was therefore still absent from `main`. The follow-up reapplies the same six-file delta onto that current main base and targets `main` directly. The original delta’s stable patch ID matches; interviewer prompt files remain identical to the benchmark.
+
+Revalidation on this main-based branch passes 346 foreground checks, `make test-place-research` (604 web, 487 Python, 95 skill tests), and all 94 current published prompt pins. This includes the bilingual active-strategy API/database/client correction replay. No additional live model calls were made. The 6.35s / 5.17s measurements remain the original `50aa0c8` cohort, rather than a new timing run on this integration branch. The fix remains pending merge into main; no merge, prompt publication or deployment was performed by this task.
