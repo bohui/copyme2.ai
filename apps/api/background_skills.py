@@ -28,7 +28,7 @@ SKILLS = {item.name: item for item in (
     Skill('memoir-place-groups', 'grouping', 'deterministic', 'place_change',
         gates=('owned_project','public_places','request_deduplication'),recovery='request'),
     Skill('memoir-story-game', 'game', 'model', 'game_button', modes=('shape',),
-        gates=('current_delivered_A_shape','explicit_button','completion','adaptation_consent','exact_originals','person_permissions','exact_candidate_review'),
+        gates=('current_delivered_A_shape','explicit_button','composer_chapters','canonical_timeline','adaptation_consent','validated_webpage'),
         recovery='durable_job'),
     Skill('memoir-historical-news-research', 'historical', 'provider', 'place_selection',
         gates=('rollout_flag','user_settings','public_time_place','reply_delivered','A_lease_released','persisted_claim','source_verification'),recovery='research_claim'),

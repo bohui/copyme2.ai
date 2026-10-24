@@ -1,4 +1,4 @@
-"""The live UI publisher cannot treat partial conversations as completed cases."""
+"""The live UI game check cannot treat partial conversations as completed cases."""
 from copy import deepcopy
 
 import pytest

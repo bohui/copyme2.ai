@@ -1,4 +1,4 @@
-"""Owner-authorized game preparation, exact-candidate review and guarded delivery."""
+"""Owner-authorized game preparation and guarded game delivery."""
 import asyncio
 import os
 import re
@@ -53,10 +53,10 @@ async def rpc(storage, name, project_id, **parameters):
 
 class StoryGameResponse(Response):
     """Read and send under one transaction, so revocation cannot race the send."""
-    def __init__(self, owner, project_id, game_id, *, review=False):
+    def __init__(self, owner, project_id, game_id=None, *, review=False):
         super().__init__(headers={'Cache-Control': 'private, no-store'})
-        self.owner = str(UUID(str(owner)))
-        self.project_id, self.game_id, self.review = project_id, str(game_id), review
+        self.owner = str(UUID(str(owner))) if owner is not None else None
+        self.project_id, self.game_id, self.review = project_id, str(game_id) if game_id else None, review
 
     async def __call__(self, scope, receive, send):
         from psycopg import AsyncConnection, Error
@@ -74,11 +74,12 @@ class StoryGameResponse(Response):
                 if not dsn:
                     raise ValueError('game_publication_unavailable')
                 connection = await AsyncConnection.connect(dsn, connect_timeout=2)
-                await connection.execute('set local role authenticated')
-                await connection.execute("select set_config('request.jwt.claim.sub',%s,true)", (self.owner,))
+                await connection.execute('set local role authenticated' if self.owner else 'set local role anon')
+                await connection.execute("select set_config('request.jwt.claim.sub',%s,true)", (self.owner or '',))
                 await connection.execute("set local lock_timeout='2s'")
-                cursor = await connection.execute('select public.read_story_game(%s,%s,%s)',
-                    (self.project_id, self.game_id, self.review))
+                cursor = (await connection.execute('select public.read_story_game(%s,%s,%s)',
+                    (self.project_id, self.game_id, self.review)) if self.game_id else
+                    await connection.execute('select public.read_story_game_page(%s)', (self.project_id,)))
                 value = (await cursor.fetchone())[0]
                 response = JSONResponse(value, headers={'Cache-Control': 'private, no-store'})
                 async with asyncio.timeout(2):
@@ -87,7 +88,7 @@ class StoryGameResponse(Response):
             if started:
                 raise RuntimeError('game_delivery_interrupted') from None
             code = getattr(error, 'sqlstate', None)
-            status = 403 if code == '42501' else 409 if code in {'PT409', '40001', '55000'} else 503
+            status = 404 if code == 'PT404' else 403 if code == '42501' else 409 if code in {'PT409', '40001', '55000'} else 503
             await JSONResponse({'detail': 'This game is unavailable or has changed. Reload before continuing.'},
                 status_code=status, headers={'Cache-Control': 'private, no-store'})(scope, receive, send)
         finally:

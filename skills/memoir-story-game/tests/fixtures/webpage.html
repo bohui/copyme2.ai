@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en-AU"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your private story game</title><style>.game-framing{font-size:14px;color:#526b61}.game-stage{height:280px;position:relative;overflow:hidden;border:2px solid #9caf9e;border-radius:16px;background:linear-gradient(#d6e8df 0 68%,#92ad7c 68% 76%,#486a42 76%);touch-action:pan-y;outline-offset:4px}
+.game-stage[data-art="generic-workroom"]{background:linear-gradient(#eddfca 0 68%,#c7a980 68% 76%,#856345 76%)}
+.game-world{height:100%;position:relative;will-change:transform}.game-player{position:absolute;bottom:67px;width:32px;height:60px;border-radius:14px 14px 7px 7px;background:#2b5b6c;z-index:1}
+.game-player:before{content:"";position:absolute;top:-24px;left:4px;width:24px;height:24px;border-radius:50%;background:#d5b894}.game-player:after{content:"";position:absolute;bottom:-12px;left:4px;width:24px;height:16px;border-left:8px solid #243943;border-right:8px solid #243943;box-sizing:border-box}
+.game-npc{position:absolute;bottom:67px;min-width:82px;min-height:82px;border:0;border-radius:24px 24px 6px 6px;background:#8b5f70;color:white;padding:46px 12px 8px;font-size:13px}
+.game-npc:before{content:"";position:absolute;top:10px;left:calc(50% - 12px);width:24px;height:24px;border-radius:50%;background:#d9c2a1}.game-npc:disabled{opacity:.65!important}.game-npc[hidden]{display:none}
+.game-controls{display:flex;justify-content:center;gap:14px;margin:16px 0}.game-controls button{border:1px solid #a3b7a6;border-radius:12px;background:white;color:inherit;font-size:18px;padding:10px 22px;touch-action:none;user-select:none}
+.game-dialogue{padding:20px;border-radius:14px;background:#e9efdf;border-left:4px solid #709478}.game-text-equivalent{margin-top:24px;padding:16px;background:white;border:1px solid #d6ddd7;border-radius:12px}.game-text-equivalent summary{cursor:pointer;font-weight:600;min-height:32px}
+
+body{margin:0;padding:20px;background:#fbfcf8;color:#263b36;font-family:system-ui,sans-serif}button:focus-visible,.game-stage:focus-visible{outline:3px solid #1666aa;outline-offset:3px}button{min-height:44px}.game-text-equivalent{margin-top:20px}@media(prefers-reduced-motion:reduce){*{animation:none;transition:none}}
+</style></head><body>
+<main id="memoir-game"><p class="game-framing"></p>
+<div class="game-stage" tabindex="0" role="region"><div class="game-world"><div class="game-player"></div></div></div>
+<p class="game-scene-label" aria-live="polite"></p>
+<div class="game-controls" role="group"><button type="button" data-game-move="-1">←</button><button type="button" data-game-interact>Who am I?</button><button type="button" data-game-move="1">→</button></div>
+<div class="game-dialogue" hidden role="status"></div>
+<details class="game-text-equivalent"><summary>Read the complete text version</summary></details>
+</main></body></html>

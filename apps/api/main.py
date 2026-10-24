@@ -1064,6 +1064,8 @@ def create_app(
     app.include_router(supabase_router)
     from .agent_routes import router as agent_router
     app.include_router(agent_router)
+    from .story_game_pages import router as story_game_pages_router
+    app.include_router(story_game_pages_router)
     from .interview_photos import router as interview_photo_router
     app.include_router(interview_photo_router)
     from .historical_news_routes import router as historical_news_router

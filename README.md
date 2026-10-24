@@ -35,6 +35,7 @@ copyme2.ai/
 │   ├── people
 │   ├── timeline
 │   ├── chapters/:id
+│   ├── game/:projectId      # playable game; private until the owner shares it
 │   ├── preview
 │   ├── package
 │   ├── checkout
@@ -46,6 +47,15 @@ copyme2.ai/
 ```
 
 The Next.js frontend serves the platform landing page at `/`, the Memoir entry page at `/memoir`, and the interview/workspace shell from the Memoir routes. An optional catch-all App Router page preserves direct links without adding locale prefixes or changing the public URL contract.
+
+Games use the existing project ID at `/memoir/game/:projectId`. The owner can keep
+the game private, allow anyone with its URL to play, or create invitation links
+bound to friends' verified account emails. Invitations do not send email; the
+owner copies the link. Removing an invitation withdraws that player's access.
+Replacing a game resets it to private and invalidates invitations for the previous
+content. Publishing and sharing are application controls outside the two model
+steps. The fictional age-eight benchmark is labelled as an example and stored
+separately from the owner's memories.
 
 ## Repository layout
 
@@ -459,6 +469,8 @@ a previously failed sync. If Langfuse is unavailable, the pull remains merged an
 the hook reports the failure without inventing receipts.
 
 `make prompt-sync-check` previews publication on current `main` without writing.
+Set `PROMPT_NAME` to a full Langfuse name to scope sync/check to one prompt; the
+publisher CLI accepts repeated `--name` options for a skill's related prompts.
 `make prompt-export` remains an explicit recovery command that exports the highest
 numeric Langfuse version. `make prompt-check` compares checked-in pins with their
 exact remote versions and validates template composition. Evaluation preflight includes the

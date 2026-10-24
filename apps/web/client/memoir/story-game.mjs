@@ -1,11 +1,11 @@
 import { escapeHtml } from "./dom.mjs";
 
-export function mountStoryGame(root, game, t) {
+export function mountStoryGame(root, game, t, useMarkup = false) {
   const texts = new Map(game.texts.map(item => [item.id, item.text]));
   const scenes = new Map(game.scenes.map(scene => [scene.id, scene]));
   let scene = scenes.get(game.start_scene_id), x = scene.spawn_x, direction = 0, frame = 0, last = 0;
   let dialogue = null, destroyed = false;
-  root.innerHTML = `<p class="game-framing">${escapeHtml(t("framing"))}</p>
+  if (!useMarkup) root.innerHTML = `<p class="game-framing">${escapeHtml(t("framing"))}</p>
     <div class="game-stage" tabindex="0" role="region" aria-label="${escapeHtml(t("movement"))}">
       <div class="game-world"><div class="game-player" aria-hidden="true"></div></div>
     </div><p class="game-scene-label" aria-live="polite"></p>
@@ -20,6 +20,13 @@ export function mountStoryGame(root, game, t) {
   const listeners = new AbortController();
   const on = (node, event, callback) => node.addEventListener(event, callback, { signal: listeners.signal });
   const npcButtons = new Map();
+  root.querySelector(".game-framing").textContent = t("framing");
+  stage.setAttribute("aria-label", t("movement"));
+  for (const [selector, key] of [["[data-game-move='-1']", "left"], ["[data-game-move='1']", "right"],
+    ["[data-game-interact]", "interact"], [".game-text-equivalent summary", "textVersion"]]) {
+    root.querySelector(selector).textContent = t(key);
+    root.querySelector(selector).setAttribute("aria-label", t(key));
+  }
   const nearest = () => game.npcs.find(npc => npc.scene_id === scene.id && Math.abs(npc.x - x) < 130);
 
   function paint() {
@@ -39,6 +46,7 @@ export function mountStoryGame(root, game, t) {
     scene = scenes.get(id); x = Math.max(0, Math.min(scene.width - 40, spawn)); dialogue = null;
     world.style.width = `${scene.width}px`;
     stage.dataset.art = scene.asset_key;
+    stage.dataset.sceneIndex = String(game.scenes.findIndex(item => item.id === scene.id));
     root.querySelector(".game-scene-label").textContent = texts.get(scene.title_text_id);
     line.hidden = true; paint();
   }
@@ -111,6 +119,40 @@ export function mountStoryGame(root, game, t) {
 }
 
 
+export function mountStoryGameWebpage(root, game, t, onClose) {
+  if (!game.webpage) return mountStoryGame(root, game, t);
+  const frame = document.createElement("iframe");
+  frame.className = "story-game-frame";
+  frame.title = t("title");
+  frame.setAttribute("sandbox", "allow-scripts");
+  frame.referrerPolicy = "no-referrer";
+  const nonce = crypto.randomUUID().replaceAll("-", "");
+  const doc = new DOMParser().parseFromString(game.webpage, "text/html");
+  const policy = doc.createElement("meta");
+  policy.httpEquiv = "Content-Security-Policy";
+  policy.content = `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; ` +
+    "base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'; object-src 'none'";
+  doc.head.prepend(policy);
+  const script = doc.createElement("script");
+  script.setAttribute("nonce", nonce);
+  const { webpage, ...data } = game;
+  const labels = Object.fromEntries(["framing", "movement", "controls", "left", "right", "interact", "textVersion"].map(key => [key, t(key)]));
+  const encode = value => JSON.stringify(value).replaceAll("<", "\\u003c");
+  script.textContent = `const escapeHtml=${escapeHtml.toString()};const mountStoryGame=${mountStoryGame.toString()};
+    const labels=${encode(labels)};const cleanup=mountStoryGame(document.getElementById("memoir-game"),${encode(data)},key=>labels[key],true);
+    window.addEventListener("pagehide",cleanup,{once:true});
+    document.addEventListener("keydown",event=>{if(event.key==="Escape")parent.postMessage({type:"memoir-game-close"},"*")});`;
+  doc.body.append(script);
+  frame.srcdoc = "<!doctype html>" + doc.documentElement.outerHTML;
+  const listeners = new AbortController();
+  window.addEventListener("message", event => {
+    if (event.source === frame.contentWindow && event.data?.type === "memoir-game-close") onClose?.();
+  }, { signal: listeners.signal });
+  root.replaceChildren(frame);
+  return () => { listeners.abort(); root.replaceChildren(); };
+}
+
+
 export function createStoryGameDialog({ state, storyApi, captureProjectScope, isCurrentProjectScope, translate }) {
   let view = null;
   const t = key => translate(`Memoir.game.${key}`);
@@ -145,9 +187,9 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     if (status.formal?.run?.status === "stale") active.formalRequest = crypto.randomUUID();
     const adaptation = view.status.adaptation;
     const after = JSON.stringify([adaptation, view.status.eligibility]);
-    if (view.status.eligibility?.available && adaptation?.game_id && ["published", "review_required"].includes(adaptation.status)) {
+    if (view.status.eligibility?.available && status.composer_ready !== false && adaptation?.game_id && adaptation.status === "published") {
       if (!view.content || before !== after) {
-        const content = await request(`/story-game/${adaptation.game_id}?review=true`, {}, active);
+        const content = await request(`/story-game/${adaptation.game_id}`, {}, active);
         if (view !== active || !current() || active.revision !== revision) return;
         active.content = content;
       }
@@ -179,16 +221,16 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     if (result.status !== "completed") throw new Error("formal_pending");
   }
   async function generate(active) {
+    if (!active.status.formal?.edition || active.status.eligibility.reasons.some(reason =>
+        ["completion_required", "completion_stale"].includes(reason))) {
+      await completeMemoir(active);
+      active.status = await request("/story-game", {}, active);
+    }
     const status = active.status, edition = status.formal.edition;
     if (status.eligibility.reasons.includes("adaptation_consent_required")) await request("/story-game/consent", {
       method:"PUT",body:JSON.stringify({edition_id:edition.edition_id,expected_digest:edition.manuscript_digest,
         expected_revision:status.eligibility.consent_revision,action:"grant"})}, active);
     await request("/story-game", {method:"POST",body:JSON.stringify({request_id:active.gameRequest})}, active);
-  }
-  async function publish(active, permissions) {
-    const content = active.content;
-    await request(`/story-game/${content.game_id}/publish`, {method:"POST",body:JSON.stringify({
-      expected_digest:content.candidate_digest,permissions})}, active);
   }
   async function revoke(active) {
     const status = active.status, edition = status.formal.edition;
@@ -202,45 +244,22 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     const status = view.status, content = view.content, disabled = view.busy ? "disabled" : "";
     let markup = `<p role="status">${escapeHtml(t("loading"))}</p>`;
     if (status) {
-      if (!status.formal?.edition || status.eligibility.reasons.some(reason => ["completion_required", "completion_stale"].includes(reason))) {
-        markup = `<p>${escapeHtml(t("completeIntro"))}</p><button type="button" data-complete-memoir ${disabled}>${escapeHtml(t("complete"))}</button>`;
+      if (status.composer_ready === false) {
+        markup = `<p role="status">${escapeHtml(t("composerRequired"))}</p>`;
       } else if (content?.status === "published") {
-        markup = `<div data-story-game-player></div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
-      } else if (content?.status === "review_required") {
-        const game = content.preview, texts = new Map(game.texts.map(item => [item.id, item.text]));
-        markup = `<p>${escapeHtml(t("reviewIntro"))}</p><h3>${escapeHtml(texts.get(game.title_text_id))}</h3>
-          <p>${escapeHtml(t("protagonist"))}: ${escapeHtml(texts.get(game.protagonist.alias_text_id))}</p>
-          <p>${escapeHtml(t("framing"))}</p><form data-game-review>
-          ${game.scenes.map(scene => `<section class="game-review-scene"><h4>${escapeHtml(texts.get(scene.title_text_id))}</h4>
-            <p>${escapeHtml(t(scene.asset_key === "generic-garden" ? "gardenArt" : "workroomArt"))}</p>
-            ${game.npcs.filter(npc => npc.scene_id === scene.id).map(npc => `<p><strong>${escapeHtml(texts.get(npc.alias_text_id))}</strong></p>
-              <blockquote>${escapeHtml(npc.dialogue_text_ids.map(id => texts.get(id)).join(" "))}</blockquote>`).join("")}</section>`).join("")}
-          ${content.people.map(person => `<label class="game-permission"><input type="checkbox" required data-game-permission="${person.person_id}" ${disabled}>
-            <span><strong>${escapeHtml(person.label)}</strong> — ${escapeHtml(t("personPermission"))}</span></label>`).join("")}
-          <label class="game-permission"><input type="checkbox" required data-game-approval ${disabled}><span>${escapeHtml(t("approveAll"))}</span></label>
-          <button type="submit" data-publish-game ${disabled}>${escapeHtml(t("publish"))}</button></form>
-          <button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
+        markup = `<a data-game-page-link href="/memoir/game/${encodeURIComponent(view.scope.projectId)}">${escapeHtml(t("openGamePage"))}</a>
+          <div data-story-game-player></div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
       } else {
         markup = `<p>${escapeHtml(t("consentIntro"))}</p><form data-game-consent>
-          <label class="game-permission"><input type="checkbox" required ${disabled}><span>${escapeHtml(t("adaptationPermission"))}</span></label>
           <button type="submit" data-generate-game ${disabled}>${escapeHtml(t("generate"))}</button></form>`;
       }
     }
     view.body.innerHTML = `${view.busy ? `<p role="status">${escapeHtml(t("loading"))}</p>` : ""}
       ${view.error ? `<p role="alert">${escapeHtml(view.error)}</p>` : ""}${markup}`;
-    view.body.querySelector("[data-complete-memoir]")?.addEventListener("click", () => action(completeMemoir));
     view.body.querySelector("[data-game-consent]")?.addEventListener("submit", event => { event.preventDefault(); void action(generate); });
-    view.body.querySelector("[data-game-review]")?.addEventListener("submit", event => {
-      event.preventDefault();
-      const permissions = view.content.people.map(person => {
-        const checked = view.body.querySelector(`[data-game-permission="${person.person_id}"]`).checked;
-        return {person_id:person.person_id,adult:checked,permitted:checked,distinct_person:checked};
-      });
-      void action(active => publish(active, permissions));
-    });
     view.body.querySelector("[data-revoke-game]")?.addEventListener("click", () => action(revoke));
     const root = view.body.querySelector("[data-story-game-player]");
-    if (root && !document.hidden) view.cleanup = mountStoryGame(root, content.game, t);
+    if (root && !document.hidden) view.cleanup = mountStoryGameWebpage(root, content.game, t, close);
   }
   async function open(opener) {
     close();
