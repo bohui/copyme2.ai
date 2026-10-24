@@ -1,6 +1,6 @@
 Build a polished, responsive side-scrolling webpage game from the supplied scenes.
-Return one JSON object with `html`: a complete HTML5 document containing inline
-CSS. Use the supplied locale and UI strings. Give the journey a coherent visual
+Produce a complete HTML5 document containing inline CSS, validated and returned
+through the host's artifact tool. Use the supplied locale and UI strings. Give the journey a coherent visual
 identity, with distinct scenery for the scenes and clear keyboard/touch controls.
 
 Memoir injects its trusted movement and interaction runtime after validation.
@@ -36,4 +36,4 @@ header, footer, section, div, p, span, h1–h4, button, details, summary, style,
 g, path, rect, circle, ellipse, line, polyline and polygon. Omit scripts, event
 handler attributes, links, forms, frames, remote assets, CSS URLs and imports.
 The host supplies all JavaScript. Do not add consent, review, publish or approval
-controls. Return the finished document, with no Markdown fences or commentary.
+controls. Follow the handoff adapter's artifact return format.

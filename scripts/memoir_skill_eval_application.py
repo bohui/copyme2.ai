@@ -159,7 +159,7 @@ async def _execute(value):
     from memoir_postgres_workflow import PostgresRest
     from test_shared_memory_events_postgres import literal, rpc
     from test_formal_memoir_postgres import completed, consent
-    from test_story_game_runtime_postgres import begin_game, read, proposal_from_packet, compose_game_chapters
+    from test_story_game_runtime_postgres import begin_game, read, pool_from_packet, compose_game_chapters
     from test_story_game_runtime import webpage, receipt
     from test_background_profile_workflow import Broker
     from apps.api.story_game_runtime import generate_story_game
@@ -251,7 +251,7 @@ async def _execute(value):
                     async def provider(packet):
                         class Fixture:
                             async def call(self, request):
-                                proposal = proposal_from_packet(packet)
+                                proposal = pool_from_packet(packet)
                                 if case == 'timeline-coverage': proposal['scenes'].pop()
                                 return dict(output=proposal, response_id='fixture-game-scenes',
                                             model='controlled-application-fixture', usage=None)
@@ -266,9 +266,20 @@ async def _execute(value):
                                 return dict(output=document, response_id='fixture-game-webpage',
                                             model='controlled-astra-boundary', usage=None)
                         reply = await budget.dispatch(Fixture(), dict(item_id=item['id'], kind='game_webpage', input=scenes))
-                        return reply['output'], dict(status='completed', response_id=reply['response_id'], model=reply['model'])
+                        return reply['output'], dict(status='completed', response_id=reply['response_id'], model=reply['model'],
+                            requested_model='gpt-6-astra', skill='higgsfield-websites', skill_sha256='a'*64)
+                    async def composer(packet, scenes):
+                        return dict(design_brief='A coherent memoir journey.', scene_indices=list(range(len(scenes['scenes'])))), receipt('brief')
                     try:
-                        generated = await generate_story_game(Broker(sql), game['game_id'], provider=provider, builder=builder)
+                        offered = await generate_story_game(Broker(sql), game['game_id'], provider=provider, builder=builder)
+                        if offered['status'] != 'selection_required': raise ValueError('human_pause_missing')
+                        options = read(sql, project, game)
+                        chosen = [s['id'] for s in options['pool']['scenes'] if s['recommended']]
+                        # Explicit synthetic user action; never treated as live-owner approval.
+                        rpc(sql, 'confirm_story_game_scenes', f"{literal(project)},'{game['game_id']}',"
+                            + literal(options['pool_digest']) + ',' + literal(chosen))
+                        phase.update(selection_scope='synthetic_user_action', pool_digest=options['pool_digest'], selected_ids=chosen)
+                        generated = await generate_story_game(Broker(sql), game['game_id'], composer=composer, builder=builder)
                     except ValueError as error:
                         expected = {'timeline-coverage': 'game_timeline_coverage_required',
                                     'unsafe-webpage': 'game_webpage_element_invalid'}

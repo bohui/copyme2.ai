@@ -1,6 +1,6 @@
 {
   "$defs": {
-    "SceneProposal": {
+    "SceneOption": {
       "additionalProperties": false,
       "properties": {
         "chapter_id": {
@@ -48,6 +48,16 @@
           "minItems": 1,
           "title": "Event Ids",
           "type": "array"
+        },
+        "recommended": {
+          "title": "Recommended",
+          "type": "boolean"
+        },
+        "reason": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
         }
       },
       "required": [
@@ -56,9 +66,11 @@
         "title",
         "person",
         "quote",
-        "event_ids"
+        "event_ids",
+        "recommended",
+        "reason"
       ],
-      "title": "SceneProposal",
+      "title": "SceneOption",
       "type": "object"
     }
   },
@@ -66,7 +78,7 @@
   "properties": {
     "scenes": {
       "items": {
-        "$ref": "#/$defs/SceneProposal"
+        "$ref": "#/$defs/SceneOption"
       },
       "maxItems": 128,
       "minItems": 1,
@@ -77,6 +89,6 @@
   "required": [
     "scenes"
   ],
-  "title": "GameProposal",
+  "title": "ScenePool",
   "type": "object"
 }

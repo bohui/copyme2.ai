@@ -3,6 +3,7 @@ import json
 import asyncio
 import os
 import time
+from urllib.parse import quote
 from pathlib import Path
 
 import httpx
@@ -19,7 +20,7 @@ from test_background_profile_workflow import Broker, database
 from test_conversation_attribution import Conversation, empty, episode
 from test_lifetime_memory_postgres import attachment_database, private_database, event_database
 from test_shared_memory_events_postgres import sql, rpc, literal
-from test_story_game_runtime_postgres import proposal_from_packet, compose_game_chapters, MEMORIES
+from test_story_game_runtime_postgres import proposal_from_packet, pool_from_packet, compose_game_chapters, MEMORIES
 from test_story_game_runtime import webpage, receipt
 
 pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Requires isolated source frontend')
@@ -35,7 +36,7 @@ def wait_for_position(player, predicate, timeout=10):
 
 
 @pytest.mark.parametrize('locale,width', [('en-AU', 1280), ('zh-CN', 390)])
-def test_two_step_game_opens_for_play_recovers_and_revokes(sql, tmp_path, monkeypatch, locale, width):
+def test_scene_selection_pauses_before_astra_then_opens_for_play_and_revokes(sql, tmp_path, monkeypatch, locale, width):
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'game-browser-tasks.sqlite3'))
     conversation = Conversation(sql, tmp_path, monkeypatch,
         lambda packet: {**empty(packet), 'events': [episode(packet, packet['sources'][0]['text'])]},
@@ -56,12 +57,20 @@ def test_two_step_game_opens_for_play_recovers_and_revokes(sql, tmp_path, monkey
         calls.append('scenes')
         scenes = proposal_from_packet(packet)
         generated_quotes.extend(scene['quote'] for scene in scenes['scenes'])
-        return scenes, dict(status='completed', response_id='resp-controlled-game', model='controlled')
+        return pool_from_packet(packet), dict(status='completed', response_id='resp-controlled-game', model='controlled')
 
     async def builder(packet, proposal, *, token):
-        calls.append('webpage')
-        return webpage(packet['authority']['locale']), receipt('webpage')
+        calls.append('higgsfield')
+        assert len(proposal['scenes']) == 2
+        return webpage(packet['authority']['locale']), {**receipt('higgsfield'), 'requested_model': 'gpt-6-astra',
+            'skill': 'higgsfield-websites', 'skill_sha256': 'a'*64}
 
+    async def composer(packet, proposal, *, token):
+        calls.append('brief')
+        assert len(proposal['scenes']) == 2
+        return dict(design_brief='A coherent private memory journey.', scene_indices=[0,1]), receipt('brief')
+
+    monkeypatch.setattr(story_game_runtime, 'compose_game_brief', composer)
     monkeypatch.setattr(formal_memoir_routes, 'authenticated_storage', storage)
     monkeypatch.setattr(story_game_routes, 'authenticated_storage', storage)
     monkeypatch.setattr(memory_event_worker, 'MemoirLaneBroker', GameBroker)
@@ -106,7 +115,8 @@ def test_two_step_game_opens_for_play_recovers_and_revokes(sql, tmp_path, monkey
             browser = pw.chromium.launch(executable_path=os.getenv('MEMOIR_BROWSER_EXECUTABLE'), headless=True)
             context = browser.new_context(viewport={'width': width, 'height': 900}, has_touch=True, reduced_motion='reduce')
             base = os.environ['MEMOIR_BROWSER_URL']
-            context.add_cookies([{'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
+            context.add_cookies([{'name':'copyme2_ui_preference_v1','value':quote(json.dumps({'version':1,'locale':locale,'source':'manual','viewer':None})),'url':base},
+                                 {'name': 'copyme2_ui_locale', 'value': locale, 'url': base},
                                  {'name': 'copyme2_ui_locale_source', 'value': 'fixed', 'url': base}])
             page = context.new_page()
             errors = []
@@ -125,10 +135,26 @@ def test_two_step_game_opens_for_play_recovers_and_revokes(sql, tmp_path, monkey
                 expect(page.locator('[data-generate-game]')).to_be_visible()
                 assert not calls
                 page.locator('[data-generate-game]').click()
+                expect(page.locator('[data-scene-selection]')).to_be_visible(timeout=30000)
+                expect(page.locator('[data-scene-option]')).to_have_count(len(MEMORIES))
+                expect(page.locator('.game-cost-hint')).to_have_text(copy['sceneCost'])
+                expect(page.locator('iframe.story-game-frame')).to_have_count(0)
+                assert calls == ['scenes']
+                page.reload()
+                expect(opener).to_be_visible(timeout=30000)
+                opener.click()
+                expect(page.locator('[data-scene-selection]')).to_be_visible(timeout=30000)
+                assert calls == ['scenes']
+                page.locator('[data-scene-count]').fill('2')
+                page.locator('[data-scene-count]').press('Tab')
+                expect(page.locator('[data-scene-option]:checked')).to_have_count(2)
+                output = Path('output/playwright'); output.mkdir(parents=True, exist_ok=True)
+                page.screenshot(path=str(output / f'story-game-selection-{locale}.png'))
+                page.locator('[data-confirm-scenes]').click()
                 expect(page.locator('iframe.story-game-frame')).to_be_visible(timeout=30000)
                 expect(page.locator('[data-game-review]')).to_have_count(0)
                 expect(page.locator('[data-publish-game]')).to_have_count(0)
-                assert calls == ['scenes', 'webpage']
+                assert calls == ['scenes', 'brief', 'higgsfield']
                 assert page.locator('iframe.story-game-frame').get_attribute('sandbox') == 'allow-scripts'
                 frame = page.frame_locator('iframe.story-game-frame')
                 assert frame.locator('body').evaluate("() => {try {return !!parent.document.body;} catch {return false;}}") is False
@@ -165,7 +191,9 @@ def test_two_step_game_opens_for_play_recovers_and_revokes(sql, tmp_path, monkey
                 frame.locator('[data-game-interact]').tap()
                 expect(frame.locator('.game-dialogue')).to_contain_text(generated_quotes[1])
                 frame.locator('.game-text-equivalent summary').click()
-                expect(frame.locator('.game-text-equivalent')).to_contain_text('My father repaired bicycles')
+                for passage in generated_quotes[:2]:
+                    expect(frame.locator('.game-text-equivalent')).to_contain_text(passage)
+                expect(frame.locator('.game-text-equivalent')).not_to_contain_text(generated_quotes[2])
                 page.keyboard.press('Escape')
                 expect(page.locator('.story-game-modal')).to_have_count(0)
                 expect(opener).to_be_focused()
@@ -173,7 +201,7 @@ def test_two_step_game_opens_for_play_recovers_and_revokes(sql, tmp_path, monkey
                 expect(opener).to_be_visible(timeout=30000)
                 opener.click()
                 expect(page.locator('iframe.story-game-frame')).to_be_visible(timeout=30000)
-                assert calls == ['scenes', 'webpage']
+                assert calls == ['scenes', 'brief', 'higgsfield']
                 output = Path('output/playwright'); output.mkdir(parents=True, exist_ok=True)
                 page.screenshot(path=str(output / f'story-game-{locale}.png'))
                 held = []

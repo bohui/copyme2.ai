@@ -153,6 +153,21 @@ export function mountStoryGameWebpage(root, game, t, onClose) {
 }
 
 
+export function rankSceneOptions(options) {
+  const groups = new Map();
+  for (const option of options) {
+    if (!groups.has(option.life_stage)) groups.set(option.life_stage, []);
+    groups.get(option.life_stage).push(option);
+  }
+  for (const group of groups.values()) group.sort((a, b) => Number(b.recommended) - Number(a.recommended));
+  const ranked = [];
+  for (let i = 0; ranked.length < options.length; i++) {
+    for (const group of groups.values()) if (group[i]) ranked.push(group[i]);
+  }
+  return ranked;
+}
+
+
 export function createStoryGameDialog({ state, storyApi, captureProjectScope, isCurrentProjectScope, translate }) {
   let view = null;
   const t = key => translate(`Memoir.game.${key}`);
@@ -164,6 +179,9 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
   };
 
   function clearRenderer() { view?.cleanup?.(); if (view) view.cleanup = null; }
+  function clearPool(active) {
+    active.pool = null; active.poolDigest = null; active.selected = new Set(); active.confirmed = false;
+  }
   function close() {
     if (!view) return;
     const old = view; view = null;
@@ -193,7 +211,20 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
         if (view !== active || !current() || active.revision !== revision) return;
         active.content = content;
       }
-    } else { view.content = null; clearRenderer(); }
+    } else {
+      view.content = null; clearRenderer();
+      if (adaptation?.pool_digest) {
+        const plan = await request(`/story-game/${adaptation.game_id}`, {}, active);
+        if (view !== active || !current() || active.revision !== revision) return;
+        if (plan.pool && active.poolDigest !== plan.pool_digest) {
+          active.pool = plan.pool;
+          active.poolDigest = plan.pool_digest;
+          active.selected = new Set(plan.selected_scene_ids || plan.pool.scenes.filter(s => s.recommended).map(s => s.id));
+        }
+        active.confirmed = !!plan.selected_scene_ids;
+        if (active.confirmed) active.selected = new Set(plan.selected_scene_ids);
+      } else clearPool(active);
+    }
     if (before !== after || !view.rendered) draw();
   }
   async function action(callback) {
@@ -204,7 +235,7 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     try { await callback(active); if (view === active && current()) await refresh(active); }
     catch (_) {
       if (view === active && current()) {
-        active.error = t("retry"); clearRenderer(); active.content = null;
+        active.error = t("retry"); clearRenderer(); active.content = null; clearPool(active);
         try { await refresh(active); if (active.content) active.error = ""; } catch (_) { /* Keep content withheld. */ }
       }
     }
@@ -238,6 +269,54 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     await request("/story-game/consent", {method:"PUT",body:JSON.stringify({edition_id:edition.edition_id,
       expected_digest:edition.manuscript_digest,expected_revision:status.eligibility.consent_revision,action:"revoke"})}, active);
   }
+  async function confirmSelection(active) {
+    await request(`/story-game/${active.status.adaptation.game_id}/selection`, {
+      method: "POST", body: JSON.stringify({expected_pool_digest: active.poolDigest,
+        scene_ids: active.pool.scenes.filter(s => active.selected.has(s.id)).map(s => s.id)})}, active);
+  }
+  function selectionMarkup(disabled) {
+    const options = view.pool.scenes, groups = new Map();
+    for (const option of options) {
+      if (!groups.has(option.life_stage)) groups.set(option.life_stage, []);
+      groups.get(option.life_stage).push(option);
+    }
+    const editingDisabled = view.confirmed ? "disabled" : disabled;
+    return `<form data-scene-selection><h3>${escapeHtml(t("chooseScenes"))}</h3>
+      <p>${escapeHtml(t("scenePoolIntro"))}</p><p class="game-cost-hint">${escapeHtml(t("sceneCost"))}</p>
+      <label>${escapeHtml(t("sceneCount"))}<input data-scene-count type="number" min="1" max="${options.length}"
+        value="${view.selected.size}" ${editingDisabled}></label>
+      <button type="button" data-recommended-scenes ${editingDisabled}>${escapeHtml(t("useRecommended"))}</button>
+      ${[...groups].map(([stage, scenes]) => `<fieldset ${editingDisabled}><legend>${escapeHtml(stage === "unplaced"
+        ? translate("Memoir.workspace.unplacedStage") : translate(`Memoir.workspace.lifeStages.${stage}.label`))}</legend>
+        ${scenes.map(s => `<div class="game-scene-option"><label><input type="checkbox" data-scene-option="${escapeHtml(s.id)}"
+          ${view.selected.has(s.id) ? "checked" : ""}><span>${escapeHtml(s.title)}
+          ${s.recommended ? `<small>${escapeHtml(t("recommended"))}</small>` : ""}</span></label>
+          <p>${escapeHtml(s.reason)}</p><details><summary>${escapeHtml(t("viewPassage"))}</summary>
+          <blockquote>${escapeHtml(s.quote)}</blockquote></details></div>`).join("")}</fieldset>`).join("")}
+      <p data-selected-count role="status">${escapeHtml(t("selectedCount").replace("{count}", view.selected.size))}</p>
+      <button type="submit" data-confirm-scenes ${disabled} ${view.selected.size ? "" : "disabled"}>${escapeHtml(t("confirmScenes"))}</button></form>`;
+  }
+  function bindSelection() {
+    const form = view.body.querySelector("[data-scene-selection]");
+    if (!form) return;
+    const update = () => {
+      form.querySelector("[data-scene-count]").value = view.selected.size;
+      form.querySelector("[data-selected-count]").textContent = t("selectedCount").replace("{count}", view.selected.size);
+      form.querySelector("[data-confirm-scenes]").disabled = view.busy || !view.selected.size;
+    };
+    form.addEventListener("submit", event => { event.preventDefault(); if (view.selected.size) void action(confirmSelection); });
+    form.querySelector("[data-scene-count]").addEventListener("change", event => {
+      const count = Math.min(view.pool.scenes.length, Math.max(1, Math.floor(Number(event.target.value) || 1)));
+      view.selected = new Set(rankSceneOptions(view.pool.scenes).slice(0, count).map(s => s.id)); draw();
+    });
+    for (const input of form.querySelectorAll("[data-scene-option]")) input.addEventListener("change", () => {
+      if (input.checked) view.selected.add(input.dataset.sceneOption); else view.selected.delete(input.dataset.sceneOption);
+      update();
+    });
+    form.querySelector("[data-recommended-scenes]").addEventListener("click", () => {
+      view.selected = new Set(view.pool.scenes.filter(s => s.recommended).map(s => s.id)); draw();
+    });
+  }
   function draw() {
     if (!view) return;
     clearRenderer(); view.rendered = true;
@@ -249,6 +328,8 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       } else if (content?.status === "published") {
         markup = `<a data-game-page-link href="/memoir/game/${encodeURIComponent(view.scope.projectId)}">${escapeHtml(t("openGamePage"))}</a>
           <div data-story-game-player></div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
+      } else if (view.pool) {
+        markup = selectionMarkup(disabled);
       } else {
         markup = `<p>${escapeHtml(t("consentIntro"))}</p><form data-game-consent>
           <button type="submit" data-generate-game ${disabled}>${escapeHtml(t("generate"))}</button></form>`;
@@ -258,6 +339,7 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       ${view.error ? `<p role="alert">${escapeHtml(view.error)}</p>` : ""}${markup}`;
     view.body.querySelector("[data-game-consent]")?.addEventListener("submit", event => { event.preventDefault(); void action(generate); });
     view.body.querySelector("[data-revoke-game]")?.addEventListener("click", () => action(revoke));
+    bindSelection();
     const root = view.body.querySelector("[data-story-game-player]");
     if (root && !document.hidden) view.cleanup = mountStoryGameWebpage(root, content.game, t, close);
   }
@@ -269,7 +351,7 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       <button type="button" data-close-game aria-label="${escapeHtml(t("close"))}">×</button></header><div class="story-game-body"></div>`;
     view = {scope:captureProjectScope(),dialog,body:dialog.querySelector(".story-game-body"),opener,
       controller:new AbortController(),formalRequest:crypto.randomUUID(),gameRequest:crypto.randomUUID(),
-      busy:false,error:"",rendered:false,revision:0,polling:false,visibility:() => {
+      busy:false,error:"",rendered:false,revision:0,polling:false,selected:new Set(),confirmed:false,visibility:() => {
         if (document.hidden) clearRenderer();
         else if (view) { view.content = null; view.rendered = false; void action(refresh); }
       }};
@@ -288,7 +370,7 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
         active.polling = true;
         void refresh(active).catch(() => {
           if (view === active && active.revision === revision) {
-            clearRenderer(); active.content = null; active.error = t("retry"); draw();
+            clearRenderer(); active.content = null; clearPool(active); active.error = t("retry"); draw();
           }
         }).finally(() => { active.polling = false; });
       }, 15000);

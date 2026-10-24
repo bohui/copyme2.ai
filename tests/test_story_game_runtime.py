@@ -8,8 +8,9 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from apps.api.story_game_runtime import (GamePublication, build_game, game_ui,
+from apps.api.story_game_runtime import (GamePublication, compose_game_brief, game_ui,
     generate_story_game, propose_game, validate_scenes)
+from apps.api.story_game_selection import validate_pool
 from apps.api.story_game_webpage import validate_webpage
 
 GAME, TOKEN, CHAPTER = (str(uuid4()) for _ in range(3))
@@ -40,54 +41,93 @@ def receipt(phase='scenes'):
     return dict(status='completed', response_id='resp-' + phase, model='controlled-' + phase)
 
 
+def pool():
+    return {'scenes': [{**scene, 'recommended': i == 0, 'reason': 'A supported playable memory.'}
+        for i, scene in enumerate(proposal()['scenes'])]}
+
+
+def build_packet():
+    current = packet()
+    current.update(scene_pool={'scenes': [{**s, 'id': f'scene-{i+1}', 'life_stage': 'childhood'}
+        for i,s in enumerate(pool()['scenes'])]}, selection={'scene_ids': ['scene-1']},
+        selection_digest='a'*64, brief=None)
+    return current
+
+
 class Broker:
-    def __init__(self, status='running'):
-        self.calls = []
-        self.status = status
+    def __init__(self, status='running', phase='scenes'):
+        self.calls, self.status, self.phase = [], status, phase
 
     async def rpc(self, name, **values):
         self.calls.append((name, values))
-        if name == 'claim_story_game': return {'status': self.status, 'token': TOKEN}
-        if name == 'read_story_game_input': return packet()
+        if name == 'claim_story_game': return {'status': self.status, 'token': TOKEN, 'phase': self.phase}
+        if name == 'read_story_game_input': return packet() if self.phase == 'scenes' else build_packet()
+        if name == 'save_story_game_pool': return {'game_id': GAME, 'status': 'selection_required'}
+        if name == 'save_story_game_brief': return None
         if name == 'stage_story_game': return {'game_id': GAME, 'status': 'published'}
         if name == 'fail_story_game': return None
         raise AssertionError(name)
 
 
-def test_chapters_and_timeline_to_scenes_then_webpage_then_host_save():
-    broker, steps = Broker(), []
-    async def scenes(value):
-        assert value == packet()
-        steps.append('scenes')
-        return proposal(), receipt()
-    async def build(value):
-        assert value == proposal() and steps == ['scenes']
-        steps.append('webpage')
-        return webpage(), receipt('webpage')
-    result = asyncio.run(generate_story_game(broker, GAME, provider=scenes, builder=build))
-    assert result['status'] == 'published' and steps == ['scenes', 'webpage']
-    assert [name for name, _ in broker.calls] == ['claim_story_game', 'read_story_game_input', 'stage_story_game']
-    staged = broker.calls[-1][1]
-    assert staged['p_token'] == TOKEN and staged['p_proposal'] == {**proposal(), **webpage()}
-    assert staged['p_model_receipt']['steps'] == {'scenes': receipt(), 'webpage': receipt('webpage')}
+def test_pool_stops_for_human_selection_without_composing_or_building():
+    broker = Broker()
+    async def scenes(value): return pool(), receipt()
+    async def forbidden(*_): raise AssertionError('human_confirmation_required')
+    result = asyncio.run(generate_story_game(broker, GAME, provider=scenes, composer=forbidden, builder=forbidden))
+    assert result['status'] == 'selection_required'
+    assert [name for name, _ in broker.calls] == ['claim_story_game', 'read_story_game_input', 'save_story_game_pool']
+    assert broker.calls[-1][1]['p_pool'] == pool()
 
 
-@pytest.mark.parametrize('status', ['busy', 'published'])
+def test_confirmed_subset_is_composed_and_built_without_unselected_memories():
+    broker, steps = Broker(phase='build'), []
+    async def forbidden(*_): raise AssertionError('pool_must_not_regenerate')
+    async def compose(packet, selected):
+        assert selected['scenes'] == proposal()['scenes'][:1]
+        steps.append('brief')
+        return {'design_brief': 'Quiet garden journey.', 'scene_indices': [0]}, receipt('brief')
+    async def build(selected):
+        assert selected['scenes'] == proposal()['scenes'][:1] and steps == ['brief']
+        steps.append('higgsfield')
+        return webpage(), receipt('higgsfield')
+    result = asyncio.run(generate_story_game(broker, GAME, provider=forbidden, composer=compose, builder=build))
+    assert result['status'] == 'published' and steps == ['brief', 'higgsfield']
+    assert [n for n,_ in broker.calls] == ['claim_story_game', 'read_story_game_input', 'save_story_game_brief', 'stage_story_game']
+    assert broker.calls[-1][1]['p_model_receipt']['selection_digest'] == 'a'*64
+
+
+def test_build_retry_reuses_the_saved_brief():
+    class SavedBrief(Broker):
+        async def rpc(self, name, **values):
+            value = await super().rpc(name, **values)
+            if name == 'read_story_game_input':
+                value['brief'] = {'design_brief': 'Already composed.', 'scene_indices': [0]}
+            return value
+    broker = SavedBrief(phase='build')
+    async def forbidden(*_): raise AssertionError('saved_brief_must_not_regenerate')
+    async def build(_): return webpage(), receipt('higgsfield')
+    assert asyncio.run(generate_story_game(broker, GAME, composer=forbidden, builder=build))['status'] == 'published'
+    assert 'save_story_game_brief' not in [n for n,_ in broker.calls]
+
+
+@pytest.mark.parametrize('status', ['busy', 'published', 'selection_required'])
 def test_replay_and_busy_jobs_do_not_dispatch_again(status):
     broker = Broker(status)
-    async def forbidden(_): raise AssertionError('provider_must_not_run')
+    async def forbidden(*_): raise AssertionError('provider_must_not_run')
     assert asyncio.run(generate_story_game(broker, GAME, provider=forbidden, builder=forbidden))['status'] == status
     assert len(broker.calls) == 1
 
 
-@pytest.mark.parametrize('change', ['quote', 'event', 'coverage', 'block', 'chapter'])
-def test_invalid_scene_plan_never_reaches_astra_or_staging(change):
-    value = proposal()
+@pytest.mark.parametrize('change', ['quote', 'event', 'coverage', 'block', 'chapter', 'duplicate', 'recommendation'])
+def test_invalid_pool_never_reaches_confirmation_or_build(change):
+    value = pool()
     if change == 'quote': value['scenes'][0]['quote'] += ' An invented medal.'
     elif change == 'event': value['scenes'][0]['event_ids'] = ['invented-event']
     elif change == 'coverage': value['scenes'].pop()
     elif change == 'block': value['scenes'][0]['block_index'] = 7
-    else: value['scenes'][0]['chapter_id'] = 'invented-chapter'
+    elif change == 'chapter': value['scenes'][0]['chapter_id'] = 'invented-chapter'
+    elif change == 'duplicate': value['scenes'].append(value['scenes'][0])
+    else: value['scenes'][0]['recommended'] = False
     broker = Broker()
     async def scenes(_): return value, receipt()
     async def forbidden(_): raise AssertionError('builder_must_not_run')
@@ -121,12 +161,36 @@ def test_full_timeline_can_exceed_sixteen_scenes():
     assert validate_scenes(current, value) == value
 
 
+def test_full_age_eight_pool_covers_every_event_without_selecting_it_for_the_owner():
+    current = json.loads((Path(__file__).parents[1] / 'skills/memoir-story-game/tests/fixtures/age-eight.json').read_text())['input']
+    options = []
+    for i, chapter in enumerate(current['chapters']):
+        quote = chapter['blocks'][0]['text'][:390].rsplit('. ', 1)[0] + '.'
+        options.append(dict(chapter_id=chapter['chapter_id'], block_index=0, person=None, title=quote[:40],
+            quote=quote, event_ids=chapter['event_ids'], recommended=i < 3, reason='A distinct, supported interaction.'))
+    prepared = validate_pool(current, {'scenes': options})
+    assert len(prepared['scenes']) == 10
+    assert sum(s['recommended'] for s in prepared['scenes']) == 3
+    assert {id for s in prepared['scenes'] for id in s['event_ids']} == {e['id'] for e in current['timeline']}
+
+
+def test_every_life_stage_needs_a_recommendation_and_cannot_be_invented():
+    current = packet()
+    current['timeline'][0]['life_stage'] = 'childhood'
+    current['timeline'][1]['life_stage'] = 'midlife'
+    with pytest.raises(ValueError, match='stage_recommendation'):
+        validate_pool(current, pool())
+    options = pool()
+    options['scenes'][1]['recommended'] = True
+    assert validate_pool(current, options) == options
+
+
 def test_failed_or_invalid_webpage_does_not_publish_half_a_game():
-    broker = Broker()
-    async def scenes(_): return proposal(), receipt()
-    async def build(_): return {'html': '<script>fetch("https://outside.invalid")</script>'}, receipt('webpage')
+    broker = Broker(phase='build')
+    async def compose(*_): return {'design_brief': 'Garden.', 'scene_indices': [0]}, receipt('brief')
+    async def build(_): return {'html': '<script>fetch("https://outside.invalid")</script>'}, receipt('higgsfield')
     with pytest.raises(ValueError):
-        asyncio.run(generate_story_game(broker, GAME, provider=scenes, builder=build))
+        asyncio.run(generate_story_game(broker, GAME, composer=compose, builder=build))
     assert broker.calls[-1][0] == 'fail_story_game'
     assert not any(name == 'stage_story_game' for name, _ in broker.calls)
 
@@ -154,9 +218,9 @@ def test_complete_static_page_is_accepted():
     assert validate_webpage(webpage()['html'], game_ui('en-AU')) == webpage()['html']
 
 
-@pytest.mark.parametrize('phase', ['scenes', 'webpage'])
+@pytest.mark.parametrize('phase', ['scenes', 'brief'])
 @pytest.mark.parametrize('bad', [None, 'duplicate_json', 'missing_receipt', 'incomplete', 'credential'])
-def test_model_calls_use_distinct_prompts_and_astra_for_webpage(monkeypatch, phase, bad):
+def test_both_planning_calls_use_composer_and_distinct_managed_prompts(monkeypatch, phase, bad):
     @asynccontextmanager
     async def admitted(self, fence):
         assert fence['game_id'] == GAME and fence['token'] == TOKEN
@@ -168,7 +232,7 @@ def test_model_calls_use_distinct_prompts_and_astra_for_webpage(monkeypatch, pha
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'configured-scene-model')
     monkeypatch.delenv('MEMORY_SPARK_STORY_GAME_BUILD_MODEL', raising=False)
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', ' high ')
-    result = proposal() if phase == 'scenes' else webpage()
+    result = pool() if phase == 'scenes' else {'design_brief': 'Quiet garden journey.', 'scene_indices': [0, 1]}
     output = json.dumps(result)
     if bad == 'duplicate_json': output *= 2
     if bad == 'credential': output = 'private-game-test-key'
@@ -178,7 +242,7 @@ def test_model_calls_use_distinct_prompts_and_astra_for_webpage(monkeypatch, pha
     client_type = httpx.AsyncClient
     def transport(request):
         sent = json.loads(request.content)
-        assert sent['model'] == ('gpt-6-astra' if phase == 'webpage' else 'configured-scene-model')
+        assert sent['model'] == 'configured-scene-model'
         assert sent['reasoning'] == {'effort': 'high'} and sent['store'] is False
         assert sent['text']['format']['strict'] is True
         assert sent['metadata']['generation_name'] == 'memoir-story-game-' + phase
@@ -188,10 +252,10 @@ def test_model_calls_use_distinct_prompts_and_astra_for_webpage(monkeypatch, pha
             assert payload['chapters'] == packet()['chapters'] and payload['timeline'] == packet()['timeline']
         else:
             assert 'chapter_id' not in payload['scenes'][0] and 'event_ids' not in payload['scenes'][0]
-            assert 'Astra' in sent['instructions']
+            assert 'higgsfield-websites' in sent['instructions']
         return httpx.Response(200, json=response)
     monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=httpx.MockTransport(transport), **kwargs))
-    call = propose_game(packet(), token=TOKEN) if phase == 'scenes' else build_game(packet(), proposal(), token=TOKEN)
+    call = propose_game(packet(), token=TOKEN) if phase == 'scenes' else compose_game_brief(packet(), proposal(), token=TOKEN)
     if bad:
         with pytest.raises(ValueError): asyncio.run(call)
     else:

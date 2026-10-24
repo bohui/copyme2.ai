@@ -187,9 +187,9 @@ def packet(item):
         payload = dict(source=task['source'], saved_people=[])
     elif skill == 'memoir-story-game' and item['phase'] == 'proposal':
         from apps.api.memoir_story_game import load_story_game_skill
-        from apps.api.story_game_runtime import GameProposal
+        from apps.api.story_game_selection import ScenePool
         instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/proposal'))
-        schema, payload = GameProposal.model_json_schema(), task
+        schema, payload = ScenePool.model_json_schema(), task
     else:
         raise ValueError('requires_application_adapter')
     return dict(item_id=item['id'], skill='memoir-author-timeline' if skill == 'memoir-place-journey' else skill,
@@ -292,8 +292,8 @@ def validate(item, output):
         if item['case'] == 'privacy' and any(p.get('visibility') != 'private' or p.get('include_in_print') is not False for p in people):
             raise ValueError('family_privacy')
     elif skill == 'memoir-story-game':
-        from apps.api.story_game_runtime import validate_scenes
-        validate_scenes(task, output)
+        from apps.api.story_game_selection import validate_pool
+        validate_pool(task, output)
         raise LookupError('missing_application_authority_and_original_chapter_witness')
     else:
         raise LookupError('missing_application_witness_adapter')

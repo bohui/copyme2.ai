@@ -1,0 +1,26 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "design_brief": {
+      "maxLength": 6000,
+      "minLength": 1,
+      "title": "Design Brief",
+      "type": "string"
+    },
+    "scene_indices": {
+      "items": {
+        "type": "integer"
+      },
+      "maxItems": 128,
+      "minItems": 1,
+      "title": "Scene Indices",
+      "type": "array"
+    }
+  },
+  "required": [
+    "design_brief",
+    "scene_indices"
+  ],
+  "title": "GameBrief",
+  "type": "object"
+}

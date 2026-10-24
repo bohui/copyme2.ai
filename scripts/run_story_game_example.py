@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run the fictional age-eight benchmark through the two published prompts."""
+"""Prepare the fictional age-eight pool; explicitly selected options produce a Higgsfield brief."""
 import argparse
 from contextlib import nullcontext
 import hashlib
@@ -13,12 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 
-def run(output, settings, *, resume=False):
+def run(output, settings, *, resume=False, selection=None):
     import httpx
     from apps.api.memoir_story_game import load_story_game_skill
     from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
     from apps.api.model_request import instruction_manifest, manifest_metadata
-    from apps.api.story_game_runtime import GameProposal, GameWebpage, game_ui, validate_scenes
+    from apps.api.story_game_runtime import game_ui
+    from apps.api.story_game_selection import ScenePool, GameBrief, validate_pool, validate_brief, public_scenes
     from apps.api.story_game_webpage import validate_webpage
     from apps.api.llm_tracing import trace_llm_call, update_llm_trace, _get_client
 
@@ -35,7 +36,7 @@ def run(output, settings, *, resume=False):
     with httpx.Client(trust_env=False, timeout=180) as client:
         def call(phase, payload, model, schema_type):
             instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(prompt_path(
-                'memoir/skills/memoir-story-game/' + ('proposal' if phase == 'scenes' else 'webpage')))
+                'memoir/skills/memoir-story-game/' + ('proposal' if phase == 'scenes' else 'brief')))
             schema = schema_type.model_json_schema()
             manifest = instruction_manifest(instructions, schema, variant='story-game-' + phase)
             request = dict(model=model, instructions=instructions, input=json.dumps(payload, ensure_ascii=False),
@@ -80,18 +81,34 @@ def run(output, settings, *, resume=False):
                     ('status', 'model', 'duration_seconds')}}), flush=True)
                 return value
 
-        scenes = call('scenes', packet, settings['MEMORY_SPARK_MEMOIR_COMPOSER_MODEL'], GameProposal)
-        scenes = validate_scenes(packet, scenes)
-        payload = dict(locale=packet['locale'], ui=game_ui(packet['locale']), scenes=[
-            dict(index=i, title=scene['title'], person=scene['person'], quote=scene['quote'])
-            for i, scene in enumerate(scenes['scenes'])])
-        webpage = call('webpage', payload, 'gpt-6-astra', GameWebpage)
-        validate_webpage(webpage['html'], game_ui(packet['locale']))
-        (output / 'webpage.html').write_text(webpage['html'])
-        save('validated-result.json', dict(scenes=scenes['scenes'], html=webpage['html'],
-            locale=packet['locale'], synthetic=True, input_sha256=hashlib.sha256(
-                json.dumps(packet, sort_keys=True).encode()).hexdigest(), steps=receipts))
-        print(json.dumps({'status': 'validated', 'scenes': len(scenes['scenes']), 'events': len(packet['timeline'])}), flush=True)
+        pool = call('scenes', packet, settings['MEMORY_SPARK_MEMOIR_COMPOSER_MODEL'], ScenePool)
+        pool = validate_pool(packet, pool)
+        stages = {e['id']: e.get('life_stage') or 'unplaced' for e in packet['timeline']}
+        for i, scene in enumerate(pool['scenes']):
+            scene.update(id=f'scene-{i+1}', life_stage=stages[scene['event_ids'][0]])
+        pool_digest = hashlib.sha256(json.dumps(pool, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+        save('pool.json', dict(pool_digest=pool_digest, **pool))
+        if selection is None:
+            print(json.dumps(dict(status='selection_required', pool_digest=pool_digest, scenes=len(pool['scenes']),
+                instructions='Choose scene_ids and pass a JSON selection with this pool_digest using --selection and --resume. No game build has started.')), flush=True)
+        else:
+            chosen = json.loads(selection.read_text())
+            if chosen.get('pool_digest') != pool_digest or not isinstance(chosen.get('scene_ids'), list):
+                raise ValueError('Example selection needs the exact saved pool digest and scene_ids')
+            ids = chosen['scene_ids']
+            scenes = [s for s in pool['scenes'] if s['id'] in ids]
+            if not scenes or len(scenes) != len(ids) or len(set(ids)) != len(ids):
+                raise ValueError('Example selection must contain unique offered scene IDs')
+            payload = dict(locale=packet['locale'], ui=game_ui(packet['locale']), scenes=public_scenes({'scenes': scenes}))
+            brief = call('brief', payload, settings['MEMORY_SPARK_MEMOIR_COMPOSER_MODEL'], GameBrief)
+            brief = validate_brief(brief, len(scenes))
+            instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/' + name))
+                for name in ('higgsfield','webpage'))
+            save('higgsfield-handoff.json', dict(model='gpt-6-astra', skill='higgsfield-websites', type='game',
+                instructions=instructions, input={**payload, 'brief': brief}, synthetic=True,
+                selected_scene_ids=ids, pool_digest=pool_digest, steps=receipts))
+            print(json.dumps(dict(status='handoff_ready', scenes=len(scenes),
+                instructions='This labelled synthetic handoff is for inspection. Canonical games run the separate skill through the confirmed Memoir UI action.')), flush=True)
     trace_client = _get_client()
     if trace_client is not None:
         trace_client.flush()
@@ -103,10 +120,11 @@ def main():
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--resume', action='store_true', help='Reuse matching saved live responses')
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--selection', type=Path, help='Human-authored JSON: pool_digest and scene_ids; requires --resume')
     parser.add_argument('--env-file', type=Path, default=ROOT / '.env')
     args = parser.parse_args()
     if not args.execute:
-        print(json.dumps({'calls': 0, 'planned_steps': 2, 'step_2_model': 'gpt-6-astra'}))
+        print(json.dumps({'calls': 0, 'planning_steps': 2, 'human_selection_required': True, 'builder': 'higgsfield-websites', 'builder_model': 'gpt-6-astra'}))
         return
     settings = {k: v for k, v in dotenv_values(args.env_file, interpolate=False).items() if v}
     credentials = dotenv_values(Path.home() / 'llm_provider/.env', interpolate=False)
@@ -114,7 +132,9 @@ def main():
         if credentials.get('LANGFUSE_COPYME2AI_' + key):
             os.environ['LANGFUSE_' + key] = credentials['LANGFUSE_COPYME2AI_' + key]
     os.environ['LANGFUSE_BASE_URL'] = 'http://127.0.0.1:' + (credentials.get('LANGFUSE_PORT') or '3001')
-    run(args.output, settings, resume=args.resume)
+    if args.selection and not args.resume:
+        parser.error('--selection requires --resume to preserve the offered pool')
+    run(args.output, settings, resume=args.resume, selection=args.selection)
 
 
 if __name__ == '__main__':

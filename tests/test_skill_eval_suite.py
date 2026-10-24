@@ -244,7 +244,7 @@ def test_game_schema_and_exact_chapter_quotes_do_not_create_authority():
     item = suite.plan(case=['memoir-story-game/proposal/en-AU'])['items'][0]
     chapter = item['task']['chapters'][0]
     proposal = dict(scenes=[dict(chapter_id=chapter['chapter_id'], block_index=i, person=None,
-        title=block['text'][:10], quote=block['text'], event_ids=[item['task']['timeline'][i]['id']])
+        title=block['text'][:10], quote=block['text'], event_ids=[item['task']['timeline'][i]['id']], recommended=True, reason='A playable memory.')
         for i, block in enumerate(chapter['blocks'])])
     with pytest.raises(LookupError, match='authority'): suite.validate(item, proposal)
     proposal['scenes'][0]['quote'] = 'An invented childhood story.'
