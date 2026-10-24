@@ -5,7 +5,7 @@ import re
 from uuid import UUID
 
 import httpx
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException
 from pydantic import BaseModel, Field
 from starlette.responses import JSONResponse, Response
 
@@ -171,25 +171,36 @@ async def read_game(project_id: str, game_id: UUID, review: bool = False,
 
 @router.post('/projects/{project_id}/story-game/{game_id}/selection', status_code=202)
 async def confirm_scenes(project_id: str, game_id: UUID, payload: SceneSelection,
+                         background_tasks: BackgroundTasks,
                          authorization: str | None = Header(default=None)):
-    from .story_game_runtime import generate_story_game
-    from .memory_event_worker import MemoirLaneBroker
     storage = await owned_storage(project_id, authorization)
-    broker = None
     try:
-        await rpc(storage, 'confirm_story_game_scenes', project_id, p_game_id=str(game_id),
+        result = await rpc(storage, 'confirm_story_game_scenes', project_id, p_game_id=str(game_id),
             p_expected_digest=payload.expected_pool_digest, p_scene_ids=payload.scene_ids)
-        broker = MemoirLaneBroker()
-        result = await generate_story_game(broker, game_id)
+        if result['status'] != 'published':
+            background_tasks.add_task(_build_confirmed_game, game_id)
         return JSONResponse(result, status_code=202, headers={'Cache-Control': 'no-store'})
     except httpx.HTTPStatusError as error:
         raise _rpc_error(error) from None
     except (httpx.RequestError, ValueError, KeyError, TimeoutError):
-        raise HTTPException(503, 'Game build was not completed. Your scene selection is saved; retry it.') from None
+        raise HTTPException(503, 'Scene confirmation could not be saved. Reload and retry.') from None
     finally:
         await asyncio.to_thread(storage.client.close)
-        if broker is not None:
-            await broker.client.aclose()
+
+
+async def _build_confirmed_game(game_id):
+    """The durable claim owns retries; no long-lived browser request is needed."""
+    from .story_game_runtime import generate_story_game
+    from .memory_event_worker import MemoirLaneBroker
+    broker = MemoirLaneBroker()
+    try:
+        await generate_story_game(broker, game_id)
+    except (httpx.HTTPError, ValueError, KeyError, TimeoutError):
+        # generate_story_game records failure against its lease. The owner can
+        # retry the saved selection; no provider work is automatically repeated.
+        pass
+    finally:
+        await broker.client.aclose()
 
 
 @router.post('/projects/{project_id}/story-game/{game_id}/publish')

@@ -261,7 +261,9 @@ def test_replaced_lease_rejects_old_worker_and_attempts_are_bounded(sql, ready):
     project, _, _ = ready
     game, first, _, proposal = prepare(sql, project)
     sql(f"update public.user_story_game set lease_until=clock_timestamp()-interval '1 second' where id='{game['game_id']}';")
+    assert read(sql, project, game)['retryable'] is True
     second = service(sql, 'claim_story_game', f"'{game['game_id']}'")
+    assert second['retryable'] is False
     assert second['token'] != first['token'] and second['attempts'] == 2
     assert stage(sql, game, first, proposal, check=False).returncode
     service(sql, 'fail_story_game', f"'{game['game_id']}','{second['token']}'")

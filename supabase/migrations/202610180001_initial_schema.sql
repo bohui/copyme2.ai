@@ -14450,7 +14450,8 @@ create function public.story_game_status_record(p_game public.user_story_game) r
 language sql stable security definer set search_path='' as $$
  select jsonb_build_object('game_id',p_game.id,'edition_id',p_game.edition_id,'status',p_game.state,
    'candidate_digest',p_game.candidate_digest,'attempts',p_game.attempts,'phase',p_game.phase,
-   'pool_digest',p_game.pool_digest,'selected_count',jsonb_array_length(p_game.selection->'scene_ids'))
+   'pool_digest',p_game.pool_digest,'selected_count',jsonb_array_length(p_game.selection->'scene_ids'),
+   'retryable',p_game.state='running' and p_game.lease_until<=clock_timestamp())
 $$;
 
 CREATE FUNCTION public.begin_story_game(p_project_id text,p_request_id uuid) returns jsonb
