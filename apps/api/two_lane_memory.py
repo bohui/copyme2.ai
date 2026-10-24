@@ -107,7 +107,7 @@ def prioritize_question(value, context, *, selection_reason):
     """Prioritize B only after validating the original plan and current intent."""
     resolved = {item['question_id'] for item in value['plan'].get('resolved_questions', [])}
     question = pending_confirmation(context, exclude_ids=resolved)
-    if (context.get('reply_contract') == 'reply-v2'
+    if (question is None and context.get('reply_contract') == 'reply-v2'
             and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context'}):
         from .conversation_reply import reply_candidates
         question = next((item for item in reply_candidates(context) if item['id'] not in resolved), None)

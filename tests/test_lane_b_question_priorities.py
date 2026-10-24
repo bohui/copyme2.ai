@@ -189,6 +189,43 @@ def test_answered_plan_confirmation_is_not_forced_back_into_reply():
     assert result['plan']['chosen_id'] != confirmation['id']
 
 
+@pytest.mark.parametrize('news_ready', [False, True])
+@pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate', 'return_context'])
+def test_resolving_first_confirmation_keeps_second_ahead_of_news_and_ordinary_hints(news_ready, reason):
+    context = reply_context('The umbrella was blue.')
+    prior = dict(id='prior-story', version=1, status='active', text=(
+        'I cannot remember whether the umbrella was blue or green. '
+        'May helped Lin at the shop, but I cannot remember which sister managed it.'))
+    first, second, ordinary = [dict(hint(context, identity, confirmation=identity != 'c'),
+        source_id=prior['id'], quote=prior['text'], char_start=0, char_end=len(prior['text']))
+        for identity in ['a', 'b', 'c']]
+    first['question'] = 'What colour was the umbrella?'
+    second['question'] = 'Was it May or Lin who managed the shop?'
+    ordinary['question'] = 'What else do you remember about the shop?'
+    context.update(sources=[prior], prepared_questions=[first, second], strategy_selector=True,
+        strategy_context={'mode': 'active', 'plan': dict(plan_revision=2, strategy='explore',
+            objective='follow_story', candidates=[ordinary])}, interview_language='en-AU')
+    if news_ready:
+        context.update(deepcopy(ready_context()))
+    hints = reply_candidates(context)
+    assert second['id'] not in {item['id'] for item in hints}, 'Exercise the strategy projection gap'
+    raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
+        'question': ordinary['question'], 'reason': reason,
+        'hint': None if reason == 'return_context' else next(
+            index for index, item in enumerate(hints) if item['id'] == ordinary['id']),
+        'resolved_questions': [dict(question_id=first['id'], source_id=context['source']['id'],
+            source_version=context['source']['version'], quote='blue', char_start=17, char_end=21)]}
+
+    result = validate_governed_collector_result(raw, context)
+
+    assert result['plan']['chosen_id'] == second['id']
+    assert result['plan']['candidates'][0]['question'] == second['question']
+    assert result['strategy_outcome']['selected_candidate_id'] == second['id']
+    assert result['strategy_outcome']['question_delivered'] == second['question']
+    assert result['plan']['resolved_questions'] == raw['resolved_questions']
+    assert result.get('historical_context') is None
+
+
 def test_confirmation_ranks_before_topic_expansion_and_news_without_duplicates():
     context = reply_context()
     confirmation, broader = hint(context, 'a', confirmation=True), hint(context, 'b')
