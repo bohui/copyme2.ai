@@ -137,6 +137,10 @@ def test_ready_news_can_save_and_replay_an_explicit_stop_without_touching_the_pr
         replay = client.post('/v1/agent/turn', json=payload)
         assert replay.status_code == 200 and replay.json()['cached']
         assert replay.json()['reply'] == acknowledgement and len(calls) == 2
+        rendered = subprocess.run(['node', 'tests/historical-news/replay-api.mjs'],
+            input=json.dumps(dict(saved=saved, replay=replay.json(), language=language, prior=prior, text=text)),
+            text=True, capture_output=True, timeout=20, cwd=Path(__file__).resolve().parents[1])
+        assert rendered.returncode == 0, rendered.stdout + rendered.stderr
         assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'
 
 

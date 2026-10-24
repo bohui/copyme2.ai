@@ -232,6 +232,15 @@ def validate_governed_collector_result(raw, context):
                 outcome = {**outcome, 'selected_candidate_id': chosen['id'],
                            'selection_reason': 'prepared_candidate', 'question_delivered': chosen['question']}
     if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
+    if context.get('reply_contract') == 'reply-v2' and context.get('reviewed_acknowledgement') is None:
+        from .interview_questions import question_candidates
+        from .interview_plan import neutral_acknowledgement
+        if any(q['id'] == result['plan']['chosen_id'] and q.get('requires_confirmation')
+               for q in question_candidates(context)):
+            # A prepared clarification is the sole question, including unpunctuated speech.
+            acknowledgement = neutral_acknowledgement(context)
+            result['reply'] = acknowledgement + result['reply'][len(result['acknowledgement'].strip()):]
+            result['acknowledgement'] = acknowledgement
     source = _current_source(context)
     updates = validate_continuity_updates(value.get('continuity_updates', []), source)
 
