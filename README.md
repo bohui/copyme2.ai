@@ -116,6 +116,21 @@ Speech calls go directly from Memoir's API to the provider selected by the inter
 
 Set the server-only `GROQ_API_KEY`, `DASHSCOPE_API_KEY`, and `DASHSCOPE_WORKSPACE_ID` in `.env`. Create a Groq account at the [Groq console](https://console.groq.com/), create an API key under **API Keys**, and grant it access to the Speech-to-Text API. Create an Alibaba Cloud account, activate [Model Studio](https://www.alibabacloud.com/help/en/model-studio/get-api-key), create an API key, and use the workspace ID for the region where the key and CosyVoice deployment live. `DASHSCOPE_REGION` defaults to `ap-southeast-1` (Singapore); use `cn-beijing` for a Beijing workspace. Keep both keys server-side and never put them in browser code.
 
+The minimal speech block is:
+
+```dotenv
+GROQ_API_KEY=
+GROQ_BASE_URL=https://api.groq.com/openai/v1
+DASHSCOPE_API_KEY=
+DASHSCOPE_WORKSPACE_ID=
+DASHSCOPE_REGION=ap-southeast-1
+MEMORY_SPARK_STT_MODEL=whisper-large-v3-turbo
+MEMORY_SPARK_QWEN_STT_MODEL=qwen3-asr-flash
+MEMORY_SPARK_TTS_MODEL=cosyvoice-v3-flash
+MEMORY_SPARK_TTS_VOICE_EN_AU=longwan_v3
+MEMORY_SPARK_TTS_VOICE_ZH_CN=longwan_v3
+```
+
 Groq handles English and Mandarin transcription. If the Mandarin Groq request is unavailable, the router retries it with Qwen3-ASR-Flash through the same DashScope key and workspace. CosyVoice synthesizes both languages through its WebSocket API; `longwan_v3` is the shared bilingual voice. Missing credentials or a provider failure return the existing voice-unavailable response; typed answers remain available. After configuring keys, rebuild/recreate the local stack with `make container-up CONTAINER_REBUILD=1`. Local Python runs require FFmpeg on `PATH`; the API container already includes it.
 
 `MEMORY_SPARK_STT_MODEL`, `MEMORY_SPARK_QWEN_STT_MODEL`, and `MEMORY_SPARK_TTS_MODEL` override the defaults. Set `MEMORY_SPARK_TTS_VOICE_ZH_CN` or `MEMORY_SPARK_TTS_VOICE_EN_AU` to another CosyVoice voice supported by your workspace. Delivery instructions come from the checked-in, versioned `memoir/speech/...` prompts; raw instruction environment variables are not used. Chinese uses 1.1× speed and conversational Mandarin delivery; English uses the managed Australian English delivery policy. Audio caches include provider, model, voice, delivery, and format. CosyVoice replies default to MP3. Browser recordings stay in their original upload format while Groq accepts the multipart audio directly.
