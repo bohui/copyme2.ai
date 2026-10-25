@@ -39,6 +39,57 @@ def test_unchanged_dependency_requires_identical_stored_writing():
         preserve_unchanged(checkpoint(),absent,events,events)
 
 
+def test_privacy_fence_change_allows_regeneration_but_profile_revision_alone_does_not():
+    previous, current = checkpoint(), checkpoint()
+    previous['draft']['snapshot_id'] = 'before'
+    current['draft']['snapshot_id'] = 'after'
+    current['pages'][0]['records'] = []
+    events = [{'id':'event','revision':1,'source_refs':[{'source_id':'source','version':1}]}]
+    fence = {'previous_snapshot_id':'before','current_snapshot_id':'after',
+        'previous_privacy_digest':'a'*64,'current_privacy_digest':'b'*64}
+    proof = preserve_unchanged(previous,current,events,events,privacy_fence=fence)
+    assert proof['privacy_changed_passages'] == 1 and not proof['unchanged_passages']
+    with pytest.raises(ValueError,match='writing_changed_or_missing'):
+        preserve_unchanged(previous,current,events,events,
+            privacy_fence={**fence,'current_privacy_digest':'a'*64})
+    for patch in [{'current_snapshot_id':'foreign'}, {'previous_snapshot_id':'foreign'},
+                  {'previous_privacy_digest':None}, {'current_privacy_digest':'invalid'}]:
+        with pytest.raises(ValueError,match='privacy_fence'):
+            preserve_unchanged(previous,current,events,events,privacy_fence={**fence,**patch})
+
+
+@pytest.mark.parametrize('mismatch', [None,'missing','root_digest','policy_epoch','preference_revision'])
+def test_summary_reads_and_matches_owned_frozen_privacy_roots(monkeypatch, mismatch):
+    from unittest.mock import MagicMock
+    import psycopg
+    from scripts.memoir_progressive_verification import saved_message_summary
+    previous, current = checkpoint(), checkpoint()
+    roots = []
+    for key, saved in [('before',previous),('after',current)]:
+        saved['draft'].update(snapshot_id=key,root_digest=key+'-root')
+        saved['pages'][0]['preference_revision'] = 3
+        roots.append([key,key+'-root',1,3,('a' if key=='before' else 'b')*64])
+    if mismatch == 'missing':
+        roots.pop()
+    elif mismatch:
+        roots[-1][{'root_digest':1,'policy_epoch':2,'preference_revision':3}[mismatch]] = 'changed'
+    connection = MagicMock()
+    connection.__enter__.return_value = connection
+    cursor = connection.cursor.return_value.__enter__.return_value
+    cursor.fetchall.side_effect = [[tuple(row) for row in roots],[]]
+    monkeypatch.setattr(psycopg,'connect',lambda *args,**kwargs:connection)
+    binding = {'owner_id':'owned','project_id':'project'}
+    if mismatch:
+        with pytest.raises(ValueError,match='privacy_fence_mismatch'):
+            saved_message_summary({'SUPABASE_DB_URL':'fixture'},binding,current,[],previous=previous)
+    else:
+        result = saved_message_summary({'SUPABASE_DB_URL':'fixture'},binding,current,[],previous=previous)
+        assert result['privacy_fence']['previous_privacy_digest'] == 'a'*64
+        assert result['privacy_fence']['current_privacy_digest'] == 'b'*64
+    assert connection.read_only is True
+    assert cursor.execute.call_args_list[0].args[1] == ('owned','project',['after','before'])
+
+
 def test_ndjson_receipt_measures_real_text_and_requires_durable_save():
     async def run(saved):
         frames=[{'type':'started'},{'type':'heartbeat'},{'type':'text_delta','text':'Visible reply.'}]
@@ -63,7 +114,7 @@ def test_full_rerun_preserves_five_existing_rounds_and_streams_fifty_new_ones(se
     plan, remote = setup()
     plan['progressive_rerun'] = True
     monkeypatch.setattr('scripts.memoir_progressive_verification.saved_message_summary',
-        lambda settings,binding,checkpoint,messages: {'saved_summaries':1,'summarised_original_messages':len(messages)})
+        lambda settings,binding,checkpoint,messages,**kwargs: {'saved_summaries':1,'summarised_original_messages':len(messages)})
     case_id = plan['case_ids'][0]
     project = PROJECTS[case_id]
     storage = remote.storages[project]
