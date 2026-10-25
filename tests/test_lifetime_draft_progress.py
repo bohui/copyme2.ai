@@ -1,4 +1,6 @@
 """Five-round drafts and the final sample expose upstream extraction state."""
+import json
+
 import pytest
 
 from test_lifetime_composer_capacity import (
@@ -6,6 +8,7 @@ from test_lifetime_composer_capacity import (
     resolve, rpc, literal, create_lane,
 )
 from test_agent_commit_postgres import OTHER
+from scripts.run_memoir_supabase_evaluation import _checkpoint_error_is_terminal
 
 
 @pytest.mark.parametrize('rounds',[5,20])
@@ -46,3 +49,23 @@ def test_extraction_before_first_milestone_does_not_advertise_draft_generation(s
     head=rpc(sql,'read_lifetime_private_draft_head',f"{literal(project)},'en-AU'")
     assert not head['updating']
     assert not head.get('background_progress')
+
+
+@pytest.mark.parametrize('skill',['timeline','composer'])
+@pytest.mark.parametrize('expired_deadline',[None,'lease','run'])
+def test_final_lane_attempt_remains_pending_until_its_deadline_expires(sql,skill,expired_deadline):
+    identity=resolve(sql);project=identity['project_id']
+    rpc(sql,'accept_user_narrator_source',f"{literal(project)},gen_random_uuid(),'A childhood recollection.'")
+    lanes={kind:create_lane(sql,identity,skill=kind,rounds=5) for kind in ('timeline','composer')}
+    running=expired_deadline is None
+    lease='-1 second' if expired_deadline=='lease' else '30 seconds'
+    run='-1 second' if expired_deadline=='run' else '60 seconds'
+    sql(f"update public.user_memoir_lane set attempts=3,token=gen_random_uuid(),"
+        f"lease_until=clock_timestamp()+interval '{lease}',"
+        f"run_deadline=clock_timestamp()+interval '{run}',pending=false,error=null where id='{lanes[skill]}';")
+    progress=json.loads(sql(f"select public.memoir_lane_progress(l) from public.user_memoir_lane l where id='{lanes[skill]}';").stdout)
+    assert progress['state']==('running' if running else 'retry_required')
+    assert progress['pending'] is running
+    head=rpc(sql,'read_lifetime_private_draft_head',f"{literal(project)},'en-AU'")
+    if skill=='composer':
+        assert _checkpoint_error_is_terminal(head) is not running

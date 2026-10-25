@@ -7960,7 +7960,8 @@ CREATE FUNCTION public.memoir_lane_progress(p_lane public.user_memoir_lane) RETU
     when p_lane.token is not null and p_lane.lease_until>clock_timestamp() and p_lane.run_deadline>clock_timestamp() then 'running'
     when p_lane.attempts>=3 then 'retry_required'
     when p_lane.pending or p_lane.token is not null then 'pending' else 'finished' end,
-    'pending',coalesce((p_lane.pending or p_lane.token is not null) and p_lane.attempts<3,false),
+    'pending',coalesce((p_lane.token is not null and p_lane.lease_until>clock_timestamp() and p_lane.run_deadline>clock_timestamp())
+      or ((p_lane.pending or p_lane.token is not null) and p_lane.attempts<3),false),
     'successful_source',coalesce(p_lane.successful_source,0),'successful_event',coalesce(p_lane.successful_event,0),
     'covered_round',coalesce(p_lane.successful_round,0),'target_milestone',coalesce(p_lane.target_milestone,0),'error',p_lane.error)
 $$;
