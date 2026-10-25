@@ -19,7 +19,8 @@ from pydantic import Field
 from starlette.responses import JSONResponse
 
 from .lifetime_memory_contracts import Contract, IdentityEnvelope
-from .lifetime_memory_publication import PublicationUnavailable
+from .lifetime_memory_publication import (PublicationUnavailable, filter_recording_payload,
+    lock_recording_publication, recording_payload)
 
 
 class ReadFence(Contract):
@@ -72,17 +73,29 @@ class ReadPublication:
         self.lock_timeout = lock_timeout
 
     @asynccontextmanager
-    async def guard(self, fence):
+    async def guard(self, fence, *, recording_ids=None):
         snapshot = _copy_fence(fence).model_dump(mode='json')
         if snapshot['identity']['owner_id'] != str(self.owner):
             raise PublicationUnavailable('Read publication owner mismatch')
         from psycopg import AsyncConnection, Error
         from psycopg.types.json import Jsonb
         connection = None
+        recordings = None
         try:
             try:
                 async with asyncio.timeout(self.lock_timeout):
                     connection = await AsyncConnection.connect(self._dsn, connect_timeout=2)
+                    if recording_ids is not None:
+                        recordings = []
+                        # Each turn has at most 20 descriptors, but an existing
+                        # paginated history response can contain several turns.
+                        # Lock all unique IDs in global order on this connection;
+                        # keep the per-turn helper's bound and authority checks.
+                        identifiers = sorted({str(UUID(value)) for value in recording_ids})
+                        for offset in range(0, len(identifiers), 20):
+                            recordings.extend(await lock_recording_publication(connection,
+                                owner=self.owner, project_id=snapshot['identity']['project_id'],
+                                recording_ids=identifiers[offset:offset+20], lock_timeout=self.lock_timeout))
                     await connection.execute('set local role authenticated')
                     await connection.execute("select set_config('request.jwt.claim.sub',%s,true)", (str(self.owner),))
                     await connection.execute("select set_config('lock_timeout',%s,true)", (f'{int(self.lock_timeout*1000)}ms',))
@@ -97,7 +110,7 @@ class ReadPublication:
             if allowance <= 0:
                 raise PublicationUnavailable('Read snapshot expires too soon')
             async with asyncio.timeout(allowance):
-                yield
+                yield recordings
         finally:
             if connection is not None:
                 # Closing rolls back; no publication transaction is committed.
@@ -105,7 +118,7 @@ class ReadPublication:
 
 
 class ReadJSONResponse(JSONResponse):
-    """Frozen JSON sent while project/profile authority locks remain held."""
+    """Frozen JSON sent while read and recording authority locks remain held."""
     def __init__(self, snapshot, *, publisher, status_code=200, headers=None):
         if not isinstance(snapshot, ReadSnapshot):
             raise TypeError('ReadJSONResponse requires a ReadSnapshot')
@@ -120,13 +133,19 @@ class ReadJSONResponse(JSONResponse):
         from .lifetime_memory_policy import PolicyUnavailable
         started = False
         try:
+            payload, containers = recording_payload(self.snapshot.body)
+            identifiers = [record['id'] for container in containers for record in container['recordings']]
+            options = {'recording_ids': identifiers} if identifiers else {}
             # Validate before even publishing headers, retaining the original fence.
-            async with self.publisher.guard(self.snapshot.fence.model_dump(mode='json')):
+            async with self.publisher.guard(self.snapshot.fence.model_dump(mode='json'), **options) as recordings:
+                body = filter_recording_payload(self.snapshot.body, payload, containers, recordings)
+                headers = [(name, str(len(body)).encode('ascii')) if name == b'content-length' else (name, value)
+                           for name, value in self.raw_headers]
                 # A failed await may still have handed headers to the transport.
                 started = True
                 await send({'type': 'http.response.start', 'status': self.status_code,
-                            'headers': self.raw_headers})
-                await send({'type': 'http.response.body', 'body': self.snapshot.body})
+                            'headers': headers})
+                await send({'type': 'http.response.body', 'body': body})
         except PolicyUnavailable:
             if started:
                 raise
@@ -181,7 +200,7 @@ def find_lifetime_read_identity(service, project_id):
 
 
 def snapshot_lifetime_read(service, project_id, reader, *, publisher=None):
-    """Capture before reader(fence), freeze its result, then publish unchanged.
+    """Capture before reader(fence), freeze its result, retain that read fence.
 
     service must be the authenticated server-side UserStorage. Unmapped legacy
     projects retain their explicitly owner/project-scoped read adapter; a mapped
