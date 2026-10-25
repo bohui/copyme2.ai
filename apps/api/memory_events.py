@@ -61,7 +61,10 @@ class EventProposal(BaseModel):
     attribution: str | None = Field(default=None, max_length=200)
     candidate_ids: list[str] | None = Field(default=None, max_length=100)
     relations: list[EventRelation] | None = Field(default=None, max_length=100)
-    correction: EvidenceRef | None = None
+    correction: EvidenceRef | None = Field(default=None, description=(
+        'Only for a current explicit correction using correct, actually, year was, I meant, should be, '
+        '更正, 纠正, 应该, 其实 or 不是. Quote the complete current original. '
+        'New stage/date evidence for an existing event uses correction=null.'))
 
 
 class ExtractionResult(BaseModel):
@@ -233,6 +236,10 @@ def validate_extraction(raw, sources, saved_events):
                 *([event.correction] if event.correction else [])]
         if event.correction and (not event.existing_id or originals.get((event.correction.source_id, event.correction.version), {}).get('text') != event.correction.quote):
             raise ValueError('Explicit correction must cite the current original statement')
+        # Match the canonical SQL writer before returning a proposal, so the
+        # bounded retry can repair intent instead of repeating a failed commit.
+        if event.correction and not re.search(r'(correct|actually|year was|i meant|should be|更正|纠正|应该|其实|不是)', event.correction.quote, re.I):
+            raise ValueError('Correction requires explicit correction wording')
         if event.correction and event.life_stage is None and event.temporal is None:
             raise ValueError('Correction requires timeline placement fields')
         for ref in refs:

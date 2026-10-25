@@ -141,6 +141,35 @@ def test_extraction_retry_reports_rejected_quote_without_replacing_original():
     assert result['events'][0]['source_refs'][0]['quote']==current['source']['text']
 
 
+@pytest.mark.parametrize('text', [
+    'That late-teenage winter belongs to adolescence, even though the exact month is unknown.',
+    '那年冬天属于青少年时期，具体月份已经记不清了。',
+])
+def test_extraction_retries_unmarked_corrections_as_ordinary_stage_evidence(text):
+    from apps.api.lifetime_memory_composer import _extract
+    current=page(text=text);requests=[]
+    current['events']=[dict(id='winter',revision=1,kind='event',title='Winter',life_stage='unplaced',source_refs=[])]
+    class Broker:
+        async def rpc(self,name,**payload):
+            assert name=='read_lifetime_lane_policy_source'
+            return copy.deepcopy(current['source'])
+    def model(request):
+        packet=json.loads(json.loads(request.content)['bounded_lane']['packet'])['payload']
+        requests.append(packet)
+        ref=dict(source_id=current['source']['id'],version=1,quote=text)
+        event=dict(existing_id='winter',expected_revision=1,kind='event',title='Winter',
+            life_stage='adolescence',stage_evidence=[ref],source_refs=[ref])
+        if len(requests)==1:event['correction']=ref
+        else:assert packet['retry_reason']=='CORRECTION_WORDING'
+        return httpx.Response(200,json={'reply':json.dumps({'events':[event]})})
+    worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
+    result=asyncio.run(_extract(current,worker))
+    assert len(requests)==2 and 'correction' not in result['events'][0]
+    assert result['events'][0]['life_stage']=='adolescence'
+    assert result['events'][0]['stage_evidence'][0]['quote']==text
+
+
 def test_10000_mixed_language_packets_have_constant_declared_bound():
     maximum=0
     for index in range(10000):
