@@ -34,11 +34,19 @@ STAGES = {
  'design':dict(skill='game-world-design',refs=['world-design-method.md','narrative-design-method.md'],
     inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md','concepts/CONCEPT.md'],
     outputs=['design/GAME_DESIGN.md'],budget=7500,
-    task='Design the selected side-scrolling RPG and its riskiest whitebox: controllable author, horizontal movement and camera, connected distinct settings, nearby character/memory interactions, exploration progress, ending and restart. Specify keyboard and touch controls, movement bounds, interaction distance and scene transitions. Map all ten source units to playable or contextual treatment; retain all original text. Define stable UI ids and observable movement, camera, scene and progress attributes for real browser verification. Return GAME_DESIGN.md, at most 650 words.'),
+    task='Design the selected side-scrolling RPG and its riskiest whitebox: controllable author, horizontal movement and camera, connected distinct settings, nearby character/memory interactions, exploration progress, ending and restart. Specify keyboard and touch controls, movement bounds, interaction distance and scene transitions. Map all ten source units to playable or contextual treatment; retain all original text. Define stable UI ids and observable movement, camera, scene and progress attributes for real browser verification. The host supports held keyboard or touch movement with action hold, selector, value and duration_ms (50 to 5000), plus clicks, presses and assertions. Keep traversal and interaction concise enough for a replay under 100 steps. Return GAME_DESIGN.md, at most 650 words.'),
  'whitebox':dict(skill='game-build',refs=['build-brief-contract.md'],
     inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md','concepts/CONCEPT.md','design/GAME_DESIGN.md'],
-    outputs=['build/BUILD_BRIEF.md','build/app/index.html','build/app/game.css','build/app/game.js','build/playthrough.json'],budget=12000,
-    task='Implement the complete RPG/scroller whitebox: a visible author the player moves horizontally, scrolling scenery, connected settings, nearby characters/memory markers to interact with, exploration progress, an ending and restart. Keep real movement central; source-supported activities may be optional encounters. Return concise index.html, game.css, game.js, an ordinary-input playthrough and BUILD_BRIEF below 300 words. The host inserts the ten source passages. Verify movement and camera changes and travel between scenes in the playthrough, as well as interaction, ending and reset. Use stable semantic DOM selectors, keyboard and touch buttons. Keep the runtime small and stage-scoped.'),
+    outputs=['build/BUILD_BRIEF.md','build/app/index.html','build/app/game.css'],budget=6500,
+    task='Implement only the RPG/scroller whitebox layout: index.html, game.css and BUILD_BRIEF below 250 words. Use GAME_DESIGN stable selectors, source marker, a visible player and scenery, distinct scene states, nearby character/memory targets, progress, readable dialogue, full-source dialog, ending and restart. Include keyboard/touch movement and interaction controls with clear data hooks. Load local game.js with defer but do not implement JavaScript or a replay yet; those are separate resumable stages. The host inserts all ten source passages. Keep HTML and CSS together below 12,000 characters. Mark playable QA NOT_RUN.'),
+ 'whitebox_logic':dict(skill='game-build',refs=['build-brief-contract.md'],
+    inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','build/BUILD_BRIEF.md','build/template.html','build/app/game.css'],
+    outputs=['build/app/game.js'],budget=7000,
+    task='Implement only game.js for the existing RPG/scroller markup and approved design. Preserve every DOM hook. Implement a controllable author, held keyboard and touch-button horizontal movement, visible scrolling camera, connected scenes, distance-gated character/memory interactions, meaningful exploration progress, ending and full reset. Read the host-inserted memoir-source JSON and render all original passages with textContent. Expose the design movement, camera, scene and progress state through DOM attributes for host QA. Stop held movement on release, cancel and blur. Keep game rules deterministic and prevent repeated completion credit. Keep JavaScript below 14,000 characters. Return only game.js; no markup, stylesheet, replay or QA claims.'),
+ 'whitebox_replay':dict(skill='game-build',refs=['build-brief-contract.md'],
+    inputs=['design/GAME_DESIGN.md','build/BUILD_BRIEF.md','build/template.html','build/app/game.css','build/app/game.js'],
+    outputs=['build/BUILD_BRIEF.md','build/playthrough.json'],budget=4500,
+    task='Prepare the ordinary-input browser replay for the actual RPG/scroller implementation. Return build/playthrough.json and BUILD_BRIEF below 250 words. The host executes click, press, hold, assert_text and assert_attr. A hold step has selector, value (keyboard key), duration_ms from 50 to 5000. On phone the same selector receives held touch, so hold a visible movement button; make its keyboard value Enter or Space. Cover real horizontal player and camera movement, a distance-gated interaction, travel between distinct scenes, meaningful progress, the designed ending and restart. Include initial and terminal text, and one assertion checkpoint each in order input, coreLoop, outcome, restart. Use at most 100 steps and modest margins in holds. Assert observed counters/scene data, not hidden JS functions. Leave actual QA NOT_RUN.'),
  'art':dict(skill='game-art-direction',refs=['art-direction-method.md'],
     inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','whitebox-feedback.json'],
     outputs=['design/ART_DIRECTION.md'],budget=6000,
@@ -88,9 +96,11 @@ def initialise():
             destination.write_bytes(source.read_bytes())
     bible=(HERE/'analysis/SOURCE_BIBLE.md').read_text()
     assert all(c['chapter_id'] in bible and e['id'] in bible for c,e in zip(packet['chapters'],packet['timeline']))
-    receipt=json.loads((SNAPSHOT/'analysis-reused.json').read_text())['receipt']
-    save(HERE/'analysis-reused.json',dict(status='PASS',origin='examples/age-eight-patch/analysis-reused.json',receipt=receipt,
-        source_sha256=digest(json.dumps(packet,sort_keys=True,ensure_ascii=False))))
+    analysis=json.loads((SNAPSHOT/'analysis-reused.json').read_text())
+    source_hash=digest(json.dumps(packet,sort_keys=True,ensure_ascii=False))
+    assert analysis['source_sha256']==source_hash,'Source analysis does not match the full input'
+    save(HERE/'analysis-reused.json',dict(status='PASS',origin='examples/age-eight-patch/analysis-reused.json',receipt=analysis['receipt'],
+        source_sha256=source_hash))
     return packet
 
 
@@ -133,7 +143,7 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
             body['input']=[{'role':'user','content':[{'type':'input_text','text':body['input']}]+[
                 {'type':'input_image','image_url':'data:image/png;base64,'+base64.b64encode(p.read_bytes()).decode(),'detail':'high'}
                 for p in frames]}]
-    if name in ('whitebox','production','production_style'):
+    if name in ('whitebox','whitebox_logic','whitebox_replay','production','production_style'):
         body['stream']=True
     signature=digest(json.dumps(body,sort_keys=True,ensure_ascii=False))
     stage=HERE/'stages'/name

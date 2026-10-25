@@ -50,6 +50,20 @@ def test_legacy_puzzle_workspace_is_preserved_and_cannot_supply_rpg_checkpoints(
     assert not (tmp_path / 'format-profile.json').exists()
 
 
+def test_changed_prose_cannot_reuse_analysis_with_the_same_chapter_ids(tmp_path):
+    module = runner()
+    module.HERE = tmp_path / 'output'
+    module.ROOT = tmp_path / 'repo'
+    fixture = module.ROOT / 'skills/memoir-story-game/tests/fixtures/age-eight.json'
+    fixture.parent.mkdir(parents=True)
+    value = json.loads((ROOT / 'skills/memoir-story-game/tests/fixtures/age-eight.json').read_text())
+    value['input']['chapters'][0]['blocks'][0]['text'] += ' A changed source passage.'
+    fixture.write_text(json.dumps(value))
+    with pytest.raises(AssertionError, match='does not match the full input'):
+        module.run_stage('concept', dry_run=True)
+    assert not (module.HERE / 'analysis-reused.json').exists()
+
+
 def test_matching_saved_stage_reuses_its_artifact_without_opening_a_provider(tmp_path, monkeypatch):
     module = runner()
     module.HERE = tmp_path
@@ -77,3 +91,12 @@ def test_archived_code_prompts_and_game_match_the_original_snapshot():
     assert len(manifest['files']) == 24
     for name, expected in manifest['files'].items():
         assert module.digest((archive / name).read_text()) == expected, name
+
+
+@pytest.mark.parametrize('duration', [None, True, 0, 49, 5001, '1000'])
+def test_replay_rejects_missing_or_unbounded_held_inputs(duration):
+    spec = importlib.util.spec_from_file_location('novel_game_verify', PACKAGE / 'verify.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    with pytest.raises(ValueError):
+        module.hold_duration({'duration_ms': duration})

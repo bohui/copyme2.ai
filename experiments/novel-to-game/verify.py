@@ -16,6 +16,13 @@ HERE = PACKAGE.parents[1] / 'var/novel-to-game-rpg-scroller'
 CHECKS = ('launch', 'render', 'input', 'coreLoop', 'outcome', 'restart')
 
 
+def hold_duration(step):
+    value = step.get('duration_ms')
+    if type(value) is not int or not 50 <= value <= 5000:
+        raise ValueError('hold requires duration_ms from 50 to 5000')
+    return value
+
+
 def atomic_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     pending = path.with_suffix('.next')
@@ -28,7 +35,10 @@ def verify(stage, phone=False):
     plan = json.loads((HERE / 'build/playthrough.json').read_text())
     assert 4 <= len(plan['steps']) <= 100
     assert [s.get('checkpoint') for s in plan['steps'] if s.get('checkpoint')] == list(CHECKS[2:])
-    assert all(s['action'] in ('click', 'press', 'assert_text', 'assert_attr') for s in plan['steps'])
+    assert all(s['action'] in ('click', 'press', 'hold', 'assert_text', 'assert_attr') for s in plan['steps'])
+    for step in plan['steps']:
+        if step['action'] == 'hold':
+            hold_duration(step)
     qa = HERE / ('qa' if stage == 'production' else 'qa/whitebox')
     if phone:
         qa = qa / 'phone'
@@ -55,7 +65,8 @@ def verify(stage, phone=False):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     url = 'http://127.0.0.1:' + str(server.server_port)
-    environment = {'runtime': 'Chromium', 'host': platform.system(), 'viewport': [390, 844] if phone else [1440, 1000], 'touch': phone, 'artifactSha256': hashlib.sha256((app/'index.html').read_bytes()).hexdigest()}
+    artifacts = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in app.iterdir() if p.is_file()}
+    environment = {'runtime': 'Chromium', 'host': platform.system(), 'viewport': [390, 844] if phone else [1440, 1000], 'touch': phone, 'artifactFilesSha256': artifacts}
 
     def observe(page, key, inputs, state):
         filename = evidence / (key + '.png')
@@ -95,10 +106,26 @@ def verify(stage, phone=False):
             for step in plan['steps']:
                 action = step['action']
                 locator = page.locator(step['selector'])
-                if action in ('click', 'press'):
+                if action in ('click', 'press', 'hold'):
                     actions += 1
                     current_check = next((k for k in CHECKS[2:] if checks[k] == 'NOT_RUN'), 'restart')
-                    if action == 'press':
+                    if action == 'hold':
+                        duration = hold_duration(step)
+                        if phone:
+                            locator.scroll_into_view_if_needed()
+                            box = locator.bounding_box()
+                            assert box, 'Held touch target is not visible'
+                            session = context.new_cdp_session(page)
+                            session.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [
+                                {'x': box['x'] + box['width']/2, 'y': box['y'] + box['height']/2}]})
+                            try:
+                                page.wait_for_timeout(duration)
+                            finally:
+                                session.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
+                                session.detach()
+                        else:
+                            locator.press(step['value'], delay=duration)
+                    elif action == 'press':
                         locator.press(step['value'])
                     elif phone:
                         locator.tap()
@@ -124,6 +151,7 @@ def verify(stage, phone=False):
                     observe(page, checkpoint, trace.copy(), state)
             assert actions >= 3
             assert all(v == 'PASS' for v in checks.values())
+            assert artifacts == {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in app.iterdir() if p.is_file()}, 'Build changed during verification'
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Horizontal overflow'
             context.close()
             browser.close()

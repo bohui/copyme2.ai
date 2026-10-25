@@ -44,10 +44,12 @@ outside the public game.
 
 For each runnable candidate return build/playthrough.json:
 {initial:{selector:'CSS',text:'visible initial text'},
- steps:[{action:'click|press|assert_text|assert_attr',selector:'CSS',value:'value',
+ steps:[{action:'click|press|hold|assert_text|assert_attr',selector:'CSS',value:'value',
+         duration_ms:'only for hold: 50 to 5000 milliseconds',
          attribute:'only for assert_attr',
          checkpoint:'input|coreLoop|outcome|restart (assertions only)'}],
  terminal:'visible designed outcome',restart:'initial-state'}.
-Each checkpoint appears once in that order. Use ordinary controls and observable
+Each checkpoint appears once in that order. A hold targets a movement button:
+the host holds its keyboard value on desktop and touch on phone. Use ordinary controls and observable
 movement/scene state to prove the RPG/scroller loop. Keep the complete replay
 within 100 steps. The host executes the actual game in a clean browser.

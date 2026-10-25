@@ -35,8 +35,11 @@ with max effort for this experiment. Source analysis may be reused only when its
 receipt and complete input match; the fictional age-eight source analysis is
 preserved under `examples/age-eight-patch/`.
 
-Use `stages.py` for one stage at a time: concept, design, whitebox, art, production.
-An optional `production_style` pass changes only CSS. A matching checkpoint reuses
+Use `stages.py` for one stage at a time: concept, design, whitebox layout,
+`whitebox_logic`, `whitebox_replay`, art and production. The layout stage is named
+`whitebox`; it is not playable until logic and replay are saved. A
+`production_style` pass changes only CSS and can finish the visual production
+when the tested structure and rules already meet the approved design. A matching checkpoint reuses
 the saved result. Changing the request invalidates reuse. Keep failed attempts;
 split a failed large build by output file before retrying. Report observed usage;
 the previous pool exceeded requested token ceilings, so they are not hard bounds.
