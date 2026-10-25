@@ -14,27 +14,23 @@ Check personal photographs against registered identity/caption evidence and thei
 
 Check whether the draft preserves the narrator's voice, develops the available concrete details into readable scenes, connects related conversation material, omits irrelevant repetition, avoids compulsory cheerfulness and can be read without technical notes. Flag a list of response summaries or flat transcription as an editorial opportunity. These are editorial recommendations, not grounds to invent more material. Do not expand short memories merely because the maximum is 7,000 words.
 
-Return concise findings, not hidden reasoning:
+Return concise evidence-based explanations, not hidden reasoning. Follow the
+host's strict review schema. Each finding contains verdict, severity and
+explanation; verdict is supported, unsupported, contradicted, uncertainty_lost,
+attribution_lost or editorial, and severity is blocking, warning or info.
+Editorial advice must not conceal a semantic defect.
 
-```json
-{
-  "chapter_id": "stable chapter identifier",
-  "candidate_revision": "exact candidate reference",
-  "findings": [
-    {
-      "block_id": "affected block",
-      "excerpt": "short exact passage to review",
-      "verdict": "unsupported | contradicted | uncertainty_lost | attribution_lost | supported",
-      "source_refs": [],
-      "severity": "blocking | warning | info",
-      "explanation": "Brief evidence-based explanation.",
-      "proposed_action": "remove | qualify | attribute | ask_optional_question | keep"
-    }
-  ],
-  "editorial_notes": [],
-  "ready_for_user_review": false,
-  "publication_approved": false
-}
-```
+Omit supported findings from the findings list when there is no concern, but
+still complete every required prose check and contribution entry. Review the
+whole supplied excerpt; an entailed clause does not excuse an invented clause
+in the same paragraph. Unsupported personal spatial details and strengthened
+memory certainty are factual failures. Represent each original contribution
+faithfully or explicitly defer it with a reason; references without corresponding
+prose do not establish coverage.
 
-Omit supported findings from a compact report unless asked for a complete audit. `ready_for_user_review` is true only when critical unsupported assertions have been resolved and deterministic validation also passes. Never set publication approval. The host records review provenance and the author's final decisions.
+`ready_for_user_review` is true only when all prose checks are supported, every
+required contribution is truthfully accounted for, semantic failures have been
+resolved, and deterministic validation also passes. Negative semantic verdicts
+block readiness regardless of severity. Nonblocking editorial recommendations
+may remain. Never set publication approval. The host records review provenance
+and the author's final decisions.
