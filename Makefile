@@ -211,6 +211,7 @@ test-place-research: test-web ## Replay the two-place interview through the API,
 		tests/test_place_photo_pages.py tests/test_place_photo_persistence.py tests/test_photo_worker.py \
 		tests/test_lane_clarifications.py tests/test_timeline_reported_places.py \
 		tests/test_lane_b_question_priorities.py tests/test_lane_b_question_priorities_postgres.py \
+		tests/test_recall_limit_questions.py tests/test_recall_limit_postgres.py \
 		tests/test_two_lane_memory.py::test_confirmations_rank_first_and_survive_the_ordinary_hint_expiry \
 		tests/test_two_lane_memory.py::test_confirmation_from_an_earlier_source_window_stays_queued \
 		tests/test_background_skill_workflow.py::test_lane_b_confirmation_preempts_the_next_question_and_is_consumed_once \

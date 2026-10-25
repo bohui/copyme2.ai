@@ -16,7 +16,7 @@ def reply_context(text='My brother Ming moved to Perth.'):
 
 
 def proposal():
-    return dict(acknowledgement='We can follow that memory.', question='What do you remember about the move?',
+    return dict(acknowledgement='We can follow that memory.', recall_limit_quote=None, question='What do you remember about the move?',
         reason='latest_story', hint=None, quote=None, work={'mode': 'extract', 'name': None})
 
 

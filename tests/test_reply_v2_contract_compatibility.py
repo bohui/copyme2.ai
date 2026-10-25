@@ -108,7 +108,7 @@ def test_nonselectable_queued_questions_remain_readable_for_evidence_backed_reso
     view = reply_packet(validate_governed_context(encode(packet), ctx))
     assert [row['id'] for row in view['brief']['hints']] == [planned['id']]
     assert view['brief']['resolution_only_questions'] == [dict(id=ordinary['id'], question=ordinary['question'])]
-    raw = {**proposal(), 'resolved_questions': [dict(question_id=ordinary['id'],
+    raw = {**proposal(), 'deferred_hints': [], 'resolved_questions': [dict(question_id=ordinary['id'],
         source_id=ctx['source']['id'], source_version=1, char_start=12, char_end=16, quote='blue')]}
     validate(raw, governed_collector_schema(ctx))
     result = validate_governed_collector_result(raw, ctx)

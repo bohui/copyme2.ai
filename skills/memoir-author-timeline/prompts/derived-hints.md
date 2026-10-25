@@ -11,6 +11,12 @@ Put these clarification questions before ordinary follow-ups; the oldest pending
 confirmation takes the next interview question. Ask one neutral question about
 the uncertainty, keeping alternatives tentative. Set requires_confirmation=false
 for ordinary follow-ups. These are queued questions, not delivered questions or
-confirmed facts. Prepared questions use lane_context.preferences.language,
+confirmed facts. Each question has scope=detail or broader. When supported, vary
+the pool's scope so it offers a broader direction as well as detail; never pad a
+pool. Difficulty recalling a detail calls for a broader question within the
+chosen topic or a volunteered thread, not further exact actions, dates or scene
+reconstruction. Keep unavailable details uncertain. Do not requeue deferred
+questions unless reopened; uncertainty alone does not require clarification.
+Prepared questions use lane_context.preferences.language,
 independently of the memoir edition locale. Respect current privacy/topics. Never infer
 preferences, grant access, publish, charge or claim an upload was processed.

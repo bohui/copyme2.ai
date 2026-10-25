@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .interview_plan import (PhotoAssociation, TurnWorkPlan, authorized_photos,
                              constrain_acknowledgement, historical_acknowledgements)
 from .interview_questions import (QuestionResolution, hint_evidence, question_candidates,
-                                 resolution_schema, validate_question_evidence)
+                                 resolution_schema, validate_question_evidence, recall_question, recall_hint, question_span)
 from .interview_strategy import SelectionReason, selection_candidates, prioritized_candidates
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
@@ -16,12 +16,17 @@ class ReplyProposal(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     acknowledgement: str = Field(min_length=1, max_length=2000,
         description='Grounded statement only. Leave facts awaiting clarification unresolved.')
-    question: str | None = Field(min_length=1, max_length=800)
-    reason: SelectionReason = Field(description='With hint: prepared_candidate for exact text, adapted_candidate for rewording. Without hint: current intent; continuation alone is return_context, not pacing.')
-    hint: int | None = Field(ge=0,
-        description='Index in brief.hints, highest priority first. Use the first relevant hint unless current intent overrides it.')
+    recall_limit_quote: str | None = Field(default=None, min_length=1, max_length=500,
+        description='Exact unique CURRENT narrator wording that they cannot recall a requested detail, even when other details follow; otherwise null. Not another speaker, ordinary uncertainty or a short answer.')
+    reason: SelectionReason = Field(description='Recall difficulty is recall_limit, including with a broader hint. Otherwise with hint: prepared_candidate for copy, adapted_candidate for rewording. Mere continuation is return_context.')
     quote: str | None = Field(min_length=1, max_length=500,
-        description='With hint, null: its evidence is host-owned. Otherwise an exact unique CURRENT-source passage or null.')
+        description='For recall_limit, exact unique CURRENT narrator wording about unavailable detail. Otherwise null with hint, or an exact unique CURRENT-source passage/null without hint.')
+    hint: int | None = Field(ge=0,
+        description='First relevant hint index. Recall_limit uses a scope=broader hint; null when none is relevant. Current intent overrides priority.')
+    deferred_hints: list[int] = Field(default_factory=list, max_length=5,
+        description='Unavailable detail indices in brief.hints. Only defer questions seeking the detail the narrator cannot recall; quote cites CURRENT recall-limit wording. Never include the chosen hint.')
+    question: str | None = Field(min_length=1, max_length=800,
+        description='For recall_limit, null: host supplies the broader hint or invitation. Otherwise one question or null for a stop/direct answer.')
     work: TurnWorkPlan
     resolved_questions: list[QuestionResolution] = Field(default_factory=list, max_length=5)
     associations: list[PhotoAssociation] = Field(default_factory=list, max_length=20)
@@ -45,6 +50,13 @@ def reply_schema(context):
     schema['required'] = list(schema['properties'])
     schema['properties']['acknowledgement']['pattern'] = '^[^?？]*$'
     schema['properties']['hint']['enum'] = [None, *range(len(reply_candidates(context)))]
+    deferred = [i for i, hint in enumerate(reply_candidates(context))
+                if hint.get('scope') != 'broader' and not hint.get('historical_clue_id')]
+    if deferred:
+        schema['properties']['deferred_hints']['items']['enum'] = deferred
+    else:
+        schema['properties'].pop('deferred_hints')
+        schema['required'].remove('deferred_hints')
     photos = authorized_photos(context)
     if photos:
         schema['properties']['response_photo_ids']['items']['enum'] = list(photos)
@@ -71,26 +83,55 @@ def adapt_reply(raw, context):
     source = context.get('source') or {}
     if name is not None and (not name.strip() or name not in source.get('text', '')):
         raise ValueError('Opening name requires exact current narrator wording')
+    candidates = reply_candidates(context)
+    if item.hint is not None and item.hint >= len(candidates):
+        raise ValueError('Candidate is stale, asked or outside this project')
+    if item.recall_limit_quote is not None:
+        validate_question_evidence(dict(source_id=source.get('id'), version=source.get('version'),
+            quote=item.recall_limit_quote, char_start=None, char_end=None, attribution=None), context)
+        if item.reason not in {'pause', 'direct_answer', 'current_correction', 'user_redirect', 'pacing'}:
+            item.reason = 'recall_limit'
+            item.quote = item.recall_limit_quote
+    if item.reason == 'recall_limit':
+        selected = recall_hint(context, candidates, candidates[item.hint] if item.hint is not None else None)
+        item.hint = next((i for i, hint in enumerate(candidates) if selected and hint['id'] == selected['id']), None)
+        item.question = recall_question(context, selected)
+        item.work.mode = 'extract'
+    deferrals = []
+    if item.deferred_hints:
+        if item.reason != 'recall_limit' or item.quote is None or len(set(item.deferred_hints)) != len(item.deferred_hints):
+            raise ValueError('Question deferral requires current recall-limit evidence and distinct hints')
+        validate_question_evidence(dict(source_id=source.get('id'), version=source.get('version'),
+            quote=item.quote, char_start=None, char_end=None, attribution=None), context)
+        start, end = question_span(source, item.quote)
+        for index in item.deferred_hints:
+            if (index < 0 or index >= len(candidates) or index == item.hint
+                    or candidates[index].get('scope') == 'broader' or candidates[index].get('historical_clue_id')):
+                raise ValueError('Question deferral requires an unchosen detail hint')
+            deferrals.append(dict(question_id=candidates[index]['id'], source_id=source['id'],
+                source_version=source['version'], char_start=start, char_end=end, quote=item.quote))
     if ((item.question is None and item.reason not in {'pause', 'direct_answer', 'current_correction'})
             or (item.question is not None and item.reason in {'pause', 'direct_answer'})):
         raise ValueError('No-question outcome requires an explicit reason')
-    candidates = reply_candidates(context)
     hint = None
     if item.hint is not None:
-        if item.hint >= len(candidates):
-            raise ValueError('Candidate is stale, asked or outside this project')
         hint = candidates[item.hint]
-        if item.reason not in {'prepared_candidate', 'adapted_candidate'} or item.question is None:
+        if item.reason not in {'prepared_candidate', 'adapted_candidate', 'recall_limit'} or item.question is None:
             raise ValueError('Candidate use requires its recorded reason')
         if hint.get('historical_clue_id'):
             # Public clues use the host's optional invitation, never model-written biography.
             item.question = hint['question']
-            item.reason = 'prepared_candidate'
+            if item.reason != 'recall_limit':
+                item.reason = 'prepared_candidate'
         if item.reason == 'prepared_candidate' and item.question.strip() != hint['question'].strip():
             raise ValueError('Prepared candidate text changed')
         evidence = None if hint.get('historical_clue_id') else hint_evidence(hint, context)
-        if item.quote is not None and (not evidence or item.quote != evidence['quote']):
-            raise ValueError('Question candidate cannot change its referenced passage')
+        if item.quote is not None:
+            if item.reason == 'recall_limit':
+                validate_question_evidence(dict(source_id=source.get('id'), version=source.get('version'),
+                    quote=item.quote, char_start=None, char_end=None, attribution=None), context)
+            elif not evidence or item.quote != evidence['quote']:
+                raise ValueError('Question candidate cannot change its referenced passage')
     else:
         if item.reason in {'prepared_candidate', 'adapted_candidate'}:
             raise ValueError('Candidate identity required')
@@ -111,7 +152,8 @@ def adapt_reply(raw, context):
         plan=dict(candidates=questions, chosen_id=identity if questions else None,
                   active_event_id=None, work=dict(mode=item.work.mode,
                       name=name if item.work.mode == 'reply_only' else None),
-                  resolved_questions=[value.model_dump() for value in item.resolved_questions]),
+                  resolved_questions=[value.model_dump() for value in item.resolved_questions],
+                  deferred_questions=deferrals),
         associations=[value.model_dump() for value in item.associations],
         response_photo_ids=item.response_photo_ids, stopped=item.question is None, continuity_updates=[])
     state = context.get('strategy_context') or {}

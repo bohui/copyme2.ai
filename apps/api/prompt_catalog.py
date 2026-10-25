@@ -7,6 +7,7 @@ PROMPT_PATHS = {
     'memoir/skills/memoir-interviewer/repair-codes': 'skills/memoir-interviewer/prompts/governed-repair/codes.md',
     'memoir/skills/memoir-place-photo-research/discovery': 'skills/memoir-place-photo-research/prompts/discovery.md',
     'memoir/shared/historical-acknowledgements': 'apps/api/prompts/shared/historical-acknowledgements.md',
+    'memoir/shared/recall-invitations': 'apps/api/prompts/shared/recall-invitations.md',
     'memoir/evaluation/probes/connectivity': 'apps/api/prompts/evaluation/probes/connectivity.md',
     'memoir/evaluation/probes/worker': 'apps/api/prompts/evaluation/probes/worker.md',
     'memoir/evaluation/probes/web-search': 'apps/api/prompts/evaluation/probes/web-search.md',

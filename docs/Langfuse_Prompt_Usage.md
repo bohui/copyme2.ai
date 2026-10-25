@@ -6,6 +6,11 @@ The application and exporter use the same explicit catalog in
 `apps/api/prompt_catalog.py`. Each source has one owner, one name and one exact
 version receipt. These are caller-level classifications, not traffic counts.
 
+The recall-limit policy adds `memoir/shared/recall-invitations` as managed host
+copy. After a reply identifies unavailable details, the host renders a selected
+broader pool question verbatim or this optional invitation. It makes no extra
+model call and does not treat the unavailable detail as an answered fact.
+
 The interviewer rows were refreshed on 22 October. The privacy optimization adds
 one conditional opening template, making 24 catalog entries, all at the skill
 root. Language, strategy, greeting and repair names are flat. None are classified

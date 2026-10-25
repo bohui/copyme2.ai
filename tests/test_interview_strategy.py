@@ -16,7 +16,7 @@ def wire(question='What do you enjoy growing?',**changes):
     return {'acknowledgement':'We can follow the garden.','question':question,'selected_candidate_id':None,
         'selection_reason':'user_redirect','used_strategy':'explore','work':{'mode':'extract','name':None},
         'associations':[],'response_photo_ids':[],'stopped':False,'continuity_updates':[],
-        'resolved_questions':[],'question_evidence':None,**changes}
+        'question_evidence':None,**changes}
 
 
 def test_shared_core_plus_one_active_module_without_legacy_shape_gate():
@@ -41,9 +41,10 @@ def test_selector_schema_only_admits_current_candidate_ids():
     from apps.api.lifetime_memory_continuity import governed_collector_schema
     schema = governed_collector_schema({**context(text='Please go on.'), 'two_lane_memory': True})
     validate(wire(question='Was that before the move?', selected_candidate_id='candidate-1',
-        selection_reason='prepared_candidate'), schema)
+        selection_reason='prepared_candidate', resolved_questions=[], deferred_questions=[]), schema)
     with pytest.raises(ValidationError):
-        validate(wire(selected_candidate_id='stale-candidate', selection_reason='adapted_candidate'), schema)
+        validate(wire(selected_candidate_id='stale-candidate', selection_reason='adapted_candidate',
+            resolved_questions=[], deferred_questions=[]), schema)
 
 
 

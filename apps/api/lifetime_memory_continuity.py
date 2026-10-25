@@ -75,7 +75,7 @@ class _Places(BaseModel):
 class _LegacyIntent(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     selection_reason: Literal['latest_story', 'user_redirect', 'current_correction',
-                              'pacing', 'pause', 'direct_answer']
+                              'pacing', 'recall_limit', 'pause', 'direct_answer']
 
 
 def governed_collector_schema(context=None):
@@ -204,6 +204,15 @@ def validate_governed_collector_result(raw, context):
         if intent:
             selection_reason = _LegacyIntent.model_validate(intent).selection_reason
         value = {key: item for key, item in value.items() if key != 'selection_reason'}
+        if selection_reason == 'recall_limit' and not value.get('stopped'):
+            from .interview_questions import question_candidates, recall_question
+            value = deepcopy(value)
+            plan = value['plan']
+            hint = next((q for q in question_candidates(context) if q['id'] == plan['chosen_id']), None)
+            for candidate in plan['candidates']:
+                if candidate['id'] == plan['chosen_id']:
+                    candidate['question'] = recall_question(context, hint)
+            plan['work'] = {'mode': 'extract', 'name': None}
     ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
     if selection_reason == 'pause' and context.get('historical_news', {}).get('clues'):

@@ -13,6 +13,10 @@ must be "pause" or "direct_answer". Use "direct_answer" for the narrator's own
 question or an administrative request that needs no interview follow-up. Use a
 nonterminal reason for a non-null question. A request for slower pacing still
 needs one short, easy question, with reason "pacing".
+Difficulty recalling the requested detail uses reason "recall_limit". Leave it
+uncertain, choose a scope=broader candidate or a broad fallback within the chosen
+topic, and defer relevant unavailable queued questions with exact narrator spans.
+A recall limit outranks pending clarification; never turn it into an answered fact.
 When opening_turn=true, a name-only introduction or greeting needs one brief
 acknowledgement and one easy invitation to a present-day or self-chosen topic.
 It is not a pause, stop or administrative direct answer. Do not demand an earliest

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager
@@ -28,6 +29,7 @@ class PreparedQuestion(BaseModel):
     char_start: int | None = Field(default=None, ge=0)
     char_end: int | None = Field(default=None, ge=1)
     requires_confirmation: bool = Field(default=False)
+    scope: Literal['detail', 'broader'] = 'detail'
 
 
 class DerivedHints(_Places):
@@ -41,6 +43,7 @@ def extraction_contract(*, strategy=False, attribution=False, continuity=False, 
     question = extension['$defs']['PreparedQuestion']
     question['required'] = list(question['properties'])
     question['properties']['requires_confirmation'].pop('default', None)
+    question['properties']['scope'].pop('default', None)
     for field in ('char_start', 'char_end'):
         question['properties'][field].pop('default', None)
     extension['$defs']['_PlaceJourney']['required']=list(extension['$defs']['_PlaceJourney']['properties'])
@@ -133,13 +136,14 @@ def pending_confirmation(context, *, exclude_ids=()):
 
 def prioritize_question(value, context, *, selection_reason):
     """Prioritize B only after validating the original plan and current intent."""
-    resolved = {item['question_id'] for item in value['plan'].get('resolved_questions', [])}
+    resolved = {item['question_id'] for name in ('resolved_questions', 'deferred_questions')
+                for item in value['plan'].get(name, [])}
     question = pending_confirmation(context, exclude_ids=resolved)
     if (question is None and context.get('reply_contract') == 'reply-v2'
             and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context'}):
         from .conversation_reply import reply_candidates
         question = next((item for item in reply_candidates(context) if item['id'] not in resolved), None)
-    if not question or value['stopped'] or selection_reason in {'current_correction', 'user_redirect', 'pacing'}:
+    if not question or value['stopped'] or selection_reason in {'current_correction', 'user_redirect', 'pacing', 'recall_limit'}:
         return value
     if value['plan']['chosen_id'] == question['id'] and not question.get('requires_confirmation'):
         return value
