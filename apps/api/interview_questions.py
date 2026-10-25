@@ -1,8 +1,29 @@
 """Evidence-backed retirement of question hints in the existing reply pass."""
 from copy import deepcopy
+import json
 
 from pydantic import BaseModel, ConfigDict, Field
 from .memory_events import EvidenceRef
+from .prompt_artifact import load_prompt_artifact, prompt_path
+
+
+def recall_question(context, hint=None):
+    if hint is not None:
+        if hint.get('scope') != 'broader' and not hint.get('historical_clue_id'):
+            raise ValueError('Recall limits require a broader question or an unqueued fallback')
+        return hint['question']
+    invitations = json.loads(load_prompt_artifact(prompt_path('memoir/shared/recall-invitations')))
+    return invitations.get(context.get('interview_language'), invitations['en-AU'])
+
+
+def recall_hint(context, hints, selected):
+    if selected is None or selected.get('scope') == 'broader' or selected.get('historical_clue_id'):
+        return selected
+    plan = (context.get('strategy_context') or {}).get('plan') or {}
+    def source(hint):
+        return (hint.get('source_id', plan.get('source_id')), hint.get('source_version', plan.get('source_version')))
+    return next((hint for hint in hints if hint.get('scope') == 'broader'
+                 and source(hint) == source(selected)), None)
 
 
 def question_span(source, quote, start=None, end=None):
@@ -94,29 +115,34 @@ def resolution_schema(schema, context, *, plan=False):
     """Offer semantic retirement only when the request supplies answer evidence."""
     schema = deepcopy(schema)
     container = schema['$defs']['InterviewPlan'] if plan else schema
-    field = container['properties']['resolved_questions']
     candidates = question_candidates(context or {})
+    for name in ('resolved_questions', 'deferred_questions'):
+        if not candidates or not resolution_sources(context or {}):
+            container['properties'].pop(name, None)
+            container['required'] = [key for key in container['required'] if key != name]
+        elif name in container['properties']:
+            container['properties'][name].pop('default', None)
     if not candidates or not resolution_sources(context or {}):
-        container['properties'].pop('resolved_questions')
-        container['required'] = [key for key in container['required'] if key != 'resolved_questions']
         return schema
-    field.pop('default', None)
     schema['$defs']['QuestionResolution']['properties']['question_id']['enum'] = list(dict.fromkeys(
         candidate['id'] for candidate in candidates))
     return schema
 
 
-def validate_resolutions(values, context):
+def validate_resolutions(values, context, *, kind='resolution'):
     candidates = {candidate['id'] for candidate in question_candidates(context)}
     sources = resolution_sources(context)
+    if kind == 'deferral':
+        current = context.get('source') or {}
+        sources = {key: value for key, value in sources.items() if key == (current.get('id'), current.get('version'))}
     seen = set()
     for value in values:
         item = QuestionResolution.model_validate(value)
         source = sources.get((item.source_id, item.source_version))
         if item.question_id not in candidates or item.question_id in seen:
-            raise ValueError('Question resolution requires one current queued question')
+            raise ValueError(f'Question {kind} requires one current queued question')
         if (not source or item.char_end > len(source['text'])
                 or source['text'][item.char_start:item.char_end] != item.quote):
-            raise ValueError('Question resolution requires an exact narrator answer span')
+            raise ValueError(f'Question {kind} requires an exact narrator answer span')
         seen.add(item.question_id)
     return seen

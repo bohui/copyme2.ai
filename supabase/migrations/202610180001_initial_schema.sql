@@ -5375,7 +5375,7 @@ begin
      where k not in ('schema_version','plan_revision_seen','selected_candidate_id','selection_reason','used_strategy','question_delivered','work_hint'))
    or p_outcome->>'schema_version'<>'1' or coalesce(p_outcome->>'used_strategy','') not in ('comfort','explore','shape')
    or coalesce(p_outcome->>'selection_reason','') not in ('prepared_candidate','adapted_candidate','latest_story','user_redirect','current_correction',
-     'pacing','pause','direct_answer','safe_fallback','stale_plan','no_plan','return_context')
+     'pacing','recall_limit','pause','direct_answer','safe_fallback','stale_plan','no_plan','return_context')
    or p_outcome->>'work_hint' is distinct from p_plan->'work'->>'mode'
    or jsonb_typeof(p_outcome->'question_delivered') not in ('string','null') then raise exception 'invalid immediate outcome' using errcode='22023';end if;
  select q into chosen from jsonb_array_elements(p_plan->'candidates') q where q->>'id'=p_plan->>'chosen_id';
@@ -5420,9 +5420,12 @@ begin
          raise exception 'pinned candidate dependencies changed' using errcode='PT409';end if;
        select q into candidate from jsonb_array_elements(context->'plan'->'candidates') q where q->>'id'=p_outcome->>'selected_candidate_id';
      end if;
-     if candidate is null or p_outcome->>'selection_reason' not in ('prepared_candidate','adapted_candidate') then
+     if candidate is null or p_outcome->>'selection_reason' not in ('prepared_candidate','adapted_candidate','recall_limit') then
        raise exception 'candidate unavailable' using errcode='PT409';end if;
-     if p_outcome->>'selection_reason'='prepared_candidate'
+     if p_outcome->>'selection_reason'='recall_limit' and chosen->'context'->>'historical_clue_id' is null
+       and candidate->>'scope' is distinct from 'broader' then
+       raise exception 'recall limits require a broader candidate' using errcode='22023';end if;
+     if p_outcome->>'selection_reason' in ('prepared_candidate','recall_limit')
        and public.lifetime_question_text(candidate->>'question') is distinct from public.lifetime_question_text(question) then
        raise exception 'prepared candidate text changed' using errcode='22023';end if;
    elsif p_outcome->>'selection_reason' in ('prepared_candidate','adapted_candidate') then raise exception 'candidate identity required' using errcode='22023';end if;
@@ -7189,7 +7192,8 @@ declare lo integer; hi integer; base integer:=coalesce((p_source->>'char_start')
  text text:=p_source->>'text'; quote text:=p_hint->>'quote'; position integer;
 begin
  if jsonb_typeof(p_hint) is distinct from 'object'
-   or exists(select 1 from jsonb_object_keys(p_hint) k where k not in ('question','topic','quote','requires_confirmation','char_start','char_end'))
+   or exists(select 1 from jsonb_object_keys(p_hint) k where k not in ('question','topic','quote','requires_confirmation','char_start','char_end','scope'))
+   or (p_hint ? 'scope' and coalesce(p_hint->>'scope','') not in ('detail','broader'))
    or (p_hint ? 'requires_confirmation' and jsonb_typeof(p_hint->'requires_confirmation') is distinct from 'boolean')
    or jsonb_typeof(p_hint->'question') is distinct from 'string' or length(p_hint->>'question') not between 1 and 800
    or length(public.lifetime_question_text(p_hint->>'question'))=0
@@ -7293,6 +7297,25 @@ CREATE FUNCTION public.lifetime_resolved_questions(p_owner uuid, p_project text)
  where t.user_id=p_owner and t.project_id=p_project
 $$;
 
+CREATE FUNCTION public.lifetime_deferred_questions(p_owner uuid, p_project text) RETURNS TABLE(question_id text)
+    LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+ select distinct deferral->>'question_id'
+ from public.user_interview_turn t
+ join public.user_narrator_source original on original.user_id=t.user_id and original.project_id=t.project_id
+   and original.id=t.source_id and original.version=t.source_version and original.status='active'
+ join public.user_lifetime_conversation c on c.user_id=t.user_id and c.project_id=t.project_id
+ join public.user_memoir_project p on p.user_id=t.user_id and p.project_id=t.project_id
+ join public.user_lifetime_reply r on r.user_id=t.user_id and r.conversation_id=c.conversation_id
+   and r.client_turn_id=t.client_turn_id and r.policy_epoch=p.policy_epoch
+   and r.execution_generation=c.execution_generation and r.preference_revision=c.preference_revision
+ cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'deferred_questions','[]')) deferral
+ join public.user_narrator_source evidence on evidence.user_id=t.user_id and evidence.project_id=t.project_id
+   and evidence.id=(deferral->>'source_id')::uuid and evidence.version=(deferral->>'source_version')::bigint
+   and evidence.status='active'
+ where t.user_id=p_owner and t.project_id=p_project
+$$;
+revoke all on function public.lifetime_deferred_questions(uuid,text) from public,anon,authenticated,service_role;
+
 CREATE FUNCTION public.lifetime_consumed_question_ids(p_owner uuid, p_project text) RETURNS TABLE(question_id text)
     LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
  with delivered as materialized (select * from public.lifetime_delivered_questions(p_owner,p_project))
@@ -7304,6 +7327,7 @@ CREATE FUNCTION public.lifetime_consumed_question_ids(p_owner uuid, p_project te
    and original.id=(d.evidence->>'source_id')::uuid and original.version=(d.evidence->>'version')::bigint and original.status='active'
  where d.evidence->>'char_start' is not null and d.evidence->>'char_end' is not null
  union select question_id from public.lifetime_resolved_questions(p_owner,p_project)
+ union select question_id from public.lifetime_deferred_questions(p_owner,p_project)
 $$;
 
 CREATE FUNCTION public.prune_lifetime_question_pool(p_owner uuid, p_project text, p_source uuid DEFAULT NULL::uuid) RETURNS void
@@ -11708,6 +11732,7 @@ CREATE FUNCTION public.save_lifetime_interview_plan_core(p_snapshot_fence jsonb,
 declare v_owner uuid:=auth.uid(); project public.user_memoir_project%rowtype; turn public.user_interview_turn%rowtype;
   candidate jsonb; context jsonb; proposal jsonb; evidence jsonb; current_source public.user_narrator_source%rowtype;
   inserted integer; changed boolean:=false; response_cards jsonb:='[]'; photo_identifier text; resolution jsonb; conversation uuid;
+  disposition_name text;
 begin
   if v_owner is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   select * into project from public.user_memoir_project where user_id=v_owner and project_id=p_project_id for update;
@@ -11742,16 +11767,17 @@ begin
   end loop;
   if jsonb_typeof(p_plan) is distinct from 'object' or octet_length(p_plan::text)>32000 or
     jsonb_typeof(p_plan->'candidates') is distinct from 'array' or jsonb_array_length(p_plan->'candidates')>5 or
-    exists(select 1 from jsonb_object_keys(p_plan) k where k not in ('candidates','chosen_id','active_event_id','work','resolved_questions')) or
+    exists(select 1 from jsonb_object_keys(p_plan) k where k not in ('candidates','chosen_id','active_event_id','work','resolved_questions','deferred_questions')) or
     jsonb_typeof(p_associations) is distinct from 'array' or jsonb_array_length(p_associations)>20 or
     octet_length(p_associations::text)>32000 then raise exception 'invalid interview plan' using errcode='22023'; end if;
-  if p_plan ? 'resolved_questions' then
-    if jsonb_typeof(p_plan->'resolved_questions') is distinct from 'array' or jsonb_array_length(p_plan->'resolved_questions')>5
-      or (select count(*)<>count(distinct r->>'question_id') from jsonb_array_elements(p_plan->'resolved_questions') r) then
+  for disposition_name in select unnest(array['resolved_questions','deferred_questions']) loop
+  if p_plan ? disposition_name then
+    if jsonb_typeof(p_plan->disposition_name) is distinct from 'array' or jsonb_array_length(p_plan->disposition_name)>5
+      or (select count(*)<>count(distinct r->>'question_id') from jsonb_array_elements(p_plan->disposition_name) r) then
       raise exception 'invalid question resolutions' using errcode='22023';end if;
     select conversation_id into conversation from public.user_lifetime_conversation where user_id=v_owner and project_id=p_project_id;
     context:=public.read_lifetime_interview_context(conversation);
-    for resolution in select * from jsonb_array_elements(p_plan->'resolved_questions') loop
+    for resolution in select * from jsonb_array_elements(p_plan->disposition_name) loop
       if jsonb_typeof(resolution) is distinct from 'object' or not(resolution ?& array[
           'question_id','source_id','source_version','char_start','char_end','quote'])
         or jsonb_typeof(resolution->'question_id') is distinct from 'string'
@@ -11763,6 +11789,9 @@ begin
         or exists(select 1 from jsonb_object_keys(resolution) k where k not in (
           'question_id','source_id','source_version','char_start','char_end','quote'))
         or resolution->>'question_id' is not distinct from p_plan->>'chosen_id'
+        or (disposition_name='deferred_questions' and exists(select 1
+          from jsonb_array_elements(coalesce(p_plan->'resolved_questions','[]')) answered
+          where answered->>'question_id'=resolution->>'question_id'))
         or not exists(select 1 from (
           select q->>'id' id from jsonb_array_elements(public.read_lifetime_prepared_questions(conversation)) q
           union all
@@ -11773,6 +11802,7 @@ begin
         and id=(resolution->>'source_id')::uuid and version=(resolution->>'source_version')::bigint and status='active'
         and kind in ('narrator_chat','narrator_transcript');
       if not found or length(coalesce(resolution->>'quote','')) not between 1 and 512
+        or (disposition_name='deferred_questions' and current_source.id is distinct from turn.source_id)
         or (resolution->>'char_start')::integer<0 or (resolution->>'char_end')::integer>length(current_source.text)
         or (resolution->>'char_end')::integer-(resolution->>'char_start')::integer<>length(resolution->>'quote')
         or substring(current_source.text from (resolution->>'char_start')::integer+1
@@ -11783,6 +11813,7 @@ begin
         raise exception 'question resolution requires an exact narrator answer span' using errcode='22023';end if;
     end loop;
   end if;
+  end loop;
   if p_plan ? 'work' then
     if jsonb_typeof(p_plan->'work') is distinct from 'object' or
       (p_plan->'work'->>'mode') is null or (p_plan->'work'->>'mode') not in ('reply_only','extract') or

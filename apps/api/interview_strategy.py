@@ -14,7 +14,7 @@ from pydantic import BaseModel,ConfigDict,Field
 from .interview_plan import PhotoAssociation,TurnWorkPlan
 from .two_lane_memory import PreparedQuestion, pending_confirmation
 from .interview_questions import QuestionResolution, resolution_schema
-from .interview_questions import hint_evidence, question_evidence_schema
+from .interview_questions import hint_evidence, question_evidence_schema, recall_question, recall_hint
 from .memory_events import EvidenceRef
 from .prompt_composition import render_prompt_artifact
 from .prompt_artifact import prompt_path
@@ -22,7 +22,7 @@ from .stage_readiness import LIFE_STAGES
 
 Strategy=Literal['comfort','explore','shape']
 SelectionReason=Literal['prepared_candidate','adapted_candidate','latest_story','user_redirect','current_correction',
-    'pacing','pause','direct_answer','safe_fallback','stale_plan','no_plan','return_context']
+    'pacing','recall_limit','pause','direct_answer','safe_fallback','stale_plan','no_plan','return_context']
 
 
 class StrategyProposal(BaseModel):
@@ -71,6 +71,7 @@ class ImmediateSelection(BaseModel):
     stopped:bool
     question_evidence:EvidenceRef|None=Field(default=None)
     resolved_questions:list[QuestionResolution]=Field(default_factory=list,max_length=5)
+    deferred_questions:list[QuestionResolution]=Field(default_factory=list,max_length=5)
 
 
 def strategy_enabled():
@@ -143,6 +144,13 @@ def adapt_selection(raw,context):
     item=ImmediateSelection.model_validate({k:v for k,v in raw.items() if k!='continuity_updates'})
     state=context.get('strategy_context') or {};plan=state.get('plan') or {}
     available={c['id']:c for c in selection_candidates(context)}
+    if item.selection_reason == 'recall_limit':
+        if item.selected_candidate_id is not None and item.selected_candidate_id not in available:
+            raise ValueError('Candidate is stale, asked or outside this project')
+        selected = recall_hint(context, list(available.values()), available.get(item.selected_candidate_id))
+        item.selected_candidate_id = selected['id'] if selected else None
+        item.question = recall_question(context, selected)
+        item.work.mode = 'extract'
     if item.question is not None and (not item.question.strip() or item.question.count('?')+item.question.count('？')>1):
         raise ValueError('Only one immediate question is allowed')
     if item.stopped and item.question is not None:raise ValueError('A stop cannot force a question')
@@ -151,7 +159,7 @@ def adapt_selection(raw,context):
     if item.question is None and item.selection_reason not in {'pause','direct_answer'}:raise ValueError('No-question outcome requires an explicit reason')
     if item.selected_candidate_id is not None:
         if item.selected_candidate_id not in available:raise ValueError('Candidate is stale, asked or outside this project')
-        if item.selection_reason not in {'prepared_candidate','adapted_candidate'}:raise ValueError('Candidate use requires its recorded reason')
+        if item.selection_reason not in {'prepared_candidate','adapted_candidate','recall_limit'}:raise ValueError('Candidate use requires its recorded reason')
         if item.question is None:raise ValueError('No question cannot deliver a candidate')
         if item.selection_reason=='prepared_candidate' and item.question.strip()!=available[item.selected_candidate_id]['question'].strip():
             raise ValueError('Prepared candidate text changed')
@@ -177,6 +185,8 @@ def adapt_selection(raw,context):
         'stopped':item.question is None,'continuity_updates':raw.get('continuity_updates',[])}
     if item.resolved_questions:
         legacy['plan']['resolved_questions']=[resolution.model_dump() for resolution in item.resolved_questions]
+    if item.deferred_questions:
+        legacy['plan']['deferred_questions']=[resolution.model_dump() for resolution in item.deferred_questions]
     outcome={'schema_version':1,'plan_revision_seen':plan.get('plan_revision',state.get('invalid_plan_revision')),
         'selected_candidate_id':item.selected_candidate_id,'selection_reason':item.selection_reason,
         'used_strategy':item.used_strategy,'question_delivered':item.question,'work_hint':item.work.mode}

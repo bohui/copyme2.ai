@@ -60,7 +60,7 @@ def test_a_confirmation_present_in_both_pools_keeps_a_valid_selector_schema():
     context['strategy_context']['plan']['candidates'] = [CONFIRMATION]
     schema = governed_collector_schema({**context, 'two_lane_memory': True})
     validate(wire(question=CONFIRMATION['question'], selected_candidate_id=CONFIRMATION['id'],
-                  selection_reason='prepared_candidate'), schema)
+                  selection_reason='prepared_candidate', resolved_questions=[], deferred_questions=[]), schema)
 
 
 def test_a_current_correction_still_takes_priority_over_a_pending_confirmation():
@@ -157,6 +157,7 @@ def test_legacy_schema_requests_intent_without_changing_the_single_lane_contract
     value['plan']['candidates'][0]['context']['historical_clue_id'] = None
     value['plan']['candidates'][0]['context']['evidence'] = None
     value['plan']['resolved_questions'] = []
+    value['plan']['deferred_questions'] = []
     schema = governed_collector_schema(context)
     validate(value, schema)
     with pytest.raises(ValidationError):

@@ -67,8 +67,9 @@ class QuestionCandidate(StrictModel):
 
 
 class TurnWorkPlan(StrictModel):
-    mode: Literal['reply_only', 'extract'] = Field()
-    name: str | None = Field(max_length=120)
+    mode: Literal['reply_only', 'extract'] = Field(description='Extract new facts, corrections, recall/topic boundaries and profile/photo information. Reply_only is for pure greetings or stops without new facts.')
+    name: str | None = Field(max_length=120,
+        description='Only a preferred name explicitly stated in CURRENT narration; otherwise null. Never copy a name from profile or history.')
 
 
 class InterviewPlan(StrictModel):
@@ -83,6 +84,7 @@ class InterviewPlan(StrictModel):
     active_event_id: str | None
     work: TurnWorkPlan | None = None
     resolved_questions: list[QuestionResolution] = Field(default_factory=list, max_length=5)
+    deferred_questions: list[QuestionResolution] = Field(default_factory=list, max_length=5)
 
 
 class PhotoAssociation(StrictModel):
@@ -173,6 +175,11 @@ def validate_collector_result(value, context):
         raise ValueError('Acknowledgement cannot contain a question')
     plan = result.plan
     resolved = validate_resolutions([item.model_dump() for item in plan.resolved_questions], context)
+    deferred = validate_resolutions([item.model_dump() for item in plan.deferred_questions], context, kind='deferral')
+    if resolved & deferred:
+        raise ValueError('A question cannot be both answered and deferred')
+    if plan.chosen_id in deferred:
+        raise ValueError('A deferred question cannot also be chosen')
     if plan.chosen_id in resolved:
         raise ValueError('An answered question cannot also be chosen')
     ids = [item.id for item in plan.candidates]
@@ -291,6 +298,8 @@ def validate_collector_result(value, context):
     saved_plan = plan.model_dump()
     if not saved_plan['resolved_questions']:
         saved_plan.pop('resolved_questions')
+    if not saved_plan['deferred_questions']:
+        saved_plan.pop('deferred_questions')
 
     for candidate in saved_plan['candidates']:
         if candidate['context']['historical_clue_id'] is None:

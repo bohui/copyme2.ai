@@ -458,7 +458,7 @@ synthesis instructions use `memoir/evaluation/...` and `memoir/speech/...`.
 Issue numbers and release dates stay in metadata and numeric version history.
 The [structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md) explains
 the execution paths, and the [individual inventory](docs/Langfuse_Prompt_Usage.md)
-lists all 69 retained runtime, conditional, shared and evaluation sources.
+lists the retained runtime, conditional, shared and evaluation sources.
 
 Guide-only entries and the obsolete composer model index were removed from
 Langfuse. Integration guides, schemas and validators remain repository resources.
