@@ -30,6 +30,7 @@ def test_default_preview_needs_no_credentials_and_contains_the_complete_source(t
     packet = json.loads(request['input'])
     source = json.loads((ROOT / 'skills/memoir-story-game/tests/fixtures/age-eight.json').read_text())['input']
     assert request['model'] == 'gpt-6.1-sol' and request['reasoning']['effort'] == 'max'
+    assert request['stream'] is True
     assert packet['format_contract']['format'] == 'rpg-side-scroller'
     assert packet['format_contract']['navigation'] == 'horizontal_with_scrolling_camera'
     assert packet['format_contract']['controlled_character'] == 'memoir_author'

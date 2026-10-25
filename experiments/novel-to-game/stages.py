@@ -143,8 +143,8 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
             body['input']=[{'role':'user','content':[{'type':'input_text','text':body['input']}]+[
                 {'type':'input_image','image_url':'data:image/png;base64,'+base64.b64encode(p.read_bytes()).decode(),'detail':'high'}
                 for p in frames]}]
-    if name in ('whitebox','whitebox_logic','whitebox_replay','production','production_style'):
-        body['stream']=True
+    # Planning can also outlast a non-streaming proxy's idle timeout.
+    body['stream']=True
     signature=digest(json.dumps(body,sort_keys=True,ensure_ascii=False))
     stage=HERE/'stages'/name
     stage.mkdir(parents=True,exist_ok=True)
