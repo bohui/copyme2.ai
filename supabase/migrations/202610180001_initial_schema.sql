@@ -2963,6 +2963,12 @@ begin
    perform public.save_lifetime_continuity(conversation,identifier,item->>'kind',0,(p_fence->>'policy_epoch')::bigint,(p_fence->>'lease_token')::uuid,data);
  end loop;
  delete from public.user_lifetime_pending_policy where user_id=owner and project_id=project and source_id=p_source_id and source_version=p_version;
+ -- The review may finish after the worker has already entered its backoff.
+ if not exists(select 1 from public.user_lifetime_pending_policy where user_id=owner and project_id=project)
+   and not exists(select 1 from public.user_lifetime_policy_inventory_pending where user_id=owner and project_id=project) then
+   update public.user_memoir_lane set error=null,available_at=clock_timestamp()
+     where user_id=owner and project_id=project and pending and token is null and error='LIFETIME_POLICY_PENDING';
+ end if;
  return public.capture_lifetime_fence(conversation,(p_fence->>'lease_token')::uuid);
 end $$;
 
@@ -6053,7 +6059,7 @@ CREATE FUNCTION public.defer_lifetime_memoir_lane_policy(p_lane_id uuid, p_token
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
-declare lane public.user_memoir_lane%rowtype;
+declare lane public.user_memoir_lane%rowtype; policy_pending boolean;
 begin
  select * into lane from public.user_memoir_lane
    where id=p_lane_id and user_id=p_user_id and project_id=p_project_id;
@@ -6071,9 +6077,14 @@ begin
    raise exception 'stale canonical lane metadata lease' using errcode='PT409';end if;
  -- The page may already be stale and its contents remain inaccessible. This
  -- current owner/token can only relinquish its own lease and request a retry.
+ -- The review may have finished while the policy error was in transit.
+ policy_pending:=exists(select 1 from public.user_lifetime_pending_policy where user_id=p_user_id and project_id=p_project_id)
+   or exists(select 1 from public.user_lifetime_policy_inventory_pending where user_id=p_user_id and project_id=p_project_id);
  update public.user_memoir_lane set token=null,lease_until=null,run_deadline=null,pending=true,attempts=0,
-   error='LIFETIME_POLICY_PENDING',available_at=clock_timestamp()+interval '5 minutes' where id=p_lane_id;
- return jsonb_build_object('status','pending','error','LIFETIME_POLICY_PENDING','retrieval_complete',false);
+   error=case when policy_pending then 'LIFETIME_POLICY_PENDING' else null end,
+   available_at=clock_timestamp()+case when policy_pending then interval '5 minutes' else interval '0 seconds' end
+   where id=p_lane_id returning * into lane;
+ return jsonb_build_object('status','pending','error',lane.error,'retrieval_complete',false);
 end $$;
 
 CREATE FUNCTION public.delete_user_interview_photo(p_project_id text, p_photo_id uuid) RETURNS jsonb

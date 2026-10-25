@@ -46,6 +46,54 @@ def test_acceptance_is_durable_but_private_work_waits_for_completed_review(sql):
     rpc(sql, 'lock_lifetime_publication', f'{literal(fence)}::jsonb')
 
 
+@pytest.mark.parametrize('skill', ['timeline','composer'])
+def test_last_completed_policy_review_wakes_only_the_waiting_lane(sql,skill):
+    identity=resolve(sql)
+    first=accept(sql,identity,'First original.')['source']
+    # Raw acceptance retains reviews instead of the neutral seed RPC helper.
+    second=json.loads(sql(as_user(f"select public.accept_user_narrator_source({literal(identity['project_id'])},"
+        "'00000000-0000-4000-8000-000000000702','Second original.');")).stdout)
+    fence=begin_review(sql,identity)
+    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,pending,error,available_at) "
+        f"values('{OWNER}',{literal(identity['project_id'])},{literal(skill)},true,'LIFETIME_POLICY_PENDING',clock_timestamp()+interval '5 minutes');")
+    original=sql('select jsonb_agg(to_jsonb(s) order by sequence) from public.user_narrator_source s;').stdout
+    complete(sql,fence,first)
+    assert sql("select available_at>clock_timestamp() from public.user_memoir_lane;").stdout.strip()=='t'
+    assert rpc(sql,'lock_lifetime_publication',f'{literal(fence)}::jsonb',check=False).returncode!=0
+    complete(sql,fence,second)
+    assert sql("select pending and token is null and error is null and available_at<=clock_timestamp() from public.user_memoir_lane;").stdout.strip()=='t'
+    assert sql('select jsonb_agg(to_jsonb(s) order by sequence) from public.user_narrator_source s;').stdout==original
+    rpc(sql,'lock_lifetime_publication',f'{literal(fence)}::jsonb')
+
+
+@pytest.mark.parametrize('state', ['active','other_error','not_pending','foreign'])
+def test_completed_policy_review_does_not_disturb_other_lane_states(sql,state):
+    identity=resolve(sql);source=accept(sql,identity,'An original.')['source'];fence=begin_review(sql,identity)
+    queued=resolve(sql,owner=OTHER) if state=='foreign' else identity
+    owner=OTHER if state=='foreign' else OWNER
+    token=f"'{OLD}'" if state=='active' else 'null'
+    error='MEMOIR_UNAVAILABLE' if state=='other_error' else 'LIFETIME_POLICY_PENDING'
+    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,pending,error,token,available_at) "
+        f"values('{owner}',{literal(queued['project_id'])},'timeline',{str(state!='not_pending').lower()},{literal(error)},{token},clock_timestamp()+interval '5 minutes');")
+    before=sql('select to_jsonb(l) from public.user_memoir_lane l;').stdout
+    complete(sql,fence,source)
+    assert sql('select to_jsonb(l) from public.user_memoir_lane l;').stdout==before
+
+
+@pytest.mark.parametrize('review_complete', [False,True])
+def test_policy_deferral_rechecks_review_that_may_have_finished_before_the_error_returned(sql,review_complete):
+    identity=resolve(sql);source=accept(sql,identity,'An original.')['source'];fence=begin_review(sql,identity)
+    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,token,lease_until,run_deadline) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline','{OLD}',clock_timestamp()+interval '1 minute',"
+        "clock_timestamp()+interval '5 minutes') returning id;").stdout.strip()
+    if review_complete:complete(sql,fence,source)
+    sql(f"set role service_role; select public.defer_lifetime_memoir_lane_policy('{lane}','{OLD}','{OWNER}',"
+        f"{literal(identity['project_id'])},'{identity['conversation_id']}'); reset role;")
+    state=json.loads(sql("select jsonb_build_object('ready',available_at<=clock_timestamp(),'error',error,"
+        "'released',token is null and lease_until is null and run_deadline is null,'pending',pending) from public.user_memoir_lane;").stdout)
+    assert state==dict(ready=review_complete,error=None if review_complete else 'LIFETIME_POLICY_PENDING',released=True,pending=True)
+
+
 def test_restrictive_fixed_proposal_commits_exact_source_evidence_atomically(sql):
     identity = resolve(sql)
     text = 'I would rather keep the kitchen out of our conversations.'
