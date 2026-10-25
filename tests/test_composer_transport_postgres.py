@@ -89,7 +89,7 @@ def test_direct_composer_keeps_phase_proofs_review_gate_and_sql_save(sql, monkey
         return await execute_lifetime_lane(current, scope)
 
     # Bind the same configured byte-token route as the provider fixture.
-    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', BUDGET.model)
+    monkeypatch.setenv('MEMOIR_COMPOSER_MODEL', BUDGET.model)
     if fault in {'none', 'review_repair', 'restart_review'}:
         if fault == 'restart_review':
             with pytest.raises(asyncio.CancelledError):
@@ -134,7 +134,7 @@ def test_direct_composer_keeps_phase_proofs_review_gate_and_sql_save(sql, monkey
     'stale_page_digest', 'missing_prepare_proof', 'owner_before_draft'])
 def test_short_original_batch_saves_without_a_summary_provider(sql, monkeypatch, tmp_path, fault):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
-    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', BUDGET.model)
+    monkeypatch.setenv('MEMOIR_COMPOSER_MODEL', BUDGET.model)
     identity, source, lane, claim = seeded_composer(sql)
     publisher = LanePublication(sql.publication_dsn,
         authenticated_owner=OTHER if fault == 'owner_before_draft' else OWNER)

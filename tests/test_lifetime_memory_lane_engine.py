@@ -208,6 +208,8 @@ def forbidden_connection(*args,**kwargs):
 def isolate(monkeypatch):
     monkeypatch.setenv("MEMOIR_LIFETIME_MEMORY","true")
     Provider.bodies=[];Provider.failure=None
+    monkeypatch.setenv('MEMOIR_COMPOSER_MODEL', BUDGET.model)
+    monkeypatch.setenv('MEMOIR_COMPOSER_REASONING_EFFORT', 'high')
     for name in ('MEMOIR_PUBLICATION_DATABASE_URL','MEMORY_SPARK_COLLECTOR_MODEL',
         'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL','MEMOIR_LIFETIME_GENERATION_PAUSED'):
         monkeypatch.delenv(name,raising=False)
@@ -255,10 +257,10 @@ def test_lane_attempts_cannot_resume_a_prior_native_session(tmp_path):
 
 @pytest.mark.parametrize('phase,role,setting',[
     ('extract','author_timeline','MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT'),
-    ('draft','composer','MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT'),
+    ('draft','composer','MEMOIR_COMPOSER_REASONING_EFFORT'),
 ])
 @pytest.mark.parametrize('configured',[None,'','low'])
-def test_lane_b_requested_effort_is_low_not_the_global_max(tmp_path,monkeypatch,phase,role,setting,configured):
+def test_lanes_use_separate_reasoning_policies_instead_of_global_max(tmp_path,monkeypatch,phase,role,setting,configured):
     import apps.api.codex_worker_service as worker_module
     monkeypatch.setenv('MEMORY_SPARK_LLM_REASONING_EFFORT','max')
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
@@ -274,8 +276,13 @@ def test_lane_b_requested_effort_is_low_not_the_global_max(tmp_path,monkeypatch,
     payload=WorkerTurnInput(user_id=bounded.fence.user_id,project_id=bounded.fence.project_id,
         agent_role=role,model=BUDGET.model,bounded_lane=bounded,
         **({'composer_phase':phase} if role=='composer' else {}))
-    asyncio.run(worker._turn(payload))
-    assert len(calls)==1 and calls[0]['effort']=='low'
+    if role == 'composer' and configured == '':
+        with pytest.raises(ValueError, match='composer'):
+            asyncio.run(worker.turn(payload))
+        assert calls == []
+        return
+    asyncio.run(worker.turn(payload))
+    assert len(calls)==1 and calls[0]['effort']==('high' if role=='composer' and configured is None else 'low')
     assert calls[0]['model']==BUDGET.model
 
 
@@ -613,7 +620,7 @@ def test_real_bounded_composer_call_chain_uses_only_same_page_artifacts(edition_
     from types import SimpleNamespace
     from apps.api.lifetime_memory_composer import _compose
     from test_canonical_composer_provenance import controlled_draft
-    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL',BUDGET.model)
+    monkeypatch.setenv('MEMOIR_COMPOSER_MODEL',BUDGET.model)
     current=page('composer');current['locale']=edition_locale
     checkpoints={};registry=set();phases=[]
     class Broker:

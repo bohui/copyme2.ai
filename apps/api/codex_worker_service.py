@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from .codex_agent import CodexConnection
 from .collector_configuration import CollectorConfigurationError, collector_configuration
+from .composer_configuration import ComposerConfigurationError, composer_configuration
 from .codex_timeout_policy import WORKER_TIMEOUT, WORKER_MAX_TIMEOUT
 from .codex_progress import WorkerProgress
 from .issue14_execution_admission import (
@@ -209,6 +210,15 @@ class CodexWorker:
             return WORKSPACE_TIMEOUT
         return self.timeout
 
+    def _model_for(self, payload):
+        if payload.agent_role == 'composer':
+            selection = composer_configuration()
+            if payload.model is not None and payload.model != selection.model:
+                raise ComposerConfigurationError('Composer model differs from configured route')
+            return selection.model
+        return payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
+            if payload.agent_role == 'author_timeline' else self.model)
+
     def execution_deadline_expired(self, payload):
         """Read this task's actual timeout context for this exact dispatch."""
         evidence = self._deadline_context.get()
@@ -284,8 +294,7 @@ class CodexWorker:
         if payload.diagnostic_request_id != request_id:
             payload = payload.model_copy(update={'diagnostic_request_id': request_id})
         started = time.perf_counter()
-        model = payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
-                                  if payload.agent_role in {'composer', 'author_timeline'} else self.model)
+        model = self._model_for(payload)
         collector = collector_configuration(model) if payload.agent_role == 'collector' else None
         if collector:
             model = collector.model
@@ -384,8 +393,7 @@ class CodexWorker:
             correlation=payload.evaluation)
         user_id = str(payload.user_id)
         uid = self._uid_for(user_id)
-        model = payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
-                                  if payload.agent_role in {'composer', 'author_timeline'} else self.model)
+        model = self._model_for(payload)
         collector = collector_configuration(model) if payload.agent_role == 'collector' else None
         if collector:
             model = collector.model
@@ -397,16 +405,16 @@ class CodexWorker:
                 progress=self._progress_context.get()[1] if self._progress_context.get() else None,
                 uid=uid,apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',effort=self.reasoning_effort)
         if payload.bounded_lane is not None:
-            setting = ('MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT'
-                if payload.bounded_lane.phase in {'extract','summarize','profile'}
-                else 'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT')
+            effort = (composer_configuration().effort if payload.agent_role == 'composer'
+                else self.reasoning_effort or os.getenv(
+                    'MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'low').strip() or 'low')
             return await run_bounded_lane(command=self._run_command(uid),home_root=self.home_root,
                 base_url=self.base_url,api_key=self.api_key,model=model,
                 bounded_lane=payload.bounded_lane,timeout=self._execution_timeout(payload.agent_role,payload.composer_phase),
                 connection_factory=CodexConnection,issue14_admission=self._issue14_admission,
                 progress=self._progress_context.get()[1] if self._progress_context.get() else None,
                 uid=uid,apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
-                effort=self.reasoning_effort or os.getenv(setting, 'low').strip() or 'low')
+                effort=effort)
         if payload.governed is not None:
             # Do not visit or migrate any legacy home. Both transports use the
             # identical packet and fresh-home execution/budget validation seam.
@@ -542,6 +550,9 @@ async def turn(payload: WorkerTurnInput, request: Request,
     except CollectorConfigurationError:
         raise HTTPException(status_code=503, detail='Conversational generation is temporarily unavailable',
                             headers={'X-Error-Code': 'COLLECTOR_CONFIGURATION_INVALID'}) from None
+    except ComposerConfigurationError:
+        raise HTTPException(status_code=503, detail='Memoir composition is temporarily unavailable',
+                            headers={'X-Error-Code': 'COMPOSER_CONFIGURATION_UNAVAILABLE'}) from None
     except TimeoutError:
         raise HTTPException(status_code=504, detail='Codex worker turn timed out') from None
     except WorkerTurnError as error:

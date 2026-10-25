@@ -11,6 +11,7 @@ import os
 import logging
 from pydantic import ValidationError
 from .lifetime_memory_contracts import ContextBudget
+from .composer_configuration import composer_configuration
 from .memory_events import ExtractionResult, validate_extraction
 
 PROTOCOL = 'lifetime_composer_pages'
@@ -18,8 +19,9 @@ SOURCE_WINDOW = 2304
 
 
 def lane_model_budget(*, composer=False):
-    return ContextBudget(model=os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL',
-        os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled')),
+    model = composer_configuration().model if composer else os.getenv(
+        'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled'))
+    return ContextBudget(model=model,
         context_window=int(os.getenv('MEMOIR_LANE_CONTEXT_WINDOW','131072')),
         input_budget=int(os.getenv('MEMOIR_LANE_INPUT_BUDGET','98304' if composer else '65536')),
         output_headroom=int(os.getenv('MEMOIR_LANE_OUTPUT_HEADROOM','16384')),

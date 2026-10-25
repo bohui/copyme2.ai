@@ -3,10 +3,11 @@
 The author explicitly selected **GPT-5.6 Sol for memoir-composer**. That choice
 does not authorize another model, serving activation, a new credential/access
 grant, paid API fallback, prompt publication or renewed live calls. No coding
-agent model was changed. This document records an availability blocker, not a
-working or measured Sol deployment.
+agent model was changed. The historical availability observations below precede
+the dedicated application routing implementation. Consumer access is now
+advertised; an activated or measured Sol deployment is still unverified.
 
-## Observed route and concrete blocker
+## Route observations and remaining validation gates
 
 The initial read-only inspection, recorded at pinned `7f2d416`, found:
 
@@ -51,8 +52,16 @@ At **2026-10-25 09:15 UTC**, the same consumer's read-only catalog returned
 `openai/gpt-5.6-sol`, high requested effort, outer retries zero and configured
 token prices zero. No generation has verified the actual served model, effective
 effort, internal fallback or billing. Phase-isolated application selection and
-the reviewed bounded-transport entry still need implementation; changing the
-legacy shared setting globally would affect unrelated skills.
+the reviewed bounded-transport entry were still pending at that observation;
+changing the legacy shared setting globally would affect unrelated skills.
+
+The subsequent [routing delta](memoir-composer-sol-routing-20261025.md) introduces
+dedicated `MEMOIR_COMPOSER_MODEL=gpt-5.6-sol` and
+`MEMOIR_COMPOSER_REASONING_EFFORT=high` for prepare/draft/review, retaining the
+legacy shared settings for other skills and the conservative transport caps.
+This is offline implementation evidence; no Sol generation or serving
+activation has occurred. The three reviewed prompt sources still need their
+governed source merge and genuine scoped publication before matched live runs.
 
 The smallest prerequisite is an existing, authorized subscription route that
 actually targets GPT-5.6 Sol and is usable by the Memoir consumer, with its

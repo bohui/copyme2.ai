@@ -17,6 +17,7 @@ from .agent_storage import UserStorage
 from .conversation_text import original_conversation_text
 from .codex_timeout_policy import WORKER_MAX_TIMEOUT, WORKER_TIMEOUT, WORKSPACE_TIMEOUT
 from .collector_configuration import collector_configuration
+from .composer_configuration import composer_configuration
 from .issue14_execution_admission import (
     check_issue14_dispatch, validate_optional_issue14_admission,
 )
@@ -184,7 +185,6 @@ class CodexRuntime:
         self.command = command or [os.getenv('MEMORY_SPARK_CODEX_BIN', 'codex'), 'app-server']
         self.provider_env = provider_env or {}
         self.model = model or os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')
-        self.composer_model = os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'legal2ai-luna-low')
         self.base_url = base_url or os.getenv('MEMORY_SPARK_LLM_BASE_URL', 'http://127.0.0.1:4000/v1')
         self.api_key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
         if timeout is None:
@@ -308,7 +308,7 @@ class CodexRuntime:
             raise RuntimeError('Codex worker secret is not configured')
         request_id = new_request_id(diagnostic_request_id)
         started = time.perf_counter()
-        model = self.composer_model if agent_role == 'composer' else self.model
+        model = composer_configuration().model if agent_role == 'composer' else self.model
         if agent_role == 'collector':
             model = collector_configuration(model).model
         evaluation = execution_correlation(evaluation, model)

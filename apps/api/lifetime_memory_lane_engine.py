@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .model_request import instruction_manifest, manifest_metadata
 from .llm_tracing import trace_llm_call
+from .composer_configuration import REVIEWED_COMPOSER_MODELS, composer_configuration
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -31,8 +32,9 @@ from .lifetime_memory_context import serialize_packet
 from .lifetime_memory_contracts import Contract, ContextBudget, PinnedContinuity
 from .lifetime_memory_publication import PublicationUnavailable
 
-# The configured memoir alias routes to the same byte-token model as the
-# already supported pooled aliases; effort routing does not change token bounds.
+# UTF-8 bytes retain the conservative text-token bound. Composer Sol uses the
+# existing 131072/98304/16384 limits below its declared 272000/128000 capacity;
+# admitting it here does not admit it for timeline/profile or broaden aliases.
 SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
     'memoir-luna-low', 'synthetic-byte-bpe'})
 EXTRACTION_WINDOW_CONTRACT = load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/window'))
@@ -269,8 +271,11 @@ class BoundedLaneInput(Contract):
         if (self.budget.context_window > 131072 or self.budget.input_budget > maximum_input
                 or self.budget.framing_headroom < 2048):
             raise ValueError('Bounded lane budget exceeds the reviewed transport limits')
-        if self.budget.model not in SUPPORTED_LANE_MODELS:
+        models = REVIEWED_COMPOSER_MODELS if self.fence.skill == 'composer' else SUPPORTED_LANE_MODELS
+        if self.budget.model not in models:
             raise ValueError('No reviewed byte-token bound for lane model')
+        if self.budget.model == 'gpt-5.6-sol' and self.budget.output_headroom > 16384:
+            raise ValueError('Sol output budget exceeds the reviewed composer limit')
         packet = _object(self.packet)
         if serialize_packet(packet) != self.packet or set(packet) != {'lane_context', 'payload'}:
             raise ValueError('Bounded lane packet must use the canonical context envelope')
@@ -784,7 +789,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
     payload = dict(model=model, instructions=instructions, input=bounded.packet,
         store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
-        reasoning={'effort': effort or 'low', 'summary': 'auto'},
+        reasoning={'effort': effort or (composer_configuration().effort if role == 'composer' else 'low'), 'summary': 'auto'},
         max_output_tokens=bounded.budget.output_headroom,
         metadata={**manifest_metadata(manifest), 'generation_name':skill_name, 'trace_name':skill_name},
         text={'format':{'type':'json_schema', 'name':'codex_output_schema', 'strict':True, 'schema':schema}})

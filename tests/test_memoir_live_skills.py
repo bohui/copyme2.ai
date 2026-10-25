@@ -63,19 +63,24 @@ def test_real_completion_evidence_and_schema_are_required(monkeypatch, tmp_path)
     assert 'private-test-key' not in (tmp_path / 'receipt.json').read_text()
 
 
-def test_composer_uses_its_configured_background_route_and_effort(monkeypatch, tmp_path):
+@pytest.mark.parametrize('model,effort', [(None,None), ('gpt-5.6-sol','medium')])
+def test_composer_uses_its_own_route_and_effort_without_shared_fallback(monkeypatch, tmp_path, model, effort):
     live = provider(tmp_path)
     live.config.update(MEMORY_SPARK_MEMOIR_COMPOSER_MODEL='memoir-luna-low',
                        MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT='low')
+    if model is not None:
+        live.config['MEMOIR_COMPOSER_MODEL'] = model
+        live.config['MEMOIR_COMPOSER_REASONING_EFFORT'] = effort
     requests = []
     def handle(request):
         requests.append(json.loads(request.content))
         return httpx.Response(200, json=response(text='{}'))
     use_transport(monkeypatch, handle)
     asyncio.run(live.call('composer', 'memoir-composer', 'test', {}))
-    assert requests[0]['model'] == 'memoir-luna-low'
-    assert requests[0]['reasoning']['effort'] == 'low'
-    assert live.receipt['calls'][0]['requested_model'] == 'memoir-luna-low'
+    assert requests[0]['model'] == 'gpt-5.6-sol'
+    assert requests[0]['reasoning']['effort'] == (effort or 'high')
+    assert live.receipt['calls'][0]['requested_model'] == 'gpt-5.6-sol'
+    assert len(requests) == len(live.receipt['calls']) == 1
 
 
 def test_native_search_uses_supported_gateway_protocol_without_hidden_retries(monkeypatch, tmp_path):
@@ -110,7 +115,8 @@ def test_incomplete_invalid_or_secret_output_cannot_pass(monkeypatch, tmp_path, 
     assert 'private-test-key' not in (tmp_path / 'receipt.json').read_text()
 
 
-def test_failed_dispatch_consumes_budget_and_never_retries(monkeypatch, tmp_path):
+@pytest.mark.parametrize('skill', ['memoir-memory-context', 'memoir-composer'])
+def test_failed_dispatch_consumes_budget_and_never_retries(monkeypatch, tmp_path, skill):
     live = provider(tmp_path)
     requests = []
     def handle(request):
@@ -118,9 +124,9 @@ def test_failed_dispatch_consumes_budget_and_never_retries(monkeypatch, tmp_path
         return httpx.Response(429, text='private provider detail')
     use_transport(monkeypatch, handle)
     with pytest.raises(httpx.HTTPStatusError):
-        asyncio.run(live.call('one', 'memoir-memory-context', 'test', {}))
+        asyncio.run(live.call('one', skill, 'test', {}))
     with pytest.raises(RuntimeError, match='budget'):
-        asyncio.run(live.call('two', 'memoir-memory-context', 'test', {}))
+        asyncio.run(live.call('two', skill, 'test', {}))
     assert len(requests) == len(live.receipt['calls']) == 1
     assert 'private provider detail' not in (tmp_path / 'receipt.json').read_text()
 

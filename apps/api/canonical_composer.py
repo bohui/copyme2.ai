@@ -328,9 +328,11 @@ def composer_request(job):
 
 def composition_request(job):
     request = composer_request(job)
+    from .composer_configuration import composer_configuration
+    selection = composer_configuration()
     config = fingerprint({'locale': job['locale'],
         'skill': 'canonical-batch-composer-2' if job.get('batch') else 'canonical-page-composer-1' if job.get('governed_page') else 'shared-composer-4',
-        'model': os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')),
+        'model': selection.model, 'effort': selection.effort,
         'policy': request['policy']})
     if job.get('previous') and job['previous'].get('content_config') != config:
         # Changing the projection invalidates carried chapters as well as

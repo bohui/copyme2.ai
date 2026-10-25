@@ -202,7 +202,7 @@ def test_pg_contributions_may_be_explicitly_deferred_but_citations_cannot_hide_o
     'negative_prose', 'editorial', 'repair', 'craft_repair', 'legacy_restart', 'legacy_v2'])
 def test_semantic_review_repairs_or_saves_through_sql(sql, monkeypatch, tmp_path, mode):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
-    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', BUDGET.model)
+    monkeypatch.setenv('MEMOIR_COMPOSER_MODEL', BUDGET.model)
     from test_lifetime_composer_capacity import OWNER
     identity, source, lane, claim = seeded_composer(sql)
     publisher = LanePublication(sql.publication_dsn, authenticated_owner=OWNER)

@@ -1,0 +1,331 @@
+{
+  "created_at": "2026-10-25T10:15:46.063000+00:00",
+  "measurement_type": "Offline controlled-provider contract/state verification and read-only route metadata; no live Sol measurement",
+  "repository": "bohui/copyme2.ai",
+  "branch": "codex/memoir-composer-optimization-20261025",
+  "reviewed_routing_base": "8533062ee4ba66c2d1cb7a7b5376896c4a2ed501",
+  "source_only_reviewed_head": "1ea036011a75b34de3419e126c9b576715b5709a",
+  "checked_file_sha256": {
+    ".env.example": "e61c8ab4b3e464e79c3cf5a87d708a1d02899c0c1ac6896a19d89e070a571c28",
+    "README.md": "b06f084e424309de5970d64f8da1c9e1429d3e0163df23e9667750b0fdb6f3c9",
+    "apps/api/canonical_composer.py": "42776f4eeadbbd4a92428908641452f562996402b5fe08ff2f667bfd74f1f297",
+    "apps/api/codex_runtime.py": "2e9ac564a22679c25d661712c3c1269c980f0449955c2fbfb18fe18df3186394",
+    "apps/api/codex_worker_service.py": "311bcf373b7b18247c06de73967df2226765249c4bf9a37dedc18e62e2c38ceb",
+    "apps/api/composer_configuration.py": "f8c6574776e671e0801e5318a1f1a3c0ffc5d1085bdb004b6c8b2d71cccb1dac",
+    "apps/api/lifetime_memory_composer.py": "87d7cfc7df2b5177920c1c1adab7b8b07a4b3065df86f177ea82953b478ef8e4",
+    "apps/api/lifetime_memory_lane_engine.py": "afc824c204db965ee1f451e8172f0aabaff00023221c4de3c80bea2cb76ea6a5",
+    "compose.yml": "6fd73ac108151a209a04fd2e1b735aeffbee0ac770dbc4464bc3366c05f976ef",
+    "docs/memoir-composer-sol-plan-20261025.md": "9cd7bf207b06d1c2abc641a6654bf2bbef8a22da192ba8b95e740a466352b4fb",
+    "docs/memoir-composer-sol-routing-20261025.md": "5356c60950ebe95eb5768135ca1e2f68f8b49be3cc1def2c865f5368fb4c32cc",
+    "scripts/run_memoir_live_skills.py": "02f0f43bae8af455950e66a8805394e5bd155403f53884be601d82df8e69f1c8",
+    "tests/test_composer_compose_config.py": "f37da31b9447c2c777e7fe5438718412efdaa0c4cbabdbe12562047c10f9cc3e",
+    "tests/test_composer_model_routing.py": "50868ea65b4a800f9ebbdb901172fbeef0e4db7c0c92e855ecd2b62e3a0b01e4",
+    "tests/test_composer_review_postgres.py": "01363d3536d6bbba849d8dbc7e1e8d338305ada5570e3f16f8452a8f98b8644a",
+    "tests/test_composer_transport_postgres.py": "6da65b4f4266af281dd18ac38e02e21b09ae246ce71d02045ced2e2d13b26c1a",
+    "tests/test_interview_photo_composer.py": "c4b3665d0733e47ee916515f0354d1b665f7719c9bd3f2d6661ddc4520214ce1",
+    "tests/test_lifetime_memory_lane_engine.py": "d314a30e5fc8a4539c6b70e90fc3c141c841ab86bee589cee5b4d276808ea9ca",
+    "tests/test_memoir_live_skills.py": "6a77d382759beb21efa4412dcd18cbb2b8b7a3221c4d042f47ddddd931e5a546"
+  },
+  "route_observation": {
+    "observed_at": "2026-10-25T09:37:22.108422+00:00",
+    "generation_calls": 0,
+    "config_sha256": "c105059b0f75082ddbe1746db024ab0c35bed620ebc38df7cde2e6eb642a88b2",
+    "model_name": "gpt-5.6-sol",
+    "route": {
+      "model": "openai/gpt-5.6-sol",
+      "api_base": "os.environ/CODEX_LB_API_BASE",
+      "reasoning_effort": "high",
+      "num_retries": 0,
+      "fallbacks": null
+    },
+    "model_info": {
+      "input_cost_per_token": 0,
+      "output_cost_per_token": 0,
+      "max_input_tokens": 272000,
+      "max_output_tokens": 128000
+    },
+    "router_policy": {
+      "num_retries": null,
+      "fallbacks": null,
+      "context_window_fallbacks": null,
+      "content_policy_fallbacks": null
+    },
+    "served_model": "unobserved without generation",
+    "internal_pool_attempts": "unobserved",
+    "catalog_status": 200,
+    "consumer_model_ids": [
+      "gpt-5.6-luna-pooled",
+      "legal2ai-luna-low",
+      "memoir-luna-low",
+      "gpt-5.6-luna-memoir-low",
+      "gpt-5.6-luna-memoir-high",
+      "gpt-6-astra",
+      "gpt-5.6-sol"
+    ],
+    "sol_exposed": true
+  },
+  "combined_regression": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_composer_review.py",
+      "tests/test_composer_review_regressions.py",
+      "tests/test_composer_runtime_craft.py",
+      "tests/test_composer_craft.py",
+      "tests/test_composer_review_postgres.py",
+      "tests/test_progressive_composer.py",
+      "tests/test_composer_transport_postgres.py",
+      "tests/test_canonical_composer_provenance.py",
+      "tests/test_composer_repair_budget.py",
+      "tests/test_lifetime_composer_policy.py",
+      "tests/test_lifetime_composer_clearance.py",
+      "tests/test_lifetime_memory_lane_engine.py",
+      "tests/test_canonical_draft_budget.py",
+      "tests/test_lifetime_composer_capacity.py",
+      "tests/test_progressive_photo_invalidation.py",
+      "tests/test_workspace_memory_actions.py",
+      "tests/test_conversation_attribution.py",
+      "--deselect",
+      "tests/test_workspace_memory_actions.py::test_pg_private_rework_preserves_completed_formal_authority_and_consent",
+      "--deselect",
+      "tests/test_workspace_memory_actions.py::test_pg_photo_attachment_preserves_rewrites_for_other_evidence_and_sibling_photos",
+      "--deselect",
+      "tests/test_workspace_memory_actions.py::test_pg_photo_outside_composer_partition_preserves_source_only_rewrite",
+      "--deselect",
+      "tests/test_workspace_memory_actions.py::test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts",
+      "--deselect",
+      "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks",
+      "--deselect",
+      "tests/test_conversation_attribution.py::test_unrelated_event_correction_preserves_non_story_and_withheld_classifications",
+      "--deselect",
+      "tests/test_conversation_attribution.py::test_author_removed_links_and_corrected_time_remain_authoritative",
+      "tests/test_composer_model_routing.py",
+      "tests/test_composer_compose_config.py",
+      "tests/test_interview_photo_composer.py",
+      "tests/test_memoir_live_skills.py",
+      "tests/test_collector_compose_config.py",
+      "tests/test_story_game_runtime.py",
+      "tests/test_runtime_configuration.py",
+      "--junitxml=var/composer-response-optimization/20261025-sol-routing/combined-sol-routing-final.xml"
+    ],
+    "head": "8533062ee4ba66c2d1cb7a7b5376896c4a2ed501",
+    "started_at": "2026-10-25T09:58:20.656195+00:00",
+    "measurement_type": "offline controlled providers with disposable PostgreSQL",
+    "phase": "completed",
+    "exit_code": 1,
+    "elapsed_seconds": 614.3408429590054,
+    "finished_at": "2026-10-25T10:08:35.002065+00:00",
+    "result": "600 passed, 11 deselected, 1 teardown error",
+    "assertion_failures": 0,
+    "error": "Disposable PostgreSQL stop exceeded unchanged 10-second teardown deadline"
+  },
+  "affected_case_rerun": {
+    "command": [
+      "python3",
+      "-m",
+      "pytest",
+      "-q",
+      "tests/test_conversation_attribution.py::test_attribution_is_independent_of_automatic_interview_strategy[shape]",
+      "--junitxml=var/composer-response-optimization/20261025-sol-routing/attribution-teardown-rerun.xml"
+    ],
+    "started_at": "2026-10-25T10:10:06.888222+00:00",
+    "measurement_type": "offline controlled provider / fresh disposable PostgreSQL",
+    "phase": "completed",
+    "exit_code": 0,
+    "elapsed_seconds": 7.67263525002636,
+    "result": "1 passed with normal teardown"
+  },
+  "additional_checks": {
+    "composer_evaluation": {
+      "result": "15 passed, 26 unrelated deselected",
+      "exit_code": 0
+    },
+    "prompt_governance": {
+      "result": "31 passed",
+      "exit_code": 0
+    },
+    "node": {
+      "result": "62 passed",
+      "exit_code": 0
+    }
+  },
+  "legacy_classification": {
+    "per_arm_tests": 38,
+    "per_arm_failures": 35,
+    "same_failing_test_ids": true,
+    "different_reasons": {},
+    "base_failure_classes": {
+      "AttributeError": 32,
+      "pydantic_core._pydantic_core.ValidationError": 3
+    },
+    "candidate_failure_classes": {
+      "AttributeError": 32,
+      "pydantic_core._pydantic_core.ValidationError": 3
+    }
+  },
+  "managed_sources": {
+    "memoir/skills/memoir-composer/review": {
+      "path": "skills/memoir-composer/prompts/review.md",
+      "source_sha256": "61be8f8c2fb1694d8a9cb1ed63ce572762ba65e0d842bb884d2b92ae3616e7c9",
+      "unchanged_from_reviewed_head": true,
+      "existing_receipt_version": 3,
+      "receipt_matches_source": false
+    },
+    "memoir/skills/memoir-composer/shared/editorial-review": {
+      "path": "skills/memoir-composer/references/editorial-review.prompt.md",
+      "source_sha256": "dd79d1a09ab81c6a5b09ac66c4dc1a25409a539fa1873d38b75652091dbca1ae",
+      "unchanged_from_reviewed_head": true,
+      "existing_receipt_version": 1,
+      "receipt_matches_source": false
+    },
+    "memoir/skills/memoir-composer/shared/narrative-enrichment": {
+      "path": "skills/memoir-composer/references/narrative-enrichment.md",
+      "source_sha256": "1f54526e76fcb210656c7bb713e7909c5e81a2dfc524e08af3ef42261f31ab3e",
+      "unchanged_from_reviewed_head": true,
+      "existing_receipt_version": 1,
+      "receipt_matches_source": false
+    }
+  },
+  "genuine_loader_preflight": {
+    "generation_calls": 0,
+    "publication_writes": 0,
+    "results": {
+      "skills/memoir-composer/prompts/review.md": "ValueError",
+      "skills/memoir-composer/references/editorial-review.prompt.md": "ValueError",
+      "skills/memoir-composer/references/narrative-enrichment.md": "ValueError",
+      "compiled_draft": "ValueError",
+      "compiled_review": "ValueError"
+    }
+  },
+  "call_accounting": {
+    "actual_sol_generations": 0,
+    "actual_new_judges": 0,
+    "historical_luna_baseline": 24,
+    "historical_luna_candidate": 14,
+    "historical_unused_candidate": 10,
+    "future_sol_design_maximum": {
+      "baseline": 24,
+      "candidate": 18,
+      "minutes_per_arm": 30,
+      "judges": 0
+    },
+    "future_sol_dispatch": "paused pending reviewed routing head and genuine published pins"
+  },
+  "publication_and_merge": {
+    "pr133_state": "open, ready, unmerged",
+    "merge_attempts": 2,
+    "both_rejected_not_executed": true,
+    "review_task_reader": "Codex app tool request failed",
+    "publication_writes": 0,
+    "pr132_state": "draft; no merge attempted"
+  },
+  "concurrent_serving_checkout": {
+    "observed_at": "2026-10-25T10:03:18.765309+00:00",
+    "primary_checkout": "/Users/bohuihan/memoir",
+    "head": "b9373804eac8069979c6d7dd3226bebe625649b5",
+    "subject": "Enable consent-gated recording retention and local STT",
+    "dirty_paths": [
+      ".env.example",
+      "README.md",
+      "apps/api/lifetime_memory_lane_engine.py",
+      "tests/test_lifetime_memory_lane_engine.py"
+    ],
+    "overlapping_paths": [
+      ".env.example",
+      "README.md",
+      "apps/api/lifetime_memory_lane_engine.py",
+      "tests/test_lifetime_memory_lane_engine.py"
+    ],
+    "observed_overlap": "Shared lane whitelist adds GPT-5.6 Sol and GPT-6.1 Sol to all phases; example suggests changing legacy shared model. Task delta selects composer-only GPT-5.6 Sol with dedicated configuration.",
+    "owner": "not established; no UI or private session files inspected",
+    "action": "preserved; isolated task worktree only",
+    "runtime_loaded_state": "unobserved; bind-mounted files do not prove active imported configuration"
+  },
+  "raw_artifacts": {
+    "var/composer-response-optimization/20261025-sol-routing/red-selection.log": {
+      "sha256": "b5710e89381f426fba15a027b435e7a29c4e489e37fca44feaa3da2193b88ddb"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/green-selection.log": {
+      "sha256": "5c877a8a68f6a85436fe2c54b6ed6019c469506ca61ba43eb7bee93bb75a71f8"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/red-worker.log": {
+      "sha256": "21d2e8c28a85c4492712a1a3abd29def59192313f1e3d759ec093f26f05cec19"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/green-worker.log": {
+      "sha256": "dc2cf2ad489a7c3f616bfa44794a71ce4e5b2f7df5acf07bae36547ca477e17d"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/red-cache.log": {
+      "sha256": "415e6afce5ff4f5537f57f11d3717da0195aebbbf3da7209262e3e47c114e7ec"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/green-cache.log": {
+      "sha256": "afcce44628c978fce49c6d3adea215125f70f030740da59acd52587b401f05d2"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/red-bounds.log": {
+      "sha256": "0600af4b249db0a6f2055fd84139bc6cbf37203ae0b278c1a536c79397966bb3"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/green-bounds.log": {
+      "sha256": "5120609f67e68e2f9c8ea1fd6cb469f8e407a0b6b523850f3a9ac6afab53abf2"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/red-config.log": {
+      "sha256": "0ac52a5c55f406e96bf9f6ac3d3ec41346cdc84d87409cc12e468424edf35629"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/green-config.log": {
+      "sha256": "c4c1bfd4a070f3cd8fab636454a2e77563a3ef5af95d9e064c84baeb8bde46c6"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/targeted-regression.log": {
+      "sha256": "9f93a82044a076886163fff9c6823dd4c6465b1afe95e6d15a57a4155057e21d"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/reviewed-base-photo.log": {
+      "sha256": "330bb6dff1f2c26e1f19ee5ebfda9e06e002d861ba3907aa5b4104113f70bbb4"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/combined-sol-routing-final.log": {
+      "sha256": "ece2cdad4ca699152f91753c71ea18effb9c5cea5952670451f99c88bb747011"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/combined-sol-routing-final.xml": {
+      "sha256": "1c42d28690bc453937767e1168fb625f2e4078466c8a502e80e5db268427e439"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/attribution-teardown-rerun.log": {
+      "sha256": "2a40bc2ba2fda6d105017c42cb1a337768153b171558e24a72a94fe08f327ffe"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/attribution-teardown-rerun.xml": {
+      "sha256": "3b24aeed990d47bc33f30e7658a121a2b58674ef22e65331306e4753a998025b"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/evaluation-final.log": {
+      "sha256": "375942fd201585d8cd6f8dd812b42b28c4c83b4527607f336ef12405cb2e91c4"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/governance-final.log": {
+      "sha256": "9a477dc02540caea63e44911e5716e56e138acaab8bb2d3c7f16afea12ccfe46"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/node-final.log": {
+      "sha256": "875c331c1f0193d4b57fec65e9720ad44d992df31391729b3f1dc0c8857c617e"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/reviewed-base-isolation.log": {
+      "sha256": "1c7e274d4704728425f08391efc538902c522e0c83f9c552b448365ac1bfdd8d"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/routing-candidate-isolation.log": {
+      "sha256": "f0d93f36c0848d6f52450402943e8a7529f8f6422f64c74626783382e4187541"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/isolation-baseline-classification.json": {
+      "sha256": "4b777294bbbe96dd6f1439fa77cc40eece2e712f5d759580299a69db68c69fc6"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/genuine-loader-preflight.json": {
+      "sha256": "f74dc2ee8906253a0954a378d01feb6a78c6332f337ca076c892e54d59969fd6"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/cleanup-after-combined.json": {
+      "sha256": "84b90b8a0c2d105adae8c130678eb0e7e880c921bc76f8fbe1be1dec0770a6f6"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/concurrent-primary-state.json": {
+      "sha256": "ab1c361cb66aa442e325449121996223295b213a3b423b9ac21f5d753acce058"
+    },
+    "var/composer-response-optimization/20261025-sol-routing/route-readonly.json": {
+      "sha256": "772083f9697b32b4a8d2e833985b480d10d48384f080a23789924e013be330fe"
+    }
+  },
+  "limitations": [
+    "No actual served Sol model, effective effort, opaque provider attempts, billing, live semantic/craft quality, latency or browser paint observed.",
+    "No full-suite green claim; combined teardown error and the independent existing failure cohorts remain recorded.",
+    "Existing serving checkout, containers, credentials and database were not changed by this task."
+  ]
+}
