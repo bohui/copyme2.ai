@@ -379,6 +379,56 @@ def test_pg_new_root_retains_eligible_older_passages_across_profile_updates(sql,
     assert any(row['source_refs'][0]['source_id'] == later['id'] for row in records)
 
 
+@pytest.mark.parametrize('privacy_changed', [False,True])
+@pytest.mark.parametrize('protected', [False,True])
+def test_pg_unchanged_paragraph_survives_another_events_heading_dependency_change(sql,privacy_changed,protected):
+    from apps.api.canonical_composer import composer_request, section_event_ids
+    from test_progressive_photo_invalidation import block, validated_result
+    identity=resolve(sql);project=identity['project_id'];sources=[]
+    for number,(text,title) in enumerate([('I grew up in Chengde.','Home'),('I repaired a radio.','Radio')],1):
+        source=rpc(sql,'accept_user_narrator_source',f"{literal(project)},'{UUID(int=number)}',{literal(text)}")
+        proposal=dict(kind='event',title=title,source_refs=[dict(source_id=source['id'],version=1,quote=text)])
+        rpc(sql,'apply_user_memory_events',f"{literal(project)},{literal([dict(id=source['id'],version=1)])},{literal([proposal])}")
+        sources.append(source)
+    lane=create_lane(sql,identity,skill='composer',rounds=5)
+    def candidate(page,blocks,ids=None):
+        result=validated_result(page,blocks,event_ids=ids)
+        request=composer_request(batch_job(page))
+        chapter={'event_ids':next(s['event_ids'] for s in result['sections'] if 'heading' in s)}
+        for section in result['sections']:
+            if 'block' in section:section['event_ids']=section_event_ids(section['block'],chapter,request)
+        result['review']=controlled_section_review(page,result['sections'])
+        return result
+    first=service(sql,'claim_memoir_lane',f"'{lane}',900")
+    initial=candidate(first,[block('home',sources[0]),block('radio',sources[1])],[e['id'] for e in first['batch']['events']])
+    service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{first['token']}',0,{literal(initial)}")
+    service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{first['token']}'")
+    original=next(r for r in rpc(sql,'read_lifetime_private_draft_page',f"{literal(project)},'{first['snapshot_id']}'")['records'] if r['id'].endswith('__home'))
+    if protected:
+        sql(f"update public.user_lifetime_memoir_section set human_locked=true where partition_key={literal(original['id'])};")
+    radio=next(e for e in first['batch']['events'] if e['source_refs'][0]['source_id']==sources[1]['id'])
+    latest=rpc(sql,'accept_user_narrator_source',f"{literal(project)},'{UUID(int=3)}','That radio repair belongs to adolescence.'")
+    ref=dict(source_id=latest['id'],version=1,quote=latest['text'])
+    update=dict(existing_id=radio['id'],expected_revision=radio['revision'],kind='event',title='Radio',
+        life_stage='adolescence',stage_evidence=[ref],source_refs=[ref])
+    rpc(sql,'apply_user_memory_events',f"{literal(project)},{literal([dict(id=latest['id'],version=1)])},{literal([update])}")
+    if privacy_changed:
+        sql(f"update public.user_profile set profile=profile||'{{\"memory_preferences\":{{\"paused_topics\":[\"childhood\"]}}}}'::jsonb where user_id='{OWNER}';")
+    sql(f"update public.user_memoir_lane set pending=true where id='{lane}';")
+    current=service(sql,'claim_memoir_lane',f"'{lane}',900")
+    output=candidate(current,[block('radio',sources[1])],[radio['id']])
+    service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{current['token']}',0,{literal(output)}")
+    service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{current['token']}'")
+    records=rpc(sql,'read_lifetime_private_draft_page',f"{literal(project)},'{current['snapshot_id']}'")['records']
+    saved=next((row for row in records if row['id']==original['id']),None)
+    if privacy_changed:assert saved is None
+    else:
+        assert saved is not None
+        assert saved['preview']['text']==original['preview']['text']
+        assert saved['preview']['title']==(original['preview']['title'] if protected else 'Home')
+        assert saved['source_refs']==original['source_refs']
+
+
 def test_repair_admission_and_composer_share_stale_projection_validation(monkeypatch):
     from apps.api.canonical_composer import validate_canonical_candidate
     from apps.api.lifetime_memory_lane_engine import validate_lane_payload

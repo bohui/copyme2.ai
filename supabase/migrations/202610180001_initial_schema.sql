@@ -10156,7 +10156,9 @@ begin
  select coalesce(jsonb_agg(item order by partition_key),'[]') into records from (
    select s.partition_key,jsonb_build_object('id',s.partition_key,'event_id',s.event_id,'event_revision',s.event_revision,
      'source_refs',coalesce(s.bundle->'source_refs',jsonb_build_array(jsonb_build_object('source_id',s.source_id,'version',s.source_version,'char_start',s.char_start,'char_end',s.char_end))),
-     'preview',case when root.state='proposed' and s.snapshot_id=root.id and s.proposal is null and not(s.approved or s.human_locked) then null else s.bundle->'preview' end,
+     'preview',case when root.state='proposed' and s.snapshot_id=root.id and s.proposal is null and not(s.approved or s.human_locked) then null
+       when validity.all_current or s.approved or s.human_locked then s.bundle->'preview'
+       else jsonb_set(s.bundle->'preview','{title}',to_jsonb(e.data->>'title')) end,
      'proposed_preview',case when root.state='proposed' and s.snapshot_id=root.id and s.proposal is null and not(s.approved or s.human_locked) then s.bundle->'preview' else s.proposal->'preview' end,
      'proposal_digest',case when s.proposal is not null then encode(sha256(convert_to(s.proposal::text,'UTF8')),'hex') else null end,
      'original_withheld',s.proposal is not null and not(s.bundle ? 'preview'),'approval_required',root.state='proposed',
@@ -10164,13 +10166,23 @@ begin
    from public.user_lifetime_memoir_section s join public.user_lifetime_lane_snapshot ss on ss.id=s.snapshot_id
      join public.user_memory_event e on e.user_id=s.user_id and e.project_id=s.project_id and e.id=s.event_id and e.revision=s.event_revision and e.status='active'
      join public.user_narrator_source n on n.user_id=s.user_id and n.project_id=s.project_id and n.id=s.source_id and n.version=s.source_version and n.status='active'
+   cross join lateral (select
+     not exists(select 1 from jsonb_array_elements(s.event_dependencies) dependency where not exists(
+       select 1 from public.user_memory_event original where original.user_id=s.user_id and original.project_id=s.project_id
+         and original.id=dependency->>'id' and original.revision::text=dependency->>'revision' and original.status='active')) all_current,
+     exists(select 1 from jsonb_array_elements(s.bundle->'sections') body where body ? 'block'
+       and body->>'id'=s.bundle->'preview'->>'id' and body->'event_ids' ? s.event_id
+       and not exists(select 1 from jsonb_array_elements_text(body->'event_ids') id where not exists(
+         select 1 from jsonb_array_elements(s.event_dependencies) dependency join public.user_memory_event original
+           on original.user_id=s.user_id and original.project_id=s.project_id and original.id=dependency->>'id'
+             and original.revision::text=dependency->>'revision' and original.status='active'
+         where dependency->>'id'=id))) body_current) validity
    where s.user_id=owner and s.project_id=p_project_id and s.locale=root.locale and s.partition_key>after_key and not s.retired
      and not exists(select 1 from jsonb_array_elements(s.source_dependencies) dependency where not exists(
        select 1 from public.user_narrator_source original where original.user_id=s.user_id and original.project_id=s.project_id
         and original.id::text=dependency->>'id' and original.version::text=dependency->>'version' and original.status='active'))
-     and not exists(select 1 from jsonb_array_elements(s.event_dependencies) dependency where not exists(
-       select 1 from public.user_memory_event original where original.user_id=s.user_id and original.project_id=s.project_id
-        and original.id=dependency->>'id' and original.revision::text=dependency->>'revision' and original.status='active'))
+     -- A changed chapter heading must not hide an independently unchanged body.
+     and (validity.all_current or validity.body_current)
      and (ss.state='completed' or ss.id=root.id and ss.state='proposed') and ss.privacy_digest=root.privacy_digest and ss.policy_epoch=root.policy_epoch and ss.created_at<=root.created_at
      and not exists(select 1 from public.user_lifetime_memoir_section newer join public.user_lifetime_lane_snapshot ns on ns.id=newer.snapshot_id
        where newer.user_id=s.user_id and newer.project_id=s.project_id and newer.locale=s.locale and newer.partition_key=s.partition_key
