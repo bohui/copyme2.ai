@@ -59,6 +59,9 @@ After whitebox play, save actual feedback as `whitebox-feedback.json` before art
 For a runnable candidate, run `verify.py --output <workspace> --stage production`
 and repeat with `--phone`. The replay must demonstrate player movement, camera
 movement, travel between settings, an interaction, progress, ending and restart.
+Run `extra_checks.py --output <workspace> --stage production` for independent
+passage fidelity, revisit/full-text credit, movement bounds, locked-garden,
+focus, 320px layout and offline-export checks.
 Record all six upstream QA checks from one complete clean run. Physical-device
 and subjective-experience claims require their own evidence.
 
