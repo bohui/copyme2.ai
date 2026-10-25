@@ -10,19 +10,19 @@ from test_conversation_attribution import Conversation, empty, episode, referenc
 from test_background_profile_workflow import database
 from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database  # noqa: F401
 
-from apps.api.lifetime_memory_composer import _extract
+from apps.api.lifetime_memory_composer import _extract, execute_lifetime_lane
 from test_lifetime_composer_capacity import page
 from test_memory_context_transport import Publisher
 
 
-def extract_places(monkeypatch, text, raw, *, offset=0):
+def extract_places(monkeypatch, text, raw, *, offset=0, commit=False):
     current = page(text=text)
     current['source'].update(char_start=offset, char_end=offset + len(text), original_length=offset + len(text))
     current['two_lane'] = dict(schema_version=1, task_version='two-lane-v1', execution_generation=1,
         phase_revision=0, work_mode='extract', reply_contract='reply-v2')
     current['attribution_context'] = dict(schema_version=1, decision='extract', reason='new_testimony', delivered_event=None)
     original = {**current['source'], 'text':'x' * offset + text}
-    calls = []
+    calls, commits = [], []
     async def worker(request):
         calls.append(json.loads(request.content))
         output = deepcopy(raw)
@@ -37,11 +37,19 @@ def extract_places(monkeypatch, text, raw, *, offset=0):
         return httpx.Response(200, json=dict(thread_id='controlled-place', reply=json.dumps(output), artifacts=[]))
     class Broker:
         async def rpc(self, name, **params):
+            if commit and name == 'read_lifetime_profile_page':
+                return None
+            if commit and name == 'commit_lifetime_memoir_lane_page':
+                commits.append(deepcopy(params['p_result']))
+                return {'status': 'captured_commit'}
             assert name == 'read_lifetime_lane_policy_source'
             return original
     scope = SimpleNamespace(broker=Broker(), worker_url='https://worker.invalid', worker_secret='fixture',
         worker_transport=httpx.MockTransport(worker), lane_publisher=Publisher())
-    result = asyncio.run(_extract(current, scope))
+    result = asyncio.run(execute_lifetime_lane(current, scope) if commit else _extract(current, scope))
+    if commit:
+        assert result == {'status': 'captured_commit'}
+        result, = commits
     assert len(calls) == 1
     return result
 
@@ -67,7 +75,8 @@ def ref(quote):
     return dict(source_id='source', version=1, quote=quote, char_start=None, char_end=None)
 
 
-def test_research_quote_can_cross_masked_attribution(monkeypatch):
+@pytest.mark.parametrize('offset', [0, 1792])
+def test_research_quote_can_cross_masked_attribution(monkeypatch, offset):
     father = '父亲说他小时候在承德修自行车。'
     narrator = '后来我在承德学会了做陶器。'
     text = father + narrator
@@ -78,9 +87,70 @@ def test_research_quote_can_cross_masked_attribution(monkeypatch):
             granularity='city', latitude=None, longitude=None, research=research)],
         prepared_questions=[], event_places=[], continuity_updates=[], passage_dispositions=[
             dict(disposition='non_story', reason='no_supported_event', source_ref=ref(father))])
-    result = extract_places(monkeypatch, text, raw)
+    result = extract_places(monkeypatch, text, raw, offset=offset, commit=True)
     assert [place['place'] for place in result['place_journeys']] == ['承德']
     assert result['place_journeys'][0]['research']['quote'] == text
+    assert result['place_journeys'][0]['research']['char_start'] == offset
+    assert result['events'][0]['source_refs'][0]['quote'] == narrator
+
+
+@pytest.mark.parametrize('offset', [0, 1792])
+@pytest.mark.parametrize('disposition', ['withheld', 'unresolved', 'policy'])
+@pytest.mark.parametrize('research_scope', ['restricted', 'crossing', 'allowed'])
+def test_restricted_research_is_removed_before_commit(monkeypatch, offset, disposition, research_scope):
+    restricted = 'In 1984 I lived in Hobart with a secret family.'
+    control = '' if disposition == 'unresolved' else ' Do not record this event.'
+    allowed = 'In 2004 I learned pottery in Hobart.'
+    text = restricted + control + '\n' + allowed
+    quote = {'restricted': restricted, 'crossing': text, 'allowed': allowed}[research_scope]
+    start = offset + text.index(quote)
+    year = 2004 if research_scope == 'allowed' else 1984
+    research = dict(year_start=year, year_end=year, anchor_year=year, basis='explicit_period',
+        quote=quote, char_start=start, char_end=start + len(quote))
+    dispositions = [] if disposition == 'policy' else [dict(disposition=disposition,
+        reason='privacy_withheld' if disposition == 'withheld' else 'uncertain_attribution',
+        source_ref=ref(restricted))]
+    raw = dict(events=[dict(kind='event', title='Learning pottery', source_refs=[ref(allowed)])],
+        place_journeys=[{**place('Hobart'), 'research': research}], prepared_questions=[],
+        event_places=[], continuity_updates=[], passage_dispositions=dispositions)
+    result = extract_places(monkeypatch, text, raw, offset=offset, commit=True)
+    assert [item['place'] for item in result['place_journeys']] == ['Hobart']
+    assert result['events'][0]['source_refs'][0]['quote'] == allowed
+    accepted = result['place_journeys'][0].get('research')
+    if research_scope == 'allowed':
+        assert accepted == research
+    else:
+        assert accepted is None, 'Restricted testimony reached the place research commit payload'
+
+
+@pytest.mark.parametrize('offset', [0, 1792])
+def test_repeated_allowed_research_keeps_its_own_span(monkeypatch, offset):
+    quote = 'In 2004 I learned pottery in Hobart.'
+    text = quote + '\n' + quote
+    start = len(quote) + 1
+    research = dict(year_start=2004, year_end=2004, anchor_year=2004, basis='explicit_period',
+        quote=quote, char_start=offset + start, char_end=offset + len(text))
+    raw = dict(events=[dict(kind='event', title='Learning pottery', source_refs=[
+        dict(ref(quote), char_start=start, char_end=len(text))])],
+        place_journeys=[{**place('Hobart'), 'research': research}], prepared_questions=[],
+        event_places=[], continuity_updates=[], passage_dispositions=[dict(disposition='unresolved',
+            reason='uncertain_attribution', source_ref=dict(ref(quote), char_start=0, char_end=len(quote)))])
+    result = extract_places(monkeypatch, text, raw, offset=offset, commit=True)
+    assert result['place_journeys'][0]['research'] == research
+
+
+@pytest.mark.parametrize('offset', [0, 1792])
+def test_research_still_requires_an_exact_original_quote(monkeypatch, offset):
+    text = 'In 2004 I learned pottery in Hobart.'
+    quote = 'Invented Hobart testimony.'
+    research = dict(year_start=2004, year_end=2004, anchor_year=2004, basis='explicit_period',
+        quote=quote, char_start=offset, char_end=offset + len(quote))
+    raw = dict(events=[dict(kind='event', title='Learning pottery', source_refs=[ref(text)])],
+        place_journeys=[{**place('Hobart'), 'research': research}], prepared_questions=[],
+        event_places=[], continuity_updates=[], passage_dispositions=[dict(disposition='unresolved',
+            reason='uncertain_attribution', source_ref=ref(text))])
+    with pytest.raises(ValueError, match='Question evidence needs one exact passage'):
+        extract_places(monkeypatch, text, raw, offset=offset, commit=True)
 
 
 @pytest.mark.parametrize('offset', [0, 2048])
@@ -130,21 +200,33 @@ def test_profile_place_cue_does_not_require_an_event(monkeypatch):
     assert [p['place'] for p in result['place_journeys']] == ['Hobart']
 
 
-@pytest.mark.parametrize('scenario', ['father_only', 'mixed', 'same_place', 'ordinary'])
+@pytest.mark.parametrize('scenario', ['father_only', 'mixed', 'same_place', 'ordinary',
+    'withheld_research', 'unresolved_research'])
 def test_reported_places_replay_from_sql_api_to_client(sql, tmp_path, monkeypatch, scenario):
     from pathlib import Path
     import subprocess
     father = '父亲说他小时候在承德修自行车。我没有做过这件事。'
     label = '承德' if scenario == 'same_place' else 'Hobart'
     own = f'我在{label}学会了做陶器。'
+    restricted_research = scenario in {'withheld_research', 'unresolved_research'}
+    if restricted_research:
+        father = 'In 1984 I lived in Hobart with a secret family.'
+        if scenario == 'withheld_research':
+            father += ' Do not record this event.'
+        own = 'In 2004 I learned pottery in Hobart.'
     text = father if scenario == 'father_only' else own if scenario == 'ordinary' else father + own
     expected = [] if scenario == 'father_only' else [label]
     def extract(packet):
         events = [] if scenario == 'father_only' else [episode(packet, own, title='Learning pottery')]
-        cues = ([place('承德')] if scenario != 'ordinary' else [])
+        cues = ([place(label if restricted_research else '承德')] if scenario != 'ordinary' else [])
         if label not in [p['place'] for p in cues] and events: cues.append(place(label))
-        dispositions = [] if scenario == 'ordinary' else [dict(disposition='non_story',
-            reason='no_supported_event', source_ref=reference(packet, father))]
+        if restricted_research:
+            cues[0]['research'] = dict(year_start=2004, year_end=2004, anchor_year=2004,
+                basis='explicit_period', quote=text, char_start=0, char_end=len(text))
+        dispositions = [] if scenario in {'ordinary', 'withheld_research'} else [dict(
+            disposition='unresolved' if scenario == 'unresolved_research' else 'non_story',
+            reason='uncertain_attribution' if scenario == 'unresolved_research' else 'no_supported_event',
+            source_ref=reference(packet, father))]
         return {**empty(packet), 'events':events, 'place_journeys':cues,
             'event_places':[], 'passage_dispositions':dispositions}
     conversation = Conversation(sql, tmp_path, monkeypatch, extract)
@@ -155,10 +237,12 @@ def test_reported_places_replay_from_sql_api_to_client(sql, tmp_path, monkeypatc
         assert response.status_code == 200, response.text
         ready = response.json()
         assert [p['place'] for p in ready['derived_workspace']['places']] == expected
+        if restricted_research:
+            assert all(p.get('research') is None for p in ready['derived_workspace']['places'])
         coverage = conversation.attribution(accepted['accepted_source_id'])
         assert coverage['complete']
         assert len([phase for phase, _ in conversation.admissions if phase == 'extract']) == 1
-        packet = dict(ready=ready, expected_places=expected)
+        packet = dict(ready=ready, expected_places=expected, expect_no_research=restricted_research)
         replay = Path(__file__).parent/'js/helpers/replay-reported-places.mjs'
         result = subprocess.run(['node',str(replay)],input=json.dumps(packet),text=True,capture_output=True,timeout=10)
         assert result.returncode == 0, result.stdout + result.stderr
