@@ -1,0 +1,101 @@
+{
+  "actual_whitebox_verification": {
+    "schemaVersion": 3,
+    "status": "PASS",
+    "verify": {
+      "command": "python3 var/novel-to-game-evaluation-20261025/verify.py --stage whitebox",
+      "exitCode": 0
+    },
+    "completeRun": {
+      "id": "whitebox-desktop-4f1e8c7e0466",
+      "cleanContext": true,
+      "terminal": "Practice complete — two flat patches",
+      "restart": "initial-state",
+      "evidence": "qa/whitebox/evidence/run.json"
+    },
+    "checks": {
+      "launch": "PASS",
+      "render": "PASS",
+      "input": "PASS",
+      "coreLoop": "PASS",
+      "outcome": "PASS",
+      "restart": "PASS"
+    },
+    "limitations": [
+      {
+        "scope": "human experience",
+        "reason": "Informed scripted verification does not establish subjective fun, balance or discoverability."
+      },
+      {
+        "scope": "other browsers and physical devices",
+        "reason": "Chromium emulation only; real phones, Safari and Firefox not exercised."
+      }
+    ]
+  },
+  "observed_environment": {
+    "runtime": "Chromium",
+    "host": "Darwin",
+    "viewport": [
+      1440,
+      1000
+    ],
+    "touch": false,
+    "artifactSha256": "0a7504a951209aa7060a2b303dfa6bf2f01514b067d1f460380579a77076cb42",
+    "runtimeVersion": "151.0.7922.34"
+  },
+  "observed_paths": [
+    "Opened and closed all-memory view.",
+    "Pressed before readiness on the correct guided region: curled-edge failure.",
+    "Retried with retained observations, waited twice, then reached a flat guided patch.",
+    "Copied the middle location on the independent layout: missed-leak failure.",
+    "Retried, observed left twice, then reached a flat independent patch.",
+    "Reached the two-flat-patches ending with four tests and both encountered faults, then restarted to the initial screen."
+  ],
+  "fresh_player_report": {
+    "source": "Separate gpt-6.1-sol max session; normal browser UI only; no design/source access.",
+    "goal_understood": "Find the continuing leak in each of two tubes and make flat patches.",
+    "actions": "Compared region observations; guided middle leak; independent middle bubbles cleared, right clear, left returned. Marked, glued, waited twice, pressed and tested. Both first tests succeeded.",
+    "ending_and_restart": "Reached the ending and restarted; initial screen visibly restored.",
+    "feedback": "Changing observation text and preparation readiness made the next action clear. No blocking usability issue.",
+    "minor_note": "Mark becomes available after one observation although instructions recommend comparing two. This is allowed by the design; clarify the recommendation rather than silently changing the rule.",
+    "not_tested_by_player": [
+      "failure recovery",
+      "keyboard"
+    ]
+  },
+  "root_visual_review": {
+    "observations": "The whitebox is clear but resembles a form: three tube-region cards, a rectangular biscuit-tin label, and long helper paragraphs. The 1440-wide workspace is about 1200 pixels tall.",
+    "production_priorities": [
+      "Give the basin, inner tube and blue biscuit tin a coherent original illustrated workbench identity.",
+      "Prioritise the current action and keep result feedback near the tools, with a compact desktop layout and readable phone reflow.",
+      "Keep factual framing concise. Technical provenance and repeated adaptation-policy explanations belong in documents; retain the fictional/game-practice label and uncertainty where relevant.",
+      "Preserve tested causal rules, selectors, full text access and focus behaviour."
+    ]
+  },
+  "qa_plan_correction": {
+    "game_code_changed": false,
+    "reason": "Host source data uses the supplied timeline titles; generated replay expected a generic chapter number.",
+    "changes": [
+      {
+        "selector": "#memory-chapter-10 h3",
+        "before": "Chapter 10",
+        "after": "Planting beans after school finished"
+      }
+    ]
+  },
+  "scope_review": "Keep two game-only repair exercises and all ten unchanged memories. No extra systems, photos, voice or network services. Main-path play time and subjective enjoyment are unmeasured.",
+  "additionalHostChecks": {
+    "status": "PASS",
+    "evidence": "qa/whitebox/extra-checks.json",
+    "keyboardReplay": [
+      1280,
+      320
+    ],
+    "exactSourceChapters": 10,
+    "combinedFaultAndRetry": "PASS",
+    "memoryDialogStateAndFocus": "PASS",
+    "offlineExport": "PASS",
+    "pageErrors": [],
+    "externalRequests": []
+  }
+}

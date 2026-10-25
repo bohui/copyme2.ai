@@ -1,0 +1,161 @@
+{
+  "status": "PASS",
+  "origin": "/Users/bohuihan/memoir/var/novel-to-game-evaluation-20261025/analysis-response.json",
+  "receipt": {
+    "phase": "analysis",
+    "response_id": "resp_q4yLXPraOPUPZ9l9WeGB94RCatFc7W5V5Uaox7KravZ3u6pvoD8INyqDJL5xrbp5Hsfsk7E7zKkLBMotV1K2jY9DmOEEZuhzDRrfDG_C_h5nA9Shs26W2dttY1sF0-jj6BTgurN8JeMUbMzfQsEL6IIgd4r6ZdYkRadnfAIyutOW2QgzaICYgLI05VY9kjvYJViMYFq9a_DwKVM6PSm7gsCjyWqQmG2dI9vUgB3t4lT4oAxi46XhUoMpWfyuVXGLSp9N1yJzuG-HPuvozzy6oPq1KMbLCdv-O0VM6kcqWyLFxgRJtmbS9IyJmvZLmcbU2qvRkpcFbhFp0wGzFtGDMKlvn45BbunB1TcqmBx69hogCp56AOPBXEqtZ6JX5CRy",
+    "model": "gpt-6.1-sol",
+    "reasoning": {
+      "effort": "max",
+      "context": "all_turns",
+      "summary": null,
+      "mode": "standard"
+    },
+    "seconds": 403.127,
+    "reused_live_response": false,
+    "usage": {
+      "input_tokens": 26158,
+      "input_tokens_details": {
+        "audio_tokens": null,
+        "cached_tokens": 25984,
+        "text_tokens": null,
+        "cache_write_tokens": 0
+      },
+      "output_tokens": 12224,
+      "output_tokens_details": {
+        "reasoning_tokens": 5143,
+        "text_tokens": null
+      },
+      "total_tokens": 38382,
+      "cost": null,
+      "attribution": {
+        "items": {
+          "msg_0631e8d9a937f3c3016addd03b0ba48191a01a12c662663d60": {
+            "input_tokens": 6175,
+            "cached_tokens": 6065,
+            "cache_write_tokens": 0,
+            "output_tokens": 0,
+            "content": [
+              {
+                "input_tokens": 6175,
+                "cached_tokens": 6065,
+                "cache_write_tokens": 0,
+                "output_tokens": 0
+              }
+            ]
+          },
+          "msg_0631e8d9a937f3c3016addd03b0ba48191a0ecb434f90a8afa": {
+            "input_tokens": 62,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 0,
+            "content": [
+              {
+                "input_tokens": 62,
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "output_tokens": 0
+              }
+            ]
+          },
+          "msg_0631e8d9a937f3c3016addd106bb508191b17d4318dd9c302d": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 7081,
+            "content": [
+              {
+                "input_tokens": 0,
+                "cached_tokens": 0,
+                "cache_write_tokens": 0,
+                "output_tokens": 7081
+              }
+            ]
+          },
+          "rs_0631e8d9a937f3c3016addd052625c8191bdcacc3ef70d593e": {
+            "input_tokens": 2,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 516
+          },
+          "rs_0631e8d9a937f3c3016addd065acc08191845bf78a835f98d2": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0631e8d9a937f3c3016addd07921748191b75e55da7cc1736f": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0631e8d9a937f3c3016addd08ce36c819198a328846284c8c8": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0631e8d9a937f3c3016addd0a2331881918de568ce6c4e03f3": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0631e8d9a937f3c3016addd0bb27b88191bc86797e919f5526": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0631e8d9a937f3c3016addd0cf48c08191ac7e70c940aad721": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0631e8d9a937f3c3016addd0dc9b548191911ae8360e13a741": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0631e8d9a937f3c3016addd0f1e2d481918dd9a4b6cb983dc7": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 518
+          },
+          "rs_0631e8d9a937f3c3016addd1064d508191849bc70761c298ff": {
+            "input_tokens": 0,
+            "cached_tokens": 0,
+            "cache_write_tokens": 0,
+            "output_tokens": 483
+          }
+        },
+        "request_fields": {
+          "instructions": {
+            "input_tokens": 19866,
+            "cached_tokens": 19866,
+            "cache_write_tokens": 0,
+            "output_tokens": 0
+          },
+          "text.format": {
+            "input_tokens": 53,
+            "cached_tokens": 53,
+            "cache_write_tokens": 0,
+            "output_tokens": 0
+          }
+        }
+      }
+    },
+    "files": [
+      "PRODUCT_BRIEF.md",
+      "analysis/SOURCE_BIBLE.md",
+      "_progress.md"
+    ],
+    "notes": "Intake and full-source analysis only. All ten chapter blocks and all ten timeline events were reviewed. No game direction, runnable code or QA conclusion is included.",
+    "prompt_status": "experiment-unpublished"
+  },
+  "source_sha256": "b06f4614ab0d1220136915508f82eb99aea233fe0c3d03eb4b60f8421ac25a68"
+}

@@ -1,0 +1,136 @@
+{
+  "stage": "art",
+  "status": "PASS",
+  "model": "gpt-6.1-sol",
+  "reasoning": {
+    "effort": "max",
+    "context": "all_turns",
+    "summary": null,
+    "mode": "standard"
+  },
+  "response_id": "resp_9LV_9AGqdRNUxaT5mZfRzgm95IloEoJrlMmE9zMHAYoOA-452ssIXeKUnAaFufO7zFaG9hFsl2LKUvo9_abvo8i2y0tLv3AcXs-pQFCm14drXikeUEmNghj_KmFDkF4CLpSgMnB1aPI5x6GWUEuWVmutxUF9H7fNAGSR2fbkext5myVN0De_9g7ggmIE_84-4G8ER3Rz51K1XcZMP79OjWjklPAJMuTjnvSh4B3FMAcnuahqJJuscEX0UmIS5jLvMv3mxMDxdBMJ5BIx_juqgJlJBuWb1F54p_OX1Kv-G5koRCp43df_XJsMnwhmzo92IsDStxWxSFuKwom8bmJRoA8a6YxYCp5yFQ5BK6AnchHHUD-0S9Qt9-ecQq3rsIvt",
+  "duration_seconds": 154.614,
+  "usage": {
+    "input_tokens": 14943,
+    "input_tokens_details": {
+      "audio_tokens": null,
+      "cached_tokens": 0,
+      "text_tokens": null,
+      "cache_write_tokens": 0
+    },
+    "output_tokens": 4475,
+    "output_tokens_details": {
+      "reasoning_tokens": 3624,
+      "text_tokens": null
+    },
+    "total_tokens": 19418,
+    "cost": null,
+    "attribution": {
+      "items": {
+        "msg_099c7fbbf1ffbf6f016addee5181448191b56419973e05f78a": {
+          "input_tokens": 12574,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 0,
+          "content": [
+            {
+              "input_tokens": 8737,
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "output_tokens": 0
+            },
+            {
+              "input_tokens": 1729,
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "output_tokens": 0
+            },
+            {
+              "input_tokens": 2108,
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "output_tokens": 0
+            }
+          ]
+        },
+        "msg_099c7fbbf1ffbf6f016addeee2b3cc8191a41fdaf0072cc9bf": {
+          "input_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 851,
+          "content": [
+            {
+              "input_tokens": 0,
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "output_tokens": 851
+            }
+          ]
+        },
+        "rs_099c7fbbf1ffbf6f016addee6861e08191bd4dfa5ef8fa8216": {
+          "input_tokens": 2,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 516
+        },
+        "rs_099c7fbbf1ffbf6f016addee7de9dc8191a85c6ef8e8c3b1c3": {
+          "input_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 518
+        },
+        "rs_099c7fbbf1ffbf6f016addee94d0a08191812c09aaa838ceb4": {
+          "input_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 518
+        },
+        "rs_099c7fbbf1ffbf6f016addeea9c0408191a9786b312aefcf26": {
+          "input_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 518
+        },
+        "rs_099c7fbbf1ffbf6f016addeebb517c8191b0e0177b12b203d7": {
+          "input_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 518
+        },
+        "rs_099c7fbbf1ffbf6f016addeecf061881919525cd85da94469a": {
+          "input_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 518
+        },
+        "rs_099c7fbbf1ffbf6f016addeee1ed7481918598082d2887b80f": {
+          "input_tokens": 0,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 518
+        }
+      },
+      "request_fields": {
+        "instructions": {
+          "input_tokens": 2314,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 0
+        },
+        "text.format": {
+          "input_tokens": 53,
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "output_tokens": 0
+        }
+      }
+    }
+  },
+  "request_sha256": "b5c01ad9890ee6d57b21aa6b363015c7c2909837f7fbc4f02bf737511b011ce6",
+  "upstream_revision": "c3075f35cc14d4bc94e2829df2bfcc0d9971229e",
+  "upstream_sha256": "39185e797cc8a9b5bf0f652f4dc5e81a631c48016d906bf96c37ddee3178854f",
+  "outputs": {
+    "design/ART_DIRECTION.md": "03fe35b8560738b8595bfdb75654bf2a07d690841ee0067cd04a2461e1e1363c"
+  },
+  "notes": ""
+}

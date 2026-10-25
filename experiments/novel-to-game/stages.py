@@ -1,0 +1,252 @@
+"""Branch-only, checkpointed Sol-max RPG/scroller experiment; dry-run by default."""
+import argparse
+import base64
+import fcntl
+import hashlib
+import json
+import os
+from pathlib import Path
+import sys
+import time
+
+import httpx
+from dotenv import dotenv_values
+
+PACKAGE = Path(__file__).resolve().parent
+ROOT = PACKAGE.parents[1]
+HERE = ROOT/'var/novel-to-game-rpg-scroller'
+SNAPSHOT = PACKAGE/'examples/age-eight-patch'
+SKILL = PACKAGE/'upstream'
+MODEL = 'gpt-6.1-sol'
+REVISION = 'c3075f35cc14d4bc94e2829df2bfcc0d9971229e'
+KEY = ''
+BASE = 'http://127.0.0.1:4000/v1'
+FORMAT = dict(format='rpg-side-scroller', controlled_character='memoir_author',
+    navigation='horizontal_with_scrolling_camera', inputs=['keyboard', 'touch'],
+    interaction='proximity_characters_and_memory_markers', historical_outcomes='fixed')
+SCHEMA = {'type':'object','additionalProperties':False,'required':['files','notes'],'properties':{
+    'files':{'type':'array','items':{'type':'object','additionalProperties':False,'required':['path','content'],
+        'properties':{'path':{'type':'string'},'content':{'type':'string'}}}},'notes':{'type':'string'}}}
+STAGES = {
+ 'concept':dict(skill='game-concept', refs=['concept-method.md'], inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md'],
+    outputs=['concepts/CONCEPT.md'], budget=6500,
+    task='The format is fixed: a side-scrolling RPG journey where the player moves the author through connected settings and approaches characters or memory markers. Compare quest, route and encounter structures within that format using the complete source; choose one and describe movement, interaction and observable progress. Preserve all ten passages in the text view. Return CONCEPT.md, at most 650 words. No code or QA claims.'),
+ 'design':dict(skill='game-world-design',refs=['world-design-method.md','narrative-design-method.md'],
+    inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md','concepts/CONCEPT.md'],
+    outputs=['design/GAME_DESIGN.md'],budget=7500,
+    task='Design the selected side-scrolling RPG and its riskiest whitebox: controllable author, horizontal movement and camera, connected distinct settings, nearby character/memory interactions, exploration progress, ending and restart. Specify keyboard and touch controls, movement bounds, interaction distance and scene transitions. Map all ten source units to playable or contextual treatment; retain all original text. Define stable UI ids and observable movement, camera, scene and progress attributes for real browser verification. Return GAME_DESIGN.md, at most 650 words.'),
+ 'whitebox':dict(skill='game-build',refs=['build-brief-contract.md'],
+    inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md','concepts/CONCEPT.md','design/GAME_DESIGN.md'],
+    outputs=['build/BUILD_BRIEF.md','build/app/index.html','build/app/game.css','build/app/game.js','build/playthrough.json'],budget=12000,
+    task='Implement the complete RPG/scroller whitebox: a visible author the player moves horizontally, scrolling scenery, connected settings, nearby characters/memory markers to interact with, exploration progress, an ending and restart. Keep real movement central; source-supported activities may be optional encounters. Return concise index.html, game.css, game.js, an ordinary-input playthrough and BUILD_BRIEF below 300 words. The host inserts the ten source passages. Verify movement and camera changes and travel between scenes in the playthrough, as well as interaction, ending and reset. Use stable semantic DOM selectors, keyboard and touch buttons. Keep the runtime small and stage-scoped.'),
+ 'art':dict(skill='game-art-direction',refs=['art-direction-method.md'],
+    inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','whitebox-feedback.json'],
+    outputs=['design/ART_DIRECTION.md'],budget=6000,
+    task='Read the RPG/scroller whitebox observations and define its visual direction in at most 600 words. Use original CSS/inline SVG and system fonts: readable player and NPC silhouettes, distinct source-supported scenery, clear interaction cues, progress and phone controls. Preserve horizontal travel, camera, scene transitions and tested rules. Target playable-prototype with no external media services. Include the scope/budget review and untested visual limits. Return ART_DIRECTION.md only.'),
+ 'production_style':dict(skill='game-build',refs=['build-brief-contract.md'],
+    inputs=['design/ART_DIRECTION.md','build/template.html','build/app/game.css','whitebox-feedback.json'],
+    outputs=['build/app/game.css'],budget=5500,
+    task='Complete one small CSS-only RPG/scroller styling pass. HTML, JavaScript, copy, rules and replay stay frozen. Return game.css below 8,000 characters, applying ART_DIRECTION to the existing player, world, characters, memory markers and controls. Keep the scenery readable while moving, touch targets large, text legible, focus visible and reduced motion supported. Preserve every hidden state and tested behaviour. Use ordinary CSS shapes and gradients, with no external assets or new systems. Return only the stylesheet, with no QA claims.'),
+ 'production':dict(skill='game-build',refs=['build-brief-contract.md'],
+    inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','design/ART_DIRECTION.md','build/BUILD_BRIEF.md','build/template.html','build/app/game.css','build/app/game.js','build/playthrough.json','whitebox-feedback.json'],
+    outputs=['build/BUILD_BRIEF.md','build/app/index.html','build/app/game.css','build/app/game.js','build/playthrough.json'],budget=12000,
+    task='Finish the approved side-scrolling RPG using the tested whitebox runtime and ART_DIRECTION. Preserve the controllable author, horizontal movement/camera, connected scenes, proximity interactions, source-text view, ending and restart. Polish responsive scenery, player/character silhouettes, action cues and keyboard/touch controls. Return changed app files only, plus a concise BUILD_BRIEF and affected playthrough. Keep the source marker in index.html. Prefer one file per repair pass and refer to unchanged files instead of repeating them. The host runs actual QA; leave unobserved results NOT_RUN.')
+}
+
+
+def digest(value):
+    return hashlib.sha256(value.encode()).hexdigest()
+
+
+def save(path, value):
+    path.parent.mkdir(parents=True,exist_ok=True)
+    text=json.dumps(value,ensure_ascii=False,indent=2)+'\n'
+    assert not KEY or KEY not in text
+    pending=path.with_suffix(path.suffix+'.next')
+    pending.write_text(text)
+    pending.replace(path)
+
+
+def initialise():
+    HERE.mkdir(parents=True,exist_ok=True)
+    profile=HERE/'format-profile.json'
+    if profile.exists():
+        assert json.loads(profile.read_text())==FORMAT,'Workspace uses a different game format'
+    else:
+        assert not any(HERE.iterdir()),'Use a fresh output directory for the RPG/scroller stages'
+        save(profile,FORMAT)
+    fixture=json.loads((ROOT/'skills/memoir-story-game/tests/fixtures/age-eight.json').read_text())
+    packet=fixture['input']
+    assert len(packet['chapters'])==len(packet['timeline'])==10
+    for path,source in [('PRODUCT_BRIEF.md',PACKAGE/'PRODUCT_BRIEF.md'),
+                        ('analysis/SOURCE_BIBLE.md',SNAPSHOT/'analysis/SOURCE_BIBLE.md'),
+                        ('source/memoir.md',SNAPSHOT/'source/memoir.md'),
+                        ('source/input.json',ROOT/'skills/memoir-story-game/tests/fixtures/age-eight.json')]:
+        destination=HERE/path
+        if not destination.exists():
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            destination.write_bytes(source.read_bytes())
+    bible=(HERE/'analysis/SOURCE_BIBLE.md').read_text()
+    assert all(c['chapter_id'] in bible and e['id'] in bible for c,e in zip(packet['chapters'],packet['timeline']))
+    receipt=json.loads((SNAPSHOT/'analysis-reused.json').read_text())['receipt']
+    save(HERE/'analysis-reused.json',dict(status='PASS',origin='examples/age-eight-patch/analysis-reused.json',receipt=receipt,
+        source_sha256=digest(json.dumps(packet,sort_keys=True,ensure_ascii=False))))
+    return packet
+
+
+def public_source(packet):
+    return dict(title='The Blue Gate · Age Eight',fictional=True,chapters=[dict(id='C'+str(i+1),
+        title=event['title'],text='\n\n'.join(b['text'] for b in chapter['blocks']))
+        for i,(chapter,event) in enumerate(zip(packet['chapters'],packet['timeline']))])
+
+
+def materialise(packet):
+    template=HERE/'build/template.html'
+    target=HERE/'build/app/index.html'
+    if not template.is_file():return
+    text=template.read_text()
+    assert text.count('<!-- MEMOIR_SOURCE -->')==1
+    data=json.dumps(public_source(packet),ensure_ascii=False).replace('<','\\u003c').replace('>','\\u003e').replace('&','\\u0026')
+    target.write_text(text.replace('<!-- MEMOIR_SOURCE -->','<script id="memoir-source" type="application/json">'+data+'</script>'))
+
+
+def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
+    packet=initialise()
+    config=STAGES[name]
+    paths=[config['skill']+'/SKILL.md']+[config['skill']+'/references/'+p for p in config['refs']]
+    upstream={p:(SKILL/p).read_text() for p in paths}
+    instructions=(PACKAGE/'adapter.md').read_text()+'\n\n'+'\n\n'.join('===== '+p+' =====\n'+v for p,v in upstream.items())
+    inputs={p:(HERE/p).read_text() for p in config['inputs']}
+    if extra_inputs:inputs.update(extra_inputs)
+    # Send every source unit, with compact timeline metadata and stable internal citations.
+    source=dict(chapters=packet['chapters'],timeline=[{k:v for k,v in e.items() if k!='source_refs'} for e in packet['timeline']],locale=packet['locale'])
+    user=dict(stage=name,task=task_override or config['task'],format_contract=FORMAT,source=source,saved_artifacts=inputs,
+        allowed_output_paths=config['outputs'],source_data_contract=dict(shape='{title,fictional,chapters:[{id,title,text}]}',
+            chapter_ids=['C'+str(i+1) for i in range(10)],count=10))
+    body=dict(model=MODEL,reasoning={'effort':'max'},instructions=instructions,input=json.dumps(user,ensure_ascii=False),
+        store=False,max_output_tokens=config['budget'],metadata=dict(generation_name='novel-game-'+name,
+        trace_name='memoir-novel-game-age-eight',synthetic='true',stage=name,upstream_revision=REVISION),
+        text={'format':{'type':'json_schema','name':'novel_game_stage_files','strict':True,'schema':SCHEMA}})
+    if name in ('art','production'):
+        frames=[HERE/'qa/whitebox/evidence'/p for p in ('render.png','coreLoop.png')]
+        if all(p.is_file() for p in frames):
+            body['input']=[{'role':'user','content':[{'type':'input_text','text':body['input']}]+[
+                {'type':'input_image','image_url':'data:image/png;base64,'+base64.b64encode(p.read_bytes()).decode(),'detail':'high'}
+                for p in frames]}]
+    if name in ('whitebox','production','production_style'):
+        body['stream']=True
+    signature=digest(json.dumps(body,sort_keys=True,ensure_ascii=False))
+    stage=HERE/'stages'/name
+    stage.mkdir(parents=True,exist_ok=True)
+    if dry_run:
+        save(stage/'preview-request.json',body)
+        print(json.dumps(dict(stage=name,status='NOT_RUN',model=MODEL,effort='max',format=FORMAT['format'],calls=0)),flush=True)
+        return body
+    checkpoint=stage/'checkpoint.json'
+    if checkpoint.exists():
+        done=json.loads(checkpoint.read_text())
+        if done['request_sha256']==signature and all((stage/'artifacts'/p).is_file() and digest((stage/'artifacts'/p).read_text())==h for p,h in done['outputs'].items()):
+            print(json.dumps(dict(stage=name,status='reused',response_id=done['response_id'])),flush=True)
+            materialise(packet)
+            return done
+    attempts=list(stage.glob('attempt-*-request.json'))
+    ordinal=len(attempts)+1
+    prefix=stage/('attempt-'+str(ordinal))
+    save(Path(str(prefix)+'-request.json'),body)
+    (stage/'instructions.txt').write_text(instructions)
+    started=time.monotonic()
+    print(json.dumps(dict(stage=name,status='running',model=MODEL,effort='max',attempt=ordinal)),flush=True)
+    response=None
+    try:
+        with httpx.Client(trust_env=False,timeout=590) as client:
+            if body.get('stream'):
+                data=[];result=None;events={};last_log=0;characters=0
+                with client.stream('POST',BASE+'/responses',headers={'Authorization':'Bearer '+KEY},json=body) as response:
+                    response.raise_for_status()
+                    for line in response.iter_lines():
+                        assert KEY not in line
+                        if line.startswith('data:'):
+                            data.append(line[5:].lstrip())
+                        elif not line and data:
+                            raw='\n'.join(data);data.clear()
+                            if raw=='[DONE]':continue
+                            event=json.loads(raw);kind=event.get('type','untyped')
+                            events[kind]=events.get(kind,0)+1
+                            if isinstance(event.get('delta'),str):characters+=len(event['delta'])
+                            if time.monotonic()-last_log>45:
+                                progress=dict(stage=name,status='streaming',seconds=round(time.monotonic()-started,1),event=kind,output_characters=characters)
+                                print(json.dumps(progress),flush=True);save(stage/'progress.json',progress)
+                                last_log=time.monotonic()
+                            if kind in ('response.completed','response.incomplete','response.failed'):
+                                result=event['response'];break
+                            if kind=='error' or 'error' in event:
+                                save(Path(str(prefix)+'-stream-error.json'),event)
+                                raise RuntimeError('Gateway stream returned an error')
+                save(Path(str(prefix)+'-events.json'),events)
+                assert result is not None,'Stream ended without a terminal response'
+            else:
+                response=client.post(BASE+'/responses',headers={'Authorization':'Bearer '+KEY},json=body)
+                assert KEY.encode() not in response.content
+                result=response.json()
+            save(Path(str(prefix)+'-response.json'),result)
+            response.raise_for_status()
+        assert result.get('status')=='completed' and result.get('model')==MODEL and result.get('id'), 'Incomplete model response'
+        assert result.get('reasoning',{}).get('effort')=='max', 'Effective max effort not reported'
+        output=''.join(p.get('text','') for i in result.get('output',[]) if i.get('type')=='message' for p in i.get('content',[]) if p.get('type')=='output_text')
+        value=json.loads(output)
+        files=value['files']
+        names=[f['path'] for f in files]
+        assert files and len(names)==len(set(names)) and set(names)<=set(config['outputs'])
+        hashes={}
+        for file in files:
+            path=HERE/file['path']
+            assert path.resolve().is_relative_to(HERE) and not path.is_symlink()
+            assert isinstance(file['content'],str) and len(file['content'].encode())<100000 and KEY not in file['content']
+            if file['path']=='build/app/index.html':
+                assert file['content'].count('<!-- MEMOIR_SOURCE -->')==1
+                path=HERE/'build/template.html'
+            path.parent.mkdir(parents=True,exist_ok=True)
+            path.write_text(file['content'])
+            hashes[path.relative_to(HERE).as_posix()]=digest(file['content'])
+            snapshot=stage/'artifacts'/path.relative_to(HERE)
+            snapshot.parent.mkdir(parents=True,exist_ok=True)
+            snapshot.write_text(file['content'])
+        materialise(packet)
+        receipt=dict(stage=name,status='PASS',model=result['model'],reasoning=result.get('reasoning'),response_id=result['id'],
+            duration_seconds=round(time.monotonic()-started,3),usage=result.get('usage'),request_sha256=signature,
+            upstream_revision=REVISION,upstream_sha256=digest(json.dumps(upstream,sort_keys=True,ensure_ascii=False)),
+            outputs=hashes,notes=value['notes'])
+        save(checkpoint,receipt)
+        print(json.dumps({k:receipt[k] for k in ('stage','status','duration_seconds','outputs')}),flush=True)
+        return receipt
+    except Exception as error:
+        save(Path(str(prefix)+'-failure.json'),dict(stage=name,status='FAIL',error_type=type(error).__name__,
+            http_status=response.status_code if response is not None else None,duration_seconds=round(time.monotonic()-started,3)))
+        raise
+
+
+if __name__=='__main__':
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('stage',choices=list(STAGES))
+    parser.add_argument('--output',type=Path,default=HERE,help='Fresh isolated workspace, then reuse it to resume')
+    parser.add_argument('--execute',action='store_true',help='Make one live Sol max stage call; otherwise prepare only')
+    parser.add_argument('--env-file',type=Path,default=ROOT/'.env',help='Owner-scoped local gateway credentials')
+    args=parser.parse_args()
+    HERE=args.output.resolve()
+    if not args.execute:
+        run_stage(args.stage,dry_run=True)
+        sys.exit(0)
+    settings=dotenv_values(args.env_file,interpolate=False)
+    KEY=settings['MEMORY_SPARK_LLM_API_KEY']
+    initialise()
+    stage=HERE/'stages'/args.stage
+    stage.mkdir(parents=True,exist_ok=True)
+    with (stage/'worker.lock').open('w') as lock:
+        fcntl.flock(lock,fcntl.LOCK_EX | fcntl.LOCK_NB)
+        save(stage/'worker.json',dict(pid=os.getpid(),stage=args.stage,status='running'))
+        try:
+            result=run_stage(args.stage)
+            save(stage/'worker.json',dict(pid=os.getpid(),stage=args.stage,status='completed',response_id=result['response_id']))
+        except BaseException as error:
+            save(stage/'worker.json',dict(pid=os.getpid(),stage=args.stage,status='failed',error_type=type(error).__name__))
+            raise

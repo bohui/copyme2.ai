@@ -1,0 +1,63 @@
+# 流程契约
+
+## 最小工作区
+
+```text
+game-adaptations/{project}/
+├── PRODUCT_BRIEF.md
+├── analysis/SOURCE_BIBLE.md
+├── concepts/CONCEPT.md
+├── design/GAME_DESIGN.md
+├── design/ART_DIRECTION.md
+├── build/BUILD_BRIEF.md
+├── build/app/
+├── qa/verification.json
+└── _progress.md
+```
+
+按需增加 `_coverage.md`、视觉目标、资产账本和最小证据目录。所有机器状态只取 `NOT_RUN` / `FAIL` /
+`PASS`；`NOT_RUN` 表示没有证据，不能满足完成声明。
+
+## 阶段 owner 与完成检查
+
+概念、体验/关卡设计、美术方向分别由 `CONCEPT.md`、`GAME_DESIGN.md`、`ART_DIRECTION.md` 的 owner
+负责；构建不得静默改写它们。编排器只检查：
+
+| 检查 | 成立条件 |
+|---|---|
+| `scope` | brief、source bible 和三份设计交接存在；范围、原作事实、目标运行形态、`targetFinish` 与 `experienceProfile` 不冲突 |
+| `playable` | `qa/verification.json` 的 `launch`、`render`、`input`、`coreLoop`、`outcome`、`restart` 均有真实运行证据 |
+
+`_progress.md` 只记录来源、模式、当前阶段、未确认假设、回流、预算复盘结论和这两项结果。详细测试状态留在
+`qa/verification.json`，不要复制到多份状态表。
+
+## 证据角色
+
+构建准备候选与 verify 入口。QA 可诊断、修复后复跑；最终事实源原子记录当前同一次完整运行，
+不拼接旧 PASS。QA 结论不要求真人试玩、逐项人工批准、重复证据对象或第二份 QA 报告。
+
+白盒试玩是设计回流，不是第七道顶层 QA 门。反馈至少记录观察位置、玩家输入、预期与实际差异、受影响
+的状态/动作/知识/回响节点和 owner；修订后用可复现的初态与输入路径复查，随机性相关时固定 seed。
+
+白盒试玩还要回答玩家实际追着玩、反复回来做的是哪一部分。`director` 可在此停靠，请用户找一位目标
+玩家试玩；无人可找时，另起一个未读过设计文档与源码的代理会话，只凭画面和正常输入试玩。概念与设计阶段
+写下的剧情、对白和关卡内容预算按试玩结论修订，与核心乐趣无关的原作情节压成过场或删去。
+
+## 预算与范围复盘
+
+`PRODUCT_BRIEF.md` 记录本次制作可用的模型额度、工时或费用上限。白盒试玩结束、生产阶段完成约一半必做
+项时各复盘一次，把剩余预算与剩余范围对照；单次代理任务的耗时或消耗持续上升、并行代理反复改动同一批
+文件，都说明工程复杂度已逼近预算能支撑的上限。此时停止加内容，按玩家实际看到的收益删减或降级：做完
+少量内容胜过铺满占位，打磨先投给常驻屏幕的界面与主角，再到场景。每次删减写进 brief 的明确非目标。
+
+预算或工具耗尽只会留下 `NOT_RUN` / `FAIL`、缩小范围或延期，不会生成 PASS。
+
+## resume 与回流
+
+QA 发现按 owner 回流：
+
+- product：回 `PRODUCT_BRIEF.md`；
+- design/art：修订批准文档后重建受影响范围；
+- build：修实现并复跑同一验证路径。
+
+品类认不出、体验弧不存在、核心前提未上屏不是小缺陷；停止打磨并请求产品裁决。
