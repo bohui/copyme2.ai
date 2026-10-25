@@ -9584,11 +9584,12 @@ begin
   cursor_seq:=link.change_sequence;cursor_event:=link.id;cursor_ref:=link.reference_key;
   if octet_length(jsonb_build_object('sources',sources,'events',events)::text)>24000 then exit;end if;
  end loop;
+ -- Biographical profile updates advance preferences without changing privacy.
  -- Only affected, independently supported prior passages enter the model.
  for prior in select distinct on (section.partition_key) section.* from public.user_lifetime_memoir_section section
   join public.user_lifetime_lane_snapshot root on root.id=section.snapshot_id
   where section.user_id=snap.user_id and section.project_id=snap.project_id and section.locale=snap.locale and not section.retired
-   and (root.state='completed' or root.id=snap.id) and root.policy_epoch=snap.policy_epoch and root.preference_revision=snap.preference_revision
+   and (root.state='completed' or root.id=snap.id) and root.policy_epoch=snap.policy_epoch and root.privacy_digest=snap.privacy_digest
    and root.created_at<=snap.created_at and (section.event_id in (select value->>'id' from jsonb_array_elements(events))
      or exists(select 1 from jsonb_array_elements(section.event_dependencies) dependency,jsonb_array_elements(events) changed where dependency->>'id'=changed->>'id'))
   order by section.partition_key,root.created_at desc limit 8 loop
@@ -9639,7 +9640,7 @@ begin
  ))),'[]') into events from jsonb_array_elements(events) event;
  if previous is not null then previous:=previous||jsonb_build_object('sections',previous_sections,'event_manifest',previous_events);end if;
  select value into summary from public.user_memoir_checkpoint c join public.user_lifetime_lane_snapshot root on root.id=c.lifetime_snapshot_id
-  where c.lane_id=lane.id and c.kind='prepare' and root.policy_epoch=snap.policy_epoch and root.preference_revision=snap.preference_revision
+  where c.lane_id=lane.id and c.kind='prepare' and root.policy_epoch=snap.policy_epoch and root.privacy_digest=snap.privacy_digest
    and root.created_at<=snap.created_at and (root.id<>snap.id or c.lifetime_page<snap.page_number)
    and c.value->>'event_id' like '%-messages-%' order by c.created_at desc limit 1;
  batch:=jsonb_build_object('schema_version',1,'starting_after',start_source,'through_source',end_source,'next_offset',end_offset,
@@ -10159,7 +10160,7 @@ begin
      and not exists(select 1 from jsonb_array_elements(s.event_dependencies) dependency where not exists(
        select 1 from public.user_memory_event original where original.user_id=s.user_id and original.project_id=s.project_id
         and original.id=dependency->>'id' and original.revision::text=dependency->>'revision' and original.status='active'))
-     and (ss.state='completed' or ss.id=root.id and ss.state='proposed') and ss.preference_revision=root.preference_revision and ss.policy_epoch=root.policy_epoch and ss.created_at<=root.created_at
+     and (ss.state='completed' or ss.id=root.id and ss.state='proposed') and ss.privacy_digest=root.privacy_digest and ss.policy_epoch=root.policy_epoch and ss.created_at<=root.created_at
      and not exists(select 1 from public.user_lifetime_memoir_section newer join public.user_lifetime_lane_snapshot ns on ns.id=newer.snapshot_id
        where newer.user_id=s.user_id and newer.project_id=s.project_id and newer.locale=s.locale and newer.partition_key=s.partition_key
          and (ns.state='completed' or ns.id=root.id and ns.state='proposed') and ns.created_at>ss.created_at and ns.created_at<=root.created_at)
