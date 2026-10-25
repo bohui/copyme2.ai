@@ -82,3 +82,8 @@ active skill, managed prompts, Langfuse pins, production routes and saved games
 unchanged. Future integration must retain Memoir's ownership, consent, selection
 and access checks. Publishing follows the repository's merged-main prompt
 workflow.
+
+The [live-generated age-eight RPG](examples/age-eight-rpg/build/app/index.html)
+and its [run receipt](examples/age-eight-rpg/run-receipt.json) preserve the fresh
+Sol max example, observed browser results and separately recorded host repairs.
+Serve its `build/app/` directory or open its HTML directly for offline play.

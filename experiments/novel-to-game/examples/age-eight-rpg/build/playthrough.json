@@ -1,0 +1,477 @@
+{
+  "initial": {
+    "selector": "#scene-name",
+    "text": "Blue-gate junction"
+  },
+  "steps": [
+    {
+      "action": "assert_text",
+      "selector": ".badge",
+      "value": "Fictional example"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game[data-player-x='80'][data-camera-x='0'][data-count='0'][data-phase=exploring][data-overlay=none]",
+      "attribute": "data-scene",
+      "value": "hub"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game",
+      "attribute": "data-source-ready",
+      "value": "true"
+    },
+    {
+      "action": "click",
+      "selector": "#full-text"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#full-source[open] #source-title",
+      "value": "All ten memories"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#source-passages",
+      "value": "When I was eight, we moved into a rented house in Hobart with a blue wooden gate."
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game",
+      "attribute": "data-count",
+      "value": "0"
+    },
+    {
+      "action": "click",
+      "selector": "#source-close"
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "When I was eight, we moved into a rented house in Hobart with a blue wooden gate."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 4600
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game[data-scene=hub][data-player-x='1840'][data-count='1'][data-phase=exploring]",
+      "attribute": "data-camera-x",
+      "value": "1440",
+      "checkpoint": "input"
+    },
+    {
+      "action": "hold",
+      "selector": "#left",
+      "value": "ArrowLeft",
+      "duration_ms": 3600
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game",
+      "attribute": "data-scene",
+      "value": "school"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 400
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#interact",
+      "attribute": "disabled",
+      "value": ""
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 400
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "On my first day at the new school, when I was eight, Dad walked with me from the house with the blue gate."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game[data-scene=school][data-overlay=none][data-phase=exploring]",
+      "attribute": "data-count",
+      "value": "2",
+      "checkpoint": "coreLoop"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 1000
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "During the year I was eight, Mrs Harris helped me read aloud at the new school."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 1000
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "I met Sam early in the school year when we were both eight."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 1000
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "Near the end of the school year when I was eight, I had a small part in a play in the school hall."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 800
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game",
+      "attribute": "data-scene",
+      "value": "hub"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 1000
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game",
+      "attribute": "data-scene",
+      "value": "shed"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 800
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "When I was eight, Dad taught me to mend a punctured bicycle tyre in the shed behind our rented house."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "hold",
+      "selector": "#left",
+      "value": "ArrowLeft",
+      "duration_ms": 1000
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 1000
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game",
+      "attribute": "data-scene",
+      "value": "outings"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 800
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "On some Saturdays when I was eight, Mum took me to the market in Hobart."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 1000
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "Mum took me to the public library to get my first library card when I was eight."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 1000
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "There was heavy rain during the year I was eight, and Mum and I stayed at Grandma's house for two nights because water had come into our kitchen."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game[data-scene=outings]",
+      "attribute": "data-count",
+      "value": "9"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 1800
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 1800
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game[data-player-x='1840'][data-camera-x='1440'][data-count='9']",
+      "attribute": "data-scene",
+      "value": "hub"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#scene-hub .target[data-to=garden]",
+      "attribute": "data-locked",
+      "value": "false"
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game",
+      "attribute": "data-scene",
+      "value": "garden"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 800
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#dialogue[open] #memory-text",
+      "value": "After that school year finished, while I was still eight, Mum and I planted beans beside the fence at the house with the blue gate."
+    },
+    {
+      "action": "click",
+      "selector": "#close"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#progress",
+      "value": "10 / 10 memories explored"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 3800
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game[data-scene=garden][data-player-x='80'][data-camera-x='0'][data-count='10']",
+      "attribute": "data-phase",
+      "value": "morning"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#scene-name",
+      "value": "Garden · next-morning memory"
+    },
+    {
+      "action": "hold",
+      "selector": "#right",
+      "value": "ArrowRight",
+      "duration_ms": 800
+    },
+    {
+      "action": "assert_text",
+      "selector": "#interact",
+      "value": "See the drawing"
+    },
+    {
+      "action": "click",
+      "selector": "#interact"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#ending[open] #ending-title",
+      "value": "Journey complete — The Blue Gate"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game[data-scene=garden][data-count='10'][data-overlay=ending]",
+      "attribute": "data-phase",
+      "value": "complete",
+      "checkpoint": "outcome"
+    },
+    {
+      "action": "click",
+      "selector": "#restart"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#game[data-player-x='80'][data-camera-x='0'][data-count='0'][data-phase=exploring][data-overlay=none]",
+      "attribute": "data-scene",
+      "value": "hub",
+      "checkpoint": "restart"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#scene-name",
+      "value": "Blue-gate junction"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#progress",
+      "value": "0 / 10 memories explored"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#scene-hub [data-memory=arrival]",
+      "attribute": "data-visited",
+      "value": "false"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#interact",
+      "attribute": "data-target",
+      "value": "arrival"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#viewport:focus",
+      "attribute": "tabindex",
+      "value": "0"
+    }
+  ],
+  "terminal": "Journey complete — The Blue Gate",
+  "restart": "initial-state"
+}

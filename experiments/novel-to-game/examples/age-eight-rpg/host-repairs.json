@@ -1,0 +1,17 @@
+[
+  {
+    "owner": "build",
+    "kind": "host repair after observed keyboard failure",
+    "file": "build/app/game.js",
+    "before_sha256": "07754a86be900ec72633a8069adad2e825766ad1846952d2799a75c67b155705",
+    "after_sha256": "182d6eb6370ea06f49d51e69cb455aebcb6e29d52923dcbd8bddd596fba7331c",
+    "input": "Hold Enter on the focused Right movement button for 250ms",
+    "expected": "Move right without opening a memory",
+    "observed_before": {
+      "player-x": "80",
+      "overlay": "memory",
+      "count": "0"
+    },
+    "change": "Map Enter/Space on movement buttons to their movement direction before global interaction handling. Original model response and snapshot remain unchanged."
+  }
+]

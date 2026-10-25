@@ -1,0 +1,74 @@
+{
+  "whiteboxStatus": "PASS",
+  "desktopEvidence": "qa/whitebox/verification.json",
+  "phoneEvidence": "qa/whitebox/phone/verification.json",
+  "independentChecks": "qa/whitebox/extra-checks.json",
+  "freshPlayer": {
+    "model": "gpt-6.1-sol",
+    "effort": "max",
+    "sourceBlind": true,
+    "ending": "Journey complete — The Blue Gate",
+    "memoriesExplored": 10,
+    "inputs": [
+      "arrows",
+      "D",
+      "E",
+      "Enter",
+      "Escape",
+      "Read/Close controls"
+    ],
+    "observations": [
+      "On-screen instructions explained walking, interaction and the garden goal.",
+      "Nearby highlighting, action labels, progress credit and changed markers were clear.",
+      "No blocking issue; the player reached the ending without source or solution access."
+    ],
+    "friction": [
+      "Held movement occasionally overshot markers; the player backtracked near the library.",
+      "Shed and garden paths felt sparse during longer walks."
+    ],
+    "versionNote": "Played the original model runtime before the host keyboard-button repair; that repair preserves the tested arrow-key journey."
+  },
+  "hostRepair": [
+    {
+      "owner": "build",
+      "kind": "host repair after observed keyboard failure",
+      "file": "build/app/game.js",
+      "before_sha256": "07754a86be900ec72633a8069adad2e825766ad1846952d2799a75c67b155705",
+      "after_sha256": "182d6eb6370ea06f49d51e69cb455aebcb6e29d52923dcbd8bddd596fba7331c",
+      "input": "Hold Enter on the focused Right movement button for 250ms",
+      "expected": "Move right without opening a memory",
+      "observed_before": {
+        "player-x": "80",
+        "overlay": "memory",
+        "count": "0"
+      },
+      "change": "Map Enter/Space on movement buttons to their movement direction before global interaction handling. Original model response and snapshot remain unchanged."
+    }
+  ],
+  "hostRepairVerification": [
+    "Held Enter on Right moves the author without opening a memory.",
+    "Held Space on Left moves the author back to the boundary.",
+    "The full desktop and held-touch phone journeys still reach count10/complete and reset."
+  ],
+  "artFeedback": {
+    "owner": "art",
+    "observation": "The real whitebox works, but uses plain geometry and much empty sky. It resembles a prototype rather than the earlier illustrated RPG.",
+    "required": [
+      "Give the blue gate, author silhouette and scrolling ground a coherent original illustrated CSS identity.",
+      "Make the player, proximity cue and next destination easy to notice while moving. Add restrained generic landscape detail to sparse paths.",
+      "Keep readable scene and exploration progress; hide the developer coordinate readout #position in final presentation, retaining all data attributes for QA.",
+      "Use a larger but responsive desktop playfield, clear controls, strong contrast, visible focus and a usable 320px layout.",
+      "Preserve every ID, data hook, keyboard/touch rule, memory text, modal and fixed historical outcome."
+    ],
+    "limits": [
+      "CSS/inline SVG and system fonts only; current markup and mechanics are approved.",
+      "No new scenes, mini-games, battles, assets or media services.",
+      "Do not change source prose or insert biography through CSS."
+    ]
+  },
+  "scopeBudgetReview": {
+    "decision": "Keep the tested hub, three branches and garden/morning finale, with all ten complete original passages.",
+    "remaining": "One art-direction call and one CSS-only production pass, followed by fresh final QA. One further necessary repair pass is available.",
+    "cost": "Measured usage is in stage receipts; requested output ceilings are not hard compute bounds."
+  }
+}
