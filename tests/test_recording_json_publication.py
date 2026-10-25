@@ -2,6 +2,7 @@
 import asyncio
 import base64
 import json
+import time
 from uuid import uuid4
 
 import psycopg
@@ -134,4 +135,97 @@ def test_recording_json_send_holds_consent_and_failure_releases_locks(recording_
             await asyncio.gather(sending, return_exceptions=True)
             if withdrawing is not None: await withdrawing
     asyncio.run(scenario())
+    assert client.get(record['content_url']).status_code == 404
+
+
+@pytest.mark.parametrize('cleanup', ['scheduled', 'delayed', 'repeated_cancel'])
+def test_recording_json_release_has_margin_before_revoke_deadline(recording_json, monkeypatch, cleanup):
+    """Actual SQL revoke keeps its five-second deadline; delay only guard close."""
+    client, sql, record, requests = recording_json
+    original_connect = psycopg.AsyncConnection.connect
+    original_close = psycopg.AsyncConnection.close
+    original_execute = psycopg.Connection.execute
+    native_errors = []
+    def execute(connection, *args, **kwargs):
+        try: return original_execute(connection, *args, **kwargs)
+        except psycopg.Error as error:
+            native_errors.append(error.sqlstate)
+            raise
+    monkeypatch.setattr(psycopg.Connection, 'execute', execute)
+
+    async def scenario():
+        entered, closing, release_close = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        guard_connections, closed, messages = [], [], []
+        async def connect(*args, **kwargs):
+            connection = await original_connect(*args, **kwargs)
+            if kwargs.get('connect_timeout') == 2:
+                guard_connections.append(connection)
+            return connection
+        async def close(connection):
+            if any(connection is current for current in guard_connections):
+                closing.set()
+                if cleanup == 'delayed': await asyncio.sleep(.3)
+                elif cleanup == 'repeated_cancel': await release_close.wait()
+                await original_close(connection)
+                closed.append(True)
+            else:
+                await original_close(connection)
+        monkeypatch.setattr(psycopg.AsyncConnection, 'connect', connect)
+        monkeypatch.setattr(psycopg.AsyncConnection, 'close', close)
+
+        async def send(message):
+            if message['type'] == 'http.response.body' and b'content_url' in message.get('body',b''):
+                entered.set()
+                await asyncio.Event().wait()
+            messages.append(message)
+        async def receive(): await asyncio.Event().wait()
+        path = requests['metadata'][1]
+        scope = {'type':'http','asgi':{'version':'3.0','spec_version':'2.4'},'http_version':'1.1',
+            'method':'GET','scheme':'http','path':path,'raw_path':path.encode(),'query_string':b'',
+            'headers':[(b'authorization',b'Bearer synthetic')],
+            'client':('127.0.0.1',1234),'server':('test',80)}
+        sending = asyncio.create_task(client.app(scope, receive, send))
+        withdrawing = None
+        handle = None
+        try:
+            async with asyncio.timeout(3): await entered.wait()
+            withdrawing = asyncio.create_task(asyncio.to_thread(client.put, ENDPOINT,
+                json={**POLICY,'action':'revoke','expected_revision':1}))
+            if cleanup == 'scheduled':
+                # Stall this event loop across the old five-second publication
+                # deadline while PostgreSQL's revoke timer runs independently.
+                handle = asyncio.get_running_loop().call_later(4.85, time.sleep, .3)
+            async with await original_connect(sql.publication_dsn, autocommit=True) as observer:
+                async with asyncio.timeout(3):
+                    while not (await (await observer.execute("select exists(select 1 from pg_stat_activity where wait_event_type='Lock' and query like 'select public.recording_server_operation%')")).fetchone())[0]:
+                        assert not withdrawing.done()
+                        await asyncio.sleep(.01)
+            if cleanup == 'repeated_cancel':
+                sending.cancel()
+                async with asyncio.timeout(3): await closing.wait()
+                sending.cancel()
+                await asyncio.sleep(0)
+                assert not sending.done(), 'Repeated cancellation interrupted transaction close'
+                assert not withdrawing.done()
+                release_close.set()
+            with pytest.raises(asyncio.CancelledError if cleanup == 'repeated_cancel' else TimeoutError):
+                await sending
+            response = await withdrawing
+            assert response.status_code == 200, (response.text, native_errors, client.get(ENDPOINT).json())
+            assert response.json()['consented'] is False and response.json()['revision'] == 2
+            assert closed == [True] and all(connection.closed for connection in guard_connections)
+            assert not native_errors, 'Revoke must not expire while JSON holds owner authority'
+            assert not any(b'content_url' in message.get('body',b'') for message in messages)
+        finally:
+            if handle is not None: handle.cancel()
+            release_close.set()
+            sending.cancel()
+            await asyncio.gather(sending, return_exceptions=True)
+            # A failing old implementation must not leave this disposable
+            # fixture's blocked revoke/connection alive during test teardown.
+            for connection in guard_connections:
+                if not connection.closed: await original_close(connection)
+            if withdrawing is not None: await withdrawing
+    asyncio.run(scenario())
+    assert client.get(requests['metadata'][1]).status_code == 404
     assert client.get(record['content_url']).status_code == 404
