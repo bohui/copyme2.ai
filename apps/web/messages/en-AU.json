@@ -1,4 +1,15 @@
 {
+  "RecordingConsent": {
+    "title": "Voice privacy",
+    "description": "Before using the microphone, choose how Memoir may use your voice. These choices apply to your account's voice recordings.",
+    "retain": "Save my original recordings privately alongside my memoir. Unsent recordings are private drafts; sending attaches them to my story.",
+    "processing": "Send my recordings to Groq for AI transcription so I can review and edit the words before sending.",
+    "withdrawal": "You can withdraw here to stop later transcription and access to recordings. Withdrawal does not erase saved recordings or text.",
+    "allow": "Allow recording and transcription",
+    "revoke": "Withdraw voice consent",
+    "identity": "Verify your email or link Google or Facebook before saving voice recordings. Then select the microphone again.",
+    "close": "Close"
+  },
   "Collection": {
     "sourcesLimit": "Each task can include up to 1,000 selected original memories.",
     "retry": "Retry task",

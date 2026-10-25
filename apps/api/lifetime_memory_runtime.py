@@ -253,6 +253,10 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             pending_review=revisable
             if not revisable:
                 reviewed_opening=await review_policy()
+                if recording_ids:
+                    # Acceptance can precede policy clearance; publish the
+                    # current authorized descriptors after that review.
+                    accepted['recordings']=await lease.io(storage.source_recordings,project_id,source['id'])
             while True:
                 selected_language=await select_language()
                 fence=await call('capture_lifetime_fence',p_conversation_id=str(identity.conversation_id),p_lease_token=lease.lease_token)

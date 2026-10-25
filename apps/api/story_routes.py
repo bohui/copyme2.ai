@@ -116,6 +116,16 @@ class StorySpeechInput(BaseModel):
     output_format: str | None = None
 
 
+class RecordingConsentInput(BaseModel):
+    model_config = {'extra': 'forbid'}
+    action: Literal['grant', 'revoke']
+    policy_version: Literal['original-recordings-v1']
+    expected_revision: int = Field(ge=0, strict=True)
+    retain_originals: bool = Field(default=False, strict=True)
+    ai_processing: bool = Field(default=False, strict=True)
+    locale: Literal['en-AU', 'zh-CN']
+
+
 class StoryCheckoutCreate(BaseModel):
     plan_key: str = "electronic_memoir_v1"
     book_count: int | None = Field(default=None, ge=0, le=20)
@@ -630,6 +640,28 @@ def build_router(
             return _state_response(storage, _state(profile, _entitlement(payment_store, storage)))
         finally:
             _close(storage)
+
+    @router.get('/recording-consent')
+    def recording_consent(authorization: str | None = Header(default=None)):
+        from .original_recordings import RecordingStore
+        storage = storage_for(authorization)
+        try:
+            status = RecordingStore(storage).trusted('consent_status')
+            status['enabled'] = os.getenv('MEMOIR_ORIGINAL_RECORDINGS') == '1' and status['rollout_enabled']
+            return JSONResponse(status, headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
+        finally: _close(storage)
+
+    @router.put('/recording-consent')
+    def update_recording_consent(payload: RecordingConsentInput, authorization: str | None = Header(default=None)):
+        from .original_recordings import RecordingStore, error
+        storage = storage_for(authorization)
+        try:
+            if payload.action == 'grant' and os.getenv('MEMOIR_ORIGINAL_RECORDINGS') != '1':
+                raise error(503, 'ORIGINAL_RECORDINGS_DISABLED', 'Original recording retention is disabled')
+            status = RecordingStore(storage).trusted('consent_' + payload.action, data=payload.model_dump(exclude={'action'}))
+            status['enabled'] = os.getenv('MEMOIR_ORIGINAL_RECORDINGS') == '1' and status['rollout_enabled']
+            return JSONResponse(status, headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
+        finally: _close(storage)
 
     @router.post("/transcriptions")
     def story_transcription(payload: StoryTranscriptionInput, authorization: str | None = Header(default=None)):

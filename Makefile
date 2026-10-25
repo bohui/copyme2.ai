@@ -422,6 +422,17 @@ container-build: runtime-start ## Build the local images without changing runnin
 
 up: container-up ## Start the local stack, building changed images (alias for container-up).
 
+.PHONY: recording-retention-enable
+recording-retention-enable: ## Provision private recording storage and enable consent-gated STT without resetting data.
+	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _recording-retention-enable
+
+.PHONY: _recording-retention-enable
+_recording-retention-enable:
+	@set -e; \
+	memoir_env_file="$(ENV_FILE)"; case "$$memoir_env_file" in /*) ;; *) memoir_env_file="./$$memoir_env_file" ;; esac; \
+	set -a; . "$$memoir_env_file"; set +a; \
+	python3 scripts/setup_recording_retention.py --enable
+
 container-up: ## Start local services and build changed images; CONTAINER_REBUILD=1 rebuilds all app images.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _container-up
 

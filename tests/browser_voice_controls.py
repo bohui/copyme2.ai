@@ -19,6 +19,8 @@ def main():
                     lambda _: audio_functions, source)
     source = source.replace('createInterviewPhotoState({state, scope:captureProjectScope, render, api,',
                             "createInterviewPhotoState({state, scope:captureProjectScope, render: () => render(), api: (...args) => api(...args), uuid: () => 'voice-turn-' + (window.turns || 0),")
+    source = source.replace('storyApi, captureProjectScope, isCurrentProjectScope, toast, openIdentity:',
+                            'storyApi:(...args) => storyApi(...args), captureProjectScope, isCurrentProjectScope, toast, openIdentity:')
     imports = [(names, relative) for names, relative in
                re.findall(r'import \{([^}]+)\} from "([^"]+)";', source)
                if relative.startswith('.')]
@@ -118,6 +120,7 @@ agentTurn = async (text, fallback, tools, language, first, conversationText, act
 };
 streamAssistantMessage = async () => {};
 storyApi = async (path, options) => {
+  if (path === '/v1/story/recording-consent') return {enabled:true,recoverable_identity:true,consented:true};
   if (path === '/v1/story/transcriptions') {
     uploads++;
     window.lastTranscription = JSON.parse(options.body);

@@ -2414,6 +2414,9 @@ declare result jsonb; r public.user_original_recording%rowtype; identifier text;
 begin
  if jsonb_typeof(p_recording_ids) is distinct from 'array' or jsonb_array_length(p_recording_ids)>20 then raise exception 'invalid recording list';end if;
  if (select count(*)<>count(distinct value) from jsonb_array_elements_text(p_recording_ids)) then raise exception 'duplicate recording reference';end if;
+ if jsonb_array_length(p_recording_ids)>0 then
+   perform 1 from auth.users where id=auth.uid() for share;
+ end if;
  perform 1 from public.user_memoir_project where user_id=auth.uid() and project_id=p_project_id for update;
  select * into prior from public.user_interview_turn where user_id=auth.uid() and project_id=p_project_id and client_turn_id=p_client_turn_id;
  if found then
@@ -7873,10 +7876,80 @@ begin
   return new;
 end $$;
 
+-- Consent is server-owned evidence, separate from the editable profile.
+CREATE TABLE public.user_recording_consent (
+ user_id uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+ revision bigint NOT NULL CHECK (revision > 0),
+ policy_version text NOT NULL,
+ retain_originals boolean NOT NULL,
+ ai_processing boolean NOT NULL,
+ locale text NOT NULL CHECK (locale IN ('en-AU','zh-CN')),
+ granted_at timestamptz NOT NULL DEFAULT now(),
+ revoked_at timestamptz
+);
+ALTER TABLE public.user_recording_consent ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.user_recording_consent FROM public,anon,authenticated,service_role;
+
+CREATE FUNCTION public.recording_identity_verified(p_owner uuid) RETURNS boolean
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path TO '' AS $$
+ select exists(select 1 from auth.users u where u.id=p_owner and not u.is_anonymous
+   and ((nullif(u.email,'') is not null and u.email_confirmed_at is not null)
+     or (nullif(u.phone,'') is not null and u.phone_confirmed_at is not null)))
+$$;
+REVOKE ALL ON FUNCTION public.recording_identity_verified(uuid) FROM public,anon,authenticated,service_role;
+
 CREATE FUNCTION public.original_recording_authorized(p_owner uuid, p_project_id text) RETURNS boolean
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO ''
-    AS $$select false$$;
+    AS $$select public.recording_identity_verified(p_owner) and exists(
+      select 1 from public.user_recording_consent c where c.user_id=p_owner
+      and c.policy_version='original-recordings-v1' and c.retain_originals
+      and c.ai_processing and c.revoked_at is null)$$;
+
+CREATE FUNCTION public.recording_consent_operation(p_owner uuid, p_operation text, p_data jsonb) RETURNS jsonb
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare consent public.user_recording_consent%rowtype; revision bigint; verified boolean;
+begin
+ -- Withdrawal waits for admitted original reads/provider calls holding this
+ -- same owner row FOR SHARE; after commit no new operation can pass consent.
+ if p_operation='consent_status' then
+   perform 1 from auth.users where id=p_owner for share;
+ else
+   perform 1 from auth.users where id=p_owner for update;
+ end if;
+ if not found then raise exception 'recording owner unavailable' using errcode='42501';end if;
+ select * into consent from public.user_recording_consent where user_id=p_owner;
+ revision:=coalesce(consent.revision,0);
+ verified:=public.recording_identity_verified(p_owner);
+ if p_operation in ('consent_grant','consent_revoke') then
+   if (p_data->>'expected_revision')::bigint is distinct from revision then
+     raise exception 'recording consent changed' using errcode='40001';end if;
+   if p_data->>'policy_version' is distinct from 'original-recordings-v1'
+     or p_data->>'locale' is null or p_data->>'locale' not in ('en-AU','zh-CN') then
+     raise exception 'invalid recording consent' using errcode='22023';end if;
+   if p_operation='consent_grant' and (not verified
+     or p_data->'retain_originals' is distinct from 'true'::jsonb
+     or p_data->'ai_processing' is distinct from 'true'::jsonb
+     or not exists(select 1 from public.original_recording_rollout where enabled)) then
+     raise exception 'verified identity and explicit recording consent required' using errcode='42501';end if;
+   insert into public.user_recording_consent(user_id,revision,policy_version,retain_originals,ai_processing,locale,revoked_at)
+   values(p_owner,revision+1,'original-recordings-v1',p_operation='consent_grant',p_operation='consent_grant',
+     p_data->>'locale',case when p_operation='consent_revoke' then now() end)
+   on conflict(user_id) do update set revision=excluded.revision,policy_version=excluded.policy_version,
+     retain_originals=excluded.retain_originals,ai_processing=excluded.ai_processing,locale=excluded.locale,
+     granted_at=case when p_operation='consent_grant' then now() else user_recording_consent.granted_at end,
+     revoked_at=excluded.revoked_at;
+   revision:=revision+1;
+ elsif p_operation<>'consent_status' then
+   raise exception 'invalid recording consent operation' using errcode='22023';
+ end if;
+ return jsonb_build_object('policy_version','original-recordings-v1','revision',revision,
+   'recoverable_identity',verified,'consented',exists(select 1 from public.user_recording_consent c
+     where c.user_id=p_owner and c.policy_version='original-recordings-v1'
+     and c.retain_originals and c.ai_processing and c.revoked_at is null),
+   'rollout_enabled',exists(select 1 from public.original_recording_rollout where enabled));
+end $$;
+REVOKE ALL ON FUNCTION public.recording_consent_operation(uuid,text,jsonb) FROM public,anon,authenticated,service_role;
 
 CREATE FUNCTION public.original_recording_descriptor(r public.user_original_recording) RETURNS jsonb
     LANGUAGE sql IMMUTABLE
@@ -10990,6 +11063,9 @@ CREATE FUNCTION public.recording_server_operation(p_owner uuid, p_operation text
     AS $$
 declare r public.user_original_recording%rowtype; identifier uuid; project text:=p_data->>'project_id';
 begin
+ if p_operation in ('consent_status','consent_grant','consent_revoke') then
+   return public.recording_consent_operation(p_owner,p_operation,p_data);
+ end if;
  perform 1 from auth.users where id=p_owner for share;
  if not found then raise exception 'recording owner unavailable' using errcode='42501';end if;
  if p_operation='find_upload' then
@@ -14308,6 +14384,9 @@ grant DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE on
 insert into storage.buckets(id,name,public,file_size_limit) values ('memory-spark','memory-spark',false,52428800) on conflict (id) do nothing;
 
 insert into storage.buckets(id,name,public,file_size_limit) values ('memoir-private-photos','memoir-private-photos',false,10485760) on conflict (id) do nothing;
+
+-- Original bytes are accessed only by the guarded backend, never a browser JWT.
+insert into storage.buckets(id,name,public,file_size_limit) values ('memoir-original-recordings','memoir-original-recordings',false,10485760) on conflict (id) do nothing;
 
 create policy memory_spark_owner on storage.objects as permissive for all to authenticated
   using (((bucket_id = 'memory-spark'::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text)))

@@ -7,6 +7,7 @@ import { createPrivateDraft } from "./private-draft.mjs";
 import { createStoryGameDialog } from "./story-game.mjs";
 import { createStoryCheckout, FALLBACK_STORY_PLANS } from "./story-checkout.mjs";
 import { createConversationAudio } from "./conversation-audio.mjs";
+import { createRecordingConsent } from "./recording-consent.mjs";
 import { createConversationHistory } from "./conversation-history.mjs";
 import { createReplyRevision } from "./reply-revision.mjs";
 import { createUiLocale, UI_LOCALES } from "./ui-locale.mjs";
@@ -267,12 +268,19 @@ const {
   authReminder, render, state, storyApi, toast
 });
 
+const recordingConsent = createRecordingConsent({
+  storyApi, captureProjectScope, isCurrentProjectScope, toast, openIdentity:() => authReminder.open(),
+  onRevoke:() => { stopVoiceMode({silent:true,preservePending:true}); if (state.recording) cancelDictation(); },
+});
+
+async function ensureRecordingConsent() { return recordingConsent.ensure(); }
+
 const {
   cancelDictation, discardAudioDraft, finishDictation, queueVoiceModeTurn, speakText, speakVoiceReply, startAudioRecorder,
   startVoiceModeTurn, stopVoiceMode, toggleVoiceInput
 } = createConversationAudio({
   captureProjectScope, cleanAssistantText, conversationLanguage, conversationMessage, isCurrentProjectScope,
-  render, sendChatMessage, state, storyApi, toast
+  render, sendChatMessage, state, storyApi, toast, ensureRecordingConsent
 });
 
 function cleanAssistantText(value = "") {
@@ -2813,9 +2821,9 @@ function storyGameButton() {
 }
 
 function chatComposer() {
-  const game = storyGameButton();
-  const focusControls = workspaceMemoryFocusMarkup()+game;
   if (state.recallStatus?.payment_required) return "";
+  const game = storyGameButton();
+  const focusControls = workspaceMemoryFocusMarkup()+game+`<button type="button" class="text-button" data-action="recording-consent">${escapeHtml(translate('RecordingConsent.title'))}</button>`;
   const t = (key) => escapeHtml(translate(`Memoir.story.${key}`));
   const button = (action, label, icon, extra = "") => `<button type="button" class="voice-button ${extra}" data-action="${action}" aria-label="${t(label)}" title="${t(label)}">${composerIcon(icon)}</button>`;
   if (state.dictationStatus !== "off") {
@@ -3003,6 +3011,7 @@ function bindViewActions() {
     "finish-chapter": finishChapter,
     "continue-memory": startMemory,
     "voice-input": toggleVoiceInput,
+    "recording-consent": () => recordingConsent.open(),
     "retry-interview-turn": () => retryInterviewTurn(),
     "attach-media": () => $("#chat-attachments")?.click(),
     "remove-attachment": button => {

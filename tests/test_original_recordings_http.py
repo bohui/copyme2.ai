@@ -56,6 +56,7 @@ def workflow(approved, monkeypatch):
             return {'text':'' if mode['empty'] else f'ASR result {len(calls)}' if mode.get('distinct_asr') else 'Raw ASR words 中文','provider':'controlled','model':f'synthetic-{len(calls)}' if mode.get('distinct_asr') else 'synthetic','language':'zh','segments':[]}
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setenv('MEMOIR_ORIGINAL_RECORDINGS','1')
+    monkeypatch.setenv('SUPABASE_SECRET_KEY','synthetic-server-only-key')
     storage=Storage(sql)
     def authenticated(header):
         if header not in {'Bearer synthetic','Bearer other','Bearer anonymous'}: raise HTTPException(401,'Sign in required')

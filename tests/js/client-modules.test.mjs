@@ -273,6 +273,18 @@ test('audio factory stops capture and playback when leaving voice mode', t => {
   assert.equal(state.voiceModeTurnId, 1);
 });
 
+test('withdrawing voice consent stops listening without discarding an uploaded original', t => {
+  const {state, dependencies} = setup(t);
+  state.voiceMode = true;
+  const pending = {uploadKey:'owned-clip',cancelled:false};
+  state.pendingAudioUpload = pending;
+  const audio = createConversationAudio({...dependencies, sendChatMessage() {}});
+  audio.stopVoiceMode({silent:true,preservePending:true});
+  assert.equal(state.voiceMode, false);
+  assert.equal(state.pendingAudioUpload, pending);
+  assert.equal(pending.cancelled, false);
+});
+
 test('checkout factory keeps guest selection and recovers from a failed checkout', async t => {
   const {state, dependencies, notices} = setup(t);
   state.selectedStoryPlan = 'printed_memoir_v1';

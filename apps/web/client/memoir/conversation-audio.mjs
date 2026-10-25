@@ -4,7 +4,7 @@ import { currentUiLocale, translate } from "../i18n.js";
 
 export function createConversationAudio({
   captureProjectScope, cleanAssistantText, conversationLanguage, conversationMessage, isCurrentProjectScope,
-  render, sendChatMessage, state, storyApi, toast
+  render, sendChatMessage, state, storyApi, toast, ensureRecordingConsent
 }) {
   async function speakText(text) {
     if (state.voiceMode) return;
@@ -127,8 +127,8 @@ export function createConversationAudio({
     state.voiceModeAnalyser = null;
   }
 
-  function stopVoiceMode({ silent = false } = {}) {
-    if (state.pendingAudioUpload) state.pendingAudioUpload.cancelled = true;
+  function stopVoiceMode({ silent = false, preservePending = false } = {}) {
+    if (state.pendingAudioUpload && !preservePending) state.pendingAudioUpload.cancelled = true;
     const active = Boolean(state.voiceMode || state.voiceModeRecorder || state.voiceModeStream);
     state.voiceMode = false;
     state.voiceModeStatus = "off";
@@ -289,13 +289,16 @@ export function createConversationAudio({
     }
   }
 
-  function toggleVoiceInput() {
+  async function toggleVoiceInput() {
     if (!state.voiceMode && state.pendingAudioUpload) { void startAudioRecorder(); return; }
     if (state.voiceMode) {
       stopVoiceMode();
       return;
     }
     if (state.loading || state.photoMemoryTask || state.dictationStatus !== "off") return;
+    const scope = captureProjectScope();
+    if (!await ensureRecordingConsent() || !isCurrentProjectScope(scope)) return;
+    if (state.loading || state.voiceMode || state.dictationStatus !== 'off') return;
     state.voiceMode = true;
     state.voiceModeStatus = "listening";
     state.voiceModeCancelTurn = false;
@@ -396,6 +399,9 @@ export function createConversationAudio({
   async function startAudioRecorder() {
     if (state.loading || state.voiceMode || state.dictationStatus !== "off") return;
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) return toast(translate("Memoir.storyFlow.browserCannotRecord"));
+    const scope = captureProjectScope();
+    if (!await ensureRecordingConsent() || !isCurrentProjectScope(scope)) return;
+    if (state.loading || state.voiceMode || state.dictationStatus !== 'off') return;
     if (state.pendingAudioUpload) {
       const pending = state.pendingAudioUpload;
       state.dictationStatus = 'processing'; render();
@@ -463,8 +469,10 @@ export function createConversationAudio({
     try {
       const transcript = await storyApi("/v1/story/transcriptions", {
         method: "POST",
-        body: JSON.stringify(pending.recordingId ? {recording_id:pending.recordingId,project_id:scope.projectId || null,language:conversationLanguage()} :
-          {audio_base64:encoded, upload_idempotency_key:pending.uploadKey, project_id:scope.projectId || null,
+        // Keep the first clip an owned draft until canonical turn acceptance
+        // binds it to the story, which may not exist when capture starts.
+        body: JSON.stringify(pending.recordingId ? {recording_id:pending.recordingId,language:conversationLanguage()} :
+          {audio_base64:encoded, upload_idempotency_key:pending.uploadKey,
             filename:`${filenamePrefix}.${extension}`, mime_type:mimeType, language:conversationLanguage()}),
       });
       if (!isCurrentProjectScope(scope)) throw new Error('Recording owner changed');

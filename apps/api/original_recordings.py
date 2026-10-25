@@ -161,6 +161,15 @@ class RecordingStore:
     def __init__(self, storage):
         self.storage = storage
 
+    def object_request(self, method, path, **options):
+        # Only opaque, database-owned original paths reach this private bucket.
+        # End-user Storage JWTs cannot list, sign, overwrite or bypass revocation.
+        key = os.getenv('SUPABASE_SECRET_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+        if not key:
+            raise error(503, 'RECORDING_STORAGE_UNAVAILABLE', 'Private recording storage is unavailable')
+        headers = {**options.pop('headers', {}), 'apikey':key, 'Authorization':'Bearer ' + key}
+        return self.storage.request(method, path, headers=headers, **options)
+
     def trusted(self, operation, recording_id=None, data=None):
         """Server-only attestation; never grant this RPC to authenticated JWTs.
 
@@ -201,7 +210,7 @@ class RecordingStore:
     def content(self, record):
         if record['storage_status'] != 'ready' or record['lifecycle'] == 'deleted':
             raise error(409, 'RECORDING_NOT_READY', 'Original recording is not ready')
-        content = self.storage.request('GET', '/storage/v1/object/authenticated/' + PRIVATE_RECORDING_BUCKET
+        content = self.object_request('GET', '/storage/v1/object/authenticated/' + PRIVATE_RECORDING_BUCKET
             + '/' + quote(record['object_path'], safe='/')).content
         if len(content) != record['byte_size'] or hashlib.sha256(content).hexdigest() != record['content_sha256']:
             raise error(503, 'RECORDING_INTEGRITY_FAILED', 'Original recording verification failed')
@@ -227,7 +236,7 @@ class RecordingStore:
             record = self.trusted('begin_upload',record['id'])
             attempt = record['upload_attempt_id']
             try:
-                self.storage.request('POST', '/storage/v1/object/' + PRIVATE_RECORDING_BUCKET + '/'
+                self.object_request('POST', '/storage/v1/object/' + PRIVATE_RECORDING_BUCKET + '/'
                     + quote(record['object_path'], safe='/'), content=content,
                     headers={'Content-Type':record['content_type'], 'x-upsert':'false'})
                 write_terminal = True
@@ -235,7 +244,7 @@ class RecordingStore:
                 write_terminal = exc.response.status_code < 500
                 if exc.response.status_code != 409: raise
             # A duplicate object or success response is not a trusted finalization.
-            observed = self.storage.request('GET', '/storage/v1/object/authenticated/' + PRIVATE_RECORDING_BUCKET
+            observed = self.object_request('GET', '/storage/v1/object/authenticated/' + PRIVATE_RECORDING_BUCKET
                 + '/' + quote(record['object_path'], safe='/')).content
             if observed != content: raise ValueError('Original readback mismatch')
             record = self.trusted('finalize', record['id'], metadata)
@@ -309,7 +318,7 @@ class RecordingStore:
     def delete(self, recording_id, *, draft_only=False):
         record = self.trusted('delete', str(UUID(recording_id)), {'draft_only':draft_only})
         try:
-            self.storage.request('DELETE', '/storage/v1/object/' + PRIVATE_RECORDING_BUCKET,
+            self.object_request('DELETE', '/storage/v1/object/' + PRIVATE_RECORDING_BUCKET,
                 json={'prefixes':[record['object_path']]})
             # The receipt proves removal only for writers already stopped
             # before this DELETE began, regardless of HTTP response timing.

@@ -3,11 +3,16 @@ import json
 from uuid import uuid4
 
 import pytest
-from test_interview_photos_postgres import database
+from test_agent_commit_postgres import database as native_database
 from test_guest_conversation_transfer import attachment_database
 from test_private_rounds_postgres import private_database
 from test_shared_memory_events_postgres import event_database, sql, rpc, literal, OWNER, as_user
 from test_agent_commit_postgres import OTHER
+
+
+@pytest.fixture(scope='module')
+def database():
+    yield from native_database.__wrapped__(publication_tcp=True, postgres_image='postgres:17.6')
 
 
 def server(sql, operation, recording_id=None, data=None, owner=OWNER, check=True):
