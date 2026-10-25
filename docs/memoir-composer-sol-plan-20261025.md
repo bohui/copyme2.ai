@@ -28,7 +28,7 @@ The initial read-only inspection, recorded at pinned `7f2d416`, found:
   arbitrary model setting is rejected before dispatch. That guard was not
   weakened to make a nonexistent route appear usable.
 
-**There is no verified exact Sol route available to the current Memoir consumer.**
+**At that initial inspection, no exact Sol route was exposed to the Memoir consumer.**
 No Sol generation was dispatched, so there is no observed served Sol model,
 effective effort, successful durable Sol result or Sol latency measurement.
 The catalog establishes current advertised access, not universal provider
@@ -45,6 +45,14 @@ Memoir consumer's authenticated model catalog still omitted Sol at that check.
 This is partial provider setup, not verified consumer access or served-model,
 effective-effort, internal-fallback or billing evidence. The provider owner is
 working separately; this task did not contact that agent or alter its services.
+
+At **2026-10-25 09:15 UTC**, the same consumer's read-only catalog returned
+`gpt-5.6-sol`. Consumer exposure is now confirmed; the configured target remains
+`openai/gpt-5.6-sol`, high requested effort, outer retries zero and configured
+token prices zero. No generation has verified the actual served model, effective
+effort, internal fallback or billing. Phase-isolated application selection and
+the reviewed bounded-transport entry still need implementation; changing the
+legacy shared setting globally would affect unrelated skills.
 
 The smallest prerequisite is an existing, authorized subscription route that
 actually targets GPT-5.6 Sol and is usable by the Memoir consumer, with its
@@ -137,8 +145,13 @@ leaving ten unused. Those ten are untouched and do not automatically transfer
 to this new model/experiment. If the user explicitly carries them forward, the
 42-submission plan needs 24 new baseline submissions plus eight candidate
 submissions beyond that remainder: **32 additional**, with new deadlines.
-No such approval has been received. A dollar estimate and actual dispatch
-remain blocked until the exact existing-provider Sol route/cost is verified.
+The subsequent user instruction conditionally authorizes this new bounded Sol
+experiment after route/subscription verification, independently reviewed prompt
+sources and genuine pins. Dispatch remains paused until those prerequisites and
+the expanded three-source publication scope are resolved. Historical quota is
+kept separately; no unused-call transfer or reset is claimed. Actual billing and
+effective route behavior remain unobserved without a generation, so no paid
+commitment or fallback may be inferred from configured zero prices.
 
 Predeclare **n=1 per checkpoint per arm**: six checkpoints each, twelve attempted
 durable outcomes in total, exploratory rather than a tail-latency estimate.

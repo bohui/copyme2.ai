@@ -1,0 +1,950 @@
+{
+  "schema_version": 1,
+  "measurement_type": "Offline canonical application, controlled provider HTTP, real disposable PostgreSQL, Node; no live model generation",
+  "source_head": "98b2e4c072bdea43f5f0113ce72662cd8ff8106c",
+  "source_only_local_head": "1ea036011a75b34de3419e126c9b576715b5709a",
+  "preserved_prior_review_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+  "tested_source_file_sha256": {
+    "apps/api/composer_review.py": "d55893869fffb93e1057dd5bc38d7faea21723be97247426c5aa85a9ecc0628a",
+    "apps/api/lifetime_memory_lane_engine.py": "a401bccd3862ee98c05d97156bdb41d7a8bf66e70554e2d9ee559b687de457c4",
+    "apps/api/memoir_preview.py": "70c6bfa4cfad11f3bfcd19b925f17ce55d45a1908e26351b62812cc9b49ad6ad",
+    "docs/memoir-composer-literary-rubric-v1.md": "e900ec72a05226704aa321925c66c6a11f97ab14cbb23fe787d80d10b8295c76",
+    "docs/memoir-composer-sol-plan-20261025.md": "eef41b12ab2f5013aa1c11a1566dec1441089e3dca5114a528cbb85600a6f944",
+    "skills/memoir-composer/SKILL.md": "6451bff0aa29c6e4b11ad9d8e8b29a7bf21d59574b2a1d7fe1f5b756e5b894b8",
+    "skills/memoir-composer/prompts/review.md": "61be8f8c2fb1694d8a9cb1ed63ce572762ba65e0d842bb884d2b92ae3616e7c9",
+    "skills/memoir-composer/references/editorial-review.prompt.md": "dd79d1a09ab81c6a5b09ac66c4dc1a25409a539fa1873d38b75652091dbca1ae",
+    "skills/memoir-composer/references/narrative-enrichment.md": "1f54526e76fcb210656c7bb713e7909c5e81a2dfc524e08af3ef42261f31ab3e",
+    "skills/memoir-composer/references/runtime-contract.md": "5272e04c657761d844305e488dc5f18be03f26c08eee9b584513aed67bcf08a8",
+    "supabase/migrations/202610180001_initial_schema.sql": "28ae5a96140a348f890bf105fa73c8c34e7828be9287afed31b75d1e3a1b579d",
+    "tests/controlled_composer_review.py": "fc0dd59f9c9b1029404d26c483346d92163c9a018bbad32432f4df9de5b21d34",
+    "tests/evaluation/memoir_composer_craft_cases.json": "e0dfd12f3f83c4ece7846f98b27769614cfe3c8e57443f621353b43bb56e5879",
+    "tests/test_composer_craft.py": "4f8264d934dc7b38c6fe7202c0f5c60401d41455c79d6590f70e9a21b87e3529",
+    "tests/test_composer_review.py": "ac194b8ad978f90751eb0ba8d2966396a395210cbff1825f488e1d1ba28e2b11",
+    "tests/test_composer_review_postgres.py": "78c5db65c2e9c5b2da42b7f9c894c28cd35803aae57c45f7e1cabf0ced1aad4d",
+    "tests/test_composer_review_regressions.py": "0fc2cc08f7122201e6890a03b8e9b877bbb8a5e4fffe7c6a694d6e245fdfa355",
+    "tests/test_composer_runtime_craft.py": "4bdef9c0cb1b61e684e3bc4a56c506f84f04d2310e65a65f1c7ee6449e7469fc"
+  },
+  "test_provenance": "Tests ran on the working diff subsequently committed unchanged as source_head. Later Sol availability/report updates change documentation only.",
+  "managed_publication_scope": [
+    {
+      "path": "skills/memoir-composer/prompts/review.md",
+      "name": "memoir/skills/memoir-composer/review",
+      "existing_published_version": 3,
+      "pinned_sha256": "0ea3aef24d8cc4a23481e52c78010a3d2855a94ddad1eea524ff1ef5c0a9d85c",
+      "unpublished_draft_sha256": "61be8f8c2fb1694d8a9cb1ed63ce572762ba65e0d842bb884d2b92ae3616e7c9",
+      "receipt_unchanged": true
+    },
+    {
+      "path": "skills/memoir-composer/references/editorial-review.prompt.md",
+      "name": "memoir/skills/memoir-composer/shared/editorial-review",
+      "existing_published_version": 1,
+      "pinned_sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+      "unpublished_draft_sha256": "dd79d1a09ab81c6a5b09ac66c4dc1a25409a539fa1873d38b75652091dbca1ae",
+      "receipt_unchanged": true
+    },
+    {
+      "path": "skills/memoir-composer/references/narrative-enrichment.md",
+      "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+      "existing_published_version": 1,
+      "pinned_sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+      "unpublished_draft_sha256": "1f54526e76fcb210656c7bb713e7909c5e81a2dfc524e08af3ef42261f31ab3e",
+      "receipt_unchanged": true
+    }
+  ],
+  "contract_version": 3,
+  "results": {
+    "combined_python_passed": 474,
+    "baseline_failures_deselected": 11,
+    "composer_evaluation_passed": 15,
+    "prompt_governance_passed": 31,
+    "source_only_governance_passed": 31,
+    "node_passed": 62,
+    "focused_runtime_sql_passed": 81
+  },
+  "baseline_failed_cases": [
+    "tests/test_workspace_memory_actions.py::test_pg_private_rework_preserves_completed_formal_authority_and_consent",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_attachment_preserves_rewrites_for_other_evidence_and_sibling_photos",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_outside_composer_partition_preserves_source_only_rewrite",
+    "tests/test_workspace_memory_actions.py::test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts[False]",
+    "tests/test_workspace_memory_actions.py::test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts[True]",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks[unlink]",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks[delete_photo]",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks[edit_link]",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks[delete_link]",
+    "tests/test_conversation_attribution.py::test_unrelated_event_correction_preserves_non_story_and_withheld_classifications",
+    "tests/test_conversation_attribution.py::test_author_removed_links_and_corrected_time_remain_authoritative"
+  ],
+  "tests": {
+    "advisory-score-green": {
+      "name": "advisory-score-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_runtime_craft.py"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-vmukwqmm",
+      "command_group": {
+        "group_id": 71061,
+        "leader_started": "Sun Oct 25 19:26:15 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-vmukwqmm",
+            "device": 16777231,
+            "inode": 972486766
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 1.86,
+      "log_sha256": "3b48e0860dc023141693c4f77181cda5b340fb20a1a3707eedab872d4f8fa2ba",
+      "summary": [
+        "1 passed in 0.69s"
+      ]
+    },
+    "advisory-score-red": {
+      "name": "advisory-score-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_runtime_craft.py"
+      ],
+      "exit_code": 1,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-jtwmrtxr",
+      "command_group": {
+        "group_id": 69884,
+        "leader_started": "Sun Oct 25 19:22:25 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-jtwmrtxr",
+            "device": 16777231,
+            "inode": 972459705
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 2.2,
+      "log_sha256": "d8291409e34680e88624374f30b1ab9f388524562003d83f9ab0273479979f15",
+      "summary": [
+        "1 failed in 1.24s"
+      ]
+    },
+    "calibration-review-green": {
+      "name": "calibration-review-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_craft.py",
+        "tests/test_composer_runtime_craft.py",
+        "tests/test_composer_review_regressions.py",
+        "tests/test_composer_review.py"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-dwu84del",
+      "command_group": {
+        "group_id": 88262,
+        "leader_started": "Sun Oct 25 19:40:40 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-dwu84del",
+            "device": 16777231,
+            "inode": 972592429
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 37.41,
+      "log_sha256": "58a96e9d26c55894476e6cf2dbaa41055d9005971c8ebdbda938270e4c43204d",
+      "summary": [
+        "52 passed in 34.32s"
+      ]
+    },
+    "calibration-review-red": {
+      "name": "calibration-review-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_craft.py",
+        "-k",
+        "attributed_recollection_zh or disclosure_boundary_en"
+      ],
+      "exit_code": 1,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-6tc5h107",
+      "command_group": {
+        "group_id": 82088,
+        "leader_started": "Sun Oct 25 19:32:05 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-6tc5h107",
+            "device": 16777231,
+            "inode": 972532414
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 1.3,
+      "log_sha256": "749b681fe95edceb13e1567f2815f346e15c57a8da9f8f535fc7bab866ea00fd",
+      "summary": [
+        "2 failed, 13 deselected in 0.28s"
+      ]
+    },
+    "combined-runtime-craft-final": {
+      "name": "combined-runtime-craft-final",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py",
+        "tests/test_composer_review_regressions.py",
+        "tests/test_composer_runtime_craft.py",
+        "tests/test_composer_craft.py",
+        "tests/test_composer_review_postgres.py",
+        "tests/test_progressive_composer.py",
+        "tests/test_composer_transport_postgres.py",
+        "tests/test_canonical_composer_provenance.py",
+        "tests/test_composer_repair_budget.py",
+        "tests/test_lifetime_composer_policy.py",
+        "tests/test_lifetime_composer_clearance.py",
+        "tests/test_lifetime_memory_lane_engine.py",
+        "tests/test_canonical_draft_budget.py",
+        "tests/test_lifetime_composer_capacity.py",
+        "tests/test_progressive_photo_invalidation.py",
+        "tests/test_workspace_memory_actions.py",
+        "tests/test_conversation_attribution.py",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_private_rework_preserves_completed_formal_authority_and_consent",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_attachment_preserves_rewrites_for_other_evidence_and_sibling_photos",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_outside_composer_partition_preserves_source_only_rewrite",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks",
+        "--deselect",
+        "tests/test_conversation_attribution.py::test_unrelated_event_correction_preserves_non_story_and_withheld_classifications",
+        "--deselect",
+        "tests/test_conversation_attribution.py::test_author_removed_links_and_corrected_time_remain_authoritative"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-tr962i7l",
+      "command_group": {
+        "group_id": 1573,
+        "leader_started": "Sun Oct 25 20:06:10 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-tr962i7l",
+            "device": 16777231,
+            "inode": 972772109
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 468.22,
+      "log_sha256": "ecfb1e3517f50898824e4c7b2e753709fe23ba63bdf9b9538994ba5dca439459",
+      "summary": [
+        "474 passed, 11 deselected in 466.50s (0:07:46)"
+      ]
+    },
+    "combined-runtime-craft": {
+      "name": "combined-runtime-craft",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py",
+        "tests/test_composer_review_regressions.py",
+        "tests/test_composer_runtime_craft.py",
+        "tests/test_composer_craft.py",
+        "tests/test_composer_review_postgres.py",
+        "tests/test_progressive_composer.py",
+        "tests/test_composer_transport_postgres.py",
+        "tests/test_canonical_composer_provenance.py",
+        "tests/test_composer_repair_budget.py",
+        "tests/test_lifetime_composer_policy.py",
+        "tests/test_lifetime_composer_clearance.py",
+        "tests/test_lifetime_memory_lane_engine.py",
+        "tests/test_canonical_draft_budget.py",
+        "tests/test_lifetime_composer_capacity.py",
+        "tests/test_progressive_photo_invalidation.py",
+        "tests/test_workspace_memory_actions.py",
+        "tests/test_conversation_attribution.py",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_private_rework_preserves_completed_formal_authority_and_consent",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_attachment_preserves_rewrites_for_other_evidence_and_sibling_photos",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_outside_composer_partition_preserves_source_only_rewrite",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks",
+        "--deselect",
+        "tests/test_conversation_attribution.py::test_unrelated_event_correction_preserves_non_story_and_withheld_classifications",
+        "--deselect",
+        "tests/test_conversation_attribution.py::test_author_removed_links_and_corrected_time_remain_authoritative"
+      ],
+      "exit_code": 1,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-fkvqulxx",
+      "command_group": {
+        "group_id": 95880,
+        "leader_started": "Sun Oct 25 19:54:18 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-fkvqulxx",
+            "device": 16777231,
+            "inode": 972671576
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 459.52,
+      "log_sha256": "8fcef1681f1b8bcee698df6465f0a497c3dc396de8ce9211eae98b200eb8d66d",
+      "summary": [
+        "1 failed, 473 passed, 11 deselected in 457.88s (0:07:37)"
+      ]
+    },
+    "compact-instruction-budget": {
+      "name": "compact-instruction-budget",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_lifetime_memory_lane_engine.py::test_default_lane_budget_admits_bounded_repair_with_prepared_context",
+        "tests/test_canonical_draft_budget.py"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-4e745kls",
+      "command_group": {
+        "group_id": 1280,
+        "leader_started": "Sun Oct 25 20:03:47 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-4e745kls",
+            "device": 16777231,
+            "inode": 972754780
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 3.47,
+      "log_sha256": "d9e42402e0f408589a4abd8053a4e2f364e64e4978ccdbffe8efab8fc488b169",
+      "summary": [
+        "4 passed in 2.33s"
+      ]
+    },
+    "craft-boundary-regressions": {
+      "name": "craft-boundary-regressions",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_runtime_craft.py",
+        "tests/test_composer_review_postgres.py"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-iru8xpdr",
+      "command_group": {
+        "group_id": 91858,
+        "leader_started": "Sun Oct 25 19:50:10 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-iru8xpdr",
+            "device": 16777231,
+            "inode": 972639211
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 68.96,
+      "log_sha256": "378b3b2a884d93899c246e41f7e386ec2dc3edc0e489a4d58b7a7b93b7443dc8",
+      "summary": [
+        "81 passed in 67.76s (0:01:07)"
+      ]
+    },
+    "craft-review-repair-green": {
+      "name": "craft-review-repair-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_runtime_craft.py"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-8iimz8_z",
+      "command_group": {
+        "group_id": 76736,
+        "leader_started": "Sun Oct 25 19:29:10 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-8iimz8_z",
+            "device": 16777231,
+            "inode": 972508870
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 2.2,
+      "log_sha256": "c6abffb8d65171e91b958748c9d37ef32046ef362e79a06b72182e089040d686",
+      "summary": [
+        "2 passed in 1.13s"
+      ]
+    },
+    "craft-review-repair-red": {
+      "name": "craft-review-repair-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_runtime_craft.py",
+        "-k",
+        "metadata_repair"
+      ],
+      "exit_code": 1,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-76m6ctgn",
+      "command_group": {
+        "group_id": 74137,
+        "leader_started": "Sun Oct 25 19:28:13 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-76m6ctgn",
+            "device": 16777231,
+            "inode": 972501832
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 2.34,
+      "log_sha256": "4a01383e1eda6db078c730473244ee0697495015731f249629700ac1283a5779",
+      "summary": [
+        "1 failed, 1 deselected in 1.11s"
+      ]
+    },
+    "craft-sql-green": {
+      "name": "craft-sql-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "-k",
+        "zero_craft"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-waejq1l0",
+      "command_group": {
+        "group_id": 82766,
+        "leader_started": "Sun Oct 25 19:33:18 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-waejq1l0",
+            "device": 16777231,
+            "inode": 972542529
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 5.95,
+      "log_sha256": "2965983cc409b5dcf3338c5820c65962364561218e007f83d818dc06e8c230a6",
+      "summary": [
+        "1 passed, 53 deselected in 4.81s"
+      ]
+    },
+    "craft-sql-red": {
+      "name": "craft-sql-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "-k",
+        "zero_craft"
+      ],
+      "exit_code": 1,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-og87j8r5",
+      "command_group": {
+        "group_id": 78640,
+        "leader_started": "Sun Oct 25 19:30:47 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-og87j8r5",
+            "device": 16777231,
+            "inode": 972521192
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 8.83,
+      "log_sha256": "71e4ac60349a4ad8be72c10e1c35dd4898bcad0eacfe39a0c981f64730628c64",
+      "summary": [
+        "1 failed, 53 deselected in 7.16s"
+      ]
+    },
+    "runtime-craft-evaluation-final": {
+      "name": "runtime-craft-evaluation-final",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_workflows.py",
+        "-k",
+        "composer"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-db448axw",
+      "command_group": {
+        "group_id": 1767,
+        "leader_started": "Sun Oct 25 20:06:14 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-db448axw",
+            "device": 16777231,
+            "inode": 972772578
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 22.86,
+      "log_sha256": "1545c82eb5de89aa5e11cdfeb4d02f1f84d749ebbf8b17e8306d36e9af2145be",
+      "summary": [
+        "15 passed, 26 deselected in 21.82s"
+      ]
+    },
+    "runtime-craft-evaluation": {
+      "name": "runtime-craft-evaluation",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_workflows.py",
+        "-k",
+        "composer"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-f7a5_dgz",
+      "command_group": {
+        "group_id": 96216,
+        "leader_started": "Sun Oct 25 19:54:23 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-f7a5_dgz",
+            "device": 16777231,
+            "inode": 972672269
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 17.5,
+      "log_sha256": "077aa0cfb5de237e017f07c81786436960527213b74894084d1910ffe984b0a6",
+      "summary": [
+        "15 passed, 26 deselected in 16.53s"
+      ]
+    },
+    "runtime-craft-governance-final": {
+      "name": "runtime-craft-governance-final",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_prompt_publication.py",
+        "tests/test_prompt_artifact.py"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-5tqlmfun",
+      "command_group": {
+        "group_id": 1975,
+        "leader_started": "Sun Oct 25 20:06:16 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-5tqlmfun",
+            "device": 16777231,
+            "inode": 972772927
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 20.69,
+      "log_sha256": "3654c4eb9be702d9d301df5ab000b9fb42fd4c5ca7dba596e0b770e8acb0e300",
+      "summary": [
+        "31 passed in 19.21s"
+      ]
+    },
+    "runtime-craft-governance": {
+      "name": "runtime-craft-governance",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_prompt_publication.py",
+        "tests/test_prompt_artifact.py"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-m4ye5oae",
+      "command_group": {
+        "group_id": 95997,
+        "leader_started": "Sun Oct 25 19:54:22 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-m4ye5oae",
+            "device": 16777231,
+            "inode": 972671971
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 13.53,
+      "log_sha256": "08b7e8be216b649ef6f47c12719ba7554d3191493a1c5ad9429240a2f5f6ed41",
+      "summary": [
+        "31 passed in 12.75s"
+      ]
+    },
+    "runtime-craft-node": {
+      "name": "runtime-craft-node",
+      "command": [
+        "node",
+        "--test",
+        "skills/memoir-composer/tests/composer.test.mjs",
+        "skills/memoir-composer/tests/progressive_e2e.test.mjs"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-j2y22jnp",
+      "command_group": {
+        "group_id": 96280,
+        "leader_started": "Sun Oct 25 19:54:24 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-j2y22jnp",
+            "device": 16777231,
+            "inode": 972672478
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 0.44,
+      "log_sha256": "fb8ca9c8ea34df55b40170f7c4dc95af67c60e067db28c36d817b7fbaa100819",
+      "summary": [
+        "# duration_ms 307.8595"
+      ]
+    },
+    "runtime-sql-chain": {
+      "name": "runtime-sql-chain",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "-k",
+        "semantic_review_repairs or zero_craft"
+      ],
+      "exit_code": 0,
+      "base_head": "7f2d4169ee0845ed8efa8c165463cd2f10d03749",
+      "tree": "2fad765ee6a1321ac3e6c5db518f0033e147721c",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-gok6cohw",
+      "command_group": {
+        "group_id": 90855,
+        "leader_started": "Sun Oct 25 19:47:31 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-gok6cohw",
+            "device": 16777231,
+            "inode": 972620716
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 41.71,
+      "log_sha256": "ea57626f564fb67be44178a380d0b5223def62feb58d3640c3bbf2da18537c4c",
+      "summary": [
+        "11 passed, 45 deselected in 40.34s"
+      ]
+    },
+    "source-only-v3-governance": {
+      "name": "source-only-v3-governance",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_prompt_publication.py",
+        "tests/test_prompt_artifact.py"
+      ],
+      "exit_code": 0,
+      "base_head": "c7e975eb1935b7ab79f02b23f47da195e49a9aef",
+      "tree": "7d960b01ee536b2d396b929e5ebfb9e7a9be40b2",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-zbqwkrbq",
+      "command_group": {
+        "group_id": 1997,
+        "leader_started": "Sun Oct 25 20:06:17 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-zbqwkrbq",
+            "device": 16777231,
+            "inode": 972772957
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 20.46
+    }
+  },
+  "old_live_receipts": {
+    "baseline": {
+      "sha256": "dc9eaa755f3235532a8b764a66d2c35ebf04880ffc66c457bbb5ba2d788c91d1",
+      "actual_submissions": 24,
+      "changed": false
+    },
+    "candidate": {
+      "sha256": "974730d536e7b708940a4a0cab52b84f5e2644e508667dec22b495e5b7509d01",
+      "actual_submissions": 14,
+      "changed": false
+    }
+  },
+  "new_provider_submissions": 0,
+  "paid_judges": 0,
+  "historical_unused_candidate_submissions": 10,
+  "unused_quota_transferred": false,
+  "sol_route_observation": {
+    "observed_at_utc": "2026-10-25T09:15:09.171110+00:00",
+    "measurement_type": "read_only_model_catalog_and_config_no_generation",
+    "http_status": 200,
+    "gateway_config_sha256": "02175f3934fde32884b05b46b9181584f21cf7eb4747fa495aced571906e4fdb",
+    "sol_routes": [
+      {
+        "alias": "gpt-5.6-sol",
+        "target": "openai/gpt-5.6-sol",
+        "requested_effort": "high",
+        "outer_num_retries": 0,
+        "explicit_fallback": null,
+        "endpoint_reference": "os.environ/CODEX_LB_API_BASE",
+        "model_info": {
+          "input_cost_per_token": 0,
+          "output_cost_per_token": 0,
+          "max_input_tokens": 272000,
+          "max_output_tokens": 128000
+        }
+      }
+    ],
+    "consumer_model_ids": [
+      "gpt-5.6-luna-pooled",
+      "legal2ai-luna-low",
+      "memoir-luna-low",
+      "gpt-5.6-luna-memoir-low",
+      "gpt-5.6-luna-memoir-high",
+      "gpt-6-astra",
+      "gpt-5.6-sol"
+    ],
+    "consumer_sol_ids": [
+      "gpt-5.6-sol"
+    ],
+    "actual_served_model": "unobserved_no_generation",
+    "effective_effort": "unverified",
+    "internal_fallback": "unverified",
+    "actual_billing": "unverified",
+    "new_provider_submissions": 0
+  },
+  "source_only_diff_files": [
+    "skills/memoir-composer/prompts/review.md",
+    "skills/memoir-composer/references/editorial-review.prompt.md",
+    "skills/memoir-composer/references/narrative-enrichment.md"
+  ],
+  "publication_performed": false,
+  "existing_service_migration_performed": false,
+  "serving_activation_performed": false,
+  "sql_delta_from_v2": [
+    "CREATE public.memoir_craft_review_covers(jsonb,jsonb,jsonb,boolean)",
+    "REPLACE public.memoir_review_covers(jsonb,jsonb)"
+  ],
+  "archive": {
+    "path": "/Users/bohuihan/Documents/Codex/2026-10-25/task/memoir-composer-runtime-craft-evidence-98b2e4c-20261025.zip",
+    "bytes": 45479,
+    "sha256": "2a4e502731dda5cd1f38d080fe6f03c7ba037bb32f77e4a856bd854e0a5da3db"
+  }
+}
