@@ -131,14 +131,114 @@ def test_queued_recording_descriptor_is_filtered_at_actual_stream_send(consent_w
     asyncio.run(scenario())
 
 
-def test_withdrawal_waits_for_actual_recording_descriptor_send(consent_workflow,media):
-    from apps.api.lifetime_memory_publication import TransactionalPublication,send_governed
+@pytest.mark.parametrize('two_lane,publication', [
+    (False,'json'), (True,'json'),
+    (False,'source_accepted'), (True,'source_accepted'),
+    (False,'result'), (True,'result'),
+    (True,'reply_complete'),
+    (False,'conversation_saved'), (True,'conversation_saved'),
+])
+def test_runtime_cached_recordings_withdrawn_before_actual_publication(
+        consent_workflow,media,tmp_path,monkeypatch,two_lane,publication):
+    """Real HTTP/runtime/SQL; revoke only after this exact body is serialized."""
+    import httpx
+    from apps.api import agent_routes, lifetime_memory_transport as transport
+    from apps.api.codex_runtime import CodexRuntime
+    from memoir_postgres_workflow import PostgresRest
+    from test_name_only_opening import proposal
+    from controlled_collector import worker_reply
+    client,storage,sql,objects,calls,mode=consent_workflow
+    assert grant(client).status_code == 200
+    monkeypatch.setenv('MEMOIR_TWO_LANES','1' if two_lane else '0')
+    sql('update public.lifetime_two_lane_rollout set enabled='+('true' if two_lane else 'false')+';')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL','gpt-5.6-luna-pooled')
+    monkeypatch.setenv('MEMORY_SPARK_FREE_RECALL_ROUNDS','99')
+
+    def provider(request):
+        output=proposal(mode='extract',name=None,question='What do you remember about the garden?')
+        output['acknowledgement']='You remember the garden.'
+        output['plan']['conversation_phase']='explore'
+        return worker_reply(request,{'reply':json.dumps(output),'thread_id':'synthetic','artifacts':[]})
+
+    monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
+    monkeypatch.setattr(agent_routes,'runtime',CodexRuntime(home_root=tmp_path/'homes',
+        worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(provider)))
+    recording=upload(client,media).json()['recording']
+    original_send=transport.send_governed
+    withdrawn=[]
+
+    async def withdraw_before_send(send,message,*,publisher,fence):
+        event=json.loads(message['body'])
+        kind='json' if publication=='json' else event.get('type')
+        if kind==publication and not withdrawn:
+            content=event if kind=='json' else event['data']
+            assert [r['id'] for r in content['recordings']] == [recording['id']]
+            result=await asyncio.to_thread(client.put,ENDPOINT,
+                json={**POLICY,'action':'revoke','expected_revision':1})
+            assert result.status_code == 200, result.text
+            withdrawn.append(True)
+        return await original_send(send,message,publisher=publisher,fence=fence)
+
+    monkeypatch.setattr(transport,'send_governed',withdraw_before_send)
+    command={'text':'I remember the garden.','source_kind':'narrator_transcript',
+        'recording_ids':[recording['id']],'client_turn_id':str(uuid4())}
+    response=client.post('/api/v1/memoir/agent/turn',json=command,
+        headers={'Accept':'application/json' if publication=='json' else 'application/x-ndjson'})
+    assert response.status_code == 200, response.text
+    assert withdrawn == [True], 'The selected actual response path was not reached'
+    if publication=='json':
+        result=response.json()
+        assert result['recordings'] == [], 'Ordinary JSON released a withdrawn descriptor'
+        assert int(response.headers['content-length']) == len(response.content)
+        assert not response.content.endswith(b'\n')
+    else:
+        events=[json.loads(line) for line in response.text.splitlines()]
+        assert not [event for event in events if event['type']=='error'], response.text
+        boundary=next(i for i,event in enumerate(events) if event['type']==publication)
+        for event in events[boundary:]:
+            if 'recordings' in event.get('data',{}):
+                assert event['data']['recordings'] == [], f"{event['type']} released a withdrawn descriptor"
+        completion=next(event['data'] for event in events if event['type']=='reply_complete')
+        assert ('recordings' in completion) == two_lane
+        result=next(event['data'] for event in events if event['type']=='result')
+    assert result['conversation_saved'] is True and result['reply']
+    assert storage.source_recordings(result['project_id'],result['accepted_source_id']) == []
+    assert client.get(recording['content_url']).status_code == 404
+
+
+@pytest.mark.parametrize('publication', ['json','source_accepted','result','reply_complete','conversation_saved'])
+@pytest.mark.parametrize('outcome', ['sent','cancelled','timeout','error'])
+def test_withdrawal_waits_for_actual_recording_descriptor_send(consent_workflow,media,publication,outcome):
+    from starlette.requests import ClientDisconnect
+    from apps.api.lifetime_memory_publication import TransactionalPublication
+    from test_lifetime_memory_transport import SCOPE,no_disconnect
+    from test_recording_descriptor_publication import response_for
     client,storage,sql,record,accepted,snapshot,fence=publication_recording(consent_workflow,media)
     async def scenario():
-        withdrawing=None
+        entered,release=asyncio.Event(),asyncio.Event()
+        cleaned,delivered=[],[]
+
+        async def cleanup():
+            cleaned.append(True)
+
         async def send(message):
-            nonlocal withdrawing
-            assert json.loads(message['body'])['data']['recordings']
+            if message['type']=='http.response.body' and b'content_url' in message.get('body',b''):
+                event=json.loads(message['body'])
+                data=event if publication=='json' else event['data']
+                assert data['recordings'] == snapshot, 'Allowed descriptors must stay unchanged'
+                entered.set()
+                await release.wait()
+                if outcome=='error':raise OSError('controlled ASGI send failure')
+            delivered.append(message)
+
+        publisher=TransactionalPublication(sql.publication_dsn,authenticated_owner=OWNER,
+            send_timeout=.5 if outcome=='timeout' else 2)
+        response=response_for(publication,{'reply':'Original memory','recordings':snapshot},
+            publisher,cleanup=cleanup,fence=fence)
+        sending=asyncio.create_task(response(SCOPE,no_disconnect,send))
+        withdrawing=None
+        try:
+            async with asyncio.timeout(3):await entered.wait()
             withdrawing=asyncio.create_task(asyncio.to_thread(client.put,ENDPOINT,
                 json={**POLICY,'action':'revoke','expected_revision':1}))
             observer=await psycopg.AsyncConnection.connect(sql.publication_dsn,autocommit=True)
@@ -149,11 +249,23 @@ def test_withdrawal_waits_for_actual_recording_descriptor_send(consent_workflow,
                         await asyncio.sleep(.01)
             finally:await observer.close()
             assert not withdrawing.done()
-        publisher=TransactionalPublication(sql.publication_dsn,authenticated_owner=OWNER)
-        message={'type':'http.response.body','more_body':True,'body':json.dumps({
-            'type':'source_accepted','data':{'recordings':snapshot}}).encode()+b'\n'}
-        await send_governed(send,message,publisher=publisher,fence=fence)
-        assert (await withdrawing).status_code == 200
+            if outcome=='cancelled':sending.cancel()
+            elif outcome!='timeout':release.set()
+            if outcome=='sent':
+                await sending
+                assert response.delivered
+            else:
+                expected_error={'cancelled':asyncio.CancelledError,'timeout':TimeoutError,'error':OSError}[outcome]
+                if publication!='json' and outcome in {'timeout','error'}:expected_error=ClientDisconnect
+                with pytest.raises(expected_error):await sending
+                assert not response.delivered
+                assert not any(b'content_url' in message.get('body',b'') for message in delivered)
+            assert (await withdrawing).status_code == 200
+            assert cleaned == [True]
+        finally:
+            sending.cancel()
+            await asyncio.gather(sending,return_exceptions=True)
+            if withdrawing is not None:await withdrawing
     asyncio.run(scenario())
     assert client.get(record['content_url']).status_code == 404
 
