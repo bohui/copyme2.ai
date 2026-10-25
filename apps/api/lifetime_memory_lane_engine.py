@@ -195,7 +195,7 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
         return profile_contract(fence)
     if phase == 'summarize':
         from .lifetime_memory_summary import summary_contract
-        return summary_contract(fence)
+        return summary_contract(fence,retry_reason=retry_reason)
     if phase == 'extract':
         if two_lane:
             from .two_lane_memory import extraction_contract
