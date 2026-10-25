@@ -32,6 +32,12 @@ authorized JSON length is known. Timeout, cancellation and send errors close the
 owning transaction; producer work and provider requests do not run inside these
 publication transactions.
 
+Standalone recording JSON has a two-second publication deadline, leaving three
+seconds for rollback/close and scheduling before consent revoke's unchanged
+five-second SQL deadline. JSON close runs in a shielded task and finishes even
+under repeated cancellation. The audio response keeps its existing five-second
+publication deadline and cleanup behavior.
+
 The following responses do not carry a readable recording descriptor or content
 link and keep their existing authorization and recovery behavior:
 

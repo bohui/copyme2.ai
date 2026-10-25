@@ -130,10 +130,16 @@ def descriptor(record):
 
 class OriginalContentResponse(Response):
     """Current policy stays locked through actual ASGI content publication."""
+    _publication_timeout = 5.0
+
     def __init__(self, content, record, owner, *, media_type=None):
         super().__init__(content, media_type=media_type or record['content_type'], headers={
             'Cache-Control':'private, no-store','Vary':'Authorization','X-Content-Type-Options':'nosniff'})
         self.recording_id, self.owner = str(UUID(record['id'])), str(UUID(owner))
+
+    async def _close_connection(self, connection):
+        import anyio
+        with anyio.CancelScope(shield=True): await connection.close()
 
     async def __call__(self, scope, receive, send):
         from psycopg import AsyncConnection, Error
@@ -142,7 +148,7 @@ class OriginalContentResponse(Response):
         try:
             dsn = os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')
             if not dsn: raise error(503,'RECORDING_DATABASE_UNAVAILABLE','Recording read guard unavailable')
-            async with asyncio.timeout(5):
+            async with asyncio.timeout(self._publication_timeout):
                 connection = await AsyncConnection.connect(dsn, connect_timeout=2)
                 await connection.execute("set local lock_timeout='2000ms'")
                 await connection.execute('select public.recording_server_operation(%s,%s,%s,%s)',
@@ -154,15 +160,22 @@ class OriginalContentResponse(Response):
             raise error(503,'RECORDING_DATABASE_UNAVAILABLE','Recording read guard unavailable') from None
         finally:
             if connection is not None:
-                import anyio
-                with anyio.CancelScope(shield=True): await connection.close()
+                await self._close_connection(connection)
 
 
 class RecordingJSONResponse(OriginalContentResponse):
     """Metadata/upload/retry JSON uses the existing original-recording guard."""
+    # Revoke has a five-second SQL deadline. Leave three seconds for close and
+    # scheduling rather than holding owner authority until that deadline.
+    _publication_timeout = 2.0
+
     def __init__(self, content, recording_id, owner):
         super().__init__(JSONResponse(content).body, {'id':recording_id}, owner,
             media_type='application/json')
+
+    async def _close_connection(self, connection):
+        from .lifetime_memory_reads import _settle
+        await _settle(asyncio.create_task(connection.close()))
 
 
 class RecordingStore:
