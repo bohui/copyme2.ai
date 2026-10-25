@@ -4513,7 +4513,10 @@ begin
    for witness in select value from jsonb_array_elements(contribution->'prose') loop
      select value into unit from jsonb_array_elements(units) where value->>'section_id'=witness->>'section_id' and value->>'field'=witness->>'field';
      ref:=contribution->'source_ref';
-     if unit is null or jsonb_typeof(witness->'excerpt') is distinct from 'string' or length(witness->>'excerpt')=0
+     -- Use the same Unicode whitespace set as Python str.strip(), independent
+     -- of the database locale. This predicate never rewrites stored prose.
+     if unit is null or jsonb_typeof(witness->'excerpt') is distinct from 'string'
+       or length(btrim(witness->>'excerpt',U&'\0009\000A\000B\000C\000D\001C\001D\001E\001F\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000'))=0
        or strpos(unit->>'excerpt',witness->>'excerpt')=0 then return false;end if;
      if not exists(select 1 from jsonb_array_elements(unit->'source_refs') r
        where r->>'source_id'=ref->>'source_id' and r->>'version'=ref->>'version'

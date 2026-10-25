@@ -11,8 +11,9 @@ from apps.api.lifetime_memory_composer import execute_lifetime_lane
 from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, LanePublication, run_bounded_lane
 from test_canonical_composer_provenance import controlled_draft
 from test_conversation_reply_transport import events, sse
+from test_agent_commit_postgres import as_user
 from test_lifetime_memory_lane_engine import BUDGET
-from controlled_composer_review import controlled_review
+from controlled_composer_review import WHITESPACE_ONLY, controlled_review
 
 from test_lifetime_composer_capacity import (sql, event_database, private_database, attachment_database,  # noqa: F401
     database, seeded_composer, section_result, service, rpc, literal, resolve, create_lane, OWNER)
@@ -55,6 +56,29 @@ def test_pg_prose_witness_cannot_describe_different_text(sql):
             prose=[dict(section_id='part', field='text', excerpt=source['text'])], reason='Included in the passage.')])
     with pytest.raises(AssertionError, match='review'):
         service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{claim['token']}',0,{literal(result)}")
+
+
+@pytest.mark.parametrize('whitespace', WHITESPACE_ONLY)
+@pytest.mark.parametrize('deferred', [False, True])
+def test_pg_blank_witness_cannot_claim_a_partially_represented_original(sql, whitespace, deferred):
+    identity, source, lane, claim = seeded_composer(sql)
+    prose = 'I' + whitespace + 'grew up.'
+    result = section_result(claim, prose)
+    item, = result['review']['contributions']
+    if deferred:
+        item.update(disposition='deferred', prose=[], reason='The passage omits Chengde; the original is only partly represented.')
+        service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{claim['token']}',0,{literal(result)}")
+        service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{claim['token']}'")
+        # splitlines() would split legal JSON string content at U+0085/U+2028.
+        head = json.loads(sql(as_user("select to_jsonb(public.read_lifetime_private_draft_head("
+            + literal(identity['project_id']) + "));", OWNER)).stdout.strip())
+        assert head['status'] == 'ready' and head['preview']['text'] == prose
+    else:
+        item['prose'] = [dict(section_id='part', field='text', excerpt=whitespace)]
+        with pytest.raises(AssertionError, match='review'):
+            service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{claim['token']}',0,{literal(result)}")
+        assert sql('select count(*) from public.user_lifetime_lane_page_receipt;').stdout.strip() == '0'
+    assert sql(f"select text from public.user_narrator_source where id='{source['id']}';").stdout.strip() == 'I grew up in Chengde.'
 
 
 @pytest.mark.parametrize('fault', ['missing_prose', 'duplicate_prose', 'negative_prose', 'missing_contribution',

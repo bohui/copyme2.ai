@@ -369,14 +369,34 @@ def composition_request(job):
 
 async def compose_shared_snapshot(job, worker):
     request, config = composition_request(job)
-    if job.get('previous') and 'manuscript' in job['previous'] and not request['context']['dirty_event_ids'] and job['previous'].get('content_config') == config and not job.get('batch'):
+    refresh_draft = None
+    previous = job.get('previous') or {}
+    prior_request = previous.get('request') or {}
+    if ('manuscript' in previous and not request['context']['dirty_event_ids']
+            and previous.get('content_config') == config and not job.get('batch')
+            and previous.get('source_manifest') == job['source_manifest']
+            and prior_request.get('project_id') == request['project_id']
+            and prior_request.get('sources') == request['sources']
+            and prior_request.get('snapshot', {}).get('policy_epoch') == request['snapshot']['policy_epoch']
+            and prior_request.get('context', {}).get('preferences') == request['context'].get('preferences')
+            and not previous['draft'].get('proposed_replacements')):
         from .composer_review import review_requirements, review_errors
-        previous = job['previous']
         requirements = review_requirements(request, previous['draft'], previous['manuscript'])
         if not review_errors(previous.get('review'), requirements):
             bundle = copy.deepcopy(previous)
             bundle['unchanged'] = True
             return bundle
+        # Reuse the complete saved writing, not the previous model's delta.
+        # The normal composer path pins current metadata, validates and reviews
+        # it; only an actual validation/review failure may request another draft.
+        refresh_draft = copy.deepcopy(previous['draft'])
+        refresh_draft.update(chapters=copy.deepcopy(previous['manuscript']['chapters']),
+            retired_chapter_ids=[], proposed_replacements=[], carry_forward_chapter_ids=[])
+        revisions = {row['chapter']['id']: row['revision'] for row in request['prior_state']['chapters']}
+        for chapter in refresh_draft['chapters']:
+            chapter.update(base_revision=revisions[chapter['id']], change_type='enrich')
+        if refresh_draft['kind'] == 'sample_storyline':
+            refresh_draft['storyline'] = copy.deepcopy(previous['manuscript']['storyline'])
     runtime = SimpleNamespace(worker_url=worker.worker_url, worker_secret=worker.worker_secret,
                               worker_transport=worker.worker_transport)
     storage = SimpleNamespace(user_id=job['user_id'])
@@ -387,6 +407,9 @@ async def compose_shared_snapshot(job, worker):
         runtime.lane_publisher = getattr(worker, 'lane_publisher', None)
     checkpoint_key = fingerprint({'snapshot': request['snapshot'], 'config': config})
     checkpoint = await worker.broker.rpc('read_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'], p_key=checkpoint_key) or {}
+    if refresh_draft is not None and not checkpoint.get('draft') and not checkpoint.get('repair'):
+        checkpoint['draft'] = refresh_draft
+        checkpoint.pop('review', None)
     if checkpoint.get('repair', {}).get('candidate') is not None:
         checkpoint['repair']['validation'] = await validate_canonical_candidate(
             checkpoint.get('request', request), checkpoint['repair']['candidate'])

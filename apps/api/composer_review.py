@@ -144,7 +144,7 @@ def review_errors(review, requirements):
             errors.append('REPRESENTED_CONTRIBUTION_HAS_NO_PROSE')
         for witness in item['prose']:
             unit = expected.get((witness['section_id'], witness['field']))
-            if (unit is None or witness['excerpt'] not in unit['excerpt']
+            if (unit is None or not witness['excerpt'].strip() or witness['excerpt'] not in unit['excerpt']
                     or not any(_ref_key(ref)[:2] == key[:2]
                         and ref['char_start'] < key[3] and ref['char_end'] > key[2]
                         for ref in unit['source_refs'])):

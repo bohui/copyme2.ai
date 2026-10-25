@@ -74,5 +74,8 @@ def test_unchanged_legacy_bundle_cannot_skip_a_current_review(monkeypatch):
     phases.clear()
     second = asyncio.run(compose_shared_snapshot({**job, 'base_revision':1, 'previous':first}, worker))
     assert second['status'] == 'ready'
-    assert 'review' in phases
+    assert phases == ['review']
     assert second['review']['contract_version'] == 2
+    assert second['manuscript']['chapters'][0]['blocks'] == first['manuscript']['chapters'][0]['blocks']
+    assert second['draft']['expected_manuscript_revision'] == 1
+    assert second['draft']['input_snapshot_id'] == second['request']['snapshot']['id']
