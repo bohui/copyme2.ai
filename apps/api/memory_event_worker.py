@@ -51,6 +51,7 @@ _SAFE_VALIDATION_KINDS = {
     'Unresolved candidates must be canonical scoped identities': 'candidate_scope',
     'Chronology requires a canonical scoped target': 'chronology_scope',
     'Explicit correction must cite the current original statement': 'correction_evidence',
+    'Correction requires explicit correction wording': 'correction_wording',
     'Evidence must match an authorised original source version': 'evidence_mismatch',
     'Evidence span must match the original words': 'evidence_span',
     'Stage placement requires evidence': 'stage_evidence',

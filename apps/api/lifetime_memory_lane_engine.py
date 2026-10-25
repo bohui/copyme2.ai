@@ -46,6 +46,7 @@ EXTRACTION_REJECTION_REASONS = {
     'Chronology requires a canonical scoped target': 'CHRONOLOGY_SCOPE',
     'Explicit correction must cite the current original statement': 'CORRECTION_SCOPE',
     'Correction requires timeline placement fields': 'CORRECTION_SCOPE',
+    'Correction requires explicit correction wording': 'CORRECTION_WORDING',
     'Evidence must match an authorised original source version': 'EVIDENCE_SOURCE',
     'Evidence span must match the original words': 'EVIDENCE_SPAN',
     'Stage placement requires evidence': 'STAGE_EVIDENCE',

@@ -424,6 +424,31 @@ def test_event_person_and_chronology_references_cannot_cross_project_scope(sql):
     assert rpc(sql, 'read_user_memory_events', "'project'")['events'] == [saved]
 
 
+@pytest.mark.parametrize('text', [
+    'That late-teenage winter belongs to adolescence, even though the exact month is unknown.',
+    '那年冬天属于青少年时期，具体月份已经记不清了。',
+])
+def test_new_stage_evidence_is_an_ordinary_update_without_explicit_correction_wording(sql,text):
+    from apps.api.memory_events import validate_extraction
+    first=rpc(sql,'accept_user_narrator_source',f"'project','{TURN}','I spent a winter repairing a radio.'")
+    event=extract(sql,[first],[dict(kind='event',title='Winter',source_refs=[dict(source_id=first['id'],version=1,quote=first['text'])])])['events'][0]
+    latest=rpc(sql,'accept_user_narrator_source',f"'project','00000000-0000-4000-8000-000000000002',{literal(text)}")
+    ref=dict(source_id=latest['id'],version=1,quote=text)
+    proposal=dict(existing_id=event['id'],expected_revision=event['revision'],kind='event',title='Winter',
+        life_stage='adolescence',stage_evidence=[ref],source_refs=[ref],correction=ref)
+    with pytest.raises(ValueError,match='explicit correction wording'):
+        validate_extraction({'events':[proposal]},[latest],[event])
+    # The same SQL guard remains authoritative for callers bypassing Python.
+    args=f"'project',{literal([dict(id=latest['id'],version=1)])},{literal([proposal])}"
+    assert rpc(sql,'apply_user_memory_events',args,check=False).returncode!=0
+    proposal.pop('correction')
+    accepted=validate_extraction({'events':[proposal]},[latest],[event])
+    saved=extract(sql,[latest],accepted)['events'][0]
+    assert saved['id']==event['id'] and saved['life_stage']=='adolescence'
+    assert sql(f"select coalesce(data->'user_overrides','{{}}'::jsonb) ? 'life_stage' from public.user_memory_event where id={literal(saved['id'])};").stdout.strip()=='f'
+    assert rpc(sql,'read_user_memory_events',"'project'")['sources'][-1]['text']==text
+
+
 def test_explicit_chat_correction_uses_the_accepted_original_without_duplicate_testimony(sql):
     first = rpc(sql, 'accept_user_narrator_source', f"'project', '{TURN}', 'I started school in 1964.'")
     event = extract(sql, [first], [{'kind':'event','title':'Started school','source_refs':[{'source_id':first['id'],'version':1,'quote':first['text']}]}])['events'][0]
