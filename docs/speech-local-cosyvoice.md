@@ -13,6 +13,9 @@ Add this block to `.env`:
 GROQ_API_KEY=
 COSYVOICE_API_KEY=
 COSYVOICE_BASE_URL=http://192.168.0.50:50001
+# Opt in only after storage, identity, and consent are configured. This retains
+# each original recording in private storage before sending it to STT.
+MEMOIR_ORIGINAL_RECORDINGS=1
 MEMORY_SPARK_STT_MODEL=whisper-large-v3-turbo
 MEMORY_SPARK_TTS_MODEL=cosyvoice-v3-flash
 MEMORY_SPARK_TTS_VOICE_EN_AU=longwan_v3
@@ -30,6 +33,13 @@ The API calls authenticated `POST /tts` with the server's `text`, `voice`, and
 exposes different voice names, set the two `MEMORY_SPARK_TTS_VOICE_*` variables
 to those names. The server serializes synthesis requests and may return a busy
 response; the client treats that as retryable.
+
+Browser microphone transcription uses the same backend route that preserves the
+original audio. Set `MEMOIR_ORIGINAL_RECORDINGS=1`, provide
+`MEMOIR_PUBLICATION_DATABASE_URL` (the Makefile derives it from
+`SUPABASE_DB_URL` when unset), and link the browser session to a recoverable
+identity. Anonymous sessions are intentionally rejected before STT so raw voice
+is never retained without an approved identity and consent.
 
 Qwen3-ASR-Flash remains an optional Mandarin fallback. Enable it by adding
 `DASHSCOPE_API_KEY`, `DASHSCOPE_WORKSPACE_ID`, and `DASHSCOPE_REGION` to `.env`.
