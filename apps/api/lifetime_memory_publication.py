@@ -142,18 +142,25 @@ async def send_governed(send, message, *, publisher, fence):
     Already-delivered or network-buffered text cannot be recalled on withdrawal.
     """
     snapshot = ExecutionFence.model_validate(fence).model_dump(mode='json')
-    event = None
+    payload = None
     data = None
-    if message.get('more_body') and b'"recordings"' in message.get('body',b''):
-        event=json.loads(message['body'])
-        if event.get('type') in {'source_accepted','result'} and isinstance(event.get('data'),dict):
-            data=event['data']
+    body = message.get('body', b'')
+    if b'"recordings"' in body:
+        payload = json.loads(body)
+        if isinstance(payload, dict):
+            # JSON responses carry the result directly; NDJSON events wrap it
+            # in data. Authorization follows the payload, not the event name
+            # or ASGI's more_body flag (which is absent on ordinary JSON).
+            data = payload if 'recordings' in payload else payload.get('data')
+            if not isinstance(data, dict):
+                data = None
     records=data.get('recordings') if data is not None else None
     options={'recording_ids':[record['id'] for record in records]} if records else {}
     async with publisher.guard(snapshot,**options) as current_recordings:
         if records:
             data['recordings']=current_recordings
-            message={**message,'body':json.dumps(event,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode()+b'\n'}
+            suffix = b'\n' if body.endswith(b'\n') else b''
+            message={**message,'body':json.dumps(payload,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode()+suffix}
         await send(message)
     return message
 

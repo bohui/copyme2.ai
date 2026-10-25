@@ -350,12 +350,27 @@ class GovernedJSONResponse(JSONResponse):
         await _finish_cleanup(self._closing)
 
     async def __call__(self, scope, receive, send):
+        start = None
+
+        async def send_body(message):
+            # Descriptor filtering can change the serialized length. Defer
+            # headers until the guarded body is final, then hold authorization
+            # through both actual ASGI sends.
+            headers = [(name, str(len(message['body'])).encode('ascii'))
+                       if name == b'content-length' else (name, value)
+                       for name, value in start['headers']]
+            await send({**start, 'headers': headers})
+            await send(message)
+
         async def guarded_send(message):
+            nonlocal start
             if message['type'] == 'http.response.body':
-                await send_governed(send, message, publisher=self.publisher, fence=self.fence)
+                await send_governed(send_body, message, publisher=self.publisher, fence=self.fence)
                 if not message.get('more_body', False):
                     self.delivered = True
                     if self.on_delivered:self.on_delivered({'type':'result'})
+            elif message['type'] == 'http.response.start':
+                start = message
             else:
                 await _send_generic(send, message, self.publisher)
         try:
