@@ -12,12 +12,18 @@ from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, LanePublicati
 from test_canonical_composer_provenance import controlled_draft
 from test_conversation_reply_transport import events, sse
 from test_agent_commit_postgres import as_user
+from test_agent_commit_postgres import database as base_database
 from test_lifetime_memory_lane_engine import BUDGET
 from controlled_composer_review import WHITESPACE_ONLY, controlled_review
 from test_composer_runtime_craft import CRAFT_FAULTS, craft_report, corrupt_craft
 
 from test_lifetime_composer_capacity import (sql, event_database, private_database, attachment_database,  # noqa: F401
-    database, seeded_composer, section_result, service, rpc, literal, resolve, create_lane, OWNER)
+    seeded_composer, section_result, service, rpc, literal, resolve, create_lane, OWNER)
+
+
+@pytest.fixture(scope='module')
+def database():
+    yield from base_database.__wrapped__(publication_tcp=True)
 
 
 def test_pg_zero_craft_scores_remain_advisory_after_durable_save(sql):

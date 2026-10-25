@@ -27,6 +27,24 @@ def craft_report(requirements, *, score=0):
         suggested_follow_up=None) for criterion in CRITERIA])
 
 
+def test_each_craft_prose_example_needs_its_own_matching_original_reference():
+    from apps.api.composer_review import review_errors
+    originals = [dict(source_ref=dict(source_id=identity, version='1', char_start=0, char_end=len(text)),
+                      quote=text) for identity, text in [('home', 'I grew up by the sea.'),
+                                                        ('school', 'I walked to school.')]]
+    units = [dict(section_id=item['source_ref']['source_id'], field='text', excerpt=item['quote'],
+                  source_refs=[deepcopy(item['source_ref'])]) for item in originals]
+    requirements = dict(prose=units, contributions=originals)
+    review = controlled_review(dict(requirements=requirements))
+    review['craft'] = craft_report(requirements)
+    voice = next(item for item in review['craft']['ratings'] if item['criterion'] == 'voice')
+    voice['source_evidence'] = [dict(source_ref=deepcopy(originals[1]['source_ref']), excerpt=originals[1]['quote'])]
+    voice['prose_evidence'] = [{key:unit[key] for key in ('section_id','field','excerpt')} for unit in units]
+    assert review_errors(review, requirements) == ['CRAFT_PROSE_MISMATCH']
+    voice['prose_evidence'] = voice['prose_evidence'][1:]
+    assert review_errors(review, requirements) == []
+
+
 def test_low_craft_scores_are_advisory_and_do_not_redraft_supported_prose(monkeypatch):
     job = unchanged_job()
     phases, checkpoints, packets = [], {}, []

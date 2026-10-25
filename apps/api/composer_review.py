@@ -62,8 +62,10 @@ class CraftRating(ReviewValue):
     confidence: Literal['high', 'medium', 'low']
     confidence_basis: str = Field(min_length=1, max_length=200)
     reason: str = Field(min_length=1, max_length=300)
-    source_evidence: list[CraftSource] = Field(max_length=2)
-    prose_evidence: list[CraftProse] = Field(max_length=2)
+    source_evidence: list[CraftSource] = Field(max_length=2,
+        description="Exact references from requirements.contributions supporting this rating. Every prose example must share one of these exact source references.")
+    prose_evidence: list[CraftProse] = Field(max_length=2,
+        description="Exact excerpts from requirements.prose. Each chosen section must list at least one exact source_ref from this rating's source_evidence; omit sections without a matching reference.")
     suggested_follow_up: str | None = Field(max_length=240)
 
 
