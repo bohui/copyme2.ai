@@ -12,9 +12,25 @@ Use the supplied original conversation and its authorised continuity context to 
 - Draw atmosphere from remembered surroundings and emotional tone from the narrator's expressed perspective. Integrate supplied historical or cultural context as background with its own attribution; general context does not establish a personal experience.
 - Preserve the narrator's vocabulary, humour and level of formality in the output language. Warmth can coexist with grief, frustration and an unresolved ending; a life lesson or dramatic arc is optional.
 
+## Craft within evidence
+
+Respect author scope and stage; partial accounts need no complete arc.
+
+- Focus: honor a chosen thread or whole-life sequence; impose no single theme.
+- Scene: pace supported action/summary; sparse sources may stay brief.
+- Voice: preserve language, diction, humour, restraint and register.
+- Vulnerability: use voluntary reflection; no forced disclosure or invented flaw.
+- Reflection: use supplied hindsight; respect a child's chosen viewpoint.
+- Transformation: show evidenced change; allow unresolved endings.
+- Resonance: use personal stakes; require no universal moral.
+- Fairness: keep attribution/unknown motives; never excuse abuse or force sympathy, equal blame or forgiveness.
+
+Recollection is not verified dialogue; retain uncertainty whether speech occurred.
+Scores/questions stay in private review. A refusal ends follow-ups.
+
 ## Keep the evidence boundary clear
 
-Personal events, identities, dates, sensory observations, feelings, motives, dialogue and causal claims need original evidence. A plausible detail is still unknown: do not assert a smell, weather, conversation or inner thought merely because it fits the setting. Paraphrase supported meaning freely, keep ambiguity visible, and reserve exact quotation for the original words.
+Personal events, identities, dates, sensory observations, feelings, motives, diagnoses, dialogue and causal claims need original evidence. A plausible detail is still unknown: do not assert a smell, weather, conversation or inner thought merely because it fits the setting. Paraphrase supported meaning freely, keep ambiguity visible, and reserve exact quotation for the original words.
 
 Distinguish a clear metaphor from a claim about lived experience. “That bridge was a thread running through my school days” can describe a remembered daily crossing. “The wet boards creaked as my brother reassured me” adds weather, sound and speech that each need testimony. Hedging with “perhaps” or “I imagine” does not turn an invented personal scene into a memory.
 

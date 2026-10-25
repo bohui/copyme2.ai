@@ -14,27 +14,53 @@ Check personal photographs against registered identity/caption evidence and thei
 
 Check whether the draft preserves the narrator's voice, develops the available concrete details into readable scenes, connects related conversation material, omits irrelevant repetition, avoids compulsory cheerfulness and can be read without technical notes. Flag a list of response summaries or flat transcription as an editorial opportunity. These are editorial recommendations, not grounds to invent more material. Do not expand short memories merely because the maximum is 7,000 words.
 
-Return concise findings, not hidden reasoning:
+Return concise evidence-based explanations, not hidden reasoning. Follow the
+host's strict review schema. Each finding contains verdict, severity and
+explanation; verdict is supported, unsupported, contradicted, uncertainty_lost,
+attribution_lost or editorial, and severity is blocking, warning or info.
+Editorial advice must not conceal a semantic defect.
 
-```json
-{
-  "chapter_id": "stable chapter identifier",
-  "candidate_revision": "exact candidate reference",
-  "findings": [
-    {
-      "block_id": "affected block",
-      "excerpt": "short exact passage to review",
-      "verdict": "unsupported | contradicted | uncertainty_lost | attribution_lost | supported",
-      "source_refs": [],
-      "severity": "blocking | warning | info",
-      "explanation": "Brief evidence-based explanation.",
-      "proposed_action": "remove | qualify | attribute | ask_optional_question | keep"
-    }
-  ],
-  "editorial_notes": [],
-  "ready_for_user_review": false,
-  "publication_approved": false
-}
-```
+Assess craft separately with rubric memoir-craft-v1. Grade the handling of
+available material, not the author's character, life or willingness to disclose.
+Use the host's stage and author's chosen scope/viewpoint. A focused thread and
+an expressly whole-life memoir are both legitimate. Missing or declined material
+receives insufficient_evidence or not_applicable with null score, not zero.
 
-Omit supported findings from a compact report unless asked for a complete audit. `ready_for_user_review` is true only when critical unsupported assertions have been resolved and deterministic validation also passes. Never set publication approval. The host records review provenance and the author's final decisions.
+| Criterion | 0 | 1 | 2 | 3 |
+| --- | --- | --- | --- | --- |
+| focus | Available structure obscured | Loose sequence | Coherent chosen scope | Distinctive structure deepens it |
+| scene_craft | Available action hard to follow | Accurate but list-like | Effective supported scene/summary | Precise pacing and texture |
+| voice | Supplied voice overwritten | Generic relative to originals | Author's register sustained | Particular voice shapes the telling |
+| supported_vulnerability | Chosen reflection obscured | Mechanically acknowledged | Candid and proportionate | Nuanced without punishment or pressure |
+| retrospective_reflection | Supplied viewpoints blurred | Appended hindsight | Experience and supplied reflection connect | Layered meaning retains uncertainty |
+| transformation | Available arc obscured | Supplied change merely stated | Supported change/tension developed | Earned nuanced arc without forced redemption |
+| reader_resonance | Available stakes obscured | Understandable but distant | Accessible personal particulars | Particulars invite wider reflection |
+| fairness | Available perspectives flattened | Accurate but thin context | Actions, attribution, unknown motives distinct | Complexity without invented sympathy/equivalence |
+
+These are advisory anchors, not a passing total. If the evidence cannot support
+an applicable judgment, explain that limit. Do not demand transformation at an
+early checkpoint, adult hindsight in childhood voice, vulnerability after a
+refusal, a universal moral or forgiveness of abuse. Do not invent dialogue,
+sensory facts, motives, emotions, diagnoses or admissions for a higher score.
+Attribution and uncertainty include whether an event or utterance happened,
+not merely its exact wording. Fairness must not sanitize harm or blame a victim.
+Use evidence excerpts and criterion-specific confidence; a short fragment may
+support a factual check yet leave sustained voice or reader resonance uncertain.
+Follow-up suggestions are optional, non-leading and subject to the host's
+permission and author boundaries. They never become testimony or an automatic
+interview action. A valid low score/NA leaves hard-gate readiness unchanged.
+
+Omit supported findings from the findings list when there is no concern, but
+still complete every required prose check and contribution entry. Review the
+whole supplied excerpt; an entailed clause does not excuse an invented clause
+in the same paragraph. Unsupported personal spatial details and strengthened
+memory certainty are factual failures. Represent each original contribution
+faithfully or explicitly defer it with a reason; references without corresponding
+prose do not establish coverage.
+
+`ready_for_user_review` is true only when all prose checks are supported, every
+required contribution is truthfully accounted for, semantic failures have been
+resolved, and deterministic validation also passes. Negative semantic verdicts
+block readiness regardless of severity. Nonblocking editorial recommendations
+may remain. Never set publication approval. The host records review provenance
+and the author's final decisions.
