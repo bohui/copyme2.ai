@@ -79,6 +79,8 @@ def validate_attribution(raw, page, events):
             if len(matches) != 1:
                 raise ValueError('Place association requires one unambiguous event proposal')
             item['event_index'] = matches[0]
+            if events[matches[0]].get('candidate_ids'):
+                continue  # An unresolved identity cannot authorize an event place.
             normalized = validate_place_journey(item['place'])
             if not normalized or item['place']['place'] not in quote:
                 raise ValueError('Event place requires a named coarse place in its own evidence')
