@@ -521,6 +521,13 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
             normalize_new_chapter_revisions(request, draft)
             normalize_canonical_actions(draft)
             normalize_canonical_event_dispositions(draft)
+        if getattr(runtime, 'lifetime_bounded', False):
+            from .lifetime_memory_lane_engine import lane_artifact_digest
+            page = runtime.lifetime_page
+            # Review/repair consumes the host-restored candidate, including on resume.
+            await runtime.lane_broker.rpc('record_lifetime_lane_output',
+                p_lane_id=page['lane_id'], p_token=page['token'], p_page_number=page['page_number'],
+                p_phase='draft', p_digest=lane_artifact_digest('draft', draft), p_page_digest=page['page_digest'])
         if request.get('context', {}).get('canonical_event_index'):
             from .canonical_composer import validate_canonical_candidate
             validation = await validate_canonical_candidate(request, draft)
