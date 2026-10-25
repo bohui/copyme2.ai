@@ -1,4 +1,5 @@
 """Drive real production orchestration through the evaluation CLI seam."""
+from controlled_composer_review import controlled_review
 import asyncio
 from copy import deepcopy
 
@@ -81,7 +82,7 @@ def test_composer_production_checkpoint_uses_external_model_fixture(tmp_path, ca
                 partition = payload['partition']
                 output = dict(event_id=partition['id'], context='Original bicycle memories.', source_refs=partition['source_refs'])
             elif request['phase'] == 'draft': output = draft_all(payload)
-            else: output = dict(ready_for_user_review=True, publication_approved=False, findings=[])
+            else: output = controlled_review(payload)
             return dict(output=output, response_id='composer-fixture', model='controlled-model', usage=None)
     receipt = asyncio.run(suite.run(suite.plan(case=[
         'memoir-composer/' + case + '/' + locale]), tmp_path, composer_provider=Composer(), max_skill_calls=12))

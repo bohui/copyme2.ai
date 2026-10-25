@@ -1,4 +1,5 @@
 """Bounded canonical lanes: fake provider plus isolated PostgreSQL only."""
+from controlled_composer_review import controlled_review, controlled_section_review
 import asyncio
 import copy
 import json
@@ -289,7 +290,7 @@ def test_composer_partition_retains_absolute_original_span_and_current_identity(
             assert packet['request']['events'][0]['id']=='canonical-home'
             assert packet['request']['sources'][0]['text']==current['source']['text']
             result=controlled_draft(packet,current['source']['text'],'童年')
-        else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+        else:result=controlled_review(packet)
         return httpx.Response(200,json={'reply':json.dumps(result,ensure_ascii=False)})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
     result=asyncio.run(_compose(current,worker))
@@ -308,12 +309,15 @@ def test_privacy_overflow_is_durable_pending_without_provider_call():
     assert asyncio.run(execute_lifetime_lane(current,SimpleNamespace(broker=Broker())))['status']=='pending'
 
 
-def seeded_composer(sql,*,size=1):
+def seeded_composer(sql,*,size=1,summary_messages=()):
     identity=resolve(sql);project=identity['project_id']
     source=rpc(sql,'accept_user_narrator_source',f"{literal(project)},'00000000-0000-4000-8000-000000000001','I grew up in Chengde.'")
     ref=dict(source_id=source['id'],version=1,quote=source['text'],char_start=0,char_end=len(source['text']))
     proposal=dict(kind='event',title='Childhood',source_refs=[ref])
     rpc(sql,'apply_user_memory_events',f"{literal(project)},{literal([{'id':source['id'],'version':1}])},{literal([proposal])}")
+    for index, text in enumerate(summary_messages, 2):
+        extra=rpc(sql,'accept_user_narrator_source',f"{literal(project)},'{UUID(int=index)}',{literal(text)}")
+        rpc(sql,'apply_user_memory_events',f"{literal(project)},{literal([{'id':extra['id'],'version':1}])},'[]'")
     lane=create_lane(sql,identity,'composer')
     claim=service(sql,'claim_memoir_lane',f"'{lane}',900")
     return identity,source,lane,claim
@@ -326,7 +330,7 @@ def section_result(claim,text='I grew up in Chengde.'):
         identifier='part' if i==0 else 'part-'+event['id']
         sections.append(dict(id=identifier,chapter_id=identifier,event_ids=[event['id']],source_refs=refs,content=text,
           block={'id':identifier,'type':'paragraph','text':text,'source_refs':refs},heading={'title':'Childhood'}))
-    return dict(_controlled_model_fixture=True,status='ready',validation={'ok':True},review={'ready_for_user_review':True,'publication_approved':False,'findings':[]},
+    return dict(_controlled_model_fixture=True,status='ready',validation={'ok':True},review=controlled_section_review(claim, sections),
         manuscript={'kind':'sample_chapter'},sections=sections,
         preview={'id':'part','title':'Childhood','text':text,'locale':claim['locale']})
 
@@ -706,6 +710,7 @@ def test_pg_protected_original_is_purged_when_new_proposal_uses_another_source(s
             assert selected_refs
             section['source_refs'] = selected_refs
             section['block']['source_refs'] = selected_refs
+        proposed['review'] = controlled_section_review(current, proposed['sections'])
         service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{token}',{current['page_number']},{literal(proposed)}")
         current = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{token}'")
     assert service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{token}'")['status'] == 'proposed'
@@ -752,6 +757,7 @@ def test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoc
                 assert text == 'An unrelated account in Sydney.'
         if reverse_events:
             proposed['sections'].reverse()
+        proposed['review'] = controlled_section_review(current, proposed['sections'])
         service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{token}',{current['page_number']},{literal(proposed)}")
         current=service(sql,'read_lifetime_memoir_lane_page',f"'{lane}','{token}'")
     service(sql,'complete_lifetime_memoir_lane',f"'{lane}','{token}'")
@@ -798,7 +804,7 @@ def test_pg_real_composer_chain_registers_artifacts_and_saves_bounded_checkpoint
             if restart and first_review:
                 first_review=False
                 raise asyncio.CancelledError('Synthetic worker loss after persisted draft')
-            result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+            result=controlled_review(payload)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model),
         lane_publisher=LanePublication(dsn,authenticated_owner=OWNER))
@@ -810,7 +816,7 @@ def test_pg_real_composer_chain_registers_artifacts_and_saves_bounded_checkpoint
         assert renewed['input_digest']==claim['input_digest']
         claim=renewed
     result=asyncio.run(execute_lifetime_lane(claim,worker))
-    assert result['status']=='saved' and phases==['prepare','draft','review']+(['review'] if restart else [])
+    assert result['status']=='saved' and phases==['draft','review']+(['review'] if restart else [])
     assert sql('select count(*) from public.user_lifetime_lane_output;').stdout.strip()=='3'
     assert sql('select bool_and(jsonb_array_length(source_manifest)=1 and jsonb_array_length(event_manifest)=1 and lifetime_page=0) from public.user_memoir_checkpoint;').stdout.strip()=='t'
     head=rpc(sql,'read_lifetime_private_draft_head',literal(project))
@@ -864,7 +870,9 @@ def add_same_page_continuity(sql,identity,source,page):
 @pytest.mark.parametrize('barrier',['record_lifetime_lane_output','save_memoir_checkpoint'])
 def test_pg_model_reply_cannot_register_or_checkpoint_under_changed_same_page_context(sql,barrier):
     from apps.api.lifetime_memory_lane_engine import LanePublication,BoundedLaneInput,LaneFence,lane_artifact_digest
-    identity,source,lane,claim=seeded_composer(sql);phases=[];changed=False
+    # This fault is specifically after a provider reply; retain model preparation
+    # by using the over-limit fallback, alongside the short host-proof tests.
+    identity,source,lane,claim=seeded_composer(sql, summary_messages=('Thanks. ' * 160,) * 4);phases=[];changed=False
     dsn=sql.publication_dsn
     from apps.api.progressive_composer import summary_partition
     partition=summary_partition(claim)
@@ -923,7 +931,7 @@ def test_real_composer_resume_reuses_completed_phases_after_lease_token_renewal(
         elif phase=='draft':result=controlled_draft(packet,source['text'],'Childhood')
         else:
             if first_review:first_review=False;raise asyncio.CancelledError('Synthetic worker loss after draft checkpoint')
-            result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+            result=controlled_review(packet)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
     with pytest.raises(asyncio.CancelledError):asyncio.run(_compose(current,worker))

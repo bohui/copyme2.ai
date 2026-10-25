@@ -121,6 +121,46 @@ checkpoint eligible through the normal lane.
 
 ## 5. Persistence, resumability and concurrency
 
+The host's version-3 semantic review requires an exact prose audit and an
+explicit represented/deferred entry for every authorized canonical contribution.
+Prose witnesses bind section, field, exact text and current source spans;
+represented contributions also identify actual matching prose excerpts. These
+structural checks do not independently prove entailment: the separate reviewer
+must assess assertion meaning, speaker roles, uncertainty and omissions. A
+negative semantic verdict cannot authorize a save through a contradictory ready
+flag or warning severity. Editorial warnings remain nonblocking.
+
+The same review call also returns `craft` with rubric ID `memoir-craft-v1` and
+exactly eight private advisory ratings: focus, scene craft, voice, supported
+vulnerability, retrospective reflection, supported transformation, reader
+resonance and fairness. Each has applicability, 0–3 score or null for NA or
+insufficient evidence, criterion-specific confidence/basis, a reason and bounded
+exact source/prose excerpts. No aggregate score or minimum craft score controls
+readiness. Whole-life scope, child viewpoint, declined disclosure and unresolved
+endings remain legitimate. Scores and suggestions never enter memoir prose.
+
+The host provides `requirements.craft_context`: partial/formal stage, output
+kind, author editorial instruction and whether optional follow-ups are allowed.
+Current canonical composition has a zero follow-up allowance; suggestions must
+be null there. Excluded/paused topics and an explicit refusal also disable them.
+Even an allowed suggestion is private advisory metadata, not permission to ask,
+schedule, publish or alter originals. These checks bind provenance, not literary
+truth or the wisdom of a question; separate semantic review remains necessary.
+
+Malformed craft metadata or invalid craft excerpts use a bounded review-only
+repair of the saved draft. Low scores and justified NA require no repair. Hard
+semantic errors retain the existing bounded draft/review repair path. Both
+paths share the existing three-attempt ceiling and keep durable checkpoints.
+
+Older saved drafts remain resumable. An older review is not a version-3
+acceptance proof: obtain a current review of the saved draft without repeating
+successful preparation or drafting merely to upgrade the review contract.
+Legacy completed bundles likewise require a current review before reuse.
+Legacy ready roots remain readable and are not retroactively certified. New
+workers, API schema, prompt pins and SQL version-3 predicates must be activated
+together through their separately approved process; mixed writers fail closed.
+No new reader fields, automatic interview actions or storage tables are needed.
+
 Recommended run states:
 
 ```text

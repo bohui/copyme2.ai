@@ -14,6 +14,7 @@ import pytest
 
 from apps.api.canonical_composer import composer_request
 from apps.api.memoir_preview import skill_operation
+from controlled_composer_review import controlled_section_review
 from apps.api.progressive_composer import batch_job
 from test_canonical_composer_provenance import controlled_draft
 from test_lifetime_composer_capacity import seeded_composer, service
@@ -82,7 +83,7 @@ def validated_result(page, blocks, *, event_ids=None):
     sections.append(dict(id=chapter['id']+'__heading',chapter_id=chapter['id'],event_ids=event_ids,
         source_refs=chapter['source_refs'],content=chapter['title'],heading=dict(title=chapter['title'],subtitle='')))
     return dict(_controlled_model_fixture=True,status='ready',validation=validation,
-        review=dict(ready_for_user_review=True,publication_approved=False,findings=[]),
+        review=controlled_section_review(page, sections),
         manuscript=dict(kind='sample_chapter'),sections=sections,preview=dict(text=source_text(blocks)),
         photo_association_manifest=request['context']['photo_association_manifest'])
 

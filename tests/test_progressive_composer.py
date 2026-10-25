@@ -1,4 +1,5 @@
 """Five-round summaries and exact carry-forward through the real model boundary."""
+from controlled_composer_review import controlled_review
 import asyncio
 from copy import deepcopy
 import json
@@ -8,9 +9,9 @@ from uuid import UUID
 import httpx
 import pytest
 
-from apps.api.lifetime_memory_composer import _compose
+from apps.api.canonical_composer import compose_shared_snapshot
 from apps.api.lifetime_memory_lane_engine import BoundedLaneInput
-from apps.api.progressive_composer import summary_partition
+from apps.api.progressive_composer import batch_job, summary_partition
 from test_canonical_composer_provenance import controlled_draft
 from test_lifetime_memory_lane_engine import page, Publisher
 from test_lifetime_composer_capacity import (sql, event_database, private_database, attachment_database, database,  # noqa: F401
@@ -81,20 +82,120 @@ def compose(current, phases, broker, mutate_unchanged=False):
             if mutate_unchanged:
                 result['chapters'][0]['blocks'][-1]['text'] = 'An unsolicited rewrite of unchanged prose.'
         else:
-            result = dict(ready_for_user_review=True, publication_approved=False, findings=[])
+            result = controlled_review(packet)
         return httpx.Response(200, json={'reply': json.dumps(result)})
     worker = SimpleNamespace(broker=broker, worker_url='https://synthetic.invalid', worker_secret='synthetic',
         worker_transport=httpx.MockTransport(model), lane_publisher=Publisher())
-    return asyncio.run(_compose(current, worker))
+    return asyncio.run(compose_shared_snapshot(batch_job(current), worker))
 
 
-def test_five_new_messages_use_one_summary_instead_of_one_preparation_per_quote():
+@pytest.mark.parametrize('control', ['excluded_topics', 'paused_topics'])
+def test_restricted_batch_retains_model_preparation(control):
+    current = batch_page()
+    current['preferences'][control] = ['A restricted topic']
+    phases = []
+    bundle = compose(current, phases, Broker())
+    assert bundle['status'] == 'ready'
+    assert phases == ['prepare', 'draft', 'review']
+    assert bundle['request']['context']['prepared_partitions'][0]['context'] == 'New bicycle memories, with their original evidence.'
+
+
+def test_lossless_context_preserves_unicode_whitespace_and_message_order():
+    current = batch_page()
+    messages = deepcopy(current['batch']['new_messages'][:2])
+    for source, text in zip(messages, [' 🌱 e\u0301。\n我不记得年份。 ', '父亲说是1984年，但我不确定。']):
+        source.update(text=text, char_start=0, char_end=len(text), original_length=len(text))
+    current['batch']['new_messages'] = messages
+    before = deepcopy(current)
+    phases = []
+    bundle = compose(current, phases, Broker())
+    summary, = bundle['request']['context']['prepared_partitions']
+    assert summary['context'] == ' 🌱 e\u0301。\n我不记得年份。 \n\n父亲说是1984年，但我不确定。'
+    assert summary['source_refs'] == summary_partition(current)['source_refs']
+    assert phases == ['draft', 'review']
+    assert current == before
+
+
+@pytest.mark.parametrize('length,phases', [(4000, ['draft', 'review']), (4001, ['prepare', 'draft', 'review'])])
+def test_original_character_limit_is_inclusive_and_never_truncates(length, phases):
+    current = batch_page()
+    messages = deepcopy(current['batch']['new_messages'][:2])
+    for source, text in zip(messages, ['🌱' * 2000, '忆' * (length - 2002)]):
+        source.update(text=text, char_start=0, char_end=len(text), original_length=len(text))
+    current['batch']['new_messages'] = messages
+    observed = []
+    bundle = compose(current, observed, Broker())
+    summary, = bundle['request']['context']['prepared_partitions']
+    assert observed == phases
+    assert summary['source_refs'] == summary_partition(current)['source_refs']
+    if length == 4000:
+        assert len(summary['context']) == 4000
+        assert summary['context'].startswith('🌱' * 2000 + '\n\n')
+        assert summary['context'].endswith('忆' * 1998)
+    else:
+        assert summary['context'] == 'New bicycle memories, with their original evidence.'
+
+
+@pytest.mark.parametrize('change', ['family', 'partial_window'])
+def test_context_needing_attribution_or_window_interpretation_retains_preparation(change):
+    current = batch_page()
+    current['batch']['new_messages'] = deepcopy(current['batch']['new_messages'])
+    source = current['batch']['new_messages'][0]
+    if change == 'family':
+        source.update(id=str(UUID(int=90)), author_role='family_contributor')
+    else:
+        source.update(char_start=1, char_end=len(source['text']) + 1, original_length=len(source['text']) + 2)
+    phases = []
+    bundle = compose(current, phases, Broker())
+    assert bundle['status'] == 'ready'
+    assert phases == ['prepare', 'draft', 'review']
+
+
+def test_incomplete_privacy_cannot_use_lossless_preparation_to_reach_a_model():
+    current = batch_page()
+    current['preferences']['privacy_complete'] = False
+    phases = []
+    with pytest.raises(ValueError, match='[Pp]rivacy'):
+        compose(current, phases, Broker())
+    assert phases == []
+
+
+def test_generation_pause_prevents_registering_new_preparation(monkeypatch):
+    monkeypatch.setenv('MEMOIR_LIFETIME_GENERATION_PAUSED', 'true')
+    current = batch_page()
+    recorded = []
+
+    class RecordingBroker(Broker):
+        async def rpc(self, name, **payload):
+            if name == 'record_lifetime_lane_output':
+                recorded.append(payload)
+            return await super().rpc(name, **payload)
+
+    from apps.api.lifetime_memory_lane_engine import LaneGenerationPaused
+    phases = []
+    with pytest.raises(LaneGenerationPaused):
+        compose(current, phases, RecordingBroker())
+    assert phases == []
+    assert recorded == []
+
+
+def test_empty_checkpoint_never_invents_preparation_or_prose():
+    current = batch_page()
+    current['batch'].update(sources=[], events=[], new_messages=[])
+    current.update(source=None, partition=None)
+    phases = []
+    result = compose(current, phases, Broker())
+    assert result == {'status': 'insufficient_context', 'preview': None, 'summary': None}
+    assert phases == []
+
+
+def test_five_short_originals_need_only_draft_and_review():
     current = batch_page()
     before = deepcopy(current)
     phases = []
     bundle = compose(current, phases, Broker())
     assert bundle['status'] == 'ready'
-    assert phases == ['prepare', 'draft', 'review']
+    assert phases == ['draft', 'review']
     assert current == before
     assert len(bundle['request']['context']['prepared_partitions']) == 1
     assert bundle['request']['context']['checkpoint_delta'] == {'starting_after': 0, 'through_source': 5}
@@ -112,7 +213,7 @@ def test_twenty_round_backlog_summarizes_latest_messages_while_drafting_earlier_
     phases = []
     bundle = compose(current, phases, Broker())
     assert bundle['status'] == 'ready'
-    assert phases == ['prepare', 'draft', 'review']
+    assert phases == ['draft', 'review']
     assert bundle['request']['context']['checkpoint_delta'] == {'starting_after': 15, 'through_source': 5}
 
 
@@ -124,7 +225,7 @@ def test_first_chapter_after_empty_checkpoints_starts_at_chapter_revision_zero()
     assert bundle['status'] == 'ready'
     assert bundle['request']['prior_state']['revision'] == 5
     assert bundle['draft']['chapters'][0]['base_revision'] == 0
-    assert phases == ['prepare', 'draft', 'review']
+    assert phases == ['draft', 'review']
 
 
 def test_draft_schema_rejects_a_source_that_only_appears_in_the_message_summary():
@@ -215,7 +316,7 @@ def test_second_checkpoint_keeps_unchanged_prose_and_uses_only_the_new_messages_
         char_start=0, char_end=len(added['text'])))
     phases = []
     second = compose(current, phases, Broker(), mutate_unchanged=True)
-    assert phases == ['prepare', 'draft', 'review']
+    assert phases == ['draft', 'review']
     old_blocks = first['manuscript']['chapters'][0]['blocks']
     new_blocks = second['manuscript']['chapters'][0]['blocks']
     assert {b['id']: b for b in new_blocks[1:]} == {b['id']: b for b in old_blocks[1:]}
@@ -308,7 +409,7 @@ def test_pg_five_round_batch_groups_quotes_and_persists_progressive_passages(sql
     broker = NativeBroker()
     phases = []
     bundle = compose(current, phases, broker)
-    assert phases == ['prepare', 'draft', 'review']
+    assert phases == ['draft', 'review']
     saved = service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{current['token']}',0,{literal(bundle)}")
     assert saved['status'] == 'page_saved'
     tail = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane}','{current['token']}'")
@@ -343,7 +444,7 @@ def test_pg_five_round_batch_groups_quotes_and_persists_progressive_passages(sql
     assert current['batch']['previous'] is not None
     phases = []
     bundle = compose(current, phases, broker, mutate_unchanged=True)
-    assert phases == ['prepare', 'draft', 'review']
+    assert phases == ['draft', 'review']
     service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{current['token']}',0,{literal(bundle)}")
     service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{current['token']}'")
     updated = rpc(sql, 'read_lifetime_private_draft_head', f"{literal(project)},'en-AU'")

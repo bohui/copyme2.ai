@@ -1,4 +1,5 @@
 """Operator clearance defers bounded work without consuming generation attempts."""
+from controlled_composer_review import controlled_review
 import asyncio
 import copy
 import json
@@ -53,7 +54,7 @@ def test_cancelled_composer_releases_its_lease_and_preserves_saved_checkpoint():
             elif blocked:
                 started.set()
                 await asyncio.Event().wait()
-            else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+            else:result=controlled_review(payload)
             return httpx.Response(200,json={'reply':json.dumps(result)})
         worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
             worker_transport=httpx.MockTransport(model))
@@ -102,7 +103,7 @@ def test_remote_clearance_preserves_bounded_work_and_completed_phases(blocked_ph
         if phase=='extract':result={'events':[]}
         elif phase=='prepare':result=dict(event_id=current['partition']['id'],context='Prepared before clearance changed',source_refs=current['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(payload,original['text'],'Childhood')
-        else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+        else:result=controlled_review(payload)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model))
     worker.lane_publisher=Publisher()
@@ -153,7 +154,7 @@ def test_pg_provider_authority_wait_preserves_lane_and_source_checkpoints(sql,sk
         if phase=='extract':result={'events':[]}
         elif phase=='prepare':result=dict(event_id=payload['partition']['id'],context='Persisted grounded preparation',source_refs=payload['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(payload,source['text'],'Childhood')
-        else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+        else:result=controlled_review(payload)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model))
     class Authority:
@@ -175,13 +176,13 @@ def test_pg_provider_authority_wait_preserves_lane_and_source_checkpoints(sql,sk
             assert checkpoints==saved_checkpoints
             assert sql(f"select text||':'||version::text||':'||status from public.user_narrator_source where id='{source['id']}';").stdout==originals
             assert sql(f"select id::text||':'||delivered::text from public.user_private_draft_outbox where user_id='{OWNER}' and project_id={literal(project)} order by id;").stdout==obligations
-        assert phases==([] if skill=='timeline' else ['prepare','draft'])
+        assert phases==([] if skill=='timeline' else ['draft'])
         if skill=='composer':assert saved_checkpoints.strip()
         blocked=False
         sql(f"update public.user_memoir_lane set available_at=clock_timestamp()-interval '1 second' where id='{lane}';")
         result=asyncio.run(worker.execute_lane(lane))
         assert result['status']=='saved' and result['retrieval_complete']
-        assert phases==(['extract'] if skill=='timeline' else ['prepare','draft','review'])
+        assert phases==(['extract'] if skill=='timeline' else ['draft','review'])
         assert sql(f"select processing_status from public.user_narrator_source where id='{source['id']}';").stdout.strip()=='succeeded'
     finally:
         blocked=False

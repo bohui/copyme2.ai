@@ -255,9 +255,9 @@ The API uses the user's Supabase bearer token for RLS-protected story and Codex-
 
 Memoir interviews default to the ChatGPT subscription pool through LiteLLM's
 `gpt-5.6-luna-pooled` route, backed by `codex-lb`, with
-`MEMORY_SPARK_LLM_REASONING_EFFORT=max`. Canonical event extraction, preview,
-and private memoir composition use `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL`, which
-defaults to `memoir-luna-low`. The provider must configure this alias with a
+`MEMORY_SPARK_LLM_REASONING_EFFORT=max`. Canonical event extraction and the legacy
+shared model consumers use `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL`, which defaults
+to `memoir-luna-low`. The provider must configure this alias with a
 dedicated same-model codex-lb key enforcing low reasoning; an alias alone
 cannot override the shared upstream key's max policy. Set
 `MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT` to control canonical event
@@ -268,6 +268,21 @@ and commit those shared memoir lanes. Set
 4000; the LiteLLM gateway and `codex-lb` must both be running. Keep the Memoir
 consumer key in `MEMORY_SPARK_LLM_API_KEY` authorized for both model routes; the
 `codex-lb` key stays in the provider stack.
+
+Composer model phases have separate settings: `MEMOIR_COMPOSER_MODEL=gpt-5.6-sol`
+and `MEMOIR_COMPOSER_REASONING_EFFORT=high` select preparation, drafting and
+independent review only. Short lossless preparation still makes no model call.
+Timeline/profile extraction, policy, collector and story-game settings retain
+their current routes. The exact Sol alias must be exposed to the existing Memoir
+consumer; there is no automatic Luna or paid-provider fallback. Invalid settings
+and API/worker model mismatches fail before composer dispatch. The API, Codex
+worker and checkpoint worker must receive matching dedicated settings. Changing
+the selected composer model or effort invalidates its composition cache.
+The Sol lane retains the conservative UTF-8 byte bound and current maximum
+131,072 context, 98,304 input, 16,384 output and 2,048 reserved framing units;
+larger advertised provider capacity does not expand application budgets or
+retries. [Routing evidence and activation limits](docs/memoir-composer-sol-routing-20261025.md)
+distinguish controlled tests from the still-pending matched Sol live comparison.
 
 For the opted-in `reply-v2` interviewer, requesting
 `MEMORY_SPARK_COLLECTOR_REASONING_EFFORT=low` with

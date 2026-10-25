@@ -26,6 +26,7 @@ import jsonschema
 
 from scripts.memoir_live_skill_cases import cases, progressive_page, skill_prompt, validate_case
 from apps.api.prompt_artifact import load_prompt_artifact
+from apps.api.composer_configuration import composer_configuration
 
 
 def sha(value):
@@ -81,11 +82,12 @@ class LiveProvider:
     async def call(self, case_id, skill, instructions, packet, schema=None, *, search=False):
         if len(self.receipt['calls']) >= self.max_calls or time.monotonic() >= self.deadline:
             raise RuntimeError('live_call_budget_exhausted')
-        model = (self.config.get('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL') if skill == 'memoir-composer' else None)
-        effort = (self.config.get('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT') or 'low') if skill == 'memoir-composer' else self.effort
+        selection = composer_configuration(self.config) if skill == 'memoir-composer' else None
+        model = selection.model if selection else self.config['MEMORY_SPARK_LLM_MODEL']
+        effort = selection.effort if selection else self.effort
         if search:
             effort = 'low'
-        body = {'model': model or self.config['MEMORY_SPARK_LLM_MODEL'], 'instructions': instructions,
+        body = {'model': model, 'instructions': instructions,
                 'input': json.dumps(packet, ensure_ascii=False), 'store': False,
                 'max_output_tokens': 8192 if skill == 'memoir-composer' else 3000,
                 'reasoning': {'effort': effort}}
@@ -166,8 +168,9 @@ async def compose(provider, locale):
     checkpoints, phases = {}, []
     # Bind the host fingerprint/token budget to the same configured route used
     # by the real calls, including when the configuration came from ENV_FILE.
-    os.environ['MEMORY_SPARK_MEMOIR_COMPOSER_MODEL'] = provider.config.get(
-        'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL') or provider.config['MEMORY_SPARK_LLM_MODEL']
+    selection = composer_configuration(provider.config)
+    os.environ['MEMOIR_COMPOSER_MODEL'] = selection.model
+    os.environ['MEMOIR_COMPOSER_REASONING_EFFORT'] = selection.effort
     class Broker:
         async def rpc(self, name, **payload):
             if name == 'read_memoir_checkpoint':

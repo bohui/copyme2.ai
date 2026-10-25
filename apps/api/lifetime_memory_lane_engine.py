@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .model_request import instruction_manifest, manifest_metadata
 from .llm_tracing import trace_llm_call
+from .composer_configuration import REVIEWED_COMPOSER_MODELS, composer_configuration
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -31,8 +32,9 @@ from .lifetime_memory_context import serialize_packet
 from .lifetime_memory_contracts import Contract, ContextBudget, PinnedContinuity
 from .lifetime_memory_publication import PublicationUnavailable
 
-# The configured memoir alias routes to the same byte-token model as the
-# already supported pooled aliases; effort routing does not change token bounds.
+# UTF-8 bytes retain the conservative text-token bound. Composer Sol uses the
+# existing 131072/98304/16384 limits below its declared 272000/128000 capacity;
+# admitting it here does not admit it for timeline/profile or broaden aliases.
 SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
     'memoir-luna-low', 'synthetic-byte-bpe'})
 EXTRACTION_WINDOW_CONTRACT = load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/window'))
@@ -269,8 +271,11 @@ class BoundedLaneInput(Contract):
         if (self.budget.context_window > 131072 or self.budget.input_budget > maximum_input
                 or self.budget.framing_headroom < 2048):
             raise ValueError('Bounded lane budget exceeds the reviewed transport limits')
-        if self.budget.model not in SUPPORTED_LANE_MODELS:
+        models = REVIEWED_COMPOSER_MODELS if self.fence.skill == 'composer' else SUPPORTED_LANE_MODELS
+        if self.budget.model not in models:
             raise ValueError('No reviewed byte-token bound for lane model')
+        if self.budget.model == 'gpt-5.6-sol' and self.budget.output_headroom > 16384:
+            raise ValueError('Sol output budget exceeds the reviewed composer limit')
         packet = _object(self.packet)
         if serialize_packet(packet) != self.packet or set(packet) != {'lane_context', 'payload'}:
             raise ValueError('Bounded lane packet must use the canonical context envelope')
@@ -473,9 +478,9 @@ def _validate_phase_packet(fence,phase,payload):
             from .memoir_preview import incremental_model_request
             if actual != expected and actual != incremental_model_request(expected):
                 raise ValueError('Progressive request differs from its authoritative batch')
-            if phase == 'draft' and (set(payload) - {'request', 'plan', 'candidate', 'validation', 'review'} or not isinstance(payload.get('plan'), dict)):
+            if phase == 'draft' and (set(payload) - {'request', 'plan', 'candidate', 'validation', 'review', 'review_errors'} or not isinstance(payload.get('plan'), dict)):
                 raise ValueError('Unsupported progressive draft context')
-            if phase == 'review' and set(payload) != {'request', 'candidate', 'validation'}:
+            if phase == 'review' and not _review_packet_keys(payload):
                 raise ValueError('Unsupported progressive review context')
         if fence.prior_outputs != _required_artifacts(phase, payload):
             raise ValueError('Progressive bytes lack their same-batch artifact proofs')
@@ -523,12 +528,21 @@ def _validate_phase_packet(fence,phase,payload):
         if actual!=expected:
             raise ValueError('Composer request differs from authoritative page evidence')
         if phase=='draft':
-            if set(payload)-{'request','plan','candidate','validation','review'} or not isinstance(payload.get('plan'),dict):
+            if set(payload)-{'request','plan','candidate','validation','review','review_errors'} or not isinstance(payload.get('plan'),dict):
                 raise ValueError('Unsupported draft phase context')
-        elif phase=='review' and set(payload)!={'request','candidate','validation'}:
+        elif phase=='review' and not _review_packet_keys(payload):
             raise ValueError('Unsupported review phase context')
     if fence.prior_outputs!=_required_artifacts(phase,payload):
         raise ValueError('Derived lane bytes lack their exact same-page artifact proofs')
+
+
+def _review_packet_keys(payload):
+    base = {'request', 'candidate', 'validation', 'requirements'}
+    if set(payload) == base:
+        return True
+    return (set(payload) == base | {'review', 'review_errors'}
+        and isinstance(payload['review_errors'], list) and bool(payload['review_errors'])
+        and all(isinstance(code, str) and code.startswith('CRAFT_') for code in payload['review_errors']))
 
 
 async def validate_lane_payload(bounded):
@@ -546,7 +560,7 @@ async def validate_lane_payload(bounded):
     candidate=payload.get('candidate')
     if candidate is None:
         if bounded.phase=='review':raise ValueError('Review requires a same-page candidate')
-        if payload.get('validation') is not None or payload.get('review') is not None:
+        if payload.get('validation') is not None or payload.get('review') is not None or payload.get('review_errors') is not None:
             raise ValueError('Repair context requires its same-page candidate')
         return
     pins={'input_snapshot_id':request['snapshot']['id'],'input_fingerprint':plan.get('input_fingerprint'),
@@ -556,6 +570,16 @@ async def validate_lane_payload(bounded):
     validation=await validate_canonical_candidate(request,candidate)
     if payload.get('validation')!=validation:
         raise ValueError('Candidate validation differs from the canonical page proof')
+    if bounded.phase == 'review' or payload.get('review_errors') is not None:
+        from .composer_review import review_requirements, review_errors
+        if not validation.get('ok'):
+            raise ValueError('A prose review requires a validated candidate')
+        artifacts = await skill_operation('render', request, candidate)
+        requirements = review_requirements(request, candidate, json.loads(artifacts['manuscript.json']))
+        if bounded.phase == 'review' and payload['requirements'] != requirements:
+            raise ValueError('Review requirements differ from the canonical prose and originals')
+        if payload.get('review_errors') is not None and payload['review_errors'] != review_errors(payload.get('review'), requirements):
+            raise ValueError('Review repair errors differ from the same-page review')
 
 def lane_request_tokens(bounded_lane: BoundedLaneInput) -> int:
     instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode), fence=bounded_lane.fence, retry_reason=_object(bounded_lane.packet)['payload'].get('retry_reason'))
@@ -765,7 +789,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
     payload = dict(model=model, instructions=instructions, input=bounded.packet,
         store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
-        reasoning={'effort': effort or 'low', 'summary': 'auto'},
+        reasoning={'effort': effort or (composer_configuration().effort if role == 'composer' else 'low'), 'summary': 'auto'},
         max_output_tokens=bounded.budget.output_headroom,
         metadata={**manifest_metadata(manifest), 'generation_name':skill_name, 'trace_name':skill_name},
         text={'format':{'type':'json_schema', 'name':'codex_output_schema', 'strict':True, 'schema':schema}})

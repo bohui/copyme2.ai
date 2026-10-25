@@ -1,0 +1,802 @@
+{
+  "rubric_id": "memoir-craft-v1",
+  "measurement_type": "Synthetic offline calibration and controlled application replay; not live semantic scores",
+  "annotation_origin": "agent_authored_pending_independent_semantic_review",
+  "assessment_scope": "Each case targets named criteria; a complete real assessment must cover all eight.",
+  "criteria": [
+    "focus",
+    "scene_craft",
+    "voice",
+    "supported_vulnerability",
+    "retrospective_reflection",
+    "transformation",
+    "reader_resonance",
+    "fairness"
+  ],
+  "cases": [
+    {
+      "id": "grounded_scene_and_motif_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "focused_sample",
+      "author_intent": {
+        "scope": "school journey",
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "Every day I walked to school with my older brother. We crossed a wooden bridge."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "Day after day, my older brother and I walked to school across a wooden bridge. That bridge was a thread running through my school days."
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "scene_craft",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "medium",
+          "confidence_basis": "Supported actions are visible; pacing and texture remain interpretive judgments of a short passage.",
+          "source_excerpts": [
+            "Every day I walked to school with my older brother.",
+            "We crossed a wooden bridge."
+          ],
+          "prose_excerpts": [
+            "Day after day, my older brother and I walked to school across a wooden bridge."
+          ],
+          "intent_excerpts": [],
+          "reason": "Rhythm and a clearly figurative thread organize existing actions; no weather, sound or dialogue is added.",
+          "optional_followup": null
+        },
+        {
+          "criterion": "focus",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "medium",
+          "confidence_basis": "The supplied sequence can be inspected, but a short excerpt cannot establish whole-book structure.",
+          "source_excerpts": [
+            "We crossed a wooden bridge."
+          ],
+          "prose_excerpts": [
+            "That bridge was a thread running through my school days."
+          ],
+          "intent_excerpts": [],
+          "reason": "The chosen school-journey thread remains coherent without expanding its factual scope.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "flat_but_faithful_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "early_checkpoint",
+      "author_intent": {
+        "scope": "work and moves",
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "In 1980 I worked at a bakery. Each morning I wrapped the loaves while my aunt counted them. In 1983 I moved to Perth. In 1985 I began an apprenticeship."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "In 1980 I worked at a bakery. Each morning I wrapped the loaves while my aunt counted them. In 1983 I moved to Perth. In 1985 I began an apprenticeship."
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "scene_craft",
+          "applicability": "applicable",
+          "score": 1,
+          "confidence": "medium",
+          "confidence_basis": "Supported actions are visible; pacing and texture remain interpretive judgments of a short passage.",
+          "source_excerpts": [
+            "Each morning I wrapped the loaves while my aunt counted them.",
+            "In 1985 I began an apprenticeship."
+          ],
+          "prose_excerpts": [
+            "In 1980 I worked at a bakery. Each morning I wrapped the loaves while my aunt counted them."
+          ],
+          "intent_excerpts": [],
+          "reason": "The accurate passage remains a chronological list despite supplied actions that could support a more deliberate scene/summary arrangement. Improvements need no new facts.",
+          "optional_followup": null
+        },
+        {
+          "criterion": "transformation",
+          "applicability": "not_applicable",
+          "score": null,
+          "confidence": "high",
+          "confidence_basis": "The declared checkpoint/viewpoint or explicitly unresolved scope establishes this applicability limit.",
+          "source_excerpts": [],
+          "prose_excerpts": [],
+          "intent_excerpts": [],
+          "reason": "An early checkpoint does not establish a complete personal arc.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "whole_life_scope_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "whole_life_in_progress",
+      "author_intent": {
+        "scope": "whole life",
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "I grew up in Chengde, trained as a mechanic in Perth, and later raised my children in Sydney. I want this to cover my whole life, not just my work."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "Chengde was where I grew up. In Perth I trained as a mechanic; later, in Sydney, I raised my children."
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": "The author's scope instruction guides structure rather than becoming memoir prose.",
+      "craft": [
+        {
+          "criterion": "focus",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "medium",
+          "confidence_basis": "The supplied sequence can be inspected, but a short excerpt cannot establish whole-book structure.",
+          "source_excerpts": [
+            "I grew up in Chengde, trained as a mechanic in Perth, and later raised my children in Sydney."
+          ],
+          "prose_excerpts": [
+            "Chengde was where I grew up. In Perth I trained as a mechanic; later, in Sydney, I raised my children."
+          ],
+          "intent_excerpts": [],
+          "reason": "The broader chronological structure respects the expressly whole-life scope; it need not filter everything through one theme.",
+          "optional_followup": null
+        },
+        {
+          "criterion": "reader_resonance",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "low",
+          "confidence_basis": "Personal stakes are inspectable, but no reader study or reception evidence exists.",
+          "source_excerpts": [
+            "trained as a mechanic in Perth",
+            "raised my children in Sydney"
+          ],
+          "prose_excerpts": [
+            "In Perth I trained as a mechanic; later, in Sydney, I raised my children."
+          ],
+          "intent_excerpts": [],
+          "reason": "Work, place and family give accessible particulars without claiming a universal moral.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "childhood_viewpoint_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "focused_sample",
+      "author_intent": {
+        "scope": "one childhood wait",
+        "viewpoint": "child at the time",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "I was seven. I sat on the school step until my brother arrived. I did not understand why he was late. Tell this as I understood it then."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "I was seven, sitting on the school step until my brother arrived. I did not understand why he was late."
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": "The telling instruction is honored as an author boundary, not inserted into the narrative.",
+      "craft": [
+        {
+          "criterion": "voice",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "medium",
+          "confidence_basis": "The source gives a particular expression/register, but sustained voice beyond this sample is unknown.",
+          "source_excerpts": [
+            "I was seven.",
+            "I did not understand why he was late."
+          ],
+          "prose_excerpts": [
+            "I was seven, sitting on the school step until my brother arrived.",
+            "I did not understand why he was late."
+          ],
+          "intent_excerpts": [],
+          "reason": "The child's limited knowledge remains intact.",
+          "optional_followup": null
+        },
+        {
+          "criterion": "retrospective_reflection",
+          "applicability": "not_applicable",
+          "score": null,
+          "confidence": "high",
+          "confidence_basis": "The declared checkpoint/viewpoint or explicitly unresolved scope establishes this applicability limit.",
+          "source_excerpts": [],
+          "prose_excerpts": [],
+          "intent_excerpts": [],
+          "reason": "The author selected the child's viewpoint and supplied no adult interpretation.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "voluntary_reflection_and_change_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "complete_selected_arc",
+      "author_intent": {
+        "scope": "one chosen regret",
+        "viewpoint": "experience with supplied adult reflection",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "I missed Nora's call. I was ashamed to return it and left it a week. Looking back, I regret leaving her waiting. After that I began returning calls even when I felt awkward."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "I missed Nora's call and left it a week, ashamed to return it. Looking back, I regret leaving her waiting. After that I began returning calls, even when I felt awkward."
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "supported_vulnerability",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "medium",
+          "confidence_basis": "The author supplied the chosen regret; its proportional treatment is interpretive, not a judgment of character.",
+          "source_excerpts": [
+            "I was ashamed to return it and left it a week."
+          ],
+          "prose_excerpts": [
+            "I missed Nora's call and left it a week, ashamed to return it."
+          ],
+          "intent_excerpts": [],
+          "reason": "The chosen mistake and feeling are acknowledged proportionately; no new confession or Nora's inner response is invented.",
+          "optional_followup": null
+        },
+        {
+          "criterion": "retrospective_reflection",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "medium",
+          "confidence_basis": "Later perspective is explicit, while its literary integration is assessed only within this excerpt.",
+          "source_excerpts": [
+            "Looking back, I regret leaving her waiting."
+          ],
+          "prose_excerpts": [
+            "Looking back, I regret leaving her waiting."
+          ],
+          "intent_excerpts": [],
+          "reason": "The author explicitly supplies the retrospective regret.",
+          "optional_followup": null
+        },
+        {
+          "criterion": "transformation",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "medium",
+          "confidence_basis": "A behavior change is stated; its long-term significance is not established by this short account.",
+          "source_excerpts": [
+            "After that I began returning calls even when I felt awkward."
+          ],
+          "prose_excerpts": [
+            "After that I began returning calls, even when I felt awkward."
+          ],
+          "intent_excerpts": [],
+          "reason": "A limited evidenced behavior change is developed without redemption or a wiser-person claim.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "restraint_and_open_ending_zh",
+      "synthetic": true,
+      "locale": "zh-CN",
+      "stage": "whole_life_in_progress",
+      "author_intent": {
+        "scope": "business memory with an unresolved ending",
+        "viewpoint": "restrained adult voice",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "这场买卖没成，我到现在也没想通。“先过日子”，这是我常说的话。"
+      },
+      "candidate": {
+        "title": "往事",
+        "text": "买卖没成，我到现在也没想通。先过日子——我还是这样说。"
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "voice",
+          "applicability": "applicable",
+          "score": 3,
+          "confidence": "medium",
+          "confidence_basis": "The source gives a particular expression/register, but sustained voice beyond this sample is unknown.",
+          "source_excerpts": [
+            "我到现在也没想通",
+            "先过日子"
+          ],
+          "prose_excerpts": [
+            "我到现在也没想通",
+            "先过日子——我还是这样说。"
+          ],
+          "intent_excerpts": [],
+          "reason": "The particular restrained expression carries the telling in Chinese without homogenized literary diction.",
+          "optional_followup": null
+        },
+        {
+          "criterion": "transformation",
+          "applicability": "not_applicable",
+          "score": null,
+          "confidence": "high",
+          "confidence_basis": "The declared checkpoint/viewpoint or explicitly unresolved scope establishes this applicability limit.",
+          "source_excerpts": [],
+          "prose_excerpts": [],
+          "intent_excerpts": [],
+          "reason": "The account explicitly remains unresolved; no growth or redemption is owed.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "attributed_recollection_zh",
+      "synthetic": true,
+      "locale": "zh-CN",
+      "stage": "focused_sample",
+      "author_intent": {
+        "scope": "attributed family recollection",
+        "viewpoint": "adult recounting a relative's uncertain account",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "那次搬家时我还没出生，是母亲后来告诉我的。她说父亲当时大概说过能撑下去，原话她也记不准。"
+      },
+      "candidate": {
+        "title": "往事",
+        "text": "关于那次搬家，我只有母亲后来的讲述。她记得父亲大概说过，大意是能撑下去，具体原话已经记不准。"
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": "The passage attributes the account but does not explicitly state the narrator was not yet born; that original detail remains deferred.",
+      "craft": [
+        {
+          "criterion": "fairness",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "medium",
+          "confidence_basis": "Attribution and stated uncertainty are visible; the excerpt does not supply every person's perspective.",
+          "source_excerpts": [
+            "是母亲后来告诉我的",
+            "原话她也记不准"
+          ],
+          "prose_excerpts": [
+            "我只有母亲后来的讲述",
+            "具体原话已经记不准。"
+          ],
+          "intent_excerpts": [],
+          "reason": "The mother's uncertain account preserves both whether he said it (大概) and uncertainty about the exact words; no firsthand memory is claimed.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "thin_evidence_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "early_checkpoint",
+      "author_intent": {
+        "scope": "work memory",
+        "viewpoint": "author's plain account",
+        "follow_ups_allowed": true
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "I worked at a bakery."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "I worked at a bakery."
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "scene_craft",
+          "applicability": "insufficient_evidence",
+          "score": null,
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
+          "source_excerpts": [
+            "I worked at a bakery."
+          ],
+          "prose_excerpts": [
+            "I worked at a bakery."
+          ],
+          "intent_excerpts": [],
+          "reason": "The original supplies no scene details. This is insufficient material for a scene-craft judgment, not a failing author.",
+          "optional_followup": "If you want, what would you like a reader to know about an ordinary day there?"
+        },
+        {
+          "criterion": "retrospective_reflection",
+          "applicability": "insufficient_evidence",
+          "score": null,
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
+          "source_excerpts": [],
+          "prose_excerpts": [],
+          "intent_excerpts": [],
+          "reason": "No later interpretation is supplied.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "allowed"
+    },
+    {
+      "id": "disclosure_boundary_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "focused_sample",
+      "author_intent": {
+        "scope": "work only",
+        "viewpoint": "adult recollection",
+        "boundary": "Keep this to my work. I do not want questions about private regrets or family conflict.",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "I repaired bicycles in the workshop for ten years."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "I repaired bicycles in the workshop for ten years."
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "supported_vulnerability",
+          "applicability": "not_applicable",
+          "score": null,
+          "confidence": "high",
+          "confidence_basis": "The synthetic author explicitly declines this topic; no further follow-up is permitted.",
+          "source_excerpts": [],
+          "prose_excerpts": [],
+          "intent_excerpts": [
+            "Keep this to my work. I do not want questions about private regrets or family conflict."
+          ],
+          "reason": "The author declined this disclosure scope. Respect it without another follow-up.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "declined"
+    },
+    {
+      "id": "harm_without_forced_sympathy_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "focused_sample",
+      "author_intent": {
+        "scope": "clear account of remembered harm",
+        "viewpoint": "survivor's stated perspective",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "I remember my father hitting me that day. I still do not know why he did it. I want that left clear."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "I remember my father hitting me that day. I still do not know why he did it."
+      },
+      "expected_gate": "pass",
+      "gate_reason": "The supplied personal claims remain supported.",
+      "coverage_deferral": "The request to leave the account clear is respected as editorial direction.",
+      "craft": [
+        {
+          "criterion": "fairness",
+          "applicability": "applicable",
+          "score": 3,
+          "confidence": "medium",
+          "confidence_basis": "Attribution and stated uncertainty are visible; the excerpt does not supply every person's perspective.",
+          "source_excerpts": [
+            "I remember my father hitting me that day.",
+            "I still do not know why he did it."
+          ],
+          "prose_excerpts": [
+            "I remember my father hitting me that day.",
+            "I still do not know why he did it."
+          ],
+          "intent_excerpts": [],
+          "reason": "The harm is stated clearly with unknown motives retained. Fairness does not require sympathy, equal blame or an invented excuse.",
+          "optional_followup": null
+        },
+        {
+          "criterion": "reader_resonance",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "low",
+          "confidence_basis": "Personal stakes are inspectable, but no reader study or reception evidence exists.",
+          "source_excerpts": [
+            "I still do not know why he did it."
+          ],
+          "prose_excerpts": [
+            "I still do not know why he did it."
+          ],
+          "intent_excerpts": [],
+          "reason": "The unresolved relationship is accessible without a universal lesson or forced forgiveness.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "invented_scene_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "focused_sample",
+      "author_intent": {
+        "scope": "school journey",
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "Every day I walked to school with my older brother. We crossed a wooden bridge."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "Rain drummed on the wet bridge as my brother whispered, “Everything will be all right.”"
+      },
+      "expected_gate": "unsupported",
+      "gate_reason": "The originals provide no rain, wetness, sound, whispered reassurance or exact words.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "scene_craft",
+          "applicability": "insufficient_evidence",
+          "score": null,
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
+          "source_excerpts": [
+            "We crossed a wooden bridge."
+          ],
+          "prose_excerpts": [
+            "Rain drummed on the wet bridge as my brother whispered, “Everything will be all right.”"
+          ],
+          "intent_excerpts": [],
+          "reason": "Unsupported sensory facts and speech cannot earn grounded scene credit.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "fabricated_hindsight_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "early_checkpoint",
+      "author_intent": {
+        "scope": "one childhood move",
+        "viewpoint": "child's uncertainty",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "I was seven when we moved. I did not understand why. I still do not understand it."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "Only now do I see that the move taught me courage. I forgave everyone and became wiser."
+      },
+      "expected_gate": "contradicted",
+      "gate_reason": "The original explicitly remains unresolved; courage, forgiveness and wisdom are not supplied.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "retrospective_reflection",
+          "applicability": "insufficient_evidence",
+          "score": null,
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
+          "source_excerpts": [
+            "I still do not understand it."
+          ],
+          "prose_excerpts": [
+            "Only now do I see that the move taught me courage."
+          ],
+          "intent_excerpts": [],
+          "reason": "The adult interpretation contradicts the supplied uncertainty and is not authorized hindsight.",
+          "optional_followup": null
+        },
+        {
+          "criterion": "transformation",
+          "applicability": "not_applicable",
+          "score": null,
+          "confidence": "high",
+          "confidence_basis": "The declared checkpoint/viewpoint or explicitly unresolved scope establishes this applicability limit.",
+          "source_excerpts": [],
+          "prose_excerpts": [
+            "I forgave everyone and became wiser."
+          ],
+          "intent_excerpts": [],
+          "reason": "A new confession, forgiveness or redemption cannot supply a missing arc.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "invented_motive_and_symmetry_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "focused_sample",
+      "author_intent": {
+        "scope": "clear account of remembered harm",
+        "viewpoint": "survivor's stated perspective",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "I remember my father hitting me that day. I still do not know why he did it."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "He hit me because he loved me, and I can see that I provoked him. We were equally to blame."
+      },
+      "expected_gate": "unsupported",
+      "gate_reason": "Motive, the author's supposed admission and equal responsibility are invented.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "fairness",
+          "applicability": "insufficient_evidence",
+          "score": null,
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
+          "source_excerpts": [
+            "I still do not know why he did it."
+          ],
+          "prose_excerpts": [
+            "He hit me because he loved me, and I can see that I provoked him. We were equally to blame."
+          ],
+          "intent_excerpts": [],
+          "reason": "Invented love, provocation and equal blame sanitize harm; they are factual failures, not required complexity.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "recollection_as_verbatim_zh",
+      "synthetic": true,
+      "locale": "zh-CN",
+      "stage": "focused_sample",
+      "author_intent": {
+        "scope": "attributed family recollection",
+        "viewpoint": "relative's uncertain account",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "那次搬家时我还没出生，是母亲后来告诉我的。她说父亲当时大概说过能撑下去，原话她也记不准。"
+      },
+      "candidate": {
+        "title": "往事",
+        "text": "我记得那次搬家，父亲斩钉截铁地说：“我们一定能撑下去。”"
+      },
+      "expected_gate": "attribution_lost",
+      "gate_reason": "The author was not there, the account is the mother's and the exact words are unknown.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "fairness",
+          "applicability": "insufficient_evidence",
+          "score": null,
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
+          "source_excerpts": [
+            "那次搬家时我还没出生",
+            "原话她也记不准"
+          ],
+          "prose_excerpts": [
+            "我记得那次搬家，父亲斩钉截铁地说：“我们一定能撑下去。”"
+          ],
+          "intent_excerpts": [],
+          "reason": "Uncertain secondhand speech is presented as firsthand, emphatic verbatim dialogue.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    },
+    {
+      "id": "privacy_hold_en",
+      "synthetic": true,
+      "locale": "en-AU",
+      "stage": "focused_sample",
+      "author_intent": {
+        "scope": "school journey",
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
+      },
+      "source": {
+        "id": "original",
+        "version": 1,
+        "text": "Every day I walked to school with my older brother. We crossed a wooden bridge."
+      },
+      "candidate": {
+        "title": "Memories",
+        "text": "Day after day, my older brother and I walked to school across a wooden bridge. That bridge was a thread running through my school days."
+      },
+      "expected_gate": "policy_pending",
+      "gate_reason": "A controlled current privacy hold is raised before the review can authorize a result.",
+      "coverage_deferral": null,
+      "craft": [
+        {
+          "criterion": "scene_craft",
+          "applicability": "applicable",
+          "score": 2,
+          "confidence": "medium",
+          "confidence_basis": "Supported actions are visible; pacing and texture remain interpretive judgments of a short passage.",
+          "source_excerpts": [
+            "Every day I walked to school with my older brother.",
+            "We crossed a wooden bridge."
+          ],
+          "prose_excerpts": [
+            "Day after day, my older brother and I walked to school across a wooden bridge."
+          ],
+          "intent_excerpts": [],
+          "reason": "The same supported craft cannot authorize saving while the independent current privacy gate is pending.",
+          "optional_followup": null
+        }
+      ],
+      "follow_up_consent": "not_requested"
+    }
+  ]
+}

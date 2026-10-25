@@ -51,8 +51,7 @@ def test_photo_dependency_changes_force_recomposition_and_reject_old_section_reu
     from types import SimpleNamespace
     from apps.api import canonical_composer as composer
     value=job();original=composer.composer_request(value)
-    config=composer.fingerprint({'locale':value['locale'],'skill':'shared-composer-4',
-        'model':os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL',os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled')),'policy':original['policy']})
+    _, config = composer.composition_request(value)
     refs=original['events'][0]['source_refs']
     chapter={'id':'chapter','title':'Gate','subtitle':'','event_ids':['visit'],'period_ids':['stage_childhood'],
              'source_refs':refs,'blocks':[{'id':'block','text':'Old photo claim','source_refs':refs,'event_ids':['visit']}]}
@@ -85,18 +84,37 @@ def test_photo_dependency_changes_force_recomposition_and_reject_old_section_reu
     assert result['photo_association_manifest'] != manifest
 
 
-def test_unchanged_photo_manifest_reuses_reviewed_bundle_without_model_calls():
+def test_unchanged_photo_manifest_reuses_reviewed_bundle_without_model_calls(monkeypatch):
     import asyncio
-    import os
     from types import SimpleNamespace
-    from apps.api.canonical_composer import compose_shared_snapshot, fingerprint
-    value=job();original=composer_request(value)
-    previous={'manuscript':{'kind':'sample_chapter','chapters':[]},'draft':{'input_fingerprint':original['request_id']},
-        'event_manifest':deepcopy(value['event_manifest']),
-        'photo_association_manifest':original['context']['photo_association_manifest'],
-        'content_config':fingerprint({'locale':value['locale'],'skill':'shared-composer-4',
-            'model':os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL',os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled')),
-            'policy':original['policy']}),'sections':[]}
+    from apps.api.canonical_composer import compose_shared_snapshot
+    from controlled_composer_review import controlled_review
+    from test_canonical_composer_provenance import controlled_draft
+    value=job();value.update(lane_id='lane',token='token')
+    phases, checkpoints = [], {}
+
+    class Broker:
+        async def rpc(self, name, **payload):
+            if name == 'read_memoir_checkpoint':
+                return deepcopy(checkpoints.get(payload['p_key']))
+            checkpoints[payload['p_key']] = deepcopy(payload['p_value'])
+
+    async def provider(runtime, storage, project, locale, phase, packet):
+        phases.append(phase)
+        if phase == 'prepare':
+            return dict(event_id='visit', context=value['sources'][0]['text'], source_refs=value['events'][0]['source_refs'])
+        if phase == 'draft':
+            return controlled_draft(packet, value['sources'][0]['text'], 'Gate')
+        return controlled_review(packet)
+
+    monkeypatch.setattr('apps.api.canonical_composer.composer_call',provider)
+    monkeypatch.setattr('apps.api.memoir_preview.composer_call',provider)
+    worker=SimpleNamespace(broker=Broker(),worker_url='https://fixture.invalid',worker_secret='synthetic',worker_transport=None)
+    previous=asyncio.run(compose_shared_snapshot(value,worker))
+    assert previous['status']=='ready'
+    assert previous['preview']['text']==value['sources'][0]['text']
+    pinned=deepcopy(previous);phases.clear()
     value.update(previous=previous,base_revision=1)
     result=asyncio.run(compose_shared_snapshot(value,SimpleNamespace()))
     assert result=={**previous,'unchanged':True}
+    assert phases==[] and previous==pinned

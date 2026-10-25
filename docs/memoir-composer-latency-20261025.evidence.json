@@ -1,0 +1,3248 @@
+{
+  "schema_version": 2,
+  "measurement_type": "Live composer HTTP + canonical application API + disposable real PostgreSQL; controlled collector/policy/extraction; no browser/deployed candidate",
+  "acceptance": "fail: candidate unsupported spatial fact; independent cloud semantic/code review pending",
+  "baseline_main_head": "ef42b2b1ab98002ad31d76c7618137a9adbf7e6f",
+  "branch": "codex/memoir-composer-optimization-20261025",
+  "profiled_code_head": "a20689248a6dae91c83c29e087cf9b119cd6985f",
+  "raw_evidence_directory": "var/composer-response-optimization/20261025-live",
+  "observer_sha256": "e6caef51f9b7d364ee519c14b50791652e8f89b394bf01ae2d284e88ba082fd3",
+  "manifest_sha256": "b369df49ef6f206b0a54d6bc7895990735dda4ed5508ad73f3159f02cf7974d4",
+  "limits": {
+    "application_generations_per_arm": 24,
+    "elapsed_seconds_per_arm": 1800,
+    "paid_judges": 0,
+    "input_tokens_per_arm": 2359296,
+    "output_tokens_per_arm": 393216,
+    "output_tokens_per_call": 16384,
+    "draft_seconds": 600,
+    "other_phase_seconds": 240
+  },
+  "configuration": {
+    "alias": "memoir-luna-low",
+    "provider_model": "openai/gpt-5.6-luna",
+    "requested_effort": "low",
+    "response_echoed_effort": "low",
+    "effective_internal_effort": null,
+    "provider_internal_account_failovers": null,
+    "configured_outer_retries": 0,
+    "configured_fallbacks": null,
+    "configured_marginal_api_cost_usd": 0,
+    "observed_gateway_cost_header": null,
+    "billing_audited": false,
+    "gateway_config_sha256": "416c9ef816942cd2b47ab1e0b0c9712f837cf5ad1d18a773c12eaf155894f5e4"
+  },
+  "scenario_manifest": {
+    "schema_version": 1,
+    "synthetic": true,
+    "languages": {
+      "en-AU": [
+        [
+          "bicycles",
+          "As a child in Sydney, I repaired bicycles with my father in our shed."
+        ],
+        [
+          "school",
+          "At school, Ms Vale taught me to read maps. I do not remember the year."
+        ],
+        [
+          "bicycles",
+          "Father kept our bicycle tools in a blue tin."
+        ],
+        [
+          "bicycles",
+          "On Saturdays I helped Father repair bicycles."
+        ],
+        [
+          "bicycles",
+          "I am unsure whether I was eight or nine when I first helped him."
+        ],
+        [
+          "bicycles",
+          "The tin was green; I have corrected my earlier description. Father taught me to remove a tyre, find the puncture, and wait for the glue before pressing on a rubber patch. I held a basin while he turned the inner tube through the water. We watched for bubbles. He let me try the patch after showing me once. I sometimes needed another attempt. I remember the basin and the patch, but I cannot remember the brand of glue or the exact year. The work happened in our shed. I have not described its colour or size, and I do not know what the weather was on those days. The maps I learned to read at school were a different memory. I do not know whether those lessons came before or after my first bicycle repair. I remember Father handing me the tin when it was time to put the tools away. I did not keep the tin, and I do not know where it is now."
+        ],
+        [
+          "bicycles",
+          "We used rubber patches and glue to repair punctured inner tubes."
+        ],
+        [
+          null,
+          "Thank you."
+        ],
+        [
+          "bicycles",
+          "I practised patching tyres beside Father. I sometimes asked him to check a patch."
+        ],
+        [
+          null,
+          "Yes, that is what I remember."
+        ],
+        [
+          "bicycles",
+          "Father told me that he repaired neighbours’ bicycles before I was born. I did not witness those years."
+        ],
+        [
+          "bicycles",
+          "I recall Father saying that a patch needed time. I cannot promise those were his exact words."
+        ],
+        [
+          "bicycles",
+          "I cannot remember the weather on those Saturdays."
+        ],
+        [
+          "bicycles",
+          "A later caption called the building a garage. I remember it as a shed. I have not supplied a photograph."
+        ],
+        [
+          null,
+          "Thank you."
+        ]
+      ],
+      "zh-CN": [
+        [
+          "bicycles",
+          "小时候在悉尼，我和父亲在棚屋里一起修自行车。"
+        ],
+        [
+          "school",
+          "在学校，威尔老师教我看地图。我不记得是哪一年。"
+        ],
+        [
+          "bicycles",
+          "父亲把修自行车的工具放在蓝色铁盒里。"
+        ],
+        [
+          "bicycles",
+          "每个星期六，我帮父亲修自行车。"
+        ],
+        [
+          "bicycles",
+          "我不确定第一次帮他时是八岁还是九岁。"
+        ],
+        [
+          "bicycles",
+          "铁盒是绿色的，我已经纠正了先前的描述。父亲教我拆下轮胎，找到漏气处，等胶水合适后再压上橡胶补片。他把内胎转着放进水里时，我扶着水盆。我们看哪里冒气泡。他示范一次后，让我试着贴补片。有时我需要再试一次。我记得水盆和补片，但记不清胶水的牌子，也记不清确切的年份。我们是在棚屋里修车。我没有描述棚屋的颜色或大小，也记不得那些天的天气。学校里学习看地图是另一段记忆。我不知道那些课是在第一次修自行车之前还是之后。我记得收工具时父亲把铁盒递给我。我没有留下那个铁盒，也不知道它现在在哪里。"
+        ],
+        [
+          "bicycles",
+          "我们用橡胶补片和胶水修补扎破的内胎。"
+        ],
+        [
+          null,
+          "谢谢。"
+        ],
+        [
+          "bicycles",
+          "我在父亲身边练习补胎，有时请他检查补片。"
+        ],
+        [
+          null,
+          "对，我记得就是这样。"
+        ],
+        [
+          "bicycles",
+          "父亲告诉我，在我出生之前他就替邻居修自行车。我没有亲眼见过那些年。"
+        ],
+        [
+          "bicycles",
+          "我记得父亲说过，贴补片需要给它时间。我不能保证这是他的原话。"
+        ],
+        [
+          "bicycles",
+          "我记不得那些星期六的天气。"
+        ],
+        [
+          "bicycles",
+          "后来的一条说明把那栋建筑称为车库。我记得它是棚屋。我没有提供照片。"
+        ],
+        [
+          null,
+          "谢谢。"
+        ]
+      ]
+    },
+    "source_correction": {
+      "en-AU": "Father kept our bicycle tools in a green tin.",
+      "zh-CN": "父亲把修自行车的工具放在绿色铁盒里。"
+    },
+    "checkpoints": [
+      {
+        "round": 5,
+        "kind": "first_short"
+      },
+      {
+        "round": 10,
+        "kind": "later_correction_longer",
+        "restart_after_saved_draft": true
+      },
+      {
+        "round": 15,
+        "kind": "held_out_attribution_uncertainty"
+      }
+    ],
+    "final_control": "withdraw every original; verify saved prose withheld with no model calls",
+    "limits": {
+      "application_generations_per_arm": 24,
+      "elapsed_seconds_per_arm": 1800,
+      "paid_judges": 0,
+      "input_tokens_per_arm": 2359296,
+      "output_tokens_per_arm": 393216,
+      "output_tokens_per_call": 16384,
+      "draft_seconds": 600,
+      "other_phase_seconds": 240
+    },
+    "evidence_scope": "live composer + disposable real SQL + canonical API; upstream collector, policy and extraction are controlled fixtures; no browser paint or deployed candidate",
+    "quality_gates": [
+      "source entailment and exact refs",
+      "corrected colour and source version",
+      "uncertainty and attributed family accounts",
+      "target language",
+      "unchanged supported sections",
+      "separate review, no publication approval",
+      "durable saved-reader API and restart",
+      "withdrawal withholds old prose"
+    ]
+  },
+  "arms": {
+    "baseline": {
+      "source_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "status": "failed",
+      "elapsed_seconds": 321.47228012490086,
+      "actual_submissions": 24,
+      "budget": {
+        "requests_started": 24,
+        "input_tokens_reported": 219530,
+        "output_tokens_reported": 38342,
+        "input_tokens_accounted": 219530,
+        "output_tokens_accounted": 38342,
+        "blocked_reason": null
+      },
+      "error_class": "RuntimeError",
+      "successful_durable_checkpoints": 5,
+      "phase_counts": {
+        "prepare": 6,
+        "draft": 11,
+        "review": 7
+      },
+      "phases": {
+        "prepare": {
+          "n": 6,
+          "sum_seconds": 32.60231554112397,
+          "median_seconds": 5.4913536249659956,
+          "min_seconds": 4.171977541060187,
+          "max_seconds": 6.129005208029412,
+          "input_tokens": 10973,
+          "output_tokens": 3832
+        },
+        "draft": {
+          "n": 11,
+          "sum_seconds": 189.77949520689435,
+          "median_seconds": 16.468463541008532,
+          "min_seconds": 12.603967707953416,
+          "max_seconds": 22.970368332928047,
+          "input_tokens": 131824,
+          "output_tokens": 32243
+        },
+        "review": {
+          "n": 7,
+          "sum_seconds": 31.504593082121573,
+          "median_seconds": 4.296425833017565,
+          "min_seconds": 3.1964728750754148,
+          "max_seconds": 6.159975750022568,
+          "input_tokens": 76733,
+          "output_tokens": 2267
+        }
+      },
+      "node_operations": {
+        "plan": {
+          "n": 47,
+          "sum_seconds": 3.406359590939246,
+          "median_seconds": 0.05659041693434119,
+          "min_seconds": 0.04899504198692739,
+          "max_seconds": 0.4765505000250414
+        },
+        "validate": {
+          "n": 39,
+          "sum_seconds": 2.4643801238853484,
+          "median_seconds": 0.05786966602317989,
+          "min_seconds": 0.0506724159931764,
+          "max_seconds": 0.11136887490283698
+        },
+        "render": {
+          "n": 5,
+          "sum_seconds": 2.25724520906806,
+          "median_seconds": 0.06272237503435463,
+          "min_seconds": 0.05760366702452302,
+          "max_seconds": 1.9870943749556318
+        }
+      },
+      "cached_input_tokens": 4480,
+      "withdrawals": [
+        {
+          "locale": "en-AU",
+          "reader": {
+            "error": null,
+            "locale": "en-AU",
+            "status": "insufficient_context",
+            "preview": null,
+            "owner_id": "11111111-1111-4111-8111-111111111111",
+            "progress": {
+              "extraction": {
+                "error": null,
+                "state": "finished",
+                "pending": false,
+                "covered_round": 15,
+                "pending_inputs": 0,
+                "successful_event": 0,
+                "target_milestone": 0,
+                "extracted_through": 31,
+                "successful_source": 16
+              },
+              "composition": {
+                "error": null,
+                "state": "finished",
+                "pending": false,
+                "covered_round": 15,
+                "successful_event": 32,
+                "target_milestone": 15,
+                "successful_source": 31
+              }
+            },
+            "revision": 4,
+            "updating": false,
+            "project_id": "lifetime-c771323d-4379-4628-8655-8ba87b4a6f37",
+            "next_cursor": null,
+            "root_digest": "7074c9af3a92b3118c255ea0c7de25d13885a39448df3e2a45b72a0b3f35e5dc",
+            "snapshot_id": "9768be33-36ec-440a-b029-c5fa1ee3fe78",
+            "first_record": null,
+            "policy_epoch": 17,
+            "page_complete": true,
+            "coverage_round": 15,
+            "coverage_scope": "frozen_root",
+            "event_revision": 32,
+            "schema_version": 1,
+            "snapshot_state": "completed",
+            "conversation_id": "ac2c7a4f-eea1-43ab-9d66-bda126a2e3c7",
+            "source_revision": 31,
+            "proposed_preview": null,
+            "approval_required": false,
+            "original_withheld": null,
+            "retrieval_complete": true,
+            "background_progress": {
+              "phase": null,
+              "state": "finished",
+              "target_milestone": 15
+            },
+            "publication_approved": false,
+            "current_event_revision": 32,
+            "current_source_revision": 31,
+            "skill_progress": null
+          },
+          "outcome": {
+            "pages": 1,
+            "status": "saved",
+            "root_digest": "7074c9af3a92b3118c255ea0c7de25d13885a39448df3e2a45b72a0b3f35e5dc",
+            "snapshot_id": "9768be33-36ec-440a-b029-c5fa1ee3fe78",
+            "retrieval_complete": true,
+            "publication_approved": false
+          },
+          "model_calls": 0,
+          "prose_withheld": true
+        }
+      ],
+      "containers": [
+        {
+          "name": "memoir-issue6-pg-dd37de400dcd",
+          "cleanup_verified": true
+        },
+        {
+          "name": "memoir-issue6-pg-5bdd1db8c340",
+          "cleanup_verified": true
+        }
+      ],
+      "receipt_sha256": "dc9eaa755f3235532a8b764a66d2c35ebf04880ffc66c457bbb5ba2d788c91d1",
+      "supervisor": {
+        "name": "live-baseline",
+        "command": [
+          "python3",
+          "var/composer-response-optimization/20261025-live/profile.py",
+          "--execute",
+          "--arm",
+          "baseline"
+        ],
+        "exit_code": 1,
+        "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+        "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-yojq53uz",
+        "command_group": {
+          "group_id": 56888,
+          "leader_started": "Sun Oct 25 13:45:09 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-yojq53uz",
+              "device": 16777231,
+              "inode": 969951717
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 1,
+        "duration_seconds": 323.17
+      },
+      "invocations": [
+        {
+          "case": "en-AU-5",
+          "phase": "prepare",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 6.129005208029412,
+          "first_raw_delta_seconds": 4.287427750066854,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 1704,
+          "output_tokens": 508,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "cc83b6ee241e831378bffe8181a3f9992317bef9cb62b53cc4d8ea5264cde13d",
+          "request_sha256": "1c202434d1e297c65accfaa521669d91de02cfb61c533fdf8775733ada57c66f"
+        },
+        {
+          "case": "en-AU-5",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 12.603967707953416,
+          "first_raw_delta_seconds": 3.725582457962446,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 7651,
+          "output_tokens": 2059,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "c70b38348a2fb8f5eae7254cb11df54c1b8641278023af408fe37b634085478f",
+          "request_sha256": "b4e96aa027f33c1dc929c5522aa7c8f7b2548b325347d55d4df0e7ef375801d2"
+        },
+        {
+          "case": "en-AU-5",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 3.1964728750754148,
+          "first_raw_delta_seconds": 3.05540525005199,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 7974,
+          "output_tokens": 214,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "b2b3f51d3fa046cb00176ae5890cc5b6bad6b481c473c808cd56089d8257e14c",
+          "request_sha256": "6fdd6516725ade641fb5ccc3143d026ab1ce373058b251c196d8709b9f6014a2"
+        },
+        {
+          "case": "en-AU-10",
+          "phase": "prepare",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 5.555557832936756,
+          "first_raw_delta_seconds": 2.1734790418995544,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 2013,
+          "output_tokens": 764,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "cc83b6ee241e831378bffe8181a3f9992317bef9cb62b53cc4d8ea5264cde13d",
+          "request_sha256": "fea11b81c537208b8ddbe45773871d23609b479f6fa337c3e439dc4a7374f8f8"
+        },
+        {
+          "case": "en-AU-10",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 16.64404241705779,
+          "first_raw_delta_seconds": 2.5474797500064597,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 9687,
+          "output_tokens": 2962,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "8bcdb89c67036646fb3c5ffd0e934bf4b4f425a5b701e10e09b8521841a9d082",
+          "request_sha256": "0efa6c25fc91cc5cf42a072ea31531ea893c8eca289d2f08deb6436e991278dd"
+        },
+        {
+          "case": "en-AU-10",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 3.988566166954115,
+          "first_raw_delta_seconds": 3.9006236670538783,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 10742,
+          "output_tokens": 286,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "b2b3f51d3fa046cb00176ae5890cc5b6bad6b481c473c808cd56089d8257e14c",
+          "request_sha256": "8e87bc1597b1f922eed548e1268bd523aaa59b61b915fbcb7a06ff928435fb89"
+        },
+        {
+          "case": "en-AU-15",
+          "phase": "prepare",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 4.171977541060187,
+          "first_raw_delta_seconds": 2.3664123330963776,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 1701,
+          "output_tokens": 526,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "cc83b6ee241e831378bffe8181a3f9992317bef9cb62b53cc4d8ea5264cde13d",
+          "request_sha256": "be2363f03c9d10880360ce7a1507e942ad65a490e997da6b440c2be516783a89"
+        },
+        {
+          "case": "en-AU-15",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 19.46395595895592,
+          "first_raw_delta_seconds": 3.317833959008567,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 13446,
+          "output_tokens": 3506,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "f279a65693cf3aebe3565a84ec0b5503e42f8e35fa10de8a9892b4b29c6a3f2b",
+          "request_sha256": "a7fcfccb8e169b3b6f1fab1483b614258e5764fd217957280e035082905edf58"
+        },
+        {
+          "case": "en-AU-15",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 22.536850208067335,
+          "first_raw_delta_seconds": 5.930143792065792,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 17103,
+          "output_tokens": 3721,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "f279a65693cf3aebe3565a84ec0b5503e42f8e35fa10de8a9892b4b29c6a3f2b",
+          "request_sha256": "94697ca5ff3cb12bb7d649ac7d51e487d2eff71a0a087b5c20d3f88127051ba5"
+        },
+        {
+          "case": "en-AU-15",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 5.095699583063833,
+          "first_raw_delta_seconds": 4.282647415995598,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 14917,
+          "output_tokens": 317,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "b2b3f51d3fa046cb00176ae5890cc5b6bad6b481c473c808cd56089d8257e14c",
+          "request_sha256": "fc95f1b1a24573455d8dd93870afa39f2e446a0e5d55b69e6a5b8e3d6d13bbbf"
+        },
+        {
+          "case": "zh-CN-5",
+          "phase": "prepare",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 5.427149416995235,
+          "first_raw_delta_seconds": 3.1177148749120533,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 1748,
+          "output_tokens": 575,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "e039b0031e6cd08c00e455f281601be1942c04f9f3d274c9f33c50c527b0740f",
+          "request_sha256": "67294bb30f4cc6c7d349fdf3ed2c4420e698dc1c1218bffc80cedf075b0b3209"
+        },
+        {
+          "case": "zh-CN-5",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 13.825591124943458,
+          "first_raw_delta_seconds": 2.293859832920134,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 7672,
+          "output_tokens": 2389,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "feda1bfa80fa868393a6d0dc6869c18dd1500f83dbb0f4d8792eb58e6838d79b",
+          "request_sha256": "19f4c4cb73e89aac6aa9d9cacdd9eeb9e0c224a5f37ad3e615cc4c86ed6017e6"
+        },
+        {
+          "case": "zh-CN-5",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 4.081074291025288,
+          "first_raw_delta_seconds": 3.848139791050926,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 8390,
+          "output_tokens": 300,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "3d029d41ad8b87ca9f13579da204800380d0a51e232f4c5cfba3ecda6cce21ee",
+          "request_sha256": "0150da07acefc5124ae11bd6aa343419c365d7e418affeaeb12891aaae9f008e"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "prepare",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 6.103969125077128,
+          "first_raw_delta_seconds": 3.2411385000450537,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 2038,
+          "output_tokens": 852,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "e039b0031e6cd08c00e455f281601be1942c04f9f3d274c9f33c50c527b0740f",
+          "request_sha256": "ef1c96ba599416c35653f4791c0d79d3f7f7162e78cbefdb3620427a75f7e7e2"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 16.468463541008532,
+          "first_raw_delta_seconds": 2.484042707947083,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 9728,
+          "output_tokens": 2799,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "691287fdd12036e860d5130d3ed04c3cfa4cef920d7c6a6029ad762491498121",
+          "request_sha256": "6fe95cb11ff88dc7533461683075c441a1433fd32d8d4df844d0486f516551a8"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 16.384767708019353,
+          "first_raw_delta_seconds": 3.5948482080129907,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 12792,
+          "output_tokens": 3071,
+          "cached_input_tokens": 1408,
+          "manifest_sha256": "691287fdd12036e860d5130d3ed04c3cfa4cef920d7c6a6029ad762491498121",
+          "request_sha256": "087846926abe2d3529e5b3b2a7b1de0f10cc1f067ad327d7837a21cfac6f49ae"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 22.970368332928047,
+          "first_raw_delta_seconds": 3.2488697909284383,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 12808,
+          "output_tokens": 2851,
+          "cached_input_tokens": 1408,
+          "manifest_sha256": "691287fdd12036e860d5130d3ed04c3cfa4cef920d7c6a6029ad762491498121",
+          "request_sha256": "b8ef539cf55ab3da44fdd5eefacf562c2b132cebba35d6b01b8cb4d394b99d3c"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 4.686378582962789,
+          "first_raw_delta_seconds": 4.487644499982707,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 10665,
+          "output_tokens": 339,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "3d029d41ad8b87ca9f13579da204800380d0a51e232f4c5cfba3ecda6cce21ee",
+          "request_sha256": "9b980ffe7c2ae8556bf683f72ff2002b3a8ba444bca90548ddd8c0914c2e1488"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 15.39927766600158,
+          "first_raw_delta_seconds": 2.67165924992878,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 12775,
+          "output_tokens": 2897,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "691287fdd12036e860d5130d3ed04c3cfa4cef920d7c6a6029ad762491498121",
+          "request_sha256": "119dd527ddf023246c4ea7fb4a3f5a59f191ae892f4df98f4cec9f967c37a205"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 6.159975750022568,
+          "first_raw_delta_seconds": 5.825317167094909,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 10747,
+          "output_tokens": 457,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "3d029d41ad8b87ca9f13579da204800380d0a51e232f4c5cfba3ecda6cce21ee",
+          "request_sha256": "b8be30fed6f2ac2bf1cf2f05c554d273514c2e5c5dc4cc2524b5990936370344"
+        },
+        {
+          "case": "zh-CN-15",
+          "phase": "prepare",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 5.214656417025253,
+          "first_raw_delta_seconds": 2.972446750034578,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 1769,
+          "output_tokens": 607,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "e039b0031e6cd08c00e455f281601be1942c04f9f3d274c9f33c50c527b0740f",
+          "request_sha256": "f660a8841cd30ec79dd341116ec6fed7ae17c0e23b64f925290f7d011b87d39a"
+        },
+        {
+          "case": "zh-CN-15",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 17.062485333997756,
+          "first_raw_delta_seconds": 3.2244371249107644,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 12499,
+          "output_tokens": 2972,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "54750c5b06202139ac6b860b6fa389b1f5b0c378d88321fdc660c51b4e50b9dd",
+          "request_sha256": "83cd52fcef6c01cf6436e06452937cb82e97ddfb5aacf49260d00c5e76b8b635"
+        },
+        {
+          "case": "zh-CN-15",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 4.296425833017565,
+          "first_raw_delta_seconds": 4.065350542077795,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 13298,
+          "output_tokens": 354,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "3d029d41ad8b87ca9f13579da204800380d0a51e232f4c5cfba3ecda6cce21ee",
+          "request_sha256": "2310c7122c8e55ff52421457832231a50d88954b0c22179d52fd9c05fdaf4500"
+        },
+        {
+          "case": "zh-CN-15",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 16.419725207961164,
+          "first_raw_delta_seconds": 2.4604812499601394,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 15663,
+          "output_tokens": 3016,
+          "cached_input_tokens": 1664,
+          "manifest_sha256": "54750c5b06202139ac6b860b6fa389b1f5b0c378d88321fdc660c51b4e50b9dd",
+          "request_sha256": "df73c59d4231d615572a3548e42cfcf8b18c2a0c4deb5b54589b7c4620d08367"
+        },
+        {
+          "case": "zh-CN-15",
+          "phase": "review",
+          "status": "failed",
+          "actual_http_submitted": false,
+          "phase_seconds": 0.10628562502097338,
+          "first_raw_delta_seconds": null,
+          "http_status": null,
+          "provider_model": null,
+          "error_class": "BudgetExceeded",
+          "gateway_reported_cost": null,
+          "input_tokens": null,
+          "output_tokens": null,
+          "cached_input_tokens": null,
+          "manifest_sha256": null,
+          "request_sha256": null
+        }
+      ]
+    },
+    "candidate": {
+      "source_head": "a20689248a6dae91c83c29e087cf9b119cd6985f",
+      "status": "completed",
+      "elapsed_seconds": 205.29680945794098,
+      "actual_submissions": 14,
+      "budget": {
+        "requests_started": 14,
+        "input_tokens_reported": 151764,
+        "output_tokens_reported": 23317,
+        "input_tokens_accounted": 151764,
+        "output_tokens_accounted": 23317,
+        "blocked_reason": null
+      },
+      "error_class": null,
+      "successful_durable_checkpoints": 6,
+      "phase_counts": {
+        "draft": 8,
+        "review": 6
+      },
+      "phases": {
+        "prepare": {
+          "n": 0,
+          "sum_seconds": 0,
+          "median_seconds": null,
+          "min_seconds": null,
+          "max_seconds": null,
+          "input_tokens": 0,
+          "output_tokens": 0
+        },
+        "draft": {
+          "n": 8,
+          "sum_seconds": 126.0506745420862,
+          "median_seconds": 15.117025208543055,
+          "min_seconds": 13.617719374946319,
+          "max_seconds": 19.56835704203695,
+          "input_tokens": 86453,
+          "output_tokens": 21586
+        },
+        "review": {
+          "n": 6,
+          "sum_seconds": 27.461436627898365,
+          "median_seconds": 4.427377750456799,
+          "min_seconds": 4.076457583927549,
+          "max_seconds": 5.4027727919165045,
+          "input_tokens": 65311,
+          "output_tokens": 1731
+        }
+      },
+      "node_operations": {
+        "plan": {
+          "n": 38,
+          "sum_seconds": 3.706803750130348,
+          "median_seconds": 0.08577325049554929,
+          "min_seconds": 0.07949870894663036,
+          "max_seconds": 0.36864058300852776
+        },
+        "validate": {
+          "n": 28,
+          "sum_seconds": 3.5640804561553523,
+          "median_seconds": 0.08781383355380967,
+          "min_seconds": 0.08060595800634474,
+          "max_seconds": 0.2639288749778643
+        },
+        "render": {
+          "n": 6,
+          "sum_seconds": 0.6876388320233673,
+          "median_seconds": 0.11019989551277831,
+          "min_seconds": 0.10320579097606242,
+          "max_seconds": 0.1409141659969464
+        }
+      },
+      "cached_input_tokens": 2816,
+      "withdrawals": [
+        {
+          "locale": "en-AU",
+          "reader": {
+            "error": null,
+            "locale": "en-AU",
+            "status": "insufficient_context",
+            "preview": null,
+            "owner_id": "11111111-1111-4111-8111-111111111111",
+            "progress": {
+              "extraction": {
+                "error": null,
+                "state": "finished",
+                "pending": false,
+                "covered_round": 15,
+                "pending_inputs": 0,
+                "successful_event": 0,
+                "target_milestone": 0,
+                "extracted_through": 31,
+                "successful_source": 16
+              },
+              "composition": {
+                "error": null,
+                "state": "finished",
+                "pending": false,
+                "covered_round": 15,
+                "successful_event": 32,
+                "target_milestone": 15,
+                "successful_source": 31
+              }
+            },
+            "revision": 4,
+            "updating": false,
+            "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+            "next_cursor": null,
+            "root_digest": "530da2bfabd421dc6749e097bc11f1fb13d6cf50e5c0890d592beabd5d3da23a",
+            "snapshot_id": "e53a5644-a73f-45ff-bac4-d82398c9267d",
+            "first_record": null,
+            "policy_epoch": 17,
+            "page_complete": true,
+            "coverage_round": 15,
+            "coverage_scope": "frozen_root",
+            "event_revision": 32,
+            "schema_version": 1,
+            "snapshot_state": "completed",
+            "conversation_id": "ad9f83bb-3151-4def-9d00-d91537ede092",
+            "source_revision": 31,
+            "proposed_preview": null,
+            "approval_required": false,
+            "original_withheld": null,
+            "retrieval_complete": true,
+            "background_progress": {
+              "phase": null,
+              "state": "finished",
+              "target_milestone": 15
+            },
+            "publication_approved": false,
+            "current_event_revision": 32,
+            "current_source_revision": 31,
+            "skill_progress": null
+          },
+          "outcome": {
+            "pages": 1,
+            "status": "saved",
+            "root_digest": "530da2bfabd421dc6749e097bc11f1fb13d6cf50e5c0890d592beabd5d3da23a",
+            "snapshot_id": "e53a5644-a73f-45ff-bac4-d82398c9267d",
+            "retrieval_complete": true,
+            "publication_approved": false
+          },
+          "model_calls": 0,
+          "prose_withheld": true
+        },
+        {
+          "locale": "zh-CN",
+          "reader": {
+            "error": null,
+            "locale": "zh-CN",
+            "status": "insufficient_context",
+            "preview": null,
+            "owner_id": "11111111-1111-4111-8111-111111111111",
+            "progress": {
+              "extraction": {
+                "error": null,
+                "state": "finished",
+                "pending": false,
+                "covered_round": 15,
+                "pending_inputs": 0,
+                "successful_event": 0,
+                "target_milestone": 0,
+                "extracted_through": 31,
+                "successful_source": 16
+              },
+              "composition": {
+                "error": null,
+                "state": "finished",
+                "pending": false,
+                "covered_round": 15,
+                "successful_event": 32,
+                "target_milestone": 15,
+                "successful_source": 31
+              }
+            },
+            "revision": 4,
+            "updating": false,
+            "project_id": "lifetime-67dfcad6-5b05-4773-82ce-9cb77f3c19c8",
+            "next_cursor": null,
+            "root_digest": "e52f76aa5dc52b74ae344259649f97f2a5b80d53ff7c71910baf6057a03692ac",
+            "snapshot_id": "a83ce8b7-1218-46ac-9c18-218f88e720f7",
+            "first_record": null,
+            "policy_epoch": 17,
+            "page_complete": true,
+            "coverage_round": 15,
+            "coverage_scope": "frozen_root",
+            "event_revision": 32,
+            "schema_version": 1,
+            "snapshot_state": "completed",
+            "conversation_id": "d163c7d0-cba1-4d41-93fd-6b6ddbcd2856",
+            "source_revision": 31,
+            "proposed_preview": null,
+            "approval_required": false,
+            "original_withheld": null,
+            "retrieval_complete": true,
+            "background_progress": {
+              "phase": null,
+              "state": "finished",
+              "target_milestone": 15
+            },
+            "publication_approved": false,
+            "current_event_revision": 32,
+            "current_source_revision": 31,
+            "skill_progress": null
+          },
+          "outcome": {
+            "pages": 1,
+            "status": "saved",
+            "root_digest": "e52f76aa5dc52b74ae344259649f97f2a5b80d53ff7c71910baf6057a03692ac",
+            "snapshot_id": "a83ce8b7-1218-46ac-9c18-218f88e720f7",
+            "retrieval_complete": true,
+            "publication_approved": false
+          },
+          "model_calls": 0,
+          "prose_withheld": true
+        }
+      ],
+      "containers": [
+        {
+          "name": "memoir-issue6-pg-98b50f67300b",
+          "cleanup_verified": true
+        },
+        {
+          "name": "memoir-issue6-pg-0941b32638b4",
+          "cleanup_verified": true
+        }
+      ],
+      "receipt_sha256": "974730d536e7b708940a4a0cab52b84f5e2644e508667dec22b495e5b7509d01",
+      "supervisor": {
+        "name": "live-candidate",
+        "command": [
+          "python3",
+          "var/composer-response-optimization/20261025-live/profile.py",
+          "--execute",
+          "--arm",
+          "candidate"
+        ],
+        "exit_code": 0,
+        "base_head": "a20689248a6dae91c83c29e087cf9b119cd6985f",
+        "tree": "55f438f6acecede56bc8b25956afd71d9669833b",
+        "status": "completed",
+        "native_allocation_root": "/tmp/memoir-check-pg-ex2h1i2o",
+        "command_group": {
+          "group_id": 63663,
+          "leader_started": "Sun Oct 25 14:19:02 2026"
+        },
+        "native_allocation_cleanup": {
+          "verified": true,
+          "root_removed": true,
+          "postmasters_stopped": [],
+          "registered_roots": [
+            {
+              "root": "/tmp/memoir-check-pg-ex2h1i2o",
+              "device": 16777231,
+              "inode": 970199223
+            }
+          ],
+          "command_groups_stopped": []
+        },
+        "child_returncode": 0,
+        "duration_seconds": 206.8
+      },
+      "invocations": [
+        {
+          "case": "en-AU-5",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 14.46571487491019,
+          "first_raw_delta_seconds": 4.4062677919864655,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 7564,
+          "output_tokens": 2149,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "44d4dd7f796d6db5561fa0245c8e792ec27e63d29834aed19642a085e91a0fcc",
+          "request_sha256": "0593d3a15b0b76978008163301b8b53cdc779cb4a65d7dff985d04eae948cd02"
+        },
+        {
+          "case": "en-AU-5",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 4.607708583935164,
+          "first_raw_delta_seconds": 4.533224249957129,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 8036,
+          "output_tokens": 289,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "b2b3f51d3fa046cb00176ae5890cc5b6bad6b481c473c808cd56089d8257e14c",
+          "request_sha256": "5e92fd3489edc4705d78e11eb7954eaa7d6b18ff07b76ddc96edb4d20c0ec683"
+        },
+        {
+          "case": "en-AU-10",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 15.006193167064339,
+          "first_raw_delta_seconds": 3.5843875830760226,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 9782,
+          "output_tokens": 2484,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "117aaf4a2aac38f90d09cb82e25de9d8ab15e386c55d55f38bdf895cb1b5808f",
+          "request_sha256": "271098b4b5b07c39e5bc7bfda436a53ec3d8fe5ff131cec45ac0ccd204fcbce8"
+        },
+        {
+          "case": "en-AU-10",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 14.717313750064932,
+          "first_raw_delta_seconds": 3.1065736250020564,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 12472,
+          "output_tokens": 2555,
+          "cached_input_tokens": 1408,
+          "manifest_sha256": "117aaf4a2aac38f90d09cb82e25de9d8ab15e386c55d55f38bdf895cb1b5808f",
+          "request_sha256": "4fcd52c40dc8fb8cc88ea267fc0200ded739bb3d6f661d8f4afddc78313b1253"
+        },
+        {
+          "case": "en-AU-10",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 4.910274292109534,
+          "first_raw_delta_seconds": 4.747989167110063,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 10425,
+          "output_tokens": 316,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "b2b3f51d3fa046cb00176ae5890cc5b6bad6b481c473c808cd56089d8257e14c",
+          "request_sha256": "35febc2cbb44bc832c9bed2087e9b74bd617724ab2decc10a5acb4ee080a4f6d"
+        },
+        {
+          "case": "en-AU-15",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 13.617719374946319,
+          "first_raw_delta_seconds": 3.0440457080258057,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 12402,
+          "output_tokens": 2299,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "231540a09055f11f9e1abe19cc6e203c6e499c307089ac6329fc9a6f66425556",
+          "request_sha256": "64aaa62831fceb3edf3222f48f9a06db3f1f206a2612881d96d8fd308a5230b9"
+        },
+        {
+          "case": "en-AU-15",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 4.247046916978434,
+          "first_raw_delta_seconds": 3.862363624968566,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 12583,
+          "output_tokens": 325,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "b2b3f51d3fa046cb00176ae5890cc5b6bad6b481c473c808cd56089d8257e14c",
+          "request_sha256": "05c59f34d4c50ac24af3e55a57643ff5b9fa01814de57b5148a2587370420586"
+        },
+        {
+          "case": "zh-CN-5",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 15.22785725002177,
+          "first_raw_delta_seconds": 4.179494708077982,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 7663,
+          "output_tokens": 2514,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "a2a132829672594b5a7d9ca6958777770849d63ee6247ae26a5b53c6dcd6b7f7",
+          "request_sha256": "63ad2ccdb1aaceaf58d74bfc02d6ee309d5cc1e5311dc9fd1f53d9b22d76fade"
+        },
+        {
+          "case": "zh-CN-5",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 5.4027727919165045,
+          "first_raw_delta_seconds": 4.857305167010054,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 8391,
+          "output_tokens": 337,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "3d029d41ad8b87ca9f13579da204800380d0a51e232f4c5cfba3ecda6cce21ee",
+          "request_sha256": "e9a577cee228b0ef76080ce8cfb8bb2ec97914919f58f8a9f1af63e424ac9fbf"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 17.65560658299364,
+          "first_raw_delta_seconds": 2.981484708026983,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 9786,
+          "output_tokens": 3039,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "70931e347dfda4878212b3f56bd7be5e805ed88543c988a64f477e95bb514b49",
+          "request_sha256": "5757926f75c7055e2a2b0715f1995ee432713896cd2177acf0ec84d72a81eb6f"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 15.791912500048056,
+          "first_raw_delta_seconds": 3.1605777910444885,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 13019,
+          "output_tokens": 3018,
+          "cached_input_tokens": 1408,
+          "manifest_sha256": "70931e347dfda4878212b3f56bd7be5e805ed88543c988a64f477e95bb514b49",
+          "request_sha256": "dc5e1f594db10701303d8e9835cd6d21062bd9f6932236d1fee35a9ab439d757"
+        },
+        {
+          "case": "zh-CN-10",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 4.076457583927549,
+          "first_raw_delta_seconds": 3.978327833930962,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 10854,
+          "output_tokens": 233,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "3d029d41ad8b87ca9f13579da204800380d0a51e232f4c5cfba3ecda6cce21ee",
+          "request_sha256": "5767a917010d3436c31dc3f8fc9811728d0fea58f10c5edb740b0d0985138506"
+        },
+        {
+          "case": "zh-CN-15",
+          "phase": "draft",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 19.56835704203695,
+          "first_raw_delta_seconds": 3.4473171669524163,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 13765,
+          "output_tokens": 3528,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "e9bdee45c016bc2d23f876b948a3dee5febc7824da94e02eab03060909dd5087",
+          "request_sha256": "981b6bac04c3e5e89f9039800f2c9f8301d99a90ace9b9608caf7e0b02e50a27"
+        },
+        {
+          "case": "zh-CN-15",
+          "phase": "review",
+          "status": "completed",
+          "actual_http_submitted": true,
+          "phase_seconds": 4.2171764590311795,
+          "first_raw_delta_seconds": 3.595992041984573,
+          "http_status": 200,
+          "provider_model": "gpt-5.6-luna",
+          "error_class": null,
+          "gateway_reported_cost": null,
+          "input_tokens": 15022,
+          "output_tokens": 231,
+          "cached_input_tokens": 0,
+          "manifest_sha256": "3d029d41ad8b87ca9f13579da204800380d0a51e232f4c5cfba3ecda6cce21ee",
+          "request_sha256": "b73b4293ba88c21fe1e8e8c390c14da82fe69af5237ff6bc7e1290ad20764e68"
+        }
+      ]
+    }
+  },
+  "comparison": [
+    {
+      "case": "en-AU-5",
+      "samples_per_arm": 1,
+      "measurement": "trigger to saved-reader API response",
+      "baseline_seconds": 24.617953290930018,
+      "candidate_seconds": 21.2626344159944,
+      "candidate_prepared_characters": 300,
+      "candidate_context_equals_baseline_originals_in_order": true,
+      "baseline_saved": true,
+      "candidate_saved": true,
+      "baseline_calls": {
+        "prepare": 1,
+        "draft": 1,
+        "review": 1
+      },
+      "candidate_calls": {
+        "draft": 1,
+        "review": 1
+      },
+      "baseline_input_tokens": 17329,
+      "baseline_output_tokens": 2781,
+      "candidate_input_tokens": 15600,
+      "candidate_output_tokens": 2438,
+      "saved_draft_restart_baseline": false,
+      "saved_draft_restart_candidate": false,
+      "absolute_reduction_seconds": 3.3553188749356195,
+      "relative_reduction_percent": 13.629560651460892,
+      "quality_passing_latency_claim": false
+    },
+    {
+      "case": "en-AU-10",
+      "samples_per_arm": 1,
+      "measurement": "trigger to saved-reader API response",
+      "baseline_seconds": 28.569606208009645,
+      "candidate_seconds": 38.65018095902633,
+      "candidate_prepared_characters": 1035,
+      "candidate_context_equals_baseline_originals_in_order": true,
+      "baseline_saved": true,
+      "candidate_saved": true,
+      "baseline_calls": {
+        "prepare": 1,
+        "draft": 1,
+        "review": 1
+      },
+      "candidate_calls": {
+        "draft": 2,
+        "review": 1
+      },
+      "baseline_input_tokens": 22442,
+      "baseline_output_tokens": 4012,
+      "candidate_input_tokens": 32679,
+      "candidate_output_tokens": 5355,
+      "saved_draft_restart_baseline": true,
+      "saved_draft_restart_candidate": true,
+      "absolute_reduction_seconds": -10.080574751016684,
+      "relative_reduction_percent": -35.28426215475991,
+      "quality_passing_latency_claim": false
+    },
+    {
+      "case": "en-AU-15",
+      "samples_per_arm": 1,
+      "measurement": "trigger to saved-reader API response",
+      "baseline_seconds": 59.141653208993375,
+      "candidate_seconds": 20.64007016690448,
+      "candidate_prepared_characters": 366,
+      "candidate_context_equals_baseline_originals_in_order": true,
+      "baseline_saved": true,
+      "candidate_saved": true,
+      "baseline_calls": {
+        "prepare": 1,
+        "draft": 2,
+        "review": 1
+      },
+      "candidate_calls": {
+        "draft": 1,
+        "review": 1
+      },
+      "baseline_input_tokens": 47167,
+      "baseline_output_tokens": 8070,
+      "candidate_input_tokens": 24985,
+      "candidate_output_tokens": 2624,
+      "saved_draft_restart_baseline": false,
+      "saved_draft_restart_candidate": false,
+      "absolute_reduction_seconds": 38.501583042088896,
+      "relative_reduction_percent": 65.10062021099226,
+      "quality_passing_latency_claim": false
+    },
+    {
+      "case": "zh-CN-5",
+      "samples_per_arm": 1,
+      "measurement": "trigger to saved-reader API response",
+      "baseline_seconds": 25.969655332970433,
+      "candidate_seconds": 23.218102041981183,
+      "candidate_prepared_characters": 104,
+      "candidate_context_equals_baseline_originals_in_order": true,
+      "baseline_saved": true,
+      "candidate_saved": true,
+      "baseline_calls": {
+        "prepare": 1,
+        "draft": 1,
+        "review": 1
+      },
+      "candidate_calls": {
+        "draft": 1,
+        "review": 1
+      },
+      "baseline_input_tokens": 17810,
+      "baseline_output_tokens": 3264,
+      "candidate_input_tokens": 16054,
+      "candidate_output_tokens": 2851,
+      "saved_draft_restart_baseline": false,
+      "saved_draft_restart_candidate": false,
+      "absolute_reduction_seconds": 2.75155329098925,
+      "relative_reduction_percent": 10.595263031835259,
+      "quality_passing_latency_claim": false
+    },
+    {
+      "case": "zh-CN-10",
+      "samples_per_arm": 1,
+      "measurement": "trigger to saved-reader API response",
+      "baseline_seconds": 96.51309774990659,
+      "candidate_seconds": 42.66800512501504,
+      "candidate_prepared_characters": 298,
+      "candidate_context_equals_baseline_originals_in_order": true,
+      "baseline_saved": true,
+      "candidate_saved": true,
+      "baseline_calls": {
+        "prepare": 1,
+        "draft": 4,
+        "review": 2
+      },
+      "candidate_calls": {
+        "draft": 2,
+        "review": 1
+      },
+      "baseline_input_tokens": 71553,
+      "baseline_output_tokens": 13266,
+      "candidate_input_tokens": 33659,
+      "candidate_output_tokens": 6290,
+      "saved_draft_restart_baseline": true,
+      "saved_draft_restart_candidate": true,
+      "absolute_reduction_seconds": 53.84509262489155,
+      "relative_reduction_percent": 55.79045112034409,
+      "quality_passing_latency_claim": false
+    },
+    {
+      "case": "zh-CN-15",
+      "samples_per_arm": 1,
+      "measurement": "trigger to saved-reader API response",
+      "baseline_seconds": 48.92954366700724,
+      "candidate_seconds": 27.115671792067587,
+      "candidate_prepared_characters": 120,
+      "candidate_context_equals_baseline_originals_in_order": true,
+      "baseline_saved": false,
+      "candidate_saved": true,
+      "baseline_calls": {
+        "prepare": 1,
+        "draft": 2,
+        "review": 1
+      },
+      "candidate_calls": {
+        "draft": 1,
+        "review": 1
+      },
+      "baseline_input_tokens": 43229,
+      "baseline_output_tokens": 6949,
+      "candidate_input_tokens": 28787,
+      "candidate_output_tokens": 3759,
+      "saved_draft_restart_baseline": false,
+      "saved_draft_restart_candidate": false,
+      "absolute_reduction_seconds": null,
+      "relative_reduction_percent": null,
+      "quality_passing_latency_claim": false
+    }
+  ],
+  "checked_in_prompt_receipts": [
+    {
+      "name": "memoir/skills/memoir-author-timeline/continuity",
+      "path": "skills/memoir-author-timeline/prompts/continuity.md",
+      "rendered_bytes": 987,
+      "source_version": 1,
+      "source_sha256": "e4daebd5db07d3bf93d5561c1c7d7c5528157a3c5cb1213742614592345dcbd1",
+      "compiled_template_sha256": "e4daebd5db07d3bf93d5561c1c7d7c5528157a3c5cb1213742614592345dcbd1",
+      "components": []
+    },
+    {
+      "name": "memoir/shared/bounded-context/en-AU",
+      "path": "apps/api/prompts/shared/bounded-context/en-AU.md",
+      "rendered_bytes": 954,
+      "source_version": 2,
+      "source_sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+      "compiled_template_sha256": "c3049a8c8c9ee47496c2ceff218934a53a8539422bbbd2c8eb7c8e7779712bbf",
+      "components": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/shared/bounded-context/policy",
+      "path": "apps/api/prompts/shared/bounded-context/policy.md",
+      "rendered_bytes": 884,
+      "source_version": 1,
+      "source_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+      "compiled_template_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+      "components": []
+    },
+    {
+      "name": "memoir/shared/bounded-context/zh-CN",
+      "path": "apps/api/prompts/shared/bounded-context/zh-CN.md",
+      "rendered_bytes": 954,
+      "source_version": 2,
+      "source_sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+      "compiled_template_sha256": "274c42884c8cd153e46c03a5c31776c3e74721e3ddfff733b9cf86d2be13926c",
+      "components": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/shared/place-conflicts",
+      "path": "apps/api/prompts/shared/place-conflicts.md",
+      "rendered_bytes": 239,
+      "source_version": 1,
+      "source_sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+      "compiled_template_sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/attribution",
+      "path": "skills/memoir-author-timeline/prompts/attribution.md",
+      "rendered_bytes": 1253,
+      "source_version": 1,
+      "source_sha256": "cc01a7e1ad07676fa95950c71b4ecc63bd2d4db4db530d208ac9fbc2e72d5dc9",
+      "compiled_template_sha256": "cc01a7e1ad07676fa95950c71b4ecc63bd2d4db4db530d208ac9fbc2e72d5dc9",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/contract",
+      "path": "skills/memoir-author-timeline/references/contract.md",
+      "rendered_bytes": 2387,
+      "source_version": 1,
+      "source_sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
+      "compiled_template_sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/derived-hints",
+      "path": "skills/memoir-author-timeline/prompts/derived-hints.md",
+      "rendered_bytes": 1193,
+      "source_version": 2,
+      "source_sha256": "099e4117d961a2751a5d45da010ec3b4e8187b5fb7b91d655442a5dae4af68f8",
+      "compiled_template_sha256": "099e4117d961a2751a5d45da010ec3b4e8187b5fb7b91d655442a5dae4af68f8",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/extract",
+      "path": "skills/memoir-author-timeline/prompts/extract.md",
+      "rendered_bytes": 8706,
+      "source_version": 3,
+      "source_sha256": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
+      "compiled_template_sha256": "aee4bb83efcd8f0a39b34fa2604fc2fd63f4421fc8efd4b316a0ff7b9a078e0f",
+      "components": [
+        {
+          "name": "memoir/skills/memoir-author-timeline/instructions",
+          "version": 3,
+          "sha256": "c79a9bf333ef128a06db6462c28d8e1fa60e55c80f84bf4764d540970c5461e4",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-author-timeline/contract",
+          "version": 1,
+          "sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-author-timeline/shared/grounding",
+          "version": 1,
+          "sha256": "66bedf7ad003eca9584c9c4f6432461c47d978a00cd2d550d52c184c7c551fbc",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/extract-with-hints",
+      "path": "skills/memoir-author-timeline/prompts/extract-with-hints.md",
+      "rendered_bytes": 8738,
+      "source_version": 2,
+      "source_sha256": "38ad20878043ad6f8518404f5887e367d881b047e1cdbba481a223028835db24",
+      "compiled_template_sha256": "a2aa14ca1bd01f64c819254fbc1c474a4f492e60173a52f45eea5b888b5ccecc",
+      "components": [
+        {
+          "name": "memoir/skills/memoir-author-timeline/instructions",
+          "version": 3,
+          "sha256": "c79a9bf333ef128a06db6462c28d8e1fa60e55c80f84bf4764d540970c5461e4",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-author-timeline/contract",
+          "version": 1,
+          "sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-author-timeline/shared/grounding",
+          "version": 1,
+          "sha256": "66bedf7ad003eca9584c9c4f6432461c47d978a00cd2d550d52c184c7c551fbc",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/instructions",
+      "path": "skills/memoir-author-timeline/SKILL.md",
+      "rendered_bytes": 3440,
+      "source_version": 3,
+      "source_sha256": "c79a9bf333ef128a06db6462c28d8e1fa60e55c80f84bf4764d540970c5461e4",
+      "compiled_template_sha256": "c79a9bf333ef128a06db6462c28d8e1fa60e55c80f84bf4764d540970c5461e4",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/shared/grounding",
+      "path": "skills/memoir-author-timeline/prompts/shared/grounding.md",
+      "rendered_bytes": 2652,
+      "source_version": 1,
+      "source_sha256": "66bedf7ad003eca9584c9c4f6432461c47d978a00cd2d550d52c184c7c551fbc",
+      "compiled_template_sha256": "66bedf7ad003eca9584c9c4f6432461c47d978a00cd2d550d52c184c7c551fbc",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-author-timeline/window",
+      "path": "skills/memoir-author-timeline/prompts/window.md",
+      "rendered_bytes": 903,
+      "source_version": 1,
+      "source_sha256": "42cc8858f0500ae355bf8db5e18361ca8b26f469ec20dd2530833d270fd1c01e",
+      "compiled_template_sha256": "42cc8858f0500ae355bf8db5e18361ca8b26f469ec20dd2530833d270fd1c01e",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-composer/batch/compose",
+      "path": "skills/memoir-composer/prompts/batch/compose.md",
+      "rendered_bytes": 578,
+      "source_version": 1,
+      "source_sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+      "compiled_template_sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-composer/batch/prepare",
+      "path": "skills/memoir-composer/prompts/batch/prepare.md",
+      "rendered_bytes": 297,
+      "source_version": 1,
+      "source_sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
+      "compiled_template_sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-composer/draft",
+      "path": "skills/memoir-composer/prompts/draft.md",
+      "rendered_bytes": 9029,
+      "source_version": 2,
+      "source_sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+      "compiled_template_sha256": "6a026a010a48fb505cda7ce8edf16ef541c16412629b42a0c0f3fd5bfef9faa2",
+      "components": [
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/leaf/en-AU",
+      "path": "skills/memoir-composer/prompts/outline/leaf/en-AU.md",
+      "rendered_bytes": 1110,
+      "source_version": 2,
+      "source_sha256": "a32e8ad5e53803c2b5c0ea3e0b77ed1793a3a393c86b3dc148dc1f4ad9a573f2",
+      "compiled_template_sha256": "c5d24abd44364d5279afd4dae31730caac7d04563f4bb3bf7af4ee4b4787abaa",
+      "components": [
+        {
+          "name": "memoir/skills/memoir-composer/outline/shared/prefix",
+          "version": 1,
+          "sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/outline/shared/suffix",
+          "version": 1,
+          "sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/leaf/zh-CN",
+      "path": "skills/memoir-composer/prompts/outline/leaf/zh-CN.md",
+      "rendered_bytes": 1110,
+      "source_version": 2,
+      "source_sha256": "a3108ba8705f81ceccaeb85da14393b4ff18dba7d224f87b01bb9b0776340b2b",
+      "compiled_template_sha256": "db597e31c8b105f0b03d8b1e82fbb081a0ae181f9078d6c6b557b81ea766e31d",
+      "components": [
+        {
+          "name": "memoir/skills/memoir-composer/outline/shared/prefix",
+          "version": 1,
+          "sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/outline/shared/suffix",
+          "version": 1,
+          "sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/merge/en-AU",
+      "path": "skills/memoir-composer/prompts/outline/merge/en-AU.md",
+      "rendered_bytes": 1111,
+      "source_version": 2,
+      "source_sha256": "b1af3ebef85419e8344db5ad56b9524645e7b094e3f0386b0f12155b4e593aa5",
+      "compiled_template_sha256": "28f7054e492470f6c1e86cf6bee57f86b1e3c94dde8e2cd97d722d2770a1594f",
+      "components": [
+        {
+          "name": "memoir/skills/memoir-composer/outline/shared/prefix",
+          "version": 1,
+          "sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/outline/shared/suffix",
+          "version": 1,
+          "sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/merge/zh-CN",
+      "path": "skills/memoir-composer/prompts/outline/merge/zh-CN.md",
+      "rendered_bytes": 1111,
+      "source_version": 2,
+      "source_sha256": "80fdf1243c337012039ce5b94a3b37cb0d9cfffd9a45785ffbb788b25b3beb07",
+      "compiled_template_sha256": "8eabe5483888e9c70519f0b6786adc2983ad1897658916193a4ad90fe4ae55d6",
+      "components": [
+        {
+          "name": "memoir/skills/memoir-composer/outline/shared/prefix",
+          "version": 1,
+          "sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/outline/shared/suffix",
+          "version": 1,
+          "sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/shared/prefix",
+      "path": "skills/memoir-composer/prompts/outline/shared/prefix.md",
+      "rendered_bytes": 735,
+      "source_version": 1,
+      "source_sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+      "compiled_template_sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-composer/outline/shared/suffix",
+      "path": "skills/memoir-composer/prompts/outline/shared/suffix.md",
+      "rendered_bytes": 330,
+      "source_version": 1,
+      "source_sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+      "compiled_template_sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-composer/prepare",
+      "path": "skills/memoir-composer/prompts/prepare.md",
+      "rendered_bytes": 720,
+      "source_version": 1,
+      "source_sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+      "compiled_template_sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-composer/review",
+      "path": "skills/memoir-composer/prompts/review.md",
+      "rendered_bytes": 8905,
+      "source_version": 3,
+      "source_sha256": "0ea3aef24d8cc4a23481e52c78010a3d2855a94ddad1eea524ff1ef5c0a9d85c",
+      "compiled_template_sha256": "d334813ff38ac0ac288ba00ffbde9f86097de8b9c56879e756a6c52086273208",
+      "components": [
+        {
+          "name": "memoir/skills/memoir-composer/shared/editorial-review",
+          "version": 1,
+          "sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/skills/memoir-composer/shared/editorial-review",
+      "path": "skills/memoir-composer/references/editorial-review.prompt.md",
+      "rendered_bytes": 3698,
+      "source_version": 1,
+      "source_sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+      "compiled_template_sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+      "path": "skills/memoir-composer/references/narrative-enrichment.md",
+      "rendered_bytes": 3654,
+      "source_version": 1,
+      "source_sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+      "compiled_template_sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/policy-review",
+      "path": "skills/memoir-interviewer/prompts/policy-review.md",
+      "rendered_bytes": 1199,
+      "source_version": 6,
+      "source_sha256": "1dc91059adb7397c0a0dd3e157c63d670e4c8a320aa866da8061f9fc32a3bd55",
+      "compiled_template_sha256": "1dc91059adb7397c0a0dd3e157c63d670e4c8a320aa866da8061f9fc32a3bd55",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/policy-review-opening",
+      "path": "skills/memoir-interviewer/prompts/policy-review-opening.md",
+      "rendered_bytes": 2208,
+      "source_version": 1,
+      "source_sha256": "77d89fec0e93ba199b0d3e3fd760a6f0256316c7ad6d5e6b708dbad0c1e34a5b",
+      "compiled_template_sha256": "2f77e02d06d9cc16c3e485e025d3f3c27937bcba8366356340c7bfd97bfbefc5",
+      "components": [
+        {
+          "name": "memoir/skills/memoir-interviewer/policy-review",
+          "version": 6,
+          "sha256": "1dc91059adb7397c0a0dd3e157c63d670e4c8a320aa866da8061f9fc32a3bd55",
+          "status": "published"
+        }
+      ]
+    },
+    {
+      "name": "memoir/skills/memoir-interviewer/strategy-proposal",
+      "path": "skills/memoir-interviewer/prompts/strategy/proposal.md",
+      "rendered_bytes": 830,
+      "source_version": 2,
+      "source_sha256": "538cc2b6bf978ab716411ecc793a0d2aec0862b24ca23aa17b2bc296d632d860",
+      "compiled_template_sha256": "538cc2b6bf978ab716411ecc793a0d2aec0862b24ca23aa17b2bc296d632d860",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-memory-context/instructions",
+      "path": "skills/memoir-memory-context/SKILL.md",
+      "rendered_bytes": 5588,
+      "source_version": 1,
+      "source_sha256": "a28a203eb72c78943460cd65a79faffe3ec063efff27be0f513424a59063f082",
+      "compiled_template_sha256": "a28a203eb72c78943460cd65a79faffe3ec063efff27be0f513424a59063f082",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-memory-context/summary",
+      "path": "skills/memoir-memory-context/prompts/summary.md",
+      "rendered_bytes": 1558,
+      "source_version": 1,
+      "source_sha256": "01e01f507ce1888fc1bc1cf912db861c321afff05e3cd43d71341b4089a0a4d8",
+      "compiled_template_sha256": "01e01f507ce1888fc1bc1cf912db861c321afff05e3cd43d71341b4089a0a4d8",
+      "components": []
+    },
+    {
+      "name": "memoir/skills/memoir-place-journey/extraction",
+      "path": "skills/memoir-place-journey/references/two-lane.md",
+      "rendered_bytes": 3059,
+      "source_version": 3,
+      "source_sha256": "d2a4b04a177f3df72b5a90233f4c025a46bfc14870ac962f04004e0146791e4c",
+      "compiled_template_sha256": "d2a4b04a177f3df72b5a90233f4c025a46bfc14870ac962f04004e0146791e4c",
+      "components": []
+    }
+  ],
+  "prompt_note": "No prompt/schema/receipt changes or remote publication. Each invocation maps to a deduplicated compiled prompt/schema manifest; exact request bodies and SSE remain in raw receipts.",
+  "compiled_manifests": {
+    "cc83b6ee241e831378bffe8181a3f9992317bef9cb62b53cc4d8ea5264cde13d": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/en-AU",
+          "version": 2,
+          "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/prepare",
+          "version": 1,
+          "sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/prepare",
+          "version": 1,
+          "sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "d5663ef8bdc374db3dfed6170f6f3ae1024298c202a6e94728b167e1b3316232",
+      "schema_sha256": "2da2c0cdc8eae81e1a3f1e5746d688a15b21d75f850603164617e9f63ba94614",
+      "variant": "prepare",
+      "manifest_sha256": "cc83b6ee241e831378bffe8181a3f9992317bef9cb62b53cc4d8ea5264cde13d"
+    },
+    "c70b38348a2fb8f5eae7254cb11df54c1b8641278023af408fe37b634085478f": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/en-AU",
+          "version": 2,
+          "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "a2818850ec26703eacda20509f43a347990aa156a86d9fc33293f26d14f25c0e",
+      "schema_sha256": "1c60167035e54b86a33809f9467f2146635ee820b3ffd80e6eda252b6b61e6be",
+      "variant": "draft",
+      "manifest_sha256": "c70b38348a2fb8f5eae7254cb11df54c1b8641278023af408fe37b634085478f"
+    },
+    "b2b3f51d3fa046cb00176ae5890cc5b6bad6b481c473c808cd56089d8257e14c": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/en-AU",
+          "version": 2,
+          "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/review",
+          "version": 3,
+          "sha256": "0ea3aef24d8cc4a23481e52c78010a3d2855a94ddad1eea524ff1ef5c0a9d85c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/editorial-review",
+          "version": 1,
+          "sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "10b23e7614d86a3ed7b124de2f3dd2527fcf7bcc0f4615778b262aae8ff50c30",
+      "schema_sha256": "1b5fa6031cbe28b2ca2c9570938bc3db42293820d917147917ffc22270c12e29",
+      "variant": "review",
+      "manifest_sha256": "b2b3f51d3fa046cb00176ae5890cc5b6bad6b481c473c808cd56089d8257e14c"
+    },
+    "8bcdb89c67036646fb3c5ffd0e934bf4b4f425a5b701e10e09b8521841a9d082": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/en-AU",
+          "version": 2,
+          "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "a2818850ec26703eacda20509f43a347990aa156a86d9fc33293f26d14f25c0e",
+      "schema_sha256": "72f33544dfbd466fb982d1262843697d2ff4c64963f83a263f3e53ea39af2b9b",
+      "variant": "draft",
+      "manifest_sha256": "8bcdb89c67036646fb3c5ffd0e934bf4b4f425a5b701e10e09b8521841a9d082"
+    },
+    "f279a65693cf3aebe3565a84ec0b5503e42f8e35fa10de8a9892b4b29c6a3f2b": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/en-AU",
+          "version": 2,
+          "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "a2818850ec26703eacda20509f43a347990aa156a86d9fc33293f26d14f25c0e",
+      "schema_sha256": "9b97d8099fd3de0777815c1e83e21ec3b29768015f826a4ee23cf9bfd7188b09",
+      "variant": "draft",
+      "manifest_sha256": "f279a65693cf3aebe3565a84ec0b5503e42f8e35fa10de8a9892b4b29c6a3f2b"
+    },
+    "e039b0031e6cd08c00e455f281601be1942c04f9f3d274c9f33c50c527b0740f": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/zh-CN",
+          "version": 2,
+          "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/prepare",
+          "version": 1,
+          "sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/prepare",
+          "version": 1,
+          "sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "5ecba2befb35c9ae0fd62a10a385f9a2e57ba85f168db28ce153fc3c459e7b68",
+      "schema_sha256": "2da2c0cdc8eae81e1a3f1e5746d688a15b21d75f850603164617e9f63ba94614",
+      "variant": "prepare",
+      "manifest_sha256": "e039b0031e6cd08c00e455f281601be1942c04f9f3d274c9f33c50c527b0740f"
+    },
+    "feda1bfa80fa868393a6d0dc6869c18dd1500f83dbb0f4d8792eb58e6838d79b": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/zh-CN",
+          "version": 2,
+          "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "7a02a7726c8d97a9b01bad2b9f38e0690b0e80d9f3f74a82517bd770949de9dd",
+      "schema_sha256": "3f97a6a42130ff06bfd1f686713d0f19d512cd8e3ac202c06965f1699dd9de61",
+      "variant": "draft",
+      "manifest_sha256": "feda1bfa80fa868393a6d0dc6869c18dd1500f83dbb0f4d8792eb58e6838d79b"
+    },
+    "3d029d41ad8b87ca9f13579da204800380d0a51e232f4c5cfba3ecda6cce21ee": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/zh-CN",
+          "version": 2,
+          "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/review",
+          "version": 3,
+          "sha256": "0ea3aef24d8cc4a23481e52c78010a3d2855a94ddad1eea524ff1ef5c0a9d85c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/editorial-review",
+          "version": 1,
+          "sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "dec34075b628b818ffd40a9aeda1433da186d12b8df692e5e9f2bc668ae68d47",
+      "schema_sha256": "1b5fa6031cbe28b2ca2c9570938bc3db42293820d917147917ffc22270c12e29",
+      "variant": "review",
+      "manifest_sha256": "3d029d41ad8b87ca9f13579da204800380d0a51e232f4c5cfba3ecda6cce21ee"
+    },
+    "691287fdd12036e860d5130d3ed04c3cfa4cef920d7c6a6029ad762491498121": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/zh-CN",
+          "version": 2,
+          "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "7a02a7726c8d97a9b01bad2b9f38e0690b0e80d9f3f74a82517bd770949de9dd",
+      "schema_sha256": "b48044b76eb80e2d1f905ac52c8f6f4efe7f92e76893b22364aa5a8b8ef7af7f",
+      "variant": "draft",
+      "manifest_sha256": "691287fdd12036e860d5130d3ed04c3cfa4cef920d7c6a6029ad762491498121"
+    },
+    "54750c5b06202139ac6b860b6fa389b1f5b0c378d88321fdc660c51b4e50b9dd": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/zh-CN",
+          "version": 2,
+          "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "7a02a7726c8d97a9b01bad2b9f38e0690b0e80d9f3f74a82517bd770949de9dd",
+      "schema_sha256": "defc83c1919ec55cbfe73453d65c73fdca675c5304857f9be1c43c580fe3871d",
+      "variant": "draft",
+      "manifest_sha256": "54750c5b06202139ac6b860b6fa389b1f5b0c378d88321fdc660c51b4e50b9dd"
+    },
+    "44d4dd7f796d6db5561fa0245c8e792ec27e63d29834aed19642a085e91a0fcc": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/en-AU",
+          "version": 2,
+          "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "a2818850ec26703eacda20509f43a347990aa156a86d9fc33293f26d14f25c0e",
+      "schema_sha256": "91e74848ba86c97fbe8ee8120f099f2ed03297f24c586930c95ba3e99e3b236e",
+      "variant": "draft",
+      "manifest_sha256": "44d4dd7f796d6db5561fa0245c8e792ec27e63d29834aed19642a085e91a0fcc"
+    },
+    "117aaf4a2aac38f90d09cb82e25de9d8ab15e386c55d55f38bdf895cb1b5808f": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/en-AU",
+          "version": 2,
+          "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "a2818850ec26703eacda20509f43a347990aa156a86d9fc33293f26d14f25c0e",
+      "schema_sha256": "d49446e0a6dcd48bce1581a6807df2bb64ec3b597b2b9ba99ea897db42bea964",
+      "variant": "draft",
+      "manifest_sha256": "117aaf4a2aac38f90d09cb82e25de9d8ab15e386c55d55f38bdf895cb1b5808f"
+    },
+    "231540a09055f11f9e1abe19cc6e203c6e499c307089ac6329fc9a6f66425556": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/en-AU",
+          "version": 2,
+          "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "a2818850ec26703eacda20509f43a347990aa156a86d9fc33293f26d14f25c0e",
+      "schema_sha256": "4b81c9407db0985024d66483112b58f630d928ec0f671165f29cd3fe97a31ccd",
+      "variant": "draft",
+      "manifest_sha256": "231540a09055f11f9e1abe19cc6e203c6e499c307089ac6329fc9a6f66425556"
+    },
+    "a2a132829672594b5a7d9ca6958777770849d63ee6247ae26a5b53c6dcd6b7f7": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/zh-CN",
+          "version": 2,
+          "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "7a02a7726c8d97a9b01bad2b9f38e0690b0e80d9f3f74a82517bd770949de9dd",
+      "schema_sha256": "b44ce95098b0c6765cebc0341fdc1c9f64a088640e4e0520276336b32de41b94",
+      "variant": "draft",
+      "manifest_sha256": "a2a132829672594b5a7d9ca6958777770849d63ee6247ae26a5b53c6dcd6b7f7"
+    },
+    "70931e347dfda4878212b3f56bd7be5e805ed88543c988a64f477e95bb514b49": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/zh-CN",
+          "version": 2,
+          "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "7a02a7726c8d97a9b01bad2b9f38e0690b0e80d9f3f74a82517bd770949de9dd",
+      "schema_sha256": "ed9cdaa4754d7158d87b71077850b59b122468b1381eb27499e6b13fa88a197e",
+      "variant": "draft",
+      "manifest_sha256": "70931e347dfda4878212b3f56bd7be5e805ed88543c988a64f477e95bb514b49"
+    },
+    "e9bdee45c016bc2d23f876b948a3dee5febc7824da94e02eab03060909dd5087": {
+      "artifacts": [
+        {
+          "name": "memoir/shared/bounded-context/policy",
+          "version": 1,
+          "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/bounded-context/zh-CN",
+          "version": 2,
+          "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
+          "status": "published"
+        },
+        {
+          "name": "memoir/shared/place-conflicts",
+          "version": 1,
+          "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/batch/compose",
+          "version": 1,
+          "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/draft",
+          "version": 2,
+          "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
+          "status": "published"
+        },
+        {
+          "name": "memoir/skills/memoir-composer/shared/narrative-enrichment",
+          "version": 1,
+          "sha256": "7c448673acdf2f12ff11820c4f2842634004d98f4958f1e86a042c07d53148b3",
+          "status": "published"
+        }
+      ],
+      "prompt_sha256": "7a02a7726c8d97a9b01bad2b9f38e0690b0e80d9f3f74a82517bd770949de9dd",
+      "schema_sha256": "139c5c202c00fc0ec06d5ea39ca3359e21ba5f4ea8fb0e6c61784a3e7c5e90b5",
+      "variant": "draft",
+      "manifest_sha256": "e9bdee45c016bc2d23f876b948a3dee5febc7824da94e02eab03060909dd5087"
+    }
+  },
+  "quality_findings": [
+    {
+      "arm": "baseline",
+      "case": "en-AU-5",
+      "status": "fail_for_meaningful_reader_text",
+      "finding": "Saved-reader API preview contains only heading The Blue Tin; full reviewed manuscript has narrative. Existing SQL stores heading as first section and first-page preview reads limit 1."
+    },
+    {
+      "arm": "baseline",
+      "case": "zh-CN-5",
+      "status": "concern",
+      "finding": "清楚可见的物件 adds strength/visual certainty beyond testimony; independent review needed."
+    },
+    {
+      "arm": "baseline",
+      "case": "zh-CN-10",
+      "status": "fail",
+      "finding": "绿色这一点，我记得很清楚 adds unsupported memory certainty. Final model review flags warning yet readiness true saves it."
+    },
+    {
+      "arm": "baseline",
+      "case": "zh-CN-15",
+      "status": "incomplete",
+      "finding": "24 actual submissions exhausted before final review; last ready=false review cites shed/garage conflict. No saved result or Chinese withdrawal control; do not treat as successful latency."
+    },
+    {
+      "arm": "candidate",
+      "case": "en-AU-10",
+      "status": "fail",
+      "finding": "with the green tin of bicycle tools close at hand adds unsupported spatial detail; model review does not flag it."
+    },
+    {
+      "arm": "candidate",
+      "case": "en-AU-15",
+      "status": "fail",
+      "finding": "with his green tin of bicycle tools close at hand persists; model review flags warning but readiness true saves it."
+    },
+    {
+      "arm": "candidate",
+      "case": "held_out_15_both_locales",
+      "status": "inconclusive_for_coverage",
+      "finding": "Uncertain recollection of Father’s words is preserved; the pre-birth neighbour-repair account and later garage caption are omitted from final prose. Their positive attribution/conflict handling is unexercised; not a full acceptance."
+    },
+    {
+      "arm": "candidate",
+      "case": "en-AU-10",
+      "status": "documented_divergence",
+      "finding": "School event explicitly deferred from focused chapter. Correction invalidates prior combined chapter; authoritative prior chapters empty in both arms at round 10. This is not evidence that unchanged carried text survived; separate SQL tests cover carry-forward."
+    }
+  ],
+  "gates": {
+    "isolation_and_privacy": "pass for bounded synthetic scope",
+    "lossless_context_and_fences": "pass targeted offline/SQL tests",
+    "candidate_durable_save": "pass 6/6",
+    "candidate_restart": "pass 2/2 saved SQL checkpoints",
+    "candidate_withdrawal": "pass 2/2, zero model calls, old prose withheld",
+    "matched_completed_rows": "5/6; zh-CN-15 baseline censored",
+    "semantic_source_grounding": "fail candidate English spatial claim",
+    "heldout_prebirth_and_caption_coverage": "inconclusive: omitted",
+    "independent_cloud_review": "pending",
+    "browser_meaningful_text_5s_10s": "unavailable; background checkpoints measured",
+    "deployed_worker": "not run",
+    "full_acceptance": "fail"
+  },
+  "tests": [
+    {
+      "name": "clearance-final",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_lifetime_composer_clearance.py"
+      ],
+      "exit_code": 0,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-imgc30v8",
+      "command_group": {
+        "group_id": 62505,
+        "leader_started": "Sun Oct 25 14:16:09 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-imgc30v8",
+            "device": 16777231,
+            "inode": 970179948
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 11.6
+    },
+    {
+      "name": "composer-candidate-regressions",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_progressive_composer.py",
+        "tests/test_composer_transport_postgres.py",
+        "tests/test_canonical_composer_provenance.py",
+        "tests/test_composer_repair_budget.py",
+        "tests/test_lifetime_composer_policy.py",
+        "tests/test_lifetime_composer_clearance.py",
+        "tests/test_lifetime_memory_lane_engine.py"
+      ],
+      "exit_code": 1,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-bi1p5wrx",
+      "command_group": {
+        "group_id": 61600,
+        "leader_started": "Sun Oct 25 14:14:52 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-bi1p5wrx",
+            "device": 16777231,
+            "inode": 970171401
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 69.23
+    },
+    {
+      "name": "composer-evaluation-regressions",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_workflows.py",
+        "-k",
+        "composer"
+      ],
+      "exit_code": 0,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-bb8eeb6j",
+      "command_group": {
+        "group_id": 60663,
+        "leader_started": "Sun Oct 25 14:12:15 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-bb8eeb6j",
+            "device": 16777231,
+            "inode": 970153565
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 11.69
+    },
+    {
+      "name": "composer-final-regressions",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_progressive_composer.py",
+        "tests/test_composer_transport_postgres.py",
+        "tests/test_canonical_composer_provenance.py",
+        "tests/test_composer_repair_budget.py",
+        "tests/test_lifetime_composer_policy.py",
+        "tests/test_lifetime_composer_clearance.py",
+        "tests/test_lifetime_memory_lane_engine.py"
+      ],
+      "exit_code": 0,
+      "base_head": "a20689248a6dae91c83c29e087cf9b119cd6985f",
+      "tree": "55f438f6acecede56bc8b25956afd71d9669833b",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-23de9vnq",
+      "command_group": {
+        "group_id": 66226,
+        "leader_started": "Sun Oct 25 14:25:53 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-23de9vnq",
+            "device": 16777231,
+            "inode": 970249363
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 82.2
+    },
+    {
+      "name": "composer-node-regressions",
+      "command": [
+        "node",
+        "--test",
+        "skills/memoir-composer/tests/composer.test.mjs",
+        "skills/memoir-composer/tests/progressive_e2e.test.mjs"
+      ],
+      "exit_code": 0,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-a5hjs4ot",
+      "command_group": {
+        "group_id": 60661,
+        "leader_started": "Sun Oct 25 14:12:15 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-a5hjs4ot",
+            "device": 16777231,
+            "inode": 970153558
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 1.57
+    },
+    {
+      "name": "composer-regressions",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_canonical_composer_provenance.py",
+        "tests/test_composer_repair_budget.py",
+        "tests/test_lifetime_composer_policy.py",
+        "tests/test_lifetime_composer_clearance.py",
+        "tests/test_lifetime_memory_lane_engine.py"
+      ],
+      "exit_code": 1,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-8by2tp3p",
+      "command_group": {
+        "group_id": 60575,
+        "leader_started": "Sun Oct 25 14:12:12 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-8by2tp3p",
+            "device": 16777231,
+            "inode": 970153108
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 44.76
+    },
+    {
+      "name": "generation-pause-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_progressive_composer.py",
+        "-k",
+        "generation_pause_prevents"
+      ],
+      "exit_code": 1,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-m3125r6u",
+      "command_group": {
+        "group_id": 61505,
+        "leader_started": "Sun Oct 25 14:14:27 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-m3125r6u",
+            "device": 16777231,
+            "inode": 970168884
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 2.86
+    },
+    {
+      "name": "live-baseline",
+      "command": [
+        "python3",
+        "var/composer-response-optimization/20261025-live/profile.py",
+        "--execute",
+        "--arm",
+        "baseline"
+      ],
+      "exit_code": 1,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-yojq53uz",
+      "command_group": {
+        "group_id": 56888,
+        "leader_started": "Sun Oct 25 13:45:09 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-yojq53uz",
+            "device": 16777231,
+            "inode": 969951717
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 323.17
+    },
+    {
+      "name": "live-candidate",
+      "command": [
+        "python3",
+        "var/composer-response-optimization/20261025-live/profile.py",
+        "--execute",
+        "--arm",
+        "candidate"
+      ],
+      "exit_code": 0,
+      "base_head": "a20689248a6dae91c83c29e087cf9b119cd6985f",
+      "tree": "55f438f6acecede56bc8b25956afd71d9669833b",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-ex2h1i2o",
+      "command_group": {
+        "group_id": 63663,
+        "leader_started": "Sun Oct 25 14:19:02 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-ex2h1i2o",
+            "device": 16777231,
+            "inode": 970199223
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 206.8
+    },
+    {
+      "name": "lossless-contracts",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_progressive_composer.py",
+        "tests/test_composer_transport_postgres.py"
+      ],
+      "exit_code": 0,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-leblvef4",
+      "command_group": {
+        "group_id": 60019,
+        "leader_started": "Sun Oct 25 14:09:12 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-leblvef4",
+            "device": 16777231,
+            "inode": 970134607
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 64.98
+    },
+    {
+      "name": "observer-fixture",
+      "command": [
+        "python3",
+        "var/composer-response-optimization/20261025-live/profile.py",
+        "--execute",
+        "--arm",
+        "fixture"
+      ],
+      "exit_code": 0,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-o02vmi_q",
+      "command_group": {
+        "group_id": 56512,
+        "leader_started": "Sun Oct 25 13:42:42 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-o02vmi_q",
+            "device": 16777231,
+            "inode": 969933155
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 41.21
+    },
+    {
+      "name": "privacy-preparation-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_progressive_composer.py",
+        "-k",
+        "restricted_batch"
+      ],
+      "exit_code": 0,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-9h__j42f",
+      "command_group": {
+        "group_id": 59345,
+        "leader_started": "Sun Oct 25 14:05:18 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-9h__j42f",
+            "device": 16777231,
+            "inode": 970106702
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 2.61
+    },
+    {
+      "name": "privacy-preparation-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_progressive_composer.py",
+        "-k",
+        "restricted_batch"
+      ],
+      "exit_code": 1,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-ep1zir8y",
+      "command_group": {
+        "group_id": 59220,
+        "leader_started": "Sun Oct 25 14:04:29 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-ep1zir8y",
+            "device": 16777231,
+            "inode": 970100844
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 3.85
+    },
+    {
+      "name": "verbatim-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_transport_postgres.py",
+        "-k",
+        "short_original_batch"
+      ],
+      "exit_code": 0,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-z8eppojf",
+      "command_group": {
+        "group_id": 58581,
+        "leader_started": "Sun Oct 25 14:01:17 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-z8eppojf",
+            "device": 16777231,
+            "inode": 970078164
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 26.71
+    },
+    {
+      "name": "verbatim-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_transport_postgres.py",
+        "-k",
+        "short_original_batch"
+      ],
+      "exit_code": 1,
+      "base_head": "b18b8c7ee46a82b48ceb344cf01436122362be89",
+      "tree": "5f6ded5cf6341e70329232f38e6babda919e4665",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-mp5523qt",
+      "command_group": {
+        "group_id": 58237,
+        "leader_started": "Sun Oct 25 13:57:39 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-mp5523qt",
+            "device": 16777231,
+            "inode": 970053861
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 7.75
+    }
+  ],
+  "profiled_file_sha256": {
+    "apps/api/canonical_composer.py": "916a48b559b528dbd6e0172ec8bbad81d9b5f4cd23e746f4a023268fb735beff",
+    "apps/api/progressive_composer.py": "f5c296493cf210bf9c0c3595e960334f87a9ad9539e091b6d6a83c0378a956dd",
+    "tests/test_conversation_attribution.py": "d088192c096792a33642f70b1444af6efb4a81987715f472ee744a2467f807c4",
+    "tests/test_agent_commit_postgres.py": "b3525376454ee160f949132ddd54a345de020c44ed7e83b8f37f264bc2b002c3",
+    "tests/controlled_policy.py": "e1fd1fd9902ad2cd78be8f370f2e926a0d7d5156264b4e0bcb907d48d88cab49",
+    "scripts/evaluation_budget.py": "e4ec06256db3d94e9c3aee73a6344a7c0459629655fac5541ebc173f183ad44c",
+    "apps/api/memoir_preview.py": "4020e16795b16a6937274f6a6fb7da917908ec1af134570ace74ad66792cd146",
+    "apps/api/lifetime_memory_lane_engine.py": "ba482237cf24ade703173c0787056bab6c5a33b4f84386b3315612c947487174",
+    "supabase/migrations/202610180001_initial_schema.sql": "ace29fd2f401529bb133567d5cefd092870fb2dd5e79ba3fcadc1307492dbf2d"
+  }
+}

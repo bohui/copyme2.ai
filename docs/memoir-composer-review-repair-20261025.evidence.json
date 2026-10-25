@@ -1,0 +1,1089 @@
+{
+  "schema_version": 1,
+  "measurement_type": "Offline canonical application/controlled HTTP/real disposable PostgreSQL and Node; no live model calls",
+  "branch": "codex/memoir-composer-optimization-20261025",
+  "source_head": "747aff54f9bf4148054bf2de45af5976d001b27e",
+  "reviewed_base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+  "live_acceptance": "pending independent review, governed publication/schema activation and renewed live budget",
+  "new_provider_submissions": 0,
+  "paid_judges": 0,
+  "old_live_receipts": {
+    "baseline": {
+      "sha256": "dc9eaa755f3235532a8b764a66d2c35ebf04880ffc66c457bbb5ba2d788c91d1",
+      "actual_submissions": 24,
+      "changed": false
+    },
+    "candidate": {
+      "sha256": "974730d536e7b708940a4a0cab52b84f5e2644e508667dec22b495e5b7509d01",
+      "actual_submissions": 14,
+      "changed": false
+    }
+  },
+  "original_candidate_remaining_submissions": 10,
+  "renewed_calls_authorized": false,
+  "prompt_publication_performed": false,
+  "prompt_receipts_changed": false,
+  "managed_prompt_changes": [
+    {
+      "path": "skills/memoir-composer/prompts/review.md",
+      "name": "memoir/skills/memoir-composer/review",
+      "published_version": 3,
+      "published_sha256": "0ea3aef24d8cc4a23481e52c78010a3d2855a94ddad1eea524ff1ef5c0a9d85c",
+      "draft_sha256": "1540a21d45f2303118175835b4bc5278c24fefbeb7f75d9db8332d75a1ef2d26",
+      "state": "unpublished source edit; receipt unchanged"
+    },
+    {
+      "path": "skills/memoir-composer/references/editorial-review.prompt.md",
+      "name": "memoir/skills/memoir-composer/shared/editorial-review",
+      "published_version": 1,
+      "published_sha256": "556d3570da3ac0f43fd11688962c1a374afc42adb85db3121bec040957765a78",
+      "draft_sha256": "75c7747a9fc2f0992a4d160f344e553e2bc3648d2171973bb202f755f744b31b",
+      "state": "unpublished source edit; receipt unchanged"
+    }
+  ],
+  "source_file_sha256": {
+    "apps/api/canonical_composer.py": "3a5c80f997bf9446fb22cae646218da962e94bb1ab4204cd64dcb5e4026ed5c5",
+    "apps/api/composer_review.py": "24fa9f493c7fa7f55e67d13555b613048bb3c71cb0f6f35a89ad447095079e8a",
+    "apps/api/lifetime_memory_lane_engine.py": "e1f8b4a0511aeaec6c12cafeb62387e6fe3bd4492e8036e0592b5fc87f3da425",
+    "apps/api/memoir_preview.py": "422cb4b1e2ef12bf6d97615fc56da27eb3aa8e3dd7b90da6ddbff70630aa8621",
+    "skills/memoir-composer/prompts/review.md": "1540a21d45f2303118175835b4bc5278c24fefbeb7f75d9db8332d75a1ef2d26",
+    "skills/memoir-composer/references/editorial-review.prompt.md": "75c7747a9fc2f0992a4d160f344e553e2bc3648d2171973bb202f755f744b31b",
+    "skills/memoir-composer/references/runtime-contract.md": "93e8bee08f0da766bc36e3e5a14afd0c2b9b764f9f95d68ab84353767ee42549",
+    "supabase/migrations/202610180001_initial_schema.sql": "431616d502859e613521d77899675d07c33d993193164d9c49c6d8115b37cda0",
+    "tests/controlled_composer_review.py": "389b441aa5feff430ba802c1eb71c22b67485e656282d9891569e5ef9c811de7",
+    "tests/fixtures/composer_en10_missed_finding.json": "2d571276557bda45f10a9e345736778c9690e3b2d6c789bef315cebcde3b2dee",
+    "tests/test_canonical_composer_provenance.py": "ec85406e819e2b64bba017aeefe06a7c04d73c279d27cc4189af71ad92849ecc",
+    "tests/test_canonical_draft_budget.py": "6a7335367535d099254110d7e966eeb790a986ceacb01d51c1fcb221f7af6e5d",
+    "tests/test_composer_review.py": "51db27f86c0b1f32cf725040f3efc69259b1b451546c8c9584038e8008dbc669",
+    "tests/test_composer_review_postgres.py": "afa94e2a8fffb84dabc406980249636bc2df69487985fc1d8afcca118059aff6",
+    "tests/test_composer_transport_postgres.py": "9ad008d8bd3899b0794ffba31805ed747b350240e081f0d68e6f48e68fc5ad55",
+    "tests/test_conversation_attribution.py": "ff50790d6f05a21ce27cf112176eefac056c78b5697d2d94dad061a580d1565d",
+    "tests/test_lifetime_composer_capacity.py": "8387805b7a63d323c20771479e693da077a95e995b7ad449a8d5e0600ef0bc51",
+    "tests/test_lifetime_composer_clearance.py": "2d28676c43e7a55c0e94d48fd0dfdf69e6e0257667c60fdf06724bac5933ae72",
+    "tests/test_lifetime_composer_policy.py": "99455431bba32b9eb222b42319eca5ab66d9dd96fd9ccdc7017122d8589ae650",
+    "tests/test_lifetime_memory_lane_engine.py": "0b29fdf6f6e761d84e00ce592b5a0108cb71261bd488ffc6c586ebf5a8ff7717",
+    "tests/test_progressive_composer.py": "0ddcba45e99843cd95fb1fbd3073c08ecec9eb8a2632e3fe393fc5880595b73e",
+    "tests/test_progressive_photo_invalidation.py": "d45dfa17b0a56ac98ddefc039d372a0d3fe3798de8a8e4dcabbfe304a9914843",
+    "tests/test_skill_eval_workflows.py": "005848053c64f74f06c2238f678868f2cce49a3a263b37e74e1c7ebfd02cbf7b",
+    "tests/test_workspace_memory_actions.py": "52eca8abb4e50ced5993efd28b3ad997cd839e67f0dc99a8398411c1346d1891"
+  },
+  "baseline_failed_cases": [
+    "tests/test_workspace_memory_actions.py::test_pg_private_rework_preserves_completed_formal_authority_and_consent",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_attachment_preserves_rewrites_for_other_evidence_and_sibling_photos",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_outside_composer_partition_preserves_source_only_rewrite",
+    "tests/test_workspace_memory_actions.py::test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts[False]",
+    "tests/test_workspace_memory_actions.py::test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts[True]",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks[unlink]",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks[delete_photo]",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks[edit_link]",
+    "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks[delete_link]",
+    "tests/test_conversation_attribution.py::test_unrelated_event_correction_preserves_non_story_and_withheld_classifications",
+    "tests/test_conversation_attribution.py::test_author_removed_links_and_corrected_time_remain_authoritative"
+  ],
+  "baseline_failure_note": "These exact 11 workspace/consent/policy cases fail unchanged at the reviewed head in a temporary clean checkout. Product assertions remain intact. Final scoped run explicitly deselects only those 11; full-suite green is not claimed.",
+  "tests": {
+    "affected-compatibility-fixed": {
+      "name": "affected-compatibility-fixed",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_lifetime_composer_capacity.py::test_pg_protected_original_is_purged_when_new_proposal_uses_another_source",
+        "tests/test_lifetime_composer_capacity.py::test_pg_multisource_withdrawal_purges_exact_protected_dependency_before_epoch_bump",
+        "tests/test_lifetime_composer_capacity.py::test_pg_real_composer_chain_registers_artifacts_and_saves_bounded_checkpoint_manifests",
+        "tests/test_lifetime_composer_capacity.py::test_pg_model_reply_cannot_register_or_checkpoint_under_changed_same_page_context",
+        "tests/test_workspace_memory_actions.py::test_secondary_event_change_retires_exact_edition_request_despite_other_edition"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-podshp4o",
+      "command_group": {
+        "group_id": 13453,
+        "leader_started": "Sun Oct 25 15:36:54 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-podshp4o",
+            "device": 16777231,
+            "inode": 970784394
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 14.14
+    },
+    "audit-sql-green": {
+      "name": "audit-sql-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "tests/test_composer_review.py"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-rpx0owwu",
+      "command_group": {
+        "group_id": 98574,
+        "leader_started": "Sun Oct 25 14:58:50 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-rpx0owwu",
+            "device": 16777231,
+            "inode": 970504479
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 17.76
+    },
+    "combined-offline-final": {
+      "name": "combined-offline-final",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py",
+        "tests/test_composer_review_postgres.py",
+        "tests/test_progressive_composer.py",
+        "tests/test_composer_transport_postgres.py",
+        "tests/test_canonical_composer_provenance.py",
+        "tests/test_composer_repair_budget.py",
+        "tests/test_lifetime_composer_policy.py",
+        "tests/test_lifetime_composer_clearance.py",
+        "tests/test_lifetime_memory_lane_engine.py",
+        "tests/test_canonical_draft_budget.py",
+        "tests/test_lifetime_composer_capacity.py",
+        "tests/test_progressive_photo_invalidation.py",
+        "tests/test_workspace_memory_actions.py",
+        "tests/test_conversation_attribution.py"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-o89vygc2",
+      "command_group": {
+        "group_id": 7715,
+        "leader_started": "Sun Oct 25 15:25:04 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-o89vygc2",
+            "device": 16777231,
+            "inode": 970686408
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 395.73
+    },
+    "combined-scoped-final": {
+      "name": "combined-scoped-final",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py",
+        "tests/test_composer_review_postgres.py",
+        "tests/test_progressive_composer.py",
+        "tests/test_composer_transport_postgres.py",
+        "tests/test_canonical_composer_provenance.py",
+        "tests/test_composer_repair_budget.py",
+        "tests/test_lifetime_composer_policy.py",
+        "tests/test_lifetime_composer_clearance.py",
+        "tests/test_lifetime_memory_lane_engine.py",
+        "tests/test_canonical_draft_budget.py",
+        "tests/test_lifetime_composer_capacity.py",
+        "tests/test_progressive_photo_invalidation.py",
+        "tests/test_workspace_memory_actions.py",
+        "tests/test_conversation_attribution.py",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_private_rework_preserves_completed_formal_authority_and_consent",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_attachment_preserves_rewrites_for_other_evidence_and_sibling_photos",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_outside_composer_partition_preserves_source_only_rewrite",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts",
+        "--deselect",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks",
+        "--deselect",
+        "tests/test_conversation_attribution.py::test_unrelated_event_correction_preserves_non_story_and_withheld_classifications",
+        "--deselect",
+        "tests/test_conversation_attribution.py::test_author_removed_links_and_corrected_time_remain_authoritative"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-bf70p_kd",
+      "command_group": {
+        "group_id": 14149,
+        "leader_started": "Sun Oct 25 15:39:03 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-bf70p_kd",
+            "device": 16777231,
+            "inode": 970798642
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 405.43
+    },
+    "composer-evaluation-final": {
+      "name": "composer-evaluation-final",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_skill_eval_workflows.py",
+        "-k",
+        "composer"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-gx6f4215",
+      "command_group": {
+        "group_id": 7823,
+        "leader_started": "Sun Oct 25 15:25:08 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-gx6f4215",
+            "device": 16777231,
+            "inode": 970686675
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 18.36
+    },
+    "deferral-fenced-checkpoints": {
+      "name": "deferral-fenced-checkpoints",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "-k",
+        "explicitly_deferred"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-bsurv1vy",
+      "command_group": {
+        "group_id": 7088,
+        "leader_started": "Sun Oct 25 15:22:22 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-bsurv1vy",
+            "device": 16777231,
+            "inode": 970667602
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 5.73
+    },
+    "deferral-fixture-diagnostic": {
+      "name": "deferral-fixture-diagnostic",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "-k",
+        "explicitly_deferred"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-h2ktdlyj",
+      "command_group": {
+        "group_id": 3290,
+        "leader_started": "Sun Oct 25 15:11:23 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-h2ktdlyj",
+            "device": 16777231,
+            "inode": 970591108
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 5.74
+    },
+    "deferral-fixture-scope": {
+      "name": "deferral-fixture-scope",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "-k",
+        "explicitly_deferred"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-gg0hqyve",
+      "command_group": {
+        "group_id": 3696,
+        "leader_started": "Sun Oct 25 15:12:02 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-gg0hqyve",
+            "device": 16777231,
+            "inode": 970595396
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 5.46
+    },
+    "fixture-contracts-fixed": {
+      "name": "fixture-contracts-fixed",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "tests/test_canonical_draft_budget.py"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-7zhwrzei",
+      "command_group": {
+        "group_id": 6209,
+        "leader_started": "Sun Oct 25 15:20:01 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-7zhwrzei",
+            "device": 16777231,
+            "inode": 970649826
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 42.8
+    },
+    "legacy-reuse-red-corrected-fixture": {
+      "name": "legacy-reuse-red-corrected-fixture",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py",
+        "-k",
+        "unchanged_legacy"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-mse6s9ba",
+      "command_group": {
+        "group_id": 2401,
+        "leader_started": "Sun Oct 25 15:08:34 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-mse6s9ba",
+            "device": 16777231,
+            "inode": 970572964
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 1.54
+    },
+    "legacy-reuse-red": {
+      "name": "legacy-reuse-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py",
+        "-k",
+        "unchanged_legacy"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-pal2ghaf",
+      "command_group": {
+        "group_id": 2133,
+        "leader_started": "Sun Oct 25 15:07:27 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-pal2ghaf",
+            "device": 16777231,
+            "inode": 970565161
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 1.54
+    },
+    "missed-finding-green": {
+      "name": "missed-finding-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-b82phfsv",
+      "command_group": {
+        "group_id": 97988,
+        "leader_started": "Sun Oct 25 14:56:18 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-b82phfsv",
+            "device": 16777231,
+            "inode": 970485874
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 1.8
+    },
+    "missed-finding-red": {
+      "name": "missed-finding-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-4cn3xdhq",
+      "command_group": {
+        "group_id": 97015,
+        "leader_started": "Sun Oct 25 14:52:10 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-4cn3xdhq",
+            "device": 16777231,
+            "inode": 970457999
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 1.39
+    },
+    "missing-audit-sql-red": {
+      "name": "missing-audit-sql-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "-k",
+        "empty_findings"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-20mfxlri",
+      "command_group": {
+        "group_id": 97605,
+        "leader_started": "Sun Oct 25 14:54:35 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-20mfxlri",
+            "device": 16777231,
+            "inode": 970474132
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 4.99
+    },
+    "node-composer-final-files": {
+      "name": "node-composer-final-files",
+      "command": [
+        "node",
+        "--test",
+        "skills/memoir-composer/tests/composer.test.mjs",
+        "skills/memoir-composer/tests/progressive_e2e.test.mjs"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-7zn31_6x",
+      "command_group": {
+        "group_id": 9713,
+        "leader_started": "Sun Oct 25 15:26:10 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-7zn31_6x",
+            "device": 16777231,
+            "inode": 970699966
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 0.37
+    },
+    "node-composer-final": {
+      "name": "node-composer-final",
+      "command": [
+        "node",
+        "--test",
+        "skills/memoir-composer/tests/"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-cf8omitr",
+      "command_group": {
+        "group_id": 8277,
+        "leader_started": "Sun Oct 25 15:25:15 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-cf8omitr",
+            "device": 16777231,
+            "inode": 970688368
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 0.23
+    },
+    "prompt-governance-final": {
+      "name": "prompt-governance-final",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_prompt_publication.py",
+        "tests/test_prompt_artifact.py"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-444wbnor",
+      "command_group": {
+        "group_id": 7989,
+        "leader_started": "Sun Oct 25 15:25:12 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-444wbnor",
+            "device": 16777231,
+            "inode": 970687009
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 14.48
+    },
+    "prose-witness-sql-red": {
+      "name": "prose-witness-sql-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "-k",
+        "prose_witness"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-j5vin2lq",
+      "command_group": {
+        "group_id": 98231,
+        "leader_started": "Sun Oct 25 14:57:05 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-j5vin2lq",
+            "device": 16777231,
+            "inode": 970490783
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 6.33
+    },
+    "quality-contracts-final": {
+      "name": "quality-contracts-final",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py",
+        "tests/test_composer_review_postgres.py",
+        "tests/test_lifetime_memory_lane_engine.py",
+        "tests/test_canonical_draft_budget.py",
+        "tests/test_composer_repair_budget.py"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-l1edkdjv",
+      "command_group": {
+        "group_id": 4118,
+        "leader_started": "Sun Oct 25 15:13:52 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-l1edkdjv",
+            "device": 16777231,
+            "inode": 970607400
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 47.94
+    },
+    "quality-contracts": {
+      "name": "quality-contracts",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py",
+        "tests/test_composer_review_postgres.py",
+        "tests/test_lifetime_memory_lane_engine.py"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-cvx5qy3a",
+      "command_group": {
+        "group_id": 2605,
+        "leader_started": "Sun Oct 25 15:09:35 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-cvx5qy3a",
+            "device": 16777231,
+            "inode": 970579244
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 47.33
+    },
+    "review-integration-regressions": {
+      "name": "review-integration-regressions",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review.py",
+        "tests/test_composer_review_postgres.py",
+        "tests/test_progressive_composer.py",
+        "tests/test_composer_transport_postgres.py",
+        "tests/test_canonical_composer_provenance.py",
+        "tests/test_composer_repair_budget.py",
+        "tests/test_lifetime_composer_policy.py",
+        "tests/test_lifetime_composer_clearance.py",
+        "tests/test_lifetime_memory_lane_engine.py"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-l70vc41l",
+      "command_group": {
+        "group_id": 99819,
+        "leader_started": "Sun Oct 25 15:02:42 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-l70vc41l",
+            "device": 16777231,
+            "inode": 970532640
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 96.05
+    },
+    "reviewed-head-compat-baseline": {
+      "name": "reviewed-head-compat-baseline",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_workspace_memory_actions.py::test_pg_private_rework_preserves_completed_formal_authority_and_consent",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_attachment_preserves_rewrites_for_other_evidence_and_sibling_photos",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_outside_composer_partition_preserves_source_only_rewrite",
+        "tests/test_workspace_memory_actions.py::test_pg_unlinking_photo_after_queuing_rewrite_does_not_requeue_empty_drafts",
+        "tests/test_workspace_memory_actions.py::test_pg_photo_changes_retire_only_dependent_rewrites_and_preserve_other_tasks",
+        "tests/test_workspace_memory_actions.py::test_secondary_event_change_retires_exact_edition_request_despite_other_edition",
+        "tests/test_conversation_attribution.py::test_unrelated_event_correction_preserves_non_story_and_withheld_classifications",
+        "tests/test_conversation_attribution.py::test_author_removed_links_and_corrected_time_remain_authoritative"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-v4gcdcb9",
+      "command_group": {
+        "group_id": 12769,
+        "leader_started": "Sun Oct 25 15:34:58 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-v4gcdcb9",
+            "device": 16777231,
+            "inode": 970771339
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 14.71
+    },
+    "typed-verdict-green": {
+      "name": "typed-verdict-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-mnsy43ns",
+      "command_group": {
+        "group_id": 96666,
+        "leader_started": "Sun Oct 25 14:51:18 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-mnsy43ns",
+            "device": 16777231,
+            "inode": 970452083
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 11.01
+    },
+    "typed-verdict-red": {
+      "name": "typed-verdict-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py",
+        "-k",
+        "negative_semantic"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-j5yqk_8c",
+      "command_group": {
+        "group_id": 96211,
+        "leader_started": "Sun Oct 25 14:49:31 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-j5yqk_8c",
+            "device": 16777231,
+            "inode": 970440831
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 7.1
+    },
+    "unclassified-warning-green": {
+      "name": "unclassified-warning-green",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py"
+      ],
+      "exit_code": 0,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-3543llun",
+      "command_group": {
+        "group_id": 95276,
+        "leader_started": "Sun Oct 25 14:46:07 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-3543llun",
+            "device": 16777231,
+            "inode": 970418272
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 0,
+      "duration_seconds": 6.57
+    },
+    "unclassified-warning-red": {
+      "name": "unclassified-warning-red",
+      "command": [
+        "python3",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_composer_review_postgres.py"
+      ],
+      "exit_code": 1,
+      "base_head": "71371668d5b6bd99e62bba1870ef51ae6ec01136",
+      "tree": "c3bb676a3e7dc75bd6f79a13cbcdc545a7aad9ec",
+      "status": "completed",
+      "native_allocation_root": "/tmp/memoir-check-pg-xu_3zok4",
+      "command_group": {
+        "group_id": 95018,
+        "leader_started": "Sun Oct 25 14:45:17 2026"
+      },
+      "native_allocation_cleanup": {
+        "verified": true,
+        "root_removed": true,
+        "postmasters_stopped": [],
+        "registered_roots": [
+          {
+            "root": "/tmp/memoir-check-pg-xu_3zok4",
+            "device": 16777231,
+            "inode": 970408517
+          }
+        ],
+        "command_groups_stopped": []
+      },
+      "child_returncode": 1,
+      "duration_seconds": 5.59
+    }
+  },
+  "cleanup": {
+    "temporary_base_checkout": "/tmp/memoir-composer-review-base-20261025",
+    "temporary_base_removed": true,
+    "completed_check_cleanup_verified": true
+  },
+  "sql_activation": {
+    "fresh_install_baseline_only": true,
+    "existing_database_migration_performed": false,
+    "new_tables_or_columns": false,
+    "create_functions": [
+      "public.memoir_review_ready(jsonb)",
+      "public.memoir_review_covers(jsonb,jsonb)"
+    ],
+    "replace_functions": [
+      "public.commit_lifetime_memoir_lane_page_before_rework(uuid,uuid,bigint,jsonb,text)",
+      "public.commit_lifetime_memoir_lane_page_before_summary_windows(uuid,uuid,bigint,jsonb,text)"
+    ]
+  },
+  "proposed_revalidation": {
+    "future_submissions": 16,
+    "nominal": 12,
+    "repair_reserve": 4,
+    "existing_remaining": 10,
+    "extra_submissions_needing_authorization": 6,
+    "cumulative_candidate_cap": 30,
+    "renewed_deadline_seconds": 1800,
+    "judges": 0,
+    "additional_baseline_calls": 0,
+    "original_input_token_cap": 2359296,
+    "original_output_token_cap": 393216,
+    "projected_worst_input": 1724628,
+    "projected_worst_output": 285461,
+    "authorized": false
+  }
+}

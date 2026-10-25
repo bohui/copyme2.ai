@@ -3,6 +3,7 @@
 The application prepares, validates, reviews and renders the returned bundle;
 checkpoint RPCs are a task-local substitute for the separately tested database.
 """
+from controlled_composer_review import controlled_review
 import asyncio
 import copy
 import json
@@ -68,7 +69,7 @@ def test_composed_evidence_keeps_the_authorised_occurrence(monkeypatch, locale, 
             result = {'event_id': partition['id'], 'context': title,
                       'source_refs': partition['source_refs']}
         elif phase == 'review':
-            result = {'ready_for_user_review': True, 'publication_approved': False, 'findings': []}
+            result = controlled_review(packet)
         else:
             assert phase == 'draft'  # A canonical composer never re-extracts events.
             result = controlled_draft(packet, quote, title)
