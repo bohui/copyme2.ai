@@ -308,12 +308,15 @@ def test_privacy_overflow_is_durable_pending_without_provider_call():
     assert asyncio.run(execute_lifetime_lane(current,SimpleNamespace(broker=Broker())))['status']=='pending'
 
 
-def seeded_composer(sql,*,size=1):
+def seeded_composer(sql,*,size=1,summary_messages=()):
     identity=resolve(sql);project=identity['project_id']
     source=rpc(sql,'accept_user_narrator_source',f"{literal(project)},'00000000-0000-4000-8000-000000000001','I grew up in Chengde.'")
     ref=dict(source_id=source['id'],version=1,quote=source['text'],char_start=0,char_end=len(source['text']))
     proposal=dict(kind='event',title='Childhood',source_refs=[ref])
     rpc(sql,'apply_user_memory_events',f"{literal(project)},{literal([{'id':source['id'],'version':1}])},{literal([proposal])}")
+    for index, text in enumerate(summary_messages, 2):
+        extra=rpc(sql,'accept_user_narrator_source',f"{literal(project)},'{UUID(int=index)}',{literal(text)}")
+        rpc(sql,'apply_user_memory_events',f"{literal(project)},{literal([{'id':extra['id'],'version':1}])},'[]'")
     lane=create_lane(sql,identity,'composer')
     claim=service(sql,'claim_memoir_lane',f"'{lane}',900")
     return identity,source,lane,claim

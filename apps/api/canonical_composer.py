@@ -415,7 +415,7 @@ async def compose_shared_snapshot(job, worker):
                                    **({'p_page_digest': job['page_digest']} if job.get('governed_page') else {}))
             return result
     if job.get('batch'):
-        from .progressive_composer import summary_packet, validate_summary
+        from .progressive_composer import summary_packet, validate_summary, verbatim_summary
         prepared = []
         if job['batch']['new_messages']:
             await progress('summarizing')
@@ -423,7 +423,23 @@ async def compose_shared_snapshot(job, worker):
                 'policy': job['policy_epoch'], 'preferences': job['preference_revision']})
             result = await worker.broker.rpc('read_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'], p_key=key)
             if not result:
-                result = await composer_call(runtime, storage, job['project_id'], job['locale'], 'prepare', summary_packet(job, key))
+                result = verbatim_summary(job['authoritative_page'])
+                if result is None:
+                    result = await composer_call(runtime, storage, job['project_id'], job['locale'], 'prepare', summary_packet(job, key))
+                else:
+                    from .background_skills import admit_lane
+                    from .lifetime_memory_composer import lane_model_budget
+                    from .lifetime_memory_lane_engine import build_bounded_lane_input, check_lane_generation, lane_artifact_digest
+                    bounded = build_bounded_lane_input(job['authoritative_page'], phase='prepare',
+                        packet=summary_packet(job, key), budget=lane_model_budget(composer=True))
+                    check_lane_generation()
+                    admit_lane(bounded.fence, 'prepare')
+                    validate_summary(result, job)
+                    # Host preparation uses the same current SQL page proof;
+                    # it never records a model invocation or skips admission.
+                    await worker.broker.rpc('record_lifetime_lane_output', p_lane_id=job['lane_id'],
+                        p_token=job['token'], p_page_number=job['page_number'], p_phase='prepare',
+                        p_digest=lane_artifact_digest('prepare', result), p_page_digest=job['page_digest'])
                 validate_summary(result, job)
                 await worker.broker.rpc('save_memoir_checkpoint', p_lane_id=job['lane_id'], p_token=job['token'],
                     p_key=key, p_kind='prepare', p_value=result, p_page_digest=job['page_digest'])

@@ -170,7 +170,7 @@ def test_pg_claim_policy_rejection_rolls_back_attempt_and_mid_review_can_resume(
     worker.lane_publisher=LanePublication(dsn,authenticated_owner=OWNER)
     result=asyncio.run(worker.execute_lane(lane))
     assert result=={'status':'pending','error':PolicyUnavailable.code,'retrieval_complete':False}
-    assert phases==['prepare','draft']
+    assert phases==['draft']
     saved=sql(f"select key||':'||value::text from public.user_memoir_checkpoint where lane_id='{lane}' order by key;").stdout
     assert saved.strip()
     sql(f"update public.user_memoir_lane set available_at=clock_timestamp()-interval '1 second' where id='{lane}';")
@@ -182,5 +182,5 @@ def test_pg_claim_policy_rejection_rolls_back_attempt_and_mid_review_can_resume(
     # A synthetic reviewed inventory repair; production has no automatic bypass.
     sql(f"delete from public.user_lifetime_policy_inventory_pending where user_id='{OWNER}' and project_id={literal(project)};")
     result=asyncio.run(worker.execute_lane(lane))
-    assert result['status']=='saved' and phases==['prepare','draft','review']
+    assert result['status']=='saved' and phases==['draft','review']
     assert sql(f"select text from public.user_narrator_source where id='{source['id']}';").stdout.strip()==source['text']

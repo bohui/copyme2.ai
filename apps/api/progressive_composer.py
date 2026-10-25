@@ -5,6 +5,8 @@ import json
 
 from .memory_events import EvidenceRef
 
+SUMMARY_CONTEXT_LIMIT = 4000
+
 
 def batch_job(page):
     batch = page['batch']
@@ -47,10 +49,30 @@ def summary_packet(page, key):
             'sources': deepcopy(page['batch']['new_messages'])}
 
 
+def verbatim_summary(page):
+    """Keep complete narrator originals when they need no lossy compression."""
+    validate_batch(page['batch'], page['project_id'])
+    preferences = page.get('preferences', {})
+    if preferences.get('excluded_topics') or preferences.get('paused_topics'):
+        return None
+    sources = page['batch']['new_messages']
+    if not sources or any(source.get('author_role') != 'storyteller'
+            or source.get('kind') not in {'narrator_chat', 'narrator_transcript'}
+            or source['char_start'] != 0 or source['char_end'] != source['original_length']
+            for source in sources):
+        return None
+    context = '\n\n'.join(source['text'] for source in sources)
+    if not context.strip() or len(context) > SUMMARY_CONTEXT_LIMIT:
+        return None
+    partition = summary_partition(page)
+    return {'event_id': partition['id'], 'context': context,
+            'source_refs': partition['source_refs']}
+
+
 def validate_summary(value, page):
     expected = summary_partition(page)
     if (set(value) != {'event_id', 'context', 'source_refs'} or value['event_id'] != expected['id']
-        or not isinstance(value['context'], str) or not 0 < len(value['context']) <= 4000
+        or not isinstance(value['context'], str) or not 0 < len(value['context']) <= SUMMARY_CONTEXT_LIMIT
         or [EvidenceRef.model_validate(r).model_dump(exclude_none=True) for r in value['source_refs']]
            != expected['source_refs']):
         raise ValueError('Batch summary differs from original message evidence')

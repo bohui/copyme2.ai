@@ -22,7 +22,9 @@ from test_lifetime_memory_lane_engine import BUDGET
     'policy_after_send', 'review_repair', 'review_blocks', 'cancel_review', 'restart_review'])
 def test_direct_composer_keeps_phase_proofs_review_gate_and_sql_save(sql, monkeypatch, tmp_path, fault):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
-    identity, source, lane, claim = seeded_composer(sql)
+    # Keep this cohort on semantic summarization so every model-phase fault
+    # remains exercised; short lossless preparation has its own SQL cases.
+    identity, source, lane, claim = seeded_composer(sql, summary_messages=('Thanks. ' * 160,) * 4)
     publisher = LanePublication(sql.publication_dsn,
         authenticated_owner=OTHER if fault == 'owner_before_prepare' else OWNER)
     attempts, sent, reviews = [], [], []
@@ -124,3 +126,66 @@ def test_direct_composer_keeps_phase_proofs_review_gate_and_sql_save(sql, monkey
         assert sql('select count(*) from public.user_lifetime_lane_page_receipt;').stdout.strip() == '0'
         assert sql("select count(*) from public.user_lifetime_lane_snapshot where state='completed';").stdout.strip() == '0'
     assert not (tmp_path / 'homes').exists()
+
+
+@pytest.mark.parametrize('fault', ['none', 'source_before_proof', 'policy_before_proof',
+    'stale_page_digest', 'missing_prepare_proof', 'owner_before_draft'])
+def test_short_original_batch_saves_without_a_summary_provider(sql, monkeypatch, tmp_path, fault):
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', BUDGET.model)
+    identity, source, lane, claim = seeded_composer(sql)
+    publisher = LanePublication(sql.publication_dsn,
+        authenticated_owner=OTHER if fault == 'owner_before_draft' else OWNER)
+    drafts = []
+
+    class Broker:
+        async def rpc(self, name, **payload):
+            if name == 'record_lifetime_lane_output' and payload['p_phase'] == 'prepare':
+                if fault == 'source_before_proof':
+                    rpc(sql, 'change_user_narrator_source',
+                        f"{literal(identity['project_id'])},'{source['id']}',1,'withdraw',null")
+                elif fault == 'policy_before_proof':
+                    sql('update public.user_memoir_project set policy_epoch=policy_epoch+1;')
+                elif fault == 'stale_page_digest':
+                    payload['p_page_digest'] = '0' * 64
+            args = ','.join(f'{key}=>{literal(value)}' for key, value in payload.items())
+            value = json.loads(sql(f"set role service_role;select coalesce(to_jsonb(public.{name}({args})),'null'::jsonb);").stdout.strip())
+            if name == 'record_lifetime_lane_output' and payload['p_phase'] == 'prepare' and fault == 'missing_prepare_proof':
+                sql("delete from public.user_lifetime_lane_output where phase='prepare';")
+            return value
+
+    async def worker(request):
+        bounded = BoundedLaneInput.model_validate(json.loads(request.content)['bounded_lane'])
+
+        async def provider(incoming):
+            body = json.loads(b''.join([chunk async for chunk in incoming.stream]))
+            payload = json.loads(body['input'])['payload']
+            if bounded.phase == 'prepare':
+                return httpx.Response(503)
+            if bounded.phase == 'draft':
+                drafts.append(payload)
+                output = controlled_draft(payload, source['text'], 'Childhood')
+            else:
+                output = dict(ready_for_user_review=True, publication_approved=False, findings=[])
+            return httpx.Response(200, content=sse(events(json.dumps(output))))
+
+        return httpx.Response(200, json=await run_bounded_lane(command=['must-not-start'],
+            home_root=tmp_path / 'homes', base_url='https://provider.invalid/v1',
+            api_key='fixture-composer-key', model=BUDGET.model, bounded_lane=bounded,
+            publisher=publisher, provider_transport=httpx.MockTransport(provider), timeout=5))
+
+    scope = SimpleNamespace(broker=Broker(), worker_url='https://worker.invalid',
+        worker_secret='synthetic', worker_transport=httpx.MockTransport(worker), lane_publisher=publisher)
+    if fault != 'none':
+        with pytest.raises((PublicationUnavailable, PolicyUnavailable, AssertionError)):
+            asyncio.run(execute_lifetime_lane(claim, scope))
+        assert drafts == []
+        return
+    outcome = asyncio.run(execute_lifetime_lane(claim, scope))
+    assert outcome['status'] == 'saved' and outcome['retrieval_complete']
+    head = rpc(sql, 'read_lifetime_private_draft_head', literal(identity['project_id']))
+    assert head['status'] == 'ready' and head['preview']['text'] == source['text']
+    assert head['publication_approved'] is False
+    summary, = drafts[0]['request']['context']['prepared_partitions']
+    assert summary['context'] == source['text']
+    assert summary['source_refs'] == claim['batch']['events'][0]['source_refs']
