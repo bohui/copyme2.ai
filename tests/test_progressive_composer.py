@@ -1,5 +1,5 @@
 """Five-round summaries and exact carry-forward through the real model boundary."""
-from controlled_composer_review import controlled_review
+from controlled_composer_review import controlled_review, controlled_section_review
 import asyncio
 from copy import deepcopy
 import json
@@ -80,7 +80,8 @@ def compose(current, phases, broker, mutate_unchanged=False):
         elif bounded.phase == 'draft':
             result = draft_all(packet)
             if mutate_unchanged:
-                result['chapters'][0]['blocks'][-1]['text'] = 'An unsolicited rewrite of unchanged prose.'
+                unchanged = {s['block']['id'] for s in packet['request']['context']['preserved_sections'] if 'block' in s}
+                next(b for b in result['chapters'][0]['blocks'] if b['id'] in unchanged)['text'] = 'An unsolicited rewrite of unchanged prose.'
         else:
             result = controlled_review(packet)
         return httpx.Response(200, json={'reply': json.dumps(result)})
@@ -347,6 +348,37 @@ def test_multiple_stored_sample_chapters_supply_one_bounded_prior_body_without_r
     assert current==before
 
 
+@pytest.mark.parametrize('privacy_changed', [False, True])
+def test_pg_new_root_retains_eligible_older_passages_across_profile_updates(sql, privacy_changed):
+    from test_lifetime_composer_capacity import seeded_composer, section_result
+    identity, original, lane, first = seeded_composer(sql)
+    project = identity['project_id']
+    saved = section_result(first)
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{first['token']}',0,{literal(saved)}")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
+    initial = rpc(sql, 'read_lifetime_private_draft_page', f"{literal(project)},'{first['snapshot_id']}'")['records'][0]
+    patch = ({'memory_preferences': {'paused_topics': ['childhood']}} if privacy_changed
+             else {'childhood_place': 'Hobart'})
+    sql(f"update public.user_profile set profile=profile||{literal(patch)}::jsonb where user_id='{OWNER}';")
+    later = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'{UUID(int=2)}','Later I moved to Sydney.'")
+    event = dict(kind='event', title='Sydney', source_refs=[dict(source_id=later['id'], version=1,
+        quote=later['text'], char_start=0, char_end=len(later['text']))])
+    rpc(sql, 'apply_user_memory_events', f"{literal(project)},{literal([dict(id=later['id'],version=1)])},{literal([event])}")
+    sql(f"update public.user_memoir_lane set pending=true where id='{lane}';")
+    current = service(sql, 'claim_memoir_lane', f"'{lane}',900")
+    assert current['preference_revision'] > first['preference_revision']
+    candidate = section_result(current, later['text'])
+    candidate['sections'] = [section for section in candidate['sections']
+        if section['source_refs'][0]['source_id'] == later['id']]
+    candidate['review'] = controlled_section_review(current, candidate['sections'])
+    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{current['token']}',0,{literal(candidate)}")
+    service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{current['token']}'")
+    records = rpc(sql, 'read_lifetime_private_draft_page', f"{literal(project)},'{current['snapshot_id']}'")['records']
+    older = next((row for row in records if row['id'] == initial['id']), None)
+    assert older is None if privacy_changed else older == initial
+    assert any(row['source_refs'][0]['source_id'] == later['id'] for row in records)
+
+
 def test_repair_admission_and_composer_share_stale_projection_validation(monkeypatch):
     from apps.api.canonical_composer import validate_canonical_candidate
     from apps.api.lifetime_memory_lane_engine import validate_lane_payload
@@ -386,7 +418,8 @@ def test_canonical_repair_errors_are_stable_after_transport_key_sorting():
 
 
 @pytest.mark.parametrize('protected', [False, True])
-def test_pg_five_round_batch_groups_quotes_and_persists_progressive_passages(sql, protected):  # noqa: F811 - fixture
+@pytest.mark.parametrize('profile_updated', [False, True])
+def test_pg_five_round_batch_groups_quotes_and_persists_progressive_passages(sql, protected, profile_updated):  # noqa: F811 - fixture
     identity = resolve(sql)
     project = identity['project_id']
     originals = []
@@ -426,6 +459,8 @@ def test_pg_five_round_batch_groups_quotes_and_persists_progressive_passages(sql
     target = next(e for e in saved_events if e['source_refs'][0]['source_id'] == originals[0]['id'])
     if protected:
         sql(f"update public.user_lifetime_memoir_section set approved=true where source_id='{originals[0]['id']}';")
+    if profile_updated:
+        sql(f"update public.user_profile set profile=profile||'{{\"childhood_place\":\"Hobart\"}}'::jsonb where user_id='{OWNER}';")
     for i in range(5):
         text = 'Later I taught a neighbour to repair bicycles.' if i == 0 else 'Thank you.'
         original = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'{UUID(int=200+i)}',{literal(text)}")
