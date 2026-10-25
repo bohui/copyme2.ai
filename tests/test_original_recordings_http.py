@@ -322,12 +322,14 @@ def test_concurrent_asr_responses_match_the_first_persisted_provenance(workflow,
     mode['stt_fail']=True
     saved=upload(client,media).json()['detail']['recording_id']
     mode['stt_fail']=False;mode['distinct_asr']=True
-    barrier=Barrier(2);original=type(storage).request
-    def simultaneous_read(self,method,path,**options):
-        if method=='GET' and path.startswith('/storage/'):
-            barrier.wait(timeout=5)
-        return original(self,method,path,**options)
-    monkeypatch.setattr(type(storage),'request',simultaneous_read)
+    barrier=Barrier(2);original=RecordingStore.content
+    def simultaneous_read(self,record):
+        content=original(self,record)
+        # Reads now hold a revocation guard. Synchronize after they release it,
+        # retaining the race between both retries and ASR-result persistence.
+        barrier.wait(timeout=5)
+        return content
+    monkeypatch.setattr(RecordingStore,'content',simultaneous_read)
     def retry():return client.post('/api/v1/memoir/story/transcriptions',json={'recording_id':saved})
     before=len([c for c in calls if c[0]=='stt'])
     with ThreadPoolExecutor(2) as pool:

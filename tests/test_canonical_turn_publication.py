@@ -9,11 +9,16 @@ import pytest
 from apps.api.codex_runtime import CodexRuntime
 from controlled_collector import worker_reply
 from memoir_postgres_workflow import PostgresRest
-from test_agent_commit_postgres import OWNER
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
+from test_agent_commit_postgres import OWNER, database as postgres_database
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database
 from test_name_only_opening import proposal
 from test_shared_memory_events_postgres import rpc
 from scripts.canonical_turn import canonical_turn, CanonicalTurnFailed
+
+
+@pytest.fixture(scope='module')
+def database():
+    yield from postgres_database.__wrapped__(publication_tcp=True,postgres_image='postgres:17.6')
 
 
 def test_controlled_delivery_and_replay_keep_sql_authority_until_asgi_send(sql, tmp_path, monkeypatch):

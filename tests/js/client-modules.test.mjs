@@ -285,6 +285,42 @@ test('withdrawing voice consent stops listening without discarding an uploaded o
   assert.equal(pending.cancelled, false);
 });
 
+test('consent withdrawal cancels dictation while microphone permission is pending', async t => {
+  const {state,dependencies}=setup(t);
+  const {readFileSync}=await import('node:fs');
+  const vm=await import('node:vm');
+  let permission,requested;
+  const waiting=new Promise(resolve=>{requested=resolve;});
+  const tracks=[{stopped:false,stop(){this.stopped=true;}}];
+  let starts=0;
+  const Recorder=class {static isTypeSupported(){return false;} addEventListener(){} start(){starts++;}};
+  const prior=Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{mediaDevices:{getUserMedia:()=>{
+    requested(); return new Promise(resolve=>{permission=resolve;});
+  }}}});
+  t.after(()=>{if(prior)Object.defineProperty(globalThis,'navigator',prior);else delete globalThis.navigator;});
+  globalThis.window.MediaRecorder=Recorder;
+  globalThis.MediaRecorder=Recorder;
+  t.after(()=>{delete globalThis.MediaRecorder;});
+  state.dictationId=0;
+  state.dictationMonitor=null;
+  const audio=createConversationAudio({...dependencies,ensureRecordingConsent:async()=>true});
+  const source=readFileSync(new URL('../../apps/web/client/memoir/client.js',import.meta.url),'utf8');
+  const setupConsent=source.match(/const recordingConsent = createRecordingConsent\(\{[^]*?\n\}\);/)[0];
+  const context=vm.createContext({...dependencies,...audio,authReminder:{open(){}},
+    createRecordingConsent:options=>{context.revoke=options.onRevoke;return {};}});
+  vm.runInContext(setupConsent,context);
+  const starting=audio.startAudioRecorder();
+  await waiting;
+  assert.equal(state.dictationStatus,'starting');
+  context.revoke();
+  permission({getTracks:()=>tracks});
+  await starting;
+  assert.equal(starts,0,'Late permission started recording after withdrawal');
+  assert.equal(state.dictationStatus,'off');
+  assert.equal(tracks[0].stopped,true);
+});
+
 test('checkout factory keeps guest selection and recovers from a failed checkout', async t => {
   const {state, dependencies, notices} = setup(t);
   state.selectedStoryPlan = 'printed_memoir_v1';

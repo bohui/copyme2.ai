@@ -61,5 +61,6 @@ rollout remains off for new installations until explicitly enabled. Recording
 objects use a backend-only Supabase credential after ownership/consent checks;
 browser tokens cannot list, sign, overwrite or directly retrieve them.
 
-Qwen3-ASR-Flash remains an optional Mandarin fallback. Enable it by adding
-`DASHSCOPE_API_KEY`, `DASHSCOPE_WORKSPACE_ID`, and `DASHSCOPE_REGION` to `.env`.
+Groq handles English and Mandarin transcription. A Groq failure keeps the
+original available for retry; Memoir does not forward it to another ASR provider.
+DashScope credentials do not add Qwen to the Groq-only consent scope.

@@ -268,8 +268,9 @@ def test_partial_credentials_do_not_dispatch_to_another_provider(monkeypatch):
     assert service.stt.api_key == ''
 
 
-def test_transcription_routes_through_groq_and_qwen_fallback(monkeypatch):
-    service = speech.build_speech_service()
+def test_explicit_router_can_use_a_qwen_fallback(monkeypatch):
+    service = speech.LocalizedSpeechService(speech.GroqSpeechService('fixture'),
+        speech.CosyVoiceSpeechService('fixture'), speech.QwenASRService('fixture',workspace_id='fixture'))
     calls = []
 
     def groq(audio, **options):

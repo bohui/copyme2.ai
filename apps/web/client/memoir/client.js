@@ -270,7 +270,7 @@ const {
 
 const recordingConsent = createRecordingConsent({
   storyApi, captureProjectScope, isCurrentProjectScope, toast, openIdentity:() => authReminder.open(),
-  onRevoke:() => { stopVoiceMode({silent:true,preservePending:true}); if (state.recording) cancelDictation(); },
+  onRevoke:() => { stopVoiceMode({silent:true,preservePending:true}); if (state.recording || state.dictationStatus === 'starting') cancelDictation(); },
 });
 
 async function ensureRecordingConsent() { return recordingConsent.ensure(); }

@@ -3,6 +3,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import re
 import threading
+import asyncio
+import json
+from uuid import uuid4
 
 import pytest
 import psycopg
@@ -31,6 +34,145 @@ def consent_workflow(workflow):
 
 def grant(client, **values):
     return client.put(ENDPOINT, json={**POLICY, 'action':'grant', **values})
+
+
+def test_groq_consent_never_dispatches_mandarin_audio_to_qwen(consent_workflow, media, monkeypatch):
+    from fastapi.testclient import TestClient
+    from apps.api.main import create_app
+    from apps.api.store import MemoryStore
+    from apps.api import speech
+    client,storage,sql,objects,calls,mode = consent_workflow
+    assert grant(client).status_code == 200
+    monkeypatch.setenv('DASHSCOPE_API_KEY','synthetic-qwen-key')
+    monkeypatch.setenv('DASHSCOPE_WORKSPACE_ID','synthetic-workspace')
+    fallbacks=[]
+    def unavailable(*args,**kwargs): raise speech.SpeechProviderError('controlled Groq outage')
+    def qwen(*args,**kwargs):
+        fallbacks.append(1)
+        return {'text':'未经授权的转写','provider':'qwen','model':'fixture'}
+    monkeypatch.setattr(speech.GroqSpeechService,'transcribe',unavailable)
+    monkeypatch.setattr(speech.QwenASRService,'transcribe',qwen)
+    service=speech.build_speech_service()
+    app=create_app(MemoryStore(),speech_service=service,story_storage_factory=lambda _:storage)
+    content,mime=media
+    import base64
+    result=TestClient(app).post('/api/v1/memoir/story/transcriptions',json={
+        'audio_base64':base64.b64encode(content).decode(),'mime_type':mime,'language':'zh-CN'})
+    assert not fallbacks, 'Groq-only consent dispatched original audio to Qwen'
+    assert result.status_code == 503
+    assert result.json()['detail']['backend_saved'] is True
+
+
+def test_withdrawal_before_object_fetch_prevents_even_a_backend_storage_read(consent_workflow,media,monkeypatch):
+    from apps.api.original_recordings import RecordingStore
+    client,storage,sql,objects,calls,mode = consent_workflow
+    assert grant(client).status_code == 200
+    record=upload(client,media).json()['recording']
+    original=RecordingStore.content
+    after_withdrawal=[]
+    def delayed(self,current):
+        revoked=client.put(ENDPOINT,json={**POLICY,'action':'revoke','expected_revision':1})
+        assert revoked.status_code == 200
+        before=len(calls)
+        try:return original(self,current)
+        finally:after_withdrawal.extend(calls[before:])
+    monkeypatch.setattr(RecordingStore,'content',delayed)
+    result=client.get(record['content_url'])
+    assert result.status_code == 404
+    assert not after_withdrawal, 'Backend fetched original bytes after withdrawal committed'
+
+
+def publication_recording(consent_workflow,media):
+    from test_shared_memory_events_postgres import rpc,literal
+    from test_agent_commit_postgres import OLD
+    client,storage,sql,objects,calls,mode = consent_workflow
+    assert grant(client).status_code == 200
+    identity=rpc(sql,'resolve_lifetime_conversation','null')
+    record=upload(client,media).json()['recording']
+    accepted=storage.accept_interview_turn(identity['project_id'],str(uuid4()),'An original memory',
+        kind='narrator_transcript',recording_ids=[record['id']])
+    snapshot=storage.source_recordings(identity['project_id'],accepted['source']['id'])
+    assert snapshot
+    sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
+    fence=rpc(sql,'capture_lifetime_fence',f"'{identity['conversation_id']}','{OLD}'")
+    return client,storage,sql,record,accepted,snapshot,fence
+
+
+def test_queued_recording_descriptor_is_filtered_at_actual_stream_send(consent_workflow,media):
+    from apps.api.lifetime_memory_publication import TransactionalPublication
+    from apps.api.lifetime_memory_transport import GovernedStreamingResponse,governed_turn_events
+    from test_lifetime_memory_transport import SCOPE,no_disconnect,body_event
+    client,storage,sql,record,accepted,snapshot,fence=publication_recording(consent_workflow,media)
+    identity=fence['identity']
+    async def scenario():
+        queued,withdrawn=asyncio.Event(),asyncio.Event()
+        delivered,observed=[],[]
+        async def run(emit):
+            emit.set_fence(fence)
+            await emit.event({'type':'source_accepted','data':{'accepted_source_id':accepted['source']['id'],'recordings':snapshot}})
+            queued.set()
+            await withdrawn.wait()
+            return {'recordings':await asyncio.to_thread(storage.source_recordings,identity['project_id'],accepted['source']['id'])}
+        async def send(message):
+            event=body_event(message)
+            if not event:return
+            if event['type']=='started':
+                await queued.wait()
+                response=await asyncio.to_thread(client.put,ENDPOINT,json={**POLICY,'action':'revoke','expected_revision':1})
+                assert response.status_code == 200
+                withdrawn.set()
+            delivered.append(event)
+        publisher=TransactionalPublication(sql.publication_dsn,authenticated_owner=OWNER)
+        await GovernedStreamingResponse(governed_turn_events(run),publisher=publisher,on_delivered=observed.append)(SCOPE,no_disconnect,send)
+        accepted_event=next(event['data'] for event in delivered if event['type']=='source_accepted')
+        assert accepted_event['recordings'] == [], 'Stream released a cached descriptor after withdrawal'
+        assert next(event['data'] for event in observed if event['type']=='source_accepted')['recordings'] == []
+        assert next(event['data'] for event in delivered if event['type']=='result')['recordings'] == []
+    asyncio.run(scenario())
+
+
+def test_withdrawal_waits_for_actual_recording_descriptor_send(consent_workflow,media):
+    from apps.api.lifetime_memory_publication import TransactionalPublication,send_governed
+    client,storage,sql,record,accepted,snapshot,fence=publication_recording(consent_workflow,media)
+    async def scenario():
+        withdrawing=None
+        async def send(message):
+            nonlocal withdrawing
+            assert json.loads(message['body'])['data']['recordings']
+            withdrawing=asyncio.create_task(asyncio.to_thread(client.put,ENDPOINT,
+                json={**POLICY,'action':'revoke','expected_revision':1}))
+            observer=await psycopg.AsyncConnection.connect(sql.publication_dsn,autocommit=True)
+            try:
+                async with asyncio.timeout(3):
+                    while not (await (await observer.execute("select exists(select 1 from pg_stat_activity where wait_event_type='Lock' and query like 'select public.recording_server_operation%')")).fetchone())[0]:
+                        assert not withdrawing.done(), 'Withdrawal completed before descriptor send'
+                        await asyncio.sleep(.01)
+            finally:await observer.close()
+            assert not withdrawing.done()
+        publisher=TransactionalPublication(sql.publication_dsn,authenticated_owner=OWNER)
+        message={'type':'http.response.body','more_body':True,'body':json.dumps({
+            'type':'source_accepted','data':{'recordings':snapshot}}).encode()+b'\n'}
+        await send_governed(send,message,publisher=publisher,fence=fence)
+        assert (await withdrawing).status_code == 200
+    asyncio.run(scenario())
+    assert client.get(record['content_url']).status_code == 404
+
+
+def test_withdrawal_before_upload_readback_prevents_storage_get(consent_workflow,media,monkeypatch):
+    client,storage,sql,objects,calls,mode=consent_workflow
+    assert grant(client).status_code == 200
+    original=type(storage).request
+    readback=[]
+    def withdraw_after_upload(self,method,path,**options):
+        result=original(self,method,path,**options)
+        if method=='POST' and path.startswith('/storage/'):
+            assert client.put(ENDPOINT,json={**POLICY,'action':'revoke','expected_revision':1}).status_code == 200
+            readback.append(len(calls))
+        return result
+    monkeypatch.setattr(type(storage),'request',withdraw_after_upload)
+    response=upload(client,media)
+    assert response.status_code == 503
+    assert readback and not calls[readback[0]:], 'Storage verification GET ran after withdrawal'
 
 
 def test_opt_in_requires_both_purposes_and_confirmed_recoverable_identity(consent_workflow, media):

@@ -863,9 +863,7 @@ def speech_synthesis_options(service: Any, language: str | None, **options: Any)
 
 
 def build_speech_service() -> LocalizedSpeechService:
-    dashscope_key = os.getenv('DASHSCOPE_API_KEY', '').strip()
-    workspace_id = os.getenv('DASHSCOPE_WORKSPACE_ID', '').strip()
-    region = os.getenv('DASHSCOPE_REGION', 'ap-southeast-1').strip()
+    # Memoir's recording consent authorizes Groq, not other ASR providers.
     return LocalizedSpeechService(
         GroqSpeechService(
             os.getenv('GROQ_API_KEY', '').strip(),
@@ -876,11 +874,5 @@ def build_speech_service() -> LocalizedSpeechService:
             os.getenv('COSYVOICE_API_KEY', '').strip(),
             base_url=os.getenv('COSYVOICE_BASE_URL', 'http://192.168.0.50:50001'),
             tts_model=os.getenv('MEMORY_SPARK_TTS_MODEL', 'cosyvoice-v3-flash'),
-        ),
-        QwenASRService(
-            dashscope_key,
-            workspace_id=workspace_id,
-            region=region,
-            stt_model=os.getenv('MEMORY_SPARK_QWEN_STT_MODEL', 'qwen3-asr-flash'),
         ),
     )

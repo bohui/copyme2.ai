@@ -161,13 +161,25 @@ class RecordingStore:
     def __init__(self, storage):
         self.storage = storage
 
-    def object_request(self, method, path, **options):
+    def object_request(self, method, path, *, recording_id=None, **options):
         # Only opaque, database-owned original paths reach this private bucket.
         # End-user Storage JWTs cannot list, sign, overwrite or bypass revocation.
         key = os.getenv('SUPABASE_SECRET_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY')
         if not key:
             raise error(503, 'RECORDING_STORAGE_UNAVAILABLE', 'Private recording storage is unavailable')
         headers = {**options.pop('headers', {}), 'apikey':key, 'Authorization':'Bearer ' + key}
+        if method == 'GET':
+            if recording_id is None:
+                raise error(503, 'RECORDING_STORAGE_UNAVAILABLE', 'Recording read identity is required')
+            try:
+                # Include verification/readback GETs in the withdrawal boundary,
+                # not just later provider dispatch and HTTP publication.
+                with self.provider_guard(recording_id):
+                    return self.storage.request(method, path, headers=headers, **options)
+            except HTTPException as exc:
+                if exc.status_code == 403:
+                    raise error(404, 'RECORDING_NOT_FOUND', 'Recording unavailable') from None
+                raise
         return self.storage.request(method, path, headers=headers, **options)
 
     def trusted(self, operation, recording_id=None, data=None):
@@ -211,7 +223,7 @@ class RecordingStore:
         if record['storage_status'] != 'ready' or record['lifecycle'] == 'deleted':
             raise error(409, 'RECORDING_NOT_READY', 'Original recording is not ready')
         content = self.object_request('GET', '/storage/v1/object/authenticated/' + PRIVATE_RECORDING_BUCKET
-            + '/' + quote(record['object_path'], safe='/')).content
+            + '/' + quote(record['object_path'], safe='/'), recording_id=record['id']).content
         if len(content) != record['byte_size'] or hashlib.sha256(content).hexdigest() != record['content_sha256']:
             raise error(503, 'RECORDING_INTEGRITY_FAILED', 'Original recording verification failed')
         # Recheck current policy after the object read, before release/provider work.
@@ -245,7 +257,7 @@ class RecordingStore:
                 if exc.response.status_code != 409: raise
             # A duplicate object or success response is not a trusted finalization.
             observed = self.object_request('GET', '/storage/v1/object/authenticated/' + PRIVATE_RECORDING_BUCKET
-                + '/' + quote(record['object_path'], safe='/')).content
+                + '/' + quote(record['object_path'], safe='/'), recording_id=record['id']).content
             if observed != content: raise ValueError('Original readback mismatch')
             record = self.trusted('finalize', record['id'], metadata)
             logger.info('recording_preserved recording_id=%s byte_size=%d', record['id'], record['byte_size'])
@@ -266,7 +278,7 @@ class RecordingStore:
 
     @contextmanager
     def provider_guard(self, recording_id):
-        """Recheck policy under database locks before dispatching original audio."""
+        """Hold current authority through storage reads or provider dispatch."""
         from psycopg import connect, Error
         from psycopg.types.json import Jsonb
         dsn = os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')

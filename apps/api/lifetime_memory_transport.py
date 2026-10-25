@@ -291,9 +291,9 @@ class GovernedStreamingResponse(StreamingResponse):
                     try:
                         publisher = self.draft_publisher if envelope.draft else self.publisher
                         if publisher is None: raise PublicationUnavailable('Draft publication is not configured')
-                        await send_governed(send, message, publisher=publisher,
-                                            fence=envelope.fence)
-                        if self.on_delivered:self.on_delivered(json.loads(envelope.body))
+                        delivered=await send_governed(send, message, publisher=publisher,
+                                                      fence=envelope.fence)
+                        if self.on_delivered:self.on_delivered(json.loads(delivered['body']))
                         if envelope.terminal:
                             terminal_delivered = json.loads(envelope.body).get('type') == 'result'
                     except Exception as error:
