@@ -41,6 +41,16 @@ test('report identifies an explicit time extension and retained limits', () => {
   assert.match(report, /Original request, settle and poll limits retained/);
 });
 
+test('report displays the approved absolute cap alongside prior extensions', () => {
+  const { plan, receipt } = fixture();
+  receipt.elapsed_time_extensions = [{ seconds: 14400, case_ids: ['harbour'], backend_turn_submissions: 7 }];
+  receipt.deadline_extensions = [{ deadline_at_utc: '2026-10-26T05:00:00+00:00', backend_turn_submissions: 60 }];
+  const report = renderReport(plan, receipt);
+  assert.match(report, /Approved absolute deadline: 2026-10-26T05:00:00\+00:00 for all original cases, recorded after 60 original submissions/);
+  assert.match(report, /Original clock origins, request ceiling and earlier extensions retained/);
+  assert.match(report, /Explicit elapsed-time extension: 14400 seconds/);
+});
+
 test('partial report counts only completed rounds and retains all five planned cases and actual draft text', () => {
   const { plan, receipt } = fixture();
   const report = renderReport(plan, receipt);
