@@ -64,7 +64,7 @@ def test_contribution_needs_nonblank_prose_or_truthful_partial_deferral(monkeypa
     assert job == before
 
 
-@pytest.mark.parametrize('change', ['unchanged', 'carried_delta', 'policy_epoch', 'source_edit', 'source_role',
+@pytest.mark.parametrize('change', ['unchanged', 'version_two', 'carried_delta', 'policy_epoch', 'source_edit', 'source_role',
     'withdraw', 'privacy_guard', 'semantic_repair', 'semantic_blocks'])
 def test_completed_prose_refresh_respects_current_authority_and_bounded_repair(monkeypatch, change):
     from apps.api.lifetime_memory_policy import PolicyUnavailable
@@ -101,7 +101,11 @@ def test_completed_prose_refresh_respects_current_authority_and_bounded_repair(m
     worker = SimpleNamespace(broker=Broker(), worker_url='https://fixture.invalid', worker_secret='synthetic', worker_transport=None)
     previous = asyncio.run(compose_shared_snapshot(job, worker))
     if change not in ('policy_epoch', 'source_edit', 'source_role', 'withdraw'):
-        previous['review'] = dict(ready_for_user_review=True, publication_approved=False, findings=[])
+        if change == 'version_two':
+            previous['review'].pop('craft')
+            previous['review']['contract_version'] = 2
+        else:
+            previous['review'] = dict(ready_for_user_review=True, publication_approved=False, findings=[])
     if change == 'carried_delta':
         previous['draft'].update(chapters=[],
             carry_forward_chapter_ids=[chapter['id'] for chapter in previous['manuscript']['chapters']])
@@ -133,7 +137,7 @@ def test_completed_prose_refresh_respects_current_authority_and_bounded_repair(m
         assert phases == ['review', 'draft', 'review', 'draft', 'review']
     else:
         result = asyncio.run(compose_shared_snapshot(current, worker))
-        expected = {'unchanged':['review'], 'carried_delta':['review'], 'policy_epoch':['draft','review'],
+        expected = {'unchanged':['review'], 'version_two':['review'], 'carried_delta':['review'], 'policy_epoch':['draft','review'],
             'source_edit':['prepare','draft','review'], 'source_role':['draft','review'],
             'withdraw':[], 'semantic_repair':['review','draft','review']}[change]
         assert phases == expected
@@ -143,7 +147,7 @@ def test_completed_prose_refresh_respects_current_authority_and_bounded_repair(m
             assert result['status'] == 'ready'
             if change != 'source_edit':
                 assert result['manuscript']['chapters'][0]['blocks'] == saved['manuscript']['chapters'][0]['blocks']
-            if change in ('unchanged', 'carried_delta'):
+            if change in ('unchanged', 'version_two', 'carried_delta'):
                 assert result['draft']['event_dispositions'] == saved['draft']['event_dispositions']
                 assert result['draft']['expected_manuscript_revision'] == 1
                 assert result['draft']['input_snapshot_id'] == result['request']['snapshot']['id']

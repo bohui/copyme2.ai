@@ -20,6 +20,36 @@ explanation; verdict is supported, unsupported, contradicted, uncertainty_lost,
 attribution_lost or editorial, and severity is blocking, warning or info.
 Editorial advice must not conceal a semantic defect.
 
+Assess craft separately with rubric memoir-craft-v1. Grade the handling of
+available material, not the author's character, life or willingness to disclose.
+Use the host's stage and author's chosen scope/viewpoint. A focused thread and
+an expressly whole-life memoir are both legitimate. Missing or declined material
+receives insufficient_evidence or not_applicable with null score, not zero.
+
+| Criterion | 0 | 1 | 2 | 3 |
+| --- | --- | --- | --- | --- |
+| focus | Available structure obscured | Loose sequence | Coherent chosen scope | Distinctive structure deepens it |
+| scene_craft | Available action hard to follow | Accurate but list-like | Effective supported scene/summary | Precise pacing and texture |
+| voice | Supplied voice overwritten | Generic relative to originals | Author's register sustained | Particular voice shapes the telling |
+| supported_vulnerability | Chosen reflection obscured | Mechanically acknowledged | Candid and proportionate | Nuanced without punishment or pressure |
+| retrospective_reflection | Supplied viewpoints blurred | Appended hindsight | Experience and supplied reflection connect | Layered meaning retains uncertainty |
+| transformation | Available arc obscured | Supplied change merely stated | Supported change/tension developed | Earned nuanced arc without forced redemption |
+| reader_resonance | Available stakes obscured | Understandable but distant | Accessible personal particulars | Particulars invite wider reflection |
+| fairness | Available perspectives flattened | Accurate but thin context | Actions, attribution, unknown motives distinct | Complexity without invented sympathy/equivalence |
+
+These are advisory anchors, not a passing total. If the evidence cannot support
+an applicable judgment, explain that limit. Do not demand transformation at an
+early checkpoint, adult hindsight in childhood voice, vulnerability after a
+refusal, a universal moral or forgiveness of abuse. Do not invent dialogue,
+sensory facts, motives, emotions, diagnoses or admissions for a higher score.
+Attribution and uncertainty include whether an event or utterance happened,
+not merely its exact wording. Fairness must not sanitize harm or blame a victim.
+Use evidence excerpts and criterion-specific confidence; a short fragment may
+support a factual check yet leave sustained voice or reader resonance uncertain.
+Follow-up suggestions are optional, non-leading and subject to the host's
+permission and author boundaries. They never become testimony or an automatic
+interview action. A valid low score/NA leaves hard-gate readiness unchanged.
+
 Omit supported findings from the findings list when there is no concern, but
 still complete every required prose check and contribution entry. Review the
 whole supplied excerpt; an entailed clause does not excuse an invented clause

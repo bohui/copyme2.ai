@@ -4435,6 +4435,73 @@ CREATE FUNCTION public.memoir_review_ready(p_review jsonb) RETURNS boolean
      or length(btrim(f->>'explanation'))=0) end;
 $$;
 
+CREATE FUNCTION public.memoir_craft_review_covers(p_craft jsonb, p_units jsonb, p_originals jsonb, p_followups_allowed boolean) RETURNS boolean
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path TO ''
+    AS $$
+declare rating jsonb; evidence jsonb; original jsonb; unit jsonb; ref jsonb; criterion text; matches integer;
+ spaces text:=U&'\0009\000A\000B\000C\000D\001C\001D\001E\001F\0020\0085\00A0\1680\2000\2001\2002\2003\2004\2005\2006\2007\2008\2009\200A\2028\2029\202F\205F\3000';
+begin
+ if jsonb_typeof(p_craft) is distinct from 'object' then return false;end if;
+ if p_craft->>'rubric_id' is distinct from 'memoir-craft-v1'
+   or p_craft-array['rubric_id','ratings']<>'{}'::jsonb
+   or jsonb_typeof(p_craft->'ratings') is distinct from 'array' then return false;end if;
+ if jsonb_array_length(p_craft->'ratings')<>8 then return false;end if;
+ foreach criterion in array array['focus','scene_craft','voice','supported_vulnerability',
+     'retrospective_reflection','transformation','reader_resonance','fairness'] loop
+   select count(*) into matches from jsonb_array_elements(p_craft->'ratings') r where r->>'criterion'=criterion;
+   if matches<>1 then return false;end if;
+ end loop;
+ for rating in select value from jsonb_array_elements(p_craft->'ratings') loop
+   if jsonb_typeof(rating) is distinct from 'object' then return false;end if;
+   if not (rating ?& array['criterion','applicability','score','confidence','confidence_basis','reason',
+       'source_evidence','prose_evidence','suggested_follow_up'])
+     or rating-array['criterion','applicability','score','confidence','confidence_basis','reason',
+       'source_evidence','prose_evidence','suggested_follow_up']<>'{}'::jsonb
+     or coalesce(rating->>'applicability','') not in ('applicable','not_applicable','insufficient_evidence')
+     or coalesce(rating->>'confidence','') not in ('high','medium','low')
+     or jsonb_typeof(rating->'reason') is distinct from 'string'
+     or jsonb_typeof(rating->'confidence_basis') is distinct from 'string'
+     or length(btrim(rating->>'reason',spaces))=0 or length(rating->>'reason')>300
+     or length(btrim(rating->>'confidence_basis',spaces))=0 or length(rating->>'confidence_basis')>200
+     or jsonb_typeof(rating->'source_evidence') is distinct from 'array'
+     or jsonb_typeof(rating->'prose_evidence') is distinct from 'array' then return false;end if;
+   if jsonb_array_length(rating->'source_evidence')>2 or jsonb_array_length(rating->'prose_evidence')>2 then return false;end if;
+   if rating->>'applicability'='applicable' then
+     if jsonb_typeof(rating->'score') is distinct from 'number' or rating->>'score' not in ('0','1','2','3')
+       or jsonb_array_length(rating->'source_evidence')=0 or jsonb_array_length(rating->'prose_evidence')=0 then return false;end if;
+   elsif rating->'score' is distinct from 'null'::jsonb then return false;end if;
+   if rating->'suggested_follow_up' is distinct from 'null'::jsonb then
+     if p_followups_allowed is distinct from true or rating->>'applicability'<>'insufficient_evidence'
+       or jsonb_typeof(rating->'suggested_follow_up') is distinct from 'string'
+       or length(btrim(rating->>'suggested_follow_up',spaces))=0
+       or length(rating->>'suggested_follow_up')>240 then return false;end if;
+   end if;
+   for evidence in select value from jsonb_array_elements(rating->'source_evidence') loop
+     if jsonb_typeof(evidence) is distinct from 'object' then return false;end if;
+     if evidence-array['source_ref','excerpt']<>'{}'::jsonb
+       or jsonb_typeof(evidence->'excerpt') is distinct from 'string'
+       or length(btrim(evidence->>'excerpt',spaces))=0 or length(evidence->>'excerpt')>160 then return false;end if;
+     select value into original from jsonb_array_elements(p_originals) o where o->'source_ref'=evidence->'source_ref';
+     if original is null or strpos(original->>'quote',evidence->>'excerpt')=0 then return false;end if;
+   end loop;
+   for evidence in select value from jsonb_array_elements(rating->'prose_evidence') loop
+     if jsonb_typeof(evidence) is distinct from 'object' then return false;end if;
+     if evidence-array['section_id','field','excerpt']<>'{}'::jsonb
+       or jsonb_typeof(evidence->'excerpt') is distinct from 'string'
+       or length(btrim(evidence->>'excerpt',spaces))=0 or length(evidence->>'excerpt')>160 then return false;end if;
+     select value into unit from jsonb_array_elements(p_units) u
+       where u->>'section_id'=evidence->>'section_id' and u->>'field'=evidence->>'field';
+     if unit is null or strpos(unit->>'excerpt',evidence->>'excerpt')=0 then return false;end if;
+     if jsonb_array_length(rating->'source_evidence')>0 and not exists(
+       select 1 from jsonb_array_elements(unit->'source_refs') r,jsonb_array_elements(rating->'source_evidence') s
+       where r->>'source_id'=s->'source_ref'->>'source_id' and r->>'version'=s->'source_ref'->>'version'
+         and r->'char_start'=s->'source_ref'->'char_start' and r->'char_end'=s->'source_ref'->'char_end') then return false;end if;
+   end loop;
+ end loop;
+ return true;
+end $$;
+
 CREATE FUNCTION public.memoir_review_covers(p_page jsonb, p_result jsonb) RETURNS boolean
     LANGUAGE plpgsql IMMUTABLE
     SET search_path TO ''
@@ -4443,7 +4510,7 @@ declare review jsonb:=p_result->'review'; units jsonb:='[]'; originals jsonb:='[
  section jsonb; unit jsonb; check_item jsonb; contribution jsonb; witness jsonb; event jsonb; ref jsonb;
  source jsonb; normalized jsonb; field_name text; body jsonb; quote text; matches integer;
 begin
- if not public.memoir_review_ready(review) or review->'contract_version' is distinct from '2'::jsonb
+ if not public.memoir_review_ready(review) or review->'contract_version' is distinct from '3'::jsonb
    or jsonb_typeof(review->'prose_checks') is distinct from 'array'
    or jsonb_typeof(review->'contributions') is distinct from 'array'
    or jsonb_typeof(p_result->'sections') is distinct from 'array'
@@ -4523,7 +4590,9 @@ begin
          and (r->>'char_start')::integer<(ref->>'char_end')::integer and (r->>'char_end')::integer>(ref->>'char_start')::integer) then return false;end if;
    end loop;
  end loop;
- return true;
+ -- Canonical composition currently permits no interview follow-ups. Advisory
+ -- suggestions remain private and cannot bypass that host-owned policy.
+ return public.memoir_craft_review_covers(review->'craft',units,originals,false);
 end $$;
 
 CREATE FUNCTION public.commit_lifetime_memoir_lane_page_before_rework(p_lane_id uuid, p_token uuid, p_page_number bigint, p_result jsonb, p_page_digest text) RETURNS jsonb

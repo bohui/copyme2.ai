@@ -2,7 +2,7 @@
 name: memoir-composer
 description: Compose a vivid, source-grounded memoir from canonical events and original evidence at authorised private checkpoints, after free rounds, after storytelling confirmation, or when dependencies change. Enforce 7000 words per chapter.
 metadata:
-  version: "1.1.0"
+  version: "1.2.0"
   product: "CopyMe2 Memoir"
   companion: "Mira"
 ---
@@ -37,6 +37,13 @@ The application resolves these references before model dispatch. A reference
 or an earlier draft supplies guidance or context; original testimony supplies
 personal facts.
 
+Writing guidance includes stage-aware focus, scene craft, author voice,
+supported vulnerability/reflection/transformation, reader resonance and fairness.
+The version-3 review returns an evidence-backed private advisory assessment of
+those eight dimensions in its existing review call. Low scores and justified
+NA do not invalidate supported prose or authorize new facts/disclosures. Respect
+whole-life scope, childhood voice, declined topics and unresolved endings.
+
 ## Integration and completion
 
 1. Before integrating, read [the runtime contract](references/runtime-contract.md).
@@ -53,6 +60,8 @@ personal facts.
    Their deterministic checks complement evidence-to-prose review; retain
    findings and exact-base proposals for protected text. Completion is a saved,
    source-linked, reviewable private result with truthful coverage.
+   Keep craft scores and proposed follow-ups in the private review checkpoint,
+   outside reader prose. A suggestion is not authority to ask or schedule it.
 
 For source/media integration, read [sources and rights](references/sources.md).
 Publication, access changes, charges and printing remain separate host actions.

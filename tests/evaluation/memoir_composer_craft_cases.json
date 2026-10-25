@@ -21,7 +21,8 @@
       "stage": "focused_sample",
       "author_intent": {
         "scope": "school journey",
-        "viewpoint": "adult recollection"
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -40,8 +41,8 @@
           "criterion": "scene_craft",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "Supported actions are visible; pacing and texture remain interpretive judgments of a short passage.",
           "source_excerpts": [
             "Every day I walked to school with my older brother.",
             "We crossed a wooden bridge."
@@ -57,8 +58,8 @@
           "criterion": "focus",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "The supplied sequence can be inspected, but a short excerpt cannot establish whole-book structure.",
           "source_excerpts": [
             "We crossed a wooden bridge."
           ],
@@ -69,7 +70,8 @@
           "reason": "The chosen school-journey thread remains coherent without expanding its factual scope.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "flat_but_faithful_en",
@@ -78,7 +80,8 @@
       "stage": "early_checkpoint",
       "author_intent": {
         "scope": "work and moves",
-        "viewpoint": "adult recollection"
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -97,8 +100,8 @@
           "criterion": "scene_craft",
           "applicability": "applicable",
           "score": 1,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "Supported actions are visible; pacing and texture remain interpretive judgments of a short passage.",
           "source_excerpts": [
             "Each morning I wrapped the loaves while my aunt counted them.",
             "In 1985 I began an apprenticeship."
@@ -115,14 +118,15 @@
           "applicability": "not_applicable",
           "score": null,
           "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence_basis": "The declared checkpoint/viewpoint or explicitly unresolved scope establishes this applicability limit.",
           "source_excerpts": [],
           "prose_excerpts": [],
           "intent_excerpts": [],
           "reason": "An early checkpoint does not establish a complete personal arc.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "whole_life_scope_en",
@@ -131,7 +135,8 @@
       "stage": "whole_life_in_progress",
       "author_intent": {
         "scope": "whole life",
-        "viewpoint": "adult recollection"
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -150,8 +155,8 @@
           "criterion": "focus",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "The supplied sequence can be inspected, but a short excerpt cannot establish whole-book structure.",
           "source_excerpts": [
             "I grew up in Chengde, trained as a mechanic in Perth, and later raised my children in Sydney."
           ],
@@ -166,8 +171,8 @@
           "criterion": "reader_resonance",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "low",
+          "confidence_basis": "Personal stakes are inspectable, but no reader study or reception evidence exists.",
           "source_excerpts": [
             "trained as a mechanic in Perth",
             "raised my children in Sydney"
@@ -179,7 +184,8 @@
           "reason": "Work, place and family give accessible particulars without claiming a universal moral.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "childhood_viewpoint_en",
@@ -188,7 +194,8 @@
       "stage": "focused_sample",
       "author_intent": {
         "scope": "one childhood wait",
-        "viewpoint": "child at the time"
+        "viewpoint": "child at the time",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -207,8 +214,8 @@
           "criterion": "voice",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "The source gives a particular expression/register, but sustained voice beyond this sample is unknown.",
           "source_excerpts": [
             "I was seven.",
             "I did not understand why he was late."
@@ -226,14 +233,15 @@
           "applicability": "not_applicable",
           "score": null,
           "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence_basis": "The declared checkpoint/viewpoint or explicitly unresolved scope establishes this applicability limit.",
           "source_excerpts": [],
           "prose_excerpts": [],
           "intent_excerpts": [],
           "reason": "The author selected the child's viewpoint and supplied no adult interpretation.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "voluntary_reflection_and_change_en",
@@ -242,7 +250,8 @@
       "stage": "complete_selected_arc",
       "author_intent": {
         "scope": "one chosen regret",
-        "viewpoint": "experience with supplied adult reflection"
+        "viewpoint": "experience with supplied adult reflection",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -261,8 +270,8 @@
           "criterion": "supported_vulnerability",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "The author supplied the chosen regret; its proportional treatment is interpretive, not a judgment of character.",
           "source_excerpts": [
             "I was ashamed to return it and left it a week."
           ],
@@ -277,8 +286,8 @@
           "criterion": "retrospective_reflection",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "Later perspective is explicit, while its literary integration is assessed only within this excerpt.",
           "source_excerpts": [
             "Looking back, I regret leaving her waiting."
           ],
@@ -293,8 +302,8 @@
           "criterion": "transformation",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "A behavior change is stated; its long-term significance is not established by this short account.",
           "source_excerpts": [
             "After that I began returning calls even when I felt awkward."
           ],
@@ -305,7 +314,8 @@
           "reason": "A limited evidenced behavior change is developed without redemption or a wiser-person claim.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "restraint_and_open_ending_zh",
@@ -314,7 +324,8 @@
       "stage": "whole_life_in_progress",
       "author_intent": {
         "scope": "business memory with an unresolved ending",
-        "viewpoint": "restrained adult voice"
+        "viewpoint": "restrained adult voice",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -333,8 +344,8 @@
           "criterion": "voice",
           "applicability": "applicable",
           "score": 3,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "The source gives a particular expression/register, but sustained voice beyond this sample is unknown.",
           "source_excerpts": [
             "我到现在也没想通",
             "先过日子"
@@ -352,14 +363,15 @@
           "applicability": "not_applicable",
           "score": null,
           "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence_basis": "The declared checkpoint/viewpoint or explicitly unresolved scope establishes this applicability limit.",
           "source_excerpts": [],
           "prose_excerpts": [],
           "intent_excerpts": [],
           "reason": "The account explicitly remains unresolved; no growth or redemption is owed.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "attributed_recollection_zh",
@@ -368,7 +380,8 @@
       "stage": "focused_sample",
       "author_intent": {
         "scope": "attributed family recollection",
-        "viewpoint": "adult recounting a relative's uncertain account"
+        "viewpoint": "adult recounting a relative's uncertain account",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -377,7 +390,7 @@
       },
       "candidate": {
         "title": "往事",
-        "text": "关于那次搬家，我只有母亲后来的讲述。她记得父亲说过大意是能撑下去，具体原话已经记不准。"
+        "text": "关于那次搬家，我只有母亲后来的讲述。她记得父亲大概说过，大意是能撑下去，具体原话已经记不准。"
       },
       "expected_gate": "pass",
       "gate_reason": "The supplied personal claims remain supported.",
@@ -387,8 +400,8 @@
           "criterion": "fairness",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "Attribution and stated uncertainty are visible; the excerpt does not supply every person's perspective.",
           "source_excerpts": [
             "是母亲后来告诉我的",
             "原话她也记不准"
@@ -398,10 +411,11 @@
             "具体原话已经记不准。"
           ],
           "intent_excerpts": [],
-          "reason": "The relative's account is contextualized without converting it into firsthand memory or verbatim dialogue.",
+          "reason": "The mother's uncertain account preserves both whether he said it (大概) and uncertainty about the exact words; no firsthand memory is claimed.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "thin_evidence_en",
@@ -410,7 +424,8 @@
       "stage": "early_checkpoint",
       "author_intent": {
         "scope": "work memory",
-        "viewpoint": "author's plain account"
+        "viewpoint": "author's plain account",
+        "follow_ups_allowed": true
       },
       "source": {
         "id": "original",
@@ -429,8 +444,8 @@
           "criterion": "scene_craft",
           "applicability": "insufficient_evidence",
           "score": null,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
           "source_excerpts": [
             "I worked at a bakery."
           ],
@@ -445,15 +460,16 @@
           "criterion": "retrospective_reflection",
           "applicability": "insufficient_evidence",
           "score": null,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
           "source_excerpts": [],
           "prose_excerpts": [],
           "intent_excerpts": [],
           "reason": "No later interpretation is supplied.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "allowed"
     },
     {
       "id": "disclosure_boundary_en",
@@ -463,7 +479,8 @@
       "author_intent": {
         "scope": "work only",
         "viewpoint": "adult recollection",
-        "boundary": "Keep this to my work. I do not want questions about private regrets or family conflict."
+        "boundary": "Keep this to my work. I do not want questions about private regrets or family conflict.",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -483,7 +500,7 @@
           "applicability": "not_applicable",
           "score": null,
           "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence_basis": "The synthetic author explicitly declines this topic; no further follow-up is permitted.",
           "source_excerpts": [],
           "prose_excerpts": [],
           "intent_excerpts": [
@@ -492,7 +509,8 @@
           "reason": "The author declined this disclosure scope. Respect it without another follow-up.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "declined"
     },
     {
       "id": "harm_without_forced_sympathy_en",
@@ -501,7 +519,8 @@
       "stage": "focused_sample",
       "author_intent": {
         "scope": "clear account of remembered harm",
-        "viewpoint": "survivor's stated perspective"
+        "viewpoint": "survivor's stated perspective",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -520,8 +539,8 @@
           "criterion": "fairness",
           "applicability": "applicable",
           "score": 3,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "Attribution and stated uncertainty are visible; the excerpt does not supply every person's perspective.",
           "source_excerpts": [
             "I remember my father hitting me that day.",
             "I still do not know why he did it."
@@ -538,8 +557,8 @@
           "criterion": "reader_resonance",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "low",
+          "confidence_basis": "Personal stakes are inspectable, but no reader study or reception evidence exists.",
           "source_excerpts": [
             "I still do not know why he did it."
           ],
@@ -550,7 +569,8 @@
           "reason": "The unresolved relationship is accessible without a universal lesson or forced forgiveness.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "invented_scene_en",
@@ -559,7 +579,8 @@
       "stage": "focused_sample",
       "author_intent": {
         "scope": "school journey",
-        "viewpoint": "adult recollection"
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -578,8 +599,8 @@
           "criterion": "scene_craft",
           "applicability": "insufficient_evidence",
           "score": null,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
           "source_excerpts": [
             "We crossed a wooden bridge."
           ],
@@ -590,7 +611,8 @@
           "reason": "Unsupported sensory facts and speech cannot earn grounded scene credit.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "fabricated_hindsight_en",
@@ -599,7 +621,8 @@
       "stage": "early_checkpoint",
       "author_intent": {
         "scope": "one childhood move",
-        "viewpoint": "child's uncertainty"
+        "viewpoint": "child's uncertainty",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -618,8 +641,8 @@
           "criterion": "retrospective_reflection",
           "applicability": "insufficient_evidence",
           "score": null,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
           "source_excerpts": [
             "I still do not understand it."
           ],
@@ -635,7 +658,7 @@
           "applicability": "not_applicable",
           "score": null,
           "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence_basis": "The declared checkpoint/viewpoint or explicitly unresolved scope establishes this applicability limit.",
           "source_excerpts": [],
           "prose_excerpts": [
             "I forgave everyone and became wiser."
@@ -644,7 +667,8 @@
           "reason": "A new confession, forgiveness or redemption cannot supply a missing arc.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "invented_motive_and_symmetry_en",
@@ -653,7 +677,8 @@
       "stage": "focused_sample",
       "author_intent": {
         "scope": "clear account of remembered harm",
-        "viewpoint": "survivor's stated perspective"
+        "viewpoint": "survivor's stated perspective",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -672,8 +697,8 @@
           "criterion": "fairness",
           "applicability": "insufficient_evidence",
           "score": null,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
           "source_excerpts": [
             "I still do not know why he did it."
           ],
@@ -684,7 +709,8 @@
           "reason": "Invented love, provocation and equal blame sanitize harm; they are factual failures, not required complexity.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "recollection_as_verbatim_zh",
@@ -693,7 +719,8 @@
       "stage": "focused_sample",
       "author_intent": {
         "scope": "attributed family recollection",
-        "viewpoint": "relative's uncertain account"
+        "viewpoint": "relative's uncertain account",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -712,8 +739,8 @@
           "criterion": "fairness",
           "applicability": "insufficient_evidence",
           "score": null,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "low",
+          "confidence_basis": "The supplied fragment cannot support this craft judgment; a null score records the limit.",
           "source_excerpts": [
             "那次搬家时我还没出生",
             "原话她也记不准"
@@ -725,7 +752,8 @@
           "reason": "Uncertain secondhand speech is presented as firsthand, emphatic verbatim dialogue.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     },
     {
       "id": "privacy_hold_en",
@@ -734,7 +762,8 @@
       "stage": "focused_sample",
       "author_intent": {
         "scope": "school journey",
-        "viewpoint": "adult recollection"
+        "viewpoint": "adult recollection",
+        "follow_ups_allowed": false
       },
       "source": {
         "id": "original",
@@ -753,8 +782,8 @@
           "criterion": "scene_craft",
           "applicability": "applicable",
           "score": 2,
-          "confidence": "high",
-          "confidence_basis": "Directly inspectable synthetic source and passage; provisional agent-authored calibration.",
+          "confidence": "medium",
+          "confidence_basis": "Supported actions are visible; pacing and texture remain interpretive judgments of a short passage.",
           "source_excerpts": [
             "Every day I walked to school with my older brother.",
             "We crossed a wooden bridge."
@@ -766,7 +795,8 @@
           "reason": "The same supported craft cannot authorize saving while the independent current privacy gate is pending.",
           "optional_followup": null
         }
-      ]
+      ],
+      "follow_up_consent": "not_requested"
     }
   ]
 }

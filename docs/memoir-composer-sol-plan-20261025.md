@@ -8,7 +8,7 @@ working or measured Sol deployment.
 
 ## Observed route and concrete blocker
 
-Read-only inspection on October 25 found:
+The initial read-only inspection, recorded at pinned `7f2d416`, found:
 
 - The active `llm-provider-litellm-1` container mounts
   `/Users/bohuihan/llm_provider/config.yaml`; its SHA-256 is
@@ -34,6 +34,17 @@ effective effort, successful durable Sol result or Sol latency measurement.
 The catalog establishes current advertised access, not universal provider
 availability. No provider account database, private session archive or story
 trace was read to discover an alternate account/key.
+
+After the separately authorized push of `7f2d416`, another read-only inspection
+found provider configuration SHA-256
+`02175f3934fde32884b05b46b9181584f21cf7eb4747fa495aced571906e4fdb`.
+It now defines `gpt-5.6-sol` targeting `openai/gpt-5.6-sol` through the codex-lb
+endpoint reference, with requested high effort, outer retries zero, configured
+token prices zero and declared input/output limits 272,000/128,000. The existing
+Memoir consumer's authenticated model catalog still omitted Sol at that check.
+This is partial provider setup, not verified consumer access or served-model,
+effective-effort, internal-fallback or billing evidence. The provider owner is
+working separately; this task did not contact that agent or alter its services.
 
 The smallest prerequisite is an existing, authorized subscription route that
 actually targets GPT-5.6 Sol and is usable by the Memoir consumer, with its
@@ -85,7 +96,7 @@ After route, prompt-publication and budget prerequisites are separately resolved
 
 1. Freeze the same six bilingual checkpoint inputs, author scope, saved-draft
    restart at checkpoint 10, withdrawal/empty controls, exact published pins,
-   strict version-2 review, source/privacy/SQL gates and
+   strict version-3 review, source/privacy/SQL gates and
    [manual craft rubric v1](memoir-composer-literary-rubric-v1.md). Record hashes
    before dispatch. Hold the exact Sol route, effective effort, source windows,
    cache policy and all quality behavior constant between arms.
@@ -128,6 +139,31 @@ to this new model/experiment. If the user explicitly carries them forward, the
 submissions beyond that remainder: **32 additional**, with new deadlines.
 No such approval has been received. A dollar estimate and actual dispatch
 remain blocked until the exact existing-provider Sol route/cost is verified.
+
+Predeclare **n=1 per checkpoint per arm**: six checkpoints each, twelve attempted
+durable outcomes in total, exploratory rather than a tail-latency estimate.
+Preserve each arm's own saved history. Use the existing locale/checkpoint order
+with this paired dispatch order: en-5 baseline/candidate, en-10 candidate/baseline,
+en-15 baseline/candidate, zh-5 candidate/baseline, zh-10 baseline/candidate,
+zh-15 candidate/baseline. Restart each arm from its actual saved draft at 10.
+The per-arm absolute 30-minute clock starts at that arm's first dispatch and
+continues while the other arm runs; retain the outer 60-minute ceiling as well.
+
+Start application state/cache directories and SQL fresh for each arm. Do not
+clear a shared provider cache or issue uncounted warm-up generations. Provider
+prefix/cache hits may differ: retain input/cached/output token counts and cache
+headers when exposed, otherwise mark them unknown. Report dispatch timestamps,
+request/prompt/schema hashes and cache/load drift beside each pair; do not infer
+identical provider cache state from identical model names.
+
+Report per-checkpoint absolute trigger-to-save/read timings, phase spans,
+submissions/repairs, failures and semantic/private durable outcomes. For n=1 use
+direct observations, not p95, significance claims or stable population estimates.
+Show a successful paired timing delta only where both outcomes satisfy the same
+hard gates; keep failed/censored attempts visible with their elapsed times. Do
+not aggregate unequal completion cohorts or average craft NA as zero. Craft
+observations retain criterion applicability, confidence and excerpts, blinded
+where practical; controlled self-review is not independent semantic acceptance.
 
 Do not combine historical Luna timings with these future Sol rows to claim a
 model or optimization percentage. A same-contract Luna/Sol model comparison

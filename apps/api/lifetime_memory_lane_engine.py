@@ -475,7 +475,7 @@ def _validate_phase_packet(fence,phase,payload):
                 raise ValueError('Progressive request differs from its authoritative batch')
             if phase == 'draft' and (set(payload) - {'request', 'plan', 'candidate', 'validation', 'review', 'review_errors'} or not isinstance(payload.get('plan'), dict)):
                 raise ValueError('Unsupported progressive draft context')
-            if phase == 'review' and set(payload) != {'request', 'candidate', 'validation', 'requirements'}:
+            if phase == 'review' and not _review_packet_keys(payload):
                 raise ValueError('Unsupported progressive review context')
         if fence.prior_outputs != _required_artifacts(phase, payload):
             raise ValueError('Progressive bytes lack their same-batch artifact proofs')
@@ -525,10 +525,19 @@ def _validate_phase_packet(fence,phase,payload):
         if phase=='draft':
             if set(payload)-{'request','plan','candidate','validation','review','review_errors'} or not isinstance(payload.get('plan'),dict):
                 raise ValueError('Unsupported draft phase context')
-        elif phase=='review' and set(payload)!={'request','candidate','validation','requirements'}:
+        elif phase=='review' and not _review_packet_keys(payload):
             raise ValueError('Unsupported review phase context')
     if fence.prior_outputs!=_required_artifacts(phase,payload):
         raise ValueError('Derived lane bytes lack their exact same-page artifact proofs')
+
+
+def _review_packet_keys(payload):
+    base = {'request', 'candidate', 'validation', 'requirements'}
+    if set(payload) == base:
+        return True
+    return (set(payload) == base | {'review', 'review_errors'}
+        and isinstance(payload['review_errors'], list) and bool(payload['review_errors'])
+        and all(isinstance(code, str) and code.startswith('CRAFT_') for code in payload['review_errors']))
 
 
 async def validate_lane_payload(bounded):

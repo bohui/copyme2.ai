@@ -1,9 +1,12 @@
 # Memoir craft assessment v1
 
-This is an **offline manual assessment guide**, added after the October 25 live
-comparison. It is not a model prompt, automated literary scorer, runtime review
-schema or authority to publish. Its synthetic calibration labels are agent
-authored and await independent semantic review. No new model or judge ran.
+This assessment guide was added after the October 25 live comparison. The
+subsequent version-3 composer integration uses these criteria in shared writing
+instructions and an advisory report in its existing review call. This guide is
+not itself a model prompt, independent literary scorer or authority to publish.
+Synthetic calibration labels are agent authored; independent review has corrected
+known labels, but they are not a general semantic oracle. No new live model or
+judge ran for this follow-up.
 
 Assess the writing the author chose to make, using authorized originals, the
 complete supplied passage and the author's stated scope, language and voice.
@@ -134,18 +137,23 @@ negative semantic verdict or privacy hold, and accepted prose stays unchanged.
 They do not claim to detect invented facts or score craft without a reviewer.
 Existing real PostgreSQL/worker tests retain the durable hard-gate coverage.
 
-Offline validation for this addition: 15 targeted calibration replays passed;
+Historical validation at pinned manual-only head `7f2d416`: 15 targeted calibration replays passed;
 the combined craft/review/legacy-refresh/composer-evaluation cohort passed 64
 tests (26 unrelated evaluation cases deselected), with supervised cleanup
 verified. Provider outputs were controlled fixtures. The runtime files are
-unchanged from independently reviewed `9809236`; these checks are not a fresh
-live run or a claim of automated literary judgment.
+unchanged from independently reviewed `9809236` at that snapshot. Subsequent
+runtime version-3 work and calibration corrections require their own new tests
+and review; the old 64-test result is not that validation.
 
-The managed automated composer judge, application prompts, runtime schema and
-PR #133's two source files are unchanged. Its existing generic quality score
-does **not** establish acceptance under this new manual rubric. Wiring a scored
-automated judge would be a separate reviewed managed-prompt/contract change;
-its publication and any paid judgments are not authorized here.
+The managed independent automated composer judge remains unchanged. Its existing
+generic quality score does **not** establish this rubric's acceptance. Version 3
+adds advisory self-review through the actual composer, with exact evidence and
+host-controlled stage/follow-up limits. It is not independent acceptance. Its
+three changed managed instruction sources (review, editorial review and narrative
+enrichment), schema/SQL compatibility and worker proofs require new exact-head
+review and genuine publication pins. PR #133's intended scope expands from its
+older two-file snapshot to those three sources. No publication, paid independent
+judgment or activation is authorized here.
 
 Keep the original live comparison, frozen inputs, transcripts and receipts
 immutable. This rubric was added after that comparison; any assessment of those

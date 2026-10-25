@@ -22,8 +22,17 @@ def controlled_review(packet, *, findings=()):
         contributions.append({**deepcopy(original), 'disposition': 'represented' if unit else 'deferred',
             'prose': [{key: unit[key] for key in ('section_id', 'field', 'excerpt')}] if unit else [],
             'reason': 'Controlled representation fixture.' if unit else 'Outside this controlled sample.'})
-    return dict(contract_version=2, ready_for_user_review=True, publication_approved=False,
-        findings=deepcopy(list(findings)), prose_checks=checks, contributions=contributions)
+    # Fixture defaults do not pretend to make literary judgments. Individual
+    # craft tests provide their own independently specified ratings/evidence.
+    craft = dict(rubric_id='memoir-craft-v1', ratings=[dict(criterion=criterion,
+        applicability='insufficient_evidence', score=None, confidence='low',
+        confidence_basis='Controlled fixture makes no independent craft judgment.',
+        reason='Literary merit is not assessed by this structural fixture.',
+        source_evidence=[], prose_evidence=[], suggested_follow_up=None)
+        for criterion in ('focus','scene_craft','voice','supported_vulnerability',
+            'retrospective_reflection','transformation','reader_resonance','fairness')])
+    return dict(contract_version=3, ready_for_user_review=True, publication_approved=False,
+        findings=deepcopy(list(findings)), prose_checks=checks, contributions=contributions, craft=craft)
 
 
 def controlled_section_review(claim, sections):

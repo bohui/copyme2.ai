@@ -484,7 +484,7 @@ def bind_index_sources(request):
 
 async def compose_candidate(request, runtime, storage, project_id, language, *, checkpoint, progress):
     from .composer_review import REVIEW_VERSION, review_requirements, review_errors
-    # Old reviews lack complete prose/contribution witnesses. Keep their saved
+    # Old reviews lack the current audit/assessment contract. Keep their saved
     # draft, but obtain a current review before that checkpoint can authorize save.
     if not isinstance(checkpoint.get('review'), dict) or checkpoint['review'].get('contract_version') != REVIEW_VERSION:
         checkpoint.pop('review', None)
@@ -540,6 +540,10 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
                 'request': packet['request'], 'candidate': draft, 'validation': validation,
                 'requirements': requirements,
             }
+            prior_repair = checkpoint.get('repair', {})
+            if prior_repair.get('review_errors') and all(
+                    code.startswith('CRAFT_') for code in prior_repair['review_errors']):
+                review_packet.update(review=prior_repair['review'], review_errors=prior_repair['review_errors'])
             review = checkpoint.get('review') or await composer_call(
                 runtime, storage, project_id, language, 'review', review_packet)
             errors = review_errors(review, requirements)
@@ -554,7 +558,11 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
                 checkpoint['model_context_fallback'] = 'full'
         elif compact_context and checkpoint.get('model_context_fallback') != 'full':
             checkpoint['model_context_fallback'] = 'full'
-        checkpoint.pop('draft', None)
+        # Craft ratings are advisory. Repair their provenance/schema in another
+        # bounded review of the same saved writing, never by inventing a draft.
+        craft_only = bool(review is not None and errors and all(code.startswith('CRAFT_') for code in errors))
+        if not craft_only:
+            checkpoint.pop('draft', None)
         checkpoint.pop('review', None)
         checkpoint['repair'] = {'candidate': draft, 'validation': validation, 'review': review,
             **({'review_errors': errors} if review is not None else {})}

@@ -1,4 +1,4 @@
-"""Controlled canonical replays of manual craft calibration, not craft scoring."""
+"""Known-label contract replays, not semantic detection or automatic craft scoring."""
 import asyncio
 from copy import deepcopy
 import json
@@ -21,6 +21,18 @@ def test_craft_observations_cannot_override_evidence_or_privacy(monkeypatch, cas
     # These labels were authored with the synthetic examples. No model or
     # deterministic substring check establishes their semantic correctness.
     assert CALIBRATION['annotation_origin'] == 'agent_authored_pending_independent_semantic_review'
+    # Independent review established these specific calibration labels. This
+    # guards accidental relabeling; it is not a detector for unseen semantics.
+    fixed_failures = {'invented_scene_en':'unsupported', 'fabricated_hindsight_en':'contradicted',
+        'invented_motive_and_symmetry_en':'unsupported', 'recollection_as_verbatim_zh':'attribution_lost',
+        'privacy_hold_en':'policy_pending'}
+    assert case['expected_gate'] == fixed_failures.get(case['id'], 'pass')
+    if case['id'] == 'attributed_recollection_zh':
+        assert any(word in case['candidate']['text'] for word in ('大概', '可能'))
+    if case['id'] == 'disclosure_boundary_en':
+        assert case['follow_up_consent'] == 'declined'
+        assert case['author_intent']['follow_ups_allowed'] is False
+        assert all(item['optional_followup'] is None for item in case['craft'])
     source = case['source']
     for item in case['craft']:
         assert item['criterion'] in CALIBRATION['criteria']
