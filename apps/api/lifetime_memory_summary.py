@@ -68,8 +68,11 @@ class AcceptedMemorySummary(Contract):
         return self
 
 
-def summary_contract(page=None):
+def summary_contract(page=None, *, retry_reason=None):
     schema=SummaryProposal.model_json_schema()
+    if retry_reason=='SUMMARY_BUDGET':
+        # A size retry must constrain selection, not repeat the full summary.
+        schema['properties']['items']['maxItems']=8
     if page is not None:
         page=page.model_dump(mode='json') if hasattr(page,'model_dump') else page
         source=page.get('source')
