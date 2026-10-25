@@ -301,6 +301,42 @@ def test_empty_extraction_accounts_for_unresolved_testimony_without_claiming_res
         assert len(conversation.admissions) == count
 
 
+def test_unresolved_identity_defers_only_its_place_and_preserves_both_events(sql,tmp_path,monkeypatch):
+    first='I learned tea preparation in Chengde.'
+    uncertain='Later I taught young people in Beijing.'
+    independent='I visited friends in Hobart.'
+    def extract(packet):
+        text=packet['sources'][0]['text']
+        if text==first:return {**empty(packet),'events':[episode(packet,text,title='Learning tea')]}
+        candidate=episode(packet,uncertain,title='Teaching tea')
+        candidate['candidate_ids']=[packet['events'][0]['id']]
+        return {**empty(packet),'events':[candidate,episode(packet,independent,title='Visiting friends')],
+            'event_places':[{'event_index':index,'role':'setting','place':{
+                'place':place,'hierarchy':['Earth',country,place],'granularity':'city'},
+                'source_ref':reference(packet,quote)}
+                for index,quote,place,country in [(0,uncertain,'Beijing','China'),(1,independent,'Hobart','Australia')]]}
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract,strategy='explore')
+    with conversation.client:
+        conversation.say(first);conversation.drain()
+        assert not conversation.last_db_error,conversation.last_db_error
+        saved=conversation.say(uncertain+' '+independent)
+        lane=sql("select id from public.user_memoir_lane where skill='timeline';").stdout.strip()
+        outcome=asyncio.run(conversation.worker.execute_lane(lane))
+        assert not conversation.last_db_error,'\n'.join(
+            line for line in conversation.last_db_error.splitlines() if 'ERROR:' in line)
+        conversation.drain()
+        rows=json.loads(sql("select jsonb_agg(jsonb_build_object('id',e.id,'title',e.data->>'title','status',e.status,"
+            "'places',(select count(*) from public.user_memory_event_place p where p.event_id=e.id))) "
+            "from public.user_memory_event e;").stdout.strip())
+        by_title={row['title']:row for row in rows}
+        assert by_title['Teaching tea']['status']=='unresolved' and by_title['Teaching tea']['places']==0
+        assert by_title['Visiting friends']['status']=='active' and by_title['Visiting friends']['places']==1
+        source=conversation.attribution(saved['accepted_source_id'])
+        assert any((item.get('event') or {}).get('id')==by_title['Visiting friends']['id'] for item in source['items'])
+        originals=rpc(sql,'read_user_memory_events',literal(conversation.project))['sources']
+        assert [row['text'] for row in originals]==[first,uncertain+' '+independent]
+
+
 def test_genuine_thanks_is_accounted_without_extraction_despite_an_extract_hint(sql, tmp_path, monkeypatch):
     conversation = Conversation(sql, tmp_path, monkeypatch, empty)
     with conversation.client:
