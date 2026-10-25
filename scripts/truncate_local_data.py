@@ -124,6 +124,7 @@ APP_TABLES = (
     "public.user_private_draft_outbox",
     "public.user_profile",
     "public.user_recall_usage",
+    "public.user_recording_consent",
     "public.user_shared_memoir_transfer",
     "public.user_source_recording",
     "public.user_story_game_consent",

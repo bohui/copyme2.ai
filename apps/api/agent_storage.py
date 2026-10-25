@@ -1,4 +1,4 @@
-"""Supabase operations always run as the verified end user, never service_role."""
+"""User data runs as the verified end user; guarded original bytes use backend auth."""
 import base64
 import binascii
 import json
