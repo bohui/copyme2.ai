@@ -42,6 +42,7 @@ export function renderReport(plan, receipt) {
     `Source commit: ${cell(plan.source_revision)}  `,
     `Source mode: ${plan.local_checkout_source ? 'local checkout' : 'reviewed main'}  `,
     ...(plan.local_checkout_source ? [
+      `Execution commit: ${cell(plan.local_checkout_source.head ?? 'unavailable')}  `,
       `Branch: ${cell(plan.local_checkout_source.branch)}; local changes: ${cell(plan.local_checkout_source.dirty)}  `,
       `Checkout fingerprint: ${cell(plan.local_checkout_source.snapshot_sha256)}  `,
       `Checkout unchanged through ${remote ? 'execution' : 'cleanup'}: ${cell(receipt.local_checkout_unchanged)}  `,
