@@ -284,6 +284,14 @@ larger advertised provider capacity does not expand application budgets or
 retries. [Routing evidence and activation limits](docs/memoir-composer-sol-routing-20261025.md)
 distinguish controlled tests from the still-pending matched Sol live comparison.
 
+The shared `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL` setting also accepts
+`gpt-5.6-sol` and `gpt-6.1-sol` for bounded timeline/profile lanes. Authorize the
+selected alias on the existing Memoir consumer key and team, then recreate the
+API, Codex worker and checkpoint worker. Extraction retains its separate
+`MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT` setting. Composition uses the
+dedicated settings and reviewed model list above; `gpt-6.1-sol` is currently
+supported only by the shared lane model list.
+
 For the opted-in `reply-v2` interviewer, requesting
 `MEMORY_SPARK_COLLECTOR_REASONING_EFFORT=low` with
 `gpt-5.6-luna-pooled` resolves to the existing

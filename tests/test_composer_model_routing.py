@@ -135,6 +135,7 @@ def test_completed_composer_cache_tracks_only_its_selected_model_and_effort(monk
 
 @pytest.mark.parametrize('setting,value,budget_model', [
     ('MEMOIR_COMPOSER_MODEL', 'unreviewed-sol-alias', 'gpt-5.6-sol'),
+    ('MEMOIR_COMPOSER_MODEL', 'gpt-6.1-sol', 'gpt-5.6-sol'),
     ('MEMOIR_COMPOSER_MODEL', '', 'gpt-5.6-sol'),
     ('MEMOIR_COMPOSER_REASONING_EFFORT', 'unbounded', 'gpt-5.6-sol'),
     ('MEMOIR_COMPOSER_REASONING_EFFORT', '', 'gpt-5.6-sol'),
@@ -161,13 +162,15 @@ def test_worker_rejects_invalid_or_stale_composer_configuration_before_dispatch(
 
 @pytest.mark.parametrize('scope,model,changes,allowed', [
     ('composer','gpt-5.6-sol',{},True),
-    ('timeline','gpt-5.6-sol',{},False),
+    ('timeline','gpt-5.6-sol',{},True),
+    ('timeline','gpt-6.1-sol',{},True),
+    ('composer','gpt-6.1-sol',{},False),
     ('composer','unreviewed-sol-alias',{},False),
     ('composer','gpt-5.6-sol',{'context_window':131073},False),
     ('composer','gpt-5.6-sol',{'input_budget':98305},False),
     ('composer','gpt-5.6-sol',{'output_headroom':16385},False),
 ])
-def test_sol_transport_keeps_composer_scope_utf8_bound_and_reviewed_limits(scope, model, changes, allowed):
+def test_sol_transport_keeps_lane_scope_utf8_bound_and_reviewed_limits(scope, model, changes, allowed):
     from test_lifetime_memory_lane_engine import BUDGET, page, packet_for
     from apps.api.lifetime_memory_lane_engine import build_bounded_lane_input
     current = page(scope)

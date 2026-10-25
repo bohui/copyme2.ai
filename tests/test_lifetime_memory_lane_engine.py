@@ -147,13 +147,19 @@ def test_extraction_schema_limits_evidence_and_relations_to_the_claimed_page(sav
         validate.validate([{'kind':'before','event_id':current['events'][0]['id'],'source_refs':[ref]}])
 
 
+@pytest.mark.parametrize('model',['memoir-luna-low','gpt-5.6-sol','gpt-6.1-sol'])
 @pytest.mark.parametrize('phase',['extract','prepare','draft','review'])
-def test_configured_background_model_alias_accepts_bounded_lane(phase):
+def test_configured_model_alias_respects_bounded_lane_scope(phase,model):
     current=page('timeline' if phase=='extract' else 'composer')
-    budget=BUDGET.model_copy(update={'model':'memoir-luna-low'})
+    budget=BUDGET.model_copy(update={'model':model})
+    if model=='gpt-6.1-sol' and phase!='extract':
+        with pytest.raises(ValueError,match='No reviewed byte-token bound'):
+            build_bounded_lane_input(current,phase=phase,
+                packet=packet_for(current,phase),budget=budget)
+        return
     bounded=build_bounded_lane_input(current,phase=phase,
         packet=packet_for(current,phase),budget=budget)
-    assert bounded.budget.model=='memoir-luna-low'
+    assert bounded.budget.model==model
 
 
 class Publisher:
