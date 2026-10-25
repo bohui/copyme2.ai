@@ -171,6 +171,20 @@ def test_permitted_history_page_retains_more_than_twenty_recordings_across_turns
     assert int(response.headers['content-length']) == len(response.content)
 
 
+def test_recording_only_scope_cannot_publish_a_mapped_projects_snapshot(recorded_read):
+    from apps.api.lifetime_memory_publication import PublicationUnavailable
+    from apps.api.lifetime_memory_reads import RecordingReadPublication, RecordingReadScope
+    client, storage, sql, result, paths = recorded_read
+    scope = RecordingReadScope(owner_id=OWNER, project_id=result['project_id'])
+    async def scenario():
+        publisher = RecordingReadPublication(sql.publication_dsn, authenticated_owner=OWNER)
+        with pytest.raises(PublicationUnavailable, match='original lifetime fence'):
+            async with publisher.guard(scope.model_dump(mode='json'),
+                    recording_ids=[record['id'] for record in result['recordings']]):
+                pytest.fail('A recording-only scope bypassed the canonical read fence')
+    asyncio.run(scenario())
+
+
 @pytest.mark.parametrize('outcome', ['sent', 'cancelled', 'timeout', 'error'])
 def test_actual_source_read_send_holds_consent_and_releases_on_failure(recorded_read, monkeypatch, outcome):
     client, storage, sql, result, paths = recorded_read

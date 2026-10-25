@@ -667,14 +667,15 @@ def build_router(
     def story_transcription(payload: StoryTranscriptionInput, authorization: str | None = Header(default=None)):
         storage = storage_for(authorization)
         try:
-            from .original_recordings import RecordingStore
+            from .original_recordings import RecordingStore, RecordingJSONResponse
             try:
                 if not payload.language:
                     profile = storage.profile()
                     saved_language = profile.get('conversation_language') or {}
                     payload = payload.model_copy(update={'language': profile.get('preferred_language')
                         or (saved_language.get('locale') if isinstance(saved_language, dict) else None)})
-                return RecordingStore(storage).transcribe(payload, speech_service)
+                result = RecordingStore(storage).transcribe(payload, speech_service)
+                return RecordingJSONResponse(result, result['recording']['id'], storage.user_id)
             except httpx.HTTPError:
                 raise HTTPException(503, 'Recording storage is unavailable', headers={'X-Error-Code':'RECORDING_STORAGE_UNAVAILABLE'}) from None
         finally:
@@ -682,12 +683,12 @@ def build_router(
 
     @router.get('/recordings/by-upload/{upload_key}')
     def recording_by_upload(upload_key: UUID, authorization: str | None = Header(default=None)):
-        from .original_recordings import RecordingStore, descriptor, error
+        from .original_recordings import RecordingStore, RecordingJSONResponse, descriptor, error
         storage = storage_for(authorization)
         try:
             record = RecordingStore(storage).trusted('find_upload', data={'upload_key':str(upload_key)})
             if not record: raise error(404,'RECORDING_NOT_FOUND','Recording unavailable')
-            return JSONResponse({'recording':descriptor(record)}, headers={'Cache-Control':'private, no-store','Vary':'Authorization'})
+            return RecordingJSONResponse({'recording':descriptor(record)}, record['id'], storage.user_id)
         finally: _close(storage)
 
     @router.delete('/recordings/by-upload/{upload_key}')
@@ -701,12 +702,12 @@ def build_router(
 
     @router.get('/recordings/{recording_id}')
     def recording_metadata(recording_id: UUID, authorization: str | None = Header(default=None)):
-        from .original_recordings import RecordingStore, descriptor
+        from .original_recordings import RecordingStore, RecordingJSONResponse, descriptor
         storage = storage_for(authorization)
         try:
             record = RecordingStore(storage).metadata(str(recording_id))
-            return JSONResponse({'recording':descriptor(record), 'asr_result':record.get('asr_result')},
-                headers={'Cache-Control':'private, no-store', 'Vary':'Authorization'})
+            return RecordingJSONResponse({'recording':descriptor(record), 'asr_result':record.get('asr_result')},
+                record['id'], storage.user_id)
         finally: _close(storage)
 
     @router.get('/recordings/{recording_id}/content', response_class=Response,

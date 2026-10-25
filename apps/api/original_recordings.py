@@ -22,6 +22,7 @@ from uuid import UUID, uuid4
 
 import httpx
 from fastapi import HTTPException, Response
+from starlette.responses import JSONResponse
 
 from .speech import SpeechProviderError, SpeechUnavailable
 
@@ -129,8 +130,8 @@ def descriptor(record):
 
 class OriginalContentResponse(Response):
     """Current policy stays locked through actual ASGI content publication."""
-    def __init__(self, content, record, owner):
-        super().__init__(content, media_type=record['content_type'], headers={
+    def __init__(self, content, record, owner, *, media_type=None):
+        super().__init__(content, media_type=media_type or record['content_type'], headers={
             'Cache-Control':'private, no-store','Vary':'Authorization','X-Content-Type-Options':'nosniff'})
         self.recording_id, self.owner = str(UUID(record['id'])), str(UUID(owner))
 
@@ -155,6 +156,13 @@ class OriginalContentResponse(Response):
             if connection is not None:
                 import anyio
                 with anyio.CancelScope(shield=True): await connection.close()
+
+
+class RecordingJSONResponse(OriginalContentResponse):
+    """Metadata/upload/retry JSON uses the existing original-recording guard."""
+    def __init__(self, content, recording_id, owner):
+        super().__init__(JSONResponse(content).body, {'id':recording_id}, owner,
+            media_type='application/json')
 
 
 class RecordingStore:
