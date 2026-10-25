@@ -58,6 +58,8 @@ export function renderReport(plan, receipt) {
     ] : []),
     ...(receipt.elapsed_time_extensions?.length ? receipt.elapsed_time_extensions.map(extension =>
       `Explicit elapsed-time extension: ${cell(extension.seconds)} seconds total from the original clock origin for ${cell(extension.case_ids?.join(', ') ?? 'unknown case')}, recorded after ${cell(extension.backend_turn_submissions)} original submissions. Original request, settle and poll limits retained.  `) : []),
+    ...(receipt.deadline_extensions ?? []).map(extension =>
+      `Approved absolute deadline: ${cell(extension.deadline_at_utc)} for all original cases, recorded after ${cell(extension.backend_turn_submissions)} original submissions. Original clock origins, request ceiling and earlier extensions retained.  `),
     `Failure stage: ${cell(evaluation.failure_stage)}  `,
     ...(remote ? [
       'Storage: remote Supabase; projects retained.  ',

@@ -1015,6 +1015,87 @@ def test_separately_requested_second_case_extension_preserves_first_and_all_orig
         module.resumed_time_limit(selected,{**saved,'elapsed_time_extensions':bad['elapsed_time_extensions']},bad)
 
 
+def test_approved_absolute_deadline_preserves_expired_run_and_case_evidence(setup,tmp_path):
+    plan,remote=setup(None);plan.update(max_elapsed_seconds=36000,max_case_elapsed_seconds=7200)
+    remote.draft_failed=True;directory=tmp_path/'approved-deadline'
+    asyncio.run(module.execute(plan,directory,SETTINGS))
+    first,second=module.CASE_IDS[:2]
+    selected={**plan,'case_ids':[first],'cases':{first:plan['cases'][first]}}
+    old=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory,extend_time_limit_seconds=14400))
+    receipt=module.private_json(directory/'receipt.json');now=module.time.time()
+    receipt['started_at_unix']=now-40000;receipt['case_started_at_unix'][first]=now-39900
+    module.save(directory/'receipt.json',receipt)
+    originals=deepcopy(remote.submitted);reserved=module.private_json(directory/'request-counter.json')['reserved']
+    deadline=now+120;remote.draft_failed=False
+    result=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory,extend_until=deadline))
+    assert result['selected_case_status']=='completed' and len(remote.submitted)==50
+    assert remote.submitted[:len(originals)]==originals
+    assert result['started_at_unix']==receipt['started_at_unix']
+    assert result['case_started_at_unix']==receipt['case_started_at_unix']
+    assert result['elapsed_time_extensions']==old['elapsed_time_extensions']
+    saved=module.private_json(directory/'plan.json')
+    assert module.budget_contract(saved)==module.budget_contract(plan)==result['budget_contract']
+    assert result['request_accounting']['backend_http_requests_reserved']>reserved
+    history=result['deadline_extensions'];assert saved['deadline_extensions']==history
+    assert history[0]['deadline_at_unix']==deadline and history[0]['case_ids']==plan['case_ids']
+    assert history[0]['backend_turn_submissions']==5
+    selected={**plan,'case_ids':[second],'cases':{second:plan['cases'][second]}}
+    result=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory))
+    assert result['selected_case_status']=='completed' and len(remote.submitted)==100
+    assert result['deadline_extensions']==history
+    assert result['case_started_at_unix'][first]==receipt['case_started_at_unix'][first]
+
+
+@pytest.mark.parametrize('invalid',[float('nan'),float('inf'),True,0])
+def test_invalid_absolute_deadline_changes_no_evidence_or_requests(setup,tmp_path,invalid):
+    plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'invalid-deadline'
+    asyncio.run(module.execute(plan,directory,SETTINGS))
+    before={name:(directory/name).read_bytes() for name in ('plan.json','receipt.json','request-counter.json')}
+    calls=len(remote.calls)
+    with pytest.raises(module.EvaluationError,match='deadline'):
+        asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,extend_until=invalid))
+    assert len(remote.calls)==calls
+    assert all((directory/name).read_bytes()==data for name,data in before.items())
+
+
+def test_absolute_deadline_requires_resume_and_cannot_shorten_existing_limit(setup,tmp_path):
+    plan,remote=setup();directory=tmp_path/'deadline-scope'
+    with pytest.raises(module.EvaluationError,match='saved resume'):
+        asyncio.run(module.execute(plan,directory,SETTINGS,extend_until=module.time.time()+300))
+    assert not directory.exists() and not remote.calls
+    remote.draft_failed=True;asyncio.run(module.execute(plan,directory,SETTINGS))
+    calls=len(remote.calls)
+    with pytest.raises(module.EvaluationError,match='extend the existing deadline'):
+        asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,extend_until=module.time.time()+1))
+    with pytest.raises(module.EvaluationError,match='immutable budget'):
+        asyncio.run(module.execute({**plan,'max_backend_requests':4000},directory,SETTINGS,
+            resume=directory,extend_until=module.time.time()+300))
+    assert len(remote.calls)==calls
+
+
+@pytest.mark.parametrize('fault',['scope','budget','counter','origin','duplicate','mismatch'])
+def test_absolute_deadline_rejects_invalid_audit_history(setup,fault):
+    plan,_=setup(None);now=module.time.time()
+    event={'deadline_at_unix':now+120,'case_ids':plan['case_ids'],
+        'original_budget_contract':module.budget_contract(plan),'recorded_at_unix':now-1,'backend_turn_submissions':5}
+    if fault=='scope':event['case_ids']=plan['case_ids'][:1]
+    elif fault=='budget':event['original_budget_contract']={}
+    elif fault=='counter':event['backend_turn_submissions']=6
+    elif fault=='origin':event['recorded_at_unix']=now-1000
+    history=[event,event] if fault=='duplicate' else [event]
+    previous={**plan,'deadline_extensions':history}
+    receipt={'started_at_unix':now-180,'backend_turn_submissions':5,
+        'deadline_extensions':[] if fault=='mismatch' else history}
+    with pytest.raises(module.EvaluationError,match='history'):
+        module.resumed_deadline(previous,receipt)
+
+
+def test_absolute_deadline_parser_requires_timezone_and_preserves_instant():
+    assert module.parse_deadline('2026-10-26T16:00:00+11:00')==module.parse_deadline('2026-10-26T05:00:00Z')
+    with pytest.raises(module.argparse.ArgumentTypeError,match='timezone'):
+        module.parse_deadline('2026-10-26T16:00:00')
+
+
 def test_resumed_partial_case_reuses_remaining_time_and_reserves_all_prior_attempts(setup,tmp_path,monkeypatch):
     plan,remote=setup();remote.draft_failed=True;directory=tmp_path/'remaining-time'
     first=asyncio.run(module.execute(plan,directory,SETTINGS));assert first['status']=='incomplete'

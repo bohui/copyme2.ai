@@ -235,6 +235,15 @@ limit until separately authorised and explicitly extended. Resume each extended
 case separately. An earlier extension entry remains immutable; another case needs
 its own entry and flag. No extension can start a new run or restart its clock.
 
+After explicit user approval of a new campaign deadline, an operator may pass
+`EVAL_EXTEND_UNTIL=2026-10-26T16:00:00+11:00` with `EVAL_RESUME_DIR` and a selected
+case. This records the absolute deadline for the campaign and every original
+case in both the plan and receipt. Later resumes inherit it. It must extend the
+existing deadline; the original budget contract, clock origins, request ceiling,
+settle/poll limits, accepted messages and earlier extension history stay intact.
+The report shows each approved deadline. This flag requires explicit approval;
+it does not grant another conversation allowance or create a replacement run.
+
 Failed revalidation invalidates the selected case's current completion status
 while preserving its historical rounds and checkpoints. Final campaign completion
 requires successful current revalidation of every original case in the same

@@ -26,6 +26,7 @@ EVAL_RESUME_DIR ?=
 EVAL_ACCEPT_SOURCE_CHANGE ?= 0
 EVAL_RECOVER_ACCEPTED_TURN ?= 0
 EVAL_TIME_EXTENSION_SECONDS ?=
+EVAL_EXTEND_UNTIL ?=
 EVAL_OUTPUT_ROOT ?= $(HOME)/memoir-test-results
 EVAL_MAX_CLIENT_REQUESTS ?= $(if $(strip $(EVAL_CASE_ID)),569,3000)
 EVAL_MAX_ELAPSED_SECONDS ?= $(if $(strip $(EVAL_CASE_ID)),7200,36000)
@@ -276,6 +277,7 @@ memoir-live-fifty-plan memoir-live-fifty-test:
 	case "$(EVAL_ACCEPT_SOURCE_CHANGE)" in 1) set -- "$$@" --accept-source-change ;; 0) ;; *) echo "EVAL_ACCEPT_SOURCE_CHANGE must be 0 or 1." >&2; exit 2 ;; esac; \
 	case "$(EVAL_RECOVER_ACCEPTED_TURN)" in 1) set -- "$$@" --recover-accepted-turn ;; 0) ;; *) echo "EVAL_RECOVER_ACCEPTED_TURN must be 0 or 1." >&2; exit 2 ;; esac; \
 	if test -n "$(EVAL_TIME_EXTENSION_SECONDS)"; then set -- "$$@" --extend-time-limit-seconds "$(EVAL_TIME_EXTENSION_SECONDS)"; fi; \
+	if test -n "$(EVAL_EXTEND_UNTIL)"; then set -- "$$@" --extend-until "$(EVAL_EXTEND_UNTIL)"; fi; \
 	if test -n "$(EVAL_CASE_ID)"; then set -- "$$@" --case-id "$(EVAL_CASE_ID)"; fi; \
 	if test "$(EVAL_PROGRESSIVE_RERUN)" = "1"; then set -- "$$@" --progressive-rerun; fi; \
 	if test "$@" = "memoir-live-fifty-plan"; then exec "$$@"; fi; \
