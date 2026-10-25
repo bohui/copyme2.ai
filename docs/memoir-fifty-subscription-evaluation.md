@@ -323,6 +323,11 @@ and revision consistency. Missing, failed or pending checkpoint state stops the
 campaign. Partial evidence remains available, but every experiment output is
 null after a failure, deadline, cancellation or cleanup failure.
 
+The retained-history verifier reads each checkpoint's privacy digest from its
+owned frozen database root. A changed privacy policy permits regenerated or
+withheld passages; a biographical profile revision alone still requires exact
+preservation of writing with unchanged canonical dependencies.
+
 The normal product's 20-free-round cap is unchanged. Only the task-owned,
 owner-scoped synthetic `PostgresRest` HTTP facade returns a synthetic paid-status
 Family entitlement with a task-local synthetic price identifier. This is neither a

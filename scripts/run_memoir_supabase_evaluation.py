@@ -743,10 +743,11 @@ async def run_cases(accounts, plan, directory, receipt,*,recover_accepted_turn=F
                         if plan.get('progressive_rerun'):
                             from scripts.memoir_progressive_verification import original_evidence, preserve_unchanged, saved_message_summary
                             previous = case['checkpoints'][-1] if case['checkpoints'] else case.get('baseline_checkpoint')
+                            summary = await asyncio.to_thread(saved_message_summary,
+                                verification_settings,binding,checkpoint,view['sources'][offset+ordinal-5:offset+ordinal],previous=previous)
                             checkpoint['verification'] = {**original_evidence(checkpoint,view['sources']),
-                                **preserve_unchanged(previous,checkpoint,(previous or {}).get('canonical_events', []),view.get('events', []))}
-                            checkpoint['verification'].update(await asyncio.to_thread(saved_message_summary,
-                                verification_settings,binding,checkpoint,view['sources'][offset+ordinal-5:offset+ordinal]))
+                                **summary, **preserve_unchanged(previous,checkpoint,
+                                    (previous or {}).get('canonical_events', []),view.get('events', []),privacy_fence=summary.get('privacy_fence'))}
                             checkpoint['canonical_events'] = view.get('events', [])
                         case['checkpoints']=[item for item in case['checkpoints'] if item['milestone']!=ordinal]
                         case['checkpoints'].append(checkpoint)
