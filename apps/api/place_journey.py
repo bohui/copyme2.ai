@@ -232,8 +232,10 @@ def place_journey_matches_message(journey: Any, message: str) -> bool:
     return False
 
 
-def grounded_place_journeys(journeys: list[dict[str, Any]], message: str, *, source_offset=0) -> list[dict[str, Any]]:
+def grounded_place_journeys(journeys: list[dict[str, Any]], message: str, *, source_offset=0,
+                            source_text: str | None = None) -> list[dict[str, Any]]:
     """Validate source identity/spans; assertion meaning belongs to extraction."""
+    source_text = message if source_text is None else source_text
     distinct = {}
     for raw in journeys:
         place = raw
@@ -241,8 +243,8 @@ def grounded_place_journeys(journeys: list[dict[str, Any]], message: str, *, sou
             continue
         evidence = place.get('research')
         if evidence and (evidence['char_start'] < source_offset
-                or evidence['char_end'] > source_offset + len(message)
-                or message[evidence['char_start']-source_offset:evidence['char_end']-source_offset] != evidence['quote']):
+                or evidence['char_end'] > source_offset + len(source_text)
+                or source_text[evidence['char_start']-source_offset:evidence['char_end']-source_offset] != evidence['quote']):
             raise ValueError('Place research evidence must match the current source')
         key = place_identity(place)
         previous = distinct.get(key)

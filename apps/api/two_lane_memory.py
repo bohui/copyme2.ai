@@ -97,7 +97,18 @@ def derived_hints(raw, page, *, attribution=None):
                 characters[lo:hi] = ' ' * max(0, hi - lo)
         text = ''.join(characters)
     places=grounded_place_journeys([place for place in places if place],text,
-        source_offset=source.get('char_start') or 0)
+        source_offset=source.get('char_start') or 0, source_text=source['text'])
+    if attribution is not None:
+        restricted = [item['source_ref'] for item in attribution['passage_dispositions']
+            if item['disposition'] in {'withheld', 'unresolved'}
+            and item['source_ref']['source_id'] == source['id']
+            and item['source_ref']['version'] == source['version']]
+        for place in places:
+            evidence = place.get('research')
+            if evidence and any(ref['char_start'] < evidence['char_end']
+                    and evidence['char_start'] < ref['char_end'] for ref in restricted):
+                # An exact quote still cannot carry restricted prose into research.
+                place.pop('research')
     questions=[]
     for item in hints.prepared_questions:
         try:
