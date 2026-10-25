@@ -15,11 +15,16 @@ from apps.api.store import MemoryStore
 from controlled_collector import worker_reply
 from memoir_postgres_workflow import PostgresRest
 from test_agent_commit_postgres import OWNER
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database as base_database
 from test_name_only_opening import proposal
 
 
 REASON = {'code': 'ambiguous_restriction', 'detail': 'The apparent restriction has an unclear referent.'}
+
+
+@pytest.fixture(scope='module')
+def database():
+    yield from base_database.__wrapped__(publication_tcp=True)
 
 
 @pytest.mark.parametrize('streaming,opening', [(False, False), (True, False), (True, True)])

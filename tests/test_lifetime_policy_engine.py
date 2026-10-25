@@ -191,7 +191,12 @@ def test_collector_worker_policy_transport_preserves_only_fixed_code(tmp_path,mo
         assert 'Private' not in str(caught.value)
 
 
-from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
+from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database as base_database
+
+
+@pytest.fixture(scope='module')
+def database():
+    yield from base_database.__wrapped__(publication_tcp=True)
 
 
 def test_real_sql_pending_policy_reaches_collector_saved_and_read_guards(sql):
