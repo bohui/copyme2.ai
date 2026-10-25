@@ -79,9 +79,11 @@ test('receipt before session creation preserves planned IDs and unknown accounti
 
 test('report labels local changes and provenance without claiming the reviewed-source audit passed', () => {
   const { plan, receipt } = fixture();
-  plan.local_checkout_source = { branch: 'codex/development', dirty: true, snapshot_sha256: 'b'.repeat(64) };
+  plan.local_checkout_source = { head: 'c'.repeat(40), branch: 'codex/development', dirty: true, snapshot_sha256: 'b'.repeat(64) };
   receipt.local_checkout_unchanged = false;
   const report = renderReport(plan, receipt);
+  assert.match(report, /Source commit: saved-source/);
+  assert.ok(report.includes(`Execution commit: ${'c'.repeat(40)}`));
   assert.match(report, /Source mode: local checkout/);
   assert.match(report, /codex\/development; local changes: true/);
   assert.match(report, /Checkout unchanged through cleanup: false/);

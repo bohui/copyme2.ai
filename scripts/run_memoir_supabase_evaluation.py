@@ -1010,7 +1010,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
         requests.on_reserve = reserved
         reserved(requests.reserved)
         try:
-            verify_execution_source(plan['source_revision'],plan['local_checkout_source'])
+            verify_execution_source(plan['local_checkout_source']['head'],plan['local_checkout_source'])
             if time_limit:
                 if not any(event['case_ids']==plan['case_ids'] for event in receipt.get('elapsed_time_extensions',[])):
                     receipt.setdefault('elapsed_time_extensions',[]).append({'seconds':time_limit,'case_ids':plan['case_ids'],
@@ -1134,7 +1134,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
             receipt['request_accounting']={'backend_http_requests_reserved':requests.reserved,
                 'actual_upstream_provider_requests':None,'model_request_ceiling_verified':False}
             try:
-                verify_execution_source(plan['source_revision'],plan['local_checkout_source'])
+                verify_execution_source(plan['local_checkout_source']['head'],plan['local_checkout_source'])
                 receipt['local_checkout_unchanged']=True
             except Exception:
                 receipt['local_checkout_unchanged']=False
@@ -1229,6 +1229,9 @@ def main(argv=None):
             settle_seconds=limit(args.settle_seconds,'settle_seconds',600),poll_seconds=limit(args.poll_seconds,'poll_seconds',2),
             original_case_ids=original.get('case_ids'),progressive_rerun=args.progressive_rerun or original.get('progressive_rerun',False))
         if args.resume_dir:
+            # The original revision identifies the retained input ledger;
+            # explicit source-change acceptance records the new execution head.
+            plan['source_revision']=retained['source_revision']
             validate_resume_budget(plan,retained,saved_receipt)
             resumed_time_limit(plan,retained,saved_receipt,args.extend_time_limit_seconds)
         if not args.execute:

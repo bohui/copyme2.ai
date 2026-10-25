@@ -201,7 +201,8 @@ separately, consume the original HTTP/time allowance, and are limited to three
 per turn. Unaccepted or changed inputs cannot be retried by this option. Combine
 it with `EVAL_ACCEPT_SOURCE_CHANGE=1` when applying a local fix.
 
-The source-change option records both checkout fingerprints and the number of prior submissions in
+The source-change option records both checkout fingerprints, including the current
+Git head for committed or merged fixes, and the number of prior submissions in
 the receipt and report. Original turn IDs, accepted sources, commit, accounts,
 project bindings and budgets remain fixed. The checkout must still remain
 unchanged during each attempt. Subset resume preserves the other cases'

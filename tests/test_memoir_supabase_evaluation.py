@@ -631,7 +631,8 @@ def test_uncertain_submission_is_recovered_by_same_client_id_without_reposting(s
     assert len(recoveries)==1 and json.loads(recoveries[0].content)['p_client_turn_id']==remote.submitted[6]['client_turn_id']
 
 
-def test_source_fix_resume_requires_opt_in_and_records_original_evidence(setup,tmp_path):
+@pytest.mark.parametrize('merged_commit', [False, True])
+def test_source_fix_resume_requires_opt_in_and_records_original_evidence(setup,tmp_path,monkeypatch,merged_commit):
     plan,remote=setup();directory=tmp_path/'source-fix'
     remote.extraction_retry_required=True
     first=asyncio.run(module.execute(plan,directory,SETTINGS))
@@ -639,6 +640,11 @@ def test_source_fix_resume_requires_opt_in_and_records_original_evidence(setup,t
     original=deepcopy(first['evaluation']['cases'][0]['rounds'][0])
     changed=deepcopy(plan)
     changed['local_checkout_source']={**plan['local_checkout_source'],'snapshot_sha256':'b'*64}
+    if merged_commit:
+        changed['local_checkout_source']['head']='b'*40
+    def verify(revision,snapshot):
+        assert revision==snapshot['head']
+    monkeypatch.setattr(module,'verify_execution_source',verify)
     calls=len(remote.calls)
     with pytest.raises(module.EvaluationError,match='source'):
         asyncio.run(module.execute(changed,directory,SETTINGS,resume=directory))
@@ -656,10 +662,25 @@ def test_source_fix_resume_requires_opt_in_and_records_original_evidence(setup,t
     assert result['local_checkout_source']==changed['local_checkout_source']
     saved_plan=json.loads((directory/'plan.json').read_text())
     assert saved_plan['local_checkout_source']==changed['local_checkout_source']
+    assert saved_plan['source_revision']==plan['source_revision']
     assert saved_plan['cases']==plan['cases']
     assert module.budget_contract(saved_plan)==module.budget_contract(plan)
     again=asyncio.run(module.execute(changed,directory,SETTINGS,resume=directory))
     assert again['status']=='completed' and len(again['source_changes'])==1
+
+
+def test_cli_resume_records_a_merged_head_without_relabeling_the_original_commit(setup,tmp_path,capsys):
+    plan,remote=setup();directory=tmp_path/'merged-fix'
+    remote.extraction_retry_required=True
+    asyncio.run(module.execute(plan,directory,SETTINGS))
+    assert module.main(['--resume-dir',str(directory),'--source-revision','b'*40,
+                        '--accept-source-change'])==0
+    resumed=json.loads(capsys.readouterr().out.splitlines()[-1])
+    assert resumed['source_revision']==plan['source_revision']
+    assert resumed['local_checkout_source']['head']=='b'*40
+    assert resumed['case_ids']==plan['case_ids']
+    assert resumed['case_user_emails']==plan['case_user_emails']
+    assert module.budget_contract(resumed)==module.budget_contract(plan)
 
 
 def test_source_fix_opt_in_cannot_change_original_commit_or_service(setup,tmp_path):
