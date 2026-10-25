@@ -370,9 +370,13 @@ def composition_request(job):
 async def compose_shared_snapshot(job, worker):
     request, config = composition_request(job)
     if job.get('previous') and 'manuscript' in job['previous'] and not request['context']['dirty_event_ids'] and job['previous'].get('content_config') == config and not job.get('batch'):
-        bundle = copy.deepcopy(job['previous'])
-        bundle['unchanged'] = True
-        return bundle
+        from .composer_review import review_requirements, review_errors
+        previous = job['previous']
+        requirements = review_requirements(request, previous['draft'], previous['manuscript'])
+        if not review_errors(previous.get('review'), requirements):
+            bundle = copy.deepcopy(previous)
+            bundle['unchanged'] = True
+            return bundle
     runtime = SimpleNamespace(worker_url=worker.worker_url, worker_secret=worker.worker_secret,
                               worker_transport=worker.worker_transport)
     storage = SimpleNamespace(user_id=job['user_id'])

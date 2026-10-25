@@ -4418,6 +4418,111 @@ begin
   return result;
 end $$;
 
+CREATE FUNCTION public.memoir_review_ready(p_review jsonb) RETURNS boolean
+    LANGUAGE sql IMMUTABLE
+    SET search_path TO ''
+    AS $$
+ select case when jsonb_typeof(p_review) is distinct from 'object'
+   or p_review->'ready_for_user_review' is distinct from 'true'::jsonb
+   or p_review->'publication_approved' is distinct from 'false'::jsonb
+   or jsonb_typeof(p_review->'findings') is distinct from 'array' then false
+ else not exists(select 1 from jsonb_array_elements(p_review->'findings') f
+   where jsonb_typeof(f) is distinct from 'object'
+     or coalesce(f->>'severity','') not in ('blocking','warning','info')
+     or coalesce(f->>'verdict','') not in ('supported','editorial')
+     or f->>'severity'='blocking'
+     or jsonb_typeof(f->'explanation') is distinct from 'string'
+     or length(btrim(f->>'explanation'))=0) end;
+$$;
+
+CREATE FUNCTION public.memoir_review_covers(p_page jsonb, p_result jsonb) RETURNS boolean
+    LANGUAGE plpgsql IMMUTABLE
+    SET search_path TO ''
+    AS $$
+declare review jsonb:=p_result->'review'; units jsonb:='[]'; originals jsonb:='[]'; sections jsonb;
+ section jsonb; unit jsonb; check_item jsonb; contribution jsonb; witness jsonb; event jsonb; ref jsonb;
+ source jsonb; normalized jsonb; field_name text; body jsonb; quote text; matches integer;
+begin
+ if not public.memoir_review_ready(review) or review->'contract_version' is distinct from '2'::jsonb
+   or jsonb_typeof(review->'prose_checks') is distinct from 'array'
+   or jsonb_typeof(review->'contributions') is distinct from 'array'
+   or jsonb_typeof(p_result->'sections') is distinct from 'array'
+   or jsonb_array_length(review->'prose_checks')>1024 or jsonb_array_length(review->'contributions')>128 then return false;end if;
+ sections:=p_result->'sections';
+ if jsonb_typeof(p_result->'draft'->'title')='string' and length(p_result->'draft'->>'title')>0 then
+   sections:=sections||jsonb_build_array(jsonb_build_object('id','__draft_title',
+     'heading',jsonb_build_object('title',p_result->'draft'->>'title'),
+     'source_refs',p_result->'draft'->'title_source_refs'));
+ end if;
+ for section in select value from jsonb_array_elements(sections) loop
+   foreach field_name in array array['text','caption','alt','title','subtitle'] loop
+     body:=case when field_name in ('title','subtitle') then section->'heading' else section->'block' end;
+     if jsonb_typeof(body->field_name)='string' and length(body->>field_name)>0 then
+       units:=units||jsonb_build_array(jsonb_build_object('section_id',section->>'id','field',field_name,
+         'excerpt',body->>field_name,'source_refs',section->'source_refs'));
+     end if;
+   end loop;
+ end loop;
+ if jsonb_array_length(units)<>jsonb_array_length(review->'prose_checks') then return false;end if;
+ for unit in select value from jsonb_array_elements(units) loop
+   select count(*) into matches from jsonb_array_elements(review->'prose_checks') c
+     where c->>'section_id'=unit->>'section_id' and c->>'field'=unit->>'field';
+   if matches<>1 then return false;end if;
+   select value into check_item from jsonb_array_elements(review->'prose_checks')
+     where value->>'section_id'=unit->>'section_id' and value->>'field'=unit->>'field';
+   if check_item->'excerpt' is distinct from unit->'excerpt' or check_item->>'verdict' is distinct from 'supported'
+     or jsonb_typeof(check_item->'explanation') is distinct from 'string'
+     or not (check_item->>'explanation' ~ '[^[:space:]]')
+     or jsonb_typeof(check_item->'source_refs') is distinct from 'array' then return false;end if;
+   if jsonb_array_length(check_item->'source_refs') not between 1 and 64 then return false;end if;
+   for ref in select value from jsonb_array_elements(check_item->'source_refs') loop
+     if not exists(select 1 from jsonb_array_elements(unit->'source_refs') r
+       where r->>'source_id'=ref->>'source_id' and r->>'version'=ref->>'version'
+         and r->'char_start'=ref->'char_start' and r->'char_end'=ref->'char_end') then return false;end if;
+   end loop;
+ end loop;
+ for event in select value from jsonb_array_elements(case when p_page ? 'batch' then p_page->'batch'->'events'
+     else jsonb_build_array(p_page->'partition') end) loop
+   for ref in select value from jsonb_array_elements(event->'source_refs') loop
+     normalized:=jsonb_build_object('source_id',ref->>'source_id','version',ref->>'version',
+       'char_start',ref->'char_start','char_end',ref->'char_end');
+     if originals @> jsonb_build_array(jsonb_build_object('source_ref',normalized)) then continue;end if;
+     select value into source from jsonb_array_elements(case when p_page ? 'batch' then p_page->'batch'->'sources'
+       else jsonb_build_array(p_page->'source') end) where value->>'id'=ref->>'source_id' and value->>'version'=ref->>'version';
+     if source is null then return false;end if;
+     quote:=substring(source->>'text' from (ref->>'char_start')::integer-coalesce((source->>'char_start')::integer,0)+1
+       for (ref->>'char_end')::integer-(ref->>'char_start')::integer);
+     if quote is null or length(quote)=0 then return false;end if;
+     originals:=originals||jsonb_build_array(jsonb_build_object('source_ref',normalized,'quote',quote));
+   end loop;
+ end loop;
+ if jsonb_array_length(originals)<>jsonb_array_length(review->'contributions') then return false;end if;
+ for body in select value from jsonb_array_elements(originals) loop
+   select count(*) into matches from jsonb_array_elements(review->'contributions') c where c->'source_ref'=body->'source_ref';
+   if matches<>1 then return false;end if;
+   select value into contribution from jsonb_array_elements(review->'contributions') where value->'source_ref'=body->'source_ref';
+   if contribution->'quote' is distinct from body->'quote' or jsonb_typeof(contribution->'reason') is distinct from 'string'
+     or not (contribution->>'reason' ~ '[^[:space:]]')
+     or coalesce(contribution->>'disposition','') not in ('represented','deferred')
+     or jsonb_typeof(contribution->'prose') is distinct from 'array' then return false;end if;
+   if contribution->>'disposition'='deferred' then
+     if jsonb_array_length(contribution->'prose')<>0 then return false;end if;
+     continue;
+   end if;
+   if jsonb_array_length(contribution->'prose') not between 1 and 64 then return false;end if;
+   for witness in select value from jsonb_array_elements(contribution->'prose') loop
+     select value into unit from jsonb_array_elements(units) where value->>'section_id'=witness->>'section_id' and value->>'field'=witness->>'field';
+     ref:=contribution->'source_ref';
+     if unit is null or jsonb_typeof(witness->'excerpt') is distinct from 'string' or length(witness->>'excerpt')=0
+       or strpos(unit->>'excerpt',witness->>'excerpt')=0 then return false;end if;
+     if not exists(select 1 from jsonb_array_elements(unit->'source_refs') r
+       where r->>'source_id'=ref->>'source_id' and r->>'version'=ref->>'version'
+         and (r->>'char_start')::integer<(ref->>'char_end')::integer and (r->>'char_end')::integer>(ref->>'char_start')::integer) then return false;end if;
+   end loop;
+ end loop;
+ return true;
+end $$;
+
 CREATE FUNCTION public.commit_lifetime_memoir_lane_page_before_rework(p_lane_id uuid, p_token uuid, p_page_number bigint, p_result jsonb, p_page_digest text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
@@ -4483,11 +4588,10 @@ begin
      disposition:='no_authorized_evidence';
    else
      if p_result->>'status' is distinct from 'ready' or (p_result->'validation'->>'ok')::boolean is distinct from true
-       or (p_result->'review'->>'ready_for_user_review')::boolean is distinct from true
-       or (p_result->'review'->>'publication_approved')::boolean is distinct from false
+       or not public.memoir_review_covers(page,p_result)
        or jsonb_typeof(p_result->'sections') is distinct from 'array' or jsonb_array_length(p_result->'sections') not between 1 and 256
        or jsonb_typeof(p_result->'preview') is distinct from 'object' or p_result->'preview'->>'locale' is distinct from snap.locale
-       or exists(select 1 from jsonb_array_elements(p_result->'review'->'findings') f where f->>'severity'='blocking') then
+       then
        raise exception 'canonical partition review failed';end if;
      for section in select value from jsonb_array_elements(p_result->'sections') loop
        if section->'event_ids' is distinct from jsonb_build_array(event_id) or jsonb_array_length(section->'source_refs')=0 then
@@ -4843,9 +4947,7 @@ begin
   if not exists(select 1 from public.user_lifetime_lane_output where snapshot_id=snap.id and page_number=snap.page_number and phase='draft' and input_digest=page->>'input_digest')
     or not exists(select 1 from public.user_lifetime_lane_output where snapshot_id=snap.id and page_number=snap.page_number and phase='review' and input_digest=page->>'input_digest') then
    raise exception 'progressive model draft and review evidence required';end if;
-  if (p_result->'validation'->>'ok')::boolean is distinct from true or (p_result->'review'->>'ready_for_user_review')::boolean is distinct from true
-   or (p_result->'review'->>'publication_approved')::boolean is distinct from false
-   or exists(select 1 from jsonb_array_elements(p_result->'review'->'findings') f where f->>'severity'='blocking')
+  if (p_result->'validation'->>'ok')::boolean is distinct from true or not public.memoir_review_covers(page,p_result)
    or jsonb_typeof(p_result->'sections') is distinct from 'array' or jsonb_array_length(p_result->'sections') not between 1 and 256 then raise exception 'progressive review required';end if;
   for item in select value from jsonb_array_elements(p_result->'sections') loop
    if not item ? 'block' then continue;end if;

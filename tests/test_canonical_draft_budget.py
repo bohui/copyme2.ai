@@ -1,3 +1,4 @@
+from controlled_composer_review import controlled_review
 import asyncio
 import copy
 import json
@@ -48,6 +49,9 @@ def test_canonical_phase_timings_include_success_and_failure_without_private_con
 
 def test_mandarin_page_can_repair_evidence_within_the_reviewed_model_budget(monkeypatch):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
+    # Keep exercising the stricter 64K setting rather than inheriting the
+    # composer's existing 98K default; the product budget is not changed.
+    monkeypatch.setenv('MEMOIR_LANE_INPUT_BUDGET', '65536')
     text = '我在承德长大。' * 250
     current = page('composer', text=text)
     source = current['source']
@@ -88,7 +92,7 @@ def test_mandarin_page_can_repair_evidence_within_the_reviewed_model_budget(monk
                 assert any(error['code'] == 'NONCANONICAL_EVIDENCE_SPAN'
                     for error in packet['validation']['errors'])
         else:
-            result = dict(ready_for_user_review=True, publication_approved=False, findings=[])
+            result = controlled_review(packet)
         return httpx.Response(200, json={'reply': json.dumps(result, ensure_ascii=False)})
 
     worker = SimpleNamespace(broker=Broker(), worker_url='https://synthetic.invalid', worker_secret='synthetic',

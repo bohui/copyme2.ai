@@ -1,4 +1,5 @@
 """Direct composer phases cross real SQL admission, proofs and private saves."""
+from controlled_composer_review import controlled_review
 import asyncio
 import json
 from types import SimpleNamespace
@@ -68,8 +69,9 @@ def test_direct_composer_keeps_phase_proofs_review_gate_and_sql_save(sql, monkey
                 if fault == 'cancel_review' or fault == 'restart_review' and len(reviews) == 1:
                     raise asyncio.CancelledError('Controlled review cancellation')
                 blocking = fault == 'review_blocks' or fault == 'review_repair' and len(reviews) == 1
-                value = dict(ready_for_user_review=not blocking, publication_approved=False,
-                    findings=[dict(severity='blocking', explanation='Controlled evidence review failure.')] if blocking else [])
+                value = controlled_review(payload, findings=[dict(verdict='unsupported', severity='blocking',
+                    explanation='Controlled evidence review failure.')] if blocking else [])
+                value['ready_for_user_review'] = not blocking
             return httpx.Response(200, content=sse(events(json.dumps(value))))
 
     async def worker(request):
@@ -166,7 +168,7 @@ def test_short_original_batch_saves_without_a_summary_provider(sql, monkeypatch,
                 drafts.append(payload)
                 output = controlled_draft(payload, source['text'], 'Childhood')
             else:
-                output = dict(ready_for_user_review=True, publication_approved=False, findings=[])
+                output = controlled_review(payload)
             return httpx.Response(200, content=sse(events(json.dumps(output))))
 
         return httpx.Response(200, json=await run_bounded_lane(command=['must-not-start'],

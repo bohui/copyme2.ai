@@ -1,0 +1,940 @@
+{
+  "synthetic": true,
+  "origin": "Failed candidate en-AU-10 at 71371668; exact normalized candidate/original packet and ready/no-findings review; no live requests by this fixture.",
+  "request": {
+    "assets": [],
+    "authorised_retirements": [],
+    "context": {
+      "affected_source_ids": [
+        "eb8ae538-a9db-4bc5-a142-46302f8f4898",
+        "43648388-65c9-4901-95ae-961b34d5d9f8",
+        "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+        "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+        "89f3994a-ba8b-47a8-8f98-1ed85f172cad",
+        "c12bbdac-8777-42c7-9aca-4ddc68cc1292",
+        "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+        "f4275d1a-18de-4983-a739-0d9acd69b5e7"
+      ],
+      "attribution_coverage": {
+        "authority": "canonical_context_only_not_additional_testimony",
+        "events": [
+          {
+            "attribution": null,
+            "id": "f1e3c07a-e22d-466b-90fa-0b8e757bc938",
+            "life_stage": "unplaced",
+            "place_conflicts": [],
+            "places": [],
+            "places_complete": true,
+            "places_retrieval": "/v1/story/events/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/f1e3c07a-e22d-466b-90fa-0b8e757bc938/places",
+            "revision": 1,
+            "temporal": {
+              "expression": "unknown",
+              "precision": "unknown",
+              "year_end": null,
+              "year_start": null
+            },
+            "uncertainty": null
+          },
+          null,
+          {
+            "attribution": null,
+            "id": "7293307a-7b0b-4015-8b73-437cb66ddddd",
+            "life_stage": "unplaced",
+            "place_conflicts": [],
+            "places": [],
+            "places_complete": true,
+            "places_retrieval": "/v1/story/events/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/7293307a-7b0b-4015-8b73-437cb66ddddd/places",
+            "revision": 7,
+            "temporal": {
+              "expression": "unknown",
+              "precision": "unknown",
+              "year_end": null,
+              "year_start": null
+            },
+            "uncertainty": null
+          }
+        ],
+        "lifetime_complete": false,
+        "scope": "bounded_sources",
+        "sources": [
+          {
+            "complete": true,
+            "linked_passages": 1,
+            "non_story_passages": 0,
+            "pending_passages": 0,
+            "resolved": true,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/eb8ae538-a9db-4bc5-a142-46302f8f4898/attribution",
+            "source_id": "eb8ae538-a9db-4bc5-a142-46302f8f4898",
+            "unresolved_passages": 0,
+            "withheld_passages": 0
+          },
+          {
+            "complete": true,
+            "linked_passages": 1,
+            "non_story_passages": 0,
+            "pending_passages": 0,
+            "resolved": true,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/edcba3da-766c-4592-b5d1-1b1f00cad96b/attribution",
+            "source_id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+            "unresolved_passages": 0,
+            "withheld_passages": 0
+          },
+          {
+            "complete": true,
+            "linked_passages": 1,
+            "non_story_passages": 0,
+            "pending_passages": 0,
+            "resolved": true,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/c12bbdac-8777-42c7-9aca-4ddc68cc1292/attribution",
+            "source_id": "c12bbdac-8777-42c7-9aca-4ddc68cc1292",
+            "unresolved_passages": 0,
+            "withheld_passages": 0
+          },
+          {
+            "complete": true,
+            "linked_passages": 1,
+            "non_story_passages": 0,
+            "pending_passages": 0,
+            "resolved": true,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/626e70e3-de78-49d9-ba1f-9955d00ef06d/attribution",
+            "source_id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+            "unresolved_passages": 0,
+            "withheld_passages": 0
+          },
+          {
+            "complete": true,
+            "linked_passages": 0,
+            "non_story_passages": 1,
+            "pending_passages": 0,
+            "resolved": true,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/2f02bacd-da62-48a1-bd19-e85450b7765d/attribution",
+            "source_id": "2f02bacd-da62-48a1-bd19-e85450b7765d",
+            "unresolved_passages": 0,
+            "withheld_passages": 0
+          },
+          {
+            "complete": true,
+            "linked_passages": 1,
+            "non_story_passages": 0,
+            "pending_passages": 0,
+            "resolved": true,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/62b8e34c-72e6-46c9-a3f5-97202ef94d48/attribution",
+            "source_id": "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+            "unresolved_passages": 0,
+            "withheld_passages": 0
+          },
+          {
+            "complete": true,
+            "linked_passages": 1,
+            "non_story_passages": 0,
+            "pending_passages": 0,
+            "resolved": true,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/43648388-65c9-4901-95ae-961b34d5d9f8/attribution",
+            "source_id": "43648388-65c9-4901-95ae-961b34d5d9f8",
+            "unresolved_passages": 0,
+            "withheld_passages": 0
+          },
+          {
+            "complete": true,
+            "linked_passages": 1,
+            "non_story_passages": 0,
+            "pending_passages": 0,
+            "resolved": true,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/f4275d1a-18de-4983-a739-0d9acd69b5e7/attribution",
+            "source_id": "f4275d1a-18de-4983-a739-0d9acd69b5e7",
+            "unresolved_passages": 0,
+            "withheld_passages": 0
+          },
+          {
+            "complete": true,
+            "linked_passages": 0,
+            "non_story_passages": 0,
+            "pending_passages": 0,
+            "resolved": false,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/750fac44-5413-4270-9b73-548730cc1d20/attribution",
+            "source_id": "750fac44-5413-4270-9b73-548730cc1d20",
+            "unresolved_passages": 1,
+            "withheld_passages": 0
+          },
+          {
+            "complete": true,
+            "linked_passages": 1,
+            "non_story_passages": 0,
+            "pending_passages": 0,
+            "resolved": true,
+            "retrieval": "/v1/story/sources/lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4/89f3994a-ba8b-47a8-8f98-1ed85f172cad/attribution",
+            "source_id": "89f3994a-ba8b-47a8-8f98-1ed85f172cad",
+            "unresolved_passages": 0,
+            "withheld_passages": 0
+          }
+        ]
+      },
+      "canonical_event_index": true,
+      "checkpoint_delta": {
+        "starting_after": 6,
+        "through_source": 10
+      },
+      "continuity_summary": null,
+      "dirty_event_ids": [
+        "f1e3c07a-e22d-466b-90fa-0b8e757bc938",
+        "9c98294d-e6b1-440c-8214-f4ce536509c8",
+        "7293307a-7b0b-4015-8b73-437cb66ddddd"
+      ],
+      "incremental_model_context": "compact",
+      "lifetime_page": {
+        "coverage_scope": "canonical_message_batch",
+        "page_number": 0,
+        "schema_version": 1,
+        "snapshot_complete": false,
+        "snapshot_id": "27d9fc15-20c3-49f7-a0d3-2a5ed869fe43"
+      },
+      "new_source_ids": [
+        "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+        "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+        "2f02bacd-da62-48a1-bd19-e85450b7765d",
+        "43648388-65c9-4901-95ae-961b34d5d9f8",
+        "750fac44-5413-4270-9b73-548730cc1d20"
+      ],
+      "overlap_source_ids": [
+        "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+        "f4275d1a-18de-4983-a739-0d9acd69b5e7"
+      ],
+      "photo_association_manifest": {},
+      "photo_associations": [],
+      "photo_dirty_event_ids": [],
+      "preferences": {
+        "active_question": "What happened next?",
+        "chosen_name": null,
+        "continuity_retrieval": "read_lifetime_continuity",
+        "excluded_topics": [],
+        "known_continuity": [],
+        "known_continuity_complete": true,
+        "language": "en-AU",
+        "paused_topics": [],
+        "preference_revision": 2,
+        "privacy_complete": true,
+        "schema_version": 1,
+        "unresolved_references": []
+      },
+      "prepared_partitions": [
+        {
+          "context": "The tin was green; I have corrected my earlier description. Father taught me to remove a tyre, find the puncture, and wait for the glue before pressing on a rubber patch. I held a basin while he turned the inner tube through the water. We watched for bubbles. He let me try the patch after showing me once. I sometimes needed another attempt. I remember the basin and the patch, but I cannot remember the brand of glue or the exact year. The work happened in our shed. I have not described its colour or size, and I do not know what the weather was on those days. The maps I learned to read at school were a different memory. I do not know whether those lessons came before or after my first bicycle repair. I remember Father handing me the tin when it was time to put the tools away. I did not keep the tin, and I do not know where it is now.\n\nWe used rubber patches and glue to repair punctured inner tubes.\n\nThank you.\n\nI practised patching tyres beside Father. I sometimes asked him to check a patch.\n\nYes, that is what I remember.",
+          "event_id": "27d9fc15-20c3-49f7-a0d3-2a5ed869fe43-messages-6",
+          "source_refs": [
+            {
+              "char_end": 843,
+              "char_start": 0,
+              "quote": "The tin was green; I have corrected my earlier description. Father taught me to remove a tyre, find the puncture, and wait for the glue before pressing on a rubber patch. I held a basin while he turned the inner tube through the water. We watched for bubbles. He let me try the patch after showing me once. I sometimes needed another attempt. I remember the basin and the patch, but I cannot remember the brand of glue or the exact year. The work happened in our shed. I have not described its colour or size, and I do not know what the weather was on those days. The maps I learned to read at school were a different memory. I do not know whether those lessons came before or after my first bicycle repair. I remember Father handing me the tin when it was time to put the tools away. I did not keep the tin, and I do not know where it is now.",
+              "source_id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+              "version": 1
+            },
+            {
+              "char_end": 64,
+              "char_start": 0,
+              "quote": "We used rubber patches and glue to repair punctured inner tubes.",
+              "source_id": "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+              "version": 1
+            },
+            {
+              "char_end": 10,
+              "char_start": 0,
+              "quote": "Thank you.",
+              "source_id": "2f02bacd-da62-48a1-bd19-e85450b7765d",
+              "version": 1
+            },
+            {
+              "char_end": 81,
+              "char_start": 0,
+              "quote": "I practised patching tyres beside Father. I sometimes asked him to check a patch.",
+              "source_id": "43648388-65c9-4901-95ae-961b34d5d9f8",
+              "version": 1
+            },
+            {
+              "char_end": 29,
+              "char_start": 0,
+              "quote": "Yes, that is what I remember.",
+              "source_id": "750fac44-5413-4270-9b73-548730cc1d20",
+              "version": 1
+            }
+          ]
+        }
+      ],
+      "preserved_sections": [],
+      "projection_invalidated_chapter_ids": [],
+      "source_windows": {
+        "43648388-65c9-4901-95ae-961b34d5d9f8": {
+          "char_end": 81,
+          "char_start": 0,
+          "original_length": 81
+        },
+        "626e70e3-de78-49d9-ba1f-9955d00ef06d": {
+          "char_end": 45,
+          "char_start": 0,
+          "original_length": 45
+        },
+        "62b8e34c-72e6-46c9-a3f5-97202ef94d48": {
+          "char_end": 64,
+          "char_start": 0,
+          "original_length": 64
+        },
+        "89f3994a-ba8b-47a8-8f98-1ed85f172cad": {
+          "char_end": 69,
+          "char_start": 0,
+          "original_length": 69
+        },
+        "c12bbdac-8777-42c7-9aca-4ddc68cc1292": {
+          "char_end": 45,
+          "char_start": 0,
+          "original_length": 45
+        },
+        "eb8ae538-a9db-4bc5-a142-46302f8f4898": {
+          "char_end": 70,
+          "char_start": 0,
+          "original_length": 70
+        },
+        "edcba3da-766c-4592-b5d1-1b1f00cad96b": {
+          "char_end": 843,
+          "char_start": 0,
+          "original_length": 843
+        },
+        "f4275d1a-18de-4983-a739-0d9acd69b5e7": {
+          "char_end": 64,
+          "char_start": 0,
+          "original_length": 64
+        }
+      },
+      "style": "plain, warm, faithful"
+    },
+    "event_id": "c1a06545d0d3355b21ecd4000ea8c16174721fab47c3f5852cc2db01a1043934",
+    "events": [
+      {
+        "date": {
+          "end_year": null,
+          "original_expression": "unknown",
+          "precision": "unknown",
+          "start_year": null
+        },
+        "id": "f1e3c07a-e22d-466b-90fa-0b8e757bc938",
+        "narrative": true,
+        "period_id": "stage_unplaced",
+        "source_refs": [
+          {
+            "char_end": 70,
+            "char_start": 0,
+            "source_id": "eb8ae538-a9db-4bc5-a142-46302f8f4898",
+            "version": "1"
+          }
+        ],
+        "status": "active",
+        "summary": "Map reading at school"
+      },
+      {
+        "date": {
+          "end_year": null,
+          "original_expression": "unknown",
+          "precision": "unknown",
+          "start_year": null
+        },
+        "id": "7293307a-7b0b-4015-8b73-437cb66ddddd",
+        "narrative": true,
+        "period_id": "stage_unplaced",
+        "source_refs": [
+          {
+            "char_end": 81,
+            "char_start": 0,
+            "source_id": "43648388-65c9-4901-95ae-961b34d5d9f8",
+            "version": "1"
+          },
+          {
+            "char_end": 45,
+            "char_start": 0,
+            "source_id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+            "version": "2"
+          },
+          {
+            "char_end": 64,
+            "char_start": 0,
+            "source_id": "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+            "version": "1"
+          },
+          {
+            "char_end": 69,
+            "char_start": 0,
+            "source_id": "89f3994a-ba8b-47a8-8f98-1ed85f172cad",
+            "version": "1"
+          },
+          {
+            "char_end": 45,
+            "char_start": 0,
+            "source_id": "c12bbdac-8777-42c7-9aca-4ddc68cc1292",
+            "version": "1"
+          },
+          {
+            "char_end": 843,
+            "char_start": 0,
+            "source_id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+            "version": "1"
+          },
+          {
+            "char_end": 64,
+            "char_start": 0,
+            "source_id": "f4275d1a-18de-4983-a739-0d9acd69b5e7",
+            "version": "1"
+          }
+        ],
+        "status": "active",
+        "summary": "Bicycle repairs with Father"
+      }
+    ],
+    "periods": [
+      {
+        "id": "stage_unplaced",
+        "label": "unplaced",
+        "order": 0,
+        "source_refs": [
+          {
+            "char_end": 70,
+            "char_start": 0,
+            "source_id": "eb8ae538-a9db-4bc5-a142-46302f8f4898",
+            "version": "1"
+          },
+          {
+            "char_end": 81,
+            "char_start": 0,
+            "source_id": "43648388-65c9-4901-95ae-961b34d5d9f8",
+            "version": "1"
+          },
+          {
+            "char_end": 45,
+            "char_start": 0,
+            "source_id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+            "version": "2"
+          },
+          {
+            "char_end": 64,
+            "char_start": 0,
+            "source_id": "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+            "version": "1"
+          },
+          {
+            "char_end": 69,
+            "char_start": 0,
+            "source_id": "89f3994a-ba8b-47a8-8f98-1ed85f172cad",
+            "version": "1"
+          },
+          {
+            "char_end": 45,
+            "char_start": 0,
+            "source_id": "c12bbdac-8777-42c7-9aca-4ddc68cc1292",
+            "version": "1"
+          },
+          {
+            "char_end": 843,
+            "char_start": 0,
+            "source_id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+            "version": "1"
+          },
+          {
+            "char_end": 64,
+            "char_start": 0,
+            "source_id": "f4275d1a-18de-4983-a739-0d9acd69b5e7",
+            "version": "1"
+          }
+        ]
+      }
+    ],
+    "policy": {
+      "focus_threshold": 0.65,
+      "max_chapter_words": 7000,
+      "max_followup_questions": 0,
+      "preview_preference": "auto",
+      "soft_chapter_words": 6000
+    },
+    "prior_state": {
+      "chapters": [],
+      "kind": "sample_chapter",
+      "last_snapshot_fingerprint": "",
+      "revision": 1
+    },
+    "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+    "request_id": "c1a06545d0d3355b21ecd4000ea8c16174721fab47c3f5852cc2db01a1043934",
+    "schema_version": "1.0",
+    "snapshot": {
+      "expected_manuscript_revision": 1,
+      "glossary_version": "1",
+      "id": "c1a06545d0d3355b21ecd4000ea8c16174721fab47c3f5852cc2db01a1043934",
+      "policy_epoch": 2,
+      "preferences_version": "en-AU",
+      "retrieval_complete": true
+    },
+    "sources": [
+      {
+        "allowed": true,
+        "author_role": "storyteller",
+        "derived_from": [],
+        "id": "eb8ae538-a9db-4bc5-a142-46302f8f4898",
+        "kind": "narrator_chat",
+        "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+        "source_order": 2,
+        "status": "active",
+        "text": "At school, Ms Vale taught me to read maps. I do not remember the year.",
+        "version": "1"
+      },
+      {
+        "allowed": true,
+        "author_role": "storyteller",
+        "derived_from": [],
+        "id": "43648388-65c9-4901-95ae-961b34d5d9f8",
+        "kind": "narrator_chat",
+        "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+        "source_order": 10,
+        "status": "active",
+        "text": "I practised patching tyres beside Father. I sometimes asked him to check a patch.",
+        "version": "1"
+      },
+      {
+        "allowed": true,
+        "author_role": "storyteller",
+        "derived_from": [],
+        "id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+        "kind": "narrator_chat",
+        "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+        "source_order": 6,
+        "status": "active",
+        "text": "Father kept our bicycle tools in a green tin.",
+        "version": "2"
+      },
+      {
+        "allowed": true,
+        "author_role": "storyteller",
+        "derived_from": [],
+        "id": "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+        "kind": "narrator_chat",
+        "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+        "source_order": 8,
+        "status": "active",
+        "text": "We used rubber patches and glue to repair punctured inner tubes.",
+        "version": "1"
+      },
+      {
+        "allowed": true,
+        "author_role": "storyteller",
+        "derived_from": [],
+        "id": "89f3994a-ba8b-47a8-8f98-1ed85f172cad",
+        "kind": "narrator_chat",
+        "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+        "source_order": 1,
+        "status": "active",
+        "text": "As a child in Sydney, I repaired bicycles with my father in our shed.",
+        "version": "1"
+      },
+      {
+        "allowed": true,
+        "author_role": "storyteller",
+        "derived_from": [],
+        "id": "c12bbdac-8777-42c7-9aca-4ddc68cc1292",
+        "kind": "narrator_chat",
+        "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+        "source_order": 4,
+        "status": "active",
+        "text": "On Saturdays I helped Father repair bicycles.",
+        "version": "1"
+      },
+      {
+        "allowed": true,
+        "author_role": "storyteller",
+        "derived_from": [],
+        "id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+        "kind": "narrator_chat",
+        "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+        "source_order": 7,
+        "status": "active",
+        "text": "The tin was green; I have corrected my earlier description. Father taught me to remove a tyre, find the puncture, and wait for the glue before pressing on a rubber patch. I held a basin while he turned the inner tube through the water. We watched for bubbles. He let me try the patch after showing me once. I sometimes needed another attempt. I remember the basin and the patch, but I cannot remember the brand of glue or the exact year. The work happened in our shed. I have not described its colour or size, and I do not know what the weather was on those days. The maps I learned to read at school were a different memory. I do not know whether those lessons came before or after my first bicycle repair. I remember Father handing me the tin when it was time to put the tools away. I did not keep the tin, and I do not know where it is now.",
+        "version": "1"
+      },
+      {
+        "allowed": true,
+        "author_role": "storyteller",
+        "derived_from": [],
+        "id": "f4275d1a-18de-4983-a739-0d9acd69b5e7",
+        "kind": "narrator_chat",
+        "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+        "source_order": 5,
+        "status": "active",
+        "text": "I am unsure whether I was eight or nine when I first helped him.",
+        "version": "1"
+      }
+    ],
+    "target": {
+      "audience": "storyteller",
+      "locale": "en-AU",
+      "medium": "web"
+    },
+    "trigger": {
+      "composition_authorized": false,
+      "confirmed": true,
+      "free_round_limit": 20,
+      "free_rounds_completed": 10,
+      "private_draft_authorized": true,
+      "private_draft_cadence": 5,
+      "private_rounds_completed": 10,
+      "storytelling_confirmation_ref": null,
+      "type": "new_context"
+    }
+  },
+  "candidate": {
+    "carry_forward_chapter_ids": [],
+    "chapters": [
+      {
+        "base_revision": 0,
+        "blocks": [
+          {
+            "alt": "",
+            "asset_id": null,
+            "asset_version": null,
+            "caption": "",
+            "credit": "",
+            "id": "green-tin-heading",
+            "source_refs": [
+              {
+                "char_end": 45,
+                "char_start": 0,
+                "source_id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+                "version": "2"
+              }
+            ],
+            "text": "The Green Tin",
+            "type": "heading",
+            "uncertainty": []
+          },
+          {
+            "alt": "",
+            "asset_id": null,
+            "asset_version": null,
+            "caption": "",
+            "credit": "",
+            "id": "green-tin-opening",
+            "source_refs": [
+              {
+                "char_end": 69,
+                "char_start": 0,
+                "source_id": "89f3994a-ba8b-47a8-8f98-1ed85f172cad",
+                "version": "1"
+              },
+              {
+                "char_end": 45,
+                "char_start": 0,
+                "source_id": "c12bbdac-8777-42c7-9aca-4ddc68cc1292",
+                "version": "1"
+              },
+              {
+                "char_end": 45,
+                "char_start": 0,
+                "source_id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+                "version": "2"
+              }
+            ],
+            "text": "As a child in Sydney, I repaired bicycles with my father in our shed. On Saturdays I helped Father, with the green tin of bicycle tools close at hand.",
+            "type": "paragraph",
+            "uncertainty": []
+          },
+          {
+            "alt": "",
+            "asset_id": null,
+            "asset_version": null,
+            "caption": "",
+            "credit": "",
+            "id": "green-tin-repair",
+            "source_refs": [
+              {
+                "char_end": 843,
+                "char_start": 0,
+                "source_id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+                "version": "1"
+              },
+              {
+                "char_end": 64,
+                "char_start": 0,
+                "source_id": "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+                "version": "1"
+              },
+              {
+                "char_end": 81,
+                "char_start": 0,
+                "source_id": "43648388-65c9-4901-95ae-961b34d5d9f8",
+                "version": "1"
+              }
+            ],
+            "text": "Father taught me to remove a tyre and find the puncture. I held a basin while he turned the inner tube through the water, and we watched for bubbles. We used rubber patches and glue; he showed me once, then let me try. I sometimes needed another attempt, and sometimes asked him to check a patch.",
+            "type": "paragraph",
+            "uncertainty": []
+          },
+          {
+            "alt": "",
+            "asset_id": null,
+            "asset_version": null,
+            "caption": "",
+            "credit": "",
+            "id": "green-tin-ending",
+            "source_refs": [
+              {
+                "char_end": 843,
+                "char_start": 0,
+                "source_id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+                "version": "1"
+              },
+              {
+                "char_end": 64,
+                "char_start": 0,
+                "source_id": "f4275d1a-18de-4983-a739-0d9acd69b5e7",
+                "version": "1"
+              }
+            ],
+            "text": "The glue needed time before the rubber patch was pressed on. When it was time to put the tools away, Father handed me the tin. I remember the basin and the patch, but not the brand of glue or the exact year. I do not know whether I was eight or nine. I did not keep the tin, and I do not know where it is now.",
+            "type": "paragraph",
+            "uncertainty": [
+              "The exact year is unknown.",
+              "The narrator is unsure whether they were eight or nine.",
+              "The tin was not kept, and its current location is unknown."
+            ]
+          }
+        ],
+        "change_type": "create",
+        "event_ids": [
+          "7293307a-7b0b-4015-8b73-437cb66ddddd"
+        ],
+        "id": "chapter-green-tin",
+        "period_ids": [
+          "stage_unplaced"
+        ],
+        "source_refs": [
+          {
+            "char_end": 81,
+            "char_start": 0,
+            "source_id": "43648388-65c9-4901-95ae-961b34d5d9f8",
+            "version": "1"
+          },
+          {
+            "char_end": 45,
+            "char_start": 0,
+            "source_id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+            "version": "2"
+          },
+          {
+            "char_end": 64,
+            "char_start": 0,
+            "source_id": "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+            "version": "1"
+          },
+          {
+            "char_end": 69,
+            "char_start": 0,
+            "source_id": "89f3994a-ba8b-47a8-8f98-1ed85f172cad",
+            "version": "1"
+          },
+          {
+            "char_end": 45,
+            "char_start": 0,
+            "source_id": "c12bbdac-8777-42c7-9aca-4ddc68cc1292",
+            "version": "1"
+          },
+          {
+            "char_end": 843,
+            "char_start": 0,
+            "source_id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+            "version": "1"
+          },
+          {
+            "char_end": 64,
+            "char_start": 0,
+            "source_id": "f4275d1a-18de-4983-a739-0d9acd69b5e7",
+            "version": "1"
+          }
+        ],
+        "subtitle": "Repairing punctured inner tubes with Father",
+        "title": "The Green Tin",
+        "update_reason": "Create a focused private sample from the supplied canonical bicycle-repair episode, preserving the corrected green-tin description and stated uncertainty."
+      }
+    ],
+    "counter": {
+      "algorithm": "intl-segmenter-wordlike-v1",
+      "icu": "78.2",
+      "node": "v22.22.0",
+      "unicode": "17.0"
+    },
+    "event_dispositions": [
+      {
+        "chapter_ids": [
+          "chapter-green-tin"
+        ],
+        "disposition": "included",
+        "event_id": "7293307a-7b0b-4015-8b73-437cb66ddddd",
+        "reason": "The supplied testimony supports a concise first-person chapter about repairing bicycles with Father."
+      },
+      {
+        "chapter_ids": [],
+        "disposition": "deferred",
+        "event_id": "f1e3c07a-e22d-466b-90fa-0b8e757bc938",
+        "reason": "The map-reading memory is supported but its order relative to the bicycle repair is explicitly unknown; it is outside this focused chapter."
+      }
+    ],
+    "expected_manuscript_revision": 1,
+    "input_fingerprint": "1ad6fb99f999e98736f4feddb9a541cf8ccb9e00174dae71bd343a87dfcadcf5",
+    "input_snapshot_id": "c1a06545d0d3355b21ecd4000ea8c16174721fab47c3f5852cc2db01a1043934",
+    "kind": "sample_chapter",
+    "next_action": "review_preview",
+    "outline": [
+      {
+        "chapter_id": "chapter-green-tin",
+        "event_ids": [
+          "7293307a-7b0b-4015-8b73-437cb66ddddd"
+        ],
+        "order": 0,
+        "period_ids": [
+          "stage_unplaced"
+        ],
+        "rationale": "A focused, supported episode centred on bicycle repairs with Father; the sequence remains unplaced in time.",
+        "source_refs": [
+          {
+            "char_end": 45,
+            "char_start": 0,
+            "source_id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+            "version": "2"
+          },
+          {
+            "char_end": 843,
+            "char_start": 0,
+            "source_id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+            "version": "1"
+          }
+        ],
+        "status": "draft",
+        "title": "The Green Tin"
+      }
+    ],
+    "project_id": "lifetime-694c77ee-196c-4d0b-aee0-69b892f2b9b4",
+    "proposed_replacements": [],
+    "questions_for_mira": [],
+    "retired_chapter_ids": [],
+    "review_flags": [
+      {
+        "code": "UNPLACED_SEQUENCE",
+        "details": "The bicycle-repair episode has no established year or position in the wider life account.",
+        "scope": "chapter-green-tin",
+        "severity": "warning"
+      },
+      {
+        "code": "AGE_UNCERTAINTY",
+        "details": "The narrator is unsure whether they were eight or nine.",
+        "scope": "green-tin-ending",
+        "severity": "info"
+      },
+      {
+        "code": "DEFERRED_MAP_MEMORY",
+        "details": "Map reading at school is deferred because its order relative to the first bicycle repair is unknown.",
+        "scope": "event-f1e3c07a-e22d-466b-90fa-0b8e757bc938",
+        "severity": "info"
+      }
+    ],
+    "schema_version": "1.0",
+    "source_summary": [
+      {
+        "event_ids": [
+          "7293307a-7b0b-4015-8b73-437cb66ddddd"
+        ],
+        "id": "summary-bicycle-repairs",
+        "source_refs": [
+          {
+            "char_end": 81,
+            "char_start": 0,
+            "source_id": "43648388-65c9-4901-95ae-961b34d5d9f8",
+            "version": "1"
+          },
+          {
+            "char_end": 45,
+            "char_start": 0,
+            "source_id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+            "version": "2"
+          },
+          {
+            "char_end": 64,
+            "char_start": 0,
+            "source_id": "62b8e34c-72e6-46c9-a3f5-97202ef94d48",
+            "version": "1"
+          },
+          {
+            "char_end": 69,
+            "char_start": 0,
+            "source_id": "89f3994a-ba8b-47a8-8f98-1ed85f172cad",
+            "version": "1"
+          },
+          {
+            "char_end": 45,
+            "char_start": 0,
+            "source_id": "c12bbdac-8777-42c7-9aca-4ddc68cc1292",
+            "version": "1"
+          },
+          {
+            "char_end": 843,
+            "char_start": 0,
+            "source_id": "edcba3da-766c-4592-b5d1-1b1f00cad96b",
+            "version": "1"
+          },
+          {
+            "char_end": 64,
+            "char_start": 0,
+            "source_id": "f4275d1a-18de-4983-a739-0d9acd69b5e7",
+            "version": "1"
+          }
+        ],
+        "text": "As a child in Sydney, I repaired bicycles with my father in our shed. On Saturdays I helped Father. He kept the bicycle tools in a green tin, and taught me to find punctures, test an inner tube in water, and apply a rubber patch after waiting for the glue. I sometimes asked him to check my work. I do not remember the exact year, the brand of glue, or whether I was eight or nine.",
+        "uncertainty": [
+          "The exact year is unknown.",
+          "I am unsure whether I was eight or nine.",
+          "The brand of glue is not remembered.",
+          "The shed's colour and size, and the weather, are not remembered."
+        ]
+      },
+      {
+        "event_ids": [
+          "f1e3c07a-e22d-466b-90fa-0b8e757bc938"
+        ],
+        "id": "summary-map-reading",
+        "source_refs": [
+          {
+            "char_end": 70,
+            "char_start": 0,
+            "source_id": "eb8ae538-a9db-4bc5-a142-46302f8f4898",
+            "version": "1"
+          }
+        ],
+        "text": "At school, Ms Vale taught me to read maps. I do not remember the year, and I do not know whether this happened before or after my first bicycle repair.",
+        "uncertainty": [
+          "The year is unknown.",
+          "The order relative to the first bicycle repair is unknown."
+        ]
+      }
+    ],
+    "status": "draft",
+    "storyline": {
+      "blocks": [],
+      "event_ids": [],
+      "source_refs": [],
+      "title": ""
+    },
+    "title": "The Green Tin",
+    "title_source_refs": [
+      {
+        "char_end": 45,
+        "char_start": 0,
+        "source_id": "626e70e3-de78-49d9-ba1f-9955d00ef06d",
+        "version": "2"
+      }
+    ]
+  },
+  "review": {
+    "ready_for_user_review": true,
+    "publication_approved": false,
+    "findings": []
+  }
+}

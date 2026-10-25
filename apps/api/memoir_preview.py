@@ -56,12 +56,8 @@ def composer_output_schema(phase):
                          schema['properties']['counter']['properties']['algorithm']):
             constant['type'] = 'string'
     else:
-        return {'type': 'object', 'properties': {
-            'ready_for_user_review': {'type': 'boolean'}, 'publication_approved': {'type': 'boolean', 'const': False},
-            'findings': {'type': 'array', 'items': {'type': 'object', 'properties': {
-                'severity': {'type': 'string'}, 'explanation': {'type': 'string'}},
-                'required': ['severity', 'explanation'], 'additionalProperties': False}},
-        }, 'required': ['ready_for_user_review', 'publication_approved', 'findings'], 'additionalProperties': False}
+        from .composer_review import Review
+        return Review.model_json_schema()
     # Strict ChatGPT output requires every property. Unknown source offsets
     # remain nullable on the wire rather than forcing invented quote spans.
     ref = schema['$defs']['ref']
@@ -213,7 +209,7 @@ async def composer_call(runtime, storage, project_id, language, phase, packet):
                     'Bounded lane instructions, packet, schema and framing exceed budget'):
                 raise
             # Regenerate from unchanged originals when the failed draft fills the context.
-            packet = {key: value for key, value in packet.items() if key not in {'candidate', 'validation', 'review'}}
+            packet = {key: value for key, value in packet.items() if key not in {'candidate', 'validation', 'review', 'review_errors'}}
             bounded = build_bounded_lane_input(runtime.lifetime_page, phase=phase, packet=packet, budget=budget)
         worker_started = time.monotonic()
         try:
@@ -487,6 +483,11 @@ def bind_index_sources(request):
 
 
 async def compose_candidate(request, runtime, storage, project_id, language, *, checkpoint, progress):
+    from .composer_review import REVIEW_VERSION, review_requirements, review_errors
+    # Old reviews lack complete prose/contribution witnesses. Keep their saved
+    # draft, but obtain a current review before that checkpoint can authorize save.
+    if not isinstance(checkpoint.get('review'), dict) or checkpoint['review'].get('contract_version') != REVIEW_VERSION:
+        checkpoint.pop('review', None)
     if checkpoint.get('request'):
         request = checkpoint['request']
     if not request.get('context', {}).get('canonical_event_index'):
@@ -530,17 +531,19 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
                         sorted({error.get('code', 'UNKNOWN') for error in validation.get('errors', [])}))
         review = None
         if validation.get('ok'):
+            artifacts = await skill_operation('render', request, draft)
+            manuscript = json.loads(artifacts['manuscript.json'])
+            requirements = review_requirements(request, draft, manuscript)
             checkpoint['draft'] = draft
             await progress('reviewing')
             review_packet = {
                 'request': packet['request'], 'candidate': draft, 'validation': validation,
+                'requirements': requirements,
             }
             review = checkpoint.get('review') or await composer_call(
                 runtime, storage, project_id, language, 'review', review_packet)
-            if (review.get('ready_for_user_review') is True
-                    and review.get('publication_approved') is False
-                    and isinstance(review.get('findings'), list)
-                    and not any(f.get('severity') == 'blocking' for f in review['findings'])):
+            errors = review_errors(review, requirements)
+            if not errors:
                 checkpoint['review'] = review
                 break
             if compact_context and checkpoint.get('model_context_fallback') != 'full':
@@ -553,7 +556,9 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
             checkpoint['model_context_fallback'] = 'full'
         checkpoint.pop('draft', None)
         checkpoint.pop('review', None)
-        checkpoint['repair'] = {'candidate': draft, 'validation': validation, 'review': review}
+        checkpoint['repair'] = {'candidate': draft, 'validation': validation, 'review': review,
+            **({'review_errors': errors} if review is not None else {})}
+        packet.pop('review_errors', None)
         packet.update(checkpoint['repair'])
         if compact_context and checkpoint.get('model_context_fallback') == 'full':
             packet['request'] = request
@@ -562,8 +567,6 @@ async def compose_candidate(request, runtime, storage, project_id, language, *, 
         raise RuntimeError('The sample needs another composition review; please retry')
     checkpoint.pop('repair', None)
     await progress('saving')
-    artifacts = await skill_operation('render', request, draft)
-    manuscript = json.loads(artifacts['manuscript.json'])
     chapter = (manuscript['chapters'][0] if draft['kind'] == 'sample_chapter' else draft['storyline'])
     preview = {'id': request['snapshot']['id'], 'kind': draft['kind'], 'title': chapter['title'],
         'text': '\n\n'.join(block['text'] for block in chapter['blocks'] if block['text']),

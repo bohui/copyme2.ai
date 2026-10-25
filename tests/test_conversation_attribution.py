@@ -1,4 +1,5 @@
 """Conversation → real Lane B → authorized attribution, on disposable PostgreSQL."""
+from controlled_composer_review import controlled_review
 import asyncio
 import inspect
 import json
@@ -51,7 +52,7 @@ class Conversation:
                     from test_progressive_composer import draft_all
                     output = draft_all(packet)
                 elif bounded['phase'] == 'review':
-                    output = {'ready_for_user_review':True,'publication_approved':False,'findings':[]}
+                    output = controlled_review(packet)
                 else:
                     output = self.extract(packet)
                 if inspect.isawaitable(output):

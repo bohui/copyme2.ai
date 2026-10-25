@@ -473,9 +473,9 @@ def _validate_phase_packet(fence,phase,payload):
             from .memoir_preview import incremental_model_request
             if actual != expected and actual != incremental_model_request(expected):
                 raise ValueError('Progressive request differs from its authoritative batch')
-            if phase == 'draft' and (set(payload) - {'request', 'plan', 'candidate', 'validation', 'review'} or not isinstance(payload.get('plan'), dict)):
+            if phase == 'draft' and (set(payload) - {'request', 'plan', 'candidate', 'validation', 'review', 'review_errors'} or not isinstance(payload.get('plan'), dict)):
                 raise ValueError('Unsupported progressive draft context')
-            if phase == 'review' and set(payload) != {'request', 'candidate', 'validation'}:
+            if phase == 'review' and set(payload) != {'request', 'candidate', 'validation', 'requirements'}:
                 raise ValueError('Unsupported progressive review context')
         if fence.prior_outputs != _required_artifacts(phase, payload):
             raise ValueError('Progressive bytes lack their same-batch artifact proofs')
@@ -523,9 +523,9 @@ def _validate_phase_packet(fence,phase,payload):
         if actual!=expected:
             raise ValueError('Composer request differs from authoritative page evidence')
         if phase=='draft':
-            if set(payload)-{'request','plan','candidate','validation','review'} or not isinstance(payload.get('plan'),dict):
+            if set(payload)-{'request','plan','candidate','validation','review','review_errors'} or not isinstance(payload.get('plan'),dict):
                 raise ValueError('Unsupported draft phase context')
-        elif phase=='review' and set(payload)!={'request','candidate','validation'}:
+        elif phase=='review' and set(payload)!={'request','candidate','validation','requirements'}:
             raise ValueError('Unsupported review phase context')
     if fence.prior_outputs!=_required_artifacts(phase,payload):
         raise ValueError('Derived lane bytes lack their exact same-page artifact proofs')
@@ -546,7 +546,7 @@ async def validate_lane_payload(bounded):
     candidate=payload.get('candidate')
     if candidate is None:
         if bounded.phase=='review':raise ValueError('Review requires a same-page candidate')
-        if payload.get('validation') is not None or payload.get('review') is not None:
+        if payload.get('validation') is not None or payload.get('review') is not None or payload.get('review_errors') is not None:
             raise ValueError('Repair context requires its same-page candidate')
         return
     pins={'input_snapshot_id':request['snapshot']['id'],'input_fingerprint':plan.get('input_fingerprint'),
@@ -556,6 +556,16 @@ async def validate_lane_payload(bounded):
     validation=await validate_canonical_candidate(request,candidate)
     if payload.get('validation')!=validation:
         raise ValueError('Candidate validation differs from the canonical page proof')
+    if bounded.phase == 'review' or payload.get('review_errors') is not None:
+        from .composer_review import review_requirements, review_errors
+        if not validation.get('ok'):
+            raise ValueError('A prose review requires a validated candidate')
+        artifacts = await skill_operation('render', request, candidate)
+        requirements = review_requirements(request, candidate, json.loads(artifacts['manuscript.json']))
+        if bounded.phase == 'review' and payload['requirements'] != requirements:
+            raise ValueError('Review requirements differ from the canonical prose and originals')
+        if payload.get('review_errors') is not None and payload['review_errors'] != review_errors(payload.get('review'), requirements):
+            raise ValueError('Review repair errors differ from the same-page review')
 
 def lane_request_tokens(bounded_lane: BoundedLaneInput) -> int:
     instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode), fence=bounded_lane.fence, retry_reason=_object(bounded_lane.packet)['payload'].get('retry_reason'))

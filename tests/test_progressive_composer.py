@@ -1,4 +1,5 @@
 """Five-round summaries and exact carry-forward through the real model boundary."""
+from controlled_composer_review import controlled_review
 import asyncio
 from copy import deepcopy
 import json
@@ -81,7 +82,7 @@ def compose(current, phases, broker, mutate_unchanged=False):
             if mutate_unchanged:
                 result['chapters'][0]['blocks'][-1]['text'] = 'An unsolicited rewrite of unchanged prose.'
         else:
-            result = dict(ready_for_user_review=True, publication_approved=False, findings=[])
+            result = controlled_review(packet)
         return httpx.Response(200, json={'reply': json.dumps(result)})
     worker = SimpleNamespace(broker=broker, worker_url='https://synthetic.invalid', worker_secret='synthetic',
         worker_transport=httpx.MockTransport(model), lane_publisher=Publisher())

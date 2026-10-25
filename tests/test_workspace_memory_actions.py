@@ -1,4 +1,5 @@
 """Workspace focus and section rework on disposable PostgreSQL and fake models."""
+from controlled_composer_review import controlled_review, controlled_section_review
 from copy import deepcopy
 from uuid import uuid4
 
@@ -78,7 +79,7 @@ def compose_rework(sql, page, text):
         else:
             assert payload['request']['context']['editorial_request']==page['editorial_request']
             if bounded.phase=='draft': result=controlled_draft(payload,text,'Childhood')
-            else: result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+            else: result=controlled_review(payload)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model),
         lane_publisher=LanePublication(dsn,authenticated_owner=OWNER))
@@ -737,6 +738,7 @@ def test_secondary_event_change_retires_exact_edition_request_despite_other_edit
     independent = validated_result(page, [block('unrelated', source_a)], event_ids=[event_a])
     english_result['sections'] = [item for item in english_result['sections'] if item['id'].endswith('__shared')]
     english_result['sections'] += independent['sections']
+    english_result['review'] = controlled_section_review(page, english_result['sections'])
     service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane}','{page['token']}',{page['page_number']},{literal(english_result)}")
     service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{page['token']}'")
     english = rpc(sql, 'read_lifetime_private_draft_head', literal(project))

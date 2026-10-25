@@ -1,4 +1,5 @@
 """Bounded composer/timeline execution without providers or production config."""
+from controlled_composer_review import controlled_review
 import asyncio
 from contextlib import asynccontextmanager
 from copy import deepcopy
@@ -76,7 +77,7 @@ def packet_for(current,phase):
     if phase=='draft':return {'request':request,'plan':plan}
     candidate={'title':'Synthetic invalid draft'}
     validation=asyncio.run(skill_operation('validate',request,candidate))
-    return {'request':request,'candidate':candidate,'validation':validation}
+    return {'request':request,'candidate':candidate,'validation':validation,'requirements':{}}
 
 
 def transport(phase='extract',current=None):
@@ -514,7 +515,7 @@ def test_draft_prepared_context_requires_registered_artifact():
 
 def test_review_requires_real_registered_candidate():
     current=page('composer');payload={'request':canonical_lane_request(fence_for(current)),
-        'candidate':None,'validation':None}
+        'candidate':None,'validation':None,'requirements':{}}
     with pytest.raises(ValueError,match='candidate'):
         bounded=build_bounded_lane_input(current,phase='review',packet=payload,budget=BUDGET)
         asyncio.run(validate_lane_payload(bounded))
@@ -645,7 +646,7 @@ def test_real_bounded_composer_call_chain_uses_only_same_page_artifacts(edition_
         elif phase=='draft':result=controlled_draft(payload,current['source']['text'],'A narrow window')
         else:
             assert phase=='review'
-            result={'ready_for_user_review':True,'publication_approved':False,'findings':[]}
+            result=controlled_review(payload)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     publisher=ArtifactPublisher()
     worker=SimpleNamespace(broker=Broker(),worker_url='http://synthetic.invalid',worker_secret='synthetic',

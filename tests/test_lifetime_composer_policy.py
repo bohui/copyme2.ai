@@ -1,4 +1,5 @@
 """Incomplete-policy maintenance must preserve queued canonical work."""
+from controlled_composer_review import controlled_review
 import asyncio
 import copy
 import json
@@ -60,7 +61,7 @@ def test_policy_pending_at_any_lane_boundary_is_safe_metadata_deferral(stage):
         if phase==stage:raise PolicyUnavailable()
         if phase=='prepare':result=dict(event_id=current['partition']['id'],context='Source-grounded',source_refs=current['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(packet,current['source']['text'],'Childhood')
-        else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+        else:result=controlled_review(packet)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model))
     worker.lane_publisher=Publisher()
@@ -164,7 +165,7 @@ def test_pg_claim_policy_rejection_rolls_back_attempt_and_mid_review_can_resume(
         bounded=json.loads(request.content)['bounded_lane'];phase=bounded['phase'];packet=json.loads(bounded['packet'])['payload'];phases.append(phase)
         if phase=='prepare':result=dict(event_id=packet['partition']['id'],context='Preserved grounded preparation',source_refs=packet['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(packet,source['text'],'Childhood')
-        else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+        else:result=controlled_review(packet)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model))
     worker.lane_publisher=LanePublication(dsn,authenticated_owner=OWNER)

@@ -121,6 +121,20 @@ checkpoint eligible through the normal lane.
 
 ## 5. Persistence, resumability and concurrency
 
+The host's version-2 semantic review requires an exact prose audit and an
+explicit represented/deferred entry for every authorized canonical contribution.
+Prose witnesses bind section, field, exact text and current source spans;
+represented contributions also identify actual matching prose excerpts. These
+structural checks do not independently prove entailment: the separate reviewer
+must assess assertion meaning, speaker roles, uncertainty and omissions. A
+negative semantic verdict cannot authorize a save through a contradictory ready
+flag or warning severity. Editorial warnings remain nonblocking.
+
+Older saved drafts remain resumable. An older review is not a version-2
+acceptance proof: obtain a current review of the saved draft without repeating
+successful preparation or drafting merely to upgrade the review contract.
+Legacy completed bundles likewise require a current review before reuse.
+
 Recommended run states:
 
 ```text

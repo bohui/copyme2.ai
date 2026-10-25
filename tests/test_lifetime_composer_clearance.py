@@ -1,4 +1,5 @@
 """Operator clearance defers bounded work without consuming generation attempts."""
+from controlled_composer_review import controlled_review
 import asyncio
 import copy
 import json
@@ -53,7 +54,7 @@ def test_cancelled_composer_releases_its_lease_and_preserves_saved_checkpoint():
             elif blocked:
                 started.set()
                 await asyncio.Event().wait()
-            else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+            else:result=controlled_review(payload)
             return httpx.Response(200,json={'reply':json.dumps(result)})
         worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
             worker_transport=httpx.MockTransport(model))
@@ -102,7 +103,7 @@ def test_remote_clearance_preserves_bounded_work_and_completed_phases(blocked_ph
         if phase=='extract':result={'events':[]}
         elif phase=='prepare':result=dict(event_id=current['partition']['id'],context='Prepared before clearance changed',source_refs=current['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(payload,original['text'],'Childhood')
-        else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+        else:result=controlled_review(payload)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model))
     worker.lane_publisher=Publisher()
@@ -153,7 +154,7 @@ def test_pg_provider_authority_wait_preserves_lane_and_source_checkpoints(sql,sk
         if phase=='extract':result={'events':[]}
         elif phase=='prepare':result=dict(event_id=payload['partition']['id'],context='Persisted grounded preparation',source_refs=payload['partition']['source_refs'])
         elif phase=='draft':result=controlled_draft(payload,source['text'],'Childhood')
-        else:result=dict(ready_for_user_review=True,publication_approved=False,findings=[])
+        else:result=controlled_review(payload)
         return httpx.Response(200,json={'reply':json.dumps(result)})
     worker=MemoryEventWorker(Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',worker_transport=httpx.MockTransport(model))
     class Authority:
