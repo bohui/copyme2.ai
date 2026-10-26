@@ -31,6 +31,7 @@ def test_default_preview_needs_no_credentials_and_contains_the_complete_source(t
     source = json.loads((ROOT / 'skills/memoir-story-game/tests/fixtures/age-eight.json').read_text())['input']
     assert request['model'] == 'gpt-6.1-sol' and request['reasoning']['effort'] == 'max'
     assert request['stream'] is True
+    assert request['metadata']['upstream_revision'] == runner().dependency_revision()
     assert packet['format_contract']['format'] == 'rpg-side-scroller'
     assert packet['format_contract']['navigation'] == 'horizontal_with_scrolling_camera'
     assert packet['format_contract']['controlled_character'] == 'memoir_author'
@@ -92,6 +93,70 @@ def test_archived_code_prompts_and_game_match_the_original_snapshot():
     assert len(manifest['files']) == 24
     for name, expected in manifest['files'].items():
         assert module.digest((archive / name).read_text()) == expected, name
+
+
+def test_repository_harness_links_the_dependency_and_memoir_adapter():
+    skills = {'novel-to-game', 'novel-game-analyze', 'game-concept', 'game-world-design',
+        'game-art-direction', 'game-build', 'game-qa'}
+    links = ROOT / '.agents/skills'
+    for name in skills:
+        link = links / name
+        assert link.is_symlink()
+        assert link.resolve() == ROOT / 'deps/novel-to-game/skills' / name
+        assert (link / 'SKILL.md').is_file()
+    assert (links / 'memoir-novel-to-game').resolve() == PACKAGE
+
+
+def test_missing_dependency_gives_the_install_command(tmp_path):
+    module = runner()
+    module.SKILL = tmp_path / 'missing/skills'
+    with pytest.raises(RuntimeError, match='make deps-install'):
+        module.dependency_revision()
+
+
+def test_upstream_upgrade_changes_request_provenance_and_invalidates_reuse(tmp_path, monkeypatch):
+    module = runner()
+    dependency = tmp_path / 'upstream'
+    module.SKILL = dependency / 'skills'
+    module.HERE = tmp_path / 'output'
+    for name in ('novel-to-game/SKILL.md', 'game-concept/SKILL.md',
+                 'game-concept/references/concept-method.md'):
+        path = module.SKILL / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('Synthetic upstream instructions')
+
+    def git(*args):
+        return subprocess.check_output(['git', '-C', str(dependency), *args], text=True).strip()
+
+    git('init', '-q')
+    git('add', '.')
+    git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'v1')
+    before = module.run_stage('concept', dry_run=True)
+    assert before['metadata']['upstream_revision'] == git('rev-parse', 'HEAD')
+    stage = module.HERE / 'stages/concept'
+    artifact = stage / 'artifacts/concepts/CONCEPT.md'
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text('Previously generated concept')
+    (stage / 'checkpoint.json').write_text(json.dumps(dict(
+        request_sha256=module.digest(json.dumps(before, sort_keys=True, ensure_ascii=False)),
+        outputs={'concepts/CONCEPT.md': module.digest(artifact.read_text())}, response_id='old-result')))
+    (module.SKILL / 'game-concept/SKILL.md').write_text('Updated upstream instructions')
+    with pytest.raises(RuntimeError, match='local changes'):
+        module.run_stage('concept', dry_run=True)
+    git('add', '.')
+    git('-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'v2')
+    after = module.run_stage('concept', dry_run=True)
+    assert after['metadata']['upstream_revision'] == git('rev-parse', 'HEAD')
+    assert before['metadata']['upstream_revision'] != after['metadata']['upstream_revision']
+    assert before['instructions'] != after['instructions']
+
+    def new_generation(*args, **kwargs):
+        raise RuntimeError('new dependency requires regeneration')
+
+    monkeypatch.setattr(module.httpx, 'Client', new_generation)
+    with pytest.raises(RuntimeError, match='requires regeneration'):
+        module.run_stage('concept')
+    assert artifact.read_text() == 'Previously generated concept'
 
 
 @pytest.mark.parametrize('duration', [None, True, 0, 49, 5001, '1000'])

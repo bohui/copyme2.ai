@@ -1,0 +1,4 @@
+[submodule "deps/novel-to-game"]
+	path = deps/novel-to-game
+	url = https://github.com/zenstory-ai/novel-to-game.git
+	branch = main

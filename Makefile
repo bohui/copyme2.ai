@@ -63,6 +63,13 @@ SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
 .PHONY: prompt-sync prompt-sync-check prompt-sync-install
 .PHONY: test-web test-place-research
+.PHONY: deps-install deps-update
+
+deps-install: ## Install the committed NovelToGame skill dependency without upgrading it.
+	@git submodule update --init -- deps/novel-to-game
+
+deps-update: ## Update NovelToGame to upstream main; review and commit the new dependency pin.
+	@git submodule update --init --remote --checkout -- deps/novel-to-game
 
 memoir-live-skills-plan: ## Inspect isolated skill contracts; zero model calls.
 	@python3 scripts/run_memoir_live_skills.py $(if $(strip $(LIVE_SKILL)),--skill "$(LIVE_SKILL)",)

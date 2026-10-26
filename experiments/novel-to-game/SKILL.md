@@ -29,7 +29,8 @@ requirement to every model stage.
 
 ## Stage workflow
 
-Read the pinned [upstream entrypoint](upstream/novel-to-game/SKILL.md) and its
+Run `make deps-install` when the dependency is missing. Read the pinned
+[upstream entrypoint](../../deps/novel-to-game/skills/novel-to-game/SKILL.md) and its
 pipeline contract. Keep its stage skills separate and unmodified. Use GPT-6.1 Sol
 with max effort for this experiment. Source analysis may be reused only when its
 receipt and complete input match; the fictional age-eight source analysis is
@@ -67,9 +68,16 @@ and subjective-experience claims require their own evidence.
 
 ## Branch boundary and provenance
 
-`upstream/` is the unchanged MIT-licensed v0.6.1 snapshot at
-`c3075f35cc14d4bc94e2829df2bfcc0d9971229e`; replace that separate snapshot when
-explicitly updating upstream. Memoir requirements belong in the adapter.
+`deps/novel-to-game/` is an unmodified MIT-licensed Git submodule. Git records the
+reviewed revision; `make deps-install` restores it and `make deps-update` checks
+out upstream's latest `main`. Review and commit the changed submodule pin before
+sharing an upgrade. The runner records the installed commit in every request and
+receipt, and rejects local upstream edits. Memoir requirements belong in the adapter.
+
+Repository agents discover the seven upstream skills and this Memoir entrypoint
+through `.agents/skills/` links. Codex lists the upstream plugin's skills as
+`novel-to-game:<skill>`. Dependency updates preserve the adapter and the
+historical examples, whose recorded upstream revisions describe their original runs.
 
 `examples/age-eight-patch/` preserves the earlier repair-puzzle experiment,
 including its original instructions, code, handoffs and receipts. It is a

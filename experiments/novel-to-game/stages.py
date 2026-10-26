@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import time
 
@@ -16,9 +17,8 @@ PACKAGE = Path(__file__).resolve().parent
 ROOT = PACKAGE.parents[1]
 HERE = ROOT/'var/novel-to-game-rpg-scroller'
 SNAPSHOT = PACKAGE/'examples/age-eight-patch'
-SKILL = PACKAGE/'upstream'
+SKILL = ROOT/'deps/novel-to-game/skills'
 MODEL = 'gpt-6.1-sol'
-REVISION = 'c3075f35cc14d4bc94e2829df2bfcc0d9971229e'
 KEY = ''
 BASE = 'http://127.0.0.1:4000/v1'
 FORMAT = dict(format='rpg-side-scroller', controlled_character='memoir_author',
@@ -64,6 +64,15 @@ STAGES = {
 
 def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
+
+
+def dependency_revision():
+    if not (SKILL/'novel-to-game/SKILL.md').is_file():
+        raise RuntimeError('NovelToGame dependency missing; run make deps-install')
+    dependency = SKILL.parent
+    if subprocess.check_output(['git', '-C', str(dependency), 'status', '--porcelain'], text=True).strip():
+        raise RuntimeError('NovelToGame dependency has local changes; keep Memoir changes in the adapter')
+    return subprocess.check_output(['git', '-C', str(dependency), 'rev-parse', 'HEAD'], text=True).strip()
 
 
 def save(path, value):
@@ -122,6 +131,7 @@ def materialise(packet):
 
 def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     packet=initialise()
+    revision=dependency_revision()
     config=STAGES[name]
     paths=[config['skill']+'/SKILL.md']+[config['skill']+'/references/'+p for p in config['refs']]
     upstream={p:(SKILL/p).read_text() for p in paths}
@@ -135,7 +145,7 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
             chapter_ids=['C'+str(i+1) for i in range(10)],count=10))
     body=dict(model=MODEL,reasoning={'effort':'max'},instructions=instructions,input=json.dumps(user,ensure_ascii=False),
         store=False,max_output_tokens=config['budget'],metadata=dict(generation_name='novel-game-'+name,
-        trace_name='memoir-novel-game-age-eight',synthetic='true',stage=name,upstream_revision=REVISION),
+        trace_name='memoir-novel-game-age-eight',synthetic='true',stage=name,upstream_revision=revision),
         text={'format':{'type':'json_schema','name':'novel_game_stage_files','strict':True,'schema':SCHEMA}})
     if name in ('art','production'):
         frames=[HERE/'qa/whitebox/evidence'/p for p in ('render.png','coreLoop.png')]
@@ -224,7 +234,7 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
         materialise(packet)
         receipt=dict(stage=name,status='PASS',model=result['model'],reasoning=result.get('reasoning'),response_id=result['id'],
             duration_seconds=round(time.monotonic()-started,3),usage=result.get('usage'),request_sha256=signature,
-            upstream_revision=REVISION,upstream_sha256=digest(json.dumps(upstream,sort_keys=True,ensure_ascii=False)),
+            upstream_revision=revision,upstream_sha256=digest(json.dumps(upstream,sort_keys=True,ensure_ascii=False)),
             outputs=hashes,notes=value['notes'])
         save(checkpoint,receipt)
         print(json.dumps({k:receipt[k] for k in ('stage','status','duration_seconds','outputs')}),flush=True)
