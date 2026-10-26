@@ -18,6 +18,13 @@ same order, once each. Work only with this confirmed set. Do not expand it or
 rewrite its personal facts, quotations, names or uncertain chronology. The host
 will append the original scenes losslessly to the brief; do not duplicate them.
 
+Keep the complete `design_brief` below 4,000 characters, including headings and
+spaces, within the schema's 6,000-character limit. Cover the entire confirmed
+set before adding detail: use one short setting cue per scene, grouping repeated
+places when helpful. Compress the outline to fit; finish every sentence and the
+final scene rather than ending at the length limit. Keep shared movement,
+reading and art requirements concise instead of repeating them for each scene.
+
 Keep the brief about presentation and interaction. The host owns authentication,
 access controls, saving and publishing. Do not add new approval screens, public
 deployment, multiplayer servers, external assets or account requirements. Sources
