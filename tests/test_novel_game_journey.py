@@ -234,6 +234,54 @@ def test_materialisation_preserves_source_owns_runtime_and_makes_real_input_repl
     assert any(s['selector']=='#passage' for s in replay['steps'][outcome+1:])
 
 
+@pytest.mark.parametrize('count', [1, 2, 3, 10])
+def test_replay_reads_nearby_memories_and_preserves_unique_progress_after_completion(count):
+    module, source = journey(), packet()
+    source['chapters'] = source['chapters'][:count]
+    source['timeline'] = source['timeline'][:count]
+    value = plan() if count == 10 else dict(version=1, blend=180,
+        segments=[dict(id='home', scene='home', title='A remembered place', start=0, end=max(1000, count * 440 + 160))],
+        stops=[dict(chapter='C' + str(i + 1), segment='home', x=640 if count == 1 else 160 + i * 440)
+            for i in range(count)])
+    module.validate_journey(value, source['chapters'], source['timeline'])
+    public = runner().public_source(source)
+    passages = {c['id']: c['text'] for c in public['chapters']}
+    replay = module.playthrough(value, public)
+    x, current, completed = 80, None, False
+    visited, readings, rereadings, directions = set(), [], [], set()
+    for step in replay['steps']:
+        if step['action'] == 'hold':
+            target = step['target_x']
+            assert step['selector'] == ('#right' if target > x else '#left')
+            directions.add(step['selector'])
+            x = target
+        elif step['action'] == 'click' and step['selector'] == '#interact':
+            nearest = min(value['stops'], key=lambda stop: abs(stop['x'] - x))
+            assert abs(nearest['x'] - x) <= 65, 'Read requires a nearby memory marker'
+            current = nearest['chapter']
+        elif step['selector'] == '#passage':
+            assert step['value'] == passages[current], f'Replay expects another memory while near {current} at x={x}'
+            readings.append(current)
+            if completed:
+                rereadings.append((current, x))
+        elif step['action'] == 'click' and step['selector'] == '#continue':
+            visited.add(current)
+            current = None
+        elif step.get('attribute') == 'data-visited':
+            assert step['value'] == str(len(visited))
+        if step.get('checkpoint') == 'outcome':
+            assert len(visited) == count
+            assert step['attribute'] == 'data-phase' and step['value'] == 'complete'
+            completed = True
+    last = value['stops'][-1]
+    assert rereadings == [(last['chapter'], last['x'])] * 2
+    assert set(readings) == set(passages)
+    if count > 1:
+        assert readings.count(value['stops'][0]['chapter']) >= 2
+    assert directions == {'#left', '#right'}
+    assert [s['checkpoint'] for s in replay['steps'] if 'checkpoint' in s] == ['input', 'coreLoop', 'outcome', 'restart']
+
+
 def test_builder_gets_runtime_fingerprint_and_cannot_replace_html_or_movement(tmp_path):
     module = runner()
     module.HERE = tmp_path / 'game'

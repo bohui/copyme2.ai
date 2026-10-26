@@ -148,6 +148,7 @@ def playthrough(plan, source):
             read_memory(plan['stops'][0]['chapter'], 2)
     steps.append(dict(action='assert_attr', selector='#game', attribute='data-phase', value='complete', checkpoint='outcome'))
     last=plan['stops'][-1]
+    travel(last['x'])
     read_memory(last['chapter'], len(plan['stops']))
     travel(last['x'] - 100)
     steps.append(dict(action='assert_attr',selector='#player',attribute='data-facing',value='left'))
