@@ -1,0 +1,410 @@
+{
+  "status": "PASS",
+  "date": "2026-10-26",
+  "title": "The Blue Gate",
+  "format": "RPG side-scroller",
+  "url": "http://127.0.0.1:57822/?build=final",
+  "pull_request": "https://github.com/bohui/copyme2.ai/pull/144",
+  "branch": "codex/novel-to-game-rpg-scroller",
+  "model": "gpt-6.1-sol",
+  "reasoning_effort": "max",
+  "source": {
+    "fictional": true,
+    "composer_chapters": 10,
+    "timeline_events": 10,
+    "complete_original_passages": 10,
+    "source_sha256": "b06f4614ab0d1220136915508f82eb99aea233fe0c3d03eb4b60f8421ac25a68",
+    "analysis_reused_from_actual_live_response": "resp_q4yLXPraOPUPZ9l9WeGB94RCatFc7W5V5Uaox7KravZ3u6pvoD8INyqDJL5xrbp5Hsfsk7E7zKkLBMotV1K2jY9DmOEEZuhzDRrfDG_C_h5nA9Shs26W2dttY1sF0-jj6BTgurN8JeMUbMzfQsEL6IIgd4r6ZdYkRadnfAIyutOW2QgzaICYgLI05VY9kjvYJViMYFq9a_DwKVM6PSm7gsCjyWqQmG2dI9vUgB3t4lT4oAxi46XhUoMpWfyuVXGLSp9N1yJzuG-HPuvozzy6oPq1KMbLCdv-O0VM6kcqWyLFxgRJtmbS9IyJmvZLmcbU2qvRkpcFbhFp0wGzFtGDMKlvn45BbunB1TcqmBx69hogCp56AOPBXEqtZ6JX5CRy"
+  },
+  "upstream_revision": "c3075f35cc14d4bc94e2829df2bfcc0d9971229e",
+  "live_calls": [
+    {
+      "stage": "concept",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "response_id": "resp_kfCOzvPjOf-_vgpJuuVt12fns8UnsqT374Q7vAs030oOds7rri6x8jq4qt24CXmyLBWCZN_VCF8GQmmsFvw-vcCbfY2olzlbz7w81BqJai4xlxKUfYvjOnL7v-I84qKIZbqJ3VR_OxMLhTWRw1C-PnhTIqwYiworYBwjyGLNe1xWcgJrLXR13wZe1yoybVr8AWlvEhKAxZM-OUuPich8JmdLEWu6LapShzHTSISQeN5qkA7RNYIVlmuRLGoMgUc2szCaDNtbmz6wBjq9YzgdJke3xMTCnnmMzeHHR-LpSptoElSPiuyQxSXwwK469i4YT1rAR8-a1mh6Vw6uwcl4qc284O2HskOJPFMMCTAFWAB6TI01ytDgIrwvVf-EoJ8k",
+      "request_seconds": 306.942,
+      "request_sha256": "4b9ffb8aea60557a8bd95fd8a9c5815d6a5b3dc1220bc0073da5cd6b8b686291",
+      "upstream_sha256": "22b88135277a5bc5138939396337a3cdfcd9b34e98c89e457399cd95170795a6",
+      "model_outputs_sha256": {
+        "concepts/CONCEPT.md": "1c77fa4be099fb45d47f62fe003b2d0ad94efa1b2d367765c691772ae7580eb1"
+      },
+      "requested_max_output_tokens": 6500,
+      "usage": {
+        "input_tokens": 12256,
+        "output_tokens": 10592,
+        "total_tokens": 22848,
+        "input_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "cache_write_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 9660,
+          "text_tokens": null
+        },
+        "cost": null
+      }
+    },
+    {
+      "stage": "design",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "response_id": "resp_feElTvKJp1A8SEMXoQnC1E_2aYhdk-qPn8my2qIWqc9YjeSOZQaYMCOso4pZ-rSDBcSHAMZcANaWFMwCTj-sdNhh_Yi-PZhIMMfM6eY4m54XbH9nEiVHIxcEXYuZcQ3czpox_0mhEwEFHVkvCs7ddXPP7vwNwvLVYvj28xz6efs4RHBDrdKhJoi_sNtNrtgNFdpUo2g9EXjVhcs-tzg76NF1A21io0RGnsQj1z_qVqAIbi8TkHOodwzEqZ-BM0mei-7f0eDGvNxd_Z4f28FfPfrK9n9yYALmc7vi58G-bVp2i_fh14QdFp06YDlFxBIxPD6gTrOtUEMbPOL4uhDiwIY7uUgbN3I8JGu97rakIYIqHzpsWv7NqxMfRV8zn06g",
+      "request_seconds": 364.758,
+      "request_sha256": "f1fce14d192585a6d6c4b96ec4af1dcce1c1abee7aa1bd354871e7cee1e09b59",
+      "upstream_sha256": "19e41a96d8d75d0e76ddfca76d92274ebf129b5ce885052756d7a8f242bad2ab",
+      "model_outputs_sha256": {
+        "design/GAME_DESIGN.md": "362e292b75793f40206f4c2ed799e2dad53fa7a0cbfbfc025d5b7af12cdfe460"
+      },
+      "requested_max_output_tokens": 7500,
+      "usage": {
+        "input_tokens": 14290,
+        "output_tokens": 12408,
+        "total_tokens": 26698,
+        "input_tokens_details": {
+          "audio_tokens": null,
+          "cached_tokens": 0,
+          "text_tokens": null,
+          "cache_write_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 11302,
+          "text_tokens": null
+        },
+        "cost": null
+      }
+    },
+    {
+      "stage": "whitebox",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "response_id": "resp_6xB9DlF4q9dOp5PHiNPSx4_p_K7YK8U_GHg81966BcH9fDMMrpcDlBrS6-Mtcy9_RYSfHG1vAPlbVVENHhMZ0EegetGWKy1o-8_PKi0pnXYFyz9HhXsGOAUPKHJ1tb7xPkmX1bDChlMrOOXwdjepI0ZVt8SolsM9VcMi1xVFJEGa4CajEJTOoj4BC-DuTELcWRfvZb5Pr45v2QT5u3dX4LqhJCPu9UCR5grHjTPC5IrjmIGq6uyEFUho0NnNUz4xSUFfN2t-ZfSzcmxEzPD6HeB19WG3AmeuGysUrqx5JREIcuuIyl-JFnsW3zcq_5P_P_UZUcmis3t_ypP7q04EuRCS6TaL09LBD8DDR_T0GxUZ6ImPgPJYemRXWeobeF8_",
+      "request_seconds": 597.225,
+      "request_sha256": "3cb66935ad89c32eeb8d901d172b41e8d3e935b1d9e8e50584762b02d9875a12",
+      "upstream_sha256": "19863cbc1842ef377ab80e961f8c6dac7992f14d766242e5ccb92351d3a43268",
+      "model_outputs_sha256": {
+        "build/template.html": "7f0d3ba0447682b2f6ad190cca3dd0dff9a3812b3e7cddc32db1480872f44260",
+        "build/app/game.css": "ed3248e6969c383af7bfc5dbb9155ecf46398e2b21d43133223ec648b8b44f73",
+        "build/BUILD_BRIEF.md": "611b5f850ab9b2f43a27a99ebea80e9d18fd29ce8759efa2a4f4afe99be25c08"
+      },
+      "requested_max_output_tokens": 6500,
+      "usage": {
+        "input_tokens": 14885,
+        "output_tokens": 20760,
+        "total_tokens": 35645,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 16056
+        },
+        "cost": null
+      }
+    },
+    {
+      "stage": "whitebox_logic",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "response_id": "resp_tMvR207MQNR0t6QtNGv-Ijgc5M8vOQjiLze6z9VdJVrDEz9hvkm0hyQVxj94gzV-AA-27EVtep8-nzchzIrxbR_tamcQfwQPEN5YljGMILBTzohFXMEPy2rI6uE23JI3JDD6eSD_GN7a0x1egIfnH296hg7AAvNnx2rkwh92I-5_QEFDpZEPOD4iM-s95vYOz9Wsq2frxT6Nnf6C3Wsxu2xuo-tZCL4_YPwqtWy_JUcnq9F43kzM2RavxlgvOtzoJuskZpHsNPIBk5S8T1SBaH2ZjjD9AahmzUo3nnY0vU8rsi7UnZHejs1OdikdQZud_rEF2aPEpQPXkiE4CVQfmLyEoXKBOiqRnTcua0h4pPO0yke_OX4l5rYmMCwRSQ55",
+      "request_seconds": 567.367,
+      "request_sha256": "70f784bbef6a94f2d3e7c8837c66c39649ab85473729dcad645ca3a18e9b4568",
+      "upstream_sha256": "19863cbc1842ef377ab80e961f8c6dac7992f14d766242e5ccb92351d3a43268",
+      "model_outputs_sha256": {
+        "build/app/game.js": "07754a86be900ec72633a8069adad2e825766ad1846952d2799a75c67b155705"
+      },
+      "requested_max_output_tokens": 7000,
+      "usage": {
+        "input_tokens": 14584,
+        "output_tokens": 19324,
+        "total_tokens": 33908,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 15538
+        },
+        "cost": null
+      }
+    },
+    {
+      "stage": "whitebox_replay",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "response_id": "resp_8wpdI2gEFaMcrUj3pZfw1unbbHJrIu4awbb9F3eQ1lK8fbKxTEQpPzJvJzdcjZhaz8zmV4fgSlLeGkdMsmSSNORzRw7jkTv18kNZXfgDgAW3wSjY7ByvfDP_y8K9EVHb3k9JxmxhM_rWxRSy2zyVUG-tOwdE99HGxsYDU9Z9RGIgMA0YDg8T6Poe2p1B-ucsExxN6vune8NrJ-i7285HumR_J1mKFVg_kUFmV-CGeTDIdqc57Eu6cyzXe1PzJqi0nhdDwwicBmcHt9uPU8HhHGyuTYB0BJGRRu7hkt6y4tus6p-KCfGDsHC9t8pWlu6GB_FOeuxqTIcTkUljQ6ag-1jSH161vKrfHaj7ODdpTNMne-hsMUFyneonbkZ3QS8G",
+      "request_seconds": 388.297,
+      "request_sha256": "9130e58970d36ec488a0997e2a1e6e532efbd35f2cb3d22e6af9771c51c1d8fa",
+      "upstream_sha256": "19863cbc1842ef377ab80e961f8c6dac7992f14d766242e5ccb92351d3a43268",
+      "model_outputs_sha256": {
+        "build/BUILD_BRIEF.md": "878c1c0c02fa9f902d22aee9c6d096d3483305c84041f9df176371c1292ae4e2",
+        "build/playthrough.json": "090fc636e66c1e216962ce2931f0dbf8b9d33552fc4cf2d4067802c50d40fc88"
+      },
+      "requested_max_output_tokens": 4500,
+      "usage": {
+        "input_tokens": 16859,
+        "output_tokens": 15883,
+        "total_tokens": 32742,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 12834
+        },
+        "cost": null
+      }
+    },
+    {
+      "stage": "art",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "response_id": "resp_D4DfTolpFviKWeQ2ekYJoRYWR3u61WhP7m5yHYU1SmLMQR_L7IjlhXI6GF1-EopPCIKq_VJ72UKjsiHFFt4VVRuzLxtzxu1X1hQSQy1GtSGyrIdiL75hChDzK0QRB-s8g2f2K8SXw7iVy0QjKeMlL-WBMisAsZPwBfqWJHgmzxXyzPVUsza3mnZVMyuZ8-HwtJkdrpHry6A-9TLf8oSBsoh8ssrp6_tn3-V8BxZFuJiKe6nh_UjM09C7_OWC_99HuFWaIikNpH9srCNeKispPAmSedYsB-cr7HrKb8thjDNXM8wA8_s5kSgbf0FuUluVeT4Fyh3ZFLcjqrItdGTu008EocZdgoqMO9YkCorqq6v401acS4ATkqvAQNpZvyQY",
+      "request_seconds": 209.276,
+      "request_sha256": "b8a4040cb53cc6bc24ec5cddcb463bb79a05495814301befefe2c968f08f3c4d",
+      "upstream_sha256": "39185e797cc8a9b5bf0f652f4dc5e81a631c48016d906bf96c37ddee3178854f",
+      "model_outputs_sha256": {
+        "design/ART_DIRECTION.md": "0ad028ddbdd08d8069b640cea9c694517235a3e699da6e8fce06236161703728"
+      },
+      "requested_max_output_tokens": 6000,
+      "usage": {
+        "input_tokens": 13711,
+        "output_tokens": 7944,
+        "total_tokens": 21655,
+        "input_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 6994
+        },
+        "cost": null
+      }
+    },
+    {
+      "stage": "production_style",
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "response_id": "resp_KkYMr6P1hTlA4W1k4C8PpTli98M_Mu-HCZ_RMBzxjAyZ2Y11p4gqSqDklZe_ls6F-3t9RAPvAiVcRw_h0KxP5p2AVYp1_nwzNHTpkmj_KioHMu6k9ju3JD21qHqynI4fjjSayBegBEmbZTmkFhTzGUEIW0XVjF3H8G3vwq3p04cKkoxeiSdniDU_DWJf3_Gz2XOPa00I88phOikFPNVQwlPju2vCPGtIRlmjLXVLyGk5iSuxhUG3UPoRhSYcifZPKHe5b1Kko--RVwO6PaVfz8S8CWSuwS2tqGy7T8WdNh_z9D3B0PgHu1f0a3NSH5gZmKnaHzYxpS_WGp3FIuhGI3JCON1NQyE-cZ_tYWzJPZIlbjAHBcSF7PCPZ7llEvVT",
+      "request_seconds": 886.233,
+      "request_sha256": "3b6b0abee285d8122f007c74b784f74057a64ae3b7e7e14676f6a6887ea30010",
+      "upstream_sha256": "19863cbc1842ef377ab80e961f8c6dac7992f14d766242e5ccb92351d3a43268",
+      "model_outputs_sha256": {
+        "build/app/game.css": "8ca4aaf6c5185c04e7f554bb68f51f3e6b4c3ece8847a296f9fa5748c015ecf3"
+      },
+      "requested_max_output_tokens": 5500,
+      "usage": {
+        "input_tokens": 13462,
+        "output_tokens": 36295,
+        "total_tokens": 49757,
+        "input_tokens_details": {
+          "cached_tokens": 13312,
+          "cache_write_tokens": 0
+        },
+        "output_tokens_details": {
+          "reasoning_tokens": 33616
+        },
+        "cost": null
+      }
+    }
+  ],
+  "fresh_generation_request_seconds": 3320.098,
+  "reported_fresh_token_totals": {
+    "input_tokens": 100047,
+    "output_tokens": 123206,
+    "total_tokens": 223253
+  },
+  "requested_output_ceilings_exceeded": true,
+  "currency_cost": "NOT_AVAILABLE: gateway did not supply currency cost",
+  "artifacts_sha256": {
+    "game.js": "182d6eb6370ea06f49d51e69cb455aebcb6e29d52923dcbd8bddd596fba7331c",
+    "index.html": "76b9ea900d8fb8675cadf890c660d75b4f9450e6ac3fe69a021001f0667f352f",
+    "game.css": "8ca4aaf6c5185c04e7f554bb68f51f3e6b4c3ece8847a296f9fa5748c015ecf3"
+  },
+  "verification": {
+    "desktop": {
+      "schemaVersion": 3,
+      "status": "PASS",
+      "verify": {
+        "command": "python3 experiments/novel-to-game/verify.py --output /Users/bohuihan/.codex/worktrees/novel-to-game-rpg-scroller/memoir/var/novel-to-game-rpg-scroller --stage production",
+        "exitCode": 0
+      },
+      "completeRun": {
+        "id": "production-desktop-68826c4b1c0f",
+        "cleanContext": true,
+        "terminal": "Journey complete — The Blue Gate",
+        "restart": "initial-state",
+        "evidence": "qa/evidence/run.json"
+      },
+      "checks": {
+        "launch": "PASS",
+        "render": "PASS",
+        "input": "PASS",
+        "coreLoop": "PASS",
+        "outcome": "PASS",
+        "restart": "PASS"
+      },
+      "limitations": [
+        {
+          "scope": "human experience",
+          "reason": "Informed scripted verification does not establish subjective fun, balance or discoverability."
+        },
+        {
+          "scope": "other browsers and physical devices",
+          "reason": "Chromium emulation only; real phones, Safari and Firefox not exercised."
+        }
+      ]
+    },
+    "phone_touch": {
+      "schemaVersion": 3,
+      "status": "PASS",
+      "verify": {
+        "command": "python3 experiments/novel-to-game/verify.py --output /Users/bohuihan/.codex/worktrees/novel-to-game-rpg-scroller/memoir/var/novel-to-game-rpg-scroller --stage production --phone",
+        "exitCode": 0
+      },
+      "completeRun": {
+        "id": "production-phone-90b52c4ec9a1",
+        "cleanContext": true,
+        "terminal": "Journey complete — The Blue Gate",
+        "restart": "initial-state",
+        "evidence": "qa/phone/evidence/run.json"
+      },
+      "checks": {
+        "launch": "PASS",
+        "render": "PASS",
+        "input": "PASS",
+        "coreLoop": "PASS",
+        "outcome": "PASS",
+        "restart": "PASS"
+      },
+      "limitations": [
+        {
+          "scope": "human experience",
+          "reason": "Informed scripted verification does not establish subjective fun, balance or discoverability."
+        },
+        {
+          "scope": "other browsers and physical devices",
+          "reason": "Chromium emulation only; real phones, Safari and Firefox not exercised."
+        }
+      ]
+    },
+    "independent_checks": {
+      "status": "PASS",
+      "observations": [
+        {
+          "viewport": [
+            1280,
+            720
+          ],
+          "originalPassages": 10,
+          "fullTextAddsNoCredit": true,
+          "memoryRevisitAddsNoCredit": true,
+          "overlaysStopMovement": true,
+          "focusRestored": true,
+          "movementBounds": [
+            80,
+            1840
+          ],
+          "cameraEnd": 1440,
+          "prematureGardenEntryBlocked": true,
+          "keyboardMovementButtons": true,
+          "horizontalOverflow": false
+        },
+        {
+          "viewport": [
+            320,
+            800
+          ],
+          "originalPassages": 10,
+          "fullTextAddsNoCredit": true,
+          "memoryRevisitAddsNoCredit": true,
+          "overlaysStopMovement": true,
+          "focusRestored": true,
+          "movementBounds": [
+            80,
+            1840
+          ],
+          "cameraEnd": 1440,
+          "prematureGardenEntryBlocked": true,
+          "keyboardMovementButtons": true,
+          "horizontalOverflow": false
+        }
+      ],
+      "offlineExport": "PASS",
+      "artifactFilesSha256": {
+        "game.js": "182d6eb6370ea06f49d51e69cb455aebcb6e29d52923dcbd8bddd596fba7331c",
+        "index.html": "76b9ea900d8fb8675cadf890c660d75b4f9450e6ac3fe69a021001f0667f352f",
+        "game.css": "8ca4aaf6c5185c04e7f554bb68f51f3e6b4c3ece8847a296f9fa5748c015ecf3"
+      },
+      "export": "export/age-eight.html",
+      "exportSha256": "a5ba3ce3f52d8c543ae85965463e2edf64d186e0707394f8127de627a4dae864",
+      "pageErrors": [],
+      "externalRequests": []
+    },
+    "fresh_source_blind_agent": {
+      "model": "gpt-6.1-sol",
+      "effort": "max",
+      "sourceBlind": true,
+      "ending": "Journey complete — The Blue Gate",
+      "memoriesExplored": 10,
+      "inputs": [
+        "arrows",
+        "D",
+        "E",
+        "Enter",
+        "Escape",
+        "Read/Close controls"
+      ],
+      "observations": [
+        "On-screen instructions explained walking, interaction and the garden goal.",
+        "Nearby highlighting, action labels, progress credit and changed markers were clear.",
+        "No blocking issue; the player reached the ending without source or solution access."
+      ],
+      "friction": [
+        "Held movement occasionally overshot markers; the player backtracked near the library.",
+        "Shed and garden paths felt sparse during longer walks."
+      ],
+      "versionNote": "Played the original model runtime before the host keyboard-button repair; that repair preserves the tested arrow-key journey."
+    },
+    "local_evidence_root": "var/novel-to-game-rpg-scroller/qa/",
+    "visible_ui": "qa/final-game-ui.png"
+  },
+  "host_repairs": [
+    {
+      "owner": "build",
+      "kind": "host repair after observed keyboard failure",
+      "file": "build/app/game.js",
+      "before_sha256": "07754a86be900ec72633a8069adad2e825766ad1846952d2799a75c67b155705",
+      "after_sha256": "182d6eb6370ea06f49d51e69cb455aebcb6e29d52923dcbd8bddd596fba7331c",
+      "input": "Hold Enter on the focused Right movement button for 250ms",
+      "expected": "Move right without opening a memory",
+      "observed_before": {
+        "player-x": "80",
+        "overlay": "memory",
+        "count": "0"
+      },
+      "change": "Map Enter/Space on movement buttons to their movement direction before global interaction handling. Original model response and snapshot remain unchanged."
+    }
+  ],
+  "host_replay_adjustments": [
+    {
+      "owner": "qa",
+      "reason": "Use the on-screen interaction control for the first memory so the phone replay uses touch for the complete route. Keyboard E was independently exercised by the source-blind player.",
+      "before_sha256": "090fc636e66c1e216962ce2931f0dbf8b9d33552fc4cf2d4067802c50d40fc88",
+      "after_sha256": "b8b5ee15b701af4bd425ccfcb0ed668ae6b5f06a82c9b1b36a5c47d250acf45a",
+      "change": "First memory: press e on viewport becomes click/tap #interact. All route, movement, progress, ending and reset assertions remain unchanged."
+    }
+  ],
+  "offline_export": "export/age-eight.html",
+  "higgsfield_backup": "Preserved; not invoked for this fresh RPG build.",
+  "publication": "Local fictional preview only; active Memoir runtime, managed prompts, Langfuse pins and saved game unchanged.",
+  "limitations": [
+    "Physical devices, Safari, Firefox and assistive technologies were not exercised.",
+    "App authentication/sharing remain deferred at the user’s earlier request.",
+    "Fresh-player feedback is a source-blind agent observation, not a human enjoyment or balance study.",
+    "The model runtime required a host keyboard-button repair; original model files and receipts remain preserved.",
+    "Requested output token ceilings are not asserted as hard compute limits."
+  ]
+}

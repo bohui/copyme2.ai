@@ -655,6 +655,24 @@ their cached skill loaders reload, and removes the temporary ZIPs. Use
 `SKILLS="memoir-place-journey"` only when debugging one skill. Generated
 archives remain temporary, so `dist/` stays ignored.
 
+The branch's NovelToGame experiment uses the separate upstream Git submodule at
+[`deps/novel-to-game`](deps/novel-to-game). Install the reviewed revision after
+cloning this repository, or explicitly fetch an upgrade:
+
+```bash
+make deps-install
+make deps-update
+```
+
+`deps-update` follows upstream `main`; review and commit the changed submodule
+pin to share the upgrade. Clone with `--recurse-submodules` to install it on the
+first checkout. Repository agents discover the upstream skills and the Memoir
+adapter through `.agents/skills/`; the staged runner reads the dependency directly
+and records its actual commit. Memoir's adapter stays in
+[`experiments/novel-to-game`](experiments/novel-to-game/SKILL.md). Existing examples
+retain their original generation receipts. The active application generator and
+independently installed Higgsfield backup keep their current configuration.
+
 Run `make migrate` before starting the API and worker. Conversations use the canonical engine only, with fresh bounded model execution and transactional publication fences. Old Codex homes are not imported or resumed.
 
 Artifact snapshots now use `agent/<root>/turns/<lease UUID>/<relative path>`.

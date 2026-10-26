@@ -1,0 +1,277 @@
+{
+  "initial": {
+    "selector": "#intro-title",
+    "text": "A small repair, a second look"
+  },
+  "steps": [
+    {
+      "action": "click",
+      "selector": "#memory-open"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#memory-title",
+      "value": "Complete memory — ten chapters"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#memory-chapter-10 h3",
+      "value": "Planting beans after school finished"
+    },
+    {
+      "action": "press",
+      "selector": "#memory-close",
+      "value": "Enter"
+    },
+    {
+      "action": "click",
+      "selector": "#start"
+    },
+    {
+      "action": "press",
+      "selector": "#zone-middle",
+      "value": "Enter"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#zone-middle",
+      "attribute": "aria-pressed",
+      "value": "true",
+      "checkpoint": "input"
+    },
+    {
+      "action": "click",
+      "selector": "#observe"
+    },
+    {
+      "action": "click",
+      "selector": "#observe"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#evidence-middle",
+      "value": "Look 1: bubbles; look 2: bubbles return."
+    },
+    {
+      "action": "click",
+      "selector": "#mark"
+    },
+    {
+      "action": "click",
+      "selector": "#glue"
+    },
+    {
+      "action": "click",
+      "selector": "#press"
+    },
+    {
+      "action": "click",
+      "selector": "#test"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#feedback",
+      "value": "The edge curls: you pressed before the game preparation reached 2/2. Retry keeps your observations.",
+      "checkpoint": "coreLoop"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#app",
+      "attribute": "data-result",
+      "value": "curl"
+    },
+    {
+      "action": "click",
+      "selector": "#retry"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#evidence-middle",
+      "value": "Look 1: bubbles; look 2: bubbles return."
+    },
+    {
+      "action": "click",
+      "selector": "#zone-middle"
+    },
+    {
+      "action": "click",
+      "selector": "#mark"
+    },
+    {
+      "action": "click",
+      "selector": "#glue"
+    },
+    {
+      "action": "click",
+      "selector": "#wait"
+    },
+    {
+      "action": "click",
+      "selector": "#wait"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#preparation",
+      "value": "Preparation 2/2 — ready to press."
+    },
+    {
+      "action": "click",
+      "selector": "#press"
+    },
+    {
+      "action": "click",
+      "selector": "#test"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#feedback",
+      "value": "Flat and sealed: the patch covers the leak and its edge stays down in this game."
+    },
+    {
+      "action": "click",
+      "selector": "#continue"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#app",
+      "attribute": "data-exercise",
+      "value": "independent"
+    },
+    {
+      "action": "click",
+      "selector": "#zone-middle"
+    },
+    {
+      "action": "click",
+      "selector": "#observe"
+    },
+    {
+      "action": "click",
+      "selector": "#observe"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#evidence-middle",
+      "value": "Look 1: bubbles; look 2: clear."
+    },
+    {
+      "action": "click",
+      "selector": "#mark"
+    },
+    {
+      "action": "click",
+      "selector": "#glue"
+    },
+    {
+      "action": "click",
+      "selector": "#wait"
+    },
+    {
+      "action": "click",
+      "selector": "#wait"
+    },
+    {
+      "action": "click",
+      "selector": "#press"
+    },
+    {
+      "action": "click",
+      "selector": "#test"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#feedback",
+      "value": "Bubbles remain: the patch missed the leak. Retry keeps your observations."
+    },
+    {
+      "action": "click",
+      "selector": "#retry"
+    },
+    {
+      "action": "click",
+      "selector": "#zone-left"
+    },
+    {
+      "action": "click",
+      "selector": "#observe"
+    },
+    {
+      "action": "click",
+      "selector": "#observe"
+    },
+    {
+      "action": "click",
+      "selector": "#mark"
+    },
+    {
+      "action": "click",
+      "selector": "#glue"
+    },
+    {
+      "action": "click",
+      "selector": "#wait"
+    },
+    {
+      "action": "click",
+      "selector": "#wait"
+    },
+    {
+      "action": "click",
+      "selector": "#press"
+    },
+    {
+      "action": "click",
+      "selector": "#test"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#feedback",
+      "value": "Flat and sealed: the patch covers the leak and its edge stays down in this game."
+    },
+    {
+      "action": "click",
+      "selector": "#continue"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#outcome-title",
+      "value": "Practice complete — two flat patches",
+      "checkpoint": "outcome"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#outcome-stats",
+      "value": "4 practice tests across two tubes. Faults encountered in game practice: a curled edge and a missed leak."
+    },
+    {
+      "action": "click",
+      "selector": "#restart"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#app",
+      "attribute": "data-screen",
+      "value": "intro"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#app",
+      "attribute": "data-exercise",
+      "value": "guided"
+    },
+    {
+      "action": "assert_attr",
+      "selector": "#app",
+      "attribute": "data-result",
+      "value": "none"
+    },
+    {
+      "action": "assert_text",
+      "selector": "#intro-title",
+      "value": "A small repair, a second look",
+      "checkpoint": "restart"
+    }
+  ],
+  "terminal": "Practice complete — two flat patches",
+  "restart": "initial-state"
+}

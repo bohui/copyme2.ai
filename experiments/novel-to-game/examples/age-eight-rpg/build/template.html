@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Blue Gate — fictional example</title>
+<link rel="stylesheet" href="game.css">
+<script src="game.js" defer></script>
+</head>
+<body>
+<header><span class="badge">Fictional example</span><h1>The Blue Gate</h1><p>A wholly fictional memoir of being eight in Hobart. Figures and scenery are generic.</p></header>
+<main id="game" data-scene="hub" data-player-x="80" data-camera-x="0" data-count="0" data-phase="exploring">
+<div class="toolbar"><h2 id="scene-name">Blue-gate junction</h2><button id="full-text" data-action="open-source" aria-controls="full-source">All ten passages</button></div>
+<p class="note">Memory paths, not dates. These routes are not a street map.</p>
+<div class="hud"><p id="progress" role="status">0 / 10 memories explored</p><p id="position">Author 80 · Camera 0</p></div>
+<div id="viewport" tabindex="0" role="region" aria-label="Explore as the eight-year-old author" aria-describedby="controls-help nearby">
+<div id="world" aria-hidden="true">
+<div class="scene" id="scene-hub">
+<i class="at house" style="--x:230"></i><i class="at gate" style="--x:160"></i><i class="at tree" style="--x:310"></i>
+<div class="target memory edge-left" data-x="80" data-memory="arrival" data-nearby="true"><span>Moving in</span></div>
+<div class="target portal" data-x="400" data-to="school"><span>School path →</span></div>
+<div class="target portal" data-x="800" data-to="shed"><span>Shed →</span></div>
+<div class="target portal" data-x="1200" data-to="outings"><span>Outings →</span></div>
+<div class="target portal edge-right" data-x="1840" data-to="garden" data-required-count="9" data-locked="true"><span>Garden · explore 9 first</span></div>
+</div>
+<div class="scene" id="scene-school">
+<i class="at bridge" style="--x:270"></i><i class="at window" data-x="800"></i><i class="at wall" data-x="1200"></i><i class="at sun" data-x="1600"></i>
+<div class="target portal edge-left" data-x="80" data-to="hub" data-return-x="400"><span>← Junction</span></div>
+<div class="target memory" data-x="400" data-memory="first-day"><span>Dad · first school day</span></div>
+<div class="target memory" data-x="800" data-memory="reading"><span>Mrs Harris · reading</span></div>
+<div class="target memory" data-x="1200" data-memory="lunch"><span>Sam · lunch wall</span></div>
+<div class="target memory" data-x="1600" data-memory="play"><span>Hall · tree and sun</span></div>
+<div class="target portal edge-right" data-x="1840" data-to="hub" data-return-x="400"><span>Junction →</span></div>
+</div>
+<div class="scene" id="scene-shed">
+<i class="at tin" style="--x:340"></i><i class="at basin" data-x="400"></i>
+<div class="target portal edge-left" data-x="80" data-to="hub" data-return-x="800"><span>← Junction</span></div>
+<div class="target memory" data-x="400" data-memory="tyre"><span>Dad · tyre lessons</span></div>
+<div class="target portal edge-right" data-x="1840" data-to="hub" data-return-x="800"><span>Junction →</span></div>
+</div>
+<div class="scene" id="scene-outings">
+<i class="at stall" data-x="400"></i><i class="at books" data-x="800"></i><i class="at chair" data-x="1200"></i>
+<div class="target portal edge-left" data-x="80" data-to="hub" data-return-x="1200"><span>← Junction</span></div>
+<div class="target memory" data-x="400" data-memory="market"><span>Mum · market</span></div>
+<div class="target memory" data-x="800" data-memory="library"><span>Mr Lee · library card</span></div>
+<div class="target memory" data-x="1200" data-memory="grandma"><span>Grandma · two nights</span></div>
+<div class="target portal edge-right" data-x="1840" data-to="hub" data-return-x="1200"><span>Junction →</span></div>
+</div>
+<div class="scene" id="scene-garden">
+<i class="at fence" data-x="800"></i><i class="at sprout" data-x="400"></i>
+<div class="target portal edge-left" data-x="80" data-to="hub" data-return-x="1840"><span>← Blue gate</span></div>
+<div class="target memory" data-x="400" data-memory="beans"><span>Beans beside the fence</span></div>
+<div class="target portal edge-right" data-x="1840" data-action="next-morning" data-required-memory="beans" data-locked="true"><span>Next-morning memory →</span></div>
+</div>
+<div id="player" data-moving="false" data-facing="right"><i class="feet"></i></div>
+</div>
+</div>
+<p id="nearby" role="status" aria-atomic="true">Nearby: moving-in memory.</p>
+<p id="controls-help">Walk: ← → or A / D. Read or travel: E / Enter. Close reading: Esc.</p>
+<div class="controls" aria-label="Movement and interaction controls">
+<button id="left" data-action="move" data-direction="-1" data-key="ArrowLeft" aria-label="Move left">← Left</button>
+<button id="interact" data-action="interact" data-key="Enter" data-target="arrival">Read memory</button>
+<button id="right" data-action="move" data-direction="1" data-key="ArrowRight" aria-label="Move right">Right →</button>
+</div>
+<p class="note layout-note">Layout preview: movement, interaction and passage loading are not connected yet.</p>
+</main>
+<dialog id="dialogue" aria-labelledby="dialogue-title">
+<div class="dialog-head"><h2 id="dialogue-title">Memory</h2><button id="close" data-action="close-memory">Close · Esc</button></div>
+<div class="scroll" tabindex="0"><p id="memory-text" class="passage">The complete original passage will appear here when reading is connected.</p></div>
+<p class="note">Closing an inspected memory credits exploration, not a changed past.</p>
+</dialog>
+<dialog id="full-source" aria-labelledby="source-title">
+<div class="dialog-head"><h2 id="source-title">All ten memories</h2><button id="source-close" data-action="close-source">Close · Esc</button></div>
+<p>Complete original passages. Reading here does not change exploration progress.</p>
+<div id="source-passages" class="scroll" tabindex="0"><p>Original passages will be loaded here when reading is connected.</p></div>
+</dialog>
+<template id="source-entry"><section class="source-entry"><h3></h3><p class="passage"></p></section></template>
+<dialog id="ending" aria-labelledby="ending-title">
+<h2 id="ending-title">Journey complete — The Blue Gate</h2>
+<div class="drawing" aria-hidden="true"><i class="sprout"></i></div>
+<p>All ten memories explored. The remembered outcomes remain as told.</p>
+<p>Exploration order is not a timeline.</p>
+<button id="restart" data-action="restart">Return to the blue gate</button>
+</dialog>
+<!-- MEMOIR_SOURCE -->
+</body>
+</html>

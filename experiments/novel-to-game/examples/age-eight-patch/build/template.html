@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A Patch That Stays — Fictional example</title>
+  <link rel="stylesheet" href="game.css">
+  <script src="game.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div><p class="eyebrow">Fictional example · Game practice</p><h1>A Patch That Stays</h1></div>
+    <button id="memory-open" data-action="memory-open" type="button">Read all ten memories</button>
+  </header>
+  <main id="app" data-screen="intro" data-exercise="guided" data-result="none">
+    <section id="intro" aria-labelledby="intro-title">
+      <h2 id="intro-title" tabindex="-1">A small repair, a second look</h2>
+      <p>I was eight when we moved to a rented house in Hobart with a blue wooden gate. On my first day at the new school, Dad walked with me across a little footbridge. These are memories of that year, not a dated itinerary.</p>
+      <p>Revisit the tyre lesson through two small <strong>game exercises</strong>. Compare bubble evidence, choose a chalk mark, prepare a patch and test it. You can revise a failed attempt without losing your observations.</p>
+      <aside class="context">
+        <h3>Help I remember</h3>
+        <p>Mrs Harris used cardboard to help me keep my place while reading. In the play, her gesture towards the painted sun helped me continue. I do not remember whether the completed reading page came before or after the play, nor the words of my line.</p>
+      </aside>
+      <p>The layouts and preparation turns are invented game rules, not extra Saturdays or real repair instructions. Your results cannot change the remembered lesson.</p>
+      <p class="muted">Two exercises · about 3–5 minutes · no timer. Tap or click buttons, or use Tab and Enter/Space. No dragging is needed.</p>
+      <button id="start" data-action="start" type="button">Start practice</button>
+    </section>
+
+    <section id="workspace" aria-labelledby="exercise-title" hidden>
+      <div class="section-head"><h2 id="exercise-title" tabindex="-1">1 of 2 — Guided game tube</h2><p id="test-count">0 practice tests</p></div>
+      <aside id="other-memories" class="context" hidden>
+        <h3>Other memories — not an itinerary</h3>
+        <p>Sam and I compared bottle-top colours; we were classmates, both eight. I liked reading the market list for Mum, but cannot remember whether I recovered the dropped coin. At the library I chose a book with bird drawings. I cannot place that visit in relation to meeting Sam or beginning reading practice.</p>
+      </aside>
+      <p id="objective">Find a continuing leak, then make a flat, sealed practice patch.</p>
+      <div class="workbench">
+        <div class="tin" role="img" aria-label="Illustration of a blue biscuit tin">Blue biscuit tin</div>
+        <fieldset id="basin" aria-describedby="basin-help">
+          <legend>Basin and inner tube — choose a region</legend>
+          <button id="zone-left" class="zone" type="button" data-zone="left" aria-pressed="false"><strong>Left</strong><span class="tube" aria-hidden="true"><span class="bubbles"></span></span><span id="evidence-left" class="evidence">Not observed.</span></button>
+          <button id="zone-middle" class="zone" type="button" data-zone="middle" aria-pressed="false"><strong>Middle</strong><span class="tube" aria-hidden="true"><span class="bubbles"></span></span><span id="evidence-middle" class="evidence">Not observed.</span></button>
+          <button id="zone-right" class="zone" type="button" data-zone="right" aria-pressed="false"><strong>Right</strong><span class="tube" aria-hidden="true"><span class="bubbles"></span></span><span id="evidence-right" class="evidence">Not observed.</span></button>
+        </fieldset>
+        <p id="basin-help">In this game, returning bubbles on a second observation indicate the leak. Surface bubbles clear on the second look; a clear region stays clear. Select a region, then use Observe to gather evidence.</p>
+      </div>
+      <div class="preparation"><label for="prep">Game preparation</label><meter id="prep" min="0" max="2" value="0" aria-describedby="preparation turn-rule">0 of 2</meter><p id="preparation">Preparation — apply glue first.</p></div>
+      <p id="turn-rule" class="muted">Two deliberate Wait turns reach readiness. These are game turns, not seconds or remembered drying times. Pressing early is allowed, but locks the current preparation.</p>
+      <div class="actions" role="group" aria-label="Repair actions">
+        <button id="observe" data-action="observe" type="button">Observe<small>Selected region · before glue</small></button>
+        <button id="mark" data-action="mark" type="button">Mark with chalk<small>Observed region · before glue</small></button>
+        <button id="glue" data-action="glue" type="button">Apply glue<small>Requires a chalk mark</small></button>
+        <button id="wait" data-action="wait" type="button">Wait one turn<small>With glue · before pressing</small></button>
+        <button id="press" data-action="press" type="button">Press patch<small>With glue · locks preparation</small></button>
+        <button id="test" data-action="test" type="button">Test patch<small>Requires a pressed patch</small></button>
+      </div>
+      <p id="feedback" role="status" aria-live="polite" aria-atomic="true">Select a region, then observe.</p>
+      <div class="result-actions">
+        <button id="retry" data-action="retry" type="button" hidden>Retry this game tube</button>
+        <button id="continue" data-action="continue" type="button" hidden>Continue to independent tube</button>
+      </div>
+      <aside id="memory-anchor" class="context">
+        <h3>The remembered lesson stays fixed</h3>
+        <p>Dad taught me in the shed behind our rented house, with tools in a blue biscuit tin. The first patch lifted at one edge. We tried again on another Saturday; eventually a patch stayed flat. I cannot remember the month.</p>
+      </aside>
+    </section>
+
+    <section id="ending" aria-labelledby="outcome-title" hidden>
+      <p class="eyebrow">Game practice complete</p>
+      <h2 id="outcome-title" tabindex="-1">Practice complete — two flat patches</h2>
+      <div class="paired" aria-hidden="true"><div><p>Guided tube</p><span class="flat-tube"></span></div><div><p>Independent tube</p><span class="flat-tube"></span></div></div>
+      <p id="outcome-stats"></p>
+      <p>Those are game results. In my memory, the first patch still lifted, and a later patch stayed flat after repeated lessons.</p>
+      <aside class="context">
+        <h3>What I remember beyond the shed</h3>
+        <p>During our two-night stay with Grandma in the heavy rain, Mum checked home and told me my drawings were dry. After the school year ended, and after both the play and that stay, I planted beans with Mum. A seedling opened by the next morning after she asked me to leave it alone. I drew it in a book that had stayed dry.</p>
+        <p>These memories are not rewards caused by a repair.</p>
+      </aside>
+      <button id="restart" data-action="restart" type="button">Restart</button>
+    </section>
+  </main>
+
+  <dialog id="memory" aria-labelledby="memory-title">
+    <div class="memory-bar"><h2 id="memory-title">Complete memory — ten chapters</h2><button id="memory-close" data-action="memory-close" type="button">Close memory</button></div>
+    <p class="muted">The unchanged fictional memory text. Chapter order is not a complete chronology. Closing this view keeps your game practice where you left it.</p>
+    <div id="memory-passages" tabindex="0" aria-label="All ten memory chapters"></div>
+  </dialog>
+  <!-- MEMOIR_SOURCE -->
+</body>
+</html>
