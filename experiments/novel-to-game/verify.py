@@ -7,6 +7,7 @@ from pathlib import Path
 import platform
 import sys
 import threading
+import time
 from uuid import uuid4
 
 from playwright.sync_api import sync_playwright, expect
@@ -120,6 +121,24 @@ def verify(stage, phone=False):
                     current_check = next((k for k in CHECKS[2:] if checks[k] == 'NOT_RUN'), 'restart')
                     if action == 'hold':
                         duration = hold_duration(step)
+                        target = step.get('target_x')
+                        if target is not None:
+                            assert linear and type(target) is int, 'target_x requires a host-owned journey coordinate'
+                        start_x = int(page.locator('#game').get_attribute('data-x')) if target is not None else None
+
+                        def wait_for_movement():
+                            if target is None:
+                                page.wait_for_timeout(duration)
+                                return
+                            direction = 1 if target >= start_x else -1
+                            deadline = time.monotonic() + duration / 1000
+                            while time.monotonic() < deadline:
+                                current_x = int(page.locator('#game').get_attribute('data-x'))
+                                if abs(current_x - target) <= 20 or direction * (current_x - target) >= 0:
+                                    return
+                                page.wait_for_timeout(12)
+                            raise AssertionError('Ordinary input did not reach target_x')
+
                         if phone:
                             locator.scroll_into_view_if_needed()
                             box = locator.bounding_box()
@@ -128,12 +147,19 @@ def verify(stage, phone=False):
                             session.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [
                                 {'x': box['x'] + box['width']/2, 'y': box['y'] + box['height']/2}]})
                             try:
-                                page.wait_for_timeout(duration)
+                                wait_for_movement()
                             finally:
                                 session.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
                                 session.detach()
-                        else:
+                        elif target is None:
                             locator.press(step['value'], delay=duration)
+                        else:
+                            locator.focus()
+                            page.keyboard.down(step['value'])
+                            try:
+                                wait_for_movement()
+                            finally:
+                                page.keyboard.up(step['value'])
                     elif action == 'press':
                         locator.press(step['value'])
                     elif phone:
@@ -150,8 +176,12 @@ def verify(stage, phone=False):
                 if linear:
                     x = int(page.locator('#game').get_attribute('data-x'))
                     camera = int(page.locator('#game').get_attribute('data-camera'))
-                    if not (action == 'click' and step['selector'] == '#restart'):
-                        assert x >= previous_x and camera >= previous_camera, 'Journey jumped backwards or returned to a hub'
+                    total = json.loads((HERE/'build/journey.json').read_text())['segments'][-1]['end']
+                    assert 40 <= x <= total - 40, 'Player left the continuous route'
+                    assert camera == max(0, min(x - 240, total - 640)), 'Camera reset instead of following the player'
+                    if action == 'hold':
+                        direction = int(locator.get_attribute('data-move'))
+                        assert direction * (x - previous_x) >= 0, 'Movement ignored its held direction'
                     previous_x, previous_camera = x, camera
                     if step.get('checkpoint') == 'coreLoop':
                         assert camera > 0 and page.locator('.scene-panel[data-visible=true]').count() > 0

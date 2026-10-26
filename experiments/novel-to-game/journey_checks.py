@@ -54,7 +54,10 @@ def run(workspace):
 
                 def walk_to(target, capture_blend=False):
                     positions, cameras, blends = [], [], []
-                    page.keyboard.down('ArrowRight')
+                    start = int(game.get_attribute('data-x'))
+                    direction = 1 if target >= start else -1
+                    key = 'ArrowRight' if direction > 0 else 'ArrowLeft'
+                    page.keyboard.down(key)
                     try:
                         for _ in range(280):
                             state = game.evaluate('(e)=>({x:Number(e.dataset.x),camera:Number(e.dataset.camera),transition:e.dataset.transition,mix:Number(e.dataset.blend),opacities:[...document.querySelectorAll(".scene-panel")].map(p=>Number(getComputedStyle(p).opacity))})')
@@ -66,19 +69,22 @@ def run(workspace):
                                 if not blends and width == 1280:
                                     page.screenshot(path=str(evidence / 'linear-transition.png'), full_page=True)
                                 blends.append(state)
-                            if state['x'] == target:
+                            if abs(state['x'] - target) <= 20 or direction * (state['x'] - target) >= 0:
                                 break
                             page.wait_for_timeout(25)
                         else:
-                            raise AssertionError('Forward movement did not reach its next memory')
+                            raise AssertionError('Walking did not reach the requested route position')
                     finally:
-                        page.keyboard.up('ArrowRight')
-                    assert positions == sorted(positions) and cameras == sorted(cameras)
+                        page.keyboard.up(key)
+                    assert positions == sorted(positions,reverse=direction<0) and cameras == sorted(cameras,reverse=direction<0)
                     if capture_blend:
                         assert blends, 'Normal-speed input never produced overlapping scene illustrations'
                     return len(blends)
 
+                walk_to(journey['stops'][0]['x'] + 140)
+                expect(game).to_have_attribute('data-visited', '0')
                 walk_to(journey['stops'][0]['x'])
+                expect(avatar).to_have_attribute('data-facing', 'left')
                 page.locator('#interact').click()
                 assert page.locator('#passage').text_content() == passages_by_id[journey['stops'][0]['chapter']]
                 paused_x = game.get_attribute('data-x')
@@ -96,6 +102,10 @@ def run(workspace):
                 page.locator('#continue').click()
                 expect(game).to_have_attribute('data-visited', '1')
                 page.keyboard.press('e')
+                expect(page.locator('#memory-dialog')).to_be_visible()
+                assert page.locator('#passage').text_content() == passages_by_id[journey['stops'][0]['chapter']]
+                page.locator('#continue').click()
+                expect(page.locator('#interact')).to_be_enabled()
                 expect(game).to_have_attribute('data-visited', '1')
                 first_segment = journey['stops'][0]['segment']
                 probe_end = next((i for i, s in enumerate(journey['stops']) if s['segment'] != first_segment), min(1, len(journey['stops']) - 1))
@@ -106,6 +116,15 @@ def run(workspace):
                     expect(avatar).to_have_attribute('data-avatar', segments[stop['segment']]['avatar'])
                     page.locator('#interact').click(); page.locator('#continue').click()
                     previous = stop
+                visited_before = game.get_attribute('data-visited')
+                reverse_blends = walk_to(journey['stops'][0]['x'], capture_blend=probe_end>0 and previous['segment']!=first_segment)
+                if probe_end > 0:
+                    expect(avatar).to_have_attribute('data-facing','left')
+                page.locator('#interact').click()
+                assert page.locator('#passage').text_content()==passages_by_id[journey['stops'][0]['chapter']]
+                page.locator('#continue').click()
+                expect(game).to_have_attribute('data-visited',visited_before)
+                walk_to(previous['x'])
                 if width == 1280:
                     # Asset probes change only a DOM preview; source-bound selection is tested separately.
                     for variant in pack_catalog()['variants']:
@@ -131,7 +150,8 @@ def run(workspace):
                 if width == 320:
                     page.screenshot(path=str(evidence / 'linear-320.png'), full_page=True)
                 result['observations'].append(dict(width=width, unchanged_passages=len(passages),
-                    monotonic_player_and_camera=True, normal_motion_blend_samples=blend_samples,
+                    bidirectional_player_and_camera=True, normal_motion_blend_samples=blend_samples,
+                    reverse_blend_samples=reverse_blends, passed_unread_memory=True, rereading_enabled=True,
                     reader_pause=True, no_duplicate_credit=True, opt_in_and_mute=True, reduced_motion_walk=True))
                 context.close()
             browser.close()

@@ -1,8 +1,8 @@
 ---
 name: memoir-novel-to-game
-description: Generate a continuous chronological Memoir RPG walk with NovelToGame, validated route plans, smooth illustrated transitions and reusable life-stage avatars.
+description: Generate a continuous chronological Memoir RPG path with NovelToGame, bidirectional walking, repeatable memories, smooth illustrated transitions and reusable life-stage avatars.
 metadata:
-  version: "0.3.0"
+  version: "0.4.0"
   status: experimental
 ---
 
@@ -14,8 +14,10 @@ installed Higgsfield builder remain available.
 
 ## Fixed game format
 
-Build **one continuous chronological walk**. The author moves forward through
-the supplied timeline, visiting each memory on that same path. Later visits to
+Build **one continuous chronological path**. The author can walk forward or
+backward and reread any nearby memory, including after completion. Keep the Read
+button available after a visit; progress counts each unique memory once. Arrange
+the supplied timeline along that same path. Later visits to
 the same place occur further right. Keep uncertain dates and ordering explicit.
 Illustrations pan within a place and blend smoothly into the next while the
 player, ground baseline and camera remain continuous. Keep keyboard/touch,
@@ -27,7 +29,8 @@ art, build and QA. Read the [journey policy](journey-policy.md) before concept o
 design. The [adapter](adapter.md), structured `format_contract` and host-owned
 `runtime/` enforce this format across future generations. Models supply the route,
 art plan and styling; the host owns movement, scene blending, HTML, JavaScript and
-replay. Use one global increasing position, without hub trips or travel portals.
+replay. Use continuous global coordinates in either direction, without hub trips
+or travel portals. Chronology controls the layout, not the user's reading order.
 
 ## Stage workflow
 
@@ -101,12 +104,12 @@ are reused, so only missing scene illustrations incur image-generation calls.
 
 For a runnable candidate, run `verify.py --output <workspace> --stage production`
 and repeat with `--phone`. The replay must demonstrate player movement, camera
-movement, continuous travel between settings, ordered reading, progress, ending
-and restart. Verify monotonic player/camera positions, smooth overlap in normal
+movement in both directions, continuous travel between settings, rereading, progress, ending
+and restart. Verify bounded player/camera positions, reversible smooth overlap in normal
 motion and stable reduced-motion scenery. Host runtime files must match their
 reviewed bytes; model outputs cannot replace them.
 Run `journey_checks.py --output <workspace>` for independent normal-speed blend,
-monotonic movement, source, reader pause, avatar-family and opt-in audio probes.
+backtracking/rereading, source, reader pause, avatar-family and opt-in audio probes.
 Add independent probes for passage fidelity, revisit/full-text credit, movement
 bounds, locked areas, focus, 320px layout and offline assets. `extra_checks.py`
 targets the archived first RPG's selectors and state; adapt these probes to the

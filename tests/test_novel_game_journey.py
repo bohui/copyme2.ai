@@ -95,8 +95,16 @@ def test_materialisation_preserves_source_owns_runtime_and_makes_real_input_repl
     replay = json.loads((tmp_path / 'build/playthrough.json').read_text())
     assert len(replay['steps']) <= 100
     assert [s['checkpoint'] for s in replay['steps'] if 'checkpoint' in s] == ['input', 'coreLoop', 'outcome', 'restart']
-    assert all(s['selector'] == '#right' and 50 <= s['duration_ms'] <= 5000 for s in replay['steps'] if s['action'] == 'hold')
-    assert sum(s['selector'] == '#passage' for s in replay['steps']) == 10
+    movements=[s for s in replay['steps'] if s['action']=='hold']
+    assert {s['selector'] for s in movements} == {'#left','#right'}
+    assert all(50 <= s['duration_ms'] <= 5000 and type(s['target_x']) is int for s in movements)
+    readings=[s['value'] for s in replay['steps'] if s['selector']=='#passage']
+    assert set(readings)=={c['text'] for c in public['chapters']}
+    assert readings.count(public['chapters'][0]['text'])>=2
+    assert readings.count(public['chapters'][-1]['text'])>=2
+    outcome=next(i for i,s in enumerate(replay['steps']) if s.get('checkpoint')=='outcome')
+    assert any(s['selector']=='#left' for s in replay['steps'][outcome+1:])
+    assert any(s['selector']=='#passage' for s in replay['steps'][outcome+1:])
 
 
 def test_builder_gets_runtime_fingerprint_and_cannot_replace_html_or_movement(tmp_path):

@@ -6,9 +6,11 @@ ten composer chapters and ten canonical timeline events.
 
 ## Locked experience
 
-One continuous chronological RPG side-scrolling memoir journey. Walk forward
-through the supplied timeline; preserve uncertain ordering within the year.
-Approach each memory on that same path, pause to read, then keep moving right.
+One continuous chronological RPG side-scrolling memoir path. Walk forward or
+backward through the timeline's layout; preserve uncertain ordering within the
+year. Approach any memory, pause to read, and revisit it as often as desired.
+Read/Read again stays available after a visit and after completion. Count each
+memory once, with no restriction on reading order or passing an unread marker.
 Illustrations pan and blend between places with a stable ground/player baseline.
 Later visits occur further along the stream. Keep progress, source view, ending
 and restart. The host owns the runtime; models provide a validated route and style.

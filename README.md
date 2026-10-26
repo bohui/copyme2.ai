@@ -672,7 +672,7 @@ and records its actual commit. Memoir's adapter stays in
 [`experiments/novel-to-game`](experiments/novel-to-game/SKILL.md). Existing examples
 retain their original generation receipts. The active application generator and
 independently installed Higgsfield backup keep their current configuration.
-The adapter validates one chronological forward route and uses a shared runtime
+The adapter validates one chronological route with bidirectional walking and repeatable memories and uses a shared runtime
 for movement, illustrated scene blending, reading and restart. Models supply
 route data, scene-art requests and styling; reusable avatars follow approved
 life-stage and profession metadata. New approved composer/timeline inputs use

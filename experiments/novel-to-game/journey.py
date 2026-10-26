@@ -113,28 +113,43 @@ def inert_json(value):
 def playthrough(plan, source):
     steps, x = [], 80
     chapters = {c['id']: c for c in source['chapters']}
+    def travel(target):
+        nonlocal x
+        while x != target:
+            direction = 1 if target > x else -1
+            end = x + direction * min(1800, abs(target - x))
+            steps.append(dict(action='hold', selector='#right' if direction > 0 else '#left', value='Enter',
+                duration_ms=math.ceil(abs(end - x) / 560 * 1000) + 500, target_x=end))
+            x = end
+
+    def read_memory(chapter, count):
+        steps.extend([dict(action='click', selector='#interact'),
+            dict(action='assert_text', selector='#passage', value=chapters[chapter]['text']),
+            dict(action='click', selector='#continue'),
+            dict(action='assert_attr', selector='#game', attribute='data-visited', value=str(count))])
+
     for index, stop in enumerate(plan['stops']):
-        duration = math.ceil((stop['x'] - x) / 560 * 1000) + 400
-        while duration > 0:
-            hold = min(5000, duration)
-            steps.append(dict(action='hold', selector='#right', value='Enter', duration_ms=hold))
-            duration -= hold
-        assertion = dict(action='assert_attr', selector='#game', attribute='data-x', value=str(stop['x']))
+        travel(stop['x'])
+        assertion = dict(action='assert_attr', selector='#game', attribute='data-near', value=stop['chapter'])
         if index == 0:
             assertion['checkpoint'] = 'input'
         elif index == 1:
             assertion['checkpoint'] = 'coreLoop'
         steps.append(assertion)
         if len(plan['stops']) == 1:
-            camera=max(0,min(stop['x']-240,plan['segments'][-1]['end']-640))
-            steps.append(dict(action='assert_attr',selector='#game',attribute='data-camera',value=str(camera),checkpoint='coreLoop'))
-        steps.extend([dict(action='click', selector='#interact'),
-            dict(action='assert_text', selector='#passage', value=chapters[stop['chapter']]['text']),
-            dict(action='click', selector='#continue'),
-            dict(action='assert_attr', selector='#game', attribute='data-visited', value=str(index + 1))])
-        x = stop['x']
-    steps.extend([dict(action='assert_attr', selector='#game', attribute='data-phase', value='complete', checkpoint='outcome'),
-        dict(action='click', selector='#restart'),
+            steps.append(dict(action='assert_attr',selector='#game',attribute='data-segment',value=stop['segment'],checkpoint='coreLoop'))
+        read_memory(stop['chapter'], index + 1)
+        if index == 1:
+            travel(plan['stops'][0]['x'])
+            read_memory(plan['stops'][0]['chapter'], 2)
+    steps.append(dict(action='assert_attr', selector='#game', attribute='data-phase', value='complete', checkpoint='outcome'))
+    last=plan['stops'][-1]
+    read_memory(last['chapter'], len(plan['stops']))
+    travel(last['x'] - 100)
+    steps.append(dict(action='assert_attr',selector='#player',attribute='data-facing',value='left'))
+    travel(last['x'])
+    read_memory(last['chapter'], len(plan['stops']))
+    steps.extend([dict(action='click', selector='#restart'),
         dict(action='assert_attr', selector='#game', attribute='data-x', value='80', checkpoint='restart')])
     if len(steps) > max(100, 7 * len(plan['stops']) + 20):
         raise ValueError('Replay exceeds the route-sized input budget; reduce traversal distance')
@@ -191,4 +206,4 @@ if __name__ == '__main__':
         fictional=packet.get('fictional',benchmark),chapters=[dict(id='C'+str(i+1),title=events[c['chapter_id']]['title'],
         text='\n\n'.join(b['text'] for b in c['blocks'])) for i,c in enumerate(packet['chapters'])])
     materialise(args.output, packet, source, require_art=args.require_art)
-    print(json.dumps(dict(status='READY', runtime='memoir-linear-v1', memories=len(plan['stops']))))
+    print(json.dumps(dict(status='READY', runtime='memoir-linear-v2', memories=len(plan['stops']))))

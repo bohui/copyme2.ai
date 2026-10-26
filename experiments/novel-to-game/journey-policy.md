@@ -1,7 +1,7 @@
 # One continuous chronological walk
 
-Generate one RPG side-scrolling stream. The author walks forward to memories in
-the supplied timeline order. Place later visits to the same place further along
+Generate one RPG side-scrolling stream. Arrange memories in the supplied timeline
+order; the author can walk forward or backward and read in any order. Place later visits to the same place further along
 the stream. Preserve uncertain dates and ordering within a life stage; the walk is
 an editorial sequence through memories, not an invented dated itinerary.
 
@@ -47,18 +47,21 @@ when that outfit is unavailable at an age, retain its age-appropriate casual
 avatar. A parent's occupation or an activity does not establish the author's job.
 The fictional age-eight benchmark keeps its child avatar throughout.
 
-The runtime provides a global increasing position/camera, forward keyboard/touch
-input, proximity reading, reading pauses, progress, full source view, ending and
-restart. It holds at the next unread memory, so a reader can keep moving forward
-without needing to return for a missed passage. All places lie on that one path;
+The runtime provides continuous player/camera coordinates, both-direction
+keyboard/touch movement, proximity reading, reading pauses, progress, full source
+view, ending and restart. Every nearby memory can be read repeatedly, including
+after completion. Keep its Read/Read again control enabled while nearby; visited
+state never disables it. Count each memory once for progress. Allow passing an
+unread marker and returning later. All places lie on that one path;
 travel menus, hub returns, portals and coordinate resets do not belong in the plan.
 
 Illustrations pan within a place and blend across the segment boundary as the
 player walks. Match adjacent images' ground, perspective, scale and light. Reuse
 the same illustrated strip for connected places such as market and library.
 Keep the player, foreground baseline and camera continuous during transitions.
-Reduced motion keeps forward travel and uses stable scenery with direct changes.
+Reduced motion keeps movement in both directions and uses stable scenery with direct changes.
 
-Verify actual positive progress across boundaries, overlapping images in normal
-motion, age/outfit selection, all original passages, touch/keyboard, reading pause,
-ending and complete restart. Generated plans and model text are not QA evidence.
+Verify walking both ways across boundaries, reversible illustration blends,
+repeat reading before and after completion without extra progress, age/outfit
+selection, all original passages, touch/keyboard, reading pause and complete
+restart. Generated plans and model text are not QA evidence.

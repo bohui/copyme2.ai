@@ -1,11 +1,11 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
-  const game = $('game'), player = $('player'), forward = $('right'), read = $('interact');
+  const game = $('game'), player = $('player'), forward = $('right'), backward = $('left'), read = $('interact');
   const plan = JSON.parse($('memoir-journey').textContent);
   const source = JSON.parse($('memoir-source').textContent);
   const chapters = new Map(source.chapters.map(c => [c.id, c]));
-  const visited = new Set(), held = new Set(), panels = [], markers = [];
+  const visited = new Set(), held = new Map(), panels = [], markers = [];
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const ns = 'http://www.w3.org/2000/svg';
   const clamp = (n, a, b) => Math.max(a, Math.min(b, n));
@@ -58,16 +58,18 @@
   });
 
   const nextStop = () => plan.stops.find(s => !visited.has(s.chapter));
+  const nearestStop = () => plan.stops.reduce((near, stop) => Math.abs(stop.x - x) <= 65 && (!near || Math.abs(stop.x - x) < Math.abs(near.x - x)) ? stop : near, null);
+  const direction = () => Number([...held.values()].includes(1)) - Number([...held.values()].includes(-1));
   function stopMoving() { held.clear(); last = null; player.dataset.moving = 'false'; game.dataset.moving = 'false'; }
   function render() {
     const segmentIndex = Math.max(0, plan.segments.findLastIndex(s => x >= s.start));
     const segment = plan.segments[segmentIndex], total = plan.segments.at(-1).end;
-    const camera = clamp(x - 240, 0, total - 640), stop = nextStop();
+    const camera = clamp(x - 240, 0, total - 640), stop = nearestStop();
     game.style.setProperty('--x', String(x)); game.style.setProperty('--camera', String(camera));
     game.dataset.x = String(Math.round(x)); game.dataset.camera = String(Math.round(camera));
     game.dataset.scene = segment.scene; game.dataset.segment = segment.id;
-    game.dataset.visited = String(visited.size); game.dataset.phase = finished ? 'complete' : modal ? 'reading' : 'explore';
-    game.dataset.next = stop ? stop.chapter : 'none';
+    game.dataset.visited = String(visited.size); game.dataset.phase = modal ? 'reading' : finished ? 'complete' : 'explore';
+    game.dataset.next = nextStop()?.chapter || 'none'; game.dataset.near = stop ? stop.chapter : 'none';
     $('scene-name').textContent = segment.title;
     $('stage-label').textContent = segment.age_label + (segment.profession ? ' · ' + segment.profession : '');
     player.dataset.avatar = segment.avatar;
@@ -96,11 +98,12 @@
       marker.dataset.nearby = String(stop === plan.stops[i] && Math.abs(stop.x - x) <= 65);
     });
     const near = stop && Math.abs(stop.x - x) <= 65;
-    read.disabled = !near || !!modal || finished;
-    forward.disabled = !!modal || finished;
+    read.disabled = !near || !!modal;
+    read.textContent = stop && visited.has(stop.chapter) ? 'Read again' : 'Read memory';
+    forward.disabled = backward.disabled = !!modal;
     $('full-text').disabled = !!modal;
     $('ending').hidden = !finished;
-    $('nearby').textContent = modal ? 'Reading pauses the walk. Continue whenever you are ready.' : finished ? 'Every memory visited. Your journey is complete.' : near ? 'You have reached a memory. Read it, then continue forward.' : 'Keep walking forward. The next memory is waiting along the path.';
+    $('nearby').textContent = modal ? 'Reading pauses the walk. Continue whenever you are ready.' : near ? visited.has(stop.chapter) ? 'You can read this memory again, or keep exploring in either direction.' : 'You have reached a memory. Read it whenever you like.' : finished ? 'Every memory visited. Keep exploring in either direction or restart your journey.' : 'Walk in either direction and approach a memory marker to read.';
   }
   function open(dialog) {
     if (modal) return;
@@ -112,14 +115,15 @@
     if (!modal) return;
     const dialog = modal; modal = null;
     if (dialog === $('memory-dialog') && current) { visited.add(current); current = null; }
-    if (visited.size === plan.stops.length) finished = true;
+    const justCompleted = !finished && visited.size === plan.stops.length;
+    if (justCompleted) finished = true;
     stopMoving(); dialog.close(); render();
-    const target = finished ? $('restart') : focusBack && !focusBack.disabled ? focusBack : game;
+    const target = justCompleted ? $('restart') : focusBack && !focusBack.disabled ? focusBack : game;
     target.focus({preventScroll:true}); focusBack = null;
   }
   function interact() {
-    const stop = nextStop();
-    if (modal || finished || !stop || Math.abs(stop.x - x) > 65) return;
+    const stop = nearestStop();
+    if (modal || !stop) return;
     current = stop.chapter;
     $('memory-title').textContent = chapters.get(current).title;
     $('passage').textContent = chapters.get(current).text;
@@ -128,41 +132,47 @@
     if (musicEnabled) { cue.currentTime = 0; cue.play().catch(() => {}); }
   }
   function move(distance) {
-    if (modal || finished || distance <= 0) return;
-    const target = nextStop();
-    const next = Math.min(x + distance, target ? target.x : x);
-    const moving = next > x; x = next;
+    if (modal || distance === 0) { player.dataset.moving = game.dataset.moving = 'false'; return; }
+    const next = clamp(x + distance, 40, plan.segments.at(-1).end - 40);
+    const moving = next !== x; x = next;
+    player.dataset.facing = distance < 0 ? 'left' : 'right';
     player.dataset.moving = String(moving); game.dataset.moving = String(moving); render();
   }
   function reset() {
     if (modal) { const d = modal; modal = null; d.close(); }
     stopMoving(); visited.clear(); x = 80; current = null; finished = false; focusBack = null;
+    player.dataset.facing = 'right';
     $('passage').textContent = ''; render(); game.focus({preventScroll:true});
   }
   document.addEventListener('keydown', event => {
     if (event.ctrlKey || event.metaKey || event.altKey || event.defaultPrevented) return;
     if (modal) { if (event.key === 'Escape') { event.preventDefault(); close(); } return; }
-    if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd' || event.target === forward && ['Enter',' '].includes(event.key)) {
-      event.preventDefault(); if (!event.repeat) held.add(event.code || event.key);
+    const button = event.target instanceof Element ? event.target.closest('button[data-move]') : null;
+    let dir = ['ArrowLeft','a','A'].includes(event.key) ? -1 : ['ArrowRight','d','D'].includes(event.key) ? 1 : 0;
+    if (button && ['Enter',' '].includes(event.key)) dir = Number(button.dataset.move);
+    if (dir) {
+      event.preventDefault(); if (!event.repeat) held.set(event.code || event.key, dir);
     } else if (event.key.toLowerCase() === 'e') { event.preventDefault(); if (!event.repeat) interact(); }
   });
   document.addEventListener('keyup', event => { held.delete(event.code || event.key); if (!held.size) stopMoving(); });
-  forward.addEventListener('pointerdown', event => {
-    if (modal || finished || event.pointerType === 'mouse' && event.button !== 0) return;
-    event.preventDefault(); forward.focus(); held.add('pointer-' + event.pointerId); forward.setPointerCapture(event.pointerId);
-  });
+  for (const button of [backward, forward]) {
+    button.addEventListener('pointerdown', event => {
+      if (modal || event.pointerType === 'mouse' && event.button !== 0) return;
+      event.preventDefault(); button.focus(); held.set('pointer-' + event.pointerId, Number(button.dataset.move)); button.setPointerCapture(event.pointerId);
+    });
+    button.addEventListener('lostpointercapture', event => { held.delete('pointer-' + event.pointerId); if (!held.size) stopMoving(); });
+    button.addEventListener('contextmenu', e => e.preventDefault());
+    button.addEventListener('click', e => { e.preventDefault(); if (e.detail === 0) move(Number(button.dataset.move) * 48); });
+  }
   const release = event => { held.delete('pointer-' + event.pointerId); if (!held.size) stopMoving(); };
   window.addEventListener('pointerup', release, true); window.addEventListener('pointercancel', release, true);
-  forward.addEventListener('lostpointercapture', release);
-  forward.addEventListener('contextmenu', e => e.preventDefault());
-  forward.addEventListener('click', e => { e.preventDefault(); if (e.detail === 0) move(48); });
   read.addEventListener('click', interact);
   $('continue').addEventListener('click', close); $('source-close').addEventListener('click', close);
   $('full-text').addEventListener('click', () => open($('source-dialog')));
   $('restart').addEventListener('click', reset);
   for (const dialog of [$('memory-dialog'), $('source-dialog')]) {
     dialog.addEventListener('cancel', e => { e.preventDefault(); close(); });
-    dialog.addEventListener('close', () => { if (modal === dialog) close(); });
+    dialog.addEventListener('close', () => { if (modal === dialog && !dialog.open) close(); });
   }
   const labelAudio = () => document.querySelectorAll('[data-audio-toggle]').forEach(b => {
     b.textContent = musicEnabled ? 'Music on' : 'Music off'; b.setAttribute('aria-pressed', String(musicEnabled));
@@ -183,7 +193,7 @@
   reduced.addEventListener('change', render);
   function frame(now) {
     const dt = last === null ? 0 : Math.min((now - last) / 1000, .05); last = now;
-    if (held.size && !document.hidden) move(560 * dt);
+    if (held.size && !document.hidden) move(direction() * 560 * dt);
     requestAnimationFrame(frame);
   }
   reset(); labelAudio(); requestAnimationFrame(frame);
