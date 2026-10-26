@@ -485,7 +485,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 publication.strategy_timings.update(save_ms=round((time.monotonic()-save_started)*1000,3),
                     **committed.get('strategy_metrics',{}))
             await progress.update('save','Conversation memory saved','对话记忆已保存',status='completed')
-            await progress.record_question_pool(validated['plan'])
+            await progress.record_question_pool(validated['plan'], context=context)
             has_question=validated['plan']['chosen_id'] is not None
             milestone_identity={'project_id':project_id,'client_turn_id':client_turn_id,'accepted_source_id':source['id']}
             if on_event and has_question:

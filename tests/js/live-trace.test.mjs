@@ -277,6 +277,16 @@ test('real memory saves and named skill events remain visible, simulated traces 
  assert.equal(context.renderAgentTrace(steps,'simulated'),'');
 });
 
+test('thinking steps show Lane A selecting the connected Lane B direction', () => {
+ const context=vm.createContext({state:{showThinkingSteps:true},escapeHtml,translate:key=>key});
+ vm.runInContext(extract('renderAgentTrace'),context);
+ for(const detail of ['Selected Lane B guidance · connected topic transition','已选用 B 访谈建议 · 衔接新话题']) {
+  const html=context.renderAgentTrace([{id:'question-selection',kind:'progress',status:'completed',detail}],'live');
+  assert.match(html,/data-step-id="question-selection"[^>]*data-lane="A"/);
+  assert.ok(html.includes('A · '+detail));
+ }
+});
+
 test('completed skill progress survives saving and restoring the local chat', () => {
  const trace=[{id:'photos:p',kind:'skill',skill:'memoir-place-photo-research',status:'completed',detail:'悉尼'}];
  let saved='';

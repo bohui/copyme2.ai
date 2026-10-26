@@ -80,6 +80,7 @@ def install_news(conversation):
 @pytest.mark.parametrize('kind',['conflict','clarification','historical_news','topic_transition','life_essence','follow_up'])
 def test_new_skill_generates_next_turn_context_without_writing_facts(sql,tmp_path,monkeypatch,kind,contract):
     active = {'kind':kind}
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     if kind=='life_essence':monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK','1')
     def prepare(packet):
         if active['kind'] == 'topic_transition' and len(packet['guidance_context']['recent_dialogue'])<3:
@@ -110,6 +111,11 @@ def test_new_skill_generates_next_turn_context_without_writing_facts(sql,tmp_pat
         from apps.api.historical_news import HISTORICAL_INVITATIONS
         expected_question = HISTORICAL_INVITATIONS['en-AU'][0] if kind=='historical_news' else pending[0]['question']
         assert response['reply'].endswith(expected_question)
+        if kind=='topic_transition':
+            saved=json.loads(sql('select collector from public.user_interview_turn order by created_at desc limit 1;').stdout)
+            assert saved['plan']['chosen_id']==pending[0]['id']
+            selection=next(step for step in response['trace'] if step['id']=='question-selection')
+            assert selection['detail']=='Selected Lane B guidance · connected topic transition'
         assert first['reply']==original_reply
         assert sql('select count(*) from public.user_memory_event;').stdout==events_before
         assert not any(q['id']==pending[0]['id'] for q in pool(conversation))
