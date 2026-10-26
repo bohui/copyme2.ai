@@ -46,7 +46,7 @@ def validate_page(page):
     if any(type(page.get(key)) is not int or page[key]<0 for key in (
         'policy_epoch','preference_revision','source_high_water','event_high_water','page_number')):
         raise ValueError('Invalid canonical lane fence')
-    if page.get('skill') not in {'timeline','composer'} or type(page.get('complete')) is not bool:
+    if page.get('skill') not in {'timeline','composer','guidance'} or type(page.get('complete')) is not bool:
         raise ValueError('Invalid canonical lane scope')
     preferences=page.get('preferences',{})
     if preferences.get('schema_version')!=1 or preferences.get('language') not in {'en-AU','zh-CN'}:
@@ -137,13 +137,9 @@ async def _summarize(page,worker):
 async def _extract(page,worker):
     from .lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT, EXTRACTION_REJECTION_REASONS
     if (page.get('two_lane') or {}).get('work_mode')=='reply_only':
-        result={'events':[],'place_journeys':[],'prepared_questions':[]}
+        result={'events':[],'place_journeys':[]}
         if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
             result['continuity_updates'] = []
-        if (page.get('two_lane') or {}).get('strategy_mode'):
-            # No extraction/classifier call, and no inferred downgrade from a
-            # short reply or pause. Preserve the prior planned strategy unchanged.
-            result['strategy_proposal']=None
         return result
     original=await worker.broker.rpc('read_lifetime_lane_policy_source',p_lane_id=page['lane_id'],p_token=page['token'])
     packet={'schema_version':1,'sources':[page['source']],
@@ -162,11 +158,9 @@ async def _extract(page,worker):
         try:
             raw=json.loads(response['reply'])
             if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
-                allowed = {'events', 'place_journeys', 'prepared_questions', 'continuity_updates'}
+                allowed = {'events', 'place_journeys', 'continuity_updates'}
                 if page.get('attribution_context'):
                     allowed.update({'event_places', 'passage_dispositions'})
-                if page['two_lane'].get('strategy_mode'):
-                    allowed.add('strategy_proposal')
                 if not isinstance(raw, dict) or set(raw) - allowed:
                     raise ValueError('Unexpected background reply fields')
             result={'events':extraction_events({'events':raw['events']},page,original)}
@@ -181,9 +175,6 @@ async def _extract(page,worker):
                     from .lifetime_memory_continuity import validate_continuity_updates
                     result['continuity_updates'] = validate_continuity_updates(
                         raw['continuity_updates'], page['source'], background=True)
-                if (page.get('two_lane') or {}).get('strategy_mode'):
-                    from .interview_strategy import validate_proposal
-                    result['strategy_proposal']=validate_proposal(raw['strategy_proposal'],page)
             return result
         except (ValueError,TypeError,KeyError) as error:
             # Only fixed validator messages cross the logging boundary.
@@ -285,8 +276,12 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
                     continue
             return receipt(await worker.broker.rpc('complete_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token']))
         try:
-            result=await (_summarize(page,worker) if page.get('memory_summary') is not None else
-                _extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))
+            if page['skill']=='guidance':
+                from .interview_guidance import execute_guidance_lane
+                result=await execute_guidance_lane(page,worker)
+            else:
+                result=await (_summarize(page,worker) if page.get('memory_summary') is not None else
+                    _extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))
         except (LaneGenerationPaused, CanonicalActivationUnavailable) as deferred:
             return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_reason=deferred.code)
@@ -295,6 +290,8 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
                 raise
             return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_reason='LIFETIME_MODEL_BUDGET_REQUIRED')
+        if page['skill']=='guidance':
+            return result
         if page.get('memory_summary') is not None:
             result=await worker.broker.rpc('commit_lifetime_memory_summary_page',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_revision=page['memory_summary']['revision'],p_result=result,p_page_digest=page['page_digest'])

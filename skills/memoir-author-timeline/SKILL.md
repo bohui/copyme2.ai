@@ -52,3 +52,7 @@ catch-up. Claims, failures and timeouts never advance successful cursors. Retrie
 retain unfinished ranges and reuse committed effects. Source/event revisions,
 policy and bounded ownership tokens fence obsolete output. Private text and
 credentials remain outside Temporal history.
+
+Question-pool generation and next-turn strategy belong to the independent
+`memoir-interview-guidance` skill in Lane B. Return event extraction, geography
+and supplied continuity fields only; leave interviewing guidance to that skill.

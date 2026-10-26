@@ -12,7 +12,8 @@ from typing import Literal
 
 from pydantic import BaseModel,ConfigDict,Field
 from .interview_plan import PhotoAssociation,TurnWorkPlan
-from .two_lane_memory import PreparedQuestion, pending_confirmation
+from .two_lane_memory import pending_confirmation
+from .interview_questions import PreparedQuestion, GuidanceKind, question_priority
 from .interview_questions import QuestionResolution, resolution_schema
 from .interview_questions import hint_evidence, question_evidence_schema, recall_question, recall_hint
 from .memory_events import EvidenceRef
@@ -34,6 +35,12 @@ class StrategyProposal(BaseModel):
 
 class StrategyCandidate(PreparedQuestion):
     id:str=Field(pattern=r"^bq-[0-9a-f]{64}$")
+    source_id:str|None=None
+    source_version:int|None=Field(default=None,ge=1)
+    trigger:GuidanceKind|None=None
+    trigger_source_refs:list[EvidenceRef]=Field(default_factory=list,max_length=4)
+    historical_clue_id:str|None=None
+    bridge:str=Field(default='',max_length=500)
 
 
 class InterviewStrategyPlan(BaseModel):
@@ -105,20 +112,35 @@ def strategy_instructions(strategy):
     return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/strategy-{strategy}'))
 
 def selection_candidates(context):
-    candidates = ((context.get('strategy_context') or {}).get('plan') or {}).get('candidates', [])
+    from .interview_questions import question_candidates
+    candidates = question_candidates(context)
     return prioritized_candidates(context, candidates)
 
 
 def prioritized_candidates(context, candidates):
-    from .historical_news import question_hints
+    from .historical_news import authorized_clue, public_clue, HISTORICAL_INVITATIONS
     confirmation = pending_confirmation(context)
     plan = (context.get('strategy_context') or {}).get('plan') or {}
     purpose = 'broaden_scope' if plan.get('objective') == 'broaden_scope' else 'follow_story'
     planned = [dict(item, purpose='clarification' if item.get('requires_confirmation') else purpose)
                for item in candidates]
-    news = question_hints(context)
-    ordered = ([dict(confirmation, purpose='clarification')] if confirmation else [])
-    ordered += planned + news if purpose == 'broaden_scope' else news + planned
+    ordered = ([dict(confirmation, purpose='clarification')] if confirmation else []) + planned
+    # Only Lane B's relevance-selected public cues enter the pool.
+    checked = []
+    for item in ordered:
+        if item.get('historical_clue_id'):
+            try:
+                clue = authorized_clue(context, item['historical_clue_id'])
+            except ValueError:
+                continue
+            invitation, bridge = HISTORICAL_INVITATIONS.get(context.get('interview_language'), HISTORICAL_INVITATIONS['en-AU'])
+            item = dict(item, question=invitation, bridge=bridge, relevance_connection=item.get('bridge', ''),
+                        purpose='historical_news', public_context=public_clue(clue))
+        checked.append(item)
+    if not context.get('two_lane_memory'):
+        from .historical_news import question_hints
+        checked.extend(question_hints(context))
+    ordered = sorted(checked, key=question_priority)
     unique = {}
     for item in ordered:
         unique.setdefault(item['id'], item)

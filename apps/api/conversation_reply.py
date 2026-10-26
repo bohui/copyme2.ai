@@ -191,4 +191,4 @@ def reply_packet(packet):
                    resolution_only_questions=list(resolution_only.values())),
         context={key: deepcopy(context[key]) for key in (
             'opening_turn', 'active_strategy', 'breadth_checkpoint', 'recent_dialogue',
-            'events', 'photos', 'photo_context', 'historical_news', 'reviewed_acknowledgement') if key in context})
+            'events', 'photos', 'photo_context', 'historical_news', 'reviewed_acknowledgement', 'interview_guidance') if key in context})

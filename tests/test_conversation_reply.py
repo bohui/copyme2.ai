@@ -271,8 +271,8 @@ def test_question_reason_repair_keeps_the_current_invitation_and_ready_news_hint
     from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
 
     governed, ctx = fixture()
-    ctx.update(deepcopy(ready_context()), reply_contract='reply-v2', two_lane_memory=True,
-        interview_language=language)
+    from controlled_interview_guidance import select_news
+    select_news(ctx, reply_contract='reply-v2', two_lane_memory=True, interview_language=language)
     ctx['source']['text'] = current
     packet = json.loads(governed.packet)
     packet['current']['narrator'].update(original=current, char_end=len(current), language=language)

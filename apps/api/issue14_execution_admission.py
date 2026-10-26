@@ -17,7 +17,7 @@ class AdmissionDenied(RuntimeError):
 
 
 ROLES = frozenset({'collector', 'workspace', 'classification', 'memory_context',
-    'author_timeline', 'organiser', 'composer', 'composer_preparation',
+    'author_timeline', 'interview_guidance', 'organiser', 'composer', 'composer_preparation',
     'composer_draft', 'composer_review', 'tool_loop', 'retry', 'native', 'judge', 'photo'})
 _ISSUED = WeakKeyDictionary()
 _LOCK = threading.RLock()

@@ -1,10 +1,31 @@
 """Evidence-backed retirement of question hints in the existing reply pass."""
 from copy import deepcopy
 import json
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from .memory_events import EvidenceRef
 from .prompt_artifact import load_prompt_artifact, prompt_path
+
+
+GUIDANCE_KINDS = ('conflict', 'clarification', 'historical_news', 'topic_transition', 'life_essence', 'follow_up')
+GuidanceKind = Literal['conflict', 'clarification', 'historical_news', 'topic_transition', 'life_essence', 'follow_up']
+
+
+def question_priority(question):
+    kind = question.get('trigger')
+    return GUIDANCE_KINDS.index(kind) if kind in GUIDANCE_KINDS else 1 if question.get('requires_confirmation') else len(GUIDANCE_KINDS)
+
+
+class PreparedQuestion(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    question: str = Field(min_length=1, max_length=800)
+    topic: str = Field(min_length=1, max_length=120)
+    quote: str = Field(min_length=1, max_length=500)
+    char_start: int | None = Field(default=None, ge=0)
+    char_end: int | None = Field(default=None, ge=1)
+    requires_confirmation: bool = False
+    scope: Literal['detail', 'broader'] = 'detail'
 
 
 def recall_question(context, hint=None):
@@ -41,6 +62,8 @@ def question_span(source, quote, start=None, end=None):
 
 
 def hint_evidence(hint, context):
+    if hint.get('historical_clue_id'):
+        return None
     plan = (context.get('strategy_context') or {}).get('plan') or {}
     source_id, version = hint.get('source_id', plan.get('source_id')), hint.get('source_version', plan.get('source_version'))
     if not source_id or not version or hint.get('char_start') is None or hint.get('char_end') is None:

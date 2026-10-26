@@ -37,6 +37,9 @@ def test_lane_b_confirmation_preempts_the_next_question_and_is_consumed_once(sql
         identity = rpc(sql, 'resolve_lifetime_conversation', literal(conversation.project))
         queue = lambda: rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
         pending = queue()
+        assert pending, (conversation.last_db_error, sql('select skill,pending,attempts,error from public.user_memoir_lane;').stdout,
+                         sql('select processing_status from public.user_narrator_source;').stdout,
+                         [phase for phase,_ in conversation.admissions])
         assert pending[0]['requires_confirmation'] is True
         if strategy == 'explore':
             conversation.say('Please stop.')

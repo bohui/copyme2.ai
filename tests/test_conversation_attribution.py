@@ -24,9 +24,11 @@ from test_shared_memory_events_postgres import literal, rpc, sql
 
 class Conversation:
     def __init__(self, sql, tmp_path, monkeypatch, extract, *, work='extract', name=None, family=True, strategy=None,
-                 external_boundary=None):
+                 external_boundary=None, guidance=None):
         self.sql, self.extract, self.project = sql, extract, None
         self.admissions = []
+        self.foreground = []
+        self.guidance_questions = {}
         self.fail_immediate = False
         self.last_db_error = ''
         sql('update public.lifetime_two_lane_rollout set enabled=true;')
@@ -36,7 +38,7 @@ class Conversation:
             monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY','1')
             monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','two-lane-v1')
             sql('update public.lifetime_two_lane_rollout set strategy_enabled=true,strategy_shadow=false;')
-        monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda _: PostgresRest(sql, OWNER).storage())
+        monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda _: PostgresRest(worker_sql, OWNER).storage())
         async def provider(request):
             body = json.loads(request.content)
             bounded = body.get('bounded_lane')
@@ -45,6 +47,12 @@ class Conversation:
                 self.admissions.append((bounded['phase'], packet))
                 if bounded['phase'] == 'profile':
                     output = {'profile_patch': []}
+                elif bounded['phase'] == 'guidance':
+                    if guidance:
+                        output = guidance(packet)
+                    else:
+                        from controlled_interview_guidance import from_legacy_questions
+                        output = from_legacy_questions(packet, self.guidance_questions, strategy=strategy)
                 elif bounded['phase'] == 'prepare':
                     output = {'event_id':packet['partition']['id'], 'context':'Supported original testimony.',
                         'source_refs':packet['partition']['source_refs']}
@@ -57,13 +65,17 @@ class Conversation:
                     output = self.extract(packet)
                 if inspect.isawaitable(output):
                     output = await output
-                if bounded['phase'] == 'extract' and (bounded['fence'].get('two_lane') or {}).get('strategy_mode'):
-                    selected_strategy = strategy or 'explore'
-                    output = {**output,'strategy_proposal':{'strategy':selected_strategy,
-                        'objective':'clarify_order' if selected_strategy == 'shape' else 'follow_story','focus_event_ids':[]}}
+                if bounded['phase'] == 'extract':
+                    self.guidance_questions[packet['sources'][0]['id']] = output.pop('prepared_questions', [])
+                    output.pop('strategy_proposal', None)
+                    if (bounded['fence'].get('two_lane') or {}).get('reply_contract') == 'reply-v2':
+                        output.setdefault('continuity_updates', [])
+
             else:
                 if self.fail_immediate:
                     return httpx.Response(503)
+                context = body.get('interview_context', {})
+                self.foreground.append(context)
                 output = {**proposal(mode=work, name=name, question='What happened next?'),
                           'selection_reason': 'latest_story'}
                 focus = body.get('interview_context', {}).get('workspace_focus', {})
@@ -75,6 +87,32 @@ class Conversation:
                     pause = body['interview_context']['source']['text'].startswith('Please stop.')
                     output = wire(question=None if pause else 'What happened next?',used_strategy=strategy,
                         selection_reason='pause' if pause else 'latest_story',stopped=bool(pause),work={'mode':work,'name':name})
+                from apps.api.conversation_reply import reply_candidates
+                from apps.api.interview_questions import hint_evidence
+                hints = reply_candidates(context)
+                selected = hints[0] if hints else None
+                reflection = (context.get('interview_guidance') or {}).get('acknowledgement_guidance')
+                if context.get('reply_contract') == 'reply-v2':
+                    from test_conversation_reply import proposal as reply_proposal
+                    output = {**reply_proposal(), 'work': {'mode':work, 'name':name}}
+                    if selected:
+                        output.update(hint=0, reason='prepared_candidate', question=selected['question'])
+                elif selected and not (strategy and output.get('stopped')):
+                    if strategy:
+                        output.update(question=selected['question'], selected_candidate_id=selected['id'],
+                            selection_reason='prepared_candidate')
+                    else:
+                        output['plan'].update(chosen_id=selected['id'], candidates=[dict(id=selected['id'],
+                            question=selected['question'],order=0,bridge=selected.get('bridge',''),
+                            context=dict(event_id=None,photo_id=None,life_stage=None,year=None,
+                                **({'historical_clue_id':selected['historical_clue_id']} if selected.get('historical_clue_id') else
+                                   {'evidence':hint_evidence(selected,context)})))])
+                        output['selection_reason']='latest_story'
+                if context.get('historical_news', {}).get('clues'):
+                    from apps.api.interview_plan import neutral_acknowledgement
+                    output['acknowledgement'] = neutral_acknowledgement(context)
+                if reflection:
+                    output['acknowledgement'] = reflection['text']
             return worker_response(request, output)
         async def bounded_provider(request):
             return await external_boundary(request, provider) if external_boundary else await provider(request)
@@ -90,28 +128,39 @@ class Conversation:
             worker_secret='synthetic', worker_transport=transport)
         self.worker.lane_publisher = FixturePublication(sql.publication_dsn, authenticated_owner=OWNER)
         def storage_factory(authorization):
-            storage = PostgresRest(sql, OTHER if authorization == 'Bearer another-owner' else OWNER).storage()
+            storage = PostgresRest(worker_sql, OTHER if authorization == 'Bearer another-owner' else OWNER).storage()
             if family:
                 storage.story_entitlement = lambda: {'status':'paid','plan_key':'family_memoir_v1','timeline':True,'family_tree':True}
             return storage
-        self.client = TestClient(create_app(MemoryStore(), story_storage_factory=storage_factory), raise_server_exceptions=False)
+        self.client = TestClient(create_app(MemoryStore(), story_storage_factory=storage_factory), raise_server_exceptions=True)
 
     def say(self, text, turn=None, **options):
         payload = {'text': text, 'client_turn_id': turn or str(uuid4()), **options}
         if self.project:
             payload['project_id'] = self.project
         response = self.client.post('/v1/agent/turn', json=payload)
-        assert response.status_code == 200, response.text
+        assert response.status_code == 200, response.text + self.last_db_error
         self.project = response.json()['project_id']
         return response.json()
 
     def drain(self):
-        lane = self.sql("select id from public.user_memoir_lane where skill='timeline';").stdout.strip()
-        for _ in range(64):
-            outcome = asyncio.run(self.worker.execute_lane(lane))
-            if outcome.get('retrieval_complete') or outcome['status'] in {'finished', 'deferred'}:
-                return outcome
-        pytest.fail('Bounded Lane B did not settle')
+        timeline_outcome = None
+        for skill in ('timeline', 'guidance'):
+            lane = self.sql(f"select id from public.user_memoir_lane where skill='{skill}';").stdout.strip()
+            if not lane:
+                continue
+            for _ in range(64):
+                try:
+                    outcome = asyncio.run(self.worker.execute_lane(lane))
+                except httpx.HTTPStatusError as error:
+                    raise AssertionError(self.last_db_error) from error
+                if outcome.get('retrieval_complete') or outcome['status'] in {'finished', 'deferred', 'idle'}:
+                    if skill == 'timeline':
+                        timeline_outcome = outcome
+                    break
+            else:
+                pytest.fail('Bounded Lane B did not settle')
+        return timeline_outcome
 
     def attribution(self, source_id, **params):
         response = self.client.get(f'/v1/story/sources/{self.project}/{source_id}/attribution', params=params)
@@ -706,7 +755,7 @@ def test_place_readback_is_paged_and_keeps_the_existing_family_gate(sql, tmp_pat
         bad = conversation.client.get(f'/v1/story/events/{conversation.project}/another-event/places',
             params={'cursor':first.json()['next_cursor']})
         assert bad.status_code >= 400
-        with TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(sql, OWNER).storage())) as free:
+        with TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(worker_sql, OWNER).storage())) as free:
             assert free.get(path).status_code == 403
 
 

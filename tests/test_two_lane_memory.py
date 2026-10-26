@@ -12,7 +12,7 @@ from test_name_only_opening import proposal
 from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database
 from test_agent_commit_postgres import database as base_database, OWNER, OTHER, OLD, as_user
 from test_shared_memory_events_postgres import rpc, literal
-from test_lifetime_composer_capacity import service
+from split_lane_fixtures import service
 
 
 @pytest.fixture(scope='module')
@@ -49,7 +49,8 @@ def test_two_lane_extraction_includes_place_skill_without_conflicting_output_ins
     sources = {item['name'] for item in instruction_manifest(instructions, schema)['artifacts']}
     assert {'memoir/skills/memoir-place-journey/extraction',
             'memoir/skills/memoir-author-timeline/derived-hints'} <= sources
-    assert {'events', 'place_journeys', 'prepared_questions'} <= set(schema['required'])
+    assert {'events', 'place_journeys'} <= set(schema['required'])
+    assert not {'prepared_questions', 'strategy_proposal'} & schema['properties'].keys()
 
 
 def test_extraction_diagnostic_names_schema_field_without_story_content():
@@ -147,14 +148,15 @@ def test_confirmation_from_an_earlier_source_window_stays_queued(sql):
     lane_id = lane(sql, identity)
     page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
     question = {**QUESTION, 'requires_confirmation': True}
-    result = {'events': [], 'place_journeys': [], 'prepared_questions': [question]}
-    service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}',0,{literal(result)}")
-    second = service(sql, 'read_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}'")
+    from split_lane_fixtures import canonical_service, publish
+    result = {'events': [], 'place_journeys': []}
+    canonical_service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}',0,{literal(result)}")
+    second = canonical_service(sql, 'read_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}'")
     assert second['source']['id'] == page['source']['id']
     assert second['source']['char_start'] > 0
-    result['prepared_questions'] = []
-    service(sql, 'commit_lifetime_memoir_lane_page',
+    canonical_service(sql, 'commit_lifetime_memoir_lane_page',
             f"'{lane_id}','{page['token']}',{second['page_number']},{literal(result)}")
+    publish(sql, page, [question])
     pending = rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
     assert [q['question'] for q in pending] == [QUESTION['question']]
 
