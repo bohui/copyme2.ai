@@ -49,3 +49,10 @@ def test_unpunctuated_question_never_escapes_as_a_clarification_acknowledgement(
     assert accepted['reply'] == neutral + '\n\n' + question
     assert visible == [neutral]
     assert len(captured) == 1
+
+
+def test_captured_life_reflection_defers_the_generic_early_acknowledgement():
+    from apps.api.interview_plan import defer_prepared_acknowledgement
+    assert not defer_prepared_acknowledgement({})
+    context={'interview_guidance':{'acknowledgement_guidance':{'text':'Helping family seems to be a thread worth exploring.'}}}
+    assert defer_prepared_acknowledgement(context)

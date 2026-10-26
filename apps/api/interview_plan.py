@@ -44,7 +44,8 @@ def neutral_acknowledgement(context):
 
 def defer_prepared_acknowledgement(context):
     from .two_lane_memory import pending_confirmation
-    return bool(context.get('historical_news', {}).get('clues') or pending_confirmation(context))
+    return bool(context.get('historical_news', {}).get('clues') or pending_confirmation(context)
+        or (context.get('interview_guidance') or {}).get('acknowledgement_guidance'))
 
 
 class StrictModel(BaseModel):
