@@ -15297,11 +15297,44 @@ $$;
 CREATE INDEX user_memory_event_source_guidance_search_idx ON public.user_memory_event_source
  USING gin (public.lifetime_memory_search_terms(evidence->>'quote'));
 
+-- Guidance receives only contiguous authorized originals. Subtract the union
+-- of unavailable spans before taking a substring, retaining canonical Unicode
+-- offsets on each side of a gap. Never concatenate words across a private span.
+CREATE FUNCTION public.lifetime_guidance_source_windows(p_owner uuid,p_project text,p_source uuid,p_version bigint,p_lo integer,p_hi integer,p_tail boolean DEFAULT false)
+ RETURNS SETOF jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+ with original as materialized (
+   select s.*,greatest(0,p_lo) lo,least(length(s.text),p_hi) hi from public.user_narrator_source s
+   where s.user_id=p_owner and s.project_id=p_project and s.id=p_source and s.version=p_version and s.status='active'
+ ), authorized as (
+   select s.*,int4multirange(int4range(s.lo,s.hi,'[)'))-coalesce((
+     select range_agg(int4range(greatest(s.lo,w.char_start),least(s.hi,w.char_end),'[)'))
+     from public.user_memory_attribution_window w where w.user_id=s.user_id and w.project_id=s.project_id
+       and w.source_id=s.id and w.source_version=s.version and w.disposition in ('withheld','non_story')
+       and w.char_start<s.hi and w.char_end>s.lo),'{}'::int4multirange) spans
+   from original s where s.hi>s.lo
+ )
+ select jsonb_build_object('id',s.id,'project_id',s.project_id,'version',s.version,'sequence',s.sequence,
+   'text',substring(s.text from bounds.lo+1 for bounds.hi-bounds.lo),
+   'char_start',bounds.lo,'char_end',bounds.hi,'original_length',length(s.text),
+   'kind',s.kind,'language',s.language,'status',s.status,'author_role','storyteller')
+ from authorized s cross join lateral unnest(s.spans) span cross join lateral (
+   select case when p_tail then greatest(lower(span),upper(span)-2304) else lower(span) end lo,
+     case when p_tail then upper(span) else least(upper(span),lower(span)+2304) end hi
+ ) bounds order by bounds.lo
+$$;
+REVOKE ALL ON FUNCTION public.lifetime_guidance_source_windows(uuid,text,uuid,bigint,integer,integer,boolean)
+ FROM PUBLIC,anon,authenticated,service_role;
+
 CREATE FUNCTION public.retrieve_lifetime_guidance_events(p_owner uuid,p_project text,p_source uuid,p_version bigint)
  RETURNS TABLE(event_id text,source_id uuid,version bigint,char_start integer,char_end integer,score bigint)
  LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
  with current_original as materialized (
-   select s.*,array(select term from unnest(public.lifetime_memory_search_terms(left(s.text,2304)||' '||right(s.text,2304))) term
+   select s.*,array(select term from unnest(public.lifetime_memory_search_terms((
+       select string_agg(w->>'text',' ') from (
+         select w from public.lifetime_guidance_source_windows(p_owner,p_project,s.id,s.version,0,least(length(s.text),2304)) w
+         union all
+         select w from public.lifetime_guidance_source_windows(p_owner,p_project,s.id,s.version,greatest(0,length(s.text)-2304),length(s.text)) w
+       ) safe))) term
        order by length(term) desc,term limit 64) terms
    from public.user_narrator_source s where s.user_id=p_owner and s.project_id=p_project and s.id=p_source and s.version=p_version and s.status='active'
  ), matches as materialized (
@@ -15314,7 +15347,7 @@ CREATE FUNCTION public.retrieve_lifetime_guidance_events(p_owner uuid,p_project 
      where r.user_id=p_owner and r.project_id=p_project and n.sequence<current.sequence
        and public.lifetime_memory_search_terms(r.evidence->>'quote') @> array[term]
        and not exists(select 1 from public.user_memory_attribution_window w where w.user_id=p_owner and w.project_id=p_project
-         and w.source_id=n.id and w.source_version=n.version and w.disposition='withheld'
+         and w.source_id=n.id and w.source_version=n.version and w.disposition in ('withheld','non_story')
          and w.char_start<coalesce((r.evidence->>'char_end')::integer,length(n.text)) and w.char_end>coalesce((r.evidence->>'char_start')::integer,0))
      order by n.sequence desc,r.event_id,r.evidence_hash limit 8
    ) hit
@@ -15367,7 +15400,7 @@ end $$;
 CREATE FUNCTION public.read_lifetime_interview_guidance_page(p_lane_id uuid,p_token uuid) RETURNS jsonb
  LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 declare snap public.user_lifetime_lane_snapshot%rowtype; lane public.user_memoir_lane%rowtype;
- page jsonb; pins jsonb; windows jsonb; events jsonb; news jsonb; context jsonb; dialogue jsonb; previous_owner text; planning text; revision bigint; matches jsonb; evidence record; lo integer; hi integer;
+ page jsonb; pins jsonb; windows jsonb; events jsonb; news jsonb; context jsonb; dialogue jsonb; previous_owner text; planning text; revision bigint; matches jsonb; evidence record; lo integer; hi integer; fragment jsonb; unavailable jsonb; private_policy boolean;
 begin
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  select * into lane from public.user_memoir_lane where id=p_lane_id;
@@ -15376,11 +15409,50 @@ begin
  previous_owner:=current_setting('request.jwt.claim.sub',true);
  perform set_config('request.jwt.claim.sub',snap.user_id::text,true);
  pins:=public.read_lifetime_pinned(snap.conversation_id);
+ -- Optional continuity can contain another verbatim copy of private evidence.
+ select coalesce(jsonb_agg(record),'[]') into unavailable from jsonb_array_elements(pins->'known_continuity') record
+ where exists(select 1 from jsonb_array_elements(record->'data'->'source_refs') ref
+   join public.user_memory_attribution_window w on w.user_id=snap.user_id and w.project_id=snap.project_id
+     and w.source_id=(ref->>'source_id')::uuid and w.source_version=(ref->>'version')::bigint
+   where w.disposition in ('withheld','non_story') and w.char_start<(ref->>'char_end')::integer and w.char_end>(ref->>'char_start')::integer);
+ if jsonb_array_length(unavailable)>0 then pins:=jsonb_set(pins,'{known_continuity_complete}','false');end if;
+ -- A safe citation authorizes its original words, never adjacent derived prose.
+ -- Rebuild optional continuity text extractively and omit free-form uncertainty.
+ if exists(select 1 from jsonb_array_elements(pins->'known_continuity') r where
+   r->'data'->>'text' is distinct from left(r->'data'->'source_refs'->0->>'quote',2000)
+   or coalesce(r->'data'->'uncertainty','null')<>'null'::jsonb) then
+   pins:=jsonb_set(pins,'{known_continuity_complete}','false');
+ end if;
  pins:=jsonb_set(pins,'{known_continuity}',coalesce((select jsonb_agg(
-   jsonb_build_object('schema_version',1)||record||jsonb_build_object('data',
-     jsonb_build_object('schema_version',1,'uncertainty',null)||(record->'data')||jsonb_build_object('source_refs',
+   jsonb_build_object('schema_version',1)||record||jsonb_build_object(
+     'record_id','ct-'||encode(sha256(convert_to(jsonb_build_array(snap.user_id,snap.conversation_id,
+       record->'record_id')::text,'UTF8')),'hex'),'data',
+     (record->'data')||jsonb_build_object('schema_version',1,'text',left(record->'data'->'source_refs'->0->>'quote',2000),
+       'uncertainty',null,'source_refs',
        (select jsonb_agg(jsonb_build_object('schema_version',1)||ref) from jsonb_array_elements(record->'data'->'source_refs') ref))))
-   from jsonb_array_elements(pins->'known_continuity') record),'[]'));
+   from jsonb_array_elements(pins->'known_continuity') record where not exists(
+     select 1 from jsonb_array_elements(unavailable) u where u->>'record_id'=record->>'record_id')),'[]'));
+ -- Opaque identities and typed fields count against the existing working-set
+ -- budget too. Omit optional records after projection, keeping the guard intact.
+ while octet_length((pins->'known_continuity')::text)>8000 loop
+   pins:=jsonb_set(pins,'{known_continuity}',(pins->'known_continuity')-(jsonb_array_length(pins->'known_continuity')-1));
+   pins:=jsonb_set(pins,'{known_continuity_complete}','false');
+ end loop;
+ -- Question prose and optional unresolved-reference labels are also derived;
+ -- their citations cannot certify the contents of these free-form strings.
+ pins:=pins||'{"active_question":null,"unresolved_references":[]}'::jsonb;
+ -- Mandatory restrictions must not be weakened or copied as private prose.
+ -- If their exact evidence is withheld, skip optional guidance for this page.
+ select exists(select 1 from public.user_lifetime_continuity c
+   cross join lateral jsonb_array_elements(c.data->'source_refs') ref join public.user_memory_attribution_window w
+     on w.user_id=c.user_id and w.project_id=snap.project_id and w.source_id=(ref->>'source_id')::uuid
+       and w.source_version=(ref->>'version')::bigint and w.disposition in ('withheld','non_story')
+   where c.user_id=snap.user_id and c.conversation_id=snap.conversation_id and c.policy_epoch=snap.policy_epoch
+     and c.kind in ('paused_topic','excluded_topic') and w.char_start<(ref->>'char_end')::integer
+     and w.char_end>(ref->>'char_start')::integer) into private_policy;
+ if private_policy then
+   pins:=pins||'{"known_continuity":[],"known_continuity_complete":false,"active_question":null,"privacy_complete":false,"paused_topics":[],"excluded_topics":[],"unresolved_references":[]}'::jsonb;
+ end if;
 
  if snap.guidance_news->>'settings_revision' is distinct from coalesce((select n.revision::text from public.user_historical_news_state n
    where n.user_id=snap.user_id and n.project_id=snap.project_id),'1') then raise exception 'guidance news settings changed' using errcode='PT409';end if;
@@ -15394,37 +15466,48 @@ begin
  planning:=public.lifetime_interview_strategy_rollout(snap.user_id);
  select f.revision into revision from public.user_lifetime_strategy_frontier f where f.user_id=snap.user_id and f.project_id=snap.project_id;
  -- These bounded originals are evidence; canonical titles and dialogue are context.
- select coalesce(jsonb_agg(item order by sequence desc),'[]') into windows from (
-   select s.sequence,jsonb_build_object('id',s.id,'project_id',s.project_id,'version',s.version,'sequence',s.sequence,
-     'text',left(s.text,2304),'char_start',0,'char_end',least(length(s.text),2304),'original_length',length(s.text),
-     'kind',s.kind,'language',s.language,'status',s.status,'author_role','storyteller') item
-   from public.user_narrator_source s where s.user_id=snap.user_id and s.project_id=snap.project_id
+ select coalesce(jsonb_agg(item order by position),'[]') into windows from (
+   select allowed.item,allowed.position from (
+   select s.* from public.user_narrator_source s where s.user_id=snap.user_id and s.project_id=snap.project_id
      and s.status='active' and s.processing_status='succeeded' and s.sequence<=snap.source_high_water
-     and not exists(select 1 from public.user_memory_attribution_window w where w.user_id=s.user_id and w.project_id=s.project_id
-       and w.source_id=s.id and w.source_version=s.version and w.disposition in ('non_story','withheld')
-       and w.char_start=0 and w.char_end>=length(s.text))
+     and exists(select 1 from public.lifetime_guidance_source_windows(s.user_id,s.project_id,s.id,s.version,0,length(s.text)))
      and not exists(select 1 from public.user_interview_turn t where t.user_id=s.user_id and t.project_id=s.project_id
        and t.source_id=s.id and t.source_version=s.version and t.collector->'plan'->'work'->>'mode'='reply_only')
-   order by s.sequence desc limit 1) bounded;
+   order by s.sequence desc limit 1) s cross join lateral
+     public.lifetime_guidance_source_windows(s.user_id,s.project_id,s.id,s.version,0,length(s.text))
+       with ordinality allowed(item,position)
+   order by position limit 8) bounded;
  select coalesce(jsonb_agg(to_jsonb(r)),'[]') into matches from public.retrieve_lifetime_guidance_events(
    snap.user_id,snap.project_id,(windows->0->>'id')::uuid,(windows->0->>'version')::bigint) r;
  select coalesce(jsonb_agg(item order by priority,change_sequence desc,id),'[]') into events from (
    select e.id,e.change_sequence,case when exists(select 1 from jsonb_array_elements(matches) m where m->>'event_id'=e.id) then 0
      when e.id=(select plan->>'active_event_id' from public.user_interview_plan where user_id=snap.user_id and project_id=snap.project_id) then 1 else 2 end priority,
-     public.bounded_lifetime_event_record(e) item from public.user_memory_event e
+     jsonb_set(public.bounded_lifetime_event_record(e),'{temporal,expression}','null')||
+       '{"title":null,"title_complete":false,"uncertainty":null,"uncertainty_complete":false,"temporal_complete":false}'::jsonb item
+   from public.user_memory_event e
    where e.user_id=snap.user_id and e.project_id=snap.project_id and e.status='active' and e.change_sequence<=snap.event_high_water
      and not exists(select 1 from public.user_memory_event_source r where r.user_id=e.user_id and r.project_id=e.project_id and r.event_id=e.id
        and not exists(select 1 from public.user_narrator_source s where s.user_id=r.user_id and s.project_id=r.project_id and s.id=r.source_id
-         and s.version=r.source_version and s.status='active'))
+         and s.version=r.source_version and s.status='active'
+         and not exists(select 1 from public.user_memory_attribution_window w where w.user_id=s.user_id and w.project_id=s.project_id
+           and w.source_id=s.id and w.source_version=s.version and w.disposition in ('withheld','non_story')
+           and w.char_start<coalesce((r.evidence->>'char_end')::integer,length(s.text))
+           and w.char_end>coalesce((r.evidence->>'char_start')::integer,0))))
    order by priority,e.change_sequence desc,e.id limit 8) bounded;
  -- Keep the latest tail as well as its beginning when one accepted message
  -- is long; recall limits often follow an otherwise detailed account.
  if (windows->0->>'original_length')::integer>2304 then
-   select n.*,greatest(0,length(n.text)-2304) char_start,length(n.text) char_end into evidence
-     from public.user_narrator_source n where n.user_id=snap.user_id and n.project_id=snap.project_id and n.id=(windows->0->>'id')::uuid;
-   windows:=jsonb_build_array(jsonb_build_object('id',evidence.id,'project_id',evidence.project_id,'version',evidence.version,
-     'sequence',evidence.sequence,'text',right(evidence.text,2304),'char_start',evidence.char_start,'char_end',evidence.char_end,
-     'original_length',length(evidence.text),'kind',evidence.kind,'language',evidence.language,'status',evidence.status,'author_role','storyteller'))||windows;
+   for fragment in select w from public.lifetime_guidance_source_windows(snap.user_id,snap.project_id,
+     (windows->0->>'id')::uuid,(windows->0->>'version')::bigint,
+     0,(windows->0->>'original_length')::integer,true) w
+     order by (w->>'char_end')::integer desc limit 1 loop
+     -- Reserve a slot before older/head fragments consume the entire budget.
+     -- Promote an already-present tail as well: source must support recall quotes.
+     select coalesce(jsonb_agg(w order by position),'[]') into windows
+       from jsonb_array_elements(windows) with ordinality items(w,position) where w<>fragment;
+     windows:=jsonb_build_array(fragment)||windows;
+     if jsonb_array_length(windows)>8 then windows:=windows-(jsonb_array_length(windows)-1);end if;
+   end loop;
  end if;
  -- Recover older original passages behind the bounded canonical events. This
  -- lets the model compare an old account without treating an event title as testimony.
@@ -15436,28 +15519,52 @@ begin
      cross join lateral jsonb_to_recordset(e->'source_refs') r(source_id uuid,version bigint,char_start integer,char_end integer)
  ) r join public.user_narrator_source n on n.user_id=snap.user_id and n.project_id=snap.project_id
      and n.id=r.source_id and n.version=r.version and n.status='active'
-   where r.char_start is not null and r.char_end>r.char_start
+   where n.processing_status='succeeded' and n.sequence<=snap.source_high_water
+     and r.char_start is not null and r.char_end>r.char_start
    order by r.priority,n.sequence,r.char_start limit 12 loop
    exit when jsonb_array_length(windows)>=8;
    if exists(select 1 from jsonb_array_elements(windows) w where w->>'id'=evidence.id::text
       and (w->>'char_start')::integer<=evidence.char_start and (w->>'char_end')::integer>=evidence.char_end) then continue;end if;
    lo:=greatest(0,evidence.char_start-128);hi:=least(length(evidence.text),lo+2304);
-   windows:=windows||jsonb_build_array(jsonb_build_object('id',evidence.id,'project_id',evidence.project_id,'version',evidence.version,
-     'sequence',evidence.sequence,'text',substring(evidence.text from lo+1 for hi-lo),'char_start',lo,'char_end',hi,
-     'original_length',length(evidence.text),'kind',evidence.kind,'language',evidence.language,'status',evidence.status,'author_role','storyteller'));
+   for fragment in select w from public.lifetime_guidance_source_windows(snap.user_id,snap.project_id,evidence.id,evidence.version,lo,hi) w loop
+     exit when jsonb_array_length(windows)>=8;
+     if not exists(select 1 from jsonb_array_elements(windows) w where w->>'id'=fragment->>'id'
+       and (w->>'char_start')::integer<=(fragment->>'char_start')::integer
+       and (w->>'char_end')::integer>=(fragment->>'char_end')::integer) then
+       windows:=windows||jsonb_build_array(fragment);
+     end if;
+   end loop;
  end loop;
  for evidence in select n.* from public.user_narrator_source n where n.user_id=snap.user_id and n.project_id=snap.project_id
    and n.status='active' and n.processing_status='succeeded' and n.sequence<=snap.source_high_water
    and not exists(select 1 from jsonb_array_elements(windows) w where w->>'id'=n.id::text)
-   and not exists(select 1 from public.user_memory_attribution_window w where w.user_id=n.user_id and w.project_id=n.project_id
-     and w.source_id=n.id and w.source_version=n.version and w.disposition in ('withheld','non_story') and w.char_start=0 and w.char_end>=length(n.text))
+   and exists(select 1 from public.lifetime_guidance_source_windows(n.user_id,n.project_id,n.id,n.version,0,length(n.text)))
    order by n.sequence desc limit 3 loop
    exit when jsonb_array_length(windows)>=8;
-   windows:=windows||jsonb_build_array(jsonb_build_object('id',evidence.id,'project_id',evidence.project_id,'version',evidence.version,
-     'sequence',evidence.sequence,'text',left(evidence.text,2304),'char_start',0,'char_end',least(length(evidence.text),2304),
-     'original_length',length(evidence.text),'kind',evidence.kind,'language',evidence.language,'status',evidence.status,'author_role','storyteller'));
+   for fragment in select w from public.lifetime_guidance_source_windows(snap.user_id,snap.project_id,evidence.id,evidence.version,0,length(evidence.text)) w loop
+     exit when jsonb_array_length(windows)>=8;
+     windows:=windows||jsonb_build_array(fragment);
+   end loop;
  end loop;
  dialogue:=public.lifetime_question_dialogue(snap.user_id,snap.project_id,null,snap.source_high_water);
+ -- Dialogue responses are another copy of narration, not an authorization to
+ -- send a withheld passage. Keep the delivered question IDs and one safe slice;
+ -- a partial response must never claim to be complete.
+ select coalesce(jsonb_agg(jsonb_set(d,'{response}',coalesce((
+   select (d->'response')||jsonb_build_object('text',w->'text','char_start',w->'char_start','char_end',w->'char_end',
+     'complete',(w->>'char_start')::integer=0 and w->>'char_end'=w->>'original_length')
+   from public.lifetime_guidance_source_windows(snap.user_id,snap.project_id,(d->'response'->>'id')::uuid,
+     (d->'response'->>'version')::bigint,(d->'response'->>'char_start')::integer,(d->'response'->>'char_end')::integer) w limit 1
+ ),'null'::jsonb)) order by position),'[]') into dialogue from jsonb_array_elements(dialogue) with ordinality entries(d,position);
+ -- Collector IDs are arbitrary strings too. Bind an opaque cadence identity
+ -- to the actual delivery; retries and reads of that delivery reuse the alias.
+ -- Stored question prose/attribution is not original evidence even with a cite.
+ select coalesce(jsonb_agg(jsonb_set(d,'{question}',(d->'question')||jsonb_build_object('text',null,'evidence',null,
+   'id','dq-'||encode(sha256(convert_to(jsonb_build_array(snap.user_id,snap.project_id,
+     d->'question'->'source_id',d->'question'->'source_version',d->'question'->'client_turn_id',
+     d->'question'->'reply_id',d->'question'->'id')::text,'UTF8')),'hex'))) order by position),'[]')
+ into dialogue from jsonb_array_elements(dialogue) with ordinality entries(d,position);
+ if private_policy then windows:='[]';events:='[]';dialogue:='[]';end if;
  context:=jsonb_build_object('source_windows',windows,'recent_dialogue',dialogue,'minimum_detail_rounds',3,
    'news_clues',coalesce((select jsonb_agg(public.historical_news_public(c)||jsonb_build_object('status','ready','evidence_status','inspected'))
       from (select c from jsonb_array_elements(news->'clues') c limit 5) bounded),'[]'::jsonb),
@@ -15520,7 +15627,7 @@ begin
        and id=(s->>'id')::uuid and version=(s->>'version')::bigint and status='active';
      if not found or substring(original.text from lo+1 for hi-lo) is distinct from p_ref->>'quote'
        or exists(select 1 from public.user_memory_attribution_window w where w.user_id=original.user_id and w.project_id=original.project_id
-         and w.source_id=original.id and w.source_version=original.version and w.disposition='withheld' and w.char_start<hi and w.char_end>lo) then
+         and w.source_id=original.id and w.source_version=original.version and w.disposition in ('withheld','non_story') and w.char_start<hi and w.char_end>lo) then
        raise exception 'guidance reference unavailable' using errcode='PT409';end if;
      return p_ref;
    end if;
