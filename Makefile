@@ -68,9 +68,11 @@ SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))
 
 deps-install: ## Install the committed NovelToGame skill dependency without upgrading it.
 	@git submodule update --init -- deps/novel-to-game
+	@python3 scripts/snapshot_novel_game_dependency.py
 
 deps-update: ## Update NovelToGame to upstream main; review and commit the new dependency pin.
 	@git submodule update --init --remote --checkout -- deps/novel-to-game
+	@python3 scripts/snapshot_novel_game_dependency.py
 
 memoir-live-skills-plan: ## Inspect isolated skill contracts; zero model calls.
 	@python3 scripts/run_memoir_live_skills.py $(if $(strip $(LIVE_SKILL)),--skill "$(LIVE_SKILL)",)
@@ -146,7 +148,7 @@ _db-truncate: check
 install_skill: ## Validate every repository skill, rebuild the skill-bearing app images, and restart their services.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _install_skill
 
-_install_skill: check _validate-skills
+_install_skill: check deps-install _validate-skills
 	@$(MOCKER) compose build -f $(COMPOSE_FILE) api codex-worker
 	@set -e; \
 	set -a; if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; set +a; \

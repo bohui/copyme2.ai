@@ -144,6 +144,13 @@ def test_single_scene_without_a_second_person_is_supported():
     assert validate_scenes(current, value) == value
 
 
+def test_pool_uses_supplied_timeline_order_before_owner_confirmation():
+    value=pool()
+    value['scenes'].reverse()
+    result=validate_pool(packet(),value)
+    assert [s['event_ids'][0] for s in result['scenes']]==['event-father','event-mother']
+
+
 def test_paraphrased_display_title_becomes_a_source_excerpt():
     value = proposal()
     value['scenes'][0]['title'] = 'Learning to garden'
@@ -220,7 +227,7 @@ def test_complete_static_page_is_accepted():
 
 @pytest.mark.parametrize('phase', ['scenes', 'brief'])
 @pytest.mark.parametrize('bad', [None, 'duplicate_json', 'missing_receipt', 'incomplete', 'credential'])
-def test_both_planning_calls_use_composer_and_distinct_managed_prompts(monkeypatch, phase, bad):
+def test_both_planning_calls_use_sol_max_and_distinct_managed_prompts(monkeypatch, phase, bad):
     @asynccontextmanager
     async def admitted(self, fence):
         assert fence['game_id'] == GAME and fence['token'] == TOKEN
@@ -236,14 +243,14 @@ def test_both_planning_calls_use_composer_and_distinct_managed_prompts(monkeypat
     output = json.dumps(result)
     if bad == 'duplicate_json': output *= 2
     if bad == 'credential': output = 'private-game-test-key'
-    response = {'id': None if bad == 'missing_receipt' else 'resp-test', 'model': 'served-model',
-        'status': 'incomplete' if bad == 'incomplete' else 'completed', 'reasoning': {'effort': 'high'},
+    response = {'id': None if bad == 'missing_receipt' else 'resp-test', 'model': 'gpt-6.1-sol',
+        'status': 'incomplete' if bad == 'incomplete' else 'completed', 'reasoning': {'effort': 'max'},
         'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': output}]}]}
     client_type = httpx.AsyncClient
     def transport(request):
         sent = json.loads(request.content)
-        assert sent['model'] == 'configured-scene-model'
-        assert sent['reasoning'] == {'effort': 'high'} and sent['store'] is False
+        assert sent['model'] == 'gpt-6.1-sol'
+        assert sent['reasoning'] == {'effort': 'max'} and sent['store'] is False and sent['stream'] is True
         assert sent['text']['format']['strict'] is True
         assert sent['metadata']['generation_name'] == 'memoir-story-game-' + phase
         payload = json.loads(sent['input'])
@@ -252,9 +259,10 @@ def test_both_planning_calls_use_composer_and_distinct_managed_prompts(monkeypat
             assert payload['chapters'] == packet()['chapters'] and payload['timeline'] == packet()['timeline']
         else:
             assert 'chapter_id' not in payload['scenes'][0] and 'event_ids' not in payload['scenes'][0]
-            assert 'higgsfield-websites' in sent['instructions']
-        return httpx.Response(200, json=response)
-    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=httpx.MockTransport(transport), **kwargs))
+            assert 'NovelToGame' in sent['instructions']
+        return httpx.Response(200,text='data: '+json.dumps({'type':'response.completed','response':response})+'\n\n',
+            headers={'Content-Type':'text/event-stream'})
+    monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(**{**kwargs,'transport':httpx.MockTransport(transport)}))
     call = propose_game(packet(), token=TOKEN) if phase == 'scenes' else compose_game_brief(packet(), proposal(), token=TOKEN)
     if bad:
         with pytest.raises(ValueError): asyncio.run(call)

@@ -14647,7 +14647,7 @@ create table public.user_story_game (
  created_at timestamptz not null default clock_timestamp(), updated_at timestamptz not null default clock_timestamp(),
  foreign key(user_id,project_id) references public.user_memoir_project(user_id,project_id) on delete cascade,
  unique(user_id,project_id,request_id),
- check(candidate is null or octet_length(candidate::text)<=262144)
+ check(candidate is null or octet_length(candidate::text)<=1048576)
 );
 create unique index one_current_story_game on public.user_story_game(user_id,project_id)
  where state in ('pending','running','selection_required','review_required','published');
@@ -14768,10 +14768,45 @@ begin
    return public.story_game_status_record(game)||jsonb_build_object('status','busy');end if;
  if game.attempts>=3 then raise exception 'GAME_ATTEMPT_LIMIT' using errcode='55000';end if;
  update public.user_story_game set state='running',token=gen_random_uuid(),lease_until=clock_timestamp()+
-   case when phase='build' then interval '900 seconds' else interval '180 seconds' end,
+   case when phase='build' then interval '3600 seconds' else interval '300 seconds' end,
    attempts=attempts+1,updated_at=clock_timestamp() where id=p_game_id returning * into game;
  return public.story_game_status_record(game)||jsonb_build_object('token',game.token,'authority',game.authority);
 end $$;
+
+create table public.user_story_game_stage (
+ game_id uuid not null references public.user_story_game(id) on delete cascade,
+ stage text not null check(stage in ('analyze','concept','design','whitebox','art','production')),
+ request_sha256 text not null check(request_sha256~'^[a-f0-9]{64}$'),
+ result jsonb not null check(octet_length(result::text)<=524288),
+ primary key(game_id,stage,request_sha256)
+);
+alter table public.user_story_game_stage enable row level security;
+revoke all on public.user_story_game_stage from public,anon,authenticated,service_role;
+
+create function public.read_story_game_stage(p_game_id uuid,p_token uuid,p_stage text,p_sha256 text) returns jsonb
+language plpgsql security definer set search_path='' as $$
+begin
+ perform public.lock_story_game(p_game_id,p_token,true);
+ return (select result from public.user_story_game_stage where game_id=p_game_id and stage=p_stage and request_sha256=p_sha256);
+end $$;
+
+create function public.save_story_game_stage(p_game_id uuid,p_token uuid,p_stage text,p_sha256 text,p_result jsonb) returns jsonb
+language plpgsql security definer set search_path='' as $$
+declare existing jsonb;
+begin
+ perform public.lock_story_game(p_game_id,p_token,true);
+ if p_result->'receipt'->>'status' is distinct from 'completed' or p_result->'receipt'->>'requested_model' is distinct from 'gpt-6.1-sol'
+   or p_result->'receipt'->>'reasoning_effort' is distinct from 'max' or p_result->'receipt'->>'stage' is distinct from p_stage
+   or p_result->'receipt'->>'request_sha256' is distinct from p_sha256 then
+   raise exception 'GAME_STAGE_RECEIPT_INVALID' using errcode='22023';end if;
+ select result into existing from public.user_story_game_stage where game_id=p_game_id and stage=p_stage and request_sha256=p_sha256;
+ if existing is not null and existing is distinct from p_result then raise exception 'GAME_STAGE_CHANGED' using errcode='PT409';end if;
+ insert into public.user_story_game_stage values(p_game_id,p_stage,p_sha256,p_result) on conflict do nothing;
+ return p_result;
+end $$;
+revoke all on function public.read_story_game_stage(uuid,uuid,text,text),public.save_story_game_stage(uuid,uuid,text,text,jsonb)
+ from public,anon,authenticated,service_role;
+grant execute on function public.read_story_game_stage(uuid,uuid,text,text),public.save_story_game_stage(uuid,uuid,text,text,jsonb) to service_role;
 
 create function public.read_story_game_input(p_game_id uuid,p_token uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
@@ -15114,6 +15149,7 @@ revoke all on function public.story_game_package(jsonb,text,text) from public,an
 create function public.stage_story_game(p_game_id uuid,p_token uuid,p_proposal jsonb,p_model_receipt jsonb) returns jsonb
 language plpgsql security definer set search_path='' as $$
 declare game public.user_story_game%rowtype; material jsonb; expected jsonb; package jsonb; prepared jsonb;
+ novel boolean:=p_model_receipt->>'skill'='novel-to-game'; item jsonb; memory_index integer;
 begin
  game:=public.lock_story_game(p_game_id,p_token,true);
  if game.phase<>'build' or game.selection is null or game.brief is null
@@ -15121,13 +15157,19 @@ begin
    or p_model_receipt->>'status' is distinct from 'completed'
    or coalesce(length(p_model_receipt->>'response_id'),0)=0
    or coalesce(length(p_model_receipt->>'model'),0)=0
-   or p_model_receipt->>'requested_model' is distinct from 'gpt-6-astra'
-   or p_model_receipt->>'skill' is distinct from 'higgsfield-websites'
+   or not coalesce(case when novel then p_model_receipt->>'requested_model'='gpt-6.1-sol'
+       and p_model_receipt->>'reasoning_effort'='max'
+       and p_model_receipt->'qa'->'desktop'->>'status'='PASS'
+       and p_model_receipt->'qa'->'touch'->>'status'='PASS'
+       and p_model_receipt->'qa'->'desktop'->'checks'='{"launch":"PASS","render":"PASS","input":"PASS","coreLoop":"PASS","outcome":"PASS","restart":"PASS"}'::jsonb
+       and p_model_receipt->'qa'->'touch'->'checks'='{"launch":"PASS","render":"PASS","input":"PASS","coreLoop":"PASS","outcome":"PASS","restart":"PASS"}'::jsonb
+       and jsonb_array_length(p_model_receipt->'stages')=6
+       else p_model_receipt->>'skill'='higgsfield-websites' and p_model_receipt->>'requested_model'='gpt-6-astra' end,false)
    or p_model_receipt->>'skill_sha256' !~ '^[a-f0-9]{64}$'
    or p_model_receipt->>'skill_sha256' is null
    or jsonb_typeof(p_proposal) is distinct from 'object' or (select count(*) from jsonb_object_keys(p_proposal))<>2
-   or jsonb_typeof(p_proposal->'html') is distinct from 'string' or octet_length(p_proposal->>'html') not between 100 and 150000
-   or p_proposal->>'html'~*'<[[:space:]]*(script|iframe|object|embed|base|link|form)([[:space:]>])' then
+   or (not novel and (jsonb_typeof(p_proposal->'html') is distinct from 'string' or octet_length(p_proposal->>'html') not between 100 and 150000
+     or p_proposal->>'html'~*'<[[:space:]]*(script|iframe|object|embed|base|link|form)([[:space:]>])')) then
    raise exception 'GAME_PROPOSAL_INVALID' using errcode='22023';end if;
  select jsonb_agg(o-'id'-'life_stage'-'recommended'-'reason' order by position) into expected
    from jsonb_array_elements(game.scene_pool->'scenes') with ordinality as option(o,position)
@@ -15136,9 +15178,29 @@ begin
  material:=public.read_story_game_input(p_game_id,p_token);
  perform public.validate_story_game_scenes(material,expected,false);
  package:=public.story_game_package(expected,p_proposal->>'html',game.authority->>'locale');
- prepared:=jsonb_build_object('game',package,'scene_plan',p_proposal-'html');
+ if novel then
+   if jsonb_typeof(p_proposal->'novel_game') is distinct from 'object'
+     or (select count(*) from jsonb_object_keys(p_proposal->'novel_game'))<>5
+     or p_proposal->'novel_game'->>'version' is distinct from '1'
+     or octet_length((p_proposal->'novel_game')::text)>262144
+     or jsonb_typeof(p_proposal->'novel_game'->'source'->'chapters') is distinct from 'array'
+     or jsonb_array_length(p_proposal->'novel_game'->'source'->'chapters')<>jsonb_array_length(expected)
+     or jsonb_typeof(p_proposal->'novel_game'->'css') is distinct from 'string'
+     or length(p_proposal->'novel_game'->>'css')>24000
+     or p_proposal->'novel_game'->>'css'~*'([<>]|url[[:space:]]*\(|@import|expression[[:space:]]*\()' then
+     raise exception 'GAME_JOURNEY_INVALID' using errcode='22023';end if;
+   memory_index:=0;
+   for item in select value from jsonb_array_elements(expected) loop
+     if p_proposal->'novel_game'->'source'->'chapters'->memory_index is distinct from
+       jsonb_build_object('id','C'||(memory_index+1),'title',item->>'title','text',item->>'quote') then
+       raise exception 'GAME_SELECTION_CHANGED' using errcode='PT409';end if;
+     memory_index:=memory_index+1;
+   end loop;
+   package:=(package-'webpage')||jsonb_build_object('renderer','memoir-linear-v2','novel_game',p_proposal->'novel_game');
+ end if;
+ prepared:=jsonb_build_object('game',package,'scene_plan',p_proposal-'html'-'novel_game');
  update public.user_story_game set candidate=prepared,candidate_digest=public.formal_memoir_digest(prepared),
-   model_receipt=jsonb_set(game.model_receipt,'{steps,higgsfield}',p_model_receipt),state='published',
+   model_receipt=jsonb_set(game.model_receipt,case when novel then '{steps,novel-to-game}'::text[] else '{steps,higgsfield}'::text[] end,p_model_receipt),state='published',
    review=null,token=null,lease_until=null,updated_at=clock_timestamp() where id=game.id returning * into game;
  perform public.link_story_game_page(game.id);
  return public.story_game_status_record(game);
