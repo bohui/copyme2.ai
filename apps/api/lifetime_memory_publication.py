@@ -19,6 +19,66 @@ class PublicationDatabaseUnavailable(PublicationUnavailable):
     """A database guard failed before any response bytes were sent."""
 
 
+async def lock_recording_publication(connection, *, owner, project_id, recording_ids, lock_timeout):
+    """Use the caller's transaction; retain recording authority through its send."""
+    from psycopg import Error
+    from psycopg.types.json import Jsonb
+    from .original_recordings import descriptor
+    if len(recording_ids) > 20:
+        raise PublicationUnavailable('Recording publication limit exceeded')
+    await connection.execute("select set_config('lock_timeout',%s,true)",
+        (f'{int(lock_timeout*1000)}ms',))
+    # Acquire owner authority before project/record locks, matching withdrawal
+    # and original-byte operations. A separate connection would release too soon.
+    await connection.execute('select public.recording_server_operation(%s,%s,null,%s)',
+        (str(owner),'consent_status',Jsonb({})))
+    identifiers = [str(UUID(value)) for value in recording_ids]
+    authorized = {}
+    for recording_id in sorted(set(identifiers)):
+        try:
+            async with connection.transaction():
+                result = await connection.execute('select public.recording_server_operation(%s,%s,%s,%s)',
+                    (str(owner),'read',recording_id,Jsonb({})))
+                record = (await result.fetchone())[0]
+                if record['project_id'] == project_id and record['storage_status'] == 'ready':
+                    authorized[recording_id] = descriptor(record)
+        except Error as error:
+            if getattr(error,'sqlstate',None) != '42501': raise
+    return [authorized[value] for value in identifiers if value in authorized]
+
+
+def recording_payload(body):
+    """Find descriptor lists in results, event data, and paginated read items."""
+    if b'"recordings"' not in body:
+        return None, []
+    payload = json.loads(body)
+    containers = []
+    def visit(value):
+        if isinstance(value, dict):
+            records = value.get('recordings')
+            if records:
+                if not isinstance(records, list) or len(records) > 20:
+                    raise PublicationUnavailable('Recording publication limit exceeded')
+                containers.append(value)
+            for key, child in value.items():
+                if key != 'recordings': visit(child)
+        elif isinstance(value, list):
+            for child in value: visit(child)
+    visit(payload)
+    return payload, containers
+
+
+def filter_recording_payload(body, payload, containers, recordings):
+    if not containers:
+        return body
+    authorized = {record['id']: record for record in recordings}
+    for container in containers:
+        container['recordings'] = [authorized[record['id']] for record in container['recordings']
+            if record['id'] in authorized]
+    suffix = b'\n' if body.endswith(b'\n') else b''
+    return json.dumps(payload,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode() + suffix
+
+
 class TransactionalPublication:
     lock_function = 'lock_lifetime_publication'
     def __init__(self, dsn, *, authenticated_owner, send_timeout=2.0, lock_timeout=5.0):
@@ -52,30 +112,9 @@ class TransactionalPublication:
                 async with asyncio.timeout(self.lock_timeout):
                     connection = await AsyncConnection.connect(self._dsn, connect_timeout=2)
                     if recording_ids is not None:
-                        from .original_recordings import descriptor
-                        if len(recording_ids) > 20:
-                            raise PublicationUnavailable('Recording publication limit exceeded')
-                        await connection.execute("select set_config('lock_timeout',%s,true)",
-                            (f'{int(self.lock_timeout*1000)}ms',))
-                        # Acquire owner authority before project/record locks,
-                        # matching withdrawal and original-byte operations.
-                        await connection.execute('select public.recording_server_operation(%s,%s,null,%s)',
-                            (str(self.owner),'consent_status',Jsonb({})))
-                        identifiers=[str(UUID(value)) for value in recording_ids]
-                        authorized={}
-                        # Concurrent sends may reference the same clips in
-                        # different presentation orders; lock them consistently.
-                        for recording_id in sorted(set(identifiers)):
-                            try:
-                                async with connection.transaction():
-                                    result=await connection.execute('select public.recording_server_operation(%s,%s,%s,%s)',
-                                        (str(self.owner),'read',recording_id,Jsonb({})))
-                                    record=(await result.fetchone())[0]
-                                    if record['project_id']==snapshot['identity']['project_id'] and record['storage_status']=='ready':
-                                        authorized[recording_id]=descriptor(record)
-                            except Error as error:
-                                if getattr(error,'sqlstate',None)!='42501':raise
-                        recordings=[authorized[value] for value in identifiers if value in authorized]
+                        recordings = await lock_recording_publication(connection, owner=self.owner,
+                            project_id=snapshot['identity']['project_id'], recording_ids=recording_ids,
+                            lock_timeout=self.lock_timeout)
                     # Apply transaction-local settings in one database round trip.
                     await connection.execute("select set_config('role','authenticated',true),"
                         "set_config('request.jwt.claim.sub',%s,true),set_config('lock_timeout',%s,true)",
@@ -142,18 +181,13 @@ async def send_governed(send, message, *, publisher, fence):
     Already-delivered or network-buffered text cannot be recalled on withdrawal.
     """
     snapshot = ExecutionFence.model_validate(fence).model_dump(mode='json')
-    event = None
-    data = None
-    if message.get('more_body') and b'"recordings"' in message.get('body',b''):
-        event=json.loads(message['body'])
-        if event.get('type') in {'source_accepted','result'} and isinstance(event.get('data'),dict):
-            data=event['data']
-    records=data.get('recordings') if data is not None else None
-    options={'recording_ids':[record['id'] for record in records]} if records else {}
+    body = message.get('body', b'')
+    payload, containers = recording_payload(body)
+    identifiers = [record['id'] for container in containers for record in container['recordings']]
+    options = {'recording_ids': identifiers} if identifiers else {}
     async with publisher.guard(snapshot,**options) as current_recordings:
-        if records:
-            data['recordings']=current_recordings
-            message={**message,'body':json.dumps(event,ensure_ascii=False,allow_nan=False,separators=(',',':')).encode()+b'\n'}
+        if containers:
+            message = {**message, 'body': filter_recording_payload(body, payload, containers, current_recordings)}
         await send(message)
     return message
 
