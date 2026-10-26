@@ -82,7 +82,7 @@ class WorkerTurnInput(BaseModel):
     model: str | None = Field(default=None, min_length=1, max_length=256)
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
-    agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer', 'author_timeline'] = 'collector'
+    agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer', 'author_timeline', 'interview_guidance'] = 'collector'
     extraction_focus: Literal['family_tree', 'author_timeline', 'place_journey'] | None = None
     composer_phase: Literal['prepare', 'draft', 'review'] = 'draft'
     preparation_id: str | None = Field(default=None, pattern='^[a-f0-9]{64}$')
@@ -128,7 +128,8 @@ class WorkerTurnInput(BaseModel):
                     or self.preparation_id is not None):
                 raise ValueError('Bounded lanes cannot mix legacy execution context')
             lane = self.bounded_lane
-            role = ('memory_context' if lane.phase == 'profile' else
+            role = ('interview_guidance' if lane.phase == 'guidance' else
+                'memory_context' if lane.phase == 'profile' else
                 'author_timeline' if lane.phase in {'extract','summarize'} else 'composer')
             if (self.agent_role != role or self.user_id != lane.fence.user_id
                     or self.project_id != lane.fence.project_id

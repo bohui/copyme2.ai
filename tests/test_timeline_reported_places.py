@@ -25,7 +25,7 @@ def extract_places(monkeypatch, text, raw, *, offset=0, commit=False):
     calls, commits = [], []
     async def worker(request):
         calls.append(json.loads(request.content))
-        output = deepcopy(raw)
+        output = {key:deepcopy(value) for key,value in raw.items() if key not in {'prepared_questions','strategy_proposal'}}
         def bind(value):
             if isinstance(value, dict):
                 if 'source_id' in value:

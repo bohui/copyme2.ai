@@ -632,6 +632,24 @@ Before changing the deployment default, compare both providers on 50–100 repre
 
 The [`memoir-author-timeline` skill](skills/memoir-author-timeline/SKILL.md) processes every durably accepted narrator message in the background. PostgreSQL stores one canonical MemoryEvent index with stable IDs, supported stage/year placement, uncertainty, revisions, and many-to-many original source links. Accepted evidence survives an assistant-delivery failure; completed-round usage requires a saved successful reply. Agent memory is a context view of those records.
 
+The independent [`memoir-interview-guidance` skill](skills/memoir-interview-guidance/SKILL.md)
+in Lane B prepares the next turn's question pool and optional tentative life-meaning
+acknowledgement. It prioritizes conflicts, identity/reference clarification,
+relevant inspected public history, connected topic transitions after enough detail,
+and expressed life meaning, followed by ordinary grounded follow-ups. A conflict
+needs two exact original passages; public history never becomes personal testimony.
+Indexed English stems and Chinese bigrams find older canonical evidence without
+loading the full transcript. Each request retains at most eight events and eight
+original windows, with a 32 KiB guidance-context limit. Retrieval proposes matches;
+the model still judges whether accounts concern the same event or person.
+
+Guidance has its own durable claim and retry, so generation failure cannot block
+timeline extraction. Unrelated new turns coalesce into later work. Each Lane A turn freezes its candidate and acknowledgement read set. Publication
+can update the pool while that turn keeps its captured context.
+A new pool cannot replace or regenerate text already streaming. Lane A considers
+ranked candidates against the latest narration, corrections, boundaries and recall
+limits. Optional acknowledgement guidance is available for one subsequent reply.
+
 The [`memoir-composer` skill](skills/memoir-composer/SKILL.md) consumes the same event IDs. Every five completed rounds by default, it waits for extraction, freezes the latest eligible snapshot, prepares dirty stage/year/event groups in bounded parallel work, and preserves unchanged prose and revisions. Temporal coordinates one active run per project/skill lane with coalesced catch-up, bounded deadlines, retries, and fenced commits. A validated repeat of unchanged event facts advances extraction without rewriting prose. A checkpoint with no supported events finishes collecting without inventing prose or requesting a provider retry.
 
 Family legacy entitlement backed by `STRIPE_PRICE_FAMILY` still controls timeline workspace display and the [`memoir-family-tree` skill](skills/memoir-family-tree/SKILL.md). The tree runs for explicit relationship information or a relevant correction, validates `MEMORY_SPARK_FAMILY_TREE`, and persists people and relationships in `family_context`. Internal event indexing applies independently of that display entitlement; the former author-timeline marker remains a legacy adapter rather than a second canonical event index.

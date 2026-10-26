@@ -11,13 +11,14 @@ from apps.api.lifetime_memory_continuity import validate_governed_collector_resu
 from apps.api.lifetime_memory_engine import validate_governed_context
 from test_conversation_reply import proposal, reply_context
 from test_historical_news import ready_context
+from controlled_interview_guidance import select_news
 from test_lifetime_memory_engine import encode, fixture
 from test_reply_v2_contract_compatibility import hint
 
 
 def test_ready_news_can_change_the_next_reply_question_with_active_strategy():
     context = reply_context('What else was happening in Boston around then?')
-    context.update(deepcopy(ready_context()), strategy_selector=True,
+    select_news(context, strategy_selector=True,
         strategy_context={'mode': 'active', 'plan': None}, interview_language='en-AU')
     clue = context['historical_news']['clues'][0]
     raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
@@ -55,10 +56,10 @@ def test_background_can_propose_broadening_without_declaring_a_completed_stage()
         validate_proposal({**raw, 'strategy': 'shape'}, {'events': []})
 
 
-def test_broadening_plan_reaches_reply_and_ranks_before_optional_news():
+def test_broadening_plan_reaches_reply_after_selected_historical_news():
     governed, context = fixture()
     broader = {**hint(context, 'a'), 'question': 'What changed in your life after school?'}
-    context.update(deepcopy(ready_context()), reply_contract='reply-v2', strategy_selector=True,
+    select_news(context, reply_contract='reply-v2', strategy_selector=True,
         strategy_context={'mode': 'active', 'plan': dict(plan_revision=1, strategy='explore',
             objective='broaden_scope', candidates=[broader])})
     packet = json.loads(governed.packet)
@@ -68,8 +69,8 @@ def test_broadening_plan_reaches_reply_and_ranks_before_optional_news():
 
     assert view['brief']['objective'] == 'broaden_scope'
     assert view['brief']['hint_order'] == 'highest_priority_first'
-    assert view['brief']['hints'][0]['id'] == broader['id']
-    assert view['brief']['hints'][0]['purpose'] == 'broaden_scope'
+    assert view['brief']['hints'][1]['id'] == broader['id']
+    assert view['brief']['hints'][1]['purpose'] == 'broaden_scope'
     assert any(item.get('historical_clue_id') for item in view['brief']['hints'])
 
 
@@ -79,7 +80,7 @@ def test_broadening_plan_reaches_reply_and_ranks_before_optional_news():
 def test_news_uses_the_existing_neutral_cited_reply_and_never_narrator_evidence(selector, locale, reason):
     from apps.api.historical_news import HISTORICAL_INVITATIONS
     context = reply_context()
-    context.update(deepcopy(ready_context()), strategy_selector=selector,
+    select_news(context, strategy_selector=selector,
         strategy_context={'mode': 'active', 'plan': None}, interview_language=locale)
     question, bridge = HISTORICAL_INVITATIONS[locale]
     raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
@@ -99,7 +100,7 @@ def test_news_uses_the_existing_neutral_cited_reply_and_never_narrator_evidence(
 def test_selected_news_renders_the_host_invitation_instead_of_model_rewriting(locale, reason):
     from apps.api.historical_news import HISTORICAL_INVITATIONS
     context = reply_context('What else could we explore from those years?')
-    context.update(deepcopy(ready_context()), strategy_selector=True,
+    select_news(context, strategy_selector=True,
         strategy_context={'mode': 'active', 'plan': None}, interview_language=locale)
     raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
         'hint': 0, 'reason': reason, 'question': 'You were at the fair, right?'}
@@ -118,10 +119,10 @@ def test_selected_news_renders_the_host_invitation_instead_of_model_rewriting(lo
 
 @pytest.mark.parametrize('objective', ['follow_story', 'broaden_scope'])
 @pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate', 'return_context'])
-def test_prepared_selection_honors_the_highest_unresolved_background_priority(objective, reason):
+def test_guidance_priority_orders_candidates_without_rewriting_a_valid_selection(objective, reason):
     context = reply_context('What else could we explore from those years?')
     ordinary = hint(context, 'a')
-    context.update(deepcopy(ready_context()), strategy_selector=True,
+    select_news(context, strategy_selector=True,
         strategy_context={'mode': 'active', 'plan': dict(plan_revision=1, strategy='explore',
             objective=objective, candidates=[ordinary])}, interview_language='en-AU')
     hints = reply_candidates(context)
@@ -131,10 +132,10 @@ def test_prepared_selection_honors_the_highest_unresolved_background_priority(ob
 
     result = validate_governed_collector_result(raw, context)
 
-    assert result['plan']['chosen_id'] == hints[0]['id']
-    assert result['strategy_outcome']['selected_candidate_id'] == hints[0]['id']
-    assert result['strategy_outcome']['question_delivered'] == hints[0]['question']
-    assert bool(result.get('historical_context')) == (objective == 'follow_story')
+    assert result['plan']['chosen_id'] == (lower['id'] if reason != 'return_context' else 'immediate-'+context['source']['id'])
+    assert result['strategy_outcome']['selected_candidate_id'] == (lower['id'] if reason != 'return_context' else None)
+    assert result['strategy_outcome']['question_delivered'] == lower['question']
+    assert result.get('historical_context') is None
 
 
 def test_adaptation_of_the_highest_ordinary_hint_is_preserved():
@@ -151,7 +152,7 @@ def test_adaptation_of_the_highest_ordinary_hint_is_preserved():
 @pytest.mark.parametrize('fault', ['disabled', 'used', 'uninspected', 'stale', 'foreign', 'missing_receipt'])
 def test_unavailable_news_never_enters_selectable_hints(fault):
     context = reply_context()
-    context.update(deepcopy(ready_context()))
+    select_news(context)
     state = context['historical_news']
     clue = state['clues'][0]
     if fault == 'disabled': state['enabled'] = False
@@ -167,7 +168,7 @@ def test_unavailable_news_never_enters_selectable_hints(fault):
 def test_current_intent_keeps_precedence_over_all_background_priorities(reason):
     context = reply_context()
     confirmation = hint(context, 'a', confirmation=True)
-    context.update(deepcopy(ready_context()), strategy_selector=True, strategy_context={'mode': 'active',
+    select_news(context, strategy_selector=True, strategy_context={'mode': 'active',
         'plan': dict(plan_revision=1, strategy='explore', objective='broaden_scope', candidates=[confirmation])})
     raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0], 'reason': reason}
     if reason in {'pause', 'direct_answer'}:
@@ -206,9 +207,9 @@ def test_resolving_first_confirmation_keeps_second_ahead_of_news_and_ordinary_hi
         strategy_context={'mode': 'active', 'plan': dict(plan_revision=2, strategy='explore',
             objective='follow_story', candidates=[ordinary])}, interview_language='en-AU')
     if news_ready:
-        context.update(deepcopy(ready_context()))
+        select_news(context)
     hints = reply_candidates(context)
-    assert second['id'] not in {item['id'] for item in hints}, 'Exercise the strategy projection gap'
+    assert second['id'] in {item['id'] for item in hints}, 'All pending pool questions survive strategy projection'
     raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
         'question': ordinary['question'], 'reason': reason,
         'hint': None if reason == 'return_context' else next(
@@ -229,12 +230,12 @@ def test_resolving_first_confirmation_keeps_second_ahead_of_news_and_ordinary_hi
 def test_confirmation_ranks_before_topic_expansion_and_news_without_duplicates():
     context = reply_context()
     confirmation, broader = hint(context, 'a', confirmation=True), hint(context, 'b')
-    context.update(deepcopy(ready_context()), strategy_selector=True, prepared_questions=[confirmation],
+    select_news(context, strategy_selector=True, prepared_questions=[confirmation],
         strategy_context={'mode': 'active', 'plan': dict(plan_revision=1, strategy='explore',
             objective='broaden_scope', candidates=[confirmation, broader])})
     hints = reply_candidates(context)
-    assert [item['purpose'] for item in hints] == ['clarification', 'broaden_scope', 'historical_news']
-    assert [item['id'] for item in hints[:2]] == [confirmation['id'], broader['id']]
+    assert [item['purpose'] for item in hints] == ['clarification', 'historical_news', 'broaden_scope']
+    assert [item['id'] for item in (hints[0], hints[2])] == [confirmation['id'], broader['id']]
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
@@ -242,7 +243,7 @@ def test_older_strategy_selector_preserves_the_same_public_clue_contract(locale)
     from test_interview_strategy import wire
     context = reply_context()
     context.pop('reply_contract')
-    context.update(deepcopy(ready_context()), strategy_selector=True,
+    select_news(context, strategy_selector=True,
         strategy_context={'mode': 'active', 'plan': None}, interview_language=locale)
     hint = reply_candidates(context)[0]
     raw = wire(acknowledgement=sorted(historical_acknowledgements(context))[0],

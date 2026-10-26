@@ -16,6 +16,7 @@ from test_interview_strategy_runtime import client_fixture
 from test_two_lane_memory import (database, sql, event_database, private_database, attachment_database,
     enable_only_disposable_database_rollout, lane, service)
 from test_shared_memory_events_postgres import literal, rpc
+from split_lane_fixtures import publish_ready_news
 
 
 def response(request, output):
@@ -56,7 +57,10 @@ def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql,
         first = client.post('/v1/agent/turn', json=dict(text='I was born in Boston, USA, in 1960.', language=language))
         assert first.status_code == 200, first.text
         project = first.json()['project_id']
+        identity=rpc(sql,'resolve_lifetime_conversation',literal(project))
+        publish_ready_news(sql,identity,language)
         assert len(rpc(sql, 'read_user_historical_news', literal(project))['clues']) == 1
+        selected=rpc(sql,'read_lifetime_prepared_questions',f"'{identity['conversation_id']}'")[0]
         turn = str(uuid4())
         payload = dict(project_id=project, text='What else could we explore?', language=language, client_turn_id=turn)
         later = client.post('/v1/agent/turn', json=payload, headers={'accept': 'application/x-ndjson'})
@@ -78,7 +82,7 @@ def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql,
         assert rendered.returncode == 0, rendered.stdout + rendered.stderr
         assert len(calls) == 2, 'Exactly one reply call per new turn, none on replay'
         outcome = json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o order by source_sequence desc limit 1;').stdout)
-        assert outcome['delivered'] and outcome['selected_candidate_id'] == saved['historical_context']['id']
+        assert outcome['delivered'] and outcome['selected_candidate_id'] == selected['id']
         assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'
 
 
@@ -118,6 +122,8 @@ def test_ready_news_can_save_and_replay_an_explicit_stop_without_touching_the_pr
             text='I was born in Boston, USA, in 1960.', language=language))
         assert first.status_code == 200, first.text
         prior = first.json()
+        identity=rpc(sql,'resolve_lifetime_conversation',literal(prior['project_id']))
+        publish_ready_news(sql,identity,language)
         assert len(rpc(sql, 'read_user_historical_news', literal(prior['project_id']))['clues']) == 1
         payload = dict(project_id=prior['project_id'], text=text, language=language, client_turn_id=str(uuid4()))
         later = client.post('/v1/agent/turn', json=payload, headers={'accept': 'application/x-ndjson'})
@@ -177,6 +183,8 @@ def test_correction_after_stop_saves_and_replays_without_reopening_questions_or_
         first = client.post('/v1/agent/turn', json=dict(text=story, language=language))
         assert first.status_code == 200, first.text
         project = first.json()['project_id']
+        identity=rpc(sql,'resolve_lifetime_conversation',literal(project))
+        publish_ready_news(sql,identity,language)
         prior = client.post('/v1/agent/turn', json=dict(project_id=project, text=stop, language=language))
         assert prior.status_code == 200 and prior.json()['conversation_saved'], prior.text
         assert research == [project]
@@ -218,9 +226,9 @@ def test_background_pool_priority_reaches_actual_saved_reply(sql, tmp_path, monk
         context = json.loads(request.content)['interview_context']
         calls.append(context)
         output = proposal()
-        if kind == 'broaden_scope' and len(calls) == 2:
+        if len(calls) == 2:
             hints = reply_candidates(context)
-            assert hints[0]['purpose'] == 'broaden_scope'
+            assert hints[0]['purpose'] == ('broaden_scope' if kind == 'broaden_scope' else 'clarification')
             output.update(hint=0, reason='prepared_candidate', question=hints[0]['question'])
         return response(request, output)
 

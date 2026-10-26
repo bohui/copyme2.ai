@@ -2,16 +2,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager
 import os
 
-from pydantic import BaseModel, ConfigDict, Field
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .lifetime_memory_continuity import _Places
-from .interview_questions import question_span, hint_evidence, question_candidates
+from .interview_questions import PreparedQuestion, hint_evidence, question_candidates, question_priority
 
 
 def two_lanes_enabled():
@@ -21,31 +19,14 @@ def two_lanes_enabled():
 CONVERSATION_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/background-memory'))
 
 
-class PreparedQuestion(BaseModel):
-    model_config = ConfigDict(extra='forbid', strict=True)
-    question: str = Field(min_length=1, max_length=800)
-    topic: str = Field(min_length=1, max_length=120)
-    quote: str = Field(min_length=1, max_length=500)
-    char_start: int | None = Field(default=None, ge=0)
-    char_end: int | None = Field(default=None, ge=1)
-    requires_confirmation: bool = Field(default=False)
-    scope: Literal['detail', 'broader'] = 'detail'
-
-
 class DerivedHints(_Places):
-    prepared_questions: list[PreparedQuestion] = Field(max_length=5)
+    """Timeline-owned geography only; interviewing belongs to the guidance skill."""
 
 
-def extraction_contract(*, strategy=False, attribution=False, continuity=False, source=None):
+def extraction_contract(*, attribution=False, continuity=False, source=None):
     from .memory_events import extraction_instructions, extraction_schema
     schema=extraction_schema()
     extension=DerivedHints.model_json_schema()
-    question = extension['$defs']['PreparedQuestion']
-    question['required'] = list(question['properties'])
-    question['properties']['requires_confirmation'].pop('default', None)
-    question['properties']['scope'].pop('default', None)
-    for field in ('char_start', 'char_end'):
-        question['properties'][field].pop('default', None)
     extension['$defs']['_PlaceJourney']['required']=list(extension['$defs']['_PlaceJourney']['properties'])
     for field in ('latitude','longitude'):
         extension['$defs']['_PlaceJourney']['properties'][field].pop('default',None)
@@ -55,13 +36,6 @@ def extraction_contract(*, strategy=False, attribution=False, continuity=False, 
     place_skill = load_prompt_artifact(Path(__file__).resolve().parents[2] / 'skills/memoir-place-journey/references/two-lane.md')
     instructions=extraction_instructions(derived_hints=True)+'\n'+place_skill+load_prompt_artifact(
         prompt_path('memoir/skills/memoir-author-timeline/derived-hints'))
-    if strategy:
-        from .interview_strategy import StrategyProposal
-        proposal=StrategyProposal.model_json_schema()
-        schema.setdefault('$defs',{}).update(proposal.get('$defs',{}))
-        schema['properties']['strategy_proposal']={k:v for k,v in proposal.items() if k!='$defs'}
-        schema['required'].append('strategy_proposal')
-        instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/strategy-proposal'))
     if attribution:
         from .conversation_attribution import attribution_schema, INSTRUCTIONS
         instructions += INSTRUCTIONS
@@ -78,7 +52,7 @@ def extraction_contract(*, strategy=False, attribution=False, continuity=False, 
 
 def derived_hints(raw, page, *, attribution=None):
     from .place_journey import validate_place_journey, grounded_place_journeys
-    hints=DerivedHints.model_validate({key:raw[key] for key in ('place_journeys','prepared_questions')},
+    hints=DerivedHints.model_validate({key:raw[key] for key in ('place_journeys',)},
         context={'derived_source':page['source']})
     places=[validate_place_journey(place.model_dump()) for place in hints.place_journeys
             if place.hierarchy[-1]==place.place]
@@ -112,25 +86,11 @@ def derived_hints(raw, page, *, attribution=None):
                     and evidence['char_start'] < ref['char_end'] for ref in restricted):
                 # An exact quote still cannot carry restricted prose into research.
                 place.pop('research')
-    questions=[]
-    for item in hints.prepared_questions:
-        try:
-            item.char_start, item.char_end = question_span(page['source'], item.quote, item.char_start, item.char_end)
-        except ValueError:
-            if (item.char_start is None) != (item.char_end is None):
-                raise
-            item.char_start, item.char_end = question_span(page['source'], item.quote)
-        if item.question.count('?')+item.question.count('？')>1:
-            raise ValueError('Prepared hint contains multiple questions')
-        if (item.question.strip().casefold(), item.char_start, item.char_end) in {
-                (q['question'].strip().casefold(), q['char_start'], q['char_end']) for q in questions}:
-            raise ValueError('Prepared questions must be distinct')
-        questions.append(item.model_dump(exclude_defaults=True))
-    return {'place_journeys':places,'prepared_questions':questions}
+    return {'place_journeys':places}
 
 
 def pending_confirmation(context, *, exclude_ids=()):
-    return next((q for q in question_candidates(context)
+    return next((q for q in sorted(question_candidates(context), key=question_priority)
                  if q.get('requires_confirmation') is True and q['id'] not in exclude_ids), None)
 
 
@@ -143,6 +103,10 @@ def prioritize_question(value, context, *, selection_reason):
             and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context'}):
         from .conversation_reply import reply_candidates
         question = next((item for item in reply_candidates(context) if item['id'] not in resolved), None)
+    # The independent skill supplies next-turn options, not a guardrail that
+    # rewrites a reply already chosen or streamed by Lane A.
+    if question and question.get('trigger'):
+        return value
     if not question or value['stopped'] or selection_reason in {'current_correction', 'user_redirect', 'pacing', 'recall_limit'}:
         return value
     if value['plan']['chosen_id'] == question['id'] and not question.get('requires_confirmation'):

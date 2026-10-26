@@ -21,6 +21,8 @@ class Skill:
 
 
 SKILLS = {item.name: item for item in (
+    Skill('memoir-interview-guidance', 'guidance', 'model', 'accepted_context_change',
+        gates=('canonical_activation','source_policy_fence','delivered_dialogue','current_public_news'),recovery='durable_lane'),
     Skill('memoir-author-timeline', 'timeline', 'model', 'accepted_source',
         gates=('canonical_activation','source_policy_fence','A_work_decision'),recovery='durable_lane'),
     Skill('memoir-family-tree', None, 'model', 'relationship_evidence', 'unwired',
@@ -89,6 +91,10 @@ def admit(name, trigger):
 
 def admit_lane(fence, phase):
     """Admit only canonical bounded phases, not a catalog-selected model call."""
+    if fence.skill == 'guidance':
+        if phase != 'guidance' or fence.guidance_context is None:
+            raise SkillUnavailable('phase_required')
+        return admit('memoir-interview-guidance', 'accepted_context_change')
     if fence.skill == 'timeline':
         if phase not in {'extract','summarize','profile'}:
             raise SkillUnavailable('phase_required')

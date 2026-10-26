@@ -83,6 +83,8 @@ CREATE TABLE public.user_interview_turn (
     input_hash text NOT NULL,
     kind text NOT NULL,
     collector jsonb,
+    interview_guidance_snapshot jsonb,
+    guidance_plan_revision_seen bigint,
     photo_context jsonb DEFAULT '[]'::jsonb NOT NULL,
     consumed_photo_key text,
     consumed_photo_revision text,
@@ -194,6 +196,8 @@ CREATE TABLE public.user_lifetime_lane_snapshot (
     created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     summary_source bigint DEFAULT 0 NOT NULL,
     summary_offset integer DEFAULT 0 NOT NULL,
+    guidance_revision bigint DEFAULT 0 NOT NULL,
+    guidance_news jsonb DEFAULT '{}'::jsonb NOT NULL,
     CONSTRAINT user_lifetime_lane_snapshot_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'completed'::text, 'proposed'::text, 'stale'::text])))
 );
 
@@ -224,8 +228,9 @@ CREATE TABLE public.user_memoir_lane (
     attempts integer DEFAULT 0 NOT NULL,
     available_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     error text,
+    guidance_revision bigint DEFAULT 0 NOT NULL,
     locale text DEFAULT 'en-AU'::text NOT NULL,
-    CONSTRAINT user_memoir_lane_skill_check CHECK ((skill = ANY (ARRAY['timeline'::text, 'composer'::text])))
+    CONSTRAINT user_memoir_lane_skill_check CHECK ((skill = ANY (ARRAY['timeline'::text, 'composer'::text, 'guidance'::text])))
 );
 
 CREATE TABLE public.user_narrator_source (
@@ -4058,7 +4063,7 @@ CREATE FUNCTION public.claim_memoir_lane(p_lane_id uuid, p_run_seconds integer D
     AS $$
 declare lane public.user_memoir_lane%rowtype; identity public.user_lifetime_conversation%rowtype;
  project public.user_memoir_project%rowtype; snap public.user_lifetime_lane_snapshot%rowtype;
- previous public.user_lifetime_lane_snapshot%rowtype; run_token uuid:=gen_random_uuid(); rounds bigint; seed text; pins jsonb; privacy_hash text; previous_owner text;
+ previous public.user_lifetime_lane_snapshot%rowtype; run_token uuid:=gen_random_uuid(); rounds bigint; seed text; pins jsonb; news jsonb; news_manifest jsonb; privacy_hash text; previous_owner text;
 begin
  if p_run_seconds is null or p_run_seconds not between 1 and 1800 then raise exception 'invalid run duration';end if;
  select * into lane from public.user_memoir_lane where id=p_lane_id;
@@ -4074,15 +4079,27 @@ begin
  previous_owner:=current_setting('request.jwt.claim.sub',true);
  perform set_config('request.jwt.claim.sub',lane.user_id::text,true);
  pins:=public.read_lifetime_pinned(identity.conversation_id);
+ if lane.skill='guidance' then
+   news:=public.read_user_historical_news(lane.project_id);
+   news_manifest:=jsonb_build_object('context_revision',news->>'context_revision',
+     'settings_revision',coalesce((select revision from public.user_historical_news_state where user_id=lane.user_id and project_id=lane.project_id),1),
+     'enabled',news->'enabled','clues',(select coalesce(jsonb_agg(jsonb_build_object('id',c->>'id',
+       'digest',encode(sha256(convert_to(c::text,'UTF8')),'hex'))),'[]') from jsonb_array_elements(news->'clues') c));
+ end if;
  perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
  privacy_hash:=encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics',
    'paused_topics',pins->'paused_topics','privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex');
  select coalesce(max(ordinal),0) into rounds from public.user_completed_round where user_id=lane.user_id and project_id=lane.project_id;
  if lane.skill='composer' and (rounds<lane.target_milestone or lane.target_milestone=0 or exists(select 1 from public.user_narrator_source
    where user_id=lane.user_id and project_id=lane.project_id and status='active' and processing_status<>'succeeded')) then return null;end if;
+ if lane.skill='guidance' and (not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled)
+   or exists(select 1 from public.user_agent_turn_lease where user_id=lane.user_id and expires_at>clock_timestamp())
+   or exists(select 1 from public.user_narrator_source where user_id=lane.user_id and project_id=lane.project_id
+     and status='active' and processing_status<>'succeeded')) then return null;end if;
  update public.user_lifetime_lane_snapshot set state='stale' where lane_id=lane.id and state='pending' and
    (policy_epoch<>project.policy_epoch or preference_revision<>identity.preference_revision or locale<>lane.locale
-    or (lane.skill='composer' and event_high_water<>project.event_sequence));
+    or (lane.skill='composer' and event_high_water<>project.event_sequence)
+    or (lane.skill='guidance' and (event_high_water<>project.event_sequence or source_high_water<>project.source_sequence or guidance_revision<>lane.guidance_revision)));
  select * into snap from public.user_lifetime_lane_snapshot where lane_id=lane.id and state='pending' order by created_at desc limit 1;
  if not found then
    select * into previous from public.user_lifetime_lane_snapshot where lane_id=lane.id and locale=lane.locale and state='completed' order by created_at desc limit 1;
@@ -4090,13 +4107,13 @@ begin
      'policy',project.policy_epoch,'preferences',identity.preference_revision,'privacy_digest',privacy_hash,'source',project.source_sequence,
      'events',project.event_sequence,'predecessor',previous.id,'predecessor_digest',previous.root_digest)::text;
    insert into public.user_lifetime_lane_snapshot(lane_id,user_id,project_id,conversation_id,policy_epoch,preference_revision,privacy_digest,locale,
-     source_high_water,event_high_water,round_high_water,milestone,base_revision,predecessor,base_event,last_event,root_digest)
+     source_high_water,event_high_water,round_high_water,milestone,base_revision,predecessor,base_event,last_event,root_digest,guidance_revision,guidance_news)
    values(lane.id,lane.user_id,lane.project_id,identity.conversation_id,project.policy_epoch,identity.preference_revision,privacy_hash,lane.locale,
      project.source_sequence,project.event_sequence,rounds,lane.target_milestone,
      coalesce((select revision from public.user_memoir_edition where user_id=lane.user_id and project_id=lane.project_id and locale=lane.locale),0),
      previous.id,case when previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch and previous.locale=lane.locale then previous.event_high_water else 0 end,
      case when previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch and previous.locale=lane.locale then previous.event_high_water else 0 end,
-     encode(sha256(convert_to(seed,'UTF8')),'hex')) returning * into snap;
+     encode(sha256(convert_to(seed,'UTF8')),'hex'),lane.guidance_revision,coalesce(news_manifest,'{}')) returning * into snap;
  end if;
  update public.user_memoir_lane set token=run_token,lease_until=least(clock_timestamp()+interval '60 seconds',clock_timestamp()+make_interval(secs=>p_run_seconds)),
    run_deadline=clock_timestamp()+make_interval(secs=>p_run_seconds),pending=false,active_manifest='[]',active_events='[]',
@@ -4724,91 +4741,8 @@ CREATE FUNCTION public.commit_lifetime_memoir_lane_page_before_semantic(p_lane_i
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
-declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb; result jsonb; proposal jsonb; shadow_mode boolean;
- current_revision bigint; prior_sequence bigint; next_revision bigint; candidates jsonb; manifest jsonb; checkpoint uuid; lag bigint;
 begin
- -- Disabled planning adds no repeated canonical page read/lock to ordinary
- -- composer work. Strategy receipts still take the full guarded replay path.
- if not (p_result ? 'strategy_proposal') and not exists(select 1 from public.lifetime_two_lane_rollout
-   where singleton and enabled and strategy_enabled) then
-   return public.commit_lifetime_memoir_lane_page_before_strategy(p_lane_id,p_token,p_page_number,p_result,p_page_digest);
- end if;
- snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
- -- Canonical receipts own retries including the complete proposal digest. Store
- -- the proposal inside the existing events envelope's result digest separately
- -- below; never let a replay mutate an already accepted strategy.
- if p_page_number<snap.page_number and exists(select 1 from public.user_lifetime_strategy_page_receipt r
-   where r.snapshot_id=snap.id and r.page_number=p_page_number) then
-   if exists(select 1 from public.user_lifetime_strategy_page_receipt r where r.snapshot_id=snap.id and r.page_number=p_page_number
-     and r.page_digest=p_page_digest and r.result_digest=encode(sha256(convert_to(p_result::text,'UTF8')),'hex')) then
-     return jsonb_build_object('status','page_saved','replayed',true);
-   end if;
-   raise exception 'strategy replay conflict' using errcode='PT409';
- end if;
- page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
- if (page->'two_lane'->>'strategy_mode') is null then
-   return public.commit_lifetime_memoir_lane_page_before_strategy(p_lane_id,p_token,p_page_number,p_result,p_page_digest);
- end if;
- if p_page_digest is distinct from page->>'page_digest' then raise exception 'stale strategy plan input' using errcode='PT409';end if;
- proposal:=p_result->'strategy_proposal';
- if page->'two_lane'->>'work_mode'='reply_only' and proposal='null'::jsonb then
-   result:=public.commit_lifetime_memoir_lane_page_before_strategy(p_lane_id,p_token,p_page_number,p_result-'strategy_proposal',p_page_digest);
-   insert into public.user_lifetime_strategy_page_receipt values(snap.id,p_page_number,p_page_digest,encode(sha256(convert_to(p_result::text,'UTF8')),'hex'));
-   return result;
- end if;
- if jsonb_typeof(proposal) is distinct from 'object' or exists(select 1 from jsonb_object_keys(proposal) k where k not in ('strategy','objective','focus_event_ids'))
-   or coalesce(proposal->>'strategy','') not in ('comfort','explore','shape')
-   or coalesce(proposal->>'objective','') not in ('gentle_entry','follow_story','clarify_order','clarify_identity','link_stories','broaden_scope')
-   or jsonb_typeof(proposal->'focus_event_ids') is distinct from 'array' or jsonb_array_length(proposal->'focus_event_ids')>8
-   or (proposal->>'strategy'='shape' and proposal->>'objective' not in ('clarify_order','clarify_identity','link_stories'))
-   or exists(select 1 from jsonb_array_elements(proposal->'focus_event_ids') e where not exists(select 1 from jsonb_array_elements(page->'events') v
-     where v->>'id'=e#>>'{}' and v->>'status'='active')) then raise exception 'invalid bounded strategy proposal' using errcode='22023';end if;
- insert into public.user_lifetime_strategy_frontier(user_id,project_id) values(snap.user_id,snap.project_id) on conflict do nothing;
- select revision into current_revision from public.user_lifetime_strategy_frontier where user_id=snap.user_id and project_id=snap.project_id for update;
- if current_revision is distinct from (page->'two_lane'->>'strategy_revision')::bigint then raise exception 'strategy revision changed' using errcode='PT409';end if;
- shadow_mode:=page->'two_lane'->>'strategy_mode'='shadow';
- select max(based_on_sequence) into prior_sequence from public.user_lifetime_interview_strategy where user_id=snap.user_id and project_id=snap.project_id and shadow=shadow_mode;
- if coalesce(prior_sequence,0)>(page->'source'->>'sequence')::bigint then raise exception 'older strategy source' using errcode='PT409';end if;
- result:=public.commit_lifetime_memoir_lane_page_before_strategy(p_lane_id,p_token,p_page_number,p_result-'strategy_proposal',p_page_digest);
- -- A correction in this same transaction purges old-policy plans and advances
- -- their frontier. Keep the correction, but never publish its stale proposal.
- if exists(select 1 from public.user_memoir_project where user_id=snap.user_id and project_id=snap.project_id
-   and policy_epoch is distinct from snap.policy_epoch) then
-   insert into public.user_lifetime_strategy_page_receipt values(snap.id,p_page_number,p_page_digest,
-     encode(sha256(convert_to(p_result::text,'UTF8')),'hex'));
-   return result||jsonb_build_object('policy_changed',true);
- end if;
- next_revision:=current_revision+1;
- with consumed as materialized (select * from public.lifetime_consumed_question_ids(snap.user_id,snap.project_id))
- select coalesce(jsonb_agg(q||jsonb_build_object('id',public.lifetime_question_id(
-   (page->'source'->>'id')::uuid,(page->'source'->>'version')::bigint,q)) order by hint_position),'[]') into candidates
- from (select public.lifetime_question_hint(page->'source',hint) q,hint_position
-   from jsonb_array_elements(p_result->'prepared_questions') with ordinality hints(hint,hint_position)) normalized
- where not exists(select 1 from consumed
-   where consumed.question_id=public.lifetime_question_id((page->'source'->>'id')::uuid,(page->'source'->>'version')::bigint,q));
- select coalesce(jsonb_agg(jsonb_build_object('id',e.id,'revision',e.revision)),'[]') into manifest from public.user_memory_event e
-   where e.user_id=snap.user_id and e.project_id=snap.project_id and proposal->'focus_event_ids' @> to_jsonb(e.id);
- select checkpoint_id into checkpoint from public.user_lifetime_conversation where user_id=snap.user_id and conversation_id=snap.conversation_id;
- select greatest(0,floor(extract(epoch from clock_timestamp()-created_at)*1000))::bigint into lag from public.user_narrator_source
-   where user_id=snap.user_id and project_id=snap.project_id and id=(page->'source'->>'id')::uuid;
- insert into public.user_lifetime_interview_strategy(user_id,project_id,plan_revision,shadow,source_id,source_version,based_on_sequence,
-   policy_epoch,preference_revision,execution_generation,phase_revision,event_manifest,data)
- values(snap.user_id,snap.project_id,next_revision,shadow_mode,(page->'source'->>'id')::uuid,(page->'source'->>'version')::bigint,
-   (page->'source'->>'sequence')::bigint,snap.policy_epoch,snap.preference_revision,(page->'two_lane'->>'execution_generation')::bigint,
-   (page->'two_lane'->>'phase_revision')::bigint,manifest,jsonb_build_object('schema_version',1,'project_id',snap.project_id,
-     'plan_revision',next_revision,'based_on_sequence',(page->'source'->>'sequence')::bigint,'source_id',page->'source'->>'id',
-     'source_version',(page->'source'->>'version')::bigint,'source_revision',snap.source_high_water,'policy_epoch',snap.policy_epoch,
-     'preference_revision',snap.preference_revision,'execution_generation',(page->'two_lane'->>'execution_generation')::bigint,
-     'phase_revision',(page->'two_lane'->>'phase_revision')::bigint,'snapshot_id',snap.id,'checkpoint_id',checkpoint,
-     'strategy',proposal->>'strategy','objective',proposal->>'objective','focus_event_ids',proposal->'focus_event_ids',
-     'candidates',candidates,'background_lag_ms',lag));
- update public.user_lifetime_strategy_frontier set revision=next_revision,
-   active_strategy=case when shadow_mode then active_strategy else proposal->>'strategy' end,
-   shadow_strategy=case when shadow_mode then proposal->>'strategy' else shadow_strategy end
-   where user_id=snap.user_id and project_id=snap.project_id and revision=current_revision;
- if not found then raise exception 'strategy CAS failed' using errcode='PT409';end if;
- insert into public.user_lifetime_strategy_page_receipt values(snap.id,p_page_number,p_page_digest,encode(sha256(convert_to(p_result::text,'UTF8')),'hex'));
- return result;
+ return public.commit_lifetime_memoir_lane_page_before_strategy(p_lane_id,p_token,p_page_number,p_result,p_page_digest);
 end $$;
 
 CREATE FUNCTION public.commit_lifetime_memoir_lane_page_before_skills(p_lane_id uuid, p_token uuid, p_page_number bigint, p_result jsonb, p_page_digest text) RETURNS jsonb
@@ -4935,7 +4869,7 @@ CREATE FUNCTION public.commit_lifetime_memoir_lane_page_before_strategy(p_lane_i
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
-declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb; result jsonb; questions jsonb;
+declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb; result jsonb;
 begin
  -- Preserve the canonical disabled path without duplicate page preparation.
  -- Its own lock/digest/receipt checks still fence every commit and replay.
@@ -4950,22 +4884,17 @@ begin
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
  if page ? 'two_lane' then
    if p_page_digest is distinct from page->>'page_digest' then raise exception 'stale derived page' using errcode='PT409';end if;
-   if jsonb_typeof(p_result->'prepared_questions') is distinct from 'array' or jsonb_array_length(p_result->'prepared_questions')>5
-     or octet_length((p_result->'prepared_questions')::text)>6000
-     or exists(select 1 from jsonb_object_keys(p_result) k where k not in ('events','place_journeys','prepared_questions')) then
-     raise exception 'bounded derived hints required' using errcode='22023';end if;
-   select coalesce(jsonb_agg(public.lifetime_question_hint(page->'source',q)),'[]') into questions
-     from jsonb_array_elements(p_result->'prepared_questions') q;
-   if (select count(*) from jsonb_array_elements(questions)) is distinct from
-     (select count(distinct public.lifetime_question_id((page->'source'->>'id')::uuid,
-       (page->'source'->>'version')::bigint,q)) from jsonb_array_elements(questions) q) then
-     raise exception 'prepared questions must be distinct' using errcode='22023';end if;
+   if exists(select 1 from jsonb_object_keys(p_result) k where k not in ('events','place_journeys')) then
+     raise exception 'timeline output cannot contain interview guidance' using errcode='22023';end if;
    perform public.validate_two_lane_places(page->'source'->>'text',p_result->'place_journeys',coalesce((page->'source'->>'char_start')::integer,0));
    if page->'two_lane'->>'work_mode'='reply_only' and (jsonb_array_length(p_result->'events')>0
-     or jsonb_array_length(p_result->'place_journeys')>0 or jsonb_array_length(p_result->'prepared_questions')>0) then
+     or jsonb_array_length(p_result->'place_journeys')>0) then
      raise exception 'reply only work cannot create derived facts' using errcode='22023';end if;
  end if;
  result:=public.commit_lifetime_memoir_lane_page_before_two_lanes(p_lane_id,p_token,p_page_number,p_result,p_page_digest);
+ if page ? 'two_lane' and result->>'status'='page_saved' and exists(select 1 from public.user_memoir_project
+   where user_id=snap.user_id and project_id=snap.project_id and policy_epoch<>snap.policy_epoch) then
+   return result||jsonb_build_object('policy_changed',true);end if;
  if page ? 'two_lane' and result->>'status'='page_saved' then
    -- Empty or failed B never erases a previously valid activated workspace.
    if jsonb_array_length(p_result->'place_journeys')>0 then
@@ -4976,28 +4905,7 @@ begin
        journeys=(select coalesce(jsonb_agg(distinct j),'[]') from jsonb_array_elements(
          case when user_lifetime_place_journey.source_version=excluded.source_version then user_lifetime_place_journey.journeys else '[]' end||excluded.journeys) j);
    end if;
-   -- Confirmations are actionable in every strategy mode; ordinary shadow hints stay private.
-   insert into public.user_lifetime_prepared_question values(snap.user_id,snap.project_id,(page->'source'->>'id')::uuid,
-     (page->'source'->>'version')::bigint,snap.source_high_water,snap.policy_epoch,snap.preference_revision,
-     (page->'two_lane'->>'execution_generation')::bigint,(page->'two_lane'->>'phase_revision')::bigint,snap.id,p_page_digest,
-     (select coalesce(jsonb_agg(hint.value),'[]') from jsonb_array_elements(questions) hint(value)
-       where page->'two_lane'->>'strategy_mode' is null or hint.value->'requires_confirmation'='true'::jsonb))
-   on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,source_revision=excluded.source_revision,
-     policy_epoch=excluded.policy_epoch,preference_revision=excluded.preference_revision,execution_generation=excluded.execution_generation,
-     phase_revision=excluded.phase_revision,snapshot_id=excluded.snapshot_id,page_digest=excluded.page_digest,
-     questions=(select coalesce(jsonb_agg(hint.value order by hint.position),'[]') from (
-       select distinct on (public.lifetime_question_id((page->'source'->>'id')::uuid,
-         (page->'source'->>'version')::bigint,item.value)) item.value,item.position
-       from jsonb_array_elements((case when user_lifetime_prepared_question.source_version=excluded.source_version
-         and user_lifetime_prepared_question.policy_epoch=excluded.policy_epoch
-         and user_lifetime_prepared_question.preference_revision=excluded.preference_revision
-         and user_lifetime_prepared_question.execution_generation=excluded.execution_generation
-         then jsonb_path_query_array(user_lifetime_prepared_question.questions,'$[*] ? (@.requires_confirmation == true)')
-         else '[]'::jsonb end)||excluded.questions) with ordinality item(value,position)
-       order by public.lifetime_question_id((page->'source'->>'id')::uuid,(page->'source'->>'version')::bigint,item.value),
-         (item.value->'requires_confirmation'='true'::jsonb) desc nulls last,item.position
-     ) hint);
-   perform public.prune_lifetime_question_pool(snap.user_id,snap.project_id,(page->'source'->>'id')::uuid);
+
  end if;
  return result;
 end $$;
@@ -5410,7 +5318,14 @@ begin
    if p_outcome->>'selected_candidate_id' is not null then
      select q into candidate from jsonb_array_elements(public.read_lifetime_prepared_questions(
        (p_fence->'identity'->>'conversation_id')::uuid)) q
-       where q->'requires_confirmation'='true'::jsonb and q->>'id'=p_outcome->>'selected_candidate_id';
+       where q->>'id'=p_outcome->>'selected_candidate_id';
+     if candidate->>'historical_clue_id' is not null then
+       if chosen->'context'->>'historical_clue_id' is distinct from candidate->>'historical_clue_id' then
+         raise exception 'historical candidate identity changed' using errcode='22023';end if;
+       candidate:=jsonb_set(candidate,'{question}',to_jsonb(case when public.read_lifetime_pinned(
+         (p_fence->'identity'->>'conversation_id')::uuid)->>'language'='zh-CN'
+         then '这条公开历史线索会让您想起当时的什么吗？' else 'Does this bring any memory of that time to mind?' end));
+     end if;
      -- Public news has its own current authority; it need not belong to a B strategy plan.
      if candidate is null and chosen->'context'->>'historical_clue_id'=p_outcome->>'selected_candidate_id' then
        select jsonb_build_object('question',case when public.read_lifetime_pinned(
@@ -6562,6 +6477,7 @@ CREATE FUNCTION public.invalidate_changed_interview_evidence() RETURNS trigger
 declare changed integer;
 begin
   if old.version is distinct from new.version or old.status is distinct from new.status then
+    update public.user_interview_turn set interview_guidance_snapshot=null where user_id=new.user_id and project_id=new.project_id;
     -- An event correction trigger may already have invalidated a link before
     -- this source trigger runs. Scrub those retired records too, so a later
     -- guest-transfer snapshot cannot carry the withdrawn original quote.
@@ -6730,6 +6646,7 @@ CREATE FUNCTION public.invalidate_lifetime_lane_fences() RETURNS trigger
     SET search_path TO 'public', 'auth'
     AS $$
 begin
+ update public.user_interview_turn set interview_guidance_snapshot=null where user_id=new.user_id and project_id=new.project_id;
  if tg_table_name='user_memoir_project' then
   if old.policy_epoch is distinct from new.policy_epoch then
    update public.user_lifetime_lane_snapshot set state='stale' where user_id=new.user_id and project_id=new.project_id and state='pending';
@@ -7688,6 +7605,8 @@ begin
  remaining:=public.lock_lifetime_memoir_lane_publication_before_attribution(p_fence);
  if p_fence ? 'profile_context' then return remaining;end if;
  page:=public.read_lifetime_memoir_lane_page((p_fence->>'lane_id')::uuid,(p_fence->>'token')::uuid);
+ if coalesce(p_fence->'guidance_context','null') is distinct from coalesce(page->'guidance_context','null') then
+   raise exception 'guidance context changed' using errcode='40001';end if;
  if coalesce(p_fence->'attribution_context','null') is distinct from coalesce(page->'attribution_context','null')
    or coalesce(p_fence->'attribution_coverage','null') is distinct from coalesce(page->'attribution_coverage','null') then
    raise exception 'attribution context changed' using errcode='40001';end if;
@@ -9229,7 +9148,7 @@ begin
    select distinct on (pair->'question'->>'reply_id') pair from (
      select pair from jsonb_array_elements(public.lifetime_question_dialogue(owner,project)) pair
      union all
-     select pair from jsonb_array_elements(public.read_lifetime_prepared_questions(p_conversation_id)) pending
+     select pair from jsonb_array_elements(public.read_lifetime_prepared_questions_live(p_conversation_id)) pending
        cross join lateral jsonb_array_elements(public.lifetime_question_dialogue(owner,project,
          (pending->>'source_id')::uuid)) pair
    ) exchanges order by pair->'question'->>'reply_id'
@@ -9237,6 +9156,7 @@ begin
  return jsonb_build_object('plan',plan,'events',events,'stage_coverage',coverage,'photos','[]'::jsonb,'photo_associations','[]'::jsonb,
    'recent_dialogue',dialogue,
    'historical_context_complete',false,'historical_news',public.read_user_historical_news(project),
+   'interview_guidance',public.read_lifetime_interview_guidance(p_conversation_id),
    'has_accepted_narration',public.conversation_has_narration(owner,project));
 end $$;
 
@@ -9260,6 +9180,8 @@ CREATE FUNCTION public.read_lifetime_memoir_lane_page(p_lane_id uuid, p_token uu
     AS $$
 declare page jsonb; source public.user_narrator_source%rowtype; name text; context jsonb; inputs jsonb; coverage jsonb; events jsonb;
 begin
+ if exists(select 1 from public.user_memoir_lane where id=p_lane_id and skill='guidance') then
+   return public.read_lifetime_interview_guidance_page(p_lane_id,p_token);end if;
  page:=public.read_lifetime_memoir_lane_page_before_attribution(p_lane_id,p_token);
  if page->>'skill'='timeline' and page ? 'two_lane' and page->'source'<>'null'::jsonb then
    select * into source from public.user_narrator_source where user_id=(page->>'user_id')::uuid
@@ -10002,20 +9924,17 @@ begin
    'pending_client_turn_id',pending.client_turn_id,'parser_version','semantic-v1');
 end $$;
 
-CREATE FUNCTION public.read_lifetime_prepared_questions(p_conversation_id uuid) RETURNS jsonb
-    LANGUAGE plpgsql SECURITY DEFINER
-    SET search_path TO 'public', 'auth'
-    AS $$
+CREATE FUNCTION public.read_lifetime_prepared_questions_live(p_conversation_id uuid) RETURNS jsonb
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 declare identity public.user_lifetime_conversation%rowtype; pins jsonb; result jsonb;
 begin
- -- Reuse the existing content access/policy guard before selecting any bytes.
  pins:=public.read_lifetime_pinned(p_conversation_id);
  if not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) then return '[]'::jsonb;end if;
  select * into identity from public.user_lifetime_conversation where user_id=auth.uid() and conversation_id=p_conversation_id;
  with consumed as materialized (select * from public.lifetime_consumed_question_ids(auth.uid(),identity.project_id))
  select coalesce(jsonb_agg(item),'[]') into result from (
    select q||jsonb_build_object('id',public.lifetime_question_id(d.source_id,d.source_version,q),
-     'source_id',d.source_id,'source_version',d.source_version,'creation_revision',d.source_revision,
+     'source_id',d.source_id,'source_version',d.source_version,'creation_revision',d.source_revision,'based_on_sequence',s.sequence,
      'snapshot_id',d.snapshot_id,'policy_epoch',d.policy_epoch,'task_version','two-lane-v1',
      'invalidation',case when q->'requires_confirmation'='true'::jsonb then 'source/policy/preference/generation/delivered question'
        else 'source/policy/preference/generation/recent coverage/delivered question' end) item
@@ -10029,10 +9948,56 @@ begin
      -- Defense against delayed B publication; only actual delivery consumes a question.
      and not exists(select 1 from consumed
        where consumed.question_id=public.lifetime_question_id(d.source_id,d.source_version,q))
-   order by case when q->'requires_confirmation'='true'::jsonb then 0 else 1 end,
+     and public.lifetime_guidance_question_current(d.user_id,d.project_id,q)
+     and (q->>'historical_clue_id' is null or exists(select 1 from public.user_historical_news_clue c
+       where c.user_id=d.user_id and c.project_id=d.project_id and c.id=q->>'historical_clue_id' and c.status='ready'
+         and c.context_revision=public.historical_news_revision(d.user_id,d.project_id)
+         and not exists(select 1 from public.user_historical_news_state n where n.user_id=d.user_id and n.project_id=d.project_id and not n.enabled)))
+   order by public.lifetime_guidance_priority(q),
      case when q->'requires_confirmation'='true'::jsonb then s.sequence end,
      s.sequence desc,d.source_id,position limit 3
  ) hints;
+ return result;
+end $$;
+REVOKE ALL ON FUNCTION public.read_lifetime_prepared_questions_live(uuid) FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE FUNCTION public.read_lifetime_prepared_questions(p_conversation_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public', 'auth'
+    AS $$
+declare identity public.user_lifetime_conversation%rowtype; pins jsonb; result jsonb; current_turn public.user_interview_turn%rowtype; lease uuid; context_fence jsonb;
+begin
+ -- Reuse the existing content access/policy guard before selecting any bytes.
+ pins:=public.read_lifetime_pinned(p_conversation_id);
+ if not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) then return '[]'::jsonb;end if;
+ select * into identity from public.user_lifetime_conversation where user_id=auth.uid() and conversation_id=p_conversation_id;
+ select lease_token into lease from public.user_agent_turn_lease where user_id=auth.uid() and expires_at>clock_timestamp();
+ if lease is not null then
+   select * into current_turn from public.user_interview_turn where user_id=auth.uid() and project_id=identity.project_id
+     and collector is null order by sequence desc limit 1;
+   context_fence:=jsonb_build_object('lease_digest',encode(sha256(convert_to(lease::text,'UTF8')),'hex'),
+     'policy_epoch',(select policy_epoch from public.user_memoir_project where user_id=auth.uid() and project_id=identity.project_id),
+     'preference_revision',identity.preference_revision,'execution_generation',identity.execution_generation,
+     'source_id',current_turn.source_id,'source_version',current_turn.source_version);
+   if current_turn.interview_guidance_snapshot->'fence'=context_fence and current_turn.interview_guidance_snapshot ? 'questions' then
+     -- Ranking/replacement by B is not revocation of A's captured read set.
+     -- Real evidence or policy changes still invalidate the selected question.
+     with consumed as materialized(select * from public.lifetime_consumed_question_ids(auth.uid(),identity.project_id))
+     select coalesce(jsonb_agg(q order by position),'[]') into result
+       from jsonb_array_elements(current_turn.interview_guidance_snapshot->'questions') with ordinality items(q,position)
+       where public.lifetime_guidance_question_current(auth.uid(),identity.project_id,q)
+         and exists(select 1 from public.user_narrator_source n where n.user_id=auth.uid() and n.project_id=identity.project_id
+           and n.id=(q->>'source_id')::uuid and n.version=(q->>'source_version')::bigint and n.status='active')
+         and not exists(select 1 from consumed where question_id=q->>'id');
+     return result;
+   end if;
+ end if;
+ result:=public.read_lifetime_prepared_questions_live(p_conversation_id);
+ if current_turn.client_turn_id is not null then
+   update public.user_interview_turn set interview_guidance_snapshot=jsonb_set(
+     case when interview_guidance_snapshot->'fence'=context_fence then interview_guidance_snapshot else jsonb_build_object('fence',context_fence) end,
+     '{questions}',result) where user_id=auth.uid() and project_id=identity.project_id and client_turn_id=current_turn.client_turn_id;
+ end if;
  return result;
 end $$;
 
@@ -10400,7 +10365,7 @@ begin
      'at',records->0->>'updated_at','id',records->0->>'id')::text,'UTF8'),'base64');
  end if;
  -- A real pending lane is queued, not proof that any phase/model has run.
- select coalesce(jsonb_agg(jsonb_build_object('id','queue:'||id||':'||target_source,'skill',case when skill='composer' then 'memoir-composer' else 'memoir-author-timeline' end,
+ select coalesce(jsonb_agg(jsonb_build_object('id','queue:'||id||':'||target_source,'skill',case when skill='composer' then 'memoir-composer' when skill='guidance' then 'memoir-interview-guidance' else 'memoir-author-timeline' end,
    'lane','B','phase','queue','execution','model','status','queued','model_invoked',false,
    'coverage_start',successful_source+1,'coverage_end',target_source,'project_id',project_id,
    'client_turn_id',(select s.client_turn_id from public.user_narrator_source s where s.user_id=auth.uid() and s.project_id=p_project_id
@@ -10615,7 +10580,7 @@ begin
  select active_strategy into hint from public.user_lifetime_strategy_frontier where user_id=auth.uid() and project_id=identity.project_id;
  select * into planned from public.user_lifetime_interview_strategy where user_id=auth.uid() and project_id=identity.project_id and not shadow
    and (p_plan_revision is null or plan_revision=p_plan_revision) order by plan_revision desc limit 1;
- data:=planned.data;
+ data:=planned.data-'guidance';
  if planned.plan_revision is null or not exists(select 1 from public.user_memoir_project p join public.user_narrator_source s
    on s.user_id=p.user_id and s.project_id=p.project_id and s.id=planned.source_id and s.version=planned.source_version and s.status='active'
    where p.user_id=auth.uid() and p.project_id=identity.project_id and p.policy_epoch=planned.policy_epoch
@@ -10628,7 +10593,8 @@ begin
  with consumed as materialized (select * from public.lifetime_consumed_question_ids(auth.uid(),identity.project_id))
  select coalesce(jsonb_agg(q order by hint_position),'[]') into candidates
  from jsonb_array_elements(data->'candidates') with ordinality hints(q,hint_position)
-   where not exists(select 1 from consumed
+   where public.lifetime_guidance_question_current(auth.uid(),identity.project_id,q)
+     and not exists(select 1 from consumed
      where consumed.question_id=q->>'id');
  data:=jsonb_set(data,'{candidates}',candidates);
  return jsonb_build_object('mode',rollout,'plan',data,'planned_strategy_hint',hint)||delivery;
@@ -11184,7 +11150,7 @@ CREATE FUNCTION public.record_lifetime_skill_phase_before_place_progress(p_fence
     AS $$
 declare page jsonb; source public.user_narrator_source%rowtype; skill text; first_source bigint;last_source bigint;
 begin
- if p_phase not in ('extract','profile','summarize','prepare','draft','review','index') or p_status not in ('running','completed','failed')
+ if p_phase not in ('extract','profile','summarize','prepare','draft','review','index','guidance') or p_status not in ('running','completed','failed')
    or p_invocation_id is null then raise exception 'bounded skill phase required' using errcode='22023';end if;
  perform public.lock_lifetime_memoir_lane_publication(p_fence);
  if p_phase='profile' then
@@ -11193,9 +11159,9 @@ begin
    skill:='memoir-memory-context';
  else
    page:=public.read_lifetime_memoir_lane_page((p_fence->>'lane_id')::uuid,(p_fence->>'token')::uuid);
-   skill:=case when page->>'skill'='composer' then 'memoir-composer' else 'memoir-author-timeline' end;
+   skill:=case when page->>'skill'='composer' then 'memoir-composer' when page->>'skill'='guidance' then 'memoir-interview-guidance' else 'memoir-author-timeline' end;
    if (page->>'skill'='timeline' and p_phase not in ('extract','summarize'))
-     or (page->>'skill'='composer' and p_phase not in ('prepare','draft','review','index')) then
+     or (page->>'skill'='composer' and p_phase not in ('prepare','draft','review','index','guidance')) then
      raise exception 'skill phase mismatch' using errcode='42501';end if;
    if p_phase='extract' and page->'two_lane'->>'work_mode'<>'extract' then raise exception 'timeline model not admitted' using errcode='42501';end if;
  end if;
@@ -11443,6 +11409,8 @@ begin
    where user_id = current_user_id
      and lease_token = p_lease_token;
   released := found;
+  update public.user_interview_turn set interview_guidance_snapshot=null where user_id=current_user_id
+    and interview_guidance_snapshot->'fence'->>'lease_digest'=encode(sha256(convert_to(p_lease_token::text,'UTF8')),'hex');
   return released;
 end;
 $$;
@@ -11914,9 +11882,13 @@ begin
       end if;
     end if;
     if candidate->>'id' ~ '^bq-[0-9a-f]{64}$' and coalesce(context->'evidence','null')='null'::jsonb then
-      raise exception 'queued question requires its referenced passage' using errcode='22023';
+      select conversation_id into conversation from public.user_lifetime_conversation where user_id=v_owner and project_id=p_project_id;
+      if context->>'historical_clue_id' is null or not exists(select 1 from jsonb_array_elements(public.read_lifetime_prepared_questions(conversation)) q
+        where q->>'id'=candidate->>'id' and q->>'trigger'='historical_news' and q->>'historical_clue_id'=context->>'historical_clue_id') then
+        raise exception 'queued question requires its referenced passage' using errcode='22023';end if;
     end if;
     if context->>'historical_clue_id' is not null then
+      if coalesce(context->'evidence','null')<>'null'::jsonb then raise exception 'public context cannot be personal evidence' using errcode='22023';end if;
       if context->>'year' is not null or context->>'life_stage' is not null or context->>'event_id' is not null or context->>'photo_id' is not null
         or (select count(*) from jsonb_array_elements(p_plan->'candidates') c where c->'context'->>'historical_clue_id' is not null)>1
         or (candidate->>'id'=p_plan->>'chosen_id' and p_plan->>'active_event_id' is not null)
@@ -15307,6 +15279,507 @@ revoke all on function public.lifetime_interview_strategy_rollout(uuid) from pub
 grant execute on function public.lifetime_interview_strategy_rollout(uuid) to service_role;
 
 CREATE INDEX user_story_game_edition_id_idx ON public.user_story_game(edition_id);
+
+-- Search derived canonical evidence, never an all-history transcript prompt.
+-- English stemming and Chinese bigrams keep dates out of retrieval identity.
+CREATE FUNCTION public.lifetime_memory_search_terms(p_text text) RETURNS text[]
+ LANGUAGE sql IMMUTABLE PARALLEL SAFE SET search_path='' AS $$
+ select coalesce(array_agg(term order by term),'{}'::text[]) from (
+   select distinct term from (
+     select unnest(tsvector_to_array(to_tsvector('pg_catalog.english',regexp_replace(left(coalesce(p_text,''),8192),'[^A-Za-z ]',' ','g')))) term
+     union all
+     select substring(match[1] from position for 2) from regexp_matches(left(coalesce(p_text,''),8192),'[一-龥]{2,}','g') match
+       cross join lateral generate_series(1,length(match[1])-1) position
+   ) terms where length(term)>1 and term not in ('remember','memori','later','time','something','thing','also','时候','记得','后来','当时','我们','但是','自己')
+   order by term
+ ) bounded
+$$;
+CREATE INDEX user_memory_event_source_guidance_search_idx ON public.user_memory_event_source
+ USING gin (public.lifetime_memory_search_terms(evidence->>'quote'));
+
+CREATE FUNCTION public.retrieve_lifetime_guidance_events(p_owner uuid,p_project text,p_source uuid,p_version bigint)
+ RETURNS TABLE(event_id text,source_id uuid,version bigint,char_start integer,char_end integer,score bigint)
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+ with current_original as materialized (
+   select s.*,array(select term from unnest(public.lifetime_memory_search_terms(left(s.text,2304)||' '||right(s.text,2304))) term
+       order by length(term) desc,term limit 64) terms
+   from public.user_narrator_source s where s.user_id=p_owner and s.project_id=p_project and s.id=p_source and s.version=p_version and s.status='active'
+ ), matches as materialized (
+   select hit.*,term from current_original current cross join lateral unnest(current.terms) term
+   cross join lateral (
+     select r.event_id,r.source_id,r.source_version,r.evidence_hash,r.evidence,n.sequence
+     from public.user_memory_event_source r
+     join public.user_memory_event e on e.user_id=r.user_id and e.project_id=r.project_id and e.id=r.event_id and e.status in ('active','unresolved')
+     join public.user_narrator_source n on n.user_id=r.user_id and n.project_id=r.project_id and n.id=r.source_id and n.version=r.source_version and n.status='active'
+     where r.user_id=p_owner and r.project_id=p_project and n.sequence<current.sequence
+       and public.lifetime_memory_search_terms(r.evidence->>'quote') @> array[term]
+       and not exists(select 1 from public.user_memory_attribution_window w where w.user_id=p_owner and w.project_id=p_project
+         and w.source_id=n.id and w.source_version=n.version and w.disposition='withheld'
+         and w.char_start<coalesce((r.evidence->>'char_end')::integer,length(n.text)) and w.char_end>coalesce((r.evidence->>'char_start')::integer,0))
+     order by n.sequence desc,r.event_id,r.evidence_hash limit 8
+   ) hit
+ ), scored as (
+   select m.event_id,m.source_id,m.source_version,m.evidence_hash,m.evidence,m.sequence,count(distinct term) score
+   from matches m group by m.event_id,m.source_id,m.source_version,m.evidence_hash,m.evidence,m.sequence
+   having count(distinct term)>=1
+ ), selected as (
+   select event_id,max(score) score,max(sequence) sequence from scored group by event_id order by score desc,sequence desc,event_id limit 4
+ ), ranked as (
+   select s.*,row_number() over(partition by s.event_id order by s.score desc,s.sequence,s.evidence_hash) position
+   from scored s join selected chosen using(event_id)
+ )
+ select r.event_id,r.source_id,r.source_version,(r.evidence->>'char_start')::integer,(r.evidence->>'char_end')::integer,r.score
+ from ranked r where position<=2 order by r.score desc,r.sequence,r.event_id,r.position limit 8
+$$;
+REVOKE ALL ON FUNCTION public.lifetime_memory_search_terms(text),public.retrieve_lifetime_guidance_events(uuid,text,uuid,bigint)
+ FROM PUBLIC,anon,authenticated,service_role;
+
+-- Interviewing guidance owns a separate, coalesced Lane B job. Timeline
+-- extraction never waits for this model or writes its question/strategy output.
+CREATE FUNCTION public.enqueue_lifetime_interview_guidance() RETURNS trigger
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+declare owner uuid; project text; p public.user_memoir_project%rowtype; locale text;
+begin
+ if tg_table_name='user_narrator_source' then
+   if new.status<>'active' or new.processing_status<>'succeeded'
+     or old.processing_status='succeeded' then return new;end if;
+   if exists(select 1 from public.user_interview_turn t where t.user_id=new.user_id and t.project_id=new.project_id
+     and t.source_id=new.id and t.source_version=new.version and t.collector->'plan'->'work'->>'mode'='reply_only') then return new;end if;
+ else
+   if new.status<>'ready' then return new;end if;
+   if tg_op='UPDATE' and row(old.context_revision,old.status,old.evidence,old.relevance)
+     is not distinct from row(new.context_revision,new.status,new.evidence,new.relevance) then return new;end if;
+ end if;
+ owner:=new.user_id;project:=new.project_id;
+ if not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled)
+   or not exists(select 1 from public.user_lifetime_conversation where user_id=owner and project_id=project) then return new;end if;
+ select * into p from public.user_memoir_project where user_id=owner and project_id=project for update;
+ select case when profile->>'preferred_language'='zh-CN' then 'zh-CN' else 'en-AU' end into locale
+   from public.user_profile where user_id=owner;
+ insert into public.user_memoir_lane(user_id,project_id,skill,pending,target_source,target_event,locale,guidance_revision)
+ values(owner,project,'guidance',true,p.source_sequence,p.event_sequence,coalesce(locale,'en-AU'),1)
+ on conflict(user_id,project_id,skill) do update set pending=true,target_source=excluded.target_source,
+   target_event=excluded.target_event,locale=excluded.locale,guidance_revision=public.user_memoir_lane.guidance_revision+1,
+   attempts=0,error=null,available_at=clock_timestamp();
+ return new;
+end $$;
+
+CREATE FUNCTION public.read_lifetime_interview_guidance_page(p_lane_id uuid,p_token uuid) RETURNS jsonb
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+declare snap public.user_lifetime_lane_snapshot%rowtype; lane public.user_memoir_lane%rowtype;
+ page jsonb; pins jsonb; windows jsonb; events jsonb; news jsonb; context jsonb; dialogue jsonb; previous_owner text; planning text; revision bigint; matches jsonb; evidence record; lo integer; hi integer;
+begin
+ snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
+ select * into lane from public.user_memoir_lane where id=p_lane_id;
+ if lane.skill<>'guidance' or not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) then
+   raise exception 'guidance lane unavailable' using errcode='PT409';end if;
+ previous_owner:=current_setting('request.jwt.claim.sub',true);
+ perform set_config('request.jwt.claim.sub',snap.user_id::text,true);
+ pins:=public.read_lifetime_pinned(snap.conversation_id);
+ pins:=jsonb_set(pins,'{known_continuity}',coalesce((select jsonb_agg(
+   jsonb_build_object('schema_version',1)||record||jsonb_build_object('data',
+     jsonb_build_object('schema_version',1,'uncertainty',null)||(record->'data')||jsonb_build_object('source_refs',
+       (select jsonb_agg(jsonb_build_object('schema_version',1)||ref) from jsonb_array_elements(record->'data'->'source_refs') ref))))
+   from jsonb_array_elements(pins->'known_continuity') record),'[]'));
+
+ if snap.guidance_news->>'settings_revision' is distinct from coalesce((select n.revision::text from public.user_historical_news_state n
+   where n.user_id=snap.user_id and n.project_id=snap.project_id),'1') then raise exception 'guidance news settings changed' using errcode='PT409';end if;
+ news:=jsonb_build_object('context_revision',snap.guidance_news->>'context_revision','clues',coalesce((
+   select jsonb_agg(c.evidence||jsonb_build_object('id',c.id,'status',c.status,'project_id',c.project_id,
+     'context_revision',snap.guidance_news->>'context_revision','relevance',c.relevance))
+   from jsonb_array_elements(coalesce(snap.guidance_news->'clues','[]')) m join public.user_historical_news_clue c
+     on c.user_id=snap.user_id and c.project_id=snap.project_id and c.id=m->>'id' and c.status='ready'
+   where encode(sha256(convert_to((c.evidence||jsonb_build_object('id',c.id,'status',c.status,'project_id',c.project_id,
+      'context_revision',snap.guidance_news->>'context_revision','relevance',c.relevance))::text,'UTF8')),'hex')=m->>'digest'),'[]'::jsonb));
+ planning:=public.lifetime_interview_strategy_rollout(snap.user_id);
+ select f.revision into revision from public.user_lifetime_strategy_frontier f where f.user_id=snap.user_id and f.project_id=snap.project_id;
+ -- These bounded originals are evidence; canonical titles and dialogue are context.
+ select coalesce(jsonb_agg(item order by sequence desc),'[]') into windows from (
+   select s.sequence,jsonb_build_object('id',s.id,'project_id',s.project_id,'version',s.version,'sequence',s.sequence,
+     'text',left(s.text,2304),'char_start',0,'char_end',least(length(s.text),2304),'original_length',length(s.text),
+     'kind',s.kind,'language',s.language,'status',s.status,'author_role','storyteller') item
+   from public.user_narrator_source s where s.user_id=snap.user_id and s.project_id=snap.project_id
+     and s.status='active' and s.processing_status='succeeded' and s.sequence<=snap.source_high_water
+     and not exists(select 1 from public.user_memory_attribution_window w where w.user_id=s.user_id and w.project_id=s.project_id
+       and w.source_id=s.id and w.source_version=s.version and w.disposition in ('non_story','withheld')
+       and w.char_start=0 and w.char_end>=length(s.text))
+     and not exists(select 1 from public.user_interview_turn t where t.user_id=s.user_id and t.project_id=s.project_id
+       and t.source_id=s.id and t.source_version=s.version and t.collector->'plan'->'work'->>'mode'='reply_only')
+   order by s.sequence desc limit 1) bounded;
+ select coalesce(jsonb_agg(to_jsonb(r)),'[]') into matches from public.retrieve_lifetime_guidance_events(
+   snap.user_id,snap.project_id,(windows->0->>'id')::uuid,(windows->0->>'version')::bigint) r;
+ select coalesce(jsonb_agg(item order by priority,change_sequence desc,id),'[]') into events from (
+   select e.id,e.change_sequence,case when exists(select 1 from jsonb_array_elements(matches) m where m->>'event_id'=e.id) then 0
+     when e.id=(select plan->>'active_event_id' from public.user_interview_plan where user_id=snap.user_id and project_id=snap.project_id) then 1 else 2 end priority,
+     public.bounded_lifetime_event_record(e) item from public.user_memory_event e
+   where e.user_id=snap.user_id and e.project_id=snap.project_id and e.status='active' and e.change_sequence<=snap.event_high_water
+     and not exists(select 1 from public.user_memory_event_source r where r.user_id=e.user_id and r.project_id=e.project_id and r.event_id=e.id
+       and not exists(select 1 from public.user_narrator_source s where s.user_id=r.user_id and s.project_id=r.project_id and s.id=r.source_id
+         and s.version=r.source_version and s.status='active'))
+   order by priority,e.change_sequence desc,e.id limit 8) bounded;
+ -- Keep the latest tail as well as its beginning when one accepted message
+ -- is long; recall limits often follow an otherwise detailed account.
+ if (windows->0->>'original_length')::integer>2304 then
+   select n.*,greatest(0,length(n.text)-2304) char_start,length(n.text) char_end into evidence
+     from public.user_narrator_source n where n.user_id=snap.user_id and n.project_id=snap.project_id and n.id=(windows->0->>'id')::uuid;
+   windows:=jsonb_build_array(jsonb_build_object('id',evidence.id,'project_id',evidence.project_id,'version',evidence.version,
+     'sequence',evidence.sequence,'text',right(evidence.text,2304),'char_start',evidence.char_start,'char_end',evidence.char_end,
+     'original_length',length(evidence.text),'kind',evidence.kind,'language',evidence.language,'status',evidence.status,'author_role','storyteller'))||windows;
+ end if;
+ -- Recover older original passages behind the bounded canonical events. This
+ -- lets the model compare an old account without treating an event title as testimony.
+ for evidence in select n.*,r.char_start,r.char_end from (
+   select (m->>'source_id')::uuid source_id,(m->>'version')::bigint version,(m->>'char_start')::integer char_start,
+     (m->>'char_end')::integer char_end,0 priority from jsonb_array_elements(matches) m
+   union all
+   select r.source_id,r.version,r.char_start,r.char_end,1 from jsonb_array_elements(events) e
+     cross join lateral jsonb_to_recordset(e->'source_refs') r(source_id uuid,version bigint,char_start integer,char_end integer)
+ ) r join public.user_narrator_source n on n.user_id=snap.user_id and n.project_id=snap.project_id
+     and n.id=r.source_id and n.version=r.version and n.status='active'
+   where r.char_start is not null and r.char_end>r.char_start
+   order by r.priority,n.sequence,r.char_start limit 12 loop
+   exit when jsonb_array_length(windows)>=8;
+   if exists(select 1 from jsonb_array_elements(windows) w where w->>'id'=evidence.id::text
+      and (w->>'char_start')::integer<=evidence.char_start and (w->>'char_end')::integer>=evidence.char_end) then continue;end if;
+   lo:=greatest(0,evidence.char_start-128);hi:=least(length(evidence.text),lo+2304);
+   windows:=windows||jsonb_build_array(jsonb_build_object('id',evidence.id,'project_id',evidence.project_id,'version',evidence.version,
+     'sequence',evidence.sequence,'text',substring(evidence.text from lo+1 for hi-lo),'char_start',lo,'char_end',hi,
+     'original_length',length(evidence.text),'kind',evidence.kind,'language',evidence.language,'status',evidence.status,'author_role','storyteller'));
+ end loop;
+ for evidence in select n.* from public.user_narrator_source n where n.user_id=snap.user_id and n.project_id=snap.project_id
+   and n.status='active' and n.processing_status='succeeded' and n.sequence<=snap.source_high_water
+   and not exists(select 1 from jsonb_array_elements(windows) w where w->>'id'=n.id::text)
+   and not exists(select 1 from public.user_memory_attribution_window w where w.user_id=n.user_id and w.project_id=n.project_id
+     and w.source_id=n.id and w.source_version=n.version and w.disposition in ('withheld','non_story') and w.char_start=0 and w.char_end>=length(n.text))
+   order by n.sequence desc limit 3 loop
+   exit when jsonb_array_length(windows)>=8;
+   windows:=windows||jsonb_build_array(jsonb_build_object('id',evidence.id,'project_id',evidence.project_id,'version',evidence.version,
+     'sequence',evidence.sequence,'text',left(evidence.text,2304),'char_start',0,'char_end',least(length(evidence.text),2304),
+     'original_length',length(evidence.text),'kind',evidence.kind,'language',evidence.language,'status',evidence.status,'author_role','storyteller'));
+ end loop;
+ dialogue:=public.lifetime_question_dialogue(snap.user_id,snap.project_id,null,snap.source_high_water);
+ context:=jsonb_build_object('source_windows',windows,'recent_dialogue',dialogue,'minimum_detail_rounds',3,
+   'news_clues',coalesce((select jsonb_agg(public.historical_news_public(c)||jsonb_build_object('status','ready','evidence_status','inspected'))
+      from (select c from jsonb_array_elements(news->'clues') c limit 5) bounded),'[]'::jsonb),
+   'news_revision',news->>'context_revision','generation',snap.guidance_revision,
+   'retrieved_event_ids',(select coalesce(jsonb_agg(distinct m->>'event_id'),'[]') from jsonb_array_elements(matches) m));
+ -- Do not raise request budgets when narration or public references are long.
+ while octet_length(context::text)>32768 or octet_length(context::text)+octet_length(pins::text)+octet_length(events::text)
+   +coalesce(octet_length((context->'source_windows'->0)::text),0)>48000 loop
+   if jsonb_array_length(events)>2 then
+     events:=events-(jsonb_array_length(events)-1);
+   elsif jsonb_array_length(context->'source_windows')>1 then
+     context:=jsonb_set(context,'{source_windows}',(context->'source_windows')-(jsonb_array_length(context->'source_windows')-1));
+   elsif jsonb_array_length(context->'recent_dialogue')>0 then
+     context:=jsonb_set(context,'{recent_dialogue}',(context->'recent_dialogue')-0);
+   elsif jsonb_array_length(context->'news_clues')>0 then
+     context:=jsonb_set(context,'{news_clues}',(context->'news_clues')-(jsonb_array_length(context->'news_clues')-1));
+   elsif jsonb_array_length(events)>0 then events:=events-(jsonb_array_length(events)-1);
+   elsif length(context->'source_windows'->0->>'text')>1600 then
+     -- Retain the latest end of a tail window, or the start of a head window.
+     if context->'source_windows'->0->>'char_end'=context->'source_windows'->0->>'original_length' then
+       context:=jsonb_set(context,'{source_windows,0,char_start}',to_jsonb((context->'source_windows'->0->>'char_end')::integer-1600));
+       context:=jsonb_set(context,'{source_windows,0,text}',to_jsonb(right(context->'source_windows'->0->>'text',1600)));
+     else
+       context:=jsonb_set(context,'{source_windows,0,char_end}',to_jsonb((context->'source_windows'->0->>'char_start')::integer+1600));
+       context:=jsonb_set(context,'{source_windows,0,text}',to_jsonb(left(context->'source_windows'->0->>'text',1600)));
+     end if;
+   else raise exception 'guidance context exceeds budget' using errcode='22023';end if;
+ end loop;
+ perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+ page:=jsonb_build_object('schema_version',1,'protocol','lifetime_composer_pages','lane_id',lane.id,'token',p_token,
+   'snapshot_id',snap.id,'user_id',snap.user_id,'project_id',snap.project_id,'conversation_id',snap.conversation_id,
+   'skill','guidance','locale',snap.locale,'policy_epoch',snap.policy_epoch,'preference_revision',snap.preference_revision,
+   'source_high_water',snap.source_high_water,'event_high_water',snap.event_high_water,'page_number',0,
+   'root_digest',snap.root_digest,'coverage_round',snap.round_high_water,'base_revision',snap.base_revision,
+   'preferences',pins,'editorial_request',null,'previous',null,'reuse',false,'complete',false,'partition',null,
+   'source',context->'source_windows'->0,'events',events,'guidance_context',context,
+   'two_lane',jsonb_strip_nulls(jsonb_build_object('schema_version',1,'task_version','two-lane-v1','execution_generation',
+      (select execution_generation from public.user_lifetime_conversation where user_id=snap.user_id and conversation_id=snap.conversation_id),
+      'phase_revision',0,'work_mode','extract','strategy_mode',case when planning<>'disabled' then planning end,'strategy_revision',coalesce(revision,0))));
+ page:=page||jsonb_build_object('input_digest',encode(sha256(convert_to((page-'token')::text,'UTF8')),'hex'));
+ return page||jsonb_build_object('page_digest',encode(sha256(convert_to(page::text,'UTF8')),'hex'));
+end $$;
+
+-- Defense in depth at the writer, independent of provider/Python validation.
+CREATE FUNCTION public.lifetime_guidance_ref(p_page jsonb,p_ref jsonb) RETURNS jsonb
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+declare s jsonb; lo integer; hi integer; original public.user_narrator_source%rowtype;
+begin
+ if jsonb_typeof(p_ref) is distinct from 'object' or exists(select 1 from jsonb_object_keys(p_ref) k
+   where k not in ('source_id','version','quote','char_start','char_end','attribution'))
+   or jsonb_typeof(p_ref->'version') is distinct from 'number'
+   or jsonb_typeof(p_ref->'quote') is distinct from 'string' or length(p_ref->>'quote') not between 1 and 2000 then
+   raise exception 'grounded guidance reference required' using errcode='22023';end if;
+ for s in select value from jsonb_array_elements(p_page->'guidance_context'->'source_windows') loop
+   if s->>'id'=p_ref->>'source_id' and s->>'version'=p_ref->>'version' then
+     lo:=(p_ref->>'char_start')::integer;hi:=(p_ref->>'char_end')::integer;
+     if lo is null or hi is null or lo<(s->>'char_start')::integer or hi>(s->>'char_end')::integer or hi-lo<>length(p_ref->>'quote')
+       or substring(s->>'text' from lo-(s->>'char_start')::integer+1 for hi-lo) is distinct from p_ref->>'quote' then continue;end if;
+     select * into original from public.user_narrator_source where user_id=(p_page->>'user_id')::uuid and project_id=p_page->>'project_id'
+       and id=(s->>'id')::uuid and version=(s->>'version')::bigint and status='active';
+     if not found or substring(original.text from lo+1 for hi-lo) is distinct from p_ref->>'quote'
+       or exists(select 1 from public.user_memory_attribution_window w where w.user_id=original.user_id and w.project_id=original.project_id
+         and w.source_id=original.id and w.source_version=original.version and w.disposition='withheld' and w.char_start<hi and w.char_end>lo) then
+       raise exception 'guidance reference unavailable' using errcode='PT409';end if;
+     return p_ref;
+   end if;
+ end loop;
+ raise exception 'guidance reference outside authorized window' using errcode='22023';
+end $$;
+
+CREATE FUNCTION public.lifetime_guidance_question_current(p_owner uuid,p_project text,p_question jsonb) RETURNS boolean
+ LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
+ select not exists(select 1 from jsonb_array_elements(coalesce(p_question->'trigger_source_refs','[]')) r
+   where not exists(select 1 from public.user_narrator_source n where n.user_id=p_owner and n.project_id=p_project
+     and n.id=(r->>'source_id')::uuid and n.version=(r->>'version')::bigint and n.status='active'
+     and case when r ? 'quote_sha256' then encode(sha256(convert_to(substring(n.text from (r->>'char_start')::integer+1
+       for (r->>'char_end')::integer-(r->>'char_start')::integer),'UTF8')),'hex')=r->>'quote_sha256'
+       else substring(n.text from (r->>'char_start')::integer+1 for (r->>'char_end')::integer-(r->>'char_start')::integer)=r->>'quote' end))
+$$;
+REVOKE ALL ON FUNCTION public.lifetime_guidance_question_current(uuid,text,jsonb) FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE FUNCTION public.lifetime_guidance_priority(p_question jsonb) RETURNS integer
+ LANGUAGE sql IMMUTABLE SET search_path='' AS $$
+ select case p_question->>'trigger' when 'conflict' then 0 when 'clarification' then 1 when 'historical_news' then 2
+   when 'topic_transition' then 3 when 'life_essence' then 4 when 'follow_up' then 5
+   else case when p_question->'requires_confirmation'='true'::jsonb then 1 else 6 end end
+$$;
+
+CREATE FUNCTION public.commit_lifetime_interview_guidance(p_lane_id uuid,p_token uuid,p_page_digest text,p_result jsonb) RETURNS jsonb
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb; signal jsonb; ref jsonb; question jsonb;
+ normalized jsonb; source jsonb; questions jsonb:='[]'; kinds text[]:=array[]::text[]; kind text; priority text;
+ ack jsonb; proposal jsonb; current_revision bigint; next_revision bigint; shadow_mode boolean; manifest jsonb; fingerprint text; anchor record;
+begin
+ fingerprint:=encode(sha256(convert_to(p_result::text,'UTF8')),'hex');
+ if exists(select 1 from public.user_background_skill_work w join public.user_lifetime_strategy_page_receipt r on r.snapshot_id=w.snapshot_id
+   where w.lane_id=p_lane_id and w.lease_token=p_token and w.page_digest=p_page_digest and w.phase='guidance'
+     and w.status in ('saved','skipped') and r.page_digest=p_page_digest and r.result_digest=fingerprint) then
+   return jsonb_build_object('status','finished','replayed',true);end if;
+ snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
+ page:=public.read_lifetime_interview_guidance_page(p_lane_id,p_token);
+ if p_page_digest is distinct from page->>'page_digest' then raise exception 'guidance inputs changed' using errcode='PT409';end if;
+ if jsonb_typeof(p_result) is distinct from 'object' or octet_length(p_result::text)>16000
+   or exists(select 1 from jsonb_object_keys(p_result) k where k not in ('signals','prepared_questions','acknowledgement_guidance','strategy_proposal'))
+   or jsonb_typeof(p_result->'signals') is distinct from 'array' or jsonb_array_length(p_result->'signals')>6
+   or jsonb_typeof(p_result->'prepared_questions') is distinct from 'array' or jsonb_array_length(p_result->'prepared_questions')>5 then
+   raise exception 'bounded guidance result required' using errcode='22023';end if;
+ for signal in select value from jsonb_array_elements(p_result->'signals') loop
+   kind:=signal->>'kind';
+   if jsonb_typeof(signal) is distinct from 'object' or exists(select 1 from jsonb_object_keys(signal) k
+     where k not in ('kind','source_refs','detail_question_ids','recall_limit_quote'))
+     or coalesce(kind,'') not in ('conflict','clarification','historical_news','topic_transition','life_essence','follow_up') or kind=any(kinds)
+     or jsonb_typeof(signal->'source_refs') is distinct from 'array' or jsonb_array_length(signal->'source_refs') not between 1 and 4
+     or jsonb_typeof(signal->'detail_question_ids') is distinct from 'array' or jsonb_array_length(signal->'detail_question_ids')>8 then
+     raise exception 'invalid guidance signal' using errcode='22023';end if;
+   kinds:=array_append(kinds,kind);
+   for ref in select value from jsonb_array_elements(signal->'source_refs') loop perform public.lifetime_guidance_ref(page,ref);end loop;
+   if kind='conflict' and (select count(distinct (r->>'source_id',r->>'version',r->>'char_start',r->>'char_end'))
+     from jsonb_array_elements(signal->'source_refs') r)<2 then raise exception 'conflict requires both assertions' using errcode='22023';end if;
+   if kind='topic_transition' then
+     if coalesce(signal->'recall_limit_quote','null')<>'null'::jsonb then
+       if jsonb_typeof(signal->'recall_limit_quote') is distinct from 'string' or length(signal->>'recall_limit_quote') not between 1 and 500 then
+         raise exception 'current recall limit required' using errcode='22023';end if;
+       perform public.lifetime_question_hint(page->'source',jsonb_build_object('question','Recall?', 'topic','recall', 'quote',signal->>'recall_limit_quote'));
+     elsif (select count(distinct id) from jsonb_array_elements_text(signal->'detail_question_ids') id)<3
+       or exists(select 1 from jsonb_array_elements_text(signal->'detail_question_ids') id where not exists(
+         select 1 from jsonb_array_elements(page->'guidance_context'->'recent_dialogue') d where d->'question'->>'id'=id and d->'question'->'delivered'='true'::jsonb)) then
+       raise exception 'transition requires delivered questions' using errcode='22023';end if;
+   elsif coalesce(signal->'recall_limit_quote','null')<>'null'::jsonb then raise exception 'invalid recall signal' using errcode='22023';end if;
+ end loop;
+ for question in select value from jsonb_array_elements(p_result->'prepared_questions') loop
+   kind:=question->>'trigger';
+   if jsonb_typeof(question) is distinct from 'object' or exists(select 1 from jsonb_object_keys(question) k where k not in
+      ('question','topic','quote','char_start','char_end','requires_confirmation','scope','source_id','source_version','trigger','historical_clue_id','bridge'))
+     or not coalesce(kind=any(kinds),false) or jsonb_typeof(question->'source_version') is distinct from 'number'
+     or question->'requires_confirmation' is distinct from to_jsonb(kind in ('conflict','clarification'))
+     or (kind in ('historical_news','topic_transition','life_essence') and question->>'scope'<>'broader')
+     or jsonb_typeof(question->'bridge') is distinct from 'string' or length(question->>'bridge')>500 then
+     raise exception 'invalid guidance question' using errcode='22023';end if;
+   ref:=jsonb_build_object('source_id',question->>'source_id','version',question->'source_version','quote',question->>'quote',
+     'char_start',question->'char_start','char_end',question->'char_end','attribution',null);
+   perform public.lifetime_guidance_ref(page,ref);
+   select value into source from jsonb_array_elements(page->'guidance_context'->'source_windows') s(value)
+     where value->>'id'=question->>'source_id' and value->>'version'=question->>'source_version'
+       and (value->>'char_start')::integer<=(question->>'char_start')::integer and (value->>'char_end')::integer>=(question->>'char_end')::integer limit 1;
+   normalized:=public.lifetime_question_hint(source,question-array['source_id','source_version','trigger','historical_clue_id','bridge']);
+   if kind='historical_news' then
+     if not exists(select 1 from jsonb_array_elements(page->'guidance_context'->'news_clues') c where c->>'id'=question->>'historical_clue_id') then
+       raise exception 'historical guidance clue unavailable' using errcode='PT409';end if;
+   elsif coalesce(question->'historical_clue_id','null')<>'null'::jsonb then raise exception 'unexpected historical clue' using errcode='22023';end if;
+   normalized:=normalized||jsonb_build_object('source_id',question->>'source_id','source_version',question->'source_version','trigger',kind,
+      'historical_clue_id',question->'historical_clue_id','bridge',question->>'bridge',
+      'trigger_source_refs',(select jsonb_agg(jsonb_build_object('source_id',r->>'source_id','version',r->'version',
+        'char_start',r->'char_start','char_end',r->'char_end','quote_sha256',encode(sha256(convert_to(r->>'quote','UTF8')),'hex')))
+        from jsonb_array_elements(p_result->'signals') signal_item cross join lateral jsonb_array_elements(signal_item->'source_refs') r where signal_item->>'kind'=kind),
+      'id',public.lifetime_question_id((question->>'source_id')::uuid,(question->>'source_version')::bigint,normalized));
+   if exists(select 1 from jsonb_array_elements(questions) q where q->>'id'=normalized->>'id') then raise exception 'duplicate guidance question' using errcode='22023';end if;
+   questions:=questions||jsonb_build_array(normalized);
+ end loop;
+ select k into priority from unnest(kinds) k order by public.lifetime_guidance_priority(jsonb_build_object('trigger',k)) limit 1;
+ if priority is not null and priority<>'life_essence' and not exists(select 1 from jsonb_array_elements(questions) q where q->>'trigger'=priority) then
+   raise exception 'highest priority guidance requires a question' using errcode='22023';end if;
+ ack:=p_result->'acknowledgement_guidance';
+ if coalesce(ack,'null')<>'null'::jsonb then
+   if not('life_essence'=any(kinds)) or jsonb_typeof(ack) is distinct from 'object' or exists(select 1 from jsonb_object_keys(ack) k where k not in ('text','source_refs'))
+     or jsonb_typeof(ack->'text') is distinct from 'string' or length(ack->>'text') not between 1 and 700 or ack->>'text' ~ '[?？]'
+     or jsonb_typeof(ack->'source_refs') is distinct from 'array' or jsonb_array_length(ack->'source_refs') not between 1 and 4 then
+     raise exception 'grounded acknowledgement required' using errcode='22023';end if;
+   for ref in select value from jsonb_array_elements(ack->'source_refs') loop
+     perform public.lifetime_guidance_ref(page,ref);
+     if coalesce(ref->'attribution','null')<>'null'::jsonb or exists(select 1 from public.user_memory_attribution_window w
+       where w.user_id=snap.user_id and w.project_id=snap.project_id and w.source_id=(ref->>'source_id')::uuid and w.source_version=(ref->>'version')::bigint
+         and w.char_start<(ref->>'char_end')::integer and w.char_end>(ref->>'char_start')::integer
+         and w.reason<>'no_supported_event')
+       or exists(select 1 from public.user_memory_event_source r join public.user_memory_event e on e.user_id=r.user_id and e.project_id=r.project_id and e.id=r.event_id
+         where r.user_id=snap.user_id and r.project_id=snap.project_id and r.source_id=(ref->>'source_id')::uuid and r.source_version=(ref->>'version')::bigint
+           and coalesce(nullif(r.evidence->>'attribution',''),nullif(e.data->>'attribution','')) not in
+             ('narrator','storyteller','self','我','本人',snap.user_id::text)
+           and (r.evidence->>'char_start')::integer<(ref->>'char_end')::integer and (r.evidence->>'char_end')::integer>(ref->>'char_start')::integer) then
+       raise exception 'reflection requires narrator testimony' using errcode='22023';end if;
+   end loop;
+ end if;
+ proposal:=p_result->'strategy_proposal';
+ if coalesce(proposal,'null')='null'::jsonb then proposal:=jsonb_build_object('strategy','explore','objective','follow_story','focus_event_ids','[]'::jsonb);end if;
+ if jsonb_typeof(proposal) is distinct from 'object' or exists(select 1 from jsonb_object_keys(proposal) k where k not in ('strategy','objective','focus_event_ids'))
+   or coalesce(proposal->>'strategy','') not in ('comfort','explore','shape')
+   or coalesce(proposal->>'objective','') not in ('gentle_entry','follow_story','clarify_order','clarify_identity','link_stories','broaden_scope')
+   or jsonb_typeof(proposal->'focus_event_ids') is distinct from 'array' or jsonb_array_length(proposal->'focus_event_ids')>8
+   or (proposal->>'strategy'='shape' and proposal->>'objective' not in ('clarify_order','clarify_identity','link_stories'))
+   or exists(select 1 from jsonb_array_elements_text(proposal->'focus_event_ids') id where not exists(select 1 from jsonb_array_elements(page->'events') e where e->>'id'=id)) then
+   raise exception 'invalid guidance strategy proposal' using errcode='22023';end if;
+ with consumed as materialized (select * from public.lifetime_consumed_question_ids(snap.user_id,snap.project_id))
+ select coalesce(jsonb_agg(q order by public.lifetime_guidance_priority(q),position),'[]') into questions
+ from jsonb_array_elements(questions) with ordinality items(q,position) where not exists(select 1 from consumed where question_id=q->>'id');
+ shadow_mode:=page->'two_lane'->>'strategy_mode'='shadow';
+ -- Keep only pending confirmations across runs; never requeue consumed IDs.
+ for anchor in select (q->>'source_id')::uuid id,(q->>'source_version')::bigint version,jsonb_agg(q-'id' order by position) hints
+   from jsonb_array_elements(questions) with ordinality items(q,position) where not coalesce(shadow_mode,false) or q->'requires_confirmation'='true'::jsonb
+   group by q->>'source_id',q->>'source_version' loop
+   insert into public.user_lifetime_prepared_question values(snap.user_id,snap.project_id,anchor.id,anchor.version,(select source_sequence from public.user_memoir_project where user_id=snap.user_id and project_id=snap.project_id),
+     snap.policy_epoch,snap.preference_revision,(page->'two_lane'->>'execution_generation')::bigint,0,snap.id,p_page_digest,anchor.hints)
+   on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,source_revision=excluded.source_revision,
+     policy_epoch=excluded.policy_epoch,preference_revision=excluded.preference_revision,execution_generation=excluded.execution_generation,
+     phase_revision=excluded.phase_revision,snapshot_id=excluded.snapshot_id,page_digest=excluded.page_digest,
+     questions=(select coalesce(jsonb_agg(q order by position),'[]') from (select distinct on (public.lifetime_question_id(excluded.source_id,excluded.source_version,q)) q,position from jsonb_array_elements(excluded.questions||
+       case when user_lifetime_prepared_question.source_version=excluded.source_version and user_lifetime_prepared_question.policy_epoch=excluded.policy_epoch
+         and user_lifetime_prepared_question.preference_revision=excluded.preference_revision and user_lifetime_prepared_question.execution_generation=excluded.execution_generation
+       then jsonb_path_query_array(user_lifetime_prepared_question.questions,'$[*] ? (@.requires_confirmation == true)') else '[]'::jsonb end) with ordinality items(q,position)
+       order by public.lifetime_question_id(excluded.source_id,excluded.source_version,q),position) unique_questions);
+   perform public.prune_lifetime_question_pool(snap.user_id,snap.project_id,anchor.id);
+ end loop;
+ if jsonb_array_length(p_result->'signals')>0 or jsonb_array_length(questions)>0 or coalesce(ack,'null')<>'null'::jsonb
+   or coalesce(p_result->'strategy_proposal','null')<>'null'::jsonb then
+   insert into public.user_lifetime_strategy_frontier(user_id,project_id) values(snap.user_id,snap.project_id) on conflict do nothing;
+   select f.revision into current_revision from public.user_lifetime_strategy_frontier f where user_id=snap.user_id and project_id=snap.project_id for update;
+   if current_revision is distinct from (page->'two_lane'->>'strategy_revision')::bigint then raise exception 'guidance strategy changed' using errcode='PT409';end if;
+   next_revision:=current_revision+1;
+   select coalesce(jsonb_agg(jsonb_build_object('id',e->>'id','revision',e->'revision')),'[]') into manifest from jsonb_array_elements(page->'events') e;
+   insert into public.user_lifetime_interview_strategy(user_id,project_id,plan_revision,shadow,source_id,source_version,based_on_sequence,
+     policy_epoch,preference_revision,execution_generation,phase_revision,event_manifest,data)
+   values(snap.user_id,snap.project_id,next_revision,coalesce(shadow_mode,false),(page->'source'->>'id')::uuid,(page->'source'->>'version')::bigint,
+     (page->'source'->>'sequence')::bigint,snap.policy_epoch,snap.preference_revision,(page->'two_lane'->>'execution_generation')::bigint,0,manifest,
+     jsonb_build_object('schema_version',1,'project_id',snap.project_id,'plan_revision',next_revision,'based_on_sequence',(page->'source'->>'sequence')::bigint,
+       'source_id',page->'source'->>'id','source_version',page->'source'->'version','source_revision',snap.source_high_water,'policy_epoch',snap.policy_epoch,
+       'preference_revision',snap.preference_revision,'execution_generation',page->'two_lane'->'execution_generation','phase_revision',0,'snapshot_id',snap.id,
+       'checkpoint_id',(select checkpoint_id from public.user_lifetime_conversation where user_id=snap.user_id and conversation_id=snap.conversation_id),
+       'strategy',coalesce(proposal->>'strategy',(select active_strategy from public.user_lifetime_strategy_frontier where user_id=snap.user_id and project_id=snap.project_id),'explore'),
+       'objective',coalesce(proposal->>'objective','follow_story'),'focus_event_ids',coalesce(proposal->'focus_event_ids','[]'::jsonb),'candidates',questions,
+       'background_lag_ms',0,'guidance',jsonb_build_object('signals',p_result->'signals','acknowledgement_guidance',ack,
+          'generation',snap.guidance_revision,'published_source_sequence',(select source_sequence from public.user_memoir_project where user_id=snap.user_id and project_id=snap.project_id),
+          'news_revision',page->'guidance_context'->>'news_revision','event_sequence',snap.event_high_water)));
+   update public.user_lifetime_strategy_frontier set revision=next_revision,
+     active_strategy=case when coalesce(shadow_mode,false) then active_strategy else coalesce(proposal->>'strategy',active_strategy) end,
+     shadow_strategy=case when coalesce(shadow_mode,false) then coalesce(proposal->>'strategy',shadow_strategy) else shadow_strategy end
+   where user_id=snap.user_id and project_id=snap.project_id and public.user_lifetime_strategy_frontier.revision=current_revision;
+ end if;
+ insert into public.user_lifetime_strategy_page_receipt values(snap.id,0,p_page_digest,fingerprint);
+ update public.user_background_skill_work set status='saved',reason=null,updated_at=clock_timestamp()
+   where lane_id=p_lane_id and snapshot_id=snap.id and phase='guidance' and page_digest=p_page_digest and model_invoked;
+ if not found then perform public.background_skill_receipt(page,'guidance','memoir-interview-guidance','model',
+   case when jsonb_array_length(page->'guidance_context'->'source_windows')=0 then 'skipped' else 'saved' end,'invocation_receipt_unavailable');end if;
+ update public.user_lifetime_lane_snapshot set state='completed' where id=snap.id;
+ update public.user_memoir_lane set successful_source=snap.source_high_water,successful_event=snap.event_high_water,successful_round=snap.round_high_water,
+   token=null,lease_until=null,run_deadline=null,pending=guidance_revision>snap.guidance_revision,attempts=0,error=null where id=p_lane_id;
+ return jsonb_build_object('status','finished','questions',jsonb_array_length(questions));
+end $$;
+
+CREATE FUNCTION public.read_lifetime_interview_guidance_live(p_conversation_id uuid) RETURNS jsonb
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+declare pins jsonb; identity public.user_lifetime_conversation%rowtype; planned public.user_lifetime_interview_strategy%rowtype;
+ p public.user_memoir_project%rowtype; g jsonb;
+begin
+ pins:=public.read_lifetime_pinned(p_conversation_id);
+ select * into identity from public.user_lifetime_conversation where user_id=auth.uid() and conversation_id=p_conversation_id;
+ if not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled)
+   or public.lifetime_interview_strategy_rollout(auth.uid())='shadow' then return null;end if;
+ select * into p from public.user_memoir_project where user_id=auth.uid() and project_id=identity.project_id;
+ select * into planned from public.user_lifetime_interview_strategy where user_id=auth.uid() and project_id=identity.project_id and not shadow
+   order by plan_revision desc limit 1;
+ g:=planned.data->'guidance';
+ if g is null or planned.policy_epoch<>p.policy_epoch or planned.preference_revision<>identity.preference_revision
+   or planned.execution_generation<>identity.execution_generation or p.source_sequence not between coalesce((g->>'published_source_sequence')::bigint,planned.based_on_sequence) and coalesce((g->>'published_source_sequence')::bigint,planned.based_on_sequence)+1
+   or not exists(select 1 from public.user_narrator_source s where s.user_id=auth.uid() and s.project_id=identity.project_id and s.id=planned.source_id
+     and s.version=planned.source_version and s.status='active')
+   or exists(select 1 from public.user_interview_turn seen join public.user_lifetime_reply r
+     on r.user_id=seen.user_id and r.client_turn_id=seen.client_turn_id and r.conversation_id=p_conversation_id
+     where seen.user_id=auth.uid() and seen.project_id=identity.project_id and seen.guidance_plan_revision_seen=planned.plan_revision
+       and r.policy_epoch=p.policy_epoch and r.preference_revision=identity.preference_revision and r.execution_generation=identity.execution_generation)
+   or split_part(g->>'news_revision',':',3) is distinct from coalesce((select revision::text from public.user_historical_news_state
+     where user_id=auth.uid() and project_id=identity.project_id),'1')
+   or exists(select 1 from jsonb_array_elements(coalesce(g->'acknowledgement_guidance'->'source_refs','[]')) r
+      where not exists(select 1 from public.user_narrator_source s where s.user_id=auth.uid() and s.project_id=identity.project_id
+        and s.id=(r->>'source_id')::uuid and s.version=(r->>'version')::bigint and s.status='active')) then return null;end if;
+ return g||jsonb_build_object('plan_revision',planned.plan_revision);
+end $$;
+
+CREATE FUNCTION public.read_lifetime_interview_guidance(p_conversation_id uuid) RETURNS jsonb
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+declare pins jsonb; identity public.user_lifetime_conversation%rowtype; current_turn public.user_interview_turn%rowtype;
+ lease uuid; context_fence jsonb; guidance jsonb;
+begin
+ pins:=public.read_lifetime_pinned(p_conversation_id);
+ select * into identity from public.user_lifetime_conversation where user_id=auth.uid() and conversation_id=p_conversation_id;
+ select lease_token into lease from public.user_agent_turn_lease where user_id=auth.uid() and expires_at>clock_timestamp();
+ if lease is not null then
+   select * into current_turn from public.user_interview_turn where user_id=auth.uid() and project_id=identity.project_id
+     and collector is null order by sequence desc limit 1;
+   context_fence:=jsonb_build_object('lease_digest',encode(sha256(convert_to(lease::text,'UTF8')),'hex'),
+     'policy_epoch',(select policy_epoch from public.user_memoir_project where user_id=auth.uid() and project_id=identity.project_id),
+     'preference_revision',identity.preference_revision,'execution_generation',identity.execution_generation,
+     'source_id',current_turn.source_id,'source_version',current_turn.source_version);
+   if current_turn.interview_guidance_snapshot->'fence'=context_fence and current_turn.interview_guidance_snapshot ? 'guidance' then
+     guidance:=current_turn.interview_guidance_snapshot->'guidance';
+     if guidance='null'::jsonb then return null;end if;
+     if not public.lifetime_guidance_question_current(auth.uid(),identity.project_id,
+       jsonb_build_object('trigger_source_refs',coalesce(guidance->'acknowledgement_guidance'->'source_refs','[]'))) then return null;end if;
+     return guidance;
+   end if;
+ end if;
+ guidance:=public.read_lifetime_interview_guidance_live(p_conversation_id);
+ if current_turn.client_turn_id is not null then
+   update public.user_interview_turn set interview_guidance_snapshot=jsonb_set(
+     case when interview_guidance_snapshot->'fence'=context_fence then interview_guidance_snapshot else jsonb_build_object('fence',context_fence) end,
+     '{guidance}',coalesce(guidance,'null'::jsonb)),
+     guidance_plan_revision_seen=case when coalesce(guidance->'acknowledgement_guidance','null')<>'null'::jsonb then (guidance->>'plan_revision')::bigint end
+   where user_id=auth.uid() and project_id=identity.project_id and client_turn_id=current_turn.client_turn_id;
+ end if;
+ return guidance;
+end $$;
+REVOKE ALL ON FUNCTION public.read_lifetime_interview_guidance_live(uuid) FROM PUBLIC,anon,authenticated,service_role;
+
+
+CREATE TRIGGER lifetime_guidance_original AFTER UPDATE OF processing_status ON public.user_narrator_source
+ FOR EACH ROW EXECUTE FUNCTION public.enqueue_lifetime_interview_guidance();
+CREATE TRIGGER lifetime_guidance_news AFTER INSERT OR UPDATE ON public.user_historical_news_clue
+ FOR EACH ROW EXECUTE FUNCTION public.enqueue_lifetime_interview_guidance();
+
+REVOKE ALL ON FUNCTION public.enqueue_lifetime_interview_guidance(),public.read_lifetime_interview_guidance_page(uuid,uuid),
+ public.lifetime_guidance_ref(jsonb,jsonb),public.lifetime_guidance_priority(jsonb),public.commit_lifetime_interview_guidance(uuid,uuid,text,jsonb),
+ public.read_lifetime_interview_guidance(uuid) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.read_lifetime_interview_guidance_page(uuid,uuid),public.commit_lifetime_interview_guidance(uuid,uuid,text,jsonb) TO service_role;
+GRANT EXECUTE ON FUNCTION public.read_lifetime_interview_guidance(uuid) TO authenticated,service_role;
 
 notify pgrst, 'reload schema';
 commit;

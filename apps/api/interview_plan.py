@@ -25,9 +25,11 @@ from .prompt_artifact import load_prompt_artifact, prompt_path
 def historical_acknowledgements(context):
     copies = json.loads(load_prompt_artifact(prompt_path('memoir/shared/historical-acknowledgements')))
     language = (context or {}).get('interview_language')
-    if language in copies:
-        return {copies[language], copies.get(f'{language}/stop', copies[language])}
-    return set(copies.values())
+    allowed = {copies[language], copies.get(f'{language}/stop', copies[language])} if language in copies else set(copies.values())
+    reflection = ((context or {}).get('interview_guidance') or {}).get('acknowledgement_guidance')
+    if reflection:
+        allowed.add(reflection['text'])
+    return allowed
 
 
 def historical_acknowledgement_allowed(value, context):

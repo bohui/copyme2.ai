@@ -15,10 +15,17 @@ CONFIRMATION = {'id': 'bq-' + 'a' * 64, 'question': '您说的大石庙是承德
 
 def test_lane_b_preserves_a_grounded_confirmation_in_the_question_pool():
     question = {key: value for key, value in CONFIRMATION.items() if key != 'id'}
-    result = derived_hints({'place_journeys': [], 'prepared_questions': [question]},
-                           {'source': {'text': '我小时候住在大石庙。'}})
-    start = '我小时候住在大石庙。'.index('大石庙')
-    assert result['prepared_questions'] == [{**question, 'char_start': start, 'char_end': start + len('大石庙')}]
+    from apps.api.interview_guidance import validate_guidance_result
+    source=dict(id='story',version=1,text='我小时候住在大石庙。',char_start=0,char_end=11,status='active',kind='narrator_chat')
+    page=dict(source=source,events=[],guidance_context=dict(source_windows=[source],news_clues=[],recent_dialogue=[]))
+    ref=dict(source_id='story',version=1,quote='大石庙')
+    raw=dict(signals=[dict(kind='clarification',source_refs=[ref])],prepared_questions=[dict(question,
+        source_id='story',source_version=1,trigger='clarification')])
+    result=validate_guidance_result(raw,page)
+    start=source['text'].index('大石庙')
+    assert result['prepared_questions'][0]['char_start']==start
+    assert result['prepared_questions'][0]['char_end']==start+len('大石庙')
+
 
 
 @pytest.mark.parametrize('selector', [False, True])

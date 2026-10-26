@@ -5,6 +5,7 @@ import pytest
 from test_two_lane_memory import (database,sql,event_database,private_database,attachment_database,
     enable_only_disposable_database_rollout,accept,lane,service,QUESTION)
 from test_shared_memory_events_postgres import rpc,literal
+from split_lane_fixtures import canonical_service, finish_timeline
 from test_agent_commit_postgres import OWNER,OTHER,as_user
 
 
@@ -43,11 +44,11 @@ def test_automatic_internal_shape_is_persisted_without_a_user_mode_or_compositio
     assert plan.based_on_sequence==accepted['source']['sequence']
     assert sql("select count(*) from pg_tables where schemaname='public' and tablename='user_conversation_phase_archive';").stdout.strip()=='0'
     # A later session and a finished worker reload the same durable plan.
-    service(sql,'complete_lifetime_memoir_lane',f"'{lane_id}','{page['token']}'")
+    assert sql("select pending from public.user_memoir_lane where skill='guidance';").stdout.strip()=='f'
     assert rpc(sql,'read_lifetime_strategy_context',f"'{identity['conversation_id']}'")['plan']==state['plan']
     saved=json.loads(sql('select data from public.user_lifetime_interview_strategy;').stdout)
     assert saved['strategy']=='shape' and saved['objective']=='clarify_order'
-    assert 'checkpoint_id' in saved and saved['snapshot_id']==page['snapshot_id']
+    assert 'checkpoint_id' in saved and saved['snapshot_id']==sql.guidance_publication[0]['snapshot_id']
     assert rpc(sql,'read_lifetime_strategy_context',f"'{identity['conversation_id']}'",owner=OTHER,check=False).returncode!=0
     assert sql(as_user('select * from public.user_lifetime_interview_strategy;'),check=False).returncode!=0
     assert sql("select count(*) from public.user_memoir_lane where skill='composer';").stdout.strip()=='0'
@@ -67,10 +68,13 @@ def test_late_planner_is_fenced_and_leaves_the_previous_plan_unchanged(sql,chang
 
 def test_strategy_receipt_replays_full_proposal_and_rejects_changed_retry(sql):
     identity,accepted,lane_id,page=setup(sql,shadow=False)
-    first=commit(sql,lane_id,page)
-    replay=commit(sql,lane_id,page)
-    assert replay=={'status':'page_saved','replayed':True}
-    with pytest.raises(AssertionError):commit(sql,lane_id,page,strategy='explore')
+    commit(sql,lane_id,page)
+    guided,result=sql.guidance_publication
+    args=f"'{guided['lane_id']}','{guided['token']}',{literal(guided['page_digest'])}"
+    replay=canonical_service(sql,'commit_lifetime_interview_guidance',args+','+literal(result))
+    assert replay['replayed'] is True
+    result['strategy_proposal']['strategy']='explore'
+    with pytest.raises(AssertionError):canonical_service(sql,'commit_lifetime_interview_guidance',args+','+literal(result))
     assert sql('select count(*) from public.user_lifetime_interview_strategy;').stdout.strip()=='1'
     assert sql('select count(*) from public.user_lifetime_source_extraction;').stdout.strip()=='1'
 
@@ -90,8 +94,7 @@ def test_empty_reply_only_plan_uses_no_background_provider(sql):
     sql("update public.user_interview_turn set collector=jsonb_build_object('plan',jsonb_build_object('work',jsonb_build_object('mode','reply_only','name','Joan')));")
     page=service(sql,'read_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}'")
     result=asyncio.run(_extract(page,SimpleNamespace()))
-    assert result['prepared_questions']==[] and result['events']==[]
-    assert result['strategy_proposal'] is None
+    assert result==dict(events=[],place_journeys=[])
     service(sql,'commit_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}',0,{literal(result)}")
     assert rpc(sql,'read_lifetime_strategy_context',f"'{identity['conversation_id']}'")['plan'] is None
 
@@ -162,14 +165,17 @@ def test_background_correction_commits_without_republishing_the_invalidated_stra
 @pytest.mark.parametrize('invalid',['duplicate_questions','multiple_questions','duplicate_focus'])
 def test_application_commit_rejects_malformed_candidate_pool_even_without_python_adapter(sql,invalid):
     identity,accepted,lane_id,page=setup(sql,shadow=False)
-    question={'question':'Was it before the move?','topic':'move','quote':page['source']['text']}
-    result={'events':[],'place_journeys':[],'prepared_questions':[question],
-        'strategy_proposal':{'strategy':'explore','objective':'follow_story','focus_event_ids':[]}}
-    if invalid=='duplicate_questions':result['prepared_questions'].append(question)
+    from controlled_interview_guidance import from_legacy_questions
+    finish_timeline(sql,page)
+    guidance_lane=sql("select id from public.user_memoir_lane where skill='guidance';").stdout.strip()
+    guided=canonical_service(sql,'claim_memoir_lane',f"'{guidance_lane}',300")
+    question=dict(question='Was it before the move?',topic='move',quote=page['source']['text'])
+    result=from_legacy_questions(guided,{page['source']['id']:[question]})
+    result['strategy_proposal']=dict(strategy='explore',objective='follow_story',focus_event_ids=[])
+    if invalid=='duplicate_questions':result['prepared_questions'].append(result['prepared_questions'][0])
     elif invalid=='multiple_questions':result['prepared_questions'][0]['question']='Was it before? Or was it after?'
-    else:
-        # Duplicate nonexistent IDs are already rejected by scoped event lookup.
-        result['strategy_proposal']['focus_event_ids']=['unknown','unknown']
+    else:result['strategy_proposal']['focus_event_ids']=['unknown','unknown']
     with pytest.raises(AssertionError):
-        service(sql,'commit_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}',0,{literal(result)}")
+        canonical_service(sql,'commit_lifetime_interview_guidance',
+            f"'{guidance_lane}','{guided['token']}',{literal(guided['page_digest'])},{literal(result)}")
     assert sql('select count(*) from public.user_lifetime_interview_strategy;').stdout.strip()=='0'
