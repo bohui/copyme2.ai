@@ -76,7 +76,7 @@ def bind_journey(plan, packet, profile=None):
         raise ValueError('Character profile must refer to approved source chapters')
     bound = json.loads(json.dumps(plan))
     for segment in bound['segments']:
-        looks = []
+        looks, labels = [], []
         for stop in (s for s in bound['stops'] if s['segment'] == segment['id']):
             event = events[stop['chapter']]
             approved = profile.get(stop['chapter'], {})
@@ -94,10 +94,14 @@ def bind_journey(plan, packet, profile=None):
                 raise ValueError('No stock avatar for the approved life stage')
             age = event.get('age', {})
             label = 'Age ' + str(age['minimum']) if age.get('minimum') is not None and age.get('minimum') == age.get('maximum') else stage.replace('-', ' ').capitalize()
-            looks.append((variant, label, profession))
+            stop['age_label'] = label
+            labels.append(label)
+            looks.append((stage, outfit, variant, profession))
         if len(set(looks)) != 1:
-            raise ValueError('Split scenery at a life-stage or profession change')
-        segment.update(avatar=looks[0][0], age_label=looks[0][1], profession=looks[0][2])
+            raise ValueError('Split scenery at a life-stage, outfit or profession change')
+        stage, _, variant, profession = looks[0]
+        segment.update(avatar=variant, age_label=labels[0] if len(set(labels)) == 1 else stage.replace('-', ' ').capitalize(),
+            profession=profession)
     bound['order_note'] = 'Follow the supplied timeline in one continuous walk. Some dates and ordering within a life stage are uncertain.'
     return bound
 
