@@ -40,6 +40,8 @@ def install_policy_review_transport(monkeypatch, controls=()):
             start = source['text'].index(quote)
             restrictions.append(dict(kind=kind, quote=quote, char_start=start, char_end=start + len(quote)))
         output = dict(complete=True, restrictions=restrictions)
+        if payload.get('acknowledgement_requested'):
+            output['acknowledgement']='We can keep following your memories at your pace.'
 
         def respond(request):
             return httpx.Response(200, json=dict(id='controlled-policy-response', status='completed',

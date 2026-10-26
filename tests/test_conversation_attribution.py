@@ -111,6 +111,8 @@ class Conversation:
                 if context.get('historical_news', {}).get('clues'):
                     from apps.api.interview_plan import neutral_acknowledgement
                     output['acknowledgement'] = neutral_acknowledgement(context)
+                if context.get('reviewed_acknowledgement'):
+                    output['acknowledgement']=context['reviewed_acknowledgement']
                 if reflection:
                     output['acknowledgement'] = reflection['text']
             return worker_response(request, output)

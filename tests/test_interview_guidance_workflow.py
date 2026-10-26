@@ -80,6 +80,7 @@ def install_news(conversation):
 @pytest.mark.parametrize('kind',['conflict','clarification','historical_news','topic_transition','life_essence','follow_up'])
 def test_new_skill_generates_next_turn_context_without_writing_facts(sql,tmp_path,monkeypatch,kind,contract):
     active = {'kind':kind}
+    if kind=='life_essence':monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK','1')
     def prepare(packet):
         if active['kind'] == 'topic_transition' and len(packet['guidance_context']['recent_dialogue'])<3:
             return dict(signals=[],prepared_questions=[],acknowledgement_guidance=None,strategy_proposal=None)
