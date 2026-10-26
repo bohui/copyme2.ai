@@ -4,7 +4,7 @@ PROMPT_PATHS = {
     **{'memoir/skills/memoir-story-game/novel-to-game/' + name:
        'skills/memoir-story-game/prompts/novel-to-game/' + name + '.md'
        for name in ('adapter', 'journey', 'assets', 'analyze', 'concept', 'design',
-                    'whitebox', 'art', 'production', 'production_style')},
+                    'whitebox', 'art', 'production', 'production_style', 'illustration')},
     'memoir/skills/memoir-interview-guidance/instructions': 'skills/memoir-interview-guidance/SKILL.md',
     'memoir/skills/memoir-interviewer/reply': 'skills/memoir-interviewer/prompts/reply.md',
     'memoir/skills/memoir-author-timeline/continuity': 'skills/memoir-author-timeline/prompts/continuity.md',

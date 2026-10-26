@@ -698,6 +698,19 @@ for movement, illustrated scene blending, reading and restart. Models supply
 route data, scene-art requests and styling; reusable avatars follow approved
 life-stage and profession metadata. New approved composer/timeline inputs use
 `stages.py analyze --source <input.json> --brief <PRODUCT_BRIEF.md>` before later stages.
+The application reuses compatible library backgrounds and requests new PNGs for
+unsupported settings. It checks the private style/prompt cache first, so repeated
+locations and retries reuse completed images. The Images API defaults to the
+existing gateway/key and `MEMOIR_GAME_IMAGE_MODEL=gpt-image-2.5-sunburst`; expose
+that model or a compatible alias on the gateway, or set `MEMOIR_GAME_IMAGE_BASE_URL`
+and `MEMOIR_GAME_IMAGE_API_KEY`. Text/design stages remain Sol max. Image failure
+keeps the art checkpoint for an explicit retry. Cache bytes persist under
+`MEMORY_SPARK_OBJECT_STORE_PATH/story-game-scenes`, shared privately by API and
+worker. Generated PNGs are delivered through the authorized game response; the
+public stock-art routes serve only versioned generic assets. Restoring a game
+requires restoring this object store along with its database. The application
+generates one image per distinct missing background, with a maximum of 24 images
+and 24 MB of original PNGs per game; visual suitability still needs inspection.
 Run the explicit paid age-eight example with
 `python3 scripts/run_novel_game_live_example.py --execute --env-file /host/gateway.env --output /private/fresh-output`.
 Without `--execute` it makes zero calls. It uses a private, resumable local database,

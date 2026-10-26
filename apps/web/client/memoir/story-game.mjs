@@ -173,13 +173,18 @@ export function mountNovelGameWebpage(root, game, t, onClose) {
     plan.illustrations = [{ url: media.places, columns: library.columns, rows: library.rows,
       width: library.width, height: library.height, scenes: Object.keys(game.scene_bindings),
       cells: Object.fromEntries(Object.entries(game.scene_bindings).map(([id, cell]) => [id, library.cells.indexOf(cell)])) }];
+    plan.illustrations.push(...(game.illustrations || []).map(art => {
+      if (!/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(art.data_url || "")) throw new Error("Invalid scene image");
+      return {url: art.data_url, columns: 1, rows: 1, width: art.width, height: art.height, scenes: art.scenes,
+        cells: Object.fromEntries(art.scenes.map(scene => [scene, 0]))};
+    }));
     const encode = value => JSON.stringify(value).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e").replaceAll("&", "\\u0026");
     const html = runtime.template.replace("<!-- MEMOIR_SOURCE -->", `<script id="memoir-source" type="application/json">${encode(game.source)}</script>`)
       .replace("<!-- MEMOIR_JOURNEY -->", `<script id="memoir-journey" type="application/json">${encode(plan)}</script>`);
     const doc = new DOMParser().parseFromString(html, "text/html"), nonce = crypto.randomUUID().replaceAll("-", "");
     const policy = doc.createElement("meta"); policy.httpEquiv = "Content-Security-Policy";
     const assetOrigin = location.origin + "/api/v1/memoir/agent/story-game-assets/";
-    policy.content = `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src ${assetOrigin}; media-src ${assetOrigin}; base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'; object-src 'none'`;
+    policy.content = `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src ${assetOrigin} data:; media-src ${assetOrigin}; base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'; object-src 'none'`;
     doc.head.prepend(policy);
     const style = doc.createElement("style");
     style.textContent = runtime.css.replace(/url\(([^)]+)\)/g, (_, name) => `url("${media[name.replaceAll(/["' ]/g, "")]}")`) + "\n" + game.css;

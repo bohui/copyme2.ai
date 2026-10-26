@@ -14,6 +14,7 @@ import httpx
 from .higgsfield_game import load_build_packet
 from .model_request import instruction_manifest, manifest_metadata
 from .novel_game_bundle import assets, journey, scene_library, validate_bundle, validate_style
+from .novel_game_art import prepare_backgrounds,validate_bindings,generate_background
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .story_game_runtime import GameFence, GamePublication, GameRequestBody
 from .story_game_selection import selected_scenes, validate_brief
@@ -153,7 +154,7 @@ async def model_stage(body, fence, *, transport=None, issue14_admission=None, ob
 
 
 async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_store=None,
-                         verifier=None, output=None, issue14_admission=None):
+                         verifier=None, output=None, issue14_admission=None, image_generator=None):
     from .issue14_execution_admission import check_issue14_dispatch
     from .lifetime_memory_lane_engine import check_lane_generation
     check_issue14_dispatch(issue14_admission,role='tool_loop')
@@ -172,6 +173,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
         assets.write_bytes(workspace,'PRODUCT_BRIEF.md',brief['design_brief'].encode())
         artifacts = {'PRODUCT_BRIEF.md':brief['design_brief']}
         receipts = []
+        illustrations,illustration_receipts=[],[]
         for stage in STAGES:
             assets.write_json(workspace,'progress.json',dict(status='running',stage=stage,completed_stages=len(receipts)))
             config = runner.STAGES[stage]
@@ -219,21 +221,20 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
             if stage=='art':
                 bindings=json.loads(content['design/SCENE_BINDINGS.json'])
                 needed={s['scene'] for s in json.loads(artifacts['design/JOURNEY_PLAN.json'])['segments']}
-                if not isinstance(bindings,dict) or set(bindings)!=needed or any(cell not in scene_library()['cells'] for cell in bindings.values()):
-                    raise ValueError('game_scene_bindings_invalid')
-                catalog=assets.pack_catalog()
-                for item in catalog['files']: assets.write_bytes(workspace,'build/app/'+item['url'],assets.stock_source(item).read_bytes())
-                library=scene_library()
-                assets.write_bytes(workspace,'build/app/assets/scenes/places.png',(journey.PACKAGE/'assets/illustrated-places-v1/places.png').read_bytes())
-                art=dict(url='assets/scenes/places.png',status='ready',width=library['width'],height=library['height'],
-                    columns=library['columns'],rows=library['rows'],scenes=list(bindings),cells={k:library['cells'].index(v) for k,v in bindings.items()})
-                assets.write_json(workspace,'build/asset-catalog.json',dict(stock=catalog,scenes=[art]))
+                validate_bindings(bindings,needed,scene_library())
+                # Save the art decision before paid images; a retry reuses both independently.
+                if not cached:await store(fence,stage,signature,dict(value=value,receipt=receipt))
+                async def generate(prompt,fence):
+                    return await generate_background(prompt,fence,transport=transport,issue14_admission=issue14_admission)
+                stock_bindings,illustrations,illustration_receipts=await prepare_backgrounds(workspace,bindings,scene_library(),fence,
+                    generator=image_generator or generate)
+                artifacts['build/asset-catalog.json']=(workspace/'build/asset-catalog.json').read_text()
             artifacts.update(content)
             if stage in ('design','whitebox','art','production'):
                 journey.materialise(workspace,source,runner.public_source(source),require_art=stage=='production')
                 artifacts['build/template.html']=(workspace/'build/template.html').read_text()
                 artifacts['build/app/journey-runtime.css']=(workspace/'build/app/journey-runtime.css').read_text()
-            if not cached: await store(fence,stage,signature,dict(value=value,receipt=receipt))
+            if not cached and stage!='art': await store(fence,stage,signature,dict(value=value,receipt=receipt))
             receipts.append(receipt)
             assets.write_json(workspace,'stages/'+stage+'/checkpoint.json',dict(value=value,receipt=receipt))
             if stage=='whitebox':
@@ -244,12 +245,14 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
         qa = dict(desktop=await verify(workspace,'production'),touch=await verify(workspace,'production',phone=True),
             journey=await verify(workspace,'journey'))
         plan=journey.bind_journey(json.loads(artifacts['design/JOURNEY_PLAN.json']),source)
-        bundle=validate_bundle(dict(version=1,source=runner.public_source(source),plan=plan,
-            css=artifacts['build/app/game.css'],scene_bindings=json.loads(artifacts['design/SCENE_BINDINGS.json'])),selected['scenes'])
+        bundle=dict(version=2 if illustrations else 1,source=runner.public_source(source),plan=plan,
+            css=artifacts['build/app/game.css'],scene_bindings=stock_bindings)
+        if illustrations:bundle['illustrations']=illustrations
+        validate_bundle(bundle,selected['scenes'])
         receipt=dict(status='completed',skill='novel-to-game',model=MODEL,requested_model=MODEL,reasoning_effort='max',
             response_id=receipts[-1]['response_id'],response_ids=[r['response_id'] for r in receipts],stages=receipts,
             upstream_revision=dependency['revision'],skill_sha256=fingerprint(dependency),artifact_sha256=fingerprint(bundle),
-            runtime_sha256=journey.runtime_hashes(),qa=qa,selection_digest=packet['selection_digest'])
+            runtime_sha256=journey.runtime_hashes(),qa=qa,selection_digest=packet['selection_digest'],scene_illustrations=illustration_receipts)
         assets.write_json(workspace,'run-receipt.json',receipt)
         assets.write_json(workspace,'progress.json',dict(status='completed',stage='verified',completed_stages=len(receipts)))
         return dict(webpage=dict(novel_game=bundle),receipt=receipt)

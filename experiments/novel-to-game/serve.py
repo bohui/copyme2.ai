@@ -19,6 +19,7 @@ ROOT=Path(__file__).resolve().parents[2]
 if args.application:
     sys.path.insert(0,str(ROOT))
     from apps.api.novel_game_bundle import runtime_bundle,runtime_asset
+    from apps.api.novel_game_art import hydrate_illustrations
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -33,7 +34,7 @@ class Handler(SimpleHTTPRequestHandler):
             if path=='/':
                 data=b'''<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>Fictional memoir RPG</title><style>body{margin:0;background:#faf6e9}iframe{border:0;width:100%;height:100vh}</style></head><body><div id="game-root"></div><script type="module">import {mountStoryGameWebpage} from '/client/memoir/story-game.mjs';const response=await fetch('/game.json');const saved=await response.json();const labels={title:'Fictional age-eight RPG',unavailable:'The game could not load.'};mountStoryGameWebpage(document.querySelector('#game-root'),saved.game,key=>labels[key]||key);</script></body></html>'''
                 mime='text/html'
-            elif path=='/game.json': data=(HERE/'game-package.json').read_bytes();mime='application/json'
+            elif path=='/game.json': data=json.dumps(hydrate_illustrations(json.loads((HERE/'game-package.json').read_text()))).encode();mime='application/json'
             elif path in ('/client/memoir/story-game.mjs','/client/memoir/dom.mjs'):
                 data=(ROOT/'apps/web'/path.lstrip('/')).read_bytes();mime='text/javascript'
             elif path=='/api/v1/memoir/agent/story-game-runtime': data=json.dumps(runtime_bundle()).encode();mime='application/json'
