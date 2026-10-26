@@ -165,6 +165,11 @@ def design_checkpoint(stage_runner):
     return receipt
 
 
+def build_bytes(module):
+    return {p.relative_to(module.HERE).as_posix(): p.read_bytes()
+        for p in (module.HERE / 'build').rglob('*') if p.is_file()}
+
+
 def test_missing_design_plan_is_restored_before_host_materialisation(stage_runner):
     module, files, calls = stage_runner
     receipt = design_checkpoint(stage_runner)
@@ -214,24 +219,24 @@ def test_whitebox_reuse_preserves_shared_build_output_evolution(stage_runner, mu
     design_checkpoint(stage_runner)
     files['whitebox'] = {'build/BUILD_BRIEF.md': 'Synthetic whitebox brief', 'build/app/game.css': 'body { color: navy; }'}
     receipt = module.run_stage('whitebox')
+    generated = build_bytes(module)
     brief, css = module.HERE / 'build/BUILD_BRIEF.md', module.HERE / 'build/app/game.css'
     brief.unlink()
-    if mutation == 'missing_brief':
+    if mutation in ('missing_brief', 'missing_css'):
+        if mutation == 'missing_css':
+            css.unlink()
         assert module.run_stage('whitebox') == receipt
         assert brief.read_text() == files['whitebox']['build/BUILD_BRIEF.md']
         assert css.read_text() == files['whitebox']['build/app/game.css']
+        assert build_bytes(module) == generated
     else:
-        if mutation == 'later_style':
-            css.write_text('/* Intentional later production styling */')
-        else:
-            css.unlink()  # Host preparation seeds a default stylesheet before the reuse check.
+        css.write_text('/* Intentional later production styling */')
+        before = build_bytes(module)
         with pytest.raises(ValueError, match='Working artifact differs.*build/app/game.css'):
             module.run_stage('whitebox')
         assert not brief.exists()
-        if mutation == 'later_style':
-            assert css.read_text() == '/* Intentional later production styling */'
-        else:
-            assert css.read_text() == '/* Model styling extends the host-owned journey runtime. */\n'
+        assert css.read_text() == '/* Intentional later production styling */'
+        assert build_bytes(module) == before
     assert len(calls) == 3
 
 
@@ -254,13 +259,25 @@ def test_returning_to_whitebox_preserves_actual_production_outputs(stage_runner)
     record_scene(module.HERE, 'places', image, module.ROOT / 'var/novel-to-game-scene-cache')
     files['production'] = {'build/BUILD_BRIEF.md': 'Production brief', 'build/app/game.css': '/* Production styling */'}
     production = module.run_stage('production')
+    before = build_bytes(module)
+    assert json.loads(before['build/journey.json'])['illustrations']
+    assert json.loads(before['build/asset-catalog.json'])['scenes']
 
     with pytest.raises(ValueError, match='Working artifact differs.*build/BUILD_BRIEF.md'):
         module.run_stage('whitebox')
+    assert build_bytes(module) == before
     for name, content in files['production'].items():
         assert (module.HERE / name).read_text() == content
         assert production['outputs'][name] == module.digest(content)
     assert len(calls) == 5
+
+    # A changed request remains a new generation, even when shared working outputs differ.
+    revised = module.run_stage('whitebox', task_override='An explicitly revised whitebox task')
+    assert revised['response_id'] == 'synthetic-response-6'
+    assert revised['request_sha256'] != module.digest(json.dumps(calls[2], sort_keys=True, ensure_ascii=False))
+    assert len(calls) == 6
+    assert (module.HERE / 'build/app/game.css').read_text() == files['whitebox']['build/app/game.css']
+    assert json.loads((module.HERE / 'build/journey.json').read_text())['illustrations'] == []
 
 
 @pytest.mark.parametrize('redirect', [None, 'inside_file', 'outside_file', 'inside_parent', 'outside_parent'])

@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 import time
 
 import httpx
@@ -207,10 +208,24 @@ def reuse_outputs(stage, outputs, allowed):
     return True
 
 
+def prepare_build_inputs(workspace, name, packet, config, *, dry_run):
+    catalog=prepare_assets(workspace, ROOT/'var/novel-to-game-scene-cache',
+        include_scenes=name in ('production','production_style'), require_ready=name in ('production','production_style') and not dry_run)
+    materialise_journey(workspace,packet,public_source(packet),require_art=name in ('production','production_style') and not dry_run)
+    inputs={p:(workspace/p).read_text() for p in config['inputs']}
+    inputs['build/asset-catalog.json']=json.dumps(catalog,ensure_ascii=False,sort_keys=True)
+    inputs['build/journey.json']=(workspace/'build/journey.json').read_text()
+    return inputs
+
+
 def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     packet=initialise(fresh_analysis=name=='analyze')
     revision=dependency_revision()
     config=STAGES[name]
+    stage=HERE/'stages'/name
+    checkpoint=stage/'checkpoint.json'
+    building=name in ('whitebox','art','production','production_style')
+    deferred_build=building and not dry_run and checkpoint.exists()
     paths=[config['skill']+'/SKILL.md']+[config['skill']+'/references/'+p for p in config['refs']]
     upstream={p:(SKILL/p).read_text() for p in paths}
     def managed(name):
@@ -223,17 +238,25 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     instructions=managed('adapter')+'\n\n'+'\n\n'.join('===== '+p+' =====\n'+v for p,v in upstream.items())
     if name in ('concept','design','whitebox','art','production','production_style'):
         instructions+='\n\n'+managed('journey')
-    if name in ('whitebox','art','production','production_style'):
+    if building:
         if not (HERE/'design/JOURNEY_PLAN.json').is_file():
             raise ValueError('Generate and validate JOURNEY_PLAN.json before building')
         instructions+='\n\n'+managed('assets')
-        catalog=prepare_assets(HERE, ROOT/'var/novel-to-game-scene-cache',
-            include_scenes=name in ('production','production_style'), require_ready=name in ('production','production_style') and not dry_run)
-        materialise_journey(HERE,packet,public_source(packet),require_art=name in ('production','production_style') and not dry_run)
-    inputs={p:(HERE/p).read_text() for p in config['inputs']}
-    if name in ('whitebox','art','production','production_style'):
-        inputs['build/asset-catalog.json']=json.dumps(catalog,ensure_ascii=False,sort_keys=True)
-        inputs['build/journey.json']=(HERE/'build/journey.json').read_text()
+        if deferred_build:
+            # Compute the same request without changing a later build or seeding missing outputs.
+            with tempfile.TemporaryDirectory(prefix='novel-game-checkpoint-') as scratch:
+                prepared=Path(scratch)
+                input_paths=set(config['inputs'])|{'design/JOURNEY_PLAN.json','design/SCENE_ART_PLAN.json',
+                    'source/character-profile.json','build/app/game.css'}
+                for path in input_paths:
+                    source=HERE/path
+                    if source.is_file():
+                        write_bytes(prepared,path,source.read_bytes())
+                inputs=prepare_build_inputs(prepared,name,packet,config,dry_run=dry_run)
+        else:
+            inputs=prepare_build_inputs(HERE,name,packet,config,dry_run=dry_run)
+    else:
+        inputs={p:(HERE/p).read_text() for p in config['inputs']}
     if extra_inputs:inputs.update(extra_inputs)
     # Send every source unit, with compact timeline metadata and stable internal citations.
     source=dict(title=public_source(packet)['title'],fictional=public_source(packet)['fictional'],chapters=packet['chapters'],timeline=[{k:v for k,v in e.items() if k!='source_refs'} for e in packet['timeline']],locale=packet['locale'])
@@ -258,19 +281,22 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     # Planning can also outlast a non-streaming proxy's idle timeout.
     body['stream']=True
     signature=digest(json.dumps(body,sort_keys=True,ensure_ascii=False))
-    stage=HERE/'stages'/name
     stage.mkdir(parents=True,exist_ok=True)
     if dry_run:
         save(stage/'preview-request.json',body)
         print(json.dumps(dict(stage=name,status='NOT_RUN',model=MODEL,effort='max',format=FORMAT['format'],calls=0)),flush=True)
         return body
-    checkpoint=stage/'checkpoint.json'
+    reused=None
     if checkpoint.exists():
         done=json.loads(checkpoint.read_text())
         if done['request_sha256']==signature and reuse_outputs(stage,done['outputs'],config['outputs']):
-            materialise(packet)
-            print(json.dumps(dict(stage=name,status='reused',response_id=done['response_id'])),flush=True)
-            return done
+            reused=done
+    if deferred_build:
+        prepare_build_inputs(HERE,name,packet,config,dry_run=dry_run)
+    if reused is not None:
+        materialise(packet)
+        print(json.dumps(dict(stage=name,status='reused',response_id=reused['response_id'])),flush=True)
+        return reused
     attempts=list(stage.glob('attempt-*-request.json'))
     ordinal=len(attempts)+1
     prefix=stage/('attempt-'+str(ordinal))
