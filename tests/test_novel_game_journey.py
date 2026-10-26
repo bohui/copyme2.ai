@@ -176,12 +176,14 @@ def test_missing_or_uncertain_ages_use_the_approved_stage_without_inventing_an_a
     assert [s['age_label'] for s in bound['stops']] == labels
 
 
-def test_missing_age_still_requires_an_approved_life_stage():
+def test_missing_age_is_explicitly_unspecified_without_inventing_an_age():
     module, (value, source) = journey(), shared_scene()
-    source['timeline'][1].pop('age', None)
-    source['timeline'][1].pop('life_stage', None)
-    with pytest.raises(ValueError, match='approved life stage'):
-        module.bind_journey(value, source)
+    for event in source['timeline']:
+        event.pop('age', None)
+        event.pop('life_stage', None)
+    bound=module.bind_journey(value,source)
+    assert all(s['age_label']=='Life stage unspecified' for s in bound['stops'])
+    assert bound['segments'][0]['avatar']=='adult-casual'
 
 
 def test_materialised_shared_scenery_preserves_ages_source_and_the_original_plan(tmp_path):

@@ -1,4 +1,4 @@
 interface:
   display_name: "Memoir Story Game"
   short_description: "Choose memoir scenes, then build a private game"
-  default_prompt: "Use $memoir-story-game to propose scenes by life stage, wait for my selection, and brief the separate Higgsfield game skill to build with Astra."
+  default_prompt: "Use $memoir-story-game to recommend scenes by life stage, wait for my confirmation, and build a chronological RPG with NovelToGame using GPT-6.1 Sol max."

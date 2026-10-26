@@ -1,0 +1,28 @@
+{
+  "revision": "c3075f35cc14d4bc94e2829df2bfcc0d9971229e",
+  "files": {
+    "skills/game-art-direction/SKILL.md": "6c4a04515e0df31c60e8288d97e024a0b0dd93312df2ec5640b1e067923dee6e",
+    "skills/game-art-direction/references/art-direction-method.md": "367b8d421b99c64151582f3803b9b07689ded244b32125cb50c86cf49cb19f41",
+    "skills/game-build/SKILL.md": "4a1b79ed036d2f149fb0a19f68609bf7fd0a5335a171321b7bd67175cd6671d2",
+    "skills/game-build/references/baked-sprite-workflow.md": "13652d58eab4e15693839cb6ef9c4bf4a878a1b55a29e4f9452cc9f14a1283f6",
+    "skills/game-build/references/blender-asset-workflow.md": "51cf1851709fb22b31c56a31a6d61f8160b060fc28e66f88209a1c526108732d",
+    "skills/game-build/references/build-brief-contract.md": "ccc9f1a953c041f6e3075fd131088ba3d5ae13170e0a438edd83f622bc052efe",
+    "skills/game-build/references/generative-media-pipeline.md": "f3051882b7c874d0e74ec4aa585a091323eb5d610ab4cbbf286b924858b5152a",
+    "skills/game-build/references/playable-model-contract.md": "a0321d605c18388b5805de033d1b2e621c11d09af223d6c1e1dd3975f88a9297",
+    "skills/game-build/references/tts-production-contract.md": "8962b0d6a08c61ebf0936b4a97e4e91a55c6333f5b122e510d3769925f0aa1f0",
+    "skills/game-concept/SKILL.md": "d5cadc51bee106ca94a521e928595eababadbb676e39925a0b6966cd5de63425",
+    "skills/game-concept/references/concept-method.md": "c34c47b3920740957dbf4b8e64c7258e1b584604eff671ca2718baf340bc9538",
+    "skills/game-qa/SKILL.md": "1e6d00e38abd689fe2f94cc426abc13e5d9df5c979fe60fcfd0dfa4e0d10bcbc",
+    "skills/game-qa/references/qa-contract.md": "6f00ec2e380094f5fad017281e018ae524196e3ad612bd016ddaa97c63b215c9",
+    "skills/game-qa/references/test-design-method.md": "2b9c4a7331c8302f1d0894178eb9cf1bd39633a69512bfd2481006db786693b4",
+    "skills/game-world-design/SKILL.md": "c72856e53a0ec22e0c33c2f9fb593e426cdf014d319aecd949c0be25518c693c",
+    "skills/game-world-design/references/narrative-design-method.md": "7e11b018e3b9d59bbd7102b4329aecc7c1e1c7c13616475129a8028f0313071d",
+    "skills/game-world-design/references/numeric-design-method.md": "aa275b7771535efbc5d814b6b0f42b39ed17a750d10188260fbd0faabb5ed429",
+    "skills/game-world-design/references/world-design-method.md": "ecbb27b68ff8cf11996c7d4220579437e69fa31c7fa8eb939dee263fd1ce07ff",
+    "skills/novel-game-analyze/SKILL.md": "4595ec966ee2cbcf46ca75daa534a790beb29c669d348b09e16254e30893894a",
+    "skills/novel-game-analyze/references/gameability-protocol.md": "dd1a2bfd560e21af69bcd9f3783db64295f4bffb1a05a872024d60f6e8f78b39",
+    "skills/novel-to-game/SKILL.md": "62b35309ba32c01f006deb4a7156e304839f57d77cc5264d3a7b9a697588dd61",
+    "skills/novel-to-game/references/intake-method.md": "f1081101aa21f0ec8ad61fbb4ad1cb1d2531bb4158bbe4889a65b6ef54ea7e37",
+    "skills/novel-to-game/references/pipeline-contract.md": "60c90580a613e9a8dbd0a87f2c87476061e43551842f25168e0ce09ee1113f2a"
+  }
+}

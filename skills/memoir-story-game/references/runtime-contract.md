@@ -1,76 +1,73 @@
-# Scene selection and separate game builder
+# Scene selection and resumable NovelToGame builds
 
-Memoir owns two planning calls on `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL`:
+The default builder is NovelToGame with GPT-6.1 Sol max. Planning uses the same
+model and effort. `MEMOIR_GAME_BUILDER=higgsfield` selects the independently
+installed Astra backup; failure never silently starts a second provider.
 
-1. Chapters plus the canonical timeline produce a full scene pool, with recommendations.
-2. After the owner confirms scene IDs, the selected subset produces the final creative brief.
+## Selection and authority
 
-`apps/api/story_game_runtime.py` runs these calls using the shared skill and
-`proposal.md` or `brief.md`. The independently installed `higgsfield-websites`
-skill then runs on Astra through `apps/api/higgsfield_game.py`. Its content stays
-outside Memoir's prompt sources and Langfuse catalog. See
-[the host setup guide](../../../docs/story-game-scene-selection.md) for updates.
+`story_game_runtime.py` proposes a grounded pool covering the complete approved
+composer/timeline snapshot. The UI groups options by source life stage and checks
+recommendations by default. Owners can change the count and individual options.
+More scenes increase time and cost. Recommendations are not confirmation.
+The exact saved pool digest and nonempty scene IDs must be confirmed by the owner
+before the build claim. The original pool order determines the selected sequence.
+A selected subset need not cover the complete timeline. PostgreSQL validates the
+source quotations, selected IDs, consent, edition and current source authority.
 
-## Pool and human confirmation
+The confirmed subset produces a saved creative brief. Retries reuse that brief.
+Only selected quotations and their timeline metadata enter the builder; other
+passages and private source references remain outside the build requests/player.
+Repeated options from one chapter become separate supported memory stops.
 
-The host reads completed composer prose and the full canonical timeline under
-current Shape, formal-edition, adaptation-consent and source/policy fences.
-One to 128 distinct options must cover every supplied event. Each has an exact,
-unambiguous chapter quotation, an exact title/person substring, supported event
-IDs, a recommendation flag and a short reason. Life stages come from those events;
-an option cannot combine stages. Every represented stage needs a recommendation.
-Input over the bounded capacity fails explicitly rather than silently dropping events.
+## NovelToGame stages
 
-The durable job moves from `pending` through `running` to `selection_required`.
-It has no worker lease while waiting for the owner and no build is dispatched.
-The owner receives options grouped by life stage, editable count and checkboxes,
-and a notice that more scenes increase generation cost and time. Recommendations
-are initial checkbox values, never approval. Confirmation sends the exact pool
-digest and option IDs. PostgreSQL verifies ownership, current source authority,
-unique nonempty IDs and the digest, then saves the confirmation. It orders choices
-by the original pool and records the owner, time and selection digest. Repeating
-the same selection is idempotent; changing a confirmed set is rejected. A selected
-subset need not cover every event: full coverage applies to the pool.
+The private worker runs `apps/api/novel_game.py`: analyze, concept, design,
+whitebox, art and production. Each loads its unmodified upstream skill/references
+from the reviewed `deps/novel-to-game` revision, plus Memoir's managed adapter,
+journey policy and stage prompt. Art/build also consume the asset policy.
+The host verifies upstream bytes against `deps/novel-to-game.lock.json` without
+requiring Git inside deployed containers. Dependency upgrades refresh this lock.
 
-## Brief and delegated build
+Successful stage outputs and real model receipts are stored in a service-only
+PostgreSQL checkpoint table, keyed by game, stage and exact request hash.
+A retry with unchanged input reuses them. Every checkpoint read/write and provider
+body send rechecks the job/source/consent fence. No generation holds an authority
+lock while waiting for a model. Partial/failed builds never become playable.
 
-The build claim requires that saved confirmation. The composer sees only selected
-scene text and returns a creative brief plus their complete ordered indices.
-The host validates and saves it; retries reuse the saved brief. The final request
-contains the brief, selected scenes, locale, UI labels and Memoir export contract.
-Unselected passages and private chapter/event/source identities do not reach Astra.
+Design returns a validated continuous `JOURNEY_PLAN.json`. The fixed runtime
+allows both-direction keyboard/touch walking, smooth reversible scene transitions,
+unlimited proximity reading before/after completion, unique-memory progress,
+source text, reduced motion, ending and restart. Models supply data and styling;
+they cannot supply executable HTML/JavaScript. The application art pass binds
+source-supported locations to the original shared illustrated place library.
+The standalone adapter can additionally prepare new scene illustrations through
+its explicit image-generation workflow. Shared avatars, UI and music are reused.
+A missing age uses an explicitly unspecified stage and imagined generic avatar.
 
-The private worker loads a snapshot of the separate skill's Markdown files. Astra
-can read its game references and validate the webpage through bounded tools.
-It must read the entrypoint, game flow, design system and stylization reference,
-and validate the complete HTML. The final model output references the saved
-artifact digest, avoiding a second copy of the entire document. Only this tool
-loop uses `gpt-6-astra`; planning calls use the composer setting. A receipt records
-all response IDs, the managed prompt manifest and the installed skill digest.
+The host plays the whitebox before art, then runs complete desktop and touch
+production replays. Final receipts require six upstream checks: launch, render,
+input, coreLoop, outcome and restart. These observations establish technical
+playability, not subjective fun or physical-device coverage.
 
-This adapter targets the existing offline Memoir player: the generated artifact
-contains static HTML/CSS and generic scenery; Memoir supplies movement, NPC memory
-interactions, connected scenes and the complete text version. Upstream Cloudflare
-scaffolding, generated media, shell commands, account requirements and public
-Higgsfield deployment do not apply to this export target. The original upstream
-skill remains unmodified and can still be used separately with its normal CLI.
+## Saving and playback
 
-## Authority, retries and playback
+Pool claims last 300 seconds with a 280-second deadline. Build claims last
+3600 seconds with a 3480-second deadline; individual model stages are bounded.
+The final save requires the original selection digest and verified model/build
+receipt, and checks every displayed passage against that selection.
+The game is immediately available privately through Memoir's existing project
+URL. Public and invited-friend sharing remain host controls, without another
+publication approval screen in this skill.
 
-Pool claims last 180 seconds with a 150-second deadline. Brief plus game building
-has a 900-second lease and 840-second deadline, including a bounded 780-second,
-12-round Astra loop. Each phase allows three explicit attempts. Every provider
-body send, final save and protected delivery rechecks source, consent, composer
-snapshot and job authority. No authority locks are held while a provider generates.
-Revocation withholds old content and clears saved planning projections.
+The NovelToGame artifact is validated journey/source/CSS data. The browser loads
+the host-owned runtime and public generic artwork, then creates an opaque-origin
+`sandbox="allow-scripts"` frame. Only the trusted runtime receives a script nonce.
+The frame permits image/audio requests solely to the application's hashed stock
+asset path; it cannot connect, submit forms, navigate the parent, or use storage.
+Closing, project/phase changes and source revocation remove the frame.
+The legacy Higgsfield adapter retains its strict static-markup validator and
+trusted player. Its upstream instructions remain separate and updatable.
 
-The final save must exactly match the confirmed scene subset and its digest.
-Success saves the game for immediate private play and links the project URL;
-there is no extra person-permission or publishing approval screen. Existing host
-sharing controls can later grant public or invited-friend access.
-
-The document runs in an opaque-origin `sandbox="allow-scripts"` frame. A nonce
-permits only Memoir's trusted movement script. Validation rejects model scripts,
-handlers, extra biographical text, external assets, links, frames and CSS URLs.
-The frame has no network, parent-page access or storage privileges. Closing,
-navigation, project/phase changes and source revocation remove it.
+All Memoir model-consumed prompts live in the managed Langfuse catalog. Review
+and merge Markdown to main before publishing actual numeric versions and receipts.

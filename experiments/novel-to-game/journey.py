@@ -6,7 +6,10 @@ import math
 from pathlib import Path
 import re
 
-from game_assets import pack_catalog, select_avatar, write_bytes, write_json
+if __package__:
+    from .game_assets import pack_catalog, select_avatar, write_bytes, write_json
+else:
+    from game_assets import pack_catalog, select_avatar, write_bytes, write_json
 
 PACKAGE = Path(__file__).resolve().parent
 RUNTIME = PACKAGE / 'runtime'
@@ -56,13 +59,14 @@ def validate_journey(plan, chapters, timeline):
 
 
 def life_stage(event):
-    age = event.get('age', {}).get('minimum')
+    age = (event.get('age') or {}).get('minimum')
     if isinstance(age, (int, float)) and not isinstance(age, bool) and 0 <= age <= 120:
         return 'childhood' if age < 13 else 'adolescence' if age < 18 else 'young-adulthood' if age < 35 else 'adulthood' if age < 65 else 'older-adulthood'
-    stage = event.get('life_stage', '').replace('_', '-').lower()
-    aliases = {'young-adult': 'young-adulthood', 'middle-aged': 'adulthood', 'senior': 'older-adulthood'}
+    stage = (event.get('life_stage') or 'unplaced').replace('_', '-').lower()
+    aliases = {'baby':'childhood','midlife':'adulthood','later-life':'older-adulthood',
+        'young-adult': 'young-adulthood', 'middle-aged': 'adulthood', 'senior': 'older-adulthood'}
     stage = aliases.get(stage, stage)
-    if stage not in {'childhood', 'adolescence', 'young-adulthood', 'adulthood', 'older-adulthood'}:
+    if stage not in {'childhood', 'adolescence', 'young-adulthood', 'adulthood', 'older-adulthood','unplaced'}:
         raise ValueError('Supply an approved life stage rather than inventing an age')
     return stage
 
@@ -89,11 +93,11 @@ def bind_journey(plan, packet, profile=None):
             if outfit != 'casual' and not profession.strip():
                 raise ValueError('Work clothing requires an approved profession, not a model guess')
             stage = life_stage(event)
-            variant = select_avatar(stage, outfit)
+            variant = select_avatar(stage, outfit) if stage!='unplaced' else 'adult-casual'
             if variant is None:
                 raise ValueError('No stock avatar for the approved life stage')
-            age = event.get('age', {})
-            label = 'Age ' + str(age['minimum']) if age.get('minimum') is not None and age.get('minimum') == age.get('maximum') else stage.replace('-', ' ').capitalize()
+            age = event.get('age') or {}
+            label = 'Life stage unspecified' if stage=='unplaced' else 'Age ' + str(age['minimum']) if age.get('minimum') is not None and age.get('minimum') == age.get('maximum') else stage.replace('-', ' ').capitalize()
             stop['age_label'] = label
             labels.append(label)
             looks.append((stage, outfit, variant, profession))
@@ -171,6 +175,9 @@ def materialise(workspace, packet, source, *, require_art=False):
     catalog_path = workspace / 'build/asset-catalog.json'
     catalog = json.loads(catalog_path.read_text()) if catalog_path.exists() else dict(stock=pack_catalog(), scenes=[])
     scenes = [dict((k, s[k]) for k in ('url', 'columns', 'rows', 'scenes', 'width', 'height')) for s in catalog['scenes'] if s['status'] == 'ready']
+    for public, original in zip(scenes, (s for s in catalog['scenes'] if s['status'] == 'ready')):
+        if 'cells' in original:
+            public['cells'] = original['cells']
     covered = {name for s in scenes for name in s['scenes']}
     if require_art and {s['scene'] for s in plan['segments']} - covered:
         raise ValueError('Every journey location needs its ready scene illustration')

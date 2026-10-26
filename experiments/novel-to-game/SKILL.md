@@ -2,15 +2,16 @@
 name: memoir-novel-to-game
 description: Generate a continuous chronological Memoir RPG path with NovelToGame, bidirectional walking, repeatable memories, smooth illustrated transitions and reusable life-stage avatars.
 metadata:
-  version: "0.4.0"
-  status: experimental
+  version: "0.5.0"
+  status: integrated
 ---
 
 # Memoir NovelToGame experiment
 
-This package keeps the NovelToGame evaluation separate from the active
-`memoir-story-game` skill. The active Memoir workflow and its independently
-installed Higgsfield builder remain available.
+This package supplies the shared runtime, journey/asset helpers and standalone
+NovelToGame evaluation runner. The active `memoir-story-game` uses these helpers
+through `apps/api/novel_game.py` after owner scene confirmation. Higgsfield remains
+an explicitly configured backup.
 
 ## Fixed game format
 
@@ -67,8 +68,8 @@ start `analyze --source /approved/composer-timeline.json --brief /approved/PRODU
 in a fresh output directory. The JSON contains `input.chapters`, linked
 `input.timeline`, locale, and optional title/fictional metadata. The runner saves
 the input and brief for later stages and requires fresh analysis; it never seeds
-another memoir with the benchmark's facts. This runner is not connected to
-authenticated production generation.
+another memoir with the benchmark's facts. The standalone CLI remains separate from authenticated generation; the application
+uses the fenced coordinator in `apps/api/novel_game.py`.
 
 After whitebox play, save actual feedback as `whitebox-feedback.json` before art.
 Read the [asset policy](asset-policy.md) at this point. The runner supplies
@@ -138,11 +139,11 @@ historical comparison, and its PASS receipts do not establish RPG QA. Full raw
 requests, responses and screenshots remain private under ignored `var/` in this
 worktree. `snapshot.json` fingerprints the tracked historical files.
 
-These experimental repository prompts are outside the managed Langfuse registry. Keep the
-active skill, managed prompts, Langfuse pins, production routes and saved games
-unchanged. Future integration must retain Memoir's ownership, consent, selection
-and access checks. Publishing follows the repository's merged-main prompt
-workflow.
+Memoir adapter, journey, asset and stage prompts are managed under
+`skills/memoir-story-game/prompts/novel-to-game`. These local links resolve to
+that single source; live calls verify published receipts. Upstream instructions
+remain outside the managed registry and are fingerprinted separately. Publishing
+follows the repository's merged-main prompt workflow.
 
 The [live-generated age-eight RPG](examples/age-eight-rpg/build/app/index.html)
 and its [run receipt](examples/age-eight-rpg/run-receipt.json) preserve the fresh

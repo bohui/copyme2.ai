@@ -40,6 +40,8 @@ RUN pip install --no-cache-dir --no-deps --no-build-isolation '.[photo-browser,l
 COPY README.md ./
 COPY apps/web/public ./apps/web/public
 COPY skills ./skills
+COPY experiments/novel-to-game ./experiments/novel-to-game
+COPY deps ./deps
 COPY docs ./docs
 COPY infra ./infra
 COPY scripts ./scripts

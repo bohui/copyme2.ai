@@ -466,14 +466,20 @@ def health():
 @app.post('/internal/story-game/build')
 async def build_story_game(payload: 'GameFence', request: Request,
                            x_codex_worker_secret: str | None = Header(default=None)):
-    from .higgsfield_game import run_higgsfield_game
     _require_worker_secret(x_codex_worker_secret)
-    lock = worker._lock(str(payload.game_id), 'higgsfield')
+    builder = os.getenv('MEMOIR_GAME_BUILDER','novel-to-game')
+    if builder not in {'novel-to-game','higgsfield'}:
+        raise HTTPException(503,'Unknown story game builder')
+    lock = worker._lock(str(payload.game_id), 'story-game')
     if lock.locked():
         raise HTTPException(409, 'This game build is already running')
     async def build():
         async with lock:
-            return await run_higgsfield_game(payload,
+            if builder == 'higgsfield':
+                from .higgsfield_game import run_higgsfield_game as run_builder
+            else:
+                from .novel_game import run_novel_game as run_builder
+            return await run_builder(payload,
                 issue14_admission=getattr(worker, '_issue14_admission', None))
     task = asyncio.create_task(build())
     try:
@@ -486,7 +492,7 @@ async def build_story_game(payload: 'GameFence', request: Request,
     except AdmissionDenied:
         raise HTTPException(403, 'Evaluation admission denied') from None
     except (ValueError, OSError, TimeoutError, httpx.HTTPError):
-        raise HTTPException(503, 'Higgsfield game build could not be completed') from None
+        raise HTTPException(503, 'Story game build could not be completed; completed stages can be resumed') from None
     finally:
         task.cancel()
         await asyncio.gather(task, return_exceptions=True)

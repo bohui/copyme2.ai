@@ -12,8 +12,8 @@
   let x = 80, last = null, modal = null, current = null, focusBack = null, finished = false;
   let musicEnabled = false, audioPending = false;
   const music = $('memory-music'), cue = $('memory-cue');
-  music.src = plan.stock_url + 'blue-gate-theme.mp3';
-  cue.src = plan.stock_url + 'memory-cue.mp3';
+  music.src = plan.audio?.theme || plan.stock_url + 'blue-gate-theme.mp3';
+  cue.src = plan.audio?.cue || plan.stock_url + 'memory-cue.mp3';
   music.volume = .22; cue.volume = .18;
   game.style.setProperty('--length', String(plan.segments.at(-1).end));
   game.dataset.art = plan.illustrations.length ? 'illustrated' : 'whitebox';
@@ -36,7 +36,7 @@
     panel.className = 'scene-panel'; panel.dataset.segment = segment.id;
     const art = plan.illustrations.find(a => a.scenes.includes(segment.scene));
     if (art) {
-      const i = art.scenes.indexOf(segment.scene), w = art.width / art.columns, h = art.height / art.rows;
+      const i = art.cells?.[segment.scene] ?? art.scenes.indexOf(segment.scene), w = art.width / art.columns, h = art.height / art.rows;
       const svg = document.createElementNS(ns, 'svg'), use = document.createElementNS(ns, 'use');
       svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
       svg.setAttribute('preserveAspectRatio', 'xMidYMax slice');

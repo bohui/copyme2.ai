@@ -1,5 +1,27 @@
 # Memoir scene selection and Higgsfield
 
+NovelToGame is the default builder. Both scene planning calls and all six
+NovelToGame stages use GPT-6.1 Sol max. Recommendations remain preselected UI
+values; the owner must confirm the exact scene set before the build starts.
+
+Run `make deps-install` to restore the reviewed upstream skill. `make deps-update`
+fetches upstream main and refreshes `deps/novel-to-game.lock.json`; review and
+commit both the Git submodule pin and this content lock. Upstream instructions
+remain unmodified and independently updatable.
+
+The worker resumes matching analyze/concept/design/whitebox/art/production
+checkpoints from PostgreSQL. It verifies the whitebox and final desktop/touch
+builds in Chromium. Compose installs Chromium and mounts the dependency/runtime
+into the worker. The saved data artifact uses Memoir's trusted isolated player,
+shared avatars/audio and compatible illustrated places. It contains only the
+owner's confirmed memory passages. Source, consent, edition, selection and sharing
+checks apply at the existing database/send boundaries.
+
+Set `MEMOIR_GAME_BUILDER=higgsfield` in the worker environment to compare the Astra
+backup, then recreate that service. There is no automatic fallback on failure.
+The installation instructions below apply to this optional backup.
+
+
 The game action first prepares the full pool from composer chapters and timeline.
 The owner chooses scenes by life stage and confirms their count before a game
 build starts. More scenes cost more and take longer. Two composer-model calls
@@ -50,6 +72,7 @@ outside its export capabilities.
 - `/memoir/game/:projectId` and the existing host sharing controls are unchanged.
 
 Prompt Markdown is reviewed and merged before publishing numeric Langfuse pins.
-The managed artifacts are instructions, proposal, brief, Higgsfield handoff,
-webpage export contract and runtime contract. Upstream skill text has its own
+The managed artifacts include instructions, proposal, brief, runtime contract,
+NovelToGame adapter/policies/stage prompts, and the retained Higgsfield handoff
+and webpage export contract. Upstream skill text has its own
 content digest in game-build receipts rather than a copied Langfuse prompt.
