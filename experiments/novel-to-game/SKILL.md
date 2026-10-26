@@ -1,31 +1,36 @@
 ---
 name: memoir-novel-to-game
-description: Build and evaluate a Memoir RPG side scroller with the separate NovelToGame pipeline, checkpointed stages, reusable stock art and newly illustrated scenes.
+description: Generate a continuous chronological Memoir RPG path with NovelToGame, bidirectional walking, repeatable memories, smooth illustrated transitions and reusable life-stage avatars.
 metadata:
-  version: "0.2.0"
+  version: "0.4.0"
   status: experimental
 ---
 
 # Memoir NovelToGame experiment
 
-This branch keeps the NovelToGame evaluation separate from the active
+This package keeps the NovelToGame evaluation separate from the active
 `memoir-story-game` skill. The active Memoir workflow and its independently
 installed Higgsfield builder remain available.
 
 ## Fixed game format
 
-Build an RPG side-scrolling journey: the player controls the author, moves
-horizontally through connected settings, and approaches characters or memory
-markers to interact. Keep a scrolling camera, distinct scenery, visible progress,
-an ending and restart. Support keyboard and touch movement, readable dialogue,
-visible focus, reduced motion and the complete source-text view. Source-supported
-activities may be encounters within the journey; travel and interaction remain
-central.
+Build **one continuous chronological path**. The author can walk forward or
+backward and reread any nearby memory, including after completion. Keep the Read
+button available after a visit; progress counts each unique memory once. Arrange
+the supplied timeline along that same path. Later visits to
+the same place occur further right. Keep uncertain dates and ordering explicit.
+Illustrations pan within a place and blend smoothly into the next while the
+player, ground baseline and camera remain continuous. Keep keyboard/touch,
+untimed readable passages, visible focus, reduced motion, progress, ending,
+restart and the complete unchanged source view.
 
 Treat this format as a product requirement throughout analysis, concept, design,
-art, build and QA. Concept selection chooses the route, encounters and pacing
-within it. The [adapter](adapter.md) and structured `format_contract` supply this
-requirement to every model stage.
+art, build and QA. Read the [journey policy](journey-policy.md) before concept or
+design. The [adapter](adapter.md), structured `format_contract` and host-owned
+`runtime/` enforce this format across future generations. Models supply the route,
+art plan and styling; the host owns movement, scene blending, HTML, JavaScript and
+replay. Use continuous global coordinates in either direction, without hub trips
+or travel portals. Chronology controls the layout, not the user's reading order.
 
 ## Stage workflow
 
@@ -36,12 +41,15 @@ with max effort for this experiment. Source analysis may be reused only when its
 receipt and complete input match; the fictional age-eight source analysis is
 preserved under `examples/age-eight-patch/`.
 
-Use `stages.py` for one stage at a time: `analyze` for fresh source analysis,
-concept, design, whitebox layout,
-`whitebox_logic`, `whitebox_replay`, art and production. The layout stage is named
-`whitebox`; it is not playable until logic and replay are saved. After art,
-prepare the scene assets below and use `production` to integrate them. Use
-`production_style` only for CSS repairs after the assets are integrated. A matching checkpoint reuses
+Use `stages.py` one persisted stage at a time: `analyze`, `concept`, `design`,
+`whitebox`, `art`, then `production`. Design returns `GAME_DESIGN.md` and
+`JOURNEY_PLAN.json`; `journey.py` validates complete chapter coverage, timeline
+order, contiguous scenery and increasing memory positions. It binds avatars to
+source life stages and optional owner-approved professions. Whitebox is already
+playable using the fixed runtime and its generated ordinary-input replay, so
+separate model calls for movement logic and replay are unnecessary. After art,
+prepare the scene assets below. Production supplies styling and BUILD_BRIEF.
+Use `production_style` only for a focused CSS repair. A matching checkpoint reuses
 the saved result. Changing the request invalidates reuse. Keep failed attempts;
 split a failed large build by output file before retrying. Report observed usage;
 the previous pool exceeded requested token ceilings, so they are not hard bounds.
@@ -53,16 +61,24 @@ python3 experiments/novel-to-game/stages.py concept --output var/novel-to-game-r
 ```
 
 Add `--execute --env-file /path/to/owner.env` only for an authorised live run.
-Continue later stages in the same output directory after their required
-handoffs exist. The current runner supports the complete fictional age-eight
-benchmark; it is not connected to authenticated production generation.
+Continue later stages in the same output directory after their required handoffs
+exist. The default input is the fictional age-eight benchmark. For another memoir,
+start `analyze --source /approved/composer-timeline.json --brief /approved/PRODUCT_BRIEF.md`
+in a fresh output directory. The JSON contains `input.chapters`, linked
+`input.timeline`, locale, and optional title/fictional metadata. The runner saves
+the input and brief for later stages and requires fresh analysis; it never seeds
+another memoir with the benchmark's facts. This runner is not connected to
+authenticated production generation.
 
 After whitebox play, save actual feedback as `whitebox-feedback.json` before art.
-Read the [asset policy](asset-policy.md) at this point. The runner supplies the
-approved `illustrated-childhood-v1` pack: animated child, CSS markers and original
-opt-in music. Reuse these files; generate only scene backgrounds. This generic
-childhood pack suits the age-eight benchmark. Choose an appropriate reusable pack
-before adapting other ages. Upstream NovelToGame remains independently updatable.
+Read the [asset policy](asset-policy.md) at this point. The runner supplies
+`illustrated-lifetime-v1`: childhood, teenage, young adult, midlife and older
+avatars, professional/workwear variants, CSS markers and original opt-in music.
+Reuse these files; generate only scene backgrounds. A profession/outfit comes
+only from the optional owner-approved character profile, never from a model's
+guess or a parent's job. The age-eight source stays a child throughout. These are
+imagined generic avatars; choose another approved family when appropriate.
+Upstream NovelToGame remains independently updatable.
 
 The art stage saves `ART_DIRECTION.md` and `SCENE_ART_PLAN.json`. Restore cached
 illustrations before making image calls:
@@ -88,7 +104,12 @@ are reused, so only missing scene illustrations incur image-generation calls.
 
 For a runnable candidate, run `verify.py --output <workspace> --stage production`
 and repeat with `--phone`. The replay must demonstrate player movement, camera
-movement, travel between settings, an interaction, progress, ending and restart.
+movement in both directions, continuous travel between settings, rereading, progress, ending
+and restart. Verify bounded player/camera positions, reversible smooth overlap in normal
+motion and stable reduced-motion scenery. Host runtime files must match their
+reviewed bytes; model outputs cannot replace them.
+Run `journey_checks.py --output <workspace>` for independent normal-speed blend,
+backtracking/rereading, source, reader pause, avatar-family and opt-in audio probes.
 Add independent probes for passage fidelity, revisit/full-text credit, movement
 bounds, locked areas, focus, 320px layout and offline assets. `extra_checks.py`
 targets the archived first RPG's selectors and state; adapt these probes to the
@@ -98,7 +119,7 @@ specified in the asset policy.
 Record all six upstream QA checks from one complete clean run. Physical-device
 and subjective-experience claims require their own evidence.
 
-## Branch boundary and provenance
+## Integration boundary and provenance
 
 `deps/novel-to-game/` is an unmodified MIT-licensed Git submodule. Git records the
 reviewed revision; `make deps-install` restores it and `make deps-update` checks
@@ -117,7 +138,7 @@ historical comparison, and its PASS receipts do not establish RPG QA. Full raw
 requests, responses and screenshots remain private under ignored `var/` in this
 worktree. `snapshot.json` fingerprints the tracked historical files.
 
-These experimental instructions are unpublished branch artifacts. Keep the
+These experimental repository prompts are outside the managed Langfuse registry. Keep the
 active skill, managed prompts, Langfuse pins, production routes and saved games
 unchanged. Future integration must retain Memoir's ownership, consent, selection
 and access checks. Publishing follows the repository's merged-main prompt

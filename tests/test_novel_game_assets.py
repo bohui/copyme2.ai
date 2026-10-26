@@ -36,7 +36,7 @@ def test_stock_pack_is_byte_identical_and_scene_cache_survives_new_game_ids(tmp_
     assert {a['role'] for a in cold['stock']['files']} == {
         'character-animation', 'music-loop', 'interaction-sound', 'animation-and-ui'}
     for asset in cold['stock']['files']:
-        assert (first / 'build/app' / asset['url']).read_bytes() == (assets.PACK / asset['file']).read_bytes()
+        assert (first / 'build/app' / asset['url']).read_bytes() == assets.stock_source(asset).read_bytes()
     # A synthetic PNG tests storage and grid handling, not illustration quality.
     image = tmp_path / 'test.png'
     Image.new('RGB', (12, 8), 'green').save(image)
@@ -121,6 +121,8 @@ def test_art_preview_supplies_stock_not_image_binaries_and_live_build_waits_for_
     fixture.parent.mkdir(parents=True)
     fixture.write_bytes((PACKAGE.parents[1] / 'skills/memoir-story-game/tests/fixtures/age-eight.json').read_bytes())
     module.initialise()
+    (module.HERE / 'design').mkdir(exist_ok=True)
+    (module.HERE / 'design/JOURNEY_PLAN.json').write_bytes((PACKAGE / 'examples/age-eight-linear/JOURNEY_PLAN.json').read_bytes())
     for stage in ('art', 'production'):
         for name in module.STAGES[stage]['inputs']:
             path = module.HERE / name
@@ -152,5 +154,5 @@ def test_art_preview_supplies_stock_not_image_binaries_and_live_build_waits_for_
     build_catalog = json.loads(json.loads(production['input'])['saved_artifacts']['build/asset-catalog.json'])
     assert build_catalog['missing'] == []
     assert build_catalog['scenes'][0]['sha256'] == assets.sha256(image)
-    assert len(list((module.HERE / 'build/app/assets/stock').rglob('*.png'))) == 1
+    assert len(list((module.HERE / 'build/app/assets/stock').rglob('*.png'))) == 2
     assert not list(module.HERE.glob('stages/*/attempt-*-request.json'))

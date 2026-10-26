@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "blend": 180,
+  "segments": [
+    {"id": "arrival", "scene": "home", "title": "Home — the blue gate", "start": 0, "end": 1000},
+    {"id": "new-school", "scene": "school", "title": "The bridge and new school", "start": 1000, "end": 3000},
+    {"id": "tyre-saturdays", "scene": "shed", "title": "Saturdays in the shed", "start": 3000, "end": 4100},
+    {"id": "market-library", "scene": "town", "title": "The market and library", "start": 4100, "end": 5800},
+    {"id": "grandma-rain", "scene": "grandma", "title": "Two nights at Grandma’s", "start": 5800, "end": 6900},
+    {"id": "school-play", "scene": "school", "title": "Back at school — the play", "start": 6900, "end": 8000},
+    {"id": "summer-beans", "scene": "garden", "title": "After the school year — the bean garden", "start": 8000, "end": 9200}
+  ],
+  "stops": [
+    {"chapter": "C1", "segment": "arrival", "x": 160},
+    {"chapter": "C2", "segment": "new-school", "x": 1360},
+    {"chapter": "C3", "segment": "new-school", "x": 2000},
+    {"chapter": "C4", "segment": "new-school", "x": 2640},
+    {"chapter": "C5", "segment": "tyre-saturdays", "x": 3740},
+    {"chapter": "C6", "segment": "market-library", "x": 4460},
+    {"chapter": "C7", "segment": "market-library", "x": 5440},
+    {"chapter": "C8", "segment": "grandma-rain", "x": 6540},
+    {"chapter": "C9", "segment": "school-play", "x": 7640},
+    {"chapter": "C10", "segment": "summer-beans", "x": 8740}
+  ]
+}

@@ -7,6 +7,7 @@ from pathlib import Path
 import platform
 import sys
 import threading
+import time
 from uuid import uuid4
 
 from playwright.sync_api import sync_playwright, expect
@@ -32,8 +33,10 @@ def atomic_json(path, value):
 
 def verify(stage, phone=False):
     app = HERE / 'build/app'
+    linear = (HERE / 'build/journey.json').is_file()
     plan = json.loads((HERE / 'build/playthrough.json').read_text())
-    assert 4 <= len(plan['steps']) <= 100
+    limit=max(100,7*len(json.loads((HERE/'build/journey.json').read_text())['stops'])+20) if linear else 100
+    assert 4 <= len(plan['steps']) <= limit
     assert [s.get('checkpoint') for s in plan['steps'] if s.get('checkpoint')] == list(CHECKS[2:])
     assert all(s['action'] in ('click', 'press', 'hold', 'assert_text', 'assert_attr') for s in plan['steps'])
     for step in plan['steps']:
@@ -75,6 +78,9 @@ def verify(stage, phone=False):
         checks[key] = 'PASS'
 
     try:
+        if linear:
+            for name in ('journey-runtime.js', 'journey-runtime.css'):
+                assert (app / name).read_bytes() == (PACKAGE / 'runtime' / name).read_bytes(), 'Host journey runtime changed'
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
             environment['runtimeVersion'] = browser.version
@@ -95,6 +101,9 @@ def verify(stage, phone=False):
             response = page.goto(url + '/', wait_until='networkidle')
             assert response.status == 200
             expect(page.locator(plan['initial']['selector'])).to_contain_text(plan['initial']['text'])
+            if linear:
+                expect(page.locator('#game')).to_have_attribute('data-route', 'single-chronological-stream')
+            previous_x, previous_camera = 80, 0
             initial_text = page.locator('body').inner_text()
             observe(page, 'launch', [{'action': 'navigate', 'url': '/'}], 'initial-state')
             current_check = 'render'
@@ -112,6 +121,24 @@ def verify(stage, phone=False):
                     current_check = next((k for k in CHECKS[2:] if checks[k] == 'NOT_RUN'), 'restart')
                     if action == 'hold':
                         duration = hold_duration(step)
+                        target = step.get('target_x')
+                        if target is not None:
+                            assert linear and type(target) is int, 'target_x requires a host-owned journey coordinate'
+                        start_x = int(page.locator('#game').get_attribute('data-x')) if target is not None else None
+
+                        def wait_for_movement():
+                            if target is None:
+                                page.wait_for_timeout(duration)
+                                return
+                            direction = 1 if target >= start_x else -1
+                            deadline = time.monotonic() + duration / 1000
+                            while time.monotonic() < deadline:
+                                current_x = int(page.locator('#game').get_attribute('data-x'))
+                                if abs(current_x - target) <= 20 or direction * (current_x - target) >= 0:
+                                    return
+                                page.wait_for_timeout(12)
+                            raise AssertionError('Ordinary input did not reach target_x')
+
                         if phone:
                             locator.scroll_into_view_if_needed()
                             box = locator.bounding_box()
@@ -120,12 +147,19 @@ def verify(stage, phone=False):
                             session.send('Input.dispatchTouchEvent', {'type': 'touchStart', 'touchPoints': [
                                 {'x': box['x'] + box['width']/2, 'y': box['y'] + box['height']/2}]})
                             try:
-                                page.wait_for_timeout(duration)
+                                wait_for_movement()
                             finally:
                                 session.send('Input.dispatchTouchEvent', {'type': 'touchEnd', 'touchPoints': []})
                                 session.detach()
-                        else:
+                        elif target is None:
                             locator.press(step['value'], delay=duration)
+                        else:
+                            locator.focus()
+                            page.keyboard.down(step['value'])
+                            try:
+                                wait_for_movement()
+                            finally:
+                                page.keyboard.up(step['value'])
                     elif action == 'press':
                         locator.press(step['value'])
                     elif phone:
@@ -139,6 +173,18 @@ def verify(stage, phone=False):
                     expect(locator).to_be_visible()
                     expect(locator).to_have_attribute(step['attribute'], step['value'])
                 trace.append(step)
+                if linear:
+                    x = int(page.locator('#game').get_attribute('data-x'))
+                    camera = int(page.locator('#game').get_attribute('data-camera'))
+                    total = json.loads((HERE/'build/journey.json').read_text())['segments'][-1]['end']
+                    assert 40 <= x <= total - 40, 'Player left the continuous route'
+                    assert camera == max(0, min(x - 240, total - 640)), 'Camera reset instead of following the player'
+                    if action == 'hold':
+                        direction = int(locator.get_attribute('data-move'))
+                        assert direction * (x - previous_x) >= 0, 'Movement ignored its held direction'
+                    previous_x, previous_camera = x, camera
+                    if step.get('checkpoint') == 'coreLoop':
+                        assert camera > 0 and page.locator('.scene-panel[data-visible=true]').count() > 0
                 checkpoint = step.get('checkpoint')
                 if checkpoint:
                     assert action.startswith('assert_') and actions > 0

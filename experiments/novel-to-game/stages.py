@@ -16,6 +16,7 @@ from dotenv import dotenv_values
 PACKAGE = Path(__file__).resolve().parent
 sys.path.insert(0, str(PACKAGE))
 from game_assets import prepare as prepare_assets, validate_plan
+from journey import materialise as materialise_journey, runtime_hashes, validate_journey
 
 ROOT = PACKAGE.parents[1]
 HERE = ROOT/'var/novel-to-game-rpg-scroller'
@@ -24,47 +25,42 @@ SKILL = ROOT/'deps/novel-to-game/skills'
 MODEL = 'gpt-6.1-sol'
 KEY = ''
 BASE = 'http://127.0.0.1:4000/v1'
+SOURCE = None
+BRIEF = None
 FORMAT = dict(format='rpg-side-scroller', controlled_character='memoir_author',
-    navigation='horizontal_with_scrolling_camera', inputs=['keyboard', 'touch'],
-    interaction='proximity_characters_and_memory_markers', historical_outcomes='fixed')
+    navigation='bidirectional_continuous_scrolling', route='single_chronological_stream',
+    transitions='illustrated_overlap_and_pan', runtime='memoir-linear-v2',
+    inputs=['keyboard', 'touch'], interaction='proximity_memories_with_revisits', historical_outcomes='fixed')
 SCHEMA = {'type':'object','additionalProperties':False,'required':['files','notes'],'properties':{
     'files':{'type':'array','items':{'type':'object','additionalProperties':False,'required':['path','content'],
         'properties':{'path':{'type':'string'},'content':{'type':'string'}}}},'notes':{'type':'string'}}}
 STAGES = {
  'analyze':dict(skill='novel-game-analyze', refs=['gameability-protocol.md'], inputs=['PRODUCT_BRIEF.md'],
     outputs=['analysis/SOURCE_BIBLE.md'], budget=6500,
-    task='Analyze the complete ten-chapter fictional age-eight source and its ten linked timeline events for the locked author-controlled RPG side-scroller. Return SOURCE_BIBLE.md, at most 650 words, with one coverage row per chapter/event pair citing its exact chapter_id and event id. Preserve facts, uncertain dates, relationships, quotations, unknown outcomes and all ten source units. Identify supported actions, spaces, visual anchors, constraints and open design space; use immutable/adaptable/open/conflicted boundary labels. Keep gameplay state, scene structure and invented testimony out of this factual handoff. No game implementation or QA claims.'),
+    task='Analyze all supplied approved chapters and linked timeline events for the locked author-controlled chronological RPG walk. Return SOURCE_BIBLE.md, at most 650 words, with one coverage row per chapter/event pair citing its exact chapter_id and event id. Preserve facts, ages, uncertain dates, relationships, quotations, unknown outcomes and every source unit. Identify supported spaces, visual anchors, constraints and open design space; use immutable/adaptable/open/conflicted boundary labels. Keep invented testimony and implementation out of this factual handoff. No QA claims.'),
  'concept':dict(skill='game-concept', refs=['concept-method.md'], inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md'],
     outputs=['concepts/CONCEPT.md'], budget=6500,
-    task='The format is fixed: a side-scrolling RPG journey where the player moves the author through connected settings and approaches characters or memory markers. Compare quest, route and encounter structures within that format using the complete source; choose one and describe movement, interaction and observable progress. Preserve all ten passages in the text view. Return CONCEPT.md, at most 650 words. No code or QA claims.'),
+    task='The format is fixed: one continuous path arranged along the supplied timeline, with forward/backward walking and unlimited nearby rereading, with illustrated places blending smoothly as the author approaches each memory. Compare pacing and encounter treatments within that single chronological stream. Use known chronology and explicitly preserve uncertain order within a life stage. Revisit a place later only as a later segment along the same chronological path. The host runtime owns movement, reading, progress, scene blending and restart; choose stock life-stage/outfit treatment using approved source metadata. Preserve every supplied passage in the text view. Return CONCEPT.md, at most 650 words. No code or QA claims.'),
  'design':dict(skill='game-world-design',refs=['world-design-method.md','narrative-design-method.md'],
     inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md','concepts/CONCEPT.md'],
-    outputs=['design/GAME_DESIGN.md'],budget=7500,
-    task='Design the selected side-scrolling RPG and its riskiest whitebox: controllable author, horizontal movement and camera, connected distinct settings, nearby character/memory interactions, exploration progress, ending and restart. Specify keyboard and touch controls, movement bounds, interaction distance and scene transitions. Map all ten source units to playable or contextual treatment; retain all original text. Define stable UI ids and observable movement, camera, scene and progress attributes for real browser verification. The host supports held keyboard or touch movement with action hold, selector, value and duration_ms (50 to 5000), plus clicks, presses and assertions. Keep traversal and interaction concise enough for a replay under 100 steps. Return GAME_DESIGN.md, at most 650 words.'),
+    outputs=['design/GAME_DESIGN.md','design/JOURNEY_PLAN.json'],budget=7500,
+    task='Design one continuous chronological RPG side-scroller using the supplied journey policy and host runtime. Return GAME_DESIGN.md (at most 650 words) and JOURNEY_PLAN.json. Place each public source chapter C1..Cn exactly once in the supplied timeline order, in contiguous source-supported scenery segments with increasing world positions. Use existing scene IDs for repeated places; a later visit remains further right. Keep uncertain ordering explicit. The runtime handles keyboard/touch movement both ways, camera, repeated proximity reading, unique-memory progress, reversible scene blending, ending and restart. Read again stays available after visiting a memory and after completion. Segment boundaries must also respect life-stage or approved profession changes; the host selects avatars from source metadata. Do not design hubs, travel menus, portals, coordinate resets or new runtime controls. Reading order is free; chronology fixes the layout, not the player direction.'),
  'whitebox':dict(skill='game-build',refs=['build-brief-contract.md'],
-    inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md','concepts/CONCEPT.md','design/GAME_DESIGN.md'],
-    outputs=['build/BUILD_BRIEF.md','build/app/index.html','build/app/game.css'],budget=6500,
-    task='Implement only the RPG/scroller whitebox layout: index.html, game.css and BUILD_BRIEF below 250 words. Use GAME_DESIGN stable selectors, source marker, a visible player and scenery, distinct scene states, nearby character/memory targets, progress, readable dialogue, full-source dialog, ending and restart. Include keyboard/touch movement and interaction controls with clear data hooks. Load local game.js with defer but do not implement JavaScript or a replay yet; those are separate resumable stages. The host inserts all ten source passages. Keep HTML and CSS together below 12,000 characters. Mark playable QA NOT_RUN.'),
- 'whitebox_logic':dict(skill='game-build',refs=['build-brief-contract.md'],
-    inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','build/BUILD_BRIEF.md','build/template.html','build/app/game.css'],
-    outputs=['build/app/game.js'],budget=7000,
-    task='Implement only game.js for the existing RPG/scroller markup and approved design. Preserve every DOM hook. Implement a controllable author, held keyboard and touch-button horizontal movement, visible scrolling camera, connected scenes, distance-gated character/memory interactions, meaningful exploration progress, ending and full reset. Read the host-inserted memoir-source JSON and render all original passages with textContent. Expose the design movement, camera, scene and progress state through DOM attributes for host QA. Stop held movement on release, cancel and blur. Keep game rules deterministic and prevent repeated completion credit. Keep JavaScript below 14,000 characters. Return only game.js; no markup, stylesheet, replay or QA claims.'),
- 'whitebox_replay':dict(skill='game-build',refs=['build-brief-contract.md'],
-    inputs=['design/GAME_DESIGN.md','build/BUILD_BRIEF.md','build/template.html','build/app/game.css','build/app/game.js'],
-    outputs=['build/BUILD_BRIEF.md','build/playthrough.json'],budget=4500,
-    task='Prepare the ordinary-input browser replay for the actual RPG/scroller implementation. Return build/playthrough.json and BUILD_BRIEF below 250 words. The host executes click, press, hold, assert_text and assert_attr. A hold step has selector, value (keyboard key), duration_ms from 50 to 5000. On phone the same selector receives held touch, so hold a visible movement button; make its keyboard value Enter or Space. Cover real horizontal player and camera movement, a distance-gated interaction, travel between distinct scenes, meaningful progress, the designed ending and restart. Include initial and terminal text, and one assertion checkpoint each in order input, coreLoop, outcome, restart. Use at most 100 steps and modest margins in holds. Assert observed counters/scene data, not hidden JS functions. Leave actual QA NOT_RUN.'),
+    inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','design/JOURNEY_PLAN.json','build/template.html','build/app/journey-runtime.css'],
+    outputs=['build/BUILD_BRIEF.md','build/app/game.css'],budget=5000,
+    task='Prepare whitebox styling for the host-owned continuous walk. Return a short game.css extending the supplied runtime CSS and BUILD_BRIEF below 250 words. The validated journey, HTML, JavaScript, bidirectional movement, camera, repeatable memories, reading dialogs, progress, ending and replay are supplied by the host. Keep the illustrated-panel and avatar hooks, touch controls, dialogue, source view, focus, bounds and reduced-motion support intact. Concentrate on the riskiest spatial/readability question; use simple placeholder scenery until art. Return only allowed files and mark actual QA NOT_RUN.'),
  'art':dict(skill='game-art-direction',refs=['art-direction-method.md'],
-    inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','whitebox-feedback.json'],
+    inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','design/JOURNEY_PLAN.json','whitebox-feedback.json'],
     outputs=['design/ART_DIRECTION.md','design/SCENE_ART_PLAN.json'],budget=6000,
-    task='Read the RPG/scroller whitebox observations and supplied stock asset catalog. Return ART_DIRECTION.md in at most 600 words and SCENE_ART_PLAN.json using the supplied asset policy schema. Reuse the existing animated avatar, CSS markers and music byte-for-byte. Plan only the minimum distinct source-supported scene backgrounds, grouping compatible locations into an atlas. Match the supplied scene style. Preserve travel, camera, scene transitions, tested rules, readable cues and phone controls. Include scope, number of new illustration calls and untested visual limits. Plan artwork here; the host generates or restores it before production. No new characters, portraits, UI, music or voice assets.'),
+    task='Read the continuous-walk whitebox observations, validated journey and stock catalog. Return ART_DIRECTION.md (at most 600 words) and SCENE_ART_PLAN.json. Illustrate every journey scene ID using the minimum distinct background images, reusing a location on later visits. Group compatible places into an atlas. Match perspective, ground height, scale and light so the runtime can pan within a place and blend adjacent illustrations smoothly. Reuse stock life-stage/outfit avatars, CSS markers and opt-in music byte-for-byte; only source-supported scene backgrounds are new artwork. Include call count and untested visual limits. Preserve the single path, walking in both directions, rereading and readability. The host generates or restores missing scene assets before production.'),
  'production_style':dict(skill='game-build',refs=['build-brief-contract.md'],
-    inputs=['design/ART_DIRECTION.md','build/template.html','build/app/game.css','whitebox-feedback.json'],
+    inputs=['design/ART_DIRECTION.md','design/JOURNEY_PLAN.json','build/template.html','build/app/journey-runtime.css','build/app/game.css','whitebox-feedback.json'],
     outputs=['build/app/game.css'],budget=5500,
     task='Complete one small CSS-only RPG/scroller styling pass after stock art and scene assets have already been integrated into the markup and runtime. HTML, JavaScript, copy, rules and replay stay frozen. Return game.css below 8,000 characters, applying ART_DIRECTION using the exact local asset catalog paths. Preserve the shared sprite animation stylesheet, scenery readability while moving, large touch targets, readable text, visible focus and reduced motion. Preserve every hidden state and tested behaviour. Return only the stylesheet, with no new assets, systems or QA claims.'),
  'production':dict(skill='game-build',refs=['build-brief-contract.md'],
-    inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','design/ART_DIRECTION.md','build/BUILD_BRIEF.md','build/template.html','build/app/game.css','build/app/game.js','build/playthrough.json','whitebox-feedback.json'],
-    outputs=['build/BUILD_BRIEF.md','build/app/index.html','build/app/game.css','build/app/game.js','build/playthrough.json'],budget=12000,
-    task='Finish the approved side-scrolling RPG using the tested whitebox, ART_DIRECTION and ready asset catalog. Integrate the shared animated avatar and existing CSS markers, opt-in stock music, and only the prepared scene illustrations at the exact catalog paths. Preserve source passages, rules, horizontal movement/camera, connected scenes, proximity interactions, ending and restart. Use atlas cell dimensions from the catalog, responsive scenery, visible focus and reduced motion. Keep the source marker in index.html. Return changed allowed app files only, a concise BUILD_BRIEF and affected replay. Prefer one file per repair pass. The host supplies media; never return asset binaries, base64 or remote URLs. Leave unobserved QA NOT_RUN.')
+    inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','design/JOURNEY_PLAN.json','design/ART_DIRECTION.md','build/BUILD_BRIEF.md','build/template.html','build/app/journey-runtime.css','build/app/game.css','build/playthrough.json','whitebox-feedback.json'],
+    outputs=['build/BUILD_BRIEF.md','build/app/game.css'],budget=6500,
+    task='Polish the approved continuous illustrated walk within the host-owned runtime. Return game.css and a concise BUILD_BRIEF. The host integrates ready scene illustrations, stock age/outfit avatars and opt-in audio using the validated journey; it owns the HTML, JavaScript and replay. Style the supplied hooks while preserving smooth illustrated overlap/panning, a stable ground baseline, continuous bidirectional travel, repeatable proximity reading with unique progress, unchanged source passages, readable controls/dialogues, visible focus, reduced motion, ending and restart. Use only catalog assets. Keep every hidden/disabled state and tested rule. Do not replace the runtime or return HTML, JavaScript, binary assets or base64. Actual browser QA remains NOT_RUN until executed.')
 }
 
 
@@ -98,23 +94,37 @@ def initialise(*, fresh_analysis=False):
     else:
         assert not any(HERE.iterdir()),'Use a fresh output directory for the RPG/scroller stages'
         save(profile,FORMAT)
-    fixture=json.loads((ROOT/'skills/memoir-story-game/tests/fixtures/age-eight.json').read_text())
+    saved_source=HERE/'source/input.json'
+    source_path=SOURCE or (saved_source if saved_source.exists() else ROOT/'skills/memoir-story-game/tests/fixtures/age-eight.json')
+    fixture=json.loads(source_path.read_text())
     packet=fixture['input']
-    assert len(packet['chapters'])==len(packet['timeline'])==10
+    assert len(packet['chapters'])==len(packet['timeline']) and packet['chapters'], 'Supply linked composer chapters and timeline entries'
+    assert 'fictional' not in packet or type(packet['fictional']) is bool, 'Source fictional flag must be a boolean'
+    if SOURCE and saved_source.exists():
+        assert json.loads(saved_source.read_text())['input']==packet, 'Source changed; use a fresh output directory'
+    origin=HERE/'source-origin.json'
+    custom=SOURCE is not None or (origin.exists() and json.loads(origin.read_text())['custom'])
+    if custom and not BRIEF and not (HERE/'PRODUCT_BRIEF.md').exists():
+        raise ValueError('Custom memoir input requires an approved --brief; the age-eight brief is not reused')
+    if BRIEF and (HERE/'PRODUCT_BRIEF.md').exists():
+        assert (HERE/'PRODUCT_BRIEF.md').read_text()==BRIEF.read_text(), 'Brief changed; update the approved workspace brief explicitly or use a fresh workspace'
     source_hash=digest(json.dumps(packet,sort_keys=True,ensure_ascii=False))
     analysis_checkpoint=HERE/'stages/analyze/checkpoint.json'
-    sources=[('PRODUCT_BRIEF.md',PACKAGE/'PRODUCT_BRIEF.md'),
-                        ('source/memoir.md',SNAPSHOT/'source/memoir.md'),
-                        ('source/input.json',ROOT/'skills/memoir-story-game/tests/fixtures/age-eight.json')]
-    if not fresh_analysis and not analysis_checkpoint.is_file():
+    sources=[('PRODUCT_BRIEF.md',BRIEF or PACKAGE/'PRODUCT_BRIEF.md'), ('source/input.json',source_path)]
+    if not custom:
+        sources.append(('source/memoir.md',SNAPSHOT/'source/memoir.md'))
+    if not fresh_analysis and not analysis_checkpoint.is_file() and not custom:
         sources.append(('analysis/SOURCE_BIBLE.md',SNAPSHOT/'analysis/SOURCE_BIBLE.md'))
     for path,source in sources:
         destination=HERE/path
         if not destination.exists():
             destination.parent.mkdir(parents=True,exist_ok=True)
             destination.write_bytes(source.read_bytes())
+    save(origin,dict(custom=custom,source_sha256=source_hash))
     if fresh_analysis:
         return packet
+    if custom and not analysis_checkpoint.is_file():
+        raise ValueError('Run analyze for this memoir before continuing; benchmark analysis cannot be reused')
     bible=(HERE/'analysis/SOURCE_BIBLE.md').read_text()
     assert all(c['chapter_id'] in bible and e['id'] in bible for c,e in zip(packet['chapters'],packet['timeline']))
     if analysis_checkpoint.is_file():
@@ -130,12 +140,17 @@ def initialise(*, fresh_analysis=False):
 
 
 def public_source(packet):
-    return dict(title='The Blue Gate · Age Eight',fictional=True,chapters=[dict(id='C'+str(i+1),
-        title=event['title'],text='\n\n'.join(b['text'] for b in chapter['blocks']))
-        for i,(chapter,event) in enumerate(zip(packet['chapters'],packet['timeline']))])
+    benchmark=packet==json.loads((ROOT/'skills/memoir-story-game/tests/fixtures/age-eight.json').read_text())['input']
+    events={e['formal_chapter_id']:e for e in packet['timeline']}
+    return dict(title=packet.get('title','The Blue Gate · Age Eight' if benchmark else 'A life, one journey'),
+        fictional=packet.get('fictional',benchmark),chapters=[dict(id='C'+str(i+1),
+        title=events[c['chapter_id']]['title'],text='\n\n'.join(b['text'] for b in c['blocks'])) for i,c in enumerate(packet['chapters'])])
 
 
 def materialise(packet):
+    if (HERE/'design/JOURNEY_PLAN.json').exists():
+        materialise_journey(HERE,packet,public_source(packet))
+        return
     template=HERE/'build/template.html'
     target=HERE/'build/app/index.html'
     if not template.is_file():return
@@ -152,21 +167,33 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     paths=[config['skill']+'/SKILL.md']+[config['skill']+'/references/'+p for p in config['refs']]
     upstream={p:(SKILL/p).read_text() for p in paths}
     instructions=(PACKAGE/'adapter.md').read_text()+'\n\n'+'\n\n'.join('===== '+p+' =====\n'+v for p,v in upstream.items())
-    inputs={p:(HERE/p).read_text() for p in config['inputs']}
-    if name in ('art','production','production_style'):
+    if name in ('concept','design','whitebox','art','production','production_style'):
+        instructions+='\n\n'+(PACKAGE/'journey-policy.md').read_text()
+    if name in ('whitebox','art','production','production_style'):
+        if not (HERE/'design/JOURNEY_PLAN.json').is_file():
+            raise ValueError('Generate and validate JOURNEY_PLAN.json before building')
         instructions+='\n\n'+(PACKAGE/'asset-policy.md').read_text()
         catalog=prepare_assets(HERE, ROOT/'var/novel-to-game-scene-cache',
-            include_scenes=name!='art', require_ready=name!='art' and not dry_run)
+            include_scenes=name in ('production','production_style'), require_ready=name in ('production','production_style') and not dry_run)
+        materialise_journey(HERE,packet,public_source(packet),require_art=name in ('production','production_style') and not dry_run)
+    inputs={p:(HERE/p).read_text() for p in config['inputs']}
+    if name in ('whitebox','art','production','production_style'):
         inputs['build/asset-catalog.json']=json.dumps(catalog,ensure_ascii=False,sort_keys=True)
+        inputs['build/journey.json']=(HERE/'build/journey.json').read_text()
     if extra_inputs:inputs.update(extra_inputs)
     # Send every source unit, with compact timeline metadata and stable internal citations.
-    source=dict(chapters=packet['chapters'],timeline=[{k:v for k,v in e.items() if k!='source_refs'} for e in packet['timeline']],locale=packet['locale'])
+    source=dict(title=public_source(packet)['title'],fictional=public_source(packet)['fictional'],chapters=packet['chapters'],timeline=[{k:v for k,v in e.items() if k!='source_refs'} for e in packet['timeline']],locale=packet['locale'])
     user=dict(stage=name,task=task_override or config['task'],format_contract=FORMAT,source=source,saved_artifacts=inputs,
         allowed_output_paths=config['outputs'],source_data_contract=dict(shape='{title,fictional,chapters:[{id,title,text}]}',
-            chapter_ids=['C'+str(i+1) for i in range(10)],count=10))
+            chapter_ids=['C'+str(i+1) for i in range(len(packet['chapters']))],count=len(packet['chapters'])))
+    profile=HERE/'source/character-profile.json'
+    if profile.exists():
+        user['approved_character_profile']=json.loads(profile.read_text())
+    if name in ('whitebox','art','production','production_style'):
+        user['host_runtime_sha256']=runtime_hashes()
     body=dict(model=MODEL,reasoning={'effort':'max'},instructions=instructions,input=json.dumps(user,ensure_ascii=False),
         store=False,max_output_tokens=config['budget'],metadata=dict(generation_name='novel-game-'+name,
-        trace_name='memoir-novel-game-age-eight',synthetic='true',stage=name,upstream_revision=revision),
+        trace_name='memoir-novel-game',synthetic=str(public_source(packet)['fictional']).lower(),stage=name,upstream_revision=revision),
         text={'format':{'type':'json_schema','name':'novel_game_stage_files','strict':True,'schema':SCHEMA}})
     if name in ('art','production'):
         frames=[HERE/'qa/whitebox/evidence'/p for p in ('render.png','coreLoop.png')]
@@ -240,7 +267,12 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
         assert files and len(names)==len(set(names)) and set(names)<=set(config['outputs'])
         if name=='art':
             assert set(names)==set(config['outputs']), 'Art requires direction and the scene-only plan'
-            validate_plan(json.loads(next(f['content'] for f in files if f['path']=='design/SCENE_ART_PLAN.json')))
+            art_plan=validate_plan(json.loads(next(f['content'] for f in files if f['path']=='design/SCENE_ART_PLAN.json')))
+            needed={s['scene'] for s in json.loads((HERE/'design/JOURNEY_PLAN.json').read_text())['segments']}
+            assert {s for a in art_plan['illustrations'] for s in a['scenes']}==needed, 'Illustrate exactly the journey locations before generating images'
+        if name=='design':
+            assert set(names)==set(config['outputs']), 'Design requires the continuous journey plan'
+            validate_journey(json.loads(next(f['content'] for f in files if f['path']=='design/JOURNEY_PLAN.json')),packet['chapters'],packet['timeline'])
         hashes={}
         for file in files:
             path=HERE/file['path']
@@ -276,10 +308,14 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('stage',choices=list(STAGES))
     parser.add_argument('--output',type=Path,default=HERE,help='Fresh isolated workspace, then reuse it to resume')
+    parser.add_argument('--source',type=Path,help='Approved JSON with input.chapters and input.timeline; saved for resume')
+    parser.add_argument('--brief',type=Path,help='Approved product brief, required for a new custom source')
     parser.add_argument('--execute',action='store_true',help='Make one live Sol max stage call; otherwise prepare only')
     parser.add_argument('--env-file',type=Path,default=ROOT/'.env',help='Owner-scoped local gateway credentials')
     args=parser.parse_args()
     HERE=args.output.resolve()
+    SOURCE=args.source.resolve() if args.source else None
+    BRIEF=args.brief.resolve() if args.brief else None
     if not args.execute:
         run_stage(args.stage,dry_run=True)
         sys.exit(0)

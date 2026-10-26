@@ -8,7 +8,7 @@ import re
 from PIL import Image
 
 PACKAGE = Path(__file__).resolve().parent
-PACK = PACKAGE / 'assets/illustrated-childhood-v1'
+PACK = PACKAGE / 'assets/illustrated-lifetime-v1'
 DEFAULT_CACHE = PACKAGE.parents[1] / 'var/novel-to-game-scene-cache'
 
 
@@ -42,11 +42,26 @@ def write_json(root, name, value):
 def pack_catalog():
     pack = json.loads((PACK / 'manifest.json').read_text())
     for asset in pack['files']:
-        path = PACK / asset['file']
-        if not path.resolve().is_relative_to(PACK) or sha256(path) != asset['sha256']:
+        path = stock_source(asset)
+        if sha256(path) != asset['sha256']:
             raise ValueError('Shared art pack integrity failed: ' + asset['file'])
         asset['url'] = 'assets/stock/' + pack['id'] + '/' + asset['file']
     return pack
+
+
+def stock_source(asset):
+    path = PACK / asset.get('source', asset['file'])
+    if not path.resolve().is_relative_to(PACK.parent):
+        raise ValueError('Stock source escapes the versioned asset library')
+    return path
+
+
+def select_avatar(stage, outfit='casual'):
+    if outfit not in ('casual', 'professional', 'workwear'):
+        raise ValueError('Use an approved stock outfit')
+    variants = pack_catalog()['variants']
+    return next((v['id'] for v in variants if v['stage'] == stage and v['outfit'] == outfit),
+        next((v['id'] for v in variants if v['stage'] == stage and v['outfit'] == 'casual'), None))
 
 
 def validate_plan(plan):
@@ -97,7 +112,7 @@ def png_info(path, art):
 def prepare(workspace, cache=DEFAULT_CACHE, *, include_scenes=True, require_ready=False):
     pack = pack_catalog()
     for asset in pack['files']:
-        write_bytes(workspace, 'build/app/' + asset['url'], (PACK / asset['file']).read_bytes(), immutable=True)
+        write_bytes(workspace, 'build/app/' + asset['url'], stock_source(asset).read_bytes(), immutable=True)
     catalog = dict(policy='reuse-stock-generate-scene-backgrounds-only', stock=pack, scenes=[], missing=[])
     plan_path = workspace / 'design/SCENE_ART_PLAN.json'
     if include_scenes and plan_path.exists():

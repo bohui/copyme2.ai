@@ -6,18 +6,22 @@ ten composer chapters and ten canonical timeline events.
 
 ## Locked experience
 
-An RPG side-scrolling memoir journey. The player moves the author horizontally
-through connected settings and approaches characters or memory markers to
-explore the author's account. Keep a scrolling camera, distinct environments,
-exploration progress, readable dialogue, ending and restart. Concept selection
-chooses the route and encounters within this format. Practical activities can be
-encounters within the journey.
+One continuous chronological RPG side-scrolling memoir path. Walk forward or
+backward through the timeline's layout; preserve uncertain ordering within the
+year. Approach any memory, pause to read, and revisit it as often as desired.
+Read/Read again stays available after a visit and after completion. Count each
+memory once, with no restriction on reading order or passing an unread marker.
+Illustrations pan and blend between places with a stable ground/player baseline.
+Later visits occur further along the stream. Keep progress, source view, ending
+and restart. The host owns the runtime; models provide a validated route and style.
 
 Target a 3–5 minute main route, with untimed optional reading and exploration.
 Native offline HTML/CSS/JavaScript and system fonts. Use the supplied
-`illustrated-childhood-v1` avatar animation, CSS markers and original opt-in
+`illustrated-lifetime-v1` avatar family, CSS markers and original opt-in
 music. Generate only source-supported scene backgrounds in its illustrated
 style; group compatible places into an atlas and reuse cached illustrations.
+Select age/outfit variants from approved timeline and character metadata. The
+age-eight source uses the child throughout; an activity is not a profession.
 Keyboard movement/interaction and large touch buttons; clear focus, reduced
 motion, readable text and responsive reflow from 320 CSS pixels. No network,
 external libraries, accounts, storage, forms, publishing or runtime models.
@@ -54,6 +58,6 @@ the whitebox. Final QA must prove launch, render, input, core loop, ending and
 restart in one complete clean run, with desktop and phone coverage reported
 honestly. Each new run starts with generation and QA NOT_RUN.
 
-This branch is an isolated evaluation. The active Memoir RPG/scroller workflow,
+This package is an isolated evaluation. The active Memoir RPG/scroller workflow,
 Higgsfield installation, managed prompts, Langfuse pins, authentication and saved
 games remain unchanged.

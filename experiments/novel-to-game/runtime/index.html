@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A memoir, one journey</title>
+<link rel="stylesheet" href="journey-runtime.css">
+<!-- STOCK_CSS -->
+<link rel="stylesheet" href="game.css">
+<script src="journey-runtime.js" defer></script>
+</head>
+<body>
+<header class="mast"><p class="eyebrow">A LIFE REMEMBERED</p><h1 id="title">A memoir, one journey</h1><p>One path through your memories. Walk forward or back and revisit them whenever you like.</p></header>
+<main id="game" tabindex="0" aria-describedby="help" data-route="single-chronological-stream" data-x="80" data-camera="0" data-visited="0" data-phase="explore">
+<div class="hud"><div><p class="eyebrow" id="stage-label">Your memories</p><h2 id="scene-name">The journey begins</h2></div><div class="hud-tools"><strong id="progress" role="status" aria-live="polite">Memories 0/10</strong><button type="button" data-audio-toggle aria-pressed="false">Music off</button></div></div>
+<p id="route-note" class="note"></p>
+<div id="viewport" role="group" aria-labelledby="scene-name"><div id="scenery" aria-hidden="true"></div><div id="world"><div class="ground" aria-hidden="true"></div><div id="markers"></div><div id="player" class="memoir-avatar" data-avatar="child-casual" data-facing="right" data-moving="false" role="img" aria-label="An imagined avatar of the author"></div></div></div>
+<p id="nearby" role="status" aria-live="polite"></p>
+<div class="controls" role="group" aria-label="Walking and reading"><button id="left" type="button" data-move="-1" aria-keyshortcuts="ArrowLeft A">← Back</button><button id="right" type="button" data-move="1" aria-keyshortcuts="ArrowRight D">Forward →</button><button id="interact" type="button" aria-keyshortcuts="E">Read memory</button></div>
+<p id="help" class="note">Hold ← → or A / D to walk. Press E to read or reread a nearby memory. Escape closes reading. You can take your time.</p>
+<button type="button" id="full-text" aria-haspopup="dialog" aria-controls="source-dialog">Read the full memoir</button>
+<section id="ending" hidden aria-labelledby="ending-title"><h2 id="ending-title">Journey complete</h2><p>You have reached the end of this chapter of life. The memories remain yours to revisit.</p><button id="restart" type="button">Restart the journey</button></section>
+</main>
+<dialog id="memory-dialog" aria-labelledby="memory-title"><p class="eyebrow" id="memory-period"></p><h2 id="memory-title" tabindex="-1">A memory</h2><div class="scroll"><p id="passage" class="copy"></p></div><div class="dialog-actions"><button id="continue" type="button">Continue walking</button><button type="button" data-audio-toggle aria-pressed="false">Music off</button></div></dialog>
+<dialog id="source-dialog" aria-labelledby="source-title"><h2 id="source-title" tabindex="-1">The full memoir</h2><p class="note">All original passages, with their remembered uncertainty. Browsing here does not advance the walk.</p><div id="source-passages" class="scroll copy"></div><div class="dialog-actions"><button id="source-close" type="button">Return to the walk</button><button type="button" data-audio-toggle aria-pressed="false">Music off</button></div></dialog>
+<audio id="memory-music" loop preload="none"></audio><audio id="memory-cue" preload="none"></audio>
+<!-- MEMOIR_SOURCE -->
+<!-- MEMOIR_JOURNEY -->
+</body>
+</html>
