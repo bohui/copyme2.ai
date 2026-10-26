@@ -15187,7 +15187,7 @@ begin
      or jsonb_array_length(p_proposal->'novel_game'->'source'->'chapters')<>jsonb_array_length(expected)
      or jsonb_typeof(p_proposal->'novel_game'->'css') is distinct from 'string'
      or length(p_proposal->'novel_game'->>'css')>24000
-     or p_proposal->'novel_game'->>'css'~*'([<>]|url[[:space:]]*\(|@import|expression[[:space:]]*\()' then
+     or p_proposal->'novel_game'->>'css'~*'(<|url[[:space:]]*\(|@import|expression[[:space:]]*\()' then
      raise exception 'GAME_JOURNEY_INVALID' using errcode='22023';end if;
    memory_index:=0;
    for item in select value from jsonb_array_elements(expected) loop
