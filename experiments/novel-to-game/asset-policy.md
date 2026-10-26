@@ -4,14 +4,17 @@ The host supplies `build/asset-catalog.json`. Reuse its versioned stock pack:
 animated avatar, CSS memory markers, original music loop and interaction chime.
 Use native HTML/CSS and system fonts for interface and dialogue. Represent other
 people with existing generic markers or CSS silhouettes and source-supported
-names. The childhood avatar is imagined, not a real-person likeness. Select an
-appropriate existing pack before using this policy for another age or art style.
+names. The lifetime avatar family is imagined, not a real-person likeness. The
+host binds childhood, teenage, young adult, midlife and older variants to timeline
+metadata. Professional/workwear variants require the approved author profile
+described in the journey policy. Default to age-appropriate casual clothing.
 
 The only newly generated artwork is **scene-background illustration**. Match
 `stock.scene_style` and illustrate source-supported places, objects and weather.
 Keep uncertain details schematic. Backgrounds contain no characters, portraits,
 text, logos or interface. Reuse one location across its memories; do not request
-one image per event. Combine compatible locations into a row-major atlas to
+one image per event. Match ground, perspective, scale and lighting across adjacent
+scenes for continuous panning and blending. Combine compatible locations into a row-major atlas to
 reduce generation calls. The art handoff reports the requested call count,
 without promising a price or speedup that has not been measured.
 
@@ -46,9 +49,10 @@ For production, use only catalog entries with `status: ready`. The host stages
 stock files under `assets/stock/<pack-id>/` and illustrations under
 `assets/scenes/`. Use the supplied URLs and actual atlas/cell dimensions. Keep
 media files external and local. Load stock `stock.css` before `game.css`; use the
-catalog's avatar markup and update `data-moving` and `data-facing` from existing
-movement state. Maintain its foot baseline and scale a wrapper if needed.
-Scene changes must display the correct atlas cell. Preserve gameplay, source
+catalog's avatar definitions. The host runtime sets `data-avatar`, `data-moving`
+and `data-facing` from validated source state. Maintain its foot baseline.
+Scene changes must display the correct atlas cell and overlap while walking.
+Preserve gameplay, source
 text, keyboard/touch controls, focus and reduced-motion support.
 
 Music starts off. Enable playback only from a user action, with a persistent mute

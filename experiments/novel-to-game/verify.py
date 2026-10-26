@@ -32,8 +32,10 @@ def atomic_json(path, value):
 
 def verify(stage, phone=False):
     app = HERE / 'build/app'
+    linear = (HERE / 'build/journey.json').is_file()
     plan = json.loads((HERE / 'build/playthrough.json').read_text())
-    assert 4 <= len(plan['steps']) <= 100
+    limit=max(100,7*len(json.loads((HERE/'build/journey.json').read_text())['stops'])+20) if linear else 100
+    assert 4 <= len(plan['steps']) <= limit
     assert [s.get('checkpoint') for s in plan['steps'] if s.get('checkpoint')] == list(CHECKS[2:])
     assert all(s['action'] in ('click', 'press', 'hold', 'assert_text', 'assert_attr') for s in plan['steps'])
     for step in plan['steps']:
@@ -75,6 +77,9 @@ def verify(stage, phone=False):
         checks[key] = 'PASS'
 
     try:
+        if linear:
+            for name in ('journey-runtime.js', 'journey-runtime.css'):
+                assert (app / name).read_bytes() == (PACKAGE / 'runtime' / name).read_bytes(), 'Host journey runtime changed'
         with sync_playwright() as pw:
             browser = pw.chromium.launch(headless=True)
             environment['runtimeVersion'] = browser.version
@@ -95,6 +100,9 @@ def verify(stage, phone=False):
             response = page.goto(url + '/', wait_until='networkidle')
             assert response.status == 200
             expect(page.locator(plan['initial']['selector'])).to_contain_text(plan['initial']['text'])
+            if linear:
+                expect(page.locator('#game')).to_have_attribute('data-route', 'single-chronological-stream')
+            previous_x, previous_camera = 80, 0
             initial_text = page.locator('body').inner_text()
             observe(page, 'launch', [{'action': 'navigate', 'url': '/'}], 'initial-state')
             current_check = 'render'
@@ -139,6 +147,14 @@ def verify(stage, phone=False):
                     expect(locator).to_be_visible()
                     expect(locator).to_have_attribute(step['attribute'], step['value'])
                 trace.append(step)
+                if linear:
+                    x = int(page.locator('#game').get_attribute('data-x'))
+                    camera = int(page.locator('#game').get_attribute('data-camera'))
+                    if not (action == 'click' and step['selector'] == '#restart'):
+                        assert x >= previous_x and camera >= previous_camera, 'Journey jumped backwards or returned to a hub'
+                    previous_x, previous_camera = x, camera
+                    if step.get('checkpoint') == 'coreLoop':
+                        assert camera > 0 and page.locator('.scene-panel[data-visible=true]').count() > 0
                 checkpoint = step.get('checkpoint')
                 if checkpoint:
                     assert action.startswith('assert_') and actions > 0

@@ -33,7 +33,9 @@ def test_default_preview_needs_no_credentials_and_contains_the_complete_source(t
     assert request['stream'] is True
     assert request['metadata']['upstream_revision'] == runner().dependency_revision()
     assert packet['format_contract']['format'] == 'rpg-side-scroller'
-    assert packet['format_contract']['navigation'] == 'horizontal_with_scrolling_camera'
+    assert packet['format_contract']['navigation'] == 'forward_continuous_scrolling'
+    assert packet['format_contract']['route'] == 'single_chronological_stream'
+    assert packet['format_contract']['runtime'] == 'memoir-linear-v1'
     assert packet['format_contract']['controlled_character'] == 'memoir_author'
     assert packet['source']['chapters'] == source['chapters']
     assert {e['id'] for e in packet['source']['timeline']} == {e['id'] for e in source['timeline']}

@@ -1,0 +1,193 @@
+{
+  "id": "illustrated-lifetime-v1",
+  "scope": "Reusable imagined avatar family for childhood, adolescence, young adulthood, midlife and older life. Work clothing is selected only from an approved author profile. This is generic illustration, not a real-person portrait.",
+  "provenance": {
+    "character": "Original project artwork generated with built-in image_gen on 2026-10-26 for the approved illustrated age-eight example.",
+    "audio": "Original locally composed and synthesised instrumental and chime, 2026-10-26.",
+    "ui": "Reusable native CSS markers and sprite animations; system-font controls and text remain HTML/CSS.",
+    "lifetime": "Original project artwork generated and frame-padding refinement with built-in image_gen on 2026-10-26; two calls. The reviewed child atlas remains unchanged."
+  },
+  "scene_style": {
+    "id": "gouache-childhood-v1",
+    "description": "Detailed hand-painted gouache and coloured-pencil storybook environments, warm paper light, sea-green foliage, weathered timber and soft ink detail. Side-on or shallow stage view with quiet walking space and horizontal ground near the lower edge. Fictional schematic memory places. Backgrounds contain no people, animals, text, logos or interface; use only source-supported details."
+  },
+  "avatar": {
+    "file": "child-atlas.png",
+    "width": 1536,
+    "height": 1024,
+    "columns": 4,
+    "rows": 2,
+    "cell_width": 384,
+    "cell_height": 512,
+    "row_states": [
+      "idle",
+      "walk"
+    ],
+    "facing": "right",
+    "display_width": 96,
+    "display_height": 128,
+    "markup": "<span class=\"memoir-avatar\" data-facing=\"right\" data-moving=\"false\" aria-hidden=\"true\"></span>",
+    "integration": "Load stock.css before game.css. The host runtime sets data-avatar, data-moving and data-facing from the validated journey. Scale a wrapper to preserve the stock baseline. Reduced motion freezes decorative frames; forward travel remains available."
+  },
+  "audio": {
+    "default": "off",
+    "enable": "Only after an explicit user action. Provide a persistent mute button, including during dialogue. No autoplay or voice.",
+    "theme_duration_seconds": 50.526,
+    "cue_duration_seconds": 0.65
+  },
+  "generation_policy": {
+    "new_assets": [
+      "scene-background"
+    ],
+    "reuse": [
+      "character-animation",
+      "animation-and-ui",
+      "music-loop",
+      "interaction-sound"
+    ],
+    "scene_cache": "Exact style, scene prompt and atlas layout; cache reuse is not a QA result."
+  },
+  "files": [
+    {
+      "file": "child-atlas.png",
+      "role": "character-animation",
+      "sha256": "3bc8ae4b25ce6a962064600c2ee4a4e1d9a1f148644eb5d75a8afa264b377ef5",
+      "bytes": 2061506,
+      "source": "../illustrated-childhood-v1/child-atlas.png"
+    },
+    {
+      "file": "blue-gate-theme.mp3",
+      "role": "music-loop",
+      "sha256": "d02e240905a26427e91a1af7d3b0581e5b463e0571a071886ee6d419cb61d7ea",
+      "bytes": 708797,
+      "source": "../illustrated-childhood-v1/blue-gate-theme.mp3"
+    },
+    {
+      "file": "memory-cue.mp3",
+      "role": "interaction-sound",
+      "sha256": "21c1284da584c7dc6742a7cac2c59120576e54b9b014d29d2fd18fd5270686ac",
+      "bytes": 10283,
+      "source": "../illustrated-childhood-v1/memory-cue.mp3"
+    },
+    {
+      "file": "lifetime-atlas.png",
+      "role": "character-animation",
+      "sha256": "7d3a4e77e886668acac3400476dd4a6059cc35baae238f5c9c321bdd16e69129",
+      "bytes": 2221754
+    },
+    {
+      "file": "child-animation.css",
+      "role": "animation-and-ui",
+      "sha256": "2e22594574b8d27ae94ecea5f8819e45fba16cc67f013c35e0c6ba1823977ff5",
+      "bytes": 1716
+    },
+    {
+      "file": "stock.css",
+      "role": "animation-and-ui",
+      "sha256": "dd985310d4157d88b90b4c8aeb4231a4063a0a42e4c02ff8db8d4ab4c54c3ddf",
+      "bytes": 1653
+    }
+  ],
+  "variants": [
+    {
+      "id": "child-casual",
+      "stage": "childhood",
+      "outfit": "casual",
+      "file": "child-atlas.png",
+      "columns": 4,
+      "rows": 2,
+      "idle_row": 0,
+      "walk_row": 1
+    },
+    {
+      "id": "teen-casual",
+      "stage": "adolescence",
+      "outfit": "casual",
+      "file": "lifetime-atlas.png",
+      "columns": 4,
+      "rows": 6,
+      "row": 0,
+      "idle_column": 0,
+      "walk_columns": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "young-adult-casual",
+      "stage": "young-adulthood",
+      "outfit": "casual",
+      "file": "lifetime-atlas.png",
+      "columns": 4,
+      "rows": 6,
+      "row": 1,
+      "idle_column": 0,
+      "walk_columns": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "adult-casual",
+      "stage": "adulthood",
+      "outfit": "casual",
+      "file": "lifetime-atlas.png",
+      "columns": 4,
+      "rows": 6,
+      "row": 2,
+      "idle_column": 0,
+      "walk_columns": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "adult-professional",
+      "stage": "adulthood",
+      "outfit": "professional",
+      "file": "lifetime-atlas.png",
+      "columns": 4,
+      "rows": 6,
+      "row": 3,
+      "idle_column": 0,
+      "walk_columns": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "adult-workwear",
+      "stage": "adulthood",
+      "outfit": "workwear",
+      "file": "lifetime-atlas.png",
+      "columns": 4,
+      "rows": 6,
+      "row": 4,
+      "idle_column": 0,
+      "walk_columns": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "senior-casual",
+      "stage": "older-adulthood",
+      "outfit": "casual",
+      "file": "lifetime-atlas.png",
+      "columns": 4,
+      "rows": 6,
+      "row": 5,
+      "idle_column": 0,
+      "walk_columns": [
+        1,
+        2,
+        3
+      ]
+    }
+  ]
+}

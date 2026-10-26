@@ -1,0 +1,13 @@
+/* Reuse the reviewed childhood cycle and add age/outfit variants from the lifetime atlas. */
+@import url('child-animation.css');
+.memoir-avatar[data-avatar]:not([data-avatar=child-casual]){width:160px;height:160px;--avatar-y:0%;--avatar-lift:0px}
+.memoir-avatar[data-avatar=teen-casual]{width:144px;height:144px;--avatar-y:0%}
+.memoir-avatar[data-avatar=young-adult-casual]{--avatar-y:20%}
+.memoir-avatar[data-avatar=adult-casual]{--avatar-y:40%}
+.memoir-avatar[data-avatar=adult-professional]{--avatar-y:60%}
+.memoir-avatar[data-avatar=adult-workwear]{--avatar-y:80%}
+.memoir-avatar[data-avatar=senior-casual]{--avatar-y:100%}
+.memoir-avatar[data-avatar]:not([data-avatar=child-casual])::before{background-image:url('lifetime-atlas.png');background-size:400% 600%;background-position:0 var(--avatar-y);animation:none;translate:calc(-24px*var(--face)) var(--avatar-lift)}
+.memoir-avatar[data-avatar]:not([data-avatar=child-casual])[data-moving=true]::before{animation:memoir-lifetime-walk .66s steps(1,end) infinite}
+@keyframes memoir-lifetime-walk{0%{background-position:33.333333% var(--avatar-y);translate:calc(-16px*var(--face)) var(--avatar-lift)}33.333333%{background-position:66.666667% var(--avatar-y);translate:calc(-8px*var(--face)) var(--avatar-lift)}66.666667%,100%{background-position:100% var(--avatar-y);translate:0 var(--avatar-lift)}}
+@media(prefers-reduced-motion:reduce){.memoir-avatar[data-avatar]:not([data-avatar=child-casual])::before,.memoir-avatar[data-avatar]:not([data-avatar=child-casual])[data-moving=true]::before{animation:none;background-position:0 var(--avatar-y);translate:calc(-24px*var(--face)) var(--avatar-lift)}}

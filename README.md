@@ -655,7 +655,7 @@ their cached skill loaders reload, and removes the temporary ZIPs. Use
 `SKILLS="memoir-place-journey"` only when debugging one skill. Generated
 archives remain temporary, so `dist/` stays ignored.
 
-The branch's NovelToGame experiment uses the separate upstream Git submodule at
+Memoir's NovelToGame experiment uses the separate upstream Git submodule at
 [`deps/novel-to-game`](deps/novel-to-game). Install the reviewed revision after
 cloning this repository, or explicitly fetch an upgrade:
 
@@ -672,6 +672,11 @@ and records its actual commit. Memoir's adapter stays in
 [`experiments/novel-to-game`](experiments/novel-to-game/SKILL.md). Existing examples
 retain their original generation receipts. The active application generator and
 independently installed Higgsfield backup keep their current configuration.
+The adapter validates one chronological forward route and uses a shared runtime
+for movement, illustrated scene blending, reading and restart. Models supply
+route data, scene-art requests and styling; reusable avatars follow approved
+life-stage and profession metadata. New approved composer/timeline inputs use
+`stages.py analyze --source <input.json> --brief <PRODUCT_BRIEF.md>` before later stages.
 
 Run `make migrate` before starting the API and worker. Conversations use the canonical engine only, with fresh bounded model execution and transactional publication fences. Old Codex homes are not imported or resumed.
 
