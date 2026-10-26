@@ -98,11 +98,17 @@ def test_extraction_retry_accepts_only_fixed_feedback_with_unchanged_evidence(re
 
 def test_wording_correction_requires_an_ordinary_event_update_instead_of_an_empty_placement_patch():
     from apps.api.memory_events import validate_extraction
-    current=page();event=page('composer')['partition'];ref=event['source_refs'][0]
+    current=page('composer');event=current['partition']
+    text='Actually, I meant a narrow original window.'
+    current['source'].update(text=text,char_end=len(text),original_length=len(text))
+    ref=event['source_refs'][0]
+    ref.update(quote=text,char_end=len(text))
     proposal={'kind':'event','title':'Corrected wording','existing_id':event['id'],
         'expected_revision':event['revision'],'source_refs':[ref],'correction':ref}
     with pytest.raises(ValueError,match='Correction requires timeline placement fields'):
         validate_extraction({'events':[proposal]},[current['source']],[event])
+    proposal.pop('correction')
+    assert validate_extraction({'events':[proposal]},[current['source']],[event])==[proposal]
 
 
 def test_committed_policy_change_releases_the_lane_without_reading_its_old_snapshot(monkeypatch):

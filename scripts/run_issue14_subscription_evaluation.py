@@ -195,23 +195,39 @@ def verify_main_source(revision):
     verify_source(revision)
 
 
-def local_checkout_snapshot(revision):
-    """Fingerprint Git-visible files, including local edits, without saving bodies.
-
-    This is developer-run provenance, not the historical reviewed-source proof.
-    Ignored files (including the private .env and installed dependencies) are
-    excluded. Recheck before allocation and after cleanup to detect tree changes.
-    """
-    head = git_read('rev-parse', 'HEAD')
-    if head != revision:
-        raise ValueError('Local checkout source revision must equal the current HEAD')
+def _checkout_tree_snapshot(root):
     names = subprocess.check_output(
-        ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], cwd=ROOT)
+        ['git', 'ls-files', '--cached', '--others', '--exclude-standard', '-z'], cwd=root)
+    index = subprocess.check_output(['git', 'ls-files', '--stage', '-z'], cwd=root)
+    gitlinks = {}
+    for record in index.split(b'\0'):
+        if record:
+            metadata, name = record.split(b'\t', 1)
+            mode, oid, _stage = metadata.split()
+            if mode == b'160000':
+                gitlinks[name] = oid.decode('ascii')
     digest = hashlib.sha256()
     paths = sorted(set(names.split(b'\0')) - {b''})
     for name in paths:
-        path = ROOT / os.fsdecode(name)
-        if path.is_symlink():
+        path = root / os.fsdecode(name)
+        if name in gitlinks:
+            entry = ['gitlink', gitlinks[name]]
+            if path.is_symlink() or (path.exists() and not path.is_dir()):
+                raise ValueError('Local checkout gitlink requires a submodule directory')
+            if not path.exists() or not any(path.iterdir()):
+                entry.append('uninitialized')
+            else:
+                # An uninitialized submodule must not inherit the parent's
+                # Git context or silently hide arbitrary directory contents.
+                if not (path / '.git').exists():
+                    raise ValueError('Local checkout gitlink has unversioned contents')
+                child_root = subprocess.check_output(['git', 'rev-parse', '--show-toplevel'], cwd=path, text=True).strip()
+                if Path(child_root).resolve() != path.resolve():
+                    raise ValueError('Local checkout gitlink requires its own Git checkout')
+                child_head = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=path, text=True).strip()
+                child_digest, _ = _checkout_tree_snapshot(path)
+                entry.extend(['initialized', child_head, child_digest])
+        elif path.is_symlink():
             entry = ['symlink', os.readlink(path)]
         elif path.is_file():
             entry = ['file', path.stat().st_mode & 0o111,
@@ -221,9 +237,25 @@ def local_checkout_snapshot(revision):
         else:
             raise ValueError('Local checkout snapshot requires ordinary files')
         digest.update(name + b'\0' + json.dumps(entry, separators=(',', ':')).encode() + b'\0')
+    return digest.hexdigest(), len(paths)
+
+
+def local_checkout_snapshot(revision):
+    """Fingerprint Git-visible source, including submodule pins and local edits.
+
+    This is developer-run provenance, not the historical reviewed-source proof.
+    Uninitialized gitlinks retain their index pin; initialized submodules also
+    bind their actual HEAD and recursively fingerprint Git-visible contents.
+    Ignored files (including private .env files and installed dependencies) are
+    excluded. Recheck before allocation and after cleanup to detect tree changes.
+    """
+    head = git_read('rev-parse', 'HEAD')
+    if head != revision:
+        raise ValueError('Local checkout source revision must equal the current HEAD')
+    digest, file_count = _checkout_tree_snapshot(ROOT)
     return {'head': head, 'branch': git_read('rev-parse', '--abbrev-ref', 'HEAD'),
-            'dirty': bool(git_read('status', '--porcelain')), 'file_count': len(paths),
-            'snapshot_sha256': digest.hexdigest()}
+            'dirty': bool(git_read('status', '--porcelain')), 'file_count': file_count,
+            'snapshot_sha256': digest}
 
 
 def verify_execution_source(revision, local_source=None):

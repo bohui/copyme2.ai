@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager, contextmanager
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -80,6 +81,111 @@ def test_snapshot_rejects_source_changes_after_planning(checkout, change):
         (root / 'another.py').write_text('another = True\n')
     with pytest.raises(ValueError, match='changed'):
         launcher.verify_execution_source(revision, snapshot)
+
+
+@pytest.fixture
+def submodule_checkout(checkout):
+    root, _ = checkout
+    child = root / 'dependency'
+    child.mkdir()
+    def git(directory, *args):
+        return subprocess.check_output(['git', *args], cwd=directory, text=True).strip()
+    git(child, 'init', '-q', '-b', 'synthetic')
+    git(child, 'config', 'user.name', 'Synthetic')
+    git(child, 'config', 'user.email', 'synthetic@invalid')
+    (child / 'source.py').write_text('value = 1\n')
+    (child / '.gitignore').write_text('.env\n')
+    git(child, 'add', '.')
+    git(child, 'commit', '-qm', 'dependency fixture')
+    pin = git(child, 'rev-parse', 'HEAD')
+    git(root, 'update-index', '--add', '--cacheinfo', f'160000,{pin},dependency')
+    git(root, 'commit', '-qm', 'pin dependency')
+    return root, git(root, 'rev-parse', 'HEAD'), child, git
+
+
+def test_snapshot_accepts_uninitialized_gitlinks_and_retains_the_index_pin(submodule_checkout):
+    root, revision, child, git = submodule_checkout
+    shutil.rmtree(child)
+    child.mkdir()
+    snapshot = launcher.local_checkout_snapshot(revision)
+    assert snapshot['file_count'] == 4
+    launcher.verify_execution_source(revision, snapshot)
+    git(root, 'update-index', '--cacheinfo', f'160000,{"a" * 40},dependency')
+    with pytest.raises(ValueError, match='changed'):
+        launcher.verify_execution_source(revision, snapshot)
+
+
+@pytest.mark.parametrize('change', ['edited', 'deleted', 'added', 'committed', 'head'])
+def test_snapshot_detects_initialized_gitlink_content_changes(submodule_checkout, change):
+    _, revision, child, git = submodule_checkout
+    snapshot = launcher.local_checkout_snapshot(revision)
+    (child / '.env').write_text('PRIVATE_KEY=synthetic-secret\n')
+    launcher.verify_execution_source(revision, snapshot)
+    if change == 'deleted':
+        (child / 'source.py').unlink()
+    elif change == 'added':
+        (child / 'new.py').write_text('new = True\n')
+    elif change == 'head':
+        git(child, 'commit', '--allow-empty', '-qm', 'dependency HEAD changed')
+    else:
+        (child / 'source.py').write_text('value = 2\n')
+        if change == 'committed':
+            git(child, 'add', '.')
+            git(child, 'commit', '-qm', 'dependency changed')
+    with pytest.raises(ValueError, match='changed'):
+        launcher.verify_execution_source(revision, snapshot)
+
+
+def test_snapshot_rejects_unversioned_content_in_a_gitlink_directory(submodule_checkout):
+    _, revision, child, _ = submodule_checkout
+    shutil.rmtree(child / '.git')
+    with pytest.raises(ValueError, match='gitlink'):
+        launcher.local_checkout_snapshot(revision)
+
+
+def test_snapshot_detects_gitlink_initialization(submodule_checkout, tmp_path):
+    _, revision, child, _ = submodule_checkout
+    saved = tmp_path / 'saved-dependency'
+    shutil.move(child, saved)
+    child.mkdir()
+    snapshot = launcher.local_checkout_snapshot(revision)
+    child.rmdir()
+    shutil.move(saved, child)
+    with pytest.raises(ValueError, match='changed'):
+        launcher.verify_execution_source(revision, snapshot)
+
+
+def test_snapshot_follows_submodule_gitfiles_and_nested_gitlinks(submodule_checkout):
+    root, revision, child, git = submodule_checkout
+    metadata = root / '.git' / 'modules' / 'dependency'
+    metadata.parent.mkdir()
+    shutil.move(child / '.git', metadata)
+    (child / '.git').write_text(f'gitdir: {metadata}\n')
+    nested = child / 'nested'
+    nested.mkdir()
+    git(nested, 'init', '-q', '-b', 'synthetic')
+    git(nested, 'config', 'user.name', 'Synthetic')
+    git(nested, 'config', 'user.email', 'synthetic@invalid')
+    (nested / 'source.py').write_text('value = 1\n')
+    git(nested, 'add', '.')
+    git(nested, 'commit', '-qm', 'nested fixture')
+    pin = git(nested, 'rev-parse', 'HEAD')
+    git(child, 'update-index', '--add', '--cacheinfo', f'160000,{pin},nested')
+    snapshot = launcher.local_checkout_snapshot(revision)
+    launcher.verify_execution_source(revision, snapshot)
+    (nested / 'source.py').write_text('value = 2\n')
+    with pytest.raises(ValueError, match='changed'):
+        launcher.verify_execution_source(revision, snapshot)
+
+
+def test_snapshot_rejects_a_gitlink_replaced_by_a_symlink(submodule_checkout, tmp_path):
+    _, revision, child, _ = submodule_checkout
+    target = tmp_path / 'unrelated'
+    target.mkdir()
+    shutil.rmtree(child)
+    child.symlink_to(target, target_is_directory=True)
+    with pytest.raises(ValueError, match='gitlink'):
+        launcher.local_checkout_snapshot(revision)
 
 
 def test_local_revision_must_identify_actual_head(checkout):
