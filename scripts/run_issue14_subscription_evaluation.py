@@ -203,8 +203,10 @@ def _checkout_tree_snapshot(root):
     for record in index.split(b'\0'):
         if record:
             metadata, name = record.split(b'\t', 1)
-            mode, oid, _stage = metadata.split()
+            mode, oid, stage = metadata.split()
             if mode == b'160000':
+                if stage != b'0':
+                    raise ValueError('Local checkout gitlink has unresolved index stages')
                 gitlinks[name] = oid.decode('ascii')
     digest = hashlib.sha256()
     paths = sorted(set(names.split(b'\0')) - {b''})
@@ -246,6 +248,7 @@ def local_checkout_snapshot(revision):
     This is developer-run provenance, not the historical reviewed-source proof.
     Uninitialized gitlinks retain their index pin; initialized submodules also
     bind their actual HEAD and recursively fingerprint Git-visible contents.
+    Unresolved gitlink index stages are rejected because no single pin is bound.
     Ignored files (including private .env files and installed dependencies) are
     excluded. Recheck before allocation and after cleanup to detect tree changes.
     """
