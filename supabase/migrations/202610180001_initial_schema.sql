@@ -15397,7 +15397,7 @@ end $$;
 CREATE FUNCTION public.read_lifetime_interview_guidance_page(p_lane_id uuid,p_token uuid) RETURNS jsonb
  LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 declare snap public.user_lifetime_lane_snapshot%rowtype; lane public.user_memoir_lane%rowtype;
- page jsonb; pins jsonb; windows jsonb; events jsonb; news jsonb; context jsonb; dialogue jsonb; previous_owner text; planning text; revision bigint; matches jsonb; evidence record; lo integer; hi integer; fragment jsonb;
+ page jsonb; pins jsonb; windows jsonb; events jsonb; news jsonb; context jsonb; dialogue jsonb; previous_owner text; planning text; revision bigint; matches jsonb; evidence record; lo integer; hi integer; fragment jsonb; unavailable jsonb; private_policy boolean;
 begin
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  select * into lane from public.user_memoir_lane where id=p_lane_id;
@@ -15406,11 +15406,41 @@ begin
  previous_owner:=current_setting('request.jwt.claim.sub',true);
  perform set_config('request.jwt.claim.sub',snap.user_id::text,true);
  pins:=public.read_lifetime_pinned(snap.conversation_id);
+ -- Optional continuity can contain another verbatim copy of private evidence.
+ select coalesce(jsonb_agg(record),'[]') into unavailable from jsonb_array_elements(pins->'known_continuity') record
+ where exists(select 1 from jsonb_array_elements(record->'data'->'source_refs') ref
+   join public.user_memory_attribution_window w on w.user_id=snap.user_id and w.project_id=snap.project_id
+     and w.source_id=(ref->>'source_id')::uuid and w.source_version=(ref->>'version')::bigint
+   where w.disposition in ('withheld','non_story') and w.char_start<(ref->>'char_end')::integer and w.char_end>(ref->>'char_start')::integer);
+ if jsonb_array_length(unavailable)>0 then pins:=jsonb_set(pins,'{known_continuity_complete}','false');end if;
  pins:=jsonb_set(pins,'{known_continuity}',coalesce((select jsonb_agg(
    jsonb_build_object('schema_version',1)||record||jsonb_build_object('data',
      jsonb_build_object('schema_version',1,'uncertainty',null)||(record->'data')||jsonb_build_object('source_refs',
        (select jsonb_agg(jsonb_build_object('schema_version',1)||ref) from jsonb_array_elements(record->'data'->'source_refs') ref))))
-   from jsonb_array_elements(pins->'known_continuity') record),'[]'));
+   from jsonb_array_elements(pins->'known_continuity') record where not exists(
+     select 1 from jsonb_array_elements(unavailable) u where u->>'record_id'=record->>'record_id')),'[]'));
+ -- A question derived from a partly private original can import its neighbors
+ -- even with a safe citation. Its delivered identity remains useful for cadence.
+ if exists(select 1 from public.user_interview_plan p join public.user_interview_turn t using(user_id,project_id,client_turn_id)
+   cross join lateral jsonb_array_elements(p.plan->'candidates') q join public.user_memory_attribution_window w
+     on w.user_id=p.user_id and w.project_id=p.project_id and w.disposition in ('withheld','non_story')
+   where p.user_id=snap.user_id and p.project_id=snap.project_id and q->>'id'=p.plan->>'chosen_id'
+     and ((w.source_id=t.source_id and w.source_version=t.source_version)
+       or (w.source_id=(q->'context'->'evidence'->>'source_id')::uuid and w.source_version=(q->'context'->'evidence'->>'version')::bigint))) then
+   pins:=jsonb_set(pins,'{active_question}','null');
+ end if;
+ -- Mandatory restrictions must not be weakened or copied as private prose.
+ -- If their exact evidence is withheld, skip optional guidance for this page.
+ select exists(select 1 from public.user_lifetime_continuity c
+   cross join lateral jsonb_array_elements(c.data->'source_refs') ref join public.user_memory_attribution_window w
+     on w.user_id=c.user_id and w.project_id=snap.project_id and w.source_id=(ref->>'source_id')::uuid
+       and w.source_version=(ref->>'version')::bigint and w.disposition in ('withheld','non_story')
+   where c.user_id=snap.user_id and c.conversation_id=snap.conversation_id and c.policy_epoch=snap.policy_epoch
+     and c.kind in ('paused_topic','excluded_topic') and w.char_start<(ref->>'char_end')::integer
+     and w.char_end>(ref->>'char_start')::integer) into private_policy;
+ if private_policy then
+   pins:=pins||'{"known_continuity":[],"known_continuity_complete":false,"active_question":null,"privacy_complete":false,"paused_topics":[],"excluded_topics":[],"unresolved_references":[]}'::jsonb;
+ end if;
 
  if snap.guidance_news->>'settings_revision' is distinct from coalesce((select n.revision::text from public.user_historical_news_state n
    where n.user_id=snap.user_id and n.project_id=snap.project_id),'1') then raise exception 'guidance news settings changed' using errcode='PT409';end if;
@@ -15509,6 +15539,13 @@ begin
    from public.lifetime_guidance_source_windows(snap.user_id,snap.project_id,(d->'response'->>'id')::uuid,
      (d->'response'->>'version')::bigint,(d->'response'->>'char_start')::integer,(d->'response'->>'char_end')::integer) w limit 1
  ),'null'::jsonb)) order by position),'[]') into dialogue from jsonb_array_elements(dialogue) with ordinality entries(d,position);
+ select coalesce(jsonb_agg(case when exists(select 1 from public.user_memory_attribution_window w
+   where w.user_id=snap.user_id and w.project_id=snap.project_id and w.disposition in ('withheld','non_story')
+     and ((w.source_id=(d->'question'->>'source_id')::uuid and w.source_version=(d->'question'->>'source_version')::bigint)
+       or (w.source_id=(d->'question'->'evidence'->>'source_id')::uuid and w.source_version=(d->'question'->'evidence'->>'version')::bigint)))
+   then jsonb_set(d,'{question}',(d->'question')||'{"text":null,"evidence":null}'::jsonb) else d end order by position),'[]')
+ into dialogue from jsonb_array_elements(dialogue) with ordinality entries(d,position);
+ if private_policy then windows:='[]';events:='[]';dialogue:='[]';end if;
  context:=jsonb_build_object('source_windows',windows,'recent_dialogue',dialogue,'minimum_detail_rounds',3,
    'news_clues',coalesce((select jsonb_agg(public.historical_news_public(c)||jsonb_build_object('status','ready','evidence_status','inspected'))
       from (select c from jsonb_array_elements(news->'clues') c limit 5) bounded),'[]'::jsonb),

@@ -11,8 +11,8 @@ from uuid import uuid4
 import pytest
 
 from apps.api.interview_guidance import execute_guidance_lane, validate_guidance_result
-from test_agent_commit_postgres import OWNER, OTHER
-from test_background_profile_workflow import database
+from test_agent_commit_postgres import OWNER, OTHER, OLD
+from test_background_profile_workflow import database, worker_response
 from test_conversation_attribution import Conversation, empty, episode, reference
 from test_interview_guidance_workflow import (activate_guidance_pool, drain_timeline,
     claimed_guidance, commit_guidance, identity, pool)
@@ -234,3 +234,57 @@ def test_citations_cannot_join_across_a_private_gap_or_recover_a_hidden_quote(sq
                 validate_guidance_result(raw, page)
             assert commit_guidance(sql, page, raw, check=False).returncode != 0
         assert 'finished' in commit_guidance(sql, page, proposal(page)).stdout
+
+
+@pytest.mark.parametrize('copy', ['continuity', 'question', 'policy'])
+def test_guidance_envelope_does_not_copy_withheld_quotes_from_pins_or_questions(sql, tmp_path, monkeypatch, fixed_policy_controls, copy):
+    dispatched = []
+    if copy == 'policy':
+        fixed_policy_controls.append(('excluded_topic', PRIVATE))
+    async def boundary(request, provider):
+        body = json.loads(request.content)
+        if (body.get('bounded_lane') or {}).get('phase') == 'guidance':
+            dispatched.append(body)
+        if copy == 'question' and not body.get('bounded_lane'):
+            from test_name_only_opening import proposal as collector_proposal
+            output = collector_proposal(mode='extract', name=None, question=UNSAFE_QUESTION)
+            source = body['interview_context']['source']
+            output['plan']['candidates'][0]['context']['evidence'] = dict(source_id=source['id'],
+                version=source['version'], quote=PRIVATE, char_start=MIXED.index(PRIVATE),
+                char_end=MIXED.index(PRIVATE)+len(PRIVATE), attribution=None)
+            return worker_response(request, output)
+        return await provider(request)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract, guidance=proposal, external_boundary=boundary)
+    with conversation.client:
+        accepted = conversation.say(MIXED)
+        drain_timeline(conversation)
+        if copy == 'continuity':
+            who = identity(conversation)
+            rpc(sql, 'acquire_user_agent_turn_lease', f"'{OLD}'")
+            for key, quote in [('private', PRIVATE), ('allowed', ALLOWED)]:
+                ref = dict(source_id=accepted['accepted_source_id'], version=1, quote=quote,
+                    char_start=MIXED.index(quote), char_end=MIXED.index(quote)+len(quote))
+                data = dict(text=quote, assertion='asserted', uncertainty=None, source_refs=[ref])
+                rpc(sql, 'save_lifetime_continuity', f"'{who['conversation_id']}',{literal(key)},'person',0,"
+                    f"{sql('select policy_epoch from public.user_memoir_project;').stdout.strip()},'{OLD}',{literal(data)}")
+            rpc(sql, 'release_user_agent_turn_lease', f"'{OLD}'")
+        conversation.drain()
+        if copy == 'policy':
+            assert not dispatched
+            assert pool(conversation) == []
+            assert sql("select count(*) from public.user_background_skill_work where phase='guidance' and model_invoked;").stdout.strip() == '0'
+            # Original mandatory policy remains intact; only optional guidance skips.
+            assert PRIVATE in json.dumps(rpc(sql, 'read_lifetime_pinned', f"'{identity(conversation)['conversation_id']}'"))
+            return
+        assert dispatched, conversation.last_db_error
+        assert PRIVATE not in json.dumps(dispatched, ensure_ascii=False)
+        pins = dispatched[-1]['bounded_lane']['fence']['preferences']
+        if copy == 'continuity':
+            assert [r['record_id'] for r in pins['known_continuity']] == ['allowed']
+            assert pins['known_continuity_complete'] is False
+        else:
+            assert pins['active_question'] is None
+            packet = json.loads(dispatched[-1]['bounded_lane']['packet'])['payload']
+            for item in packet['guidance_context']['recent_dialogue']:
+                assert item['question']['delivered'] is True and item['question']['id']
+                assert item['question']['text'] is None and item['question']['evidence'] is None

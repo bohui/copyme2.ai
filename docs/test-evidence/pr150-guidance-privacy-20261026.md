@@ -27,9 +27,38 @@ No text is concatenated across a private gap. Existing context budgets,
 publication guards, source high-water marks, receipts and turn snapshots remain
 in force. Allowed fragments remain usable without canonical events.
 
+The final envelope audit reproduced two further copies in continuity pins and
+delivered-question evidence. Private continuity records are omitted and marked
+incomplete. Question prose/evidence and the active-question pin are omitted when
+their source contains unavailable passages; delivered IDs remain available for
+cadence. If a mandatory restriction itself quotes a withheld span, the optional
+guidance page completes without model dispatch. Its original mandatory policy
+remains intact. This fail-closed case deliberately produces no new Lane B
+guidance rather than weakening a restriction or sending its private prose.
+
+| Model-visible field | Boundary checked |
+| --- | --- |
+| `source`, `guidance_context.source_windows` | Exact contiguous authorized originals and canonical Unicode offsets |
+| `events` | Bounded canonical context; events with unavailable source evidence are excluded |
+| `recent_dialogue.response` | One authorized excerpt with truthful completeness/offsets |
+| `recent_dialogue.question` | Private-source prose/evidence omitted; delivered identity retained |
+| `preferences.known_continuity` | Unavailable source-reference records omitted; allowed records retained |
+| `preferences.active_question` | Omitted for partly unavailable source provenance |
+| Mandatory policy pins | Original controls preserved; guidance skips if mandatory policy needs a withheld quote |
+| Name/language/manual preference pins | Existing authoritative user preferences remain unchanged |
+| `news_clues` | Existing public-field allowlist and exact news revision/digest checks; personal hypotheses/relevance are not included |
+| Retrieval terms / IDs | Terms use authorized originals; returned event IDs contain no original prose |
+| `lane_context` / fence / retry | Same filtered pins and evidence; fixed retry code; no free-form error feedback |
+
 Per `AGENTS.md`, the fresh-install baseline was edited in place. No additive
 migration was created or applied to any shared/production database. No prompt,
 receipt, deployment, rollout, access configuration or provider was changed.
+These tests install the complete baseline into empty disposable databases.
+An existing database that already records `202610180001` as applied will not
+receive these edited function definitions from an ordinary migration push.
+Applying the correction there requires a separately approved upgrade artifact
+containing the reviewed definitions and validation for that existing schema.
+That upgrade/application was neither performed nor claimed by this task.
 
 ## Environment and reproducible commands
 
@@ -76,6 +105,12 @@ python -m pytest -q \
 
 python -m unittest discover -s skills/memoir-place-photo-research/tests
 
+# Final envelope revision: transport/publication/policy and native SQL definitions.
+python -m pytest -q tests/test_lifetime_memory_lane_engine.py \
+  tests/test_lifetime_memory_publication.py tests/test_lifetime_policy_atomic_postgres.py \
+  tests/test_database_baseline.py::test_all_function_definitions_validate_with_their_final_dependencies \
+  -k 'not wording_correction' --tb=short
+
 # Extended native/engine checks.
 python -m pytest -q tests/test_conversation_attribution.py tests/test_two_lane_memory.py \
   tests/test_lifetime_memory_lane_engine.py tests/test_derived_evidence_spans.py \
@@ -90,11 +125,13 @@ git diff --check
 | Check | Result |
 | --- | --- |
 | Exact-base negative control | 1 expected failure, 20 deselected; unsafe question reached the next reply |
-| Final privacy suite | **21 passed**, 105.33 seconds |
-| Place/research Python portion | **619 passed**, 391.48 seconds |
+| Initial core privacy suite, retained as requested | **21 passed**, 105.33 seconds |
+| Final expanded privacy suite, including envelope audit | **24 passed**, 144.88 seconds |
+| Place/research Python portion on the initial core correction | **619 passed**, 391.48 seconds |
 | Packaged photo-skill unittest suite | **95 passed**, 0.952 seconds |
 | Full web prerequisite | 596 passed, 12 inherited failures; 0 skipped |
-| Extended native/engine suite, after bounded reruns | 268 passed, 18 inherited failures; no remaining deadline errors |
+| Extended native/engine suite on the initial core correction, after bounded reruns | 268 passed, 18 inherited failures; no remaining deadline errors |
+| Final envelope transport/publication/policy and SQL definitions | **123 passed**, 1 explicitly deselected inherited wording test, 25.31 seconds |
 | Whitespace validation | Passed |
 
 The privacy suite covers mixed passages, Unicode offsets, overlapping and
@@ -104,6 +141,10 @@ indexed retrieval beyond eight recent events, hidden query terms, dialogue
 copies, forbidden/cross-gap citations, policy/preference/classification changes
 before dispatch and commit, schema retry, and native receipt replay. The broader
 guidance workflow suite includes in-flight publication/next-turn snapshot races.
+The three added envelope cases first failed on the core correction, then passed
+with native continuity, delivered-question and mandatory-policy fixtures.
+The same 619-case Python selection is being rerun on the envelope revision;
+its completed result is recorded in the draft PR and retained command logs.
 
 The first extended run reported 219 passed, 19 failed and 48 setup errors. The
 publication fixture applies a 180-second deadline to an entire module; two tests
@@ -145,9 +186,14 @@ as green.
 ## Tested code fingerprints
 
 * Baseline SQL SHA-256:
-  `2ee9c8a1a4f191a097e207b4ac0c086ec6b67a706af620330a9cc81a77c22fd8`
+  `f53c534e52dffc0d0b96e3518cfd4690890f8c3dd81ab6c0350243e549f88981`
 * Privacy test SHA-256:
-  `9f587f3c1545ba59fa0ebd375801d3c3b3781acf5daa1477d436807cc47b062b`
+  `b968488df81a26c7a422cf7e52ad9848abbf59ea20139d35b708ecee8c84fa55`
+
+The initial core run is commit `9d47e199c2d121ba34b0d410184df8b01e410cbb`.
+Its 21-case test file was used for the exact-base negative control above. Raw
+command logs are retained outside the checkout under
+`/workspace/guidance-privacy-validation-20261026/` for the coordinating reviewer.
 
 The draft PR records the exact corrective head and the base above for independent
 review. Production application and merge remain outside this task.
