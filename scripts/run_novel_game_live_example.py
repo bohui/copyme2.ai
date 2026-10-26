@@ -91,7 +91,11 @@ def run(sql,tmp_path,monkeypatch,output,env_file,*,resume=False,prepare_only=Fal
         original=novel_game.run_novel_game
         async def retained(fence,**options):
             async def load(value): return {**await novel_game.load_build_packet(value),'fictional':True}
-            return await original(fence,output=output,packet_loader=load,**options)
+            try:
+                return await original(fence,output=output,packet_loader=load,**options)
+            except Exception as error:
+                novel_game.assets.write_json(output,'build-failure.json',dict(type=type(error).__name__,reason=str(error)[:200]))
+                raise
         monkeypatch.setattr(novel_game,'run_novel_game',retained)
         listener=socket.socket();listener.bind(('127.0.0.1',0));listener.listen()
         worker_port=listener.getsockname()[1]
@@ -158,9 +162,18 @@ def run(sql,tmp_path,monkeypatch,output,env_file,*,resume=False,prepare_only=Fal
                 if not selected.get('selected_scene_ids'):
                     page.locator('[data-scene-count]').fill(str(total));page.locator('[data-scene-count]').dispatch_event('change')
                 expect(page.locator('[data-scene-option]:checked')).to_have_count(total)
-                page.locator('[data-confirm-scenes]').click()
+                previous_attempts=int(sql(f"select attempts from public.user_story_game where id='{game_id}';").stdout.strip()) if selected.get('selected_scene_ids') else 0
+                with page.expect_response(lambda response:response.request.method=='POST' and response.url.endswith('/selection')) as confirmation:
+                    page.locator('[data-confirm-scenes]').click()
+                assert confirmation.value.status==202
                 status('building-confirmed-scenes')
-                expect(page.locator('iframe.story-game-frame')).to_be_visible(timeout=3600000)
+                deadline=time.monotonic()+3600
+                while not page.locator('iframe.story-game-frame').is_visible():
+                    job=json.loads(sql(f"select jsonb_build_object('state',state,'attempts',attempts) from public.user_story_game where id='{game_id}';").stdout.strip())
+                    if job['state']=='failed' and job['attempts']>previous_attempts:
+                        raise RuntimeError('Live build failed; inspect the retained progress and build-failure receipts')
+                    if time.monotonic()>=deadline:raise TimeoutError('Live build did not finish within its deadline')
+                    page.wait_for_timeout(2000)
                 frame=page.frame_locator('iframe');expect(frame.locator('#game')).to_have_attribute('data-x','80',timeout=30000)
                 page.screenshot(path=str(output/'application-player.png'))
                 published=rpc(sql,'read_story_game',f"{literal(project)},'{game_id}',false")

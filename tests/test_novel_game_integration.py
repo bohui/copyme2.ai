@@ -126,6 +126,11 @@ def test_model_css_cannot_replace_behavior_or_load_assets(css):
     with pytest.raises(ValueError): validate_style(css)
 
 
+def test_model_css_accepts_child_selectors_without_allowing_markup():
+    css='.memory-marker > span {color:#263d36}'
+    assert validate_style(css)==css
+
+
 def test_runtime_bundle_contains_no_memoir_and_asset_lookup_is_closed():
     bundle=runtime_bundle()
     assert len(json.dumps(bundle))<100000

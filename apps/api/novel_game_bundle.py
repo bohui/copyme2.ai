@@ -23,7 +23,7 @@ def validate_style(css):
     if not isinstance(css, str) or len(css.encode()) > 24000:
         raise ValueError('game_style_limit')
     clean = re.sub(r'/\*.*?\*/', '', css, flags=re.S)
-    if re.search(r'[<>\\]',css) or re.search(r'url\s*\(|@import|expression\s*\(', clean, re.I):
+    if re.search(r'[<\\]',css) or re.search(r'url\s*\(|@import|expression\s*\(', clean, re.I):
         raise ValueError('game_style_invalid')
     # Runtime visibility and state cannot be overridden by model styling.
     if re.search(r'\b(?:display|visibility|pointer-events|content)\s*:', clean, re.I):
