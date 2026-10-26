@@ -15,7 +15,7 @@ from dotenv import dotenv_values
 
 PACKAGE = Path(__file__).resolve().parent
 sys.path.insert(0, str(PACKAGE))
-from game_assets import prepare as prepare_assets, validate_plan
+from game_assets import prepare as prepare_assets, validate_plan, write_bytes
 from journey import materialise as materialise_journey, runtime_hashes, validate_journey
 
 ROOT = PACKAGE.parents[1]
@@ -147,17 +147,59 @@ def public_source(packet):
         title=events[c['chapter_id']]['title'],text='\n\n'.join(b['text'] for b in c['blocks'])) for i,c in enumerate(packet['chapters'])])
 
 
+def checked_artifact_path(path):
+    relative=path.relative_to(HERE)
+    if '..' in relative.parts or any((HERE/p).is_symlink() for p in (relative,*relative.parents)):
+        raise ValueError('Unsafe checkpoint artifact path: '+relative.as_posix())
+    return path
+
+
 def materialise(packet):
     if (HERE/'design/JOURNEY_PLAN.json').exists():
         materialise_journey(HERE,packet,public_source(packet))
         return
-    template=HERE/'build/template.html'
-    target=HERE/'build/app/index.html'
+    template=checked_artifact_path(HERE/'build/template.html')
     if not template.is_file():return
+    target=checked_artifact_path(HERE/'build/app/index.html')
     text=template.read_text()
     assert text.count('<!-- MEMOIR_SOURCE -->')==1
     data=json.dumps(public_source(packet),ensure_ascii=False).replace('<','\\u003c').replace('>','\\u003e').replace('&','\\u0026')
-    target.write_text(text.replace('<!-- MEMOIR_SOURCE -->','<script id="memoir-source" type="application/json">'+data+'</script>'))
+    write_bytes(HERE,target.relative_to(HERE).as_posix(),text.replace('<!-- MEMOIR_SOURCE -->',
+        '<script id="memoir-source" type="application/json">'+data+'</script>').encode())
+
+
+def reuse_outputs(stage, outputs, allowed):
+    # HTML is archived before source insertion, under the same path used at generation.
+    allowed={'build/template.html' if p=='build/app/index.html' else p for p in allowed}
+    if not outputs or not set(outputs)<=allowed:
+        raise ValueError('Checkpoint contains no outputs or disallowed stage output paths')
+    if stage.name in ('design','art') and set(outputs)!=allowed:
+        raise ValueError('Checkpoint is missing required stage outputs')
+    verified={}
+    for name,expected in outputs.items():
+        archive=checked_artifact_path(stage/'artifacts'/name)
+        working=checked_artifact_path(HERE/name)
+        if not archive.is_file():
+            return False
+        content=archive.read_text()
+        if digest(content)!=expected:
+            return False
+        verified[working]=(content,expected)
+    # Later build stages share outputs. Preserve their revisions instead of rolling them back.
+    # Validate the whole set before restoring any missing handoff.
+    missing={}
+    for path,(content,expected) in verified.items():
+        if path.exists():
+            if not path.is_file() or digest(path.read_text())!=expected:
+                raise ValueError('Working artifact differs from checkpoint: '+path.relative_to(HERE).as_posix()+
+                    '; preserve later-stage edits and reconcile the working file before retrying')
+        else:
+            missing[path]=content
+    for path,content in missing.items():
+        path.parent.mkdir(parents=True,exist_ok=True)
+        with path.open('x') as target:
+            target.write(content)
+    return True
 
 
 def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
@@ -213,9 +255,9 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     checkpoint=stage/'checkpoint.json'
     if checkpoint.exists():
         done=json.loads(checkpoint.read_text())
-        if done['request_sha256']==signature and all((stage/'artifacts'/p).is_file() and digest((stage/'artifacts'/p).read_text())==h for p,h in done['outputs'].items()):
-            print(json.dumps(dict(stage=name,status='reused',response_id=done['response_id'])),flush=True)
+        if done['request_sha256']==signature and reuse_outputs(stage,done['outputs'],config['outputs']):
             materialise(packet)
+            print(json.dumps(dict(stage=name,status='reused',response_id=done['response_id'])),flush=True)
             return done
     attempts=list(stage.glob('attempt-*-request.json'))
     ordinal=len(attempts)+1
