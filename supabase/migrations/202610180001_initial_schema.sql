@@ -15300,7 +15300,7 @@ CREATE INDEX user_memory_event_source_guidance_search_idx ON public.user_memory_
 -- Guidance receives only contiguous authorized originals. Subtract the union
 -- of unavailable spans before taking a substring, retaining canonical Unicode
 -- offsets on each side of a gap. Never concatenate words across a private span.
-CREATE FUNCTION public.lifetime_guidance_source_windows(p_owner uuid,p_project text,p_source uuid,p_version bigint,p_lo integer,p_hi integer)
+CREATE FUNCTION public.lifetime_guidance_source_windows(p_owner uuid,p_project text,p_source uuid,p_version bigint,p_lo integer,p_hi integer,p_tail boolean DEFAULT false)
  RETURNS SETOF jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path='' AS $$
  with original as materialized (
    select s.*,greatest(0,p_lo) lo,least(length(s.text),p_hi) hi from public.user_narrator_source s
@@ -15314,12 +15314,15 @@ CREATE FUNCTION public.lifetime_guidance_source_windows(p_owner uuid,p_project t
    from original s where s.hi>s.lo
  )
  select jsonb_build_object('id',s.id,'project_id',s.project_id,'version',s.version,'sequence',s.sequence,
-   'text',substring(s.text from lower(span)+1 for least(upper(span)-lower(span),2304)),
-   'char_start',lower(span),'char_end',least(upper(span),lower(span)+2304),'original_length',length(s.text),
+   'text',substring(s.text from bounds.lo+1 for bounds.hi-bounds.lo),
+   'char_start',bounds.lo,'char_end',bounds.hi,'original_length',length(s.text),
    'kind',s.kind,'language',s.language,'status',s.status,'author_role','storyteller')
- from authorized s cross join lateral unnest(s.spans) span order by lower(span)
+ from authorized s cross join lateral unnest(s.spans) span cross join lateral (
+   select case when p_tail then greatest(lower(span),upper(span)-2304) else lower(span) end lo,
+     case when p_tail then upper(span) else least(upper(span),lower(span)+2304) end hi
+ ) bounds order by bounds.lo
 $$;
-REVOKE ALL ON FUNCTION public.lifetime_guidance_source_windows(uuid,text,uuid,bigint,integer,integer)
+REVOKE ALL ON FUNCTION public.lifetime_guidance_source_windows(uuid,text,uuid,bigint,integer,integer,boolean)
  FROM PUBLIC,anon,authenticated,service_role;
 
 CREATE FUNCTION public.retrieve_lifetime_guidance_events(p_owner uuid,p_project text,p_source uuid,p_version bigint)
@@ -15421,12 +15424,20 @@ begin
    pins:=jsonb_set(pins,'{known_continuity_complete}','false');
  end if;
  pins:=jsonb_set(pins,'{known_continuity}',coalesce((select jsonb_agg(
-   jsonb_build_object('schema_version',1)||record||jsonb_build_object('data',
+   jsonb_build_object('schema_version',1)||record||jsonb_build_object(
+     'record_id','ct-'||encode(sha256(convert_to(jsonb_build_array(snap.user_id,snap.conversation_id,
+       record->'record_id')::text,'UTF8')),'hex'),'data',
      (record->'data')||jsonb_build_object('schema_version',1,'text',left(record->'data'->'source_refs'->0->>'quote',2000),
        'uncertainty',null,'source_refs',
        (select jsonb_agg(jsonb_build_object('schema_version',1)||ref) from jsonb_array_elements(record->'data'->'source_refs') ref))))
    from jsonb_array_elements(pins->'known_continuity') record where not exists(
      select 1 from jsonb_array_elements(unavailable) u where u->>'record_id'=record->>'record_id')),'[]'));
+ -- Opaque identities and typed fields count against the existing working-set
+ -- budget too. Omit optional records after projection, keeping the guard intact.
+ while octet_length((pins->'known_continuity')::text)>8000 loop
+   pins:=jsonb_set(pins,'{known_continuity}',(pins->'known_continuity')-(jsonb_array_length(pins->'known_continuity')-1));
+   pins:=jsonb_set(pins,'{known_continuity_complete}','false');
+ end loop;
  -- Question prose and optional unresolved-reference labels are also derived;
  -- their citations cannot certify the contents of these free-form strings.
  pins:=pins||'{"active_question":null,"unresolved_references":[]}'::jsonb;
@@ -15488,7 +15499,7 @@ begin
  if (windows->0->>'original_length')::integer>2304 then
    for fragment in select w from public.lifetime_guidance_source_windows(snap.user_id,snap.project_id,
      (windows->0->>'id')::uuid,(windows->0->>'version')::bigint,
-     greatest(0,(windows->0->>'original_length')::integer-2304),(windows->0->>'original_length')::integer) w
+     0,(windows->0->>'original_length')::integer,true) w
      order by (w->>'char_end')::integer desc limit 1 loop
      -- Reserve a slot before older/head fragments consume the entire budget.
      -- Promote an already-present tail as well: source must support recall quotes.

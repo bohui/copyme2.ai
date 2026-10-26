@@ -6,6 +6,7 @@ disposable PostgreSQL cluster and replaces every provider with an HTTP fixture.
 import asyncio
 from copy import deepcopy
 import json
+import re
 from uuid import uuid4
 
 import pytest
@@ -280,7 +281,9 @@ def test_guidance_envelope_does_not_copy_withheld_quotes_from_pins_or_questions(
         assert PRIVATE not in json.dumps(dispatched, ensure_ascii=False)
         pins = dispatched[-1]['bounded_lane']['fence']['preferences']
         if copy == 'continuity':
-            assert [r['record_id'] for r in pins['known_continuity']] == ['allowed']
+            assert len(pins['known_continuity']) == 1
+            assert re.fullmatch(r'ct-[0-9a-f]{64}', pins['known_continuity'][0]['record_id'])
+            assert pins['known_continuity'][0]['data']['text'] == ALLOWED
             assert pins['known_continuity_complete'] is False
         else:
             assert pins['active_question'] is None

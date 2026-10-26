@@ -37,6 +37,10 @@ prose/evidence, active-question wording and optional unresolved-reference labels
 are omitted. Delivered question IDs are stable opaque hashes bound to their
 actual delivery, so arbitrary collector strings cannot carry private prose into
 cadence context. The original canonical records and delivered IDs are unchanged.
+Continuity record IDs accepted by the authenticated RPC are likewise projected
+as stable opaque `ct-` identities. Their byte growth is included in the bounded
+optional working set; excess optional records are omitted with completeness
+marked false, without weakening mandatory policy or request-budget guards.
 If a mandatory restriction itself quotes a withheld span, the optional
 guidance page completes without model dispatch. Its original mandatory policy
 remains intact. This fail-closed case deliberately produces no new Lane B
@@ -48,7 +52,7 @@ guidance rather than weakening a restriction or sending its private prose.
 | `events` | Bounded identity/typed context and authorized source references; generated title, uncertainty and temporal-expression prose omitted |
 | `recent_dialogue.response` | One authorized excerpt with truthful completeness/offsets |
 | `recent_dialogue.question` | Generated prose/evidence omitted; a stable opaque delivery alias supports cadence and replay |
-| `preferences.known_continuity` | Unavailable records omitted; allowed text rebuilt extractively; generated uncertainty omitted |
+| `preferences.known_continuity` | Opaque continuity identity; unavailable records omitted; authorized text rebuilt extractively; generated uncertainty omitted; post-projection byte budget retained |
 | `preferences.active_question`, `unresolved_references` | Optional generated wording omitted |
 | Mandatory policy pins | Original controls preserved; guidance skips if mandatory policy needs a withheld quote |
 | Name/language/mandatory manual policy pins | Existing authoritative user preferences remain unchanged |
@@ -90,6 +94,9 @@ python -m pytest -q tests/test_interview_guidance_privacy.py --tb=short
 
 # Independent-review regressions, including normal reply-v2 continuity output.
 python -m pytest -q tests/test_interview_guidance_derived_privacy.py --tb=short
+
+# Second independent-review edges: arbitrary continuity IDs and withheld suffix.
+python -m pytest -q tests/test_interview_guidance_remaining_privacy.py --tb=short
 
 # Repository target, including all JavaScript checks.
 make test-place-research
@@ -144,6 +151,10 @@ git diff --check
 | Extended native/engine suite on the initial core correction, after bounded reruns | 268 passed, 18 inherited failures; no remaining deadline errors |
 | Transport/publication/policy and SQL definitions at `262fafa9` | **123 passed**, 1 explicitly deselected inherited wording test, 25.31 seconds |
 | Full transport/publication/policy and SQL definitions after review correction | **123 passed, 1 inherited failure**, 28.11 seconds; no deselection |
+| Original privacy suite after the second review correction | **24 passed**, 169.54 seconds |
+| Earlier review regressions after the second correction | **13 passed** after recovering one local PostgreSQL connection timeout: initial 12 passed/1 timeout, then 1 passed in 9.78 seconds |
+| New second-review regression module | **4 passed**, 27.82 seconds |
+| Full transport/policy/SQL definitions after second correction | **123 passed, 1 inherited wording failure**, 33.18 seconds; no deselection |
 | Whitespace validation | Passed |
 
 The privacy suite covers mixed passages, Unicode offsets, overlapping and
@@ -193,6 +204,55 @@ Make therefore exits at `test-web`. Its full 619-case Python selection is run
 separately. The full 124-case transport selection now reports its inherited
 wording assertion failure explicitly rather than deselecting it.
 
+## Second independent-review correction on `958fa42`
+
+Independent re-review passed the 37 existing PR privacy cases and 16 retained
+reviewer probes, then identified two accepted edge cases. The authenticated
+`save_lifetime_continuity` RPC permits arbitrary `record_id` strings independently
+of an allowed evidence quote. A private sentence in that ID reached both guidance
+preferences envelopes, then produced the unsafe question. The correction hashes
+the record identity within its owner/conversation scope, without changing the
+stored ID. Tests cover verbatim/paraphrase IDs, repeated reads, stable identity
+across record revision, stale-page rejection, commit replay and next-turn delivery.
+
+The exact accepted suffix fixture is 3,781 codepoints, with eight early private
+segments, 1,000 `序` characters, recall wording at `[1313,1381)`, and 2,400 withheld
+`密` characters. Looking only at the original final 2,304 characters found no
+authorized text. The reader now subtracts unavailable spans across the original
+first, selects the latest authorized span, and bounds that span from its end.
+The private helper's optional tail mode retains its existing head behavior for
+six-argument callers. Native recall validation uses the retained authorized tail,
+whose end is 1,381 rather than the original length of 3,781. Canonical offsets,
+an early allowed anchor and the eight-window bound are checked together.
+
+The reviewer-local runnable artifact was not present in this saved environment;
+the supplied accepted fixtures were recreated here without another worktree.
+Both continuity-ID cases reproduced unsafe native publication/delivery on
+`958fa42`; the corrected tail fixture reproduced loss of the recall wording.
+A process-local native-fixture read seam then loaded that exact Git SQL
+(SHA-256 `abddf5fbc9096ed9ddf4d1669d9dade16c6e7c2ad63a0f568e74c2f6870f1917`).
+Running the new module with `-k 'not growth'` gave **3 expected failures,
+1 deselected**, 37.33 seconds. The fourth test reproduces and repairs the optional
+continuity working-set growth introduced by opaque identities; four accepted
+records remain intact while three fit in the projected bounded context.
+
+Remaining identifier audit within guidance:
+
+| Identifier | Origin / treatment |
+| --- | --- |
+| Continuity `record_id` | Arbitrary authenticated-RPC input; stable opaque `ct-` projection |
+| Delivered question ID | Arbitrary collector input; stable opaque `dq-` delivery projection |
+| Event ID / retrieved event IDs | Native `apply_user_memory_events` generates UUIDs; model proposal labels are not canonical IDs |
+| News clue ID | `finish_user_historical_news` enforces `^news-[a-f0-9]{24}$`; public source metadata remains under its existing inspected-evidence contract |
+| Source/reference, delivery, conversation, lane and snapshot IDs | Native UUIDs plus numeric versions/revisions; canonical ownership and citation bindings retained |
+| Project ID and transport/contract labels | Existing canonical identity binding and validated/static protocol values; no narration-derived identifier is substituted for them |
+
+The required Make gate was rerun and still stops at the same **12 inherited web
+failures, 596 passes, zero skips**. The full transport selection retains its
+confirmed inherited wording failure. The 619-case broader Python selection is
+being rerun on this correction; its final result, including any fixture-deadline
+recovery, is recorded in the draft PR and retained final manifest.
+
 The first extended run reported 219 passed, 19 failed and 48 setup errors. The
 publication fixture applies a 180-second deadline to an entire module; two tests
 and the following 48 setups hit that deadline. Those 50 cases were rerun in ten
@@ -233,11 +293,13 @@ as green.
 ## Tested code fingerprints
 
 * Baseline SQL SHA-256:
-  `abddf5fbc9096ed9ddf4d1669d9dade16c6e7c2ad63a0f568e74c2f6870f1917`
+  `d36a4198a5d17a4392bca5f739c12bfd25c5cd6ac0428ba83cc49e556f2a55d1`
 * Privacy test SHA-256:
-  `b968488df81a26c7a422cf7e52ad9848abbf59ea20139d35b708ecee8c84fa55`
+  `d73bd0684c830be38243c3e014938940e3b1fb06f828b1910c07d1c736ca477c`
 * Independent-review regression SHA-256:
   `c8f54d0248aa6efcfe1dd7fb8e07cd0509219481c6eac59862c271e6f157ba41`
+* Second-review regression SHA-256:
+  `379bd831987aaf82c6b81345cb72df15b228270a1e61fe6e043b55f9c5b86e93`
 
 The initial core run is commit `9d47e199c2d121ba34b0d410184df8b01e410cbb`.
 Its 21-case test file was used for the exact-base negative control above. Raw
