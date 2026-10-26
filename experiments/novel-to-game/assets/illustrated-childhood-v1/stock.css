@@ -1,0 +1,10 @@
+/* Child atlas: 4 columns, idle row then walk row; baseline corrections use 96x128px. */
+.memoir-avatar{position:relative;display:block;width:96px;height:128px;--face:1;filter:drop-shadow(0 3px 2px #31401d55)}
+.memoir-avatar[data-facing=left]{--face:-1}
+.memoir-avatar::before{content:'';position:absolute;inset:0;background:url('child-atlas.png') 0 0/400% 200% no-repeat;transform:scaleX(var(--face));animation:memoir-idle 3.8s steps(1,end) infinite;translate:calc(4.125px*var(--face)) 0}
+.memoir-avatar[data-moving=true]::before{animation:memoir-walk .64s steps(1,end) infinite;background-position:0 100%}
+@keyframes memoir-idle{0%,60%,100%{background-position:0 0;translate:calc(4.125px*var(--face)) 0}65%{background-position:33.333333% 0;translate:calc(4.625px*var(--face)) 0}70%{background-position:66.666667% 0;translate:calc(1.5px*var(--face)) .25px}85%{background-position:100% 0;translate:calc(1.5px*var(--face)) 0}}
+@keyframes memoir-walk{0%{background-position:0 100%;translate:calc(-.75px*var(--face)) 3.75px}25%{background-position:33.333333% 100%;translate:calc(.75px*var(--face)) 4px}50%{background-position:66.666667% 100%;translate:calc(-1.375px*var(--face)) 3.75px}75%,100%{background-position:100% 100%;translate:calc(2.375px*var(--face)) 3.75px}}
+.memoir-memory-marker{display:inline-block;border:2px solid #466e64;border-radius:50%;width:14px;height:14px;background:#fff5da;box-shadow:0 1px 9px #172b1d66}
+.memoir-memory-marker[data-visited=true]{background:#789c71;border-color:#fff7de;outline:2px solid #416d56}
+@media(prefers-reduced-motion:reduce){.memoir-avatar::before,.memoir-avatar[data-moving=true]::before{animation:none;background-position:0 0;translate:calc(4.125px*var(--face)) 0}}

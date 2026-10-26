@@ -1,0 +1,9 @@
+[
+  {
+    "owner": "qa",
+    "reason": "Use the on-screen interaction control for the first memory so the phone replay uses touch for the complete route. Keyboard E was independently exercised by the source-blind player.",
+    "before_sha256": "090fc636e66c1e216962ce2931f0dbf8b9d33552fc4cf2d4067802c50d40fc88",
+    "after_sha256": "b8b5ee15b701af4bd425ccfcb0ed668ae6b5f06a82c9b1b36a5c47d250acf45a",
+    "change": "First memory: press e on viewport becomes click/tap #interact. All route, movement, progress, ending and reset assertions remain unchanged."
+  }
+]

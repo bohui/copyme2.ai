@@ -1,0 +1,506 @@
+{
+  "fixture_scope": "fictional full age-eight benchmark",
+  "input": {
+    "chapters": [
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003e9",
+        "title": "Chapter 1",
+        "blocks": [
+          {
+            "text": "When I was eight, we moved into a rented house in Hobart with a blue wooden gate. It was before the school year started, although I cannot remember the month. Mum carried a saucepan through the front door because the removal boxes had not arrived. Dad showed me the small room that would be mine. From the window I could see the neighbour's plum tree. We ate bread and cheese sitting on the kitchen floor that evening. I remember being worried that I would not know anyone at the new school. Mum said we could walk there together before the first day. I do not remember the street number and do not want one added.",
+            "source_id": "00000000-0000-0000-0000-0000000007d1",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 614
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bb9"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003ea",
+        "title": "Chapter 2",
+        "blocks": [
+          {
+            "text": "On my first day at the new school, when I was eight, Dad walked with me from the house with the blue gate. We crossed a little footbridge over the creek. I counted the wooden boards while he held my schoolbag. At the classroom door he gave the bag back to me. My teacher, Mrs Harris, showed me a seat near the window. I kept looking at the door after Dad left. I remember the chalk dust on the ledge below the blackboard. Mrs Harris asked me to put my name on a sheet of paper. I wrote it very slowly. This was after we moved house, but I cannot give an exact date.",
+            "source_id": "00000000-0000-0000-0000-0000000007d2",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 565
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bba"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003eb",
+        "title": "Chapter 3",
+        "blocks": [
+          {
+            "text": "During the year I was eight, Mrs Harris helped me read aloud at the new school. I used to lose my place when there were several lines on a page. She put a strip of cardboard under the line I was reading. We practised with a book about a boat, although I cannot remember its title. On one occasion I finished a page without starting again. Mrs Harris tapped the desk twice and said, 'You kept going.' Those are the words I remember; I cannot promise they are exact. I felt pleased that I had finished the page. I do not remember whether this happened before or after the school play.",
+            "source_id": "00000000-0000-0000-0000-0000000007d3",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 582
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bbb"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003ec",
+        "title": "Chapter 4",
+        "blocks": [
+          {
+            "text": "I met Sam early in the school year when we were both eight. I was sitting on a low wall in the schoolyard with my lunch. Sam asked whether the apple beside me was mine, and then showed me a little collection of bottle tops. We began comparing the colours. After that we often sat on the same wall at lunchtime. I sometimes remember this as the second week of school, but it might have been later. Sam was another child in my class, not a teacher or an older neighbour. I do not know whether Sam would want to be represented in a game, and I have no permission on Sam's behalf.",
+            "source_id": "00000000-0000-0000-0000-0000000007d4",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 576
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bbc"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003ed",
+        "title": "Chapter 5",
+        "blocks": [
+          {
+            "text": "When I was eight, Dad taught me to mend a punctured bicycle tyre in the shed behind our rented house. His tools were in a blue biscuit tin. He put an inner tube in a basin of water and asked me to watch for bubbles. I marked the tiny hole with chalk. We used a rubber patch and glue, and he told me to wait before pressing the patch down. I wanted to hurry, but the first patch lifted at one edge. We tried again on another Saturday. Eventually I managed a patch that stayed flat. I remember the smell of the glue, but not which month this was. These lessons happened more than once.",
+            "source_id": "00000000-0000-0000-0000-0000000007d5",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 583
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bbd"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003ee",
+        "title": "Chapter 6",
+        "blocks": [
+          {
+            "text": "On some Saturdays when I was eight, Mum took me to the market in Hobart. She carried a string bag, and I carried a small list on the back of an envelope. My job was to read out the next item and count the coins she put in my hand. We usually bought apples and potatoes. One morning I dropped a coin and it rolled under a stall. Mum waited while I looked for it; I cannot remember whether I found it. I liked having the list because it gave me something useful to do. I do not remember the stallholder's name or the exact market location. Please leave both unknown.",
+            "source_id": "00000000-0000-0000-0000-0000000007d6",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 564
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bbe"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003ef",
+        "title": "Chapter 7",
+        "blocks": [
+          {
+            "text": "Mum took me to the public library to get my first library card when I was eight. The librarian, Mr Lee, asked me to write my name on a small form. He explained when the books should come back and stamped a date inside the first book I borrowed. I chose a book with drawings of birds. I kept the card in the same pocket as my handkerchief because I was afraid of losing it. Mum let me carry the book home. I cannot remember whether I already knew Sam then, or whether Mrs Harris had begun the reading practice. I only know this was during that year at the new house.",
+            "source_id": "00000000-0000-0000-0000-0000000007d7",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 565
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bbf"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003f0",
+        "title": "Chapter 8",
+        "blocks": [
+          {
+            "text": "There was heavy rain during the year I was eight, and Mum and I stayed at Grandma's house for two nights because water had come into our kitchen. Grandma put towels by her back door and made room for my schoolbag beside her chair. I slept under a heavy blanket in the spare room. I worried about the cardboard box of drawings I had left at home. Mum went back to check the house while I stayed with Grandma. When she returned, she said the drawings were dry. I think this was in winter, but I am not certain. I do not know whether the creek itself flooded, so please do not say it did.",
+            "source_id": "00000000-0000-0000-0000-0000000007d8",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 585
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bc0"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003f1",
+        "title": "Chapter 9",
+        "blocks": [
+          {
+            "text": "Near the end of the school year when I was eight, I had a small part in a play in the school hall. I carried a cardboard tree across the stage and had one line to say. Mrs Harris helped us practise where to stand. I had remembered the line at home but forgot it for a moment on stage. She pointed towards the painted sun at the back of the hall, which reminded me what came next. I said the line and carried the tree off. Mum and Dad were in the audience. I could see Dad's coat over the back of a chair. I do not remember the play's name or the words of my line.",
+            "source_id": "00000000-0000-0000-0000-0000000007d9",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 563
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bc1"
+        ]
+      },
+      {
+        "schema_version": 1,
+        "chapter_id": "00000000-0000-0000-0000-0000000003f2",
+        "title": "Chapter 10",
+        "blocks": [
+          {
+            "text": "After that school year finished, while I was still eight, Mum and I planted beans beside the fence at the house with the blue gate. We pushed dry sticks into the soil for the plants to climb. I checked the bed every morning during the holidays. One seedling came up bent over with part of the seed still attached. Mum asked me to leave it alone for a day. By the next morning it had opened. I drew it in one of the books that had stayed dry during the heavy rain. This happened after the school play and after the two nights at Grandma's, although I do not remember the dates. We were still living in the rented house.",
+            "source_id": "00000000-0000-0000-0000-0000000007da",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 618
+          }
+        ],
+        "event_ids": [
+          "00000000-0000-0000-0000-000000000bc2"
+        ]
+      }
+    ],
+    "timeline": [
+      {
+        "id": "00000000-0000-0000-0000-000000000bb9",
+        "kind": "event",
+        "title": "Moving into the house with the blue gate",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "Before the school year",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "single_event",
+        "place_id": "home",
+        "person_ids": [
+          "mother",
+          "father"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007d1",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 614,
+            "quote": "When I was eight, we moved into a rented house in Hobart with a blue wooden gate. It was before the school year started, although I cannot remember the month. Mum carried a saucepan through the front door because the removal boxes had not arrived. Dad showed me the small room that would be mine. From the window I could see the neighbour's plum tree. We ate bread and cheese sitting on the kitchen floor that evening. I remember being worried that I would not know anyone at the new school. Mum said we could walk there together before the first day. I do not remember the street number and do not want one added."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003e9"
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000bba",
+        "kind": "event",
+        "title": "The first walk to the new school",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "First day at the new school",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "single_event",
+        "place_id": "school_route",
+        "person_ids": [
+          "father",
+          "teacher"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007d2",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 565,
+            "quote": "On my first day at the new school, when I was eight, Dad walked with me from the house with the blue gate. We crossed a little footbridge over the creek. I counted the wooden boards while he held my schoolbag. At the classroom door he gave the bag back to me. My teacher, Mrs Harris, showed me a seat near the window. I kept looking at the door after Dad left. I remember the chalk dust on the ledge below the blackboard. Mrs Harris asked me to put my name on a sheet of paper. I wrote it very slowly. This was after we moved house, but I cannot give an exact date."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003ea"
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000bbb",
+        "kind": "period",
+        "title": "Learning to read aloud",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "During that school year; month unknown",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "recurring",
+        "place_id": "classroom",
+        "person_ids": [
+          "teacher"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007d3",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 582,
+            "quote": "During the year I was eight, Mrs Harris helped me read aloud at the new school. I used to lose my place when there were several lines on a page. She put a strip of cardboard under the line I was reading. We practised with a book about a boat, although I cannot remember its title. On one occasion I finished a page without starting again. Mrs Harris tapped the desk twice and said, 'You kept going.' Those are the words I remember; I cannot promise they are exact. I felt pleased that I had finished the page. I do not remember whether this happened before or after the school play."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003eb"
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000bbc",
+        "kind": "event",
+        "title": "Meeting Sam at lunchtime",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "Early in the school year; exact week unknown",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "single_event",
+        "place_id": "school_yard",
+        "person_ids": [
+          "friend_sam"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007d4",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 576,
+            "quote": "I met Sam early in the school year when we were both eight. I was sitting on a low wall in the schoolyard with my lunch. Sam asked whether the apple beside me was mine, and then showed me a little collection of bottle tops. We began comparing the colours. After that we often sat on the same wall at lunchtime. I sometimes remember this as the second week of school, but it might have been later. Sam was another child in my class, not a teacher or an older neighbour. I do not know whether Sam would want to be represented in a game, and I have no permission on Sam's behalf."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003ec"
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000bbd",
+        "kind": "period",
+        "title": "Learning to patch a bicycle tyre",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "Several Saturdays while aged eight",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "recurring",
+        "place_id": "shed",
+        "person_ids": [
+          "father"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007d5",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 583,
+            "quote": "When I was eight, Dad taught me to mend a punctured bicycle tyre in the shed behind our rented house. His tools were in a blue biscuit tin. He put an inner tube in a basin of water and asked me to watch for bubbles. I marked the tiny hole with chalk. We used a rubber patch and glue, and he told me to wait before pressing the patch down. I wanted to hurry, but the first patch lifted at one edge. We tried again on another Saturday. Eventually I managed a patch that stayed flat. I remember the smell of the glue, but not which month this was. These lessons happened more than once."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003ed"
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000bbe",
+        "kind": "period",
+        "title": "The Saturday market with Mum",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "Saturday mornings during the same year",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "recurring",
+        "place_id": "market",
+        "person_ids": [
+          "mother"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007d6",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 564,
+            "quote": "On some Saturdays when I was eight, Mum took me to the market in Hobart. She carried a string bag, and I carried a small list on the back of an envelope. My job was to read out the next item and count the coins she put in my hand. We usually bought apples and potatoes. One morning I dropped a coin and it rolled under a stall. Mum waited while I looked for it; I cannot remember whether I found it. I liked having the list because it gave me something useful to do. I do not remember the stallholder's name or the exact market location. Please leave both unknown."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003ee"
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000bbf",
+        "kind": "event",
+        "title": "Getting a library card",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "During the year I was eight; order uncertain",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "single_event",
+        "place_id": "library",
+        "person_ids": [
+          "mother",
+          "librarian"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007d7",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 565,
+            "quote": "Mum took me to the public library to get my first library card when I was eight. The librarian, Mr Lee, asked me to write my name on a small form. He explained when the books should come back and stamped a date inside the first book I borrowed. I chose a book with drawings of birds. I kept the card in the same pocket as my handkerchief because I was afraid of losing it. Mum let me carry the book home. I cannot remember whether I already knew Sam then, or whether Mrs Harris had begun the reading practice. I only know this was during that year at the new house."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003ef"
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000bc0",
+        "kind": "event",
+        "title": "Staying with Grandma during heavy rain",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "A period of heavy rain that year; season uncertain",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "single_event",
+        "place_id": "grandmother_home",
+        "person_ids": [
+          "grandmother",
+          "mother"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007d8",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 585,
+            "quote": "There was heavy rain during the year I was eight, and Mum and I stayed at Grandma's house for two nights because water had come into our kitchen. Grandma put towels by her back door and made room for my schoolbag beside her chair. I slept under a heavy blanket in the spare room. I worried about the cardboard box of drawings I had left at home. Mum went back to check the house while I stayed with Grandma. When she returned, she said the drawings were dry. I think this was in winter, but I am not certain. I do not know whether the creek itself flooded, so please do not say it did."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003f0"
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000bc1",
+        "kind": "event",
+        "title": "The school play",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "Near the end of the school year",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "single_event",
+        "place_id": "school_hall",
+        "person_ids": [
+          "teacher",
+          "mother",
+          "father"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007d9",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 563,
+            "quote": "Near the end of the school year when I was eight, I had a small part in a play in the school hall. I carried a cardboard tree across the stage and had one line to say. Mrs Harris helped us practise where to stand. I had remembered the line at home but forgot it for a moment on stage. She pointed towards the painted sun at the back of the hall, which reminded me what came next. I said the line and carried the tree off. Mum and Dad were in the audience. I could see Dad's coat over the back of a chair. I do not remember the play's name or the words of my line."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003f1"
+      },
+      {
+        "id": "00000000-0000-0000-0000-000000000bc2",
+        "kind": "event",
+        "title": "Planting beans after school finished",
+        "life_stage": "childhood",
+        "age": {
+          "expression": "eight",
+          "minimum": 8,
+          "maximum": 8
+        },
+        "temporal": {
+          "expression": "Summer holiday after that school year; still aged eight",
+          "precision": "relative",
+          "year_start": null,
+          "year_end": null
+        },
+        "recurrence": "single_event",
+        "place_id": "garden",
+        "person_ids": [
+          "mother"
+        ],
+        "source_refs": [
+          {
+            "source_id": "00000000-0000-0000-0000-0000000007da",
+            "version": 1,
+            "char_start": 0,
+            "char_end": 618,
+            "quote": "After that school year finished, while I was still eight, Mum and I planted beans beside the fence at the house with the blue gate. We pushed dry sticks into the soil for the plants to climb. I checked the bed every morning during the holidays. One seedling came up bent over with part of the seed still attached. Mum asked me to leave it alone for a day. By the next morning it had opened. I drew it in one of the books that had stayed dry during the heavy rain. This happened after the school play and after the two nights at Grandma's, although I do not remember the dates. We were still living in the rented house."
+          }
+        ],
+        "formal_chapter_id": "00000000-0000-0000-0000-0000000003f2"
+      }
+    ],
+    "locale": "en-AU"
+  }
+}

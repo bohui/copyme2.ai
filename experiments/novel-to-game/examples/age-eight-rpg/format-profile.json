@@ -1,0 +1,11 @@
+{
+  "format": "rpg-side-scroller",
+  "controlled_character": "memoir_author",
+  "navigation": "horizontal_with_scrolling_camera",
+  "inputs": [
+    "keyboard",
+    "touch"
+  ],
+  "interaction": "proximity_characters_and_memory_markers",
+  "historical_outcomes": "fixed"
+}

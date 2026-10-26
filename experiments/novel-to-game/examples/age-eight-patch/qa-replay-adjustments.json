@@ -1,0 +1,11 @@
+{
+  "game_code_changed": false,
+  "reason": "Host source data uses the supplied timeline titles; generated replay expected a generic chapter number.",
+  "changes": [
+    {
+      "selector": "#memory-chapter-10 h3",
+      "before": "Chapter 10",
+      "after": "Planting beans after school finished"
+    }
+  ]
+}
