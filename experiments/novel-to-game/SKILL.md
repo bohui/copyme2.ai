@@ -36,7 +36,8 @@ with max effort for this experiment. Source analysis may be reused only when its
 receipt and complete input match; the fictional age-eight source analysis is
 preserved under `examples/age-eight-patch/`.
 
-Use `stages.py` for one stage at a time: concept, design, whitebox layout,
+Use `stages.py` for one stage at a time: `analyze` for fresh source analysis,
+concept, design, whitebox layout,
 `whitebox_logic`, `whitebox_replay`, art and production. The layout stage is named
 `whitebox`; it is not playable until logic and replay are saved. A
 `production_style` pass changes only CSS and can finish the visual production

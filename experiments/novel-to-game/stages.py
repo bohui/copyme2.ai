@@ -28,6 +28,9 @@ SCHEMA = {'type':'object','additionalProperties':False,'required':['files','note
     'files':{'type':'array','items':{'type':'object','additionalProperties':False,'required':['path','content'],
         'properties':{'path':{'type':'string'},'content':{'type':'string'}}}},'notes':{'type':'string'}}}
 STAGES = {
+ 'analyze':dict(skill='novel-game-analyze', refs=['gameability-protocol.md'], inputs=['PRODUCT_BRIEF.md'],
+    outputs=['analysis/SOURCE_BIBLE.md'], budget=6500,
+    task='Analyze the complete ten-chapter fictional age-eight source and its ten linked timeline events for the locked author-controlled RPG side-scroller. Return SOURCE_BIBLE.md, at most 650 words, with one coverage row per chapter/event pair citing its exact chapter_id and event id. Preserve facts, uncertain dates, relationships, quotations, unknown outcomes and all ten source units. Identify supported actions, spaces, visual anchors, constraints and open design space; use immutable/adaptable/open/conflicted boundary labels. Keep gameplay state, scene structure and invented testimony out of this factual handoff. No game implementation or QA claims.'),
  'concept':dict(skill='game-concept', refs=['concept-method.md'], inputs=['PRODUCT_BRIEF.md','analysis/SOURCE_BIBLE.md'],
     outputs=['concepts/CONCEPT.md'], budget=6500,
     task='The format is fixed: a side-scrolling RPG journey where the player moves the author through connected settings and approaches characters or memory markers. Compare quest, route and encounter structures within that format using the complete source; choose one and describe movement, interaction and observable progress. Preserve all ten passages in the text view. Return CONCEPT.md, at most 650 words. No code or QA claims.'),
@@ -84,7 +87,7 @@ def save(path, value):
     pending.replace(path)
 
 
-def initialise():
+def initialise(*, fresh_analysis=False):
     HERE.mkdir(parents=True,exist_ok=True)
     profile=HERE/'format-profile.json'
     if profile.exists():
@@ -95,18 +98,28 @@ def initialise():
     fixture=json.loads((ROOT/'skills/memoir-story-game/tests/fixtures/age-eight.json').read_text())
     packet=fixture['input']
     assert len(packet['chapters'])==len(packet['timeline'])==10
-    for path,source in [('PRODUCT_BRIEF.md',PACKAGE/'PRODUCT_BRIEF.md'),
-                        ('analysis/SOURCE_BIBLE.md',SNAPSHOT/'analysis/SOURCE_BIBLE.md'),
+    source_hash=digest(json.dumps(packet,sort_keys=True,ensure_ascii=False))
+    analysis_checkpoint=HERE/'stages/analyze/checkpoint.json'
+    sources=[('PRODUCT_BRIEF.md',PACKAGE/'PRODUCT_BRIEF.md'),
                         ('source/memoir.md',SNAPSHOT/'source/memoir.md'),
-                        ('source/input.json',ROOT/'skills/memoir-story-game/tests/fixtures/age-eight.json')]:
+                        ('source/input.json',ROOT/'skills/memoir-story-game/tests/fixtures/age-eight.json')]
+    if not fresh_analysis and not analysis_checkpoint.is_file():
+        sources.append(('analysis/SOURCE_BIBLE.md',SNAPSHOT/'analysis/SOURCE_BIBLE.md'))
+    for path,source in sources:
         destination=HERE/path
         if not destination.exists():
             destination.parent.mkdir(parents=True,exist_ok=True)
             destination.write_bytes(source.read_bytes())
+    if fresh_analysis:
+        return packet
     bible=(HERE/'analysis/SOURCE_BIBLE.md').read_text()
     assert all(c['chapter_id'] in bible and e['id'] in bible for c,e in zip(packet['chapters'],packet['timeline']))
+    if analysis_checkpoint.is_file():
+        analysis=json.loads(analysis_checkpoint.read_text())
+        assert analysis['source_sha256']==source_hash,'Source analysis does not match the full input'
+        assert analysis['outputs']['analysis/SOURCE_BIBLE.md']==digest(bible),'Source analysis changed after generation'
+        return packet
     analysis=json.loads((SNAPSHOT/'analysis-reused.json').read_text())
-    source_hash=digest(json.dumps(packet,sort_keys=True,ensure_ascii=False))
     assert analysis['source_sha256']==source_hash,'Source analysis does not match the full input'
     save(HERE/'analysis-reused.json',dict(status='PASS',origin='examples/age-eight-patch/analysis-reused.json',receipt=analysis['receipt'],
         source_sha256=source_hash))
@@ -130,7 +143,7 @@ def materialise(packet):
 
 
 def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
-    packet=initialise()
+    packet=initialise(fresh_analysis=name=='analyze')
     revision=dependency_revision()
     config=STAGES[name]
     paths=[config['skill']+'/SKILL.md']+[config['skill']+'/references/'+p for p in config['refs']]
@@ -234,9 +247,12 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
         materialise(packet)
         receipt=dict(stage=name,status='PASS',model=result['model'],reasoning=result.get('reasoning'),response_id=result['id'],
             duration_seconds=round(time.monotonic()-started,3),usage=result.get('usage'),request_sha256=signature,
+            source_sha256=digest(json.dumps(packet,sort_keys=True,ensure_ascii=False)),
             upstream_revision=revision,upstream_sha256=digest(json.dumps(upstream,sort_keys=True,ensure_ascii=False)),
             outputs=hashes,notes=value['notes'])
         save(checkpoint,receipt)
+        if name=='analyze':
+            (HERE/'analysis-reused.json').unlink(missing_ok=True)
         print(json.dumps({k:receipt[k] for k in ('stage','status','duration_seconds','outputs')}),flush=True)
         return receipt
     except Exception as error:
@@ -258,7 +274,7 @@ if __name__=='__main__':
         sys.exit(0)
     settings=dotenv_values(args.env_file,interpolate=False)
     KEY=settings['MEMORY_SPARK_LLM_API_KEY']
-    initialise()
+    initialise(fresh_analysis=args.stage=='analyze')
     stage=HERE/'stages'/args.stage
     stage.mkdir(parents=True,exist_ok=True)
     with (stage/'worker.lock').open('w') as lock:

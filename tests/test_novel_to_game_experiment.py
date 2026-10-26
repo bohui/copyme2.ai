@@ -41,6 +41,45 @@ def test_default_preview_needs_no_credentials_and_contains_the_complete_source(t
     assert not (workspace / 'stages/concept/checkpoint.json').exists()
 
 
+def test_fresh_analysis_preview_does_not_seed_a_previous_analysis(tmp_path):
+    module = runner()
+    module.HERE = tmp_path
+    request = module.run_stage('analyze', dry_run=True)
+    packet = json.loads(request['input'])
+    assert packet['stage'] == 'analyze'
+    assert len(packet['source']['chapters']) == len(packet['source']['timeline']) == 10
+    assert packet['allowed_output_paths'] == ['analysis/SOURCE_BIBLE.md']
+    assert 'novel-game-analyze/SKILL.md' in request['instructions']
+    assert not (tmp_path / 'analysis/SOURCE_BIBLE.md').exists()
+    assert not (tmp_path / 'analysis-reused.json').exists()
+
+
+def test_fresh_analysis_handoff_requires_the_generated_source_and_artifact_fingerprints(tmp_path):
+    module = runner()
+    module.HERE = tmp_path
+    packet = module.initialise(fresh_analysis=True)
+    bible = tmp_path / 'analysis/SOURCE_BIBLE.md'
+    bible.parent.mkdir()
+    text = '\n'.join(item['chapter_id'] for item in packet['chapters']) + '\n' + '\n'.join(item['id'] for item in packet['timeline'])
+    bible.write_text(text)
+    checkpoint = tmp_path / 'stages/analyze/checkpoint.json'
+    checkpoint.parent.mkdir(parents=True)
+    receipt = dict(source_sha256=module.digest(json.dumps(packet, sort_keys=True, ensure_ascii=False)),
+        outputs={'analysis/SOURCE_BIBLE.md': module.digest(text)})
+    checkpoint.write_text(json.dumps(receipt))
+    assert module.initialise() == packet
+    assert not (tmp_path / 'analysis-reused.json').exists()
+    receipt['source_sha256'] = 'different-source'
+    checkpoint.write_text(json.dumps(receipt))
+    with pytest.raises(AssertionError, match='does not match the full input'):
+        module.initialise()
+    receipt['source_sha256'] = module.digest(json.dumps(packet, sort_keys=True, ensure_ascii=False))
+    checkpoint.write_text(json.dumps(receipt))
+    bible.write_text(text + '\nChanged analysis')
+    with pytest.raises(AssertionError, match='changed after generation'):
+        module.initialise()
+
+
 def test_legacy_puzzle_workspace_is_preserved_and_cannot_supply_rpg_checkpoints(tmp_path):
     module = runner()
     module.HERE = tmp_path
