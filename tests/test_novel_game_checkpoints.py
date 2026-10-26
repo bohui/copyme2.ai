@@ -1,5 +1,6 @@
 """Checkpoint recovery uses isolated workspaces and an in-process HTTP transport."""
 import json
+from pathlib import Path
 
 import pytest
 
@@ -168,6 +169,81 @@ def design_checkpoint(stage_runner):
 def build_bytes(module):
     return {p.relative_to(module.HERE).as_posix(): p.read_bytes()
         for p in (module.HERE / 'build').rglob('*') if p.is_file()}
+
+
+@pytest.mark.parametrize('location', ['file', 'parent'])
+@pytest.mark.parametrize('destination', ['inside', 'outside'])
+def test_scratch_sources_reject_symlinks_without_reading_redirected_bytes(stage_runner, monkeypatch, location, destination):
+    module, files, calls = stage_runner
+    design_checkpoint(stage_runner)
+    files['whitebox'] = {'build/BUILD_BRIEF.md': 'Whitebox brief', 'build/app/game.css': '/* Whitebox styling */'}
+    module.run_stage('whitebox')
+    css = module.HERE / 'build/app/game.css'
+    redirected = (module.HERE if destination == 'inside' else module.HERE.parent) / 'synthetic-redirect'
+    if location == 'parent':
+        css.parent.rename(redirected)
+        css.parent.symlink_to(redirected, target_is_directory=True)
+    else:
+        redirected.mkdir()
+        (redirected / 'game.css').write_text('Synthetic redirected bytes only')
+        css.unlink()
+        css.symlink_to(redirected / 'game.css')
+    reads = []
+    original_open = Path.open
+
+    def observe_open(path, mode='r', *args, **kwargs):
+        if ('r' in mode or '+' in mode) and path.resolve().is_relative_to(redirected):
+            reads.append(path.as_posix())
+        return original_open(path, mode, *args, **kwargs)
+
+    with monkeypatch.context() as observed:
+        observed.setattr(Path, 'open', observe_open)
+        with pytest.raises(ValueError, match='Unsafe checkpoint artifact path'):
+            module.run_stage('whitebox')
+    assert reads == [], 'Rejected scratch inputs must never open their redirected targets'
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize('asset_index', [0, -1])
+@pytest.mark.parametrize('missing', ['brief', 'css', 'both'])
+def test_preparation_failure_preserves_missing_outputs_and_all_build_bytes(stage_runner, asset_index, missing):
+    module, files, calls = stage_runner
+    design_checkpoint(stage_runner)
+    files['whitebox'] = {'build/BUILD_BRIEF.md': 'Whitebox brief', 'build/app/game.css': '/* Whitebox styling */'}
+    module.run_stage('whitebox')
+    if missing in ('brief', 'both'):
+        (module.HERE / 'build/BUILD_BRIEF.md').unlink()
+    if missing in ('css', 'both'):
+        (module.HERE / 'build/app/game.css').unlink()
+    catalog = json.loads((module.HERE / 'build/asset-catalog.json').read_text())
+    assert len(catalog['stock']['files']) > 1
+    asset = module.HERE / 'build/app' / catalog['stock']['files'][asset_index]['url']
+    asset.write_bytes(b'Synthetic conflicting immutable asset')
+    before = build_bytes(module)
+
+    with pytest.raises(ValueError, match='Refusing to replace a different asset'):
+        module.run_stage('whitebox')
+    assert build_bytes(module) == before
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize('blocked', ['build/app/index.html', 'build/asset-catalog.json.next'])
+def test_preparation_failure_on_non_file_destination_preserves_build_bytes(stage_runner, blocked):
+    module, files, calls = stage_runner
+    design_checkpoint(stage_runner)
+    files['whitebox'] = {'build/BUILD_BRIEF.md': 'Whitebox brief', 'build/app/game.css': '/* Whitebox styling */'}
+    module.run_stage('whitebox')
+    (module.HERE / 'build/BUILD_BRIEF.md').unlink()
+    destination = module.HERE / blocked
+    destination.unlink(missing_ok=True)
+    destination.mkdir()
+    before = build_bytes(module)
+
+    with pytest.raises((ValueError, OSError)):
+        module.run_stage('whitebox')
+    assert build_bytes(module) == before
+    assert destination.is_dir()
+    assert len(calls) == 3
 
 
 def test_missing_design_plan_is_restored_before_host_materialisation(stage_runner):

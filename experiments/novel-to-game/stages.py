@@ -157,6 +157,8 @@ def checked_artifact_path(path):
     relative=path.relative_to(HERE)
     if '..' in relative.parts or any((HERE/p).is_symlink() for p in (relative,*relative.parents)):
         raise ValueError('Unsafe checkpoint artifact path: '+relative.as_posix())
+    if any((HERE/p).exists() and not (HERE/p).is_dir() for p in relative.parents):
+        raise ValueError('Unsafe checkpoint artifact parent: '+relative.as_posix())
     return path
 
 
@@ -218,6 +220,22 @@ def prepare_build_inputs(workspace, name, packet, config, *, dry_run):
     return inputs
 
 
+def preflight_build_outputs(prepared):
+    # Check prepared destinations and immutable stock/scenes in the real workspace
+    # before any missing checkpoint outputs are restored.
+    for source in (prepared/'build').rglob('*'):
+        if not source.is_file():
+            continue
+        name=source.relative_to(prepared)
+        target=checked_artifact_path(HERE/name)
+        for path in (target,target.with_suffix(target.suffix+'.next')):
+            checked_artifact_path(path)
+            if path.exists() and not path.is_file():
+                raise ValueError('Build destination is not a regular file: '+path.relative_to(HERE).as_posix())
+        if name.parts[:3]==('build','app','assets') and target.exists() and target.read_bytes()!=source.read_bytes():
+            raise ValueError('Refusing to replace a different asset: '+name.as_posix())
+
+
 def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     packet=initialise(fresh_analysis=name=='analyze')
     revision=dependency_revision()
@@ -249,10 +267,11 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
                 input_paths=set(config['inputs'])|{'design/JOURNEY_PLAN.json','design/SCENE_ART_PLAN.json',
                     'source/character-profile.json','build/app/game.css'}
                 for path in input_paths:
-                    source=HERE/path
+                    source=checked_artifact_path(HERE/path)
                     if source.is_file():
                         write_bytes(prepared,path,source.read_bytes())
                 inputs=prepare_build_inputs(prepared,name,packet,config,dry_run=dry_run)
+                preflight_build_outputs(prepared)
         else:
             inputs=prepare_build_inputs(HERE,name,packet,config,dry_run=dry_run)
     else:
