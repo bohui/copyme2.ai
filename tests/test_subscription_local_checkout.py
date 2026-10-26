@@ -103,6 +103,53 @@ def submodule_checkout(checkout):
     return root, git(root, 'rev-parse', 'HEAD'), child, git
 
 
+def gitlink_conflict(root, entries, path='dependency'):
+    records = f'0 {"0" * 40}\t{path}\n'
+    records += ''.join(f'160000 {pin} {stage}\t{path}\n' for stage, pin in entries)
+    subprocess.run(['git', 'update-index', '--index-info'], cwd=root,
+        input=records, text=True, capture_output=True, check=True)
+
+
+@pytest.mark.parametrize('stages', [(1,), (2,), (3,), (1, 2, 3)])
+def test_snapshot_rejects_unresolved_gitlink_index_stages(submodule_checkout, stages):
+    root, revision, child, git = submodule_checkout
+    pin = git(child, 'rev-parse', 'HEAD')
+    gitlink_conflict(root, [(stage, pin) for stage in stages])
+    with pytest.raises(ValueError, match='gitlink.*unresolved index stages'):
+        launcher.local_checkout_snapshot(revision)
+
+
+@pytest.mark.parametrize('stage_two_pin', ['b' * 40, 'd' * 40])
+def test_gitlink_stage_two_changes_are_rejected_before_execution(submodule_checkout, stage_two_pin):
+    root, revision, child, git = submodule_checkout
+    snapshot = launcher.local_checkout_snapshot(revision)
+    pin = git(child, 'rev-parse', 'HEAD')
+    gitlink_conflict(root, [(1, pin), (2, stage_two_pin), (3, pin)])
+    with pytest.raises(ValueError, match='gitlink.*unresolved index stages'):
+        launcher.verify_execution_source(revision, snapshot)
+
+
+def test_snapshot_rejects_unresolved_gitlinks_in_initialized_submodules(submodule_checkout):
+    _, revision, child, git = submodule_checkout
+    pin = git(child, 'rev-parse', 'HEAD')
+    gitlink_conflict(child, [(2, pin), (3, pin)], path='nested')
+    with pytest.raises(ValueError, match='gitlink.*unresolved index stages'):
+        launcher.local_checkout_snapshot(revision)
+
+
+def test_local_plan_rejects_unresolved_gitlinks_before_allocation(submodule_checkout, tmp_path, monkeypatch, capsys):
+    root, revision, child, git = submodule_checkout
+    pin = git(child, 'rev-parse', 'HEAD')
+    gitlink_conflict(root, [(2, pin), (3, pin)])
+    monkeypatch.setattr(launcher, 'configured_credential', lambda: pytest.fail('Credential access'))
+    monkeypatch.setattr(launcher, 'execute_native', lambda *a: pytest.fail('Native allocation'))
+    directory = tmp_path / 'unallocated'
+    assert launcher.main(argv(plan(revision), directory, '--local-checkout')) == 3
+    observed = json.loads(capsys.readouterr().out)
+    assert observed['preflight_stage'] == 'plan' and observed['execution_started'] is False
+    assert not directory.exists()
+
+
 def test_snapshot_accepts_uninitialized_gitlinks_and_retains_the_index_pin(submodule_checkout):
     root, revision, child, git = submodule_checkout
     shutil.rmtree(child)
