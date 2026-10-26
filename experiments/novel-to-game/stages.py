@@ -14,6 +14,9 @@ import httpx
 from dotenv import dotenv_values
 
 PACKAGE = Path(__file__).resolve().parent
+sys.path.insert(0, str(PACKAGE))
+from game_assets import prepare as prepare_assets, validate_plan
+
 ROOT = PACKAGE.parents[1]
 HERE = ROOT/'var/novel-to-game-rpg-scroller'
 SNAPSHOT = PACKAGE/'examples/age-eight-patch'
@@ -52,16 +55,16 @@ STAGES = {
     task='Prepare the ordinary-input browser replay for the actual RPG/scroller implementation. Return build/playthrough.json and BUILD_BRIEF below 250 words. The host executes click, press, hold, assert_text and assert_attr. A hold step has selector, value (keyboard key), duration_ms from 50 to 5000. On phone the same selector receives held touch, so hold a visible movement button; make its keyboard value Enter or Space. Cover real horizontal player and camera movement, a distance-gated interaction, travel between distinct scenes, meaningful progress, the designed ending and restart. Include initial and terminal text, and one assertion checkpoint each in order input, coreLoop, outcome, restart. Use at most 100 steps and modest margins in holds. Assert observed counters/scene data, not hidden JS functions. Leave actual QA NOT_RUN.'),
  'art':dict(skill='game-art-direction',refs=['art-direction-method.md'],
     inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','whitebox-feedback.json'],
-    outputs=['design/ART_DIRECTION.md'],budget=6000,
-    task='Read the RPG/scroller whitebox observations and define its visual direction in at most 600 words. Use original CSS/inline SVG and system fonts: readable player and NPC silhouettes, distinct source-supported scenery, clear interaction cues, progress and phone controls. Preserve horizontal travel, camera, scene transitions and tested rules. Target playable-prototype with no external media services. Include the scope/budget review and untested visual limits. Return ART_DIRECTION.md only.'),
+    outputs=['design/ART_DIRECTION.md','design/SCENE_ART_PLAN.json'],budget=6000,
+    task='Read the RPG/scroller whitebox observations and supplied stock asset catalog. Return ART_DIRECTION.md in at most 600 words and SCENE_ART_PLAN.json using the supplied asset policy schema. Reuse the existing animated avatar, CSS markers and music byte-for-byte. Plan only the minimum distinct source-supported scene backgrounds, grouping compatible locations into an atlas. Match the supplied scene style. Preserve travel, camera, scene transitions, tested rules, readable cues and phone controls. Include scope, number of new illustration calls and untested visual limits. Plan artwork here; the host generates or restores it before production. No new characters, portraits, UI, music or voice assets.'),
  'production_style':dict(skill='game-build',refs=['build-brief-contract.md'],
     inputs=['design/ART_DIRECTION.md','build/template.html','build/app/game.css','whitebox-feedback.json'],
     outputs=['build/app/game.css'],budget=5500,
-    task='Complete one small CSS-only RPG/scroller styling pass. HTML, JavaScript, copy, rules and replay stay frozen. Return game.css below 8,000 characters, applying ART_DIRECTION to the existing player, world, characters, memory markers and controls. Keep the scenery readable while moving, touch targets large, text legible, focus visible and reduced motion supported. Preserve every hidden state and tested behaviour. Use ordinary CSS shapes and gradients, with no external assets or new systems. Return only the stylesheet, with no QA claims.'),
+    task='Complete one small CSS-only RPG/scroller styling pass after stock art and scene assets have already been integrated into the markup and runtime. HTML, JavaScript, copy, rules and replay stay frozen. Return game.css below 8,000 characters, applying ART_DIRECTION using the exact local asset catalog paths. Preserve the shared sprite animation stylesheet, scenery readability while moving, large touch targets, readable text, visible focus and reduced motion. Preserve every hidden state and tested behaviour. Return only the stylesheet, with no new assets, systems or QA claims.'),
  'production':dict(skill='game-build',refs=['build-brief-contract.md'],
     inputs=['PRODUCT_BRIEF.md','concepts/CONCEPT.md','design/GAME_DESIGN.md','design/ART_DIRECTION.md','build/BUILD_BRIEF.md','build/template.html','build/app/game.css','build/app/game.js','build/playthrough.json','whitebox-feedback.json'],
     outputs=['build/BUILD_BRIEF.md','build/app/index.html','build/app/game.css','build/app/game.js','build/playthrough.json'],budget=12000,
-    task='Finish the approved side-scrolling RPG using the tested whitebox runtime and ART_DIRECTION. Preserve the controllable author, horizontal movement/camera, connected scenes, proximity interactions, source-text view, ending and restart. Polish responsive scenery, player/character silhouettes, action cues and keyboard/touch controls. Return changed app files only, plus a concise BUILD_BRIEF and affected playthrough. Keep the source marker in index.html. Prefer one file per repair pass and refer to unchanged files instead of repeating them. The host runs actual QA; leave unobserved results NOT_RUN.')
+    task='Finish the approved side-scrolling RPG using the tested whitebox, ART_DIRECTION and ready asset catalog. Integrate the shared animated avatar and existing CSS markers, opt-in stock music, and only the prepared scene illustrations at the exact catalog paths. Preserve source passages, rules, horizontal movement/camera, connected scenes, proximity interactions, ending and restart. Use atlas cell dimensions from the catalog, responsive scenery, visible focus and reduced motion. Keep the source marker in index.html. Return changed allowed app files only, a concise BUILD_BRIEF and affected replay. Prefer one file per repair pass. The host supplies media; never return asset binaries, base64 or remote URLs. Leave unobserved QA NOT_RUN.')
 }
 
 
@@ -150,6 +153,11 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
     upstream={p:(SKILL/p).read_text() for p in paths}
     instructions=(PACKAGE/'adapter.md').read_text()+'\n\n'+'\n\n'.join('===== '+p+' =====\n'+v for p,v in upstream.items())
     inputs={p:(HERE/p).read_text() for p in config['inputs']}
+    if name in ('art','production','production_style'):
+        instructions+='\n\n'+(PACKAGE/'asset-policy.md').read_text()
+        catalog=prepare_assets(HERE, ROOT/'var/novel-to-game-scene-cache',
+            include_scenes=name!='art', require_ready=name!='art' and not dry_run)
+        inputs['build/asset-catalog.json']=json.dumps(catalog,ensure_ascii=False,sort_keys=True)
     if extra_inputs:inputs.update(extra_inputs)
     # Send every source unit, with compact timeline metadata and stable internal citations.
     source=dict(chapters=packet['chapters'],timeline=[{k:v for k,v in e.items() if k!='source_refs'} for e in packet['timeline']],locale=packet['locale'])
@@ -230,6 +238,9 @@ def run_stage(name, task_override=None, extra_inputs=None, *, dry_run=False):
         files=value['files']
         names=[f['path'] for f in files]
         assert files and len(names)==len(set(names)) and set(names)<=set(config['outputs'])
+        if name=='art':
+            assert set(names)==set(config['outputs']), 'Art requires direction and the scene-only plan'
+            validate_plan(json.loads(next(f['content'] for f in files if f['path']=='design/SCENE_ART_PLAN.json')))
         hashes={}
         for file in files:
             path=HERE/file['path']

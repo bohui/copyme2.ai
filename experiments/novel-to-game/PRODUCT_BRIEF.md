@@ -14,7 +14,10 @@ chooses the route and encounters within this format. Practical activities can be
 encounters within the journey.
 
 Target a 3–5 minute main route, with untimed optional reading and exploration.
-Native offline HTML/CSS/JavaScript, original CSS/inline SVG and system fonts.
+Native offline HTML/CSS/JavaScript and system fonts. Use the supplied
+`illustrated-childhood-v1` avatar animation, CSS markers and original opt-in
+music. Generate only source-supported scene backgrounds in its illustrated
+style; group compatible places into an atlas and reuse cached illustrations.
 Keyboard movement/interaction and large touch buttons; clear focus, reduced
 motion, readable text and responsive reflow from 320 CSS pixels. No network,
 external libraries, accounts, storage, forms, publishing or runtime models.
@@ -49,7 +52,7 @@ candidate before recording the unresolved state.
 Before art, verify actual movement, camera, scene transitions and interaction in
 the whitebox. Final QA must prove launch, render, input, core loop, ending and
 restart in one complete clean run, with desktop and phone coverage reported
-honestly. Current RPG generation and QA are NOT_RUN.
+honestly. Each new run starts with generation and QA NOT_RUN.
 
 This branch is an isolated evaluation. The active Memoir RPG/scroller workflow,
 Higgsfield installation, managed prompts, Langfuse pins, authentication and saved

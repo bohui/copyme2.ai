@@ -21,7 +21,9 @@ example. The complete ten chapters and timeline entries inform the adaptation.
 Map every supplied event to gameplay or context, and retain every unchanged
 chapter in the full-text view. The supplied format_contract is authoritative.
 
-Use offline native HTML/CSS/JavaScript, original CSS/inline SVG and system fonts.
+Use offline native HTML/CSS/JavaScript and system fonts. Whitebox with CSS/inline
+SVG placeholders; production reuses the supplied stock artwork and generates only
+scene illustrations according to the asset policy appended to art/build stages.
 Provide keyboard movement and interaction plus large touch controls. Keep
 movement bounded, scene transitions connected, dialogue readable, focus visible
 and reduced motion supported. The player and environment must visibly move;
@@ -38,8 +40,8 @@ attempt receipts and leave unobserved checks NOT_RUN.
 The host inserts all original passages as an inert JSON script with id
 memoir-source, shaped as {title,fictional:true,chapters:[{id:'C1',title,text},...]}.
 Put <!-- MEMOIR_SOURCE --> exactly once in index.html. Read this JSON from
-game.js and use textContent to display the passages. index.html may load only
-local game.css and game.js. Keep internal chapter, timeline and source identities
+game.js and use textContent to display the passages. index.html may load local
+game.css, game.js and host-staged assets from the supplied catalog. Keep internal chapter, timeline and source identities
 outside the public game.
 
 For each runnable candidate return build/playthrough.json:
