@@ -15413,22 +15413,23 @@ begin
      and w.source_id=(ref->>'source_id')::uuid and w.source_version=(ref->>'version')::bigint
    where w.disposition in ('withheld','non_story') and w.char_start<(ref->>'char_end')::integer and w.char_end>(ref->>'char_start')::integer);
  if jsonb_array_length(unavailable)>0 then pins:=jsonb_set(pins,'{known_continuity_complete}','false');end if;
+ -- A safe citation authorizes its original words, never adjacent derived prose.
+ -- Rebuild optional continuity text extractively and omit free-form uncertainty.
+ if exists(select 1 from jsonb_array_elements(pins->'known_continuity') r where
+   r->'data'->>'text' is distinct from left(r->'data'->'source_refs'->0->>'quote',2000)
+   or coalesce(r->'data'->'uncertainty','null')<>'null'::jsonb) then
+   pins:=jsonb_set(pins,'{known_continuity_complete}','false');
+ end if;
  pins:=jsonb_set(pins,'{known_continuity}',coalesce((select jsonb_agg(
    jsonb_build_object('schema_version',1)||record||jsonb_build_object('data',
-     jsonb_build_object('schema_version',1,'uncertainty',null)||(record->'data')||jsonb_build_object('source_refs',
+     (record->'data')||jsonb_build_object('schema_version',1,'text',left(record->'data'->'source_refs'->0->>'quote',2000),
+       'uncertainty',null,'source_refs',
        (select jsonb_agg(jsonb_build_object('schema_version',1)||ref) from jsonb_array_elements(record->'data'->'source_refs') ref))))
    from jsonb_array_elements(pins->'known_continuity') record where not exists(
      select 1 from jsonb_array_elements(unavailable) u where u->>'record_id'=record->>'record_id')),'[]'));
- -- A question derived from a partly private original can import its neighbors
- -- even with a safe citation. Its delivered identity remains useful for cadence.
- if exists(select 1 from public.user_interview_plan p join public.user_interview_turn t using(user_id,project_id,client_turn_id)
-   cross join lateral jsonb_array_elements(p.plan->'candidates') q join public.user_memory_attribution_window w
-     on w.user_id=p.user_id and w.project_id=p.project_id and w.disposition in ('withheld','non_story')
-   where p.user_id=snap.user_id and p.project_id=snap.project_id and q->>'id'=p.plan->>'chosen_id'
-     and ((w.source_id=t.source_id and w.source_version=t.source_version)
-       or (w.source_id=(q->'context'->'evidence'->>'source_id')::uuid and w.source_version=(q->'context'->'evidence'->>'version')::bigint))) then
-   pins:=jsonb_set(pins,'{active_question}','null');
- end if;
+ -- Question prose and optional unresolved-reference labels are also derived;
+ -- their citations cannot certify the contents of these free-form strings.
+ pins:=pins||'{"active_question":null,"unresolved_references":[]}'::jsonb;
  -- Mandatory restrictions must not be weakened or copied as private prose.
  -- If their exact evidence is withheld, skip optional guidance for this page.
  select exists(select 1 from public.user_lifetime_continuity c
@@ -15470,7 +15471,9 @@ begin
  select coalesce(jsonb_agg(item order by priority,change_sequence desc,id),'[]') into events from (
    select e.id,e.change_sequence,case when exists(select 1 from jsonb_array_elements(matches) m where m->>'event_id'=e.id) then 0
      when e.id=(select plan->>'active_event_id' from public.user_interview_plan where user_id=snap.user_id and project_id=snap.project_id) then 1 else 2 end priority,
-     public.bounded_lifetime_event_record(e) item from public.user_memory_event e
+     jsonb_set(public.bounded_lifetime_event_record(e),'{temporal,expression}','null')||
+       '{"title":null,"title_complete":false,"uncertainty":null,"uncertainty_complete":false,"temporal_complete":false}'::jsonb item
+   from public.user_memory_event e
    where e.user_id=snap.user_id and e.project_id=snap.project_id and e.status='active' and e.change_sequence<=snap.event_high_water
      and not exists(select 1 from public.user_memory_event_source r where r.user_id=e.user_id and r.project_id=e.project_id and r.event_id=e.id
        and not exists(select 1 from public.user_narrator_source s where s.user_id=r.user_id and s.project_id=r.project_id and s.id=r.source_id
@@ -15485,11 +15488,14 @@ begin
  if (windows->0->>'original_length')::integer>2304 then
    for fragment in select w from public.lifetime_guidance_source_windows(snap.user_id,snap.project_id,
      (windows->0->>'id')::uuid,(windows->0->>'version')::bigint,
-     greatest(0,(windows->0->>'original_length')::integer-2304),(windows->0->>'original_length')::integer) w loop
-     exit when jsonb_array_length(windows)>=8;
-     if not exists(select 1 from jsonb_array_elements(windows) w where w=fragment) then
-       windows:=jsonb_build_array(fragment)||windows;
-     end if;
+     greatest(0,(windows->0->>'original_length')::integer-2304),(windows->0->>'original_length')::integer) w
+     order by (w->>'char_end')::integer desc limit 1 loop
+     -- Reserve a slot before older/head fragments consume the entire budget.
+     -- Promote an already-present tail as well: source must support recall quotes.
+     select coalesce(jsonb_agg(w order by position),'[]') into windows
+       from jsonb_array_elements(windows) with ordinality items(w,position) where w<>fragment;
+     windows:=jsonb_build_array(fragment)||windows;
+     if jsonb_array_length(windows)>8 then windows:=windows-(jsonb_array_length(windows)-1);end if;
    end loop;
  end if;
  -- Recover older original passages behind the bounded canonical events. This
@@ -15539,11 +15545,13 @@ begin
    from public.lifetime_guidance_source_windows(snap.user_id,snap.project_id,(d->'response'->>'id')::uuid,
      (d->'response'->>'version')::bigint,(d->'response'->>'char_start')::integer,(d->'response'->>'char_end')::integer) w limit 1
  ),'null'::jsonb)) order by position),'[]') into dialogue from jsonb_array_elements(dialogue) with ordinality entries(d,position);
- select coalesce(jsonb_agg(case when exists(select 1 from public.user_memory_attribution_window w
-   where w.user_id=snap.user_id and w.project_id=snap.project_id and w.disposition in ('withheld','non_story')
-     and ((w.source_id=(d->'question'->>'source_id')::uuid and w.source_version=(d->'question'->>'source_version')::bigint)
-       or (w.source_id=(d->'question'->'evidence'->>'source_id')::uuid and w.source_version=(d->'question'->'evidence'->>'version')::bigint)))
-   then jsonb_set(d,'{question}',(d->'question')||'{"text":null,"evidence":null}'::jsonb) else d end order by position),'[]')
+ -- Collector IDs are arbitrary strings too. Bind an opaque cadence identity
+ -- to the actual delivery; retries and reads of that delivery reuse the alias.
+ -- Stored question prose/attribution is not original evidence even with a cite.
+ select coalesce(jsonb_agg(jsonb_set(d,'{question}',(d->'question')||jsonb_build_object('text',null,'evidence',null,
+   'id','dq-'||encode(sha256(convert_to(jsonb_build_array(snap.user_id,snap.project_id,
+     d->'question'->'source_id',d->'question'->'source_version',d->'question'->'client_turn_id',
+     d->'question'->'reply_id',d->'question'->'id')::text,'UTF8')),'hex'))) order by position),'[]')
  into dialogue from jsonb_array_elements(dialogue) with ordinality entries(d,position);
  if private_policy then windows:='[]';events:='[]';dialogue:='[]';end if;
  context:=jsonb_build_object('source_windows',windows,'recent_dialogue',dialogue,'minimum_detail_rounds',3,

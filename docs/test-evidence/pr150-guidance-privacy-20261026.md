@@ -27,11 +27,17 @@ No text is concatenated across a private gap. Existing context budgets,
 publication guards, source high-water marks, receipts and turn snapshots remain
 in force. Allowed fragments remain usable without canonical events.
 
-The final envelope audit reproduced two further copies in continuity pins and
+The first envelope audit reproduced two further copies in continuity pins and
 delivered-question evidence. Private continuity records are omitted and marked
-incomplete. Question prose/evidence and the active-question pin are omitted when
-their source contains unavailable passages; delivered IDs remain available for
-cadence. If a mandatory restriction itself quotes a withheld span, the optional
+incomplete. Independent review then established that even an allowed citation
+does not authorize stored event/continuity prose. Guidance now omits event
+titles, uncertainty and temporal-expression prose; it rebuilds continuity text
+from an authorized original quote and clears free-form uncertainty. Question
+prose/evidence, active-question wording and optional unresolved-reference labels
+are omitted. Delivered question IDs are stable opaque hashes bound to their
+actual delivery, so arbitrary collector strings cannot carry private prose into
+cadence context. The original canonical records and delivered IDs are unchanged.
+If a mandatory restriction itself quotes a withheld span, the optional
 guidance page completes without model dispatch. Its original mandatory policy
 remains intact. This fail-closed case deliberately produces no new Lane B
 guidance rather than weakening a restriction or sending its private prose.
@@ -39,13 +45,13 @@ guidance rather than weakening a restriction or sending its private prose.
 | Model-visible field | Boundary checked |
 | --- | --- |
 | `source`, `guidance_context.source_windows` | Exact contiguous authorized originals and canonical Unicode offsets |
-| `events` | Bounded canonical context; events with unavailable source evidence are excluded |
+| `events` | Bounded identity/typed context and authorized source references; generated title, uncertainty and temporal-expression prose omitted |
 | `recent_dialogue.response` | One authorized excerpt with truthful completeness/offsets |
-| `recent_dialogue.question` | Private-source prose/evidence omitted; delivered identity retained |
-| `preferences.known_continuity` | Unavailable source-reference records omitted; allowed records retained |
-| `preferences.active_question` | Omitted for partly unavailable source provenance |
+| `recent_dialogue.question` | Generated prose/evidence omitted; a stable opaque delivery alias supports cadence and replay |
+| `preferences.known_continuity` | Unavailable records omitted; allowed text rebuilt extractively; generated uncertainty omitted |
+| `preferences.active_question`, `unresolved_references` | Optional generated wording omitted |
 | Mandatory policy pins | Original controls preserved; guidance skips if mandatory policy needs a withheld quote |
-| Name/language/manual preference pins | Existing authoritative user preferences remain unchanged |
+| Name/language/mandatory manual policy pins | Existing authoritative user preferences remain unchanged |
 | `news_clues` | Existing public-field allowlist and exact news revision/digest checks; personal hypotheses/relevance are not included |
 | Retrieval terms / IDs | Terms use authorized originals; returned event IDs contain no original prose |
 | `lane_context` / fence / retry | Same filtered pins and evidence; fixed retry code; no free-form error feedback |
@@ -81,6 +87,9 @@ python -m pytest -q tests/test_interview_guidance_privacy.py \
 
 # Final corrective suite: actual guarded HTTP bodies and native writes/delivery.
 python -m pytest -q tests/test_interview_guidance_privacy.py --tb=short
+
+# Independent-review regressions, including normal reply-v2 continuity output.
+python -m pytest -q tests/test_interview_guidance_derived_privacy.py --tb=short
 
 # Repository target, including all JavaScript checks.
 make test-place-research
@@ -126,12 +135,15 @@ git diff --check
 | --- | --- |
 | Exact-base negative control | 1 expected failure, 20 deselected; unsafe question reached the next reply |
 | Initial core privacy suite, retained as requested | **21 passed**, 105.33 seconds |
-| Final expanded privacy suite, including envelope audit | **24 passed**, 144.88 seconds |
+| Privacy suite at reviewed head `262fafa9`, including first envelope audit | **24 passed**, 144.88 seconds |
+| Original privacy suite after independent-review correction | **24 passed**, 173.47 seconds |
+| Added independent-review regressions | **13 passed**, 122.95 seconds |
 | Place/research Python portion on the initial core correction | **619 passed**, 391.48 seconds |
 | Packaged photo-skill unittest suite | **95 passed**, 0.952 seconds |
 | Full web prerequisite | 596 passed, 12 inherited failures; 0 skipped |
 | Extended native/engine suite on the initial core correction, after bounded reruns | 268 passed, 18 inherited failures; no remaining deadline errors |
-| Final envelope transport/publication/policy and SQL definitions | **123 passed**, 1 explicitly deselected inherited wording test, 25.31 seconds |
+| Transport/publication/policy and SQL definitions at `262fafa9` | **123 passed**, 1 explicitly deselected inherited wording test, 25.31 seconds |
+| Full transport/publication/policy and SQL definitions after review correction | **123 passed, 1 inherited failure**, 28.11 seconds; no deselection |
 | Whitespace validation | Passed |
 
 The privacy suite covers mixed passages, Unicode offsets, overlapping and
@@ -145,6 +157,41 @@ The three added envelope cases first failed on the core correction, then passed
 with native continuity, delivered-question and mandatory-policy fixtures.
 The same 619-case Python selection is being rerun on the envelope revision;
 its completed result is recorded in the draft PR and retained command logs.
+
+## Independent-review correction on `262fafa9`
+
+Review identified three remaining privacy paths despite the passing 24-case
+suite: canonical event title/uncertainty with allowed evidence, continuity
+uncertainty through normal reply-v2 extraction output, and arbitrary collector
+question IDs. It also demonstrated that eight early authorized fragments could
+exhaust the window budget before an authorized tail containing a recall limit.
+
+The new regression module reproduces native publication and next-turn delivery
+of the unsafe question with allowed citations. It includes verbatim and
+paraphrased private prose, continuity text and uncertainty, the normal reply-v2
+model-output path, three deliveries using a private sentence as their ID,
+repeat page reads, native commit replay and valid cadence using opaque aliases.
+Two tail cases cover both a full eight-window budget and a tail already present
+later in the window list. The corrected reader reserves/promotes the latest
+authorized tail before filling the remaining slots, still capped at eight.
+
+Negative control against the exact reviewed SQL used the existing workspace and
+test harness, without a new worktree or file rollback. A process-local read seam
+supplied `git show 262fafa9b705b9603ea0efd9a52f758861da8a7e:supabase/migrations/202610180001_initial_schema.sql`
+only when the native fixture read that migration. Its SHA-256 was
+`f53c534e52dffc0d0b96e3518cfd4690890f8c3dd81ab6c0350243e549f88981`.
+Running the new module with `-k 'True or collector_ids or fragmented'` produced
+**5 expected failures, 8 deselected** in 39.78 seconds. These are the two normal
+reply-v2 cases, two tail cases and the collector-ID case. Earlier verbatim and
+paraphrase event/continuity probes also failed before the correction. No keyword
+filter is used: optional generated prose is omitted or reconstructed from the
+authorized originals regardless of whether it literally matches a withheld span.
+
+The required `make test-place-research` gate was run again after this correction:
+**596 web passes and the same 12 inherited Make-plan failures**, with zero skips;
+Make therefore exits at `test-web`. Its full 619-case Python selection is run
+separately. The full 124-case transport selection now reports its inherited
+wording assertion failure explicitly rather than deselecting it.
 
 The first extended run reported 219 passed, 19 failed and 48 setup errors. The
 publication fixture applies a 180-second deadline to an entire module; two tests
@@ -186,9 +233,11 @@ as green.
 ## Tested code fingerprints
 
 * Baseline SQL SHA-256:
-  `f53c534e52dffc0d0b96e3518cfd4690890f8c3dd81ab6c0350243e549f88981`
+  `abddf5fbc9096ed9ddf4d1669d9dade16c6e7c2ad63a0f568e74c2f6870f1917`
 * Privacy test SHA-256:
   `b968488df81a26c7a422cf7e52ad9848abbf59ea20139d35b708ecee8c84fa55`
+* Independent-review regression SHA-256:
+  `c8f54d0248aa6efcfe1dd7fb8e07cd0509219481c6eac59862c271e6f157ba41`
 
 The initial core run is commit `9d47e199c2d121ba34b0d410184df8b01e410cbb`.
 Its 21-case test file was used for the exact-base negative control above. Raw
