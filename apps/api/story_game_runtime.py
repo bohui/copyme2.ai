@@ -101,7 +101,7 @@ async def _game_response(packet, *, token, phase, payload):
     name = 'memoir-story-game-' + phase
     body = dict(model=model, instructions=instructions, input=json.dumps(payload, ensure_ascii=False),
         store=False, max_output_tokens=8192 if phase == 'brief' else 32768, reasoning={'effort': effort},
-        metadata={'generation_name': name, 'trace_name': name},
+        metadata={'generation_name': name, 'trace_name': name,'synthetic':str(packet.get('fictional',False)).lower()},
         text={'format': {'type': 'json_schema', 'name': 'memoir_game_' + phase, 'strict': True,
                          'schema': schema}})
     from .model_request import instruction_manifest, manifest_metadata
@@ -110,7 +110,7 @@ async def _game_response(packet, *, token, phase, payload):
     body['stream'] = True
     body['metadata']['stage'] = phase
     from .novel_game import model_stage
-    result = await model_stage(body,GameFence(game_id=packet['game_id'],token=token,authority=packet['authority']))
+    result = await model_stage(body,GameFence(game_id=packet['game_id'],token=token,authority=packet['authority']),prompt_manifest=manifest)
     text = ''.join(part.get('text', '') for item in result.get('output', []) if item.get('type') == 'message'
                    for part in item.get('content', []) if part.get('type') == 'output_text')
     value = output.model_validate_json(text).model_dump(mode='json')
@@ -159,7 +159,7 @@ async def generate_story_game(broker, game_id, *, provider=None, composer=None, 
         return claim
     token = str(UUID(claim['token']))
     try:
-        async with asyncio.timeout(3480 if claim.get('phase') == 'build' else 280):
+        async with asyncio.timeout(3480 if claim.get('phase') == 'build' else 840):
             packet = await broker.rpc('read_story_game_input', p_game_id=game_id, p_token=token)
             if claim.get('phase') != 'build':
                 pool, receipt = await provider(packet) if provider else await propose_game(packet, token=token)

@@ -156,24 +156,20 @@ async def advance_formal(project_id: str, payload: FormalAdvance,
 
 @router.post('/projects/{project_id}/story-game', status_code=202)
 async def create_game(project_id: str, payload: GameRequest,
+                      background_tasks: BackgroundTasks,
                       authorization: str | None = Header(default=None)):
-    from .story_game_runtime import generate_story_game
-    from .memory_event_worker import MemoirLaneBroker
     storage = await owned_storage(project_id, authorization)
-    broker = None
     try:
         job = await rpc(storage, 'begin_story_game', project_id, p_request_id=str(payload.request_id))
-        broker = MemoirLaneBroker()
-        result = await generate_story_game(broker, job['game_id'])
-        return JSONResponse(result, status_code=202, headers={'Cache-Control': 'no-store'})
+        if job['status'] not in {'published','selection_required'}:
+            background_tasks.add_task(_build_confirmed_game,job['game_id'])
+        return JSONResponse(job, status_code=202, headers={'Cache-Control': 'no-store'})
     except httpx.HTTPStatusError as error:
         raise _rpc_error(error) from None
     except (httpx.RequestError, ValueError, KeyError, TimeoutError):
         raise HTTPException(503, 'Game preparation was not completed. Retry the same request.') from None
     finally:
         await asyncio.to_thread(storage.client.close)
-        if broker is not None:
-            await broker.client.aclose()
 
 
 @router.get('/projects/{project_id}/story-game/{game_id}')

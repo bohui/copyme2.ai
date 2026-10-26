@@ -288,14 +288,15 @@ def test_game_routes_require_auth_and_reject_browser_supplied_authority(monkeypa
 
 
 @pytest.mark.parametrize('status', ['pending', 'published'])
-def test_confirmation_response_is_sent_before_a_long_build(monkeypatch, status):
+@pytest.mark.parametrize('phase',['scenes','build'])
+def test_job_response_is_sent_before_long_scene_planning_or_building(monkeypatch, status, phase):
     from fastapi import FastAPI
     from types import SimpleNamespace
     from apps.api import story_game_routes, story_game_runtime, memory_event_worker
     app = FastAPI()
     app.include_router(story_game_routes.router)
     async def storage(*_): return SimpleNamespace(client=SimpleNamespace(close=lambda: None))
-    async def rpc(*args, **values): return dict(game_id=GAME, status=status, phase='build')
+    async def rpc(*args, **values): return dict(game_id=GAME, status=status, phase=phase)
     async def close(): pass
     monkeypatch.setattr(story_game_routes, 'owned_storage', storage)
     monkeypatch.setattr(story_game_routes, 'rpc', rpc)
@@ -309,7 +310,7 @@ def test_confirmation_response_is_sent_before_a_long_build(monkeypatch, status):
             started.set()
             await release.wait()
         monkeypatch.setattr(story_game_runtime, 'generate_story_game', build)
-        body = json.dumps(dict(expected_pool_digest='a'*64, scene_ids=['scene-1'])).encode()
+        body = json.dumps(dict(expected_pool_digest='a'*64, scene_ids=['scene-1']) if phase=='build' else dict(request_id=GAME)).encode()
         consumed = False
         async def receive():
             nonlocal consumed
@@ -321,7 +322,7 @@ def test_confirmation_response_is_sent_before_a_long_build(monkeypatch, status):
             if value['type']=='http.response.body' and not value.get('more_body'):
                 delivered.set()
         scope = dict(type='http', asgi={'version':'3.0'}, http_version='1.1', method='POST',
-            scheme='http', root_path='', path='/projects/project/story-game/'+GAME+'/selection',
+            scheme='http', root_path='', path='/projects/project/story-game'+('/'+GAME+'/selection' if phase=='build' else ''),
             query_string=b'', headers=[(b'content-type',b'application/json')])
         task = asyncio.create_task(app(scope, receive, send))
         try:

@@ -100,10 +100,35 @@ def test_no_selection_never_dispatches_novel_game(approved):
         asyncio.run(novel_game.run_novel_game(dict(game_id=GAME,token=TOKEN,authority=approved['authority']),packet_loader=load))
 
 
+def test_completed_stream_returns_without_waiting_for_provider_disconnect(approved,monkeypatch):
+    @asynccontextmanager
+    async def guard(self,fence): yield
+    monkeypatch.setattr(GamePublication,'guard',guard)
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL','controlled')
+    monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL','https://gateway.test/v1')
+    monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY','controlled-terminal-secret')
+    result=dict(status='completed',id='resp-terminal',model='gpt-6.1-sol',reasoning={'effort':'max'},output=[])
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield ('data: '+json.dumps(dict(type='response.completed',response=result))+'\n\n').encode()
+            raise AssertionError('Read continued after terminal response')
+    async def transport(request): return httpx.Response(200,stream=Stream())
+    observed=[]
+    actual=asyncio.run(novel_game.model_stage(dict(model='gpt-6.1-sol',metadata={'stage':'concept'}),
+        novel_game.GameFence(game_id=GAME,token=TOKEN,authority=approved['authority']),
+        transport=httpx.MockTransport(transport),observer=lambda kind,value:observed.append(kind)))
+    assert actual==result and observed[0]=='request' and observed[-1]=='response'
+
+
 @pytest.mark.parametrize('css', ['body{background:url(https://outside.test)}','/* </style><script>bad</script> */',
     '@import "outside";','#interact{display:none}','p{content:"invented quote"}','body{background:u/**/rl(outside)}'])
 def test_model_css_cannot_replace_behavior_or_load_assets(css):
     with pytest.raises(ValueError): validate_style(css)
+
+
+def test_model_css_accepts_child_selectors_without_allowing_markup():
+    css='.memory-marker > span {color:#263d36}'
+    assert validate_style(css)==css
 
 
 def test_runtime_bundle_contains_no_memoir_and_asset_lookup_is_closed():

@@ -31,12 +31,20 @@
     image.setAttribute('width', art.width); image.setAttribute('height', art.height); definitions.append(image);
   });
   $('scenery').append(defs);
+  const panRanges = [];
+  let panRun = null;
+  // Consecutive views of one illustration share its full pan, including at a memory boundary.
   plan.segments.forEach(segment => {
     const panel = document.createElement('div');
     panel.className = 'scene-panel'; panel.dataset.segment = segment.id;
     const art = plan.illustrations.find(a => a.scenes.includes(segment.scene));
+    const cell = art && (art.cells?.[segment.scene] ?? art.scenes.indexOf(segment.scene));
+    const key = JSON.stringify(art ? [art.url, cell] : ['placeholder', segment.scene]);
+    if (!panRun || panRun.key !== key) panRun = {key, start: segment.start, end: segment.end};
+    else panRun.end = segment.end;
+    panRanges.push(panRun);
     if (art) {
-      const i = art.cells?.[segment.scene] ?? art.scenes.indexOf(segment.scene), w = art.width / art.columns, h = art.height / art.rows;
+      const i = cell, w = art.width / art.columns, h = art.height / art.rows;
       const svg = document.createElementNS(ns, 'svg'), use = document.createElementNS(ns, 'use');
       svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
       svg.setAttribute('preserveAspectRatio', 'xMidYMax slice');
@@ -84,7 +92,7 @@
       }
     }
     panels.forEach((panel, i) => {
-      const s = plan.segments[i];
+      const s = panRanges[i];
       const progress = clamp((x - s.start) / (s.end - s.start), 0, 1);
       const opacity = blend ? i === blend.previous ? 1 : i === blend.next ? blend.mix : 0 : i === segmentIndex ? 1 : 0;
       panel.style.opacity = String(opacity);

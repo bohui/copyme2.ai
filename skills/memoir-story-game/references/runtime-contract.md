@@ -52,7 +52,8 @@ playability, not subjective fun or physical-device coverage.
 
 ## Saving and playback
 
-Pool claims last 300 seconds with a 280-second deadline. Build claims last
+Pool preparation returns immediately and is polled through the durable job.
+Pool claims last 900 seconds with an 840-second deadline. Build claims last
 3600 seconds with a 3480-second deadline; individual model stages are bounded.
 The final save requires the original selection digest and verified model/build
 receipt, and checks every displayed passage against that selection.

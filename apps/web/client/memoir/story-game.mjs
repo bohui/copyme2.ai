@@ -364,7 +364,7 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
     if (!view) return;
     clearRenderer(); view.rendered = true;
     const status = view.status, content = view.content;
-    const building = status?.adaptation?.phase === "build" && status.adaptation.status === "running" && !status.adaptation.retryable;
+    const building = status?.adaptation?.status === "running" && !status.adaptation.retryable;
     const disabled = view.busy || building ? "disabled" : "";
     let markup = `<p role="status">${escapeHtml(t("loading"))}</p>`;
     if (status) {
@@ -373,6 +373,8 @@ export function createStoryGameDialog({ state, storyApi, captureProjectScope, is
       } else if (content?.status === "published") {
         markup = `<a data-game-page-link href="/memoir/game/${encodeURIComponent(view.scope.projectId)}">${escapeHtml(t("openGamePage"))}</a>
           <div data-story-game-player></div><button type="button" class="text-button" data-revoke-game ${disabled}>${escapeHtml(t("revoke"))}</button>`;
+      } else if (building && !view.pool) {
+        markup = `<p role="status">${escapeHtml(t("loading"))}</p>`;
       } else if (view.pool) {
         markup = `${building ? `<p role="status">${escapeHtml(t("loading"))}</p>` : ""}${selectionMarkup(disabled)}`;
       } else {

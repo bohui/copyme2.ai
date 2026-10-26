@@ -698,13 +698,18 @@ for movement, illustrated scene blending, reading and restart. Models supply
 route data, scene-art requests and styling; reusable avatars follow approved
 life-stage and profession metadata. New approved composer/timeline inputs use
 `stages.py analyze --source <input.json> --brief <PRODUCT_BRIEF.md>` before later stages.
-The opt-in live age-eight regression is `tests/test_novel_game_live.py`. It uses
-a disposable local database, controlled upstream composer/auth fixtures, real
-Sol max game calls and the actual scene-selection UI, worker and player. Set
-`MEMOIR_LIVE_NOVEL_GAME=1`, `MEMOIR_LIVE_NOVEL_GAME_ENV` to a host gateway env file
-and `MEMOIR_LIVE_NOVEL_GAME_OUTPUT` to a private artifact directory, then explicitly
-run that test. The ordinary suite skips paid live generation. Existing installed
-databases need the refreshed fresh-install baseline before this builder is used.
+Run the explicit paid age-eight example with
+`python3 scripts/run_novel_game_live_example.py --execute --env-file /host/gateway.env --output /private/fresh-output`.
+Without `--execute` it makes zero calls. It uses a private, resumable local database,
+controlled composer/auth fixtures, real Sol max game calls and the actual
+scene-selection UI, worker and player. Ordinary pytest keeps its external-network
+block and never performs this paid run. To continue an interrupted example, rerun
+the same command with `--resume` and its original output directory; saved scene
+selection, brief and matching validated stages are reused. `--prepare-only` seeds
+or checks the fixture without calling models. Once complete, preview the saved
+application player with `python3 experiments/novel-to-game/serve.py --application --output <same-output>`.
+Existing installed databases need the
+refreshed fresh-install baseline before this builder is used.
 
 
 Run `make migrate` before starting the API and worker. Conversations use the canonical engine only, with fresh bounded model execution and transactional publication fences. Old Codex homes are not imported or resumed.

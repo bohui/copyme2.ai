@@ -17,7 +17,7 @@ def prepared_bundle(packet,scenes):
     raw=dict(version=1,blend=180,segments=[dict(id='garden',scene='garden',title='A remembered garden',start=0,end=2400)],
         stops=[dict(chapter='C'+str(i+1),segment='garden',x=700+i*400) for i in range(len(scenes))])
     return validate_bundle(dict(version=1,source=novel_game.runner.public_source(source),
-        plan=journey.bind_journey(raw,source),css='body{color:#234}',scene_bindings={'garden':'garden'}),scenes)
+        plan=journey.bind_journey(raw,source),css='.memory-marker > span {color:#234}',scene_bindings={'garden':'garden'}),scenes)
 
 
 def build_receipt(packet):
@@ -38,6 +38,9 @@ def test_novel_save_preserves_selection_and_private_delivery(sql,ready):
     assert service(sql,'stage_story_game',f"'{game['game_id']}','{claim['token']}',{literal(bad)},{literal(receipt)}",check=False).returncode
     incomplete=copy.deepcopy(receipt); incomplete['qa']['touch']['status']='FAIL'
     assert service(sql,'stage_story_game',f"'{game['game_id']}','{claim['token']}',{literal(artifact)},{literal(incomplete)}",check=False).returncode
+    for css in ['</style><script>bad</script>','body{background:url(https://outside.test)}']:
+        unsafe=copy.deepcopy(artifact);unsafe['novel_game']['css']=css
+        assert service(sql,'stage_story_game',f"'{game['game_id']}','{claim['token']}',{literal(unsafe)},{literal(receipt)}",check=False).returncode
     result=service(sql,'stage_story_game',f"'{game['game_id']}','{claim['token']}',{literal(artifact)},{literal(receipt)}")
     assert result['status']=='published'
     played=read(sql,project,game)['game']
