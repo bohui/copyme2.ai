@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import sys
 import tempfile
+import time
 
 import httpx
 
@@ -99,7 +100,7 @@ async def browser_verify(workspace, stage, *, phone=False):
     return receipt if stage=='journey' else {k:receipt[k] for k in ('status','checks')}
 
 
-async def model_stage(body, fence, *, transport=None, issue14_admission=None):
+async def model_stage(body, fence, *, transport=None, issue14_admission=None, observer=None,prompt_manifest=None):
     from .issue14_execution_admission import check_issue14_dispatch
     from .lifetime_memory_lane_engine import check_lane_generation
     from .llm_tracing import trace_llm_call, update_llm_trace
@@ -111,11 +112,12 @@ async def model_stage(body, fence, *, transport=None, issue14_admission=None):
     if not key or parsed.scheme not in {'http','https'} or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
         raise ValueError('game_provider_unavailable')
     encoded = canonical(body).encode()
+    if observer: observer('request',body)
     request = GameRequestBody(encoded,publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
         fence=fence.model_dump(mode='json'))
     try:
         with trace_llm_call('story.game.novel.'+body['metadata']['stage'],MODEL,
-                metadata={'prompt_manifest':body['metadata']}) as trace:
+                metadata={'prompt_manifest':prompt_manifest or body['metadata']}) as trace:
             async with httpx.AsyncClient(trust_env=False,follow_redirects=False,timeout=590,
                     **({'transport':transport} if transport is not None else {})) as client:
                 async with client.stream('POST',base+'/responses',content=request,
@@ -123,17 +125,27 @@ async def model_stage(body, fence, *, transport=None, issue14_admission=None):
                     response.raise_for_status()
                     result = None
                     received = 0
+                    started,last_update=time.monotonic(),0
                     async for line in response.aiter_lines():
                         received += len(line)
                         if received>2_000_000 or key in line:
                             raise ValueError('game_response_limit_or_secret')
                         if line.startswith('data:') and line[5:].strip()!='[DONE]':
                             event=json.loads(line[5:])
-                            if event.get('type')=='response.completed': result=event['response']
+                            if observer and time.monotonic()-last_update>2:
+                                observer('progress',dict(stage=body['metadata']['stage'],event=event.get('type'),seconds=round(time.monotonic()-started,1)))
+                                last_update=time.monotonic()
+                            if event.get('type')=='response.completed':
+                                result=event['response']
+                                if observer: observer('response',result)
+                                break
                             elif event.get('type') in ('error','response.failed','response.incomplete'):
+                                if observer: observer('response',event.get('response',event))
                                 raise ValueError('incomplete_game_response')
-                    if not result or result.get('status')!='completed' or not result.get('id') or result.get('model')!=MODEL or result.get('reasoning',{}).get('effort')!='max':
+                    if not result or result.get('status')!='completed' or not result.get('id'):
                         raise ValueError('incomplete_game_response')
+                    if result.get('model')!=MODEL or (result.get('reasoning') or {}).get('effort')!='max':
+                        raise ValueError('game_model_or_effort_mismatch')
                     update_llm_trace(trace,metadata={'response_id':result['id'],'usage':result.get('usage')})
                     return result
     finally:
@@ -177,7 +189,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
             body = dict(model=MODEL,reasoning={'effort':'max'},instructions=instructions,input=canonical(payload),store=False,
                 stream=True,max_output_tokens=config['budget'],metadata={**manifest_metadata(manifest),
                     'generation_name':'memoir-story-game-novel-'+stage,'trace_name':'memoir-story-game-build',
-                    'stage':stage,'upstream_revision':dependency['revision']},
+                    'stage':stage,'upstream_revision':dependency['revision'],'synthetic':str(source['fictional']).lower()},
                 text={'format':{'type':'json_schema','name':'memoir_novel_stage','strict':True,'schema':schema}})
             signature = fingerprint(body)
             cached = await store(fence,stage,signature)
@@ -185,7 +197,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
                 value,receipt = cached['value'],cached['receipt']
             else:
                 assets.write_json(workspace,'stages/'+stage+'/request.json',body)
-                result = await model_stage(body,fence,transport=transport,issue14_admission=issue14_admission)
+                result = await model_stage(body,fence,transport=transport,issue14_admission=issue14_admission,prompt_manifest=manifest)
                 assets.write_json(workspace,'stages/'+stage+'/response.json',result)
                 text=''.join(p.get('text','') for item in result.get('output',[]) if item.get('type')=='message' for p in item.get('content',[]) if p.get('type')=='output_text')
                 value=json.loads(text)

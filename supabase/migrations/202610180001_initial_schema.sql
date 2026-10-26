@@ -14768,7 +14768,7 @@ begin
    return public.story_game_status_record(game)||jsonb_build_object('status','busy');end if;
  if game.attempts>=3 then raise exception 'GAME_ATTEMPT_LIMIT' using errcode='55000';end if;
  update public.user_story_game set state='running',token=gen_random_uuid(),lease_until=clock_timestamp()+
-   case when phase='build' then interval '3600 seconds' else interval '300 seconds' end,
+   case when phase='build' then interval '3600 seconds' else interval '900 seconds' end,
    attempts=attempts+1,updated_at=clock_timestamp() where id=p_game_id returning * into game;
  return public.story_game_status_record(game)||jsonb_build_object('token',game.token,'authority',game.authority);
 end $$;
