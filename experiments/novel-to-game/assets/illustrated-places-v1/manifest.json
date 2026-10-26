@@ -1,0 +1,18 @@
+{
+  "id": "illustrated-places-v1",
+  "file": "places.png",
+  "sha256": "b9bb598439eb60b1915e2ad557b24c844c8c76aa78754ab0339ee33141950968",
+  "width": 1448,
+  "height": 1086,
+  "columns": 2,
+  "rows": 3,
+  "cells": [
+    "home",
+    "school",
+    "workshop",
+    "town",
+    "interior",
+    "garden"
+  ],
+  "provenance": "Original generic fictional gouache environments generated for the approved age-eight example on 2026-10-26. Shared location illustrations, not documentary depictions."
+}

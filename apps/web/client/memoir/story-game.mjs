@@ -120,6 +120,7 @@ export function mountStoryGame(root, game, t, useMarkup = false) {
 
 
 export function mountStoryGameWebpage(root, game, t, onClose) {
+  if (game.novel_game) return mountNovelGameWebpage(root, game.novel_game, t, onClose);
   if (!game.webpage) return mountStoryGame(root, game, t);
   const frame = document.createElement("iframe");
   frame.className = "story-game-frame";
@@ -150,6 +151,48 @@ export function mountStoryGameWebpage(root, game, t, onClose) {
   }, { signal: listeners.signal });
   root.replaceChildren(frame);
   return () => { listeners.abort(); root.replaceChildren(); };
+}
+
+
+let novelRuntime;
+export function mountNovelGameWebpage(root, game, t, onClose) {
+  const frame = document.createElement("iframe"), listeners = new AbortController();
+  let closed = false;
+  frame.className = "story-game-frame"; frame.title = t("title");
+  frame.setAttribute("sandbox", "allow-scripts"); frame.referrerPolicy = "no-referrer";
+  root.textContent = t("title");
+  if (!novelRuntime) novelRuntime = fetch("/api/v1/memoir/agent/story-game-runtime")
+    .then(response => { if (!response.ok) throw new Error("Game runtime unavailable"); return response.json(); })
+    .catch(error => { novelRuntime = null; throw error; });
+  novelRuntime.then(runtime => {
+    if (closed) return;
+    const media = Object.fromEntries(Object.entries(runtime.media).map(([name, path]) => [name, new URL(path, location.origin).href]));
+    const plan = structuredClone(game.plan), library = runtime.places;
+    plan.stock_url = "";
+    plan.audio = { theme: media["blue-gate-theme.mp3"], cue: media["memory-cue.mp3"] };
+    plan.illustrations = [{ url: media.places, columns: library.columns, rows: library.rows,
+      width: library.width, height: library.height, scenes: Object.keys(game.scene_bindings),
+      cells: Object.fromEntries(Object.entries(game.scene_bindings).map(([id, cell]) => [id, library.cells.indexOf(cell)])) }];
+    const encode = value => JSON.stringify(value).replaceAll("<", "\\u003c").replaceAll(">", "\\u003e").replaceAll("&", "\\u0026");
+    const html = runtime.template.replace("<!-- MEMOIR_SOURCE -->", `<script id="memoir-source" type="application/json">${encode(game.source)}</script>`)
+      .replace("<!-- MEMOIR_JOURNEY -->", `<script id="memoir-journey" type="application/json">${encode(plan)}</script>`);
+    const doc = new DOMParser().parseFromString(html, "text/html"), nonce = crypto.randomUUID().replaceAll("-", "");
+    const policy = doc.createElement("meta"); policy.httpEquiv = "Content-Security-Policy";
+    const assetOrigin = location.origin + "/api/v1/memoir/agent/story-game-assets/";
+    policy.content = `default-src 'none'; script-src 'nonce-${nonce}'; style-src 'unsafe-inline'; img-src ${assetOrigin}; media-src ${assetOrigin}; base-uri 'none'; form-action 'none'; frame-src 'none'; connect-src 'none'; object-src 'none'`;
+    doc.head.prepend(policy);
+    const style = doc.createElement("style");
+    style.textContent = runtime.css.replace(/url\(([^)]+)\)/g, (_, name) => `url("${media[name.replaceAll(/["' ]/g, "")]}")`) + "\n" + game.css;
+    doc.head.append(style);
+    const script = doc.createElement("script"); script.setAttribute("nonce", nonce);
+    script.textContent = runtime.javascript + '\n document.addEventListener("keydown", event => { if(event.key === "Escape" && !document.querySelector("dialog[open]")) parent.postMessage({type:"memoir-game-close"},"*"); }, {capture:true});';
+    doc.body.append(script); frame.srcdoc = "<!doctype html>" + doc.documentElement.outerHTML;
+    root.replaceChildren(frame);
+  }).catch(() => { if (!closed) root.textContent = t("unavailable"); });
+  window.addEventListener("message", event => {
+    if (event.source === frame.contentWindow && event.data?.type === "memoir-game-close") onClose?.();
+  }, { signal: listeners.signal });
+  return () => { closed = true; listeners.abort(); root.replaceChildren(); };
 }
 
 

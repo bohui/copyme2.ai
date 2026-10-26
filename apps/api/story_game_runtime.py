@@ -8,7 +8,7 @@ from uuid import UUID
 from pathlib import Path
 
 import httpx
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from .memoir_story_game import load_story_game_skill
 from .lifetime_memory_lane_engine import LaneRequestBody, _settle
@@ -20,7 +20,14 @@ from .story_game_selection import (GameProposal, SceneProposal, ScenePool, GameB
 
 class GameWebpage(BaseModel):
     model_config = {'extra': 'forbid'}
-    html: str = Field(min_length=100, max_length=150000)
+    html: str | None = Field(default=None, min_length=100, max_length=150000)
+    novel_game: dict | None = None
+
+    @model_validator(mode='after')
+    def one_renderer(self):
+        if (self.html is None) == (self.novel_game is None):
+            raise ValueError('game_renderer_required')
+        return self
 
 
 def game_ui(locale):
@@ -81,8 +88,7 @@ class GameRequestBody(LaneRequestBody):
 
 async def _game_response(packet, *, token, phase, payload):
     base = os.getenv('MEMORY_SPARK_LLM_BASE_URL', '').rstrip('/')
-    model = (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL', ''))
-    effort = os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low').strip() or 'low'
+    model, effort = 'gpt-6.1-sol', 'max'
     key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
     parsed = urlsplit(base)
     if (not key or not model or parsed.scheme not in {'http', 'https'} or not parsed.hostname
@@ -101,35 +107,14 @@ async def _game_response(packet, *, token, phase, payload):
     from .model_request import instruction_manifest, manifest_metadata
     manifest = instruction_manifest(instructions, schema, variant='story-game-' + phase)
     body['metadata'].update(manifest_metadata(manifest))
-    content = json.dumps(body, ensure_ascii=False).encode('utf-8')
-    request = GameRequestBody(content,
-        publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
-        fence=dict(game_id=packet['game_id'], token=token, authority=packet['authority']))
-    try:
-        from .llm_tracing import trace_llm_call
-        with trace_llm_call('story.game.' + phase, model, metadata={'prompt_manifest': manifest}):
-            async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=120) as client:
-                async with client.stream('POST', base + '/responses', content=request,
-                                         headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
-                                                  'Content-Length': str(len(content))}) as response:
-                    response.raise_for_status()
-                    raw = bytearray()
-                    async for chunk in response.aiter_bytes():
-                        raw.extend(chunk)
-                        if len(raw) > 512000:
-                            raise ValueError('game_response_limit')
-
-    finally:
-        await request.aclose()
-    if key.encode() in raw:
-        raise ValueError('unsafe_game_response')
-    result = json.loads(raw)
-    if result.get('status') != 'completed' or not result.get('id') or not result.get('model'):
-        raise ValueError('incomplete_game_response')
+    body['stream'] = True
+    body['metadata']['stage'] = phase
+    from .novel_game import model_stage
+    result = await model_stage(body,GameFence(game_id=packet['game_id'],token=token,authority=packet['authority']))
     text = ''.join(part.get('text', '') for item in result.get('output', []) if item.get('type') == 'message'
                    for part in item.get('content', []) if part.get('type') == 'output_text')
     value = output.model_validate_json(text).model_dump(mode='json')
-    return value, dict(status='completed', response_id=result['id'], model=result['model'],
+    return value, dict(status='completed', response_id=result['id'], model=result['model'],requested_model=model,usage=result.get('usage'),
         requested_reasoning_effort=effort, provider_reasoning_effort=(result.get('reasoning') or {}).get('effort'),
         prompt_manifest=manifest)
 
@@ -156,7 +141,7 @@ async def build_game(packet, proposal, *, token):
     request = GameRequestBody(content, publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
         fence=dict(game_id=packet['game_id'], token=token, authority=packet['authority']))
     try:
-        async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=790) as client:
+        async with httpx.AsyncClient(trust_env=False, follow_redirects=False, timeout=3400) as client:
             response = await client.post(base + '/internal/story-game/build', content=request,
                 headers={'X-Codex-Worker-Secret': secret, 'Content-Type': 'application/json',
                     'Content-Length': str(len(content))})
@@ -174,7 +159,7 @@ async def generate_story_game(broker, game_id, *, provider=None, composer=None, 
         return claim
     token = str(UUID(claim['token']))
     try:
-        async with asyncio.timeout(840 if claim.get('phase') == 'build' else 150):
+        async with asyncio.timeout(3480 if claim.get('phase') == 'build' else 280):
             packet = await broker.rpc('read_story_game_input', p_game_id=game_id, p_token=token)
             if claim.get('phase') != 'build':
                 pool, receipt = await provider(packet) if provider else await propose_game(packet, token=token)
@@ -191,8 +176,12 @@ async def generate_story_game(broker, game_id, *, provider=None, composer=None, 
                 packet['brief'] = brief
             webpage, build_receipt = (await builder(proposal) if builder else
                 await build_game(packet, proposal, token=token))
-            webpage = GameWebpage.model_validate(webpage).model_dump(mode='json')
-            validate_webpage(webpage['html'], game_ui(packet['authority']['locale']))
+            webpage = GameWebpage.model_validate(webpage).model_dump(mode='json',exclude_none=True)
+            if 'novel_game' in webpage:
+                from .novel_game_bundle import validate_bundle
+                validate_bundle(webpage['novel_game'],proposal['scenes'])
+            else:
+                validate_webpage(webpage['html'], game_ui(packet['authority']['locale']))
             return await broker.rpc('stage_story_game', p_game_id=game_id, p_token=token,
                 p_proposal={**proposal, **webpage}, p_model_receipt={**build_receipt,
                     'selection_digest': packet['selection_digest']})

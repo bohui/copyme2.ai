@@ -1,10 +1,12 @@
-Compose the final creative brief for `higgsfield-websites --type game` from the
+Compose the final creative brief for the NovelToGame memoir RPG from the
 owner's confirmed scenes. Return only `design_brief` and `scene_indices` in the
-schema. Use the supplied locale. This is a planning call on the composer model;
-the delegated Higgsfield build will use Astra.
+schema. Use the supplied locale. This planning call and the default NovelToGame
+stages use GPT-6.1 Sol max; the optional Higgsfield backup uses Astra.
 
 Describe a coherent visual direction, distinct scene settings, movement,
-interactions, transitions and pacing for a reflective memoir journey. Design
+interactions, transitions and pacing for one chronological RPG path. The author
+can walk in either direction and reread memories without duplicate progress.
+Preserve smooth illustrated scene transitions and reuse stock avatars/audio. Design
 within the supplied Memoir offline player: keyboard and touch movement,
 interactions that reveal exact memoir passages, and a complete text version.
 Treat each scene as a playable place or moment. Keep scenery generic where the

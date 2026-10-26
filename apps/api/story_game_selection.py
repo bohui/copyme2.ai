@@ -76,6 +76,10 @@ def validate_pool(packet, value):
         option.update(scene)
     if not all(recommendations.values()):
         raise ValueError('game_stage_recommendation_required')
+    event_order={e['id']:i for i,e in enumerate(packet['timeline'])}
+    chapters={c['chapter_id']:c for c in packet['chapters']}
+    pool['scenes'].sort(key=lambda s:(min(event_order[e] for e in s['event_ids']),s['block_index'],
+        chapters[s['chapter_id']]['blocks'][s['block_index']]['text'].index(s['quote'])))
     return pool
 
 

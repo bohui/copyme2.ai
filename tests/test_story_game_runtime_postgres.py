@@ -396,8 +396,10 @@ def test_provider_body_holds_authority_only_until_transmission_finishes(sql, rea
                 packet = json.loads(json.loads(body)['input'])
                 assert 'token' not in packet
                 output = pool_from_packet(packet)
-                return httpx.Response(200, json=dict(id='resp-controlled', model='controlled', status='completed',
-                    output=[dict(type='message', content=[dict(type='output_text', text=json.dumps(output))])]))
+                result=dict(id='resp-controlled',model='gpt-6.1-sol',status='completed',reasoning={'effort':'max'},
+                    output=[dict(type='message',content=[dict(type='output_text',text=json.dumps(output))])])
+                return httpx.Response(200,text='data: '+json.dumps(dict(type='response.completed',response=result))+'\n\n',
+                    headers={'Content-Type':'text/event-stream'})
 
         client_type = httpx.AsyncClient
         monkeypatch.setattr(httpx, 'AsyncClient', lambda **kwargs: client_type(transport=Transport(), **kwargs))

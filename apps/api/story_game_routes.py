@@ -16,6 +16,23 @@ from .formal_memoir_routes import _rpc_error
 router = APIRouter(tags=['Private story game'])
 
 
+@router.get('/story-game-runtime')
+def story_game_runtime_bundle():
+    from .novel_game_bundle import runtime_bundle
+    return JSONResponse(runtime_bundle(),headers={'Cache-Control':'public, max-age=3600'})
+
+
+@router.get('/story-game-assets/{digest}/{name}')
+def story_game_runtime_asset(digest: str,name: str):
+    from .novel_game_bundle import runtime_asset
+    from starlette.responses import FileResponse
+    try:
+        path=runtime_asset(digest,name)
+    except ValueError:
+        raise HTTPException(404,'Game asset unavailable') from None
+    return FileResponse(path,headers={'Cache-Control':'public, max-age=31536000, immutable'})
+
+
 class GameRequest(BaseModel):
     model_config = {'extra': 'forbid'}
     request_id: UUID

@@ -3,7 +3,8 @@ FROM node:26-bookworm-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PYTHONPATH=/app \
-    CODEX_HOME=/var/lib/memory-spark/codex-users
+    CODEX_HOME=/var/lib/memory-spark/codex-users \
+    PLAYWRIGHT_BROWSERS_PATH=/opt/playwright-browsers
 
 WORKDIR /app
 
@@ -19,9 +20,10 @@ ENV PATH=/opt/memory-spark-venv/bin:$PATH
 
 COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/pip \
-    python -c 'import tomllib; m=tomllib.load(open("pyproject.toml", "rb")); p=m["project"]; print("\n".join(m["build-system"]["requires"] + p["dependencies"] + p["optional-dependencies"]["lifetime-memory"]))' > /tmp/memory-spark-requirements.txt \
+    python -c 'import tomllib; m=tomllib.load(open("pyproject.toml", "rb")); p=m["project"]; print("\n".join(m["build-system"]["requires"] + p["dependencies"] + p["optional-dependencies"]["lifetime-memory"] + [v for v in p["optional-dependencies"]["test"] if v.startswith("playwright")]))' > /tmp/memory-spark-requirements.txt \
     && pip install -r /tmp/memory-spark-requirements.txt \
-    && rm /tmp/memory-spark-requirements.txt
+    && rm /tmp/memory-spark-requirements.txt \
+    && python -m playwright install --with-deps chromium
 
 ARG CODEX_VERSION=0.156.1
 RUN --mount=type=cache,target=/root/.npm \
@@ -45,3 +47,5 @@ RUN pip install --no-cache-dir --no-deps --no-build-isolation '.[lifetime-memory
 
 COPY README.md ./
 COPY skills ./skills
+COPY experiments/novel-to-game ./experiments/novel-to-game
+COPY deps ./deps

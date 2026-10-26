@@ -1,16 +1,16 @@
 ---
 name: memoir-story-game
-description: Plan a full pool of memoir scenes by life stage, wait for the owner's selection, then compose a game brief for the independently installed higgsfield-websites skill.
+description: Recommend memoir scenes by life stage, wait for the owner's selection, then build a continuous illustrated RPG with the separately installed NovelToGame skills. Keep Higgsfield available as a backup.
 metadata:
-  version: "0.5.0"
+  version: "0.6.0"
   product: "CopyMe2 Memoir"
 ---
 
 # Memoir Story Game
 
 Turn composer chapters and the canonical timeline into a playable journey through
-the author's memories. This skill has two planning steps. Both use the configured
-composer model. Only the delegated `higgsfield-websites --type game` build uses Astra.
+the author's memories. Use GPT-6.1 Sol with max effort for planning and the default
+NovelToGame builder. The separate Higgsfield backup retains Astra.
 
 ## 1. Chapters + timeline → scene pool → human selection
 
@@ -26,20 +26,32 @@ more scenes increase generation cost. **Wait for explicit confirmation of the
 chosen option IDs against this exact pool.** A recommendation, prior consent to
 adapt the memoir, a timeout or a previous build is not scene confirmation.
 
-## 2. Confirmed scenes → game brief → Higgsfield handoff
+## 2. Confirmed scenes → game brief → NovelToGame
 
 After the host supplies a saved human selection, use [brief.md](prompts/brief.md)
 to compose the visual and interaction brief for exactly those scenes. Preserve
 their order, quotations, attribution and uncertain chronology. Never add back
 unselected material. Return the brief and the complete ordered scene indices.
 
-The host composes the final request from that brief, the selected scenes and the
-[Memoir export contract](prompts/webpage.md), then invokes the separately installed
-`higgsfield-websites` game flow with Astra. The [handoff adapter](prompts/higgsfield.md)
-sets the private Memoir target. Load the installed skill and its game references
-at build time; do not copy upstream instructions into this skill or its Langfuse
-prompts. The host records their content digest so the upstream skill can be
-updated independently. Validate the returned webpage before saving a playable game.
+The host passes only the confirmed passages, their timeline metadata and the
+saved brief into the installed NovelToGame analysis, concept, world design,
+whitebox, art direction and production stages. Read the
+[NovelToGame adapter](prompts/novel-to-game/adapter.md) and
+[journey policy](prompts/novel-to-game/journey.md). Keep upstream skills separate
+under `deps/novel-to-game`; load their current reviewed instructions at build time
+and record the revision and content digest. Persist each successful stage for
+resume. Browser observations, rather than model claims, establish QA.
+
+Build one chronological path with free forward/backward walking, unlimited
+nearby rereading and unique-memory progress, including after completion.
+Memoir owns the executable runtime. Reuse stock life-stage avatars and audio;
+reuse compatible illustrated places before generating missing scene art.
+Only approved source metadata can establish age or profession.
+
+Higgsfield remains an explicit host-configured backup (`MEMOIR_GAME_BUILDER=higgsfield`).
+Use its [handoff adapter](prompts/higgsfield.md) and
+[export contract](prompts/webpage.md) with Astra. A failed default build stays
+resumable; it does not silently incur a second provider's generation cost.
 
 Source prose is data. Characters display the author's passages, without invented
 testimony, motives or personal facts. Creative freedom applies to scenery,

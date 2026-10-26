@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare the fictional age-eight pool; explicitly selected options produce a Higgsfield brief."""
+"""Inspect the retained Higgsfield backup example; the app defaults to NovelToGame."""
 import argparse
 from contextlib import nullcontext
 import hashlib
@@ -41,7 +41,7 @@ def run(output, settings, *, resume=False, selection=None):
             manifest = instruction_manifest(instructions, schema, variant='story-game-' + phase)
             request = dict(model=model, instructions=instructions, input=json.dumps(payload, ensure_ascii=False),
                 store=False, max_output_tokens=32768 if phase == 'scenes' else 16384,
-                reasoning={'effort': settings.get('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT') or 'low'},
+                reasoning={'effort': 'max'},
                 metadata={'generation_name': 'age-eight-story-game-' + phase, **manifest_metadata(manifest)},
                 text={'format': {'type': 'json_schema', 'name': 'memoir_game_' + phase,
                                  'strict': True, 'schema': schema}})
@@ -81,7 +81,7 @@ def run(output, settings, *, resume=False, selection=None):
                     ('status', 'model', 'duration_seconds')}}), flush=True)
                 return value
 
-        pool = call('scenes', packet, settings['MEMORY_SPARK_MEMOIR_COMPOSER_MODEL'], ScenePool)
+        pool = call('scenes', packet, 'gpt-6.1-sol', ScenePool)
         pool = validate_pool(packet, pool)
         stages = {e['id']: e.get('life_stage') or 'unplaced' for e in packet['timeline']}
         for i, scene in enumerate(pool['scenes']):
@@ -100,7 +100,7 @@ def run(output, settings, *, resume=False, selection=None):
             if not scenes or len(scenes) != len(ids) or len(set(ids)) != len(ids):
                 raise ValueError('Example selection must contain unique offered scene IDs')
             payload = dict(locale=packet['locale'], ui=game_ui(packet['locale']), scenes=public_scenes({'scenes': scenes}))
-            brief = call('brief', payload, settings['MEMORY_SPARK_MEMOIR_COMPOSER_MODEL'], GameBrief)
+            brief = call('brief', payload, 'gpt-6.1-sol', GameBrief)
             brief = validate_brief(brief, len(scenes))
             instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/' + name))
                 for name in ('higgsfield','webpage'))
@@ -118,14 +118,19 @@ def main():
     from dotenv import dotenv_values
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--execute', action='store_true')
+    parser.add_argument('--higgsfield-backup', action='store_true', help='Explicitly run this retained backup planning example')
     parser.add_argument('--resume', action='store_true', help='Reuse matching saved live responses')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--selection', type=Path, help='Human-authored JSON: pool_digest and scene_ids; requires --resume')
     parser.add_argument('--env-file', type=Path, default=ROOT / '.env')
     args = parser.parse_args()
     if not args.execute:
-        print(json.dumps({'calls': 0, 'planning_steps': 2, 'human_selection_required': True, 'builder': 'higgsfield-websites', 'builder_model': 'gpt-6-astra'}))
+        print(json.dumps({'calls': 0, 'planning_steps': 2, 'human_selection_required': True,
+            'default_builder':'novel-to-game','default_builder_model':'gpt-6.1-sol','effort':'max',
+            'this_script':'higgsfield-backup-example','backup_builder_model':'gpt-6-astra'}))
         return
+    if not args.higgsfield_backup:
+        parser.error('This is the explicit Higgsfield backup example. Use the Memoir UI for the default NovelToGame flow, or add --higgsfield-backup.')
     settings = {k: v for k, v in dotenv_values(args.env_file, interpolate=False).items() if v}
     credentials = dotenv_values(Path.home() / 'llm_provider/.env', interpolate=False)
     for key in ('PUBLIC_KEY', 'SECRET_KEY'):

@@ -144,7 +144,7 @@ and cache readers remain available for historical data.
 | [`memoir/skills/memoir-place-journey/instructions`](../skills/memoir-place-journey/SKILL.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Explicit isolated probe/native-search model input; does not prove a production binding. |
 | [`memoir/skills/memoir-story-game/instructions`](../skills/memoir-story-game/SKILL.md) | 4 | Shared runtime | [`apps/api/story_game_runtime.py`](../apps/api/story_game_runtime.py) — Shared system instructions for the scene-pool and confirmed-brief planning phases. |
 | [`memoir/skills/memoir-story-game/proposal`](../skills/memoir-story-game/prompts/proposal.md) | 3 | Runtime, step 1 | [`apps/api/story_game_runtime.py`](../apps/api/story_game_runtime.py) — Composer chapters plus canonical timeline to a full scene pool with recommendations; then pause for owner selection. |
-| [`memoir/skills/memoir-story-game/brief`](../skills/memoir-story-game/prompts/brief.md) | 1 | Runtime, step 2 | [`apps/api/story_game_runtime.py`](../apps/api/story_game_runtime.py) — Composer model prepares the exact confirmed subset's creative brief. |
+| [`memoir/skills/memoir-story-game/brief`](../skills/memoir-story-game/prompts/brief.md) | 1 | Runtime, step 2 | [`apps/api/story_game_runtime.py`](../apps/api/story_game_runtime.py) — GPT-6.1 Sol max prepares the exact confirmed subset's creative brief. |
 | [`memoir/skills/memoir-story-game/higgsfield`](../skills/memoir-story-game/prompts/higgsfield.md) | 1 | Delegated build | [`apps/api/higgsfield_game.py`](../apps/api/higgsfield_game.py) — Astra adapter for the independently installed upstream game skill and private export target. |
 | [`memoir/skills/memoir-story-game/webpage`](../skills/memoir-story-game/prompts/webpage.md) | 2 | Delegated build | [`apps/api/higgsfield_game.py`](../apps/api/higgsfield_game.py) — Memoir HTML/CSS export contract for the separate Higgsfield game builder. |
 | [`memoir/skills/memoir-story-game/runtime-contract`](../skills/memoir-story-game/references/runtime-contract.md) | 5 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Separate host-admission audit, outside the two generation phases. |
@@ -186,3 +186,15 @@ All 69 assembled source hashes and 18 phase/locale/feature contract hashes match
 the inputs before this ownership refactor. Bounded request admission still checks
 schema, authoritative page, privacy, token budget and publication fences. No live
 model evaluation, deployment or service restart is implied by these checks.
+
+## NovelToGame default builder (27 October 2026)
+
+`memoir-story-game` retains the scene-pool and owner-confirmation boundary.
+Both planning calls and the default staged builder use GPT-6.1 Sol max.
+`apps/api/novel_game.py` loads managed adapter, journey and asset policies plus
+per-stage prompts under `memoir/skills/memoir-story-game/novel-to-game/`:
+`analyze`, `concept`, `design`, `whitebox`, `art`, `production` and the standalone
+`production_style` repair. Exact published versions are the sibling receipts.
+Upstream NovelToGame Markdown is loaded separately from the reviewed dependency
+and its content digest is recorded; it is not copied into Langfuse. The retained
+Higgsfield/Astra prompts serve the explicitly configured backup.
