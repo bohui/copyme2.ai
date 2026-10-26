@@ -54,7 +54,7 @@ def verify(stage, phone=False):
             super().__init__(*args, directory=str(app), **kwargs)
 
         def end_headers(self):
-            self.send_header('Content-Security-Policy', "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+            self.send_header('Content-Security-Policy', "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
             super().end_headers()
 
         def log_message(self, *args):
@@ -65,7 +65,7 @@ def verify(stage, phone=False):
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     url = 'http://127.0.0.1:' + str(server.server_port)
-    artifacts = {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in app.iterdir() if p.is_file()}
+    artifacts = {p.relative_to(app).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in app.rglob('*') if p.is_file()}
     environment = {'runtime': 'Chromium', 'host': platform.system(), 'viewport': [390, 844] if phone else [1440, 1000], 'touch': phone, 'artifactFilesSha256': artifacts}
 
     def observe(page, key, inputs, state):
@@ -82,6 +82,7 @@ def verify(stage, phone=False):
             page = context.new_page()
             page.set_default_timeout(6000)
             page.on('pageerror', lambda e: errors.append(str(e)))
+            page.on('response', lambda r: errors.append('HTTP ' + str(r.status) + ': ' + r.url) if r.status >= 400 else None)
 
             def route_request(route):
                 if route.request.url.startswith(url + '/'):
@@ -151,7 +152,7 @@ def verify(stage, phone=False):
                     observe(page, checkpoint, trace.copy(), state)
             assert actions >= 3
             assert all(v == 'PASS' for v in checks.values())
-            assert artifacts == {p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in app.iterdir() if p.is_file()}, 'Build changed during verification'
+            assert artifacts == {p.relative_to(app).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in app.rglob('*') if p.is_file()}, 'Build changed during verification'
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Horizontal overflow'
             context.close()
             browser.close()
