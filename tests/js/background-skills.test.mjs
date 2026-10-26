@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import {readMemoirClientSource} from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -55,3 +56,23 @@ test('the server work identity replaces a temporary browser trace and readback u
   assert.equal(h.state.chat[0].trace.length,1);
   assert.equal(h.state.chat[0].trace[0].id,'server-job');
 });
+
+for (const locale of ['en-AU','zh-CN']) {
+  test(`guidance model progress appears on its original turn with a localized operation (${locale})`,()=>{
+    const messages=JSON.parse(readFileSync(new URL(`../../apps/web/messages/${locale}.json`,import.meta.url),'utf8'));
+    const h=harness();
+    h.context.translate=key=>key.split('.').reduce((value,part)=>value?.[part],messages) ?? key;
+    const item={id:'guidance-model',skill:'memoir-interview-guidance',phase:'guidance',lane:'B',execution:'model',
+      client_turn_id:'first',status:'running',model_invoked:true};
+    h.context.applyBackgroundSkillProgress({project_id:'p',items:[item]});
+    h.context.applyBackgroundSkillProgress({project_id:'p',items:[{...item,status:'saved'}]});
+    assert.equal(h.state.chat[0].trace.length,1);
+    const step=h.state.chat[0].trace[0];
+    assert.equal(step.label,'memoir-interview-guidance');
+    assert.equal(step.lane,'B');
+    assert.equal(step.status,'saved');
+    assert.equal(typeof messages.Memoir.trace.operation.guidance,'string');
+    assert.equal(step.detail,messages.Memoir.trace.operation.guidance);
+    assert.equal(h.state.chat[1].trace,undefined);
+  });
+}

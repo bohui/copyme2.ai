@@ -224,6 +224,7 @@
         "cache": "已保存的结果"
       },
       "operation": {
+        "guidance": "准备下一轮访谈方向",
         "extract": "提取带来源的回忆",
         "profile": "检查自动资料目标",
         "summarize": "更新回忆背景",

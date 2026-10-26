@@ -224,6 +224,7 @@
         "cache": "Saved result"
       },
       "operation": {
+        "guidance": "Preparing the next interview direction",
         "extract": "Extracting source-linked memories",
         "profile": "Checking automatic profile targets",
         "summarize": "Updating memory context",
