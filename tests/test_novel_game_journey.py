@@ -1,4 +1,5 @@
 """Generation uses a validated, host-owned continuous walk rather than a free-form hub."""
+import copy
 import importlib.util
 import json
 from pathlib import Path
@@ -76,6 +77,132 @@ def test_life_stage_and_approved_profession_select_stock_variants():
     assert module.bind_journey(value, source)['segments'][4]['avatar'] == 'adult-casual'
     with pytest.raises(ValueError, match='approved profession'):
         module.bind_journey(value, source, {'C5': dict(outfit='workwear')})
+
+
+def shared_scene():
+    source = packet()
+    source['chapters'] = source['chapters'][:2]
+    source['timeline'] = source['timeline'][:2]
+    value = dict(version=1, blend=180,
+        segments=[dict(id='home', scene='home', title='A remembered place', start=0, end=1000)],
+        stops=[dict(chapter='C1', segment='home', x=160), dict(chapter='C2', segment='home', x=640)])
+    return value, source
+
+
+def separate_memories(value):
+    value = copy.deepcopy(value)
+    value['segments'].append(dict(id='later', scene='home', title='The same place later', start=1000, end=2000))
+    value['stops'][1].update(segment='later', x=1160)
+    return value
+
+
+@pytest.mark.parametrize('ages,stage,avatar', [
+    ((8, 8), 'childhood', 'child-casual'),
+    ((8, 9), 'childhood', 'child-casual'),
+    ((0, 12), 'childhood', 'child-casual'),
+    ((13, 17), 'adolescence', 'teen-casual'),
+    ((18, 34), 'young-adulthood', 'young-adult-casual'),
+    ((35, 64), 'adulthood', 'adult-casual'),
+    ((65, 80), 'older-adulthood', 'senior-casual'),
+])
+def test_shared_scenery_groups_by_life_stage_and_keeps_each_memory_age(ages, stage, avatar):
+    module, (value, source) = journey(), shared_scene()
+    for event, age in zip(source['timeline'], ages):
+        event['age'] = dict(minimum=age, maximum=age)
+    original = copy.deepcopy((value, source))
+    assert module.validate_journey(value, source['chapters'], source['timeline']) == value
+    bound = module.bind_journey(value, source)
+    assert len(bound['segments']) == 1
+    assert bound['segments'][0]['avatar'] == avatar
+    assert bound['segments'][0]['age_label'] == ('Age ' + str(ages[0]) if ages[0] == ages[1] else stage.replace('-', ' ').capitalize())
+    assert [s['age_label'] for s in bound['stops']] == ['Age ' + str(age) for age in ages]
+    assert (value, source) == original
+
+
+@pytest.mark.parametrize('ages', [(12, 13), (17, 18), (34, 35), (64, 65)])
+def test_real_life_stage_boundaries_still_require_separate_scenery(ages):
+    module, (value, source) = journey(), shared_scene()
+    for event, age in zip(source['timeline'], ages):
+        event['age'] = dict(minimum=age, maximum=age)
+    with pytest.raises(ValueError, match='Split scenery'):
+        module.bind_journey(value, source)
+    bound = module.bind_journey(separate_memories(value), source)
+    assert bound['segments'][0]['avatar'] != bound['segments'][1]['avatar']
+
+
+@pytest.mark.parametrize('outfit', ['professional', 'workwear'])
+def test_same_approved_profession_and_outfit_can_span_exact_ages(outfit):
+    module, (value, source) = journey(), shared_scene()
+    for event, age in zip(source['timeline'], (40, 41)):
+        event['age'] = dict(minimum=age, maximum=age)
+    profile = {chapter: dict(outfit=outfit, profession='Teacher') for chapter in ('C1', 'C2')}
+    bound = module.bind_journey(value, source, profile)
+    assert bound['segments'][0]['avatar'] == 'adult-' + outfit
+    assert bound['segments'][0]['profession'] == 'Teacher'
+    assert [s['age_label'] for s in bound['stops']] == ['Age 40', 'Age 41']
+
+
+@pytest.mark.parametrize('age,first,second', [
+    (40, dict(profession='Teacher'), dict(profession='Carpenter')),
+    (40, dict(outfit='professional', profession='Teacher'), dict(outfit='workwear', profession='Teacher')),
+    (26, dict(outfit='professional', profession='Teacher'), dict(outfit='workwear', profession='Teacher')),
+])
+def test_approved_profession_or_outfit_changes_still_require_separate_scenery(age, first, second):
+    module, (value, source) = journey(), shared_scene()
+    for event in source['timeline']:
+        event['age'] = dict(minimum=age, maximum=age)
+    profile = dict(C1=first, C2=second)
+    with pytest.raises(ValueError, match='Split scenery'):
+        module.bind_journey(value, source, profile)
+    bound = module.bind_journey(separate_memories(value), source, profile)
+    assert [s['profession'] for s in bound['segments']] == [first['profession'], second['profession']]
+    if age == 26:  # Both approved outfits fall back to the age-appropriate casual avatar.
+        assert {s['avatar'] for s in bound['segments']} == {'young-adult-casual'}
+
+
+@pytest.mark.parametrize('first,second,labels', [
+    ({}, {}, ['Childhood', 'Childhood']),
+    (dict(age={}), dict(age=dict(minimum=8, maximum=8)), ['Childhood', 'Age 8']),
+    (dict(age=dict(minimum=None, maximum=None)), {}, ['Childhood', 'Childhood']),
+    (dict(age=dict(minimum=8, maximum=9)), dict(age=dict(minimum=9, maximum=9)), ['Childhood', 'Age 9']),
+])
+def test_missing_or_uncertain_ages_use_the_approved_stage_without_inventing_an_age(first, second, labels):
+    module, (value, source) = journey(), shared_scene()
+    for event, metadata in zip(source['timeline'], (first, second)):
+        event.pop('age', None)
+        event.update(life_stage='childhood', **metadata)
+    bound = module.bind_journey(value, source)
+    assert bound['segments'][0]['age_label'] == 'Childhood'
+    assert [s['age_label'] for s in bound['stops']] == labels
+
+
+def test_missing_age_still_requires_an_approved_life_stage():
+    module, (value, source) = journey(), shared_scene()
+    source['timeline'][1].pop('age', None)
+    source['timeline'][1].pop('life_stage', None)
+    with pytest.raises(ValueError, match='approved life stage'):
+        module.bind_journey(value, source)
+
+
+def test_materialised_shared_scenery_preserves_ages_source_and_the_original_plan(tmp_path):
+    module, (value, source) = journey(), shared_scene()
+    for event, age in zip(source['timeline'], (8, 9)):
+        event['age'] = dict(minimum=age, maximum=age)
+    source['chapters'][1]['blocks'][0]['text'] += '\n</script><script>untrusted source text</script>'
+    original = copy.deepcopy(source)
+    public = runner().public_source(source)
+    module.write_json(tmp_path, 'design/JOURNEY_PLAN.json', value)
+    module.materialise(tmp_path, source, public)
+    bound = json.loads((tmp_path / 'build/journey.json').read_text())
+    assert len(bound['segments']) == 1
+    assert [s['age_label'] for s in bound['stops']] == ['Age 8', 'Age 9']
+    html = (tmp_path / 'build/app/index.html').read_text()
+    for name, expected in [('memoir-source', public), ('memoir-journey', bound)]:
+        embedded = html.split('<script id="' + name + '" type="application/json">', 1)[1].split('</script>', 1)[0]
+        assert json.loads(embedded) == expected
+    assert '</script><script>untrusted source text</script>' not in html
+    assert json.loads((tmp_path / 'design/JOURNEY_PLAN.json').read_text()) == value
+    assert source == original
 
 
 def test_materialisation_preserves_source_owns_runtime_and_makes_real_input_replay(tmp_path):

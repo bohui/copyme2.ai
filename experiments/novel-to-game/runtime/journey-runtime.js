@@ -71,7 +71,7 @@
     game.dataset.visited = String(visited.size); game.dataset.phase = modal ? 'reading' : finished ? 'complete' : 'explore';
     game.dataset.next = nextStop()?.chapter || 'none'; game.dataset.near = stop ? stop.chapter : 'none';
     $('scene-name').textContent = segment.title;
-    $('stage-label').textContent = segment.age_label + (segment.profession ? ' · ' + segment.profession : '');
+    $('stage-label').textContent = (stop?.age_label || segment.age_label) + (segment.profession ? ' · ' + segment.profession : '');
     player.dataset.avatar = segment.avatar;
     $('progress').textContent = 'Memories ' + visited.size + '/' + plan.stops.length;
     let blend = null;
