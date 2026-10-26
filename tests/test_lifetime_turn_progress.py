@@ -35,7 +35,8 @@ class Storage:
             return FENCE.model_dump(mode='json')
         if name == 'validate_lifetime_replay_input':
             return False
-        if name in {'read_lifetime_reply', 'read_lifetime_checkpoint', 'claim_lifetime_memory_obligation'}:
+        if name in {'read_lifetime_reply', 'read_lifetime_checkpoint', 'claim_lifetime_memory_obligation',
+                    'read_lifetime_policy_review'}:
             return None
         if name == 'read_lifetime_policy_status':
             return {'pending': False}

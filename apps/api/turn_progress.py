@@ -1,6 +1,8 @@
 """User-visible operation summaries, independent of private model reasoning."""
 import os
 
+from .interview_questions import question_candidates
+
 
 def thinking_steps_enabled():
     return os.getenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '').strip().lower() in {'1', 'true', 'yes', 'on'}
@@ -34,15 +36,38 @@ class TurnProgress:
             await self.emit({'type': 'progress', 'turn_id': self.turn_id,
                              'project_id': self.project_id, 'data': step})
 
-    async def record_question_pool(self, plan):
-        """Expose validated question outputs without the collector's private plan."""
-        candidates = [{key: candidate[key] for key in ('id', 'question', 'bridge')}
-                      for candidate in sorted(plan['candidates'], key=lambda item: item['order'])]
-        count = len(candidates)
+    async def record_question_pool(self, plan, *, context=None):
+        """Report the saved selection without exposing private candidate contents."""
+        count = len(plan['candidates'])
         await self.update('question-pool',
                           f'Generated question pool · {count} candidates' if count else 'No follow-up questions generated',
                           f'已生成问题池 · {count} 个候选问题' if count else '本轮未生成追问',
                           status='completed')
+        chosen_id = plan['chosen_id']
+        if chosen_id is None:
+            return
+        supplied = question_candidates(context or {})
+        selected = next((candidate for candidate in supplied if candidate['id'] == chosen_id), None)
+        # Saved replies retain their validated B identity even without the original context.
+        if selected is not None or chosen_id.startswith('bq-'):
+            english, chinese = 'Selected Lane B guidance', '已选用 B 访谈建议'
+            labels = {
+                'conflict': ('conflict clarification', '核对矛盾信息'),
+                'clarification': ('identity clarification', '澄清人物关系'),
+                'historical_news': ('historical context', '历史背景线索'),
+                'topic_transition': ('connected topic transition', '衔接新话题'),
+                'life_essence': ('life reflection', '人生感悟'),
+                'follow_up': ('follow-up question', '继续追问'),
+            }
+            if selected is not None and selected.get('trigger') in labels:
+                trigger_english, trigger_chinese = labels[selected['trigger']]
+                english += ' · ' + trigger_english
+                chinese += ' · ' + trigger_chinese
+        elif supplied:
+            english, chinese = 'Selected a question for the current narration', '已选择围绕当前讲述的提问'
+        else:
+            return
+        await self.update('question-selection', english, chinese, status='completed')
 
     async def harness_event(self, event):
         if event.get('type') != 'codex_activity':
