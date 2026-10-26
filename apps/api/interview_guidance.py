@@ -62,7 +62,11 @@ def _grounded_ref(ref, sources):
         try:
             spans.add(question_span(source, ref.quote, ref.char_start, ref.char_end))
         except ValueError:
-            continue
+            # Recount a unique exact quote, as the other derived hint validators do.
+            try:
+                spans.add(question_span(source, ref.quote))
+            except ValueError:
+                continue
     if len(spans) != 1:
         raise ValueError('Guidance evidence requires one exact authorized occurrence')
     start, end = spans.pop()
@@ -150,6 +154,8 @@ def guidance_packet(page, *, retry_reason=None):
 def guidance_contract(fence):
     from .prompt_artifact import load_prompt_artifact, prompt_path
     instructions = load_prompt_artifact(prompt_path('memoir/skills/memoir-interview-guidance/instructions'))
+    if fence.two_lane and fence.two_lane.strategy_mode:
+        instructions += '\n' + load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/strategy-proposal'))
     schema = GuidanceResult.model_json_schema()
     def required(value):
         if isinstance(value, dict):
@@ -168,15 +174,8 @@ def guidance_contract(fence):
 
 
 async def _commit_guidance(page, worker, result):
-    import asyncio
-    while True:
-        committed = await worker.broker.rpc('commit_lifetime_interview_guidance', p_lane_id=page['lane_id'],
-            p_token=page['token'], p_page_digest=page['page_digest'], p_result=result)
-        if committed.get('status') != 'waiting_for_reply':
-            return committed
-        # The enclosing lane deadline and heartbeat bound this metadata wait.
-        # Reuse the completed result; no second model request is started.
-        await asyncio.sleep(.5)
+    return await worker.broker.rpc('commit_lifetime_interview_guidance', p_lane_id=page['lane_id'],
+        p_token=page['token'], p_page_digest=page['page_digest'], p_result=result)
 
 
 async def execute_guidance_lane(page, worker):

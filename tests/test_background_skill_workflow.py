@@ -141,7 +141,7 @@ def test_game_uses_delivered_A_not_B_plan_and_stays_unavailable(sql,tmp_path,mon
         conversation.say('In Chengde I repaired a bicycle.')
         assert progress(conversation)['current_mode']['mode']==mode
         conversation.drain()
-        assert [phase for phase,_ in conversation.admissions]==['profile','extract']
+        assert [phase for phase,_ in conversation.admissions]==['profile','extract','guidance']
         # A newer background plan cannot rewrite the delivered reply's mode.
         sql("update public.user_lifetime_interview_strategy set data=jsonb_set(data,'{strategy}','\"shape\"');")
         assert progress(conversation)['current_mode']['mode']==mode
@@ -245,7 +245,7 @@ def test_slow_photo_runner_cannot_hold_A_or_memory_and_cache_is_not_a_new_call(s
                 'granularity':'city','latitude':-42.88,'longitude':147.33}]})
         assert groups.status_code==200,groups.text
         assert groups.json()['skill_progress']['execution']=='deterministic'
-        assert len(conversation.admissions)==3 # two timeline sources + first profile, no enrichment model
+        assert [phase for phase,_ in conversation.admissions]==['profile','extract','extract','guidance'] # coalesced guidance has its own call
 
 
 @pytest.mark.parametrize('service',['photos','grouping'])
@@ -335,7 +335,7 @@ def test_only_existing_profile_and_composer_schedules_advance_on_round_milestone
         assert not any(phase in {'photos','grouping','historical','family','game'} for phase,_ in conversation.admissions)
         page=progress(conversation)['skill_progress']
         mapped=progress(conversation)['skill_execution_map']
-        assert len(mapped)==9
+        assert len(mapped)==10
         assert {item['name'] for item in mapped if item['trigger']=='periodic'}=={'memoir-composer','memoir-memory-context'}
         assert page['truncated'] and page['next_cursor']
         items=[]
@@ -373,7 +373,7 @@ def test_shared_place_pass_is_embedded_not_a_second_model_request(sql,tmp_path,m
         embedded=next(item for item in steps if item['skill']=='memoir-place-journey')
         assert embedded['status']=='saved' and embedded['execution']=='embedded'
         assert not embedded['model_invoked'] and embedded['model_attempts']==0
-        assert [phase for phase,_ in conversation.admissions]==['profile','extract']
+        assert [phase for phase,_ in conversation.admissions]==['profile','extract','guidance']
         assert all(item['skill']!='memoir-family-tree' for item in steps)
 
 
@@ -646,6 +646,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         assert response.status_code==200,response.text
         private_draft=response.json()
         assert private_draft['error']
+        assert not ready['pending'],(conversation.last_db_error,sql('select skill,pending,error from public.user_memoir_lane;').stdout)
         packet={'pending':pending,'ready':ready,'history':history,'photos':photos,'groups':groups,
                 'private_draft':private_draft,
                 'provider_places':provider_places,'landmark':landmark,'containing_places':containing_places,
@@ -666,7 +667,7 @@ def test_shared_place_pass_reports_skipped_when_no_place_was_derived(sql,tmp_pat
         place=next(item for item in steps if item['skill']=='memoir-place-journey')
         assert place['status']=='skipped' and place['execution']=='embedded'
         assert place['reason']=='no_place_cue' and not place['model_invoked']
-        assert [phase for phase,_ in conversation.admissions]==['profile','extract']
+        assert [phase for phase,_ in conversation.admissions]==['profile','extract','guidance']
 
 
 def test_failed_commit_and_fresh_worker_retry_do_not_leave_false_success(sql,tmp_path,monkeypatch):
@@ -715,7 +716,7 @@ def test_saved_writer_receipt_survives_missing_optional_invocation_telemetry(sql
         conversation.say('I remember our shed.')
         conversation.drain()
         steps=progress(conversation)['skill_progress']['items']
-        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context','memoir-place-journey'}
+        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context','memoir-place-journey','memoir-interview-guidance'}
         models=[item for item in steps if item['execution']=='model']
         assert all(item['status']=='saved' and item['reason']=='invocation_receipt_unavailable' for item in models)
         assert all(item['model_invoked'] is None and item['model_attempts'] is None for item in models)

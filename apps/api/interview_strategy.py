@@ -13,7 +13,7 @@ from typing import Literal
 from pydantic import BaseModel,ConfigDict,Field
 from .interview_plan import PhotoAssociation,TurnWorkPlan
 from .two_lane_memory import pending_confirmation
-from .interview_questions import PreparedQuestion, GuidanceKind, question_priority
+from .interview_questions import PreparedQuestion, GuidanceKind, GuidanceDependency, question_priority
 from .interview_questions import QuestionResolution, resolution_schema
 from .interview_questions import hint_evidence, question_evidence_schema, recall_question, recall_hint
 from .memory_events import EvidenceRef
@@ -38,7 +38,7 @@ class StrategyCandidate(PreparedQuestion):
     source_id:str|None=None
     source_version:int|None=Field(default=None,ge=1)
     trigger:GuidanceKind|None=None
-    trigger_source_refs:list[EvidenceRef]=Field(default_factory=list,max_length=4)
+    trigger_source_refs:list[GuidanceDependency]=Field(default_factory=list,max_length=4)
     historical_clue_id:str|None=None
     bridge:str=Field(default='',max_length=500)
 

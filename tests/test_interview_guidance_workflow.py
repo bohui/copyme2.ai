@@ -76,8 +76,9 @@ def install_news(conversation):
     return record
 
 
+@pytest.mark.parametrize('contract',['reply-v2','strategy'])
 @pytest.mark.parametrize('kind',['conflict','clarification','historical_news','topic_transition','life_essence','follow_up'])
-def test_new_skill_generates_next_turn_context_without_writing_facts(sql,tmp_path,monkeypatch,kind):
+def test_new_skill_generates_next_turn_context_without_writing_facts(sql,tmp_path,monkeypatch,kind,contract):
     active = {'kind':kind}
     def prepare(packet):
         if active['kind'] == 'topic_transition' and len(packet['guidance_context']['recent_dialogue'])<3:
@@ -85,11 +86,11 @@ def test_new_skill_generates_next_turn_context_without_writing_facts(sql,tmp_pat
         if active['kind'] == 'historical_news' and not packet['guidance_context']['news_clues']:
             return dict(signals=[],prepared_questions=[],acknowledgement_guidance=None,strategy_proposal=None)
         return guidance(packet,active['kind'])
-    conversation=Conversation(sql,tmp_path,monkeypatch,extraction,guidance=prepare)
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','reply-v2')
+    conversation=Conversation(sql,tmp_path,monkeypatch,extraction,guidance=prepare,
+        strategy='explore' if contract=='strategy' else None)
+    if contract=='reply-v2':monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','reply-v2')
     monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS','1')
     with conversation.client:
-        conversation.client._transport.raise_server_exceptions=True
         first=conversation.say('I was born in Boston, USA, in 1960. '+STORY if kind=='historical_news' else 'My father painted our kitchen. Helping my family mattered to me.' if kind=='life_essence' else STORY)
         assert 'interview_guidance' not in conversation.foreground[0] or conversation.foreground[0]['interview_guidance'] is None
         conversation.drain()
@@ -101,14 +102,7 @@ def test_new_skill_generates_next_turn_context_without_writing_facts(sql,tmp_pat
                 conversation.say(detail)
                 conversation.drain()
         pending=pool(conversation)
-        if kind=='life_essence' and not pending:
-            pytest.fail(conversation.last_db_error + sql("select disposition,reason,char_start,char_end from public.user_memory_attribution_window;").stdout + sql("select data->>'attribution',evidence->>'attribution' from public.user_memory_event e join public.user_memory_event_source r on e.id=r.event_id;").stdout)
-        assert pending and pending[0]['trigger']==kind, (conversation.last_db_error,
-            sql('select skill,pending,attempts,error,guidance_revision from public.user_memoir_lane;').stdout,
-            [(phase,len(packet.get('guidance_context',{}).get('news_clues',[]))) for phase,packet in conversation.admissions],
-            sql('select questions from public.user_lifetime_prepared_question;').stdout,
-            sql('select shadow,data from public.user_lifetime_interview_strategy;').stdout,
-            sql('select enabled,strategy_enabled,strategy_shadow from public.lifetime_two_lane_rollout;').stdout)
+        assert pending and pending[0]['trigger']==kind,conversation.last_db_error
         events_before=sql('select count(*) from public.user_memory_event;').stdout
         original_reply=first['reply']
         response=conversation.say('I would like to keep talking about those memories.')
@@ -307,17 +301,123 @@ def test_conflict_retrieves_an_event_from_ten_rounds_earlier_without_full_histor
         assert '1998年，这次说是2001年' in response['reply']
 
 
-def test_pool_publication_waits_for_the_existing_reply_lease_without_discarding_result(sql,tmp_path,monkeypatch):
-    conversation=Conversation(sql,tmp_path,monkeypatch,extraction)
+def test_pool_publication_preserves_the_existing_turn_read_set(sql,tmp_path,monkeypatch):
+    conversation=Conversation(sql,tmp_path,monkeypatch,extraction,
+        guidance=lambda packet:guidance(packet,'follow_up'))
     with conversation.client:
         conversation.say(STORY)
-        drain_timeline(conversation)
+        conversation.drain()
+        original=pool(conversation)[0]
+        sql("update public.user_memoir_lane set pending=true,guidance_revision=guidance_revision+1 where skill='guidance';")
         page=claimed_guidance(conversation)
-        result=guidance(page,'clarification')
-        sql("update public.user_agent_turn_lease set expires_at=clock_timestamp()+interval '1 minute';")
-        waiting=commit_guidance(sql,page,result)
-        assert 'waiting_for_reply' in waiting.stdout
+        lease=str(uuid4())
+        assert rpc(sql,'acquire_user_agent_turn_lease',f"'{lease}',60")
+        rpc(sql,'accept_two_lane_interview_turn',f"{literal(conversation.project)},'{uuid4()}','I also helped him in the garden.'")
+        captured=pool(conversation)
+        assert captured[0]['id']==original['id']
+        saved=commit_guidance(sql,page,guidance(page,'conflict'))
+        assert 'finished' in saved.stdout
+        assert pool(conversation)==captured, 'B publication cannot change the current A read set'
+        assert sql('select count(*) from public.user_interview_turn where interview_guidance_snapshot is not null;').stdout.strip()=='1'
+        assert rpc(sql,'release_user_agent_turn_lease',f"'{lease}'")
+        assert pool(conversation)[0]['trigger']=='conflict'
+        assert sql('select count(*) from public.user_interview_turn where interview_guidance_snapshot is not null;').stdout.strip()=='0'
+
+
+@pytest.mark.parametrize('contract',['reply-v2','strategy'])
+def test_replacing_the_pool_during_a_stream_does_not_restart_the_current_reply(sql,tmp_path,monkeypatch,contract):
+    import threading
+    import httpx
+    active={'new':False,'hold_commit':False}
+    entered=release=None
+    validating=threading.Event();finish_commit=threading.Event()
+    later='I also helped him in the garden.'
+    def controlled_sql(query,**options):
+        if active['hold_commit'] and any(name in query for name in ('public.commit_lifetime_turn(','public.commit_lifetime_strategy_turn(')):
+            active['hold_commit']=False
+            validating.set()
+            assert finish_commit.wait(10)
+        return sql(query,**options)
+    controlled_sql.publication_dsn=sql.publication_dsn
+    async def prepare(packet):
+        if active['new']:
+            entered.set()
+            await release.wait()
+        return guidance(packet,'conflict' if active['new'] else 'follow_up')
+    async def boundary(request,provider):
+        body=json.loads(request.content)
+        response=await provider(request)
+        if body.get('bounded_lane') or body['interview_context']['source']['text']!=later:
+            return response
+        data=json.loads(response.content.splitlines()[-1])['data']
+        return httpx.Response(200,headers={'content-type':'application/x-ndjson'},content=(
+            json.dumps(dict(type='text_delta',text=data['reply']))+'\n'+json.dumps(dict(type='result',data=data))+'\n'))
+    conversation=Conversation(controlled_sql,tmp_path,monkeypatch,extraction,guidance=prepare,external_boundary=boundary,
+        strategy='explore' if contract=='strategy' else None)
+    if contract=='reply-v2':monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','reply-v2')
+    monkeypatch.setenv('MEMORY_SPARK_PARALLEL_POLICY_REVIEW','1')
+    with conversation.client:
+        conversation.say(STORY)
+        conversation.drain()
+        original=pool(conversation)[0]
+        active.update(new=True,hold_commit=True)
+        sql("update public.user_memoir_lane set pending=true,guidance_revision=guidance_revision+1 where skill='guidance';")
+        async def run():
+            nonlocal entered,release
+            entered,release=asyncio.Event(),asyncio.Event()
+            lane=sql("select id from public.user_memoir_lane where skill='guidance';").stdout.strip()
+            background=asyncio.create_task(conversation.worker.execute_lane(lane))
+            foreground=None
+            try:
+                await asyncio.wait_for(entered.wait(),10)
+                foreground=asyncio.create_task(asyncio.to_thread(conversation.client.post,'/v1/agent/turn',
+                    headers={'accept':'application/x-ndjson'},json=dict(project_id=conversation.project,text=later,client_turn_id=str(uuid4()))))
+                if not await asyncio.to_thread(validating.wait,10):
+                    if foreground.done():
+                        pytest.fail((await foreground).text+conversation.last_db_error)
+                    pytest.fail('Foreground did not reach the saved-reply boundary')
+                release.set()
+                assert (await asyncio.wait_for(background,10))['status']=='finished',conversation.last_db_error
+                assert pool(conversation)[0]['id']==original['id']
+                live=json.loads(sql('select questions from public.user_lifetime_prepared_question;').stdout)
+                assert live[0]['trigger']=='conflict'
+            finally:
+                release.set();finish_commit.set()
+                await background
+            response=await foreground
+            events=[json.loads(line) for line in response.text.splitlines()]
+            assert not any(e['type'] in {'error','collector_restart'} for e in events),response.text
+            assert len({e['data']['revision'] for e in events if e['type']=='reply_revision'})<=1
+            saved=next(e['data'] for e in events if e['type']=='result')
+            assert saved['reply'].endswith(original['question'])
+            assert ''.join(e.get('text','') for e in events if e['type']=='text_delta').endswith(original['question'])
+            assert len(conversation.foreground)==2
+        asyncio.run(run())
+        following=conversation.say('I would like to continue.')
+        assert 'red or blue' in following['reply']
+        assert len(conversation.foreground)==3
+
+
+def test_withdrawing_either_conflict_passage_invalidates_a_question_anchored_to_the_other(sql,tmp_path,monkeypatch):
+    def prepare(packet):
+        windows=packet['guidance_context']['source_windows']
+        if len({w['id'] for w in windows})<2:
+            return dict(signals=[],prepared_questions=[],acknowledgement_guidance=None,strategy_proposal=None)
+        old=next(w for w in windows if '1998' in w['text'])
+        current=next(w for w in windows if '2001' in w['text'])
+        refs=[dict(source_id=w['id'],version=w['version'],quote=w['text']) for w in (old,current)]
+        return validate_guidance_result(dict(signals=[dict(kind='conflict',source_refs=refs,detail_question_ids=[],recall_limit_quote=None)],
+            prepared_questions=[dict(question='Do those years refer to the same retirement?',topic='Father’s retirement',
+                quote=current['text'],source_id=current['id'],source_version=current['version'],trigger='conflict',
+                requires_confirmation=True,scope='detail')],acknowledgement_guidance=None,strategy_proposal=None),packet)
+    conversation=Conversation(sql,tmp_path,monkeypatch,extraction,guidance=prepare)
+    with conversation.client:
+        older=conversation.say('My father retired in 1998.')
+        conversation.drain()
+        current=conversation.say('My father retired in 2001.')
+        conversation.drain()
+        candidate=pool(conversation)[0]
+        assert candidate['source_id']==current['accepted_source_id']
+        assert {r['source_id'] for r in candidate['trigger_source_refs']}=={older['accepted_source_id'],current['accepted_source_id']}
+        rpc(sql,'change_user_narrator_source',f"{literal(conversation.project)},'{older['accepted_source_id']}',1,'withdraw',null")
         assert pool(conversation)==[]
-        sql("update public.user_agent_turn_lease set expires_at=clock_timestamp()-interval '1 second';")
-        saved=commit_guidance(sql,page,result)
-        assert 'finished' in saved.stdout and pool(conversation)

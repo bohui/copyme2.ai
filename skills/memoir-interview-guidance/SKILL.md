@@ -56,3 +56,9 @@ reopened by the narrator. Leave unresolved identities and facts unresolved. Lane
 retains the narrator's immediate stop, question, correction, redirect and pacing
 intent ahead of older guidance. Acknowledgement guidance is optional and should
 not compete with a necessary clarification. Do not pad a pool or force a reflection.
+
+Older original windows may come from a bounded search of canonical event
+references. A search hit is only a candidate: establish the same event/person
+before judging contradictory claims. Different dates may describe separate jobs,
+moves or occasions. Return strategy_proposal only when separate strategy
+instructions are supplied; otherwise null.

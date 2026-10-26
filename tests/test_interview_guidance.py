@@ -105,3 +105,18 @@ def test_ready_research_without_a_guidance_selection_is_not_a_question():
     from apps.api.conversation_reply import reply_candidates
     from test_historical_news import ready_context
     assert reply_candidates(dict(ready_context(),two_lane_memory=True))==[]
+
+
+def test_unique_original_quotes_repair_model_offset_counts_without_guessing_repeated_passages():
+    current=context()
+    raw=result('clarification')
+    raw['signals'][0]['source_refs'][0].update(char_start=0,char_end=999)
+    raw['prepared_questions'][0].update(char_start=0,char_end=999)
+    saved=validate_guidance_result(raw,current)
+    ref=saved['signals'][0]['source_refs'][0]
+    source=next(s for s in current['guidance_context']['source_windows'] if s['id']==ref['source_id'])
+    assert source['text'][ref['char_start']:ref['char_end']]==ref['quote']
+    source['text']='Ming and Ming'
+    source['char_end']=len(source['text'])
+    with pytest.raises(ValueError,match='one exact'):
+        validate_guidance_result(raw,current)

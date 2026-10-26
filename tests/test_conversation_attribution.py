@@ -755,7 +755,7 @@ def test_place_readback_is_paged_and_keeps_the_existing_family_gate(sql, tmp_pat
         bad = conversation.client.get(f'/v1/story/events/{conversation.project}/another-event/places',
             params={'cursor':first.json()['next_cursor']})
         assert bad.status_code >= 400
-        with TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(worker_sql, OWNER).storage())) as free:
+        with TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(sql, OWNER).storage())) as free:
             assert free.get(path).status_code == 403
 
 

@@ -189,7 +189,7 @@ def _object(value):
     return parsed
 
 
-def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False, fence=None, retry_reason=None):
+def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, retry_reason=None):
     """Use server code, never client-supplied instructions or output schemas."""
     if phase == 'guidance':
         from .interview_guidance import guidance_contract
@@ -203,7 +203,7 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, strategy=False,
     if phase == 'extract':
         if two_lane:
             from .two_lane_memory import extraction_contract
-            instructions,schema=extraction_contract(strategy=strategy, attribution=bool(fence and fence.attribution_context),
+            instructions,schema=extraction_contract(attribution=bool(fence and fence.attribution_context),
                 continuity=bool(fence and fence.two_lane and fence.two_lane.reply_contract == 'reply-v2'),
                 source=fence.source if fence else None)
         else:
@@ -609,7 +609,7 @@ async def validate_lane_payload(bounded):
             raise ValueError('Review repair errors differ from the same-page review')
 
 def lane_request_tokens(bounded_lane: BoundedLaneInput) -> int:
-    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, strategy=bool(bounded_lane.fence.two_lane and bounded_lane.fence.two_lane.strategy_mode), fence=bounded_lane.fence, retry_reason=_object(bounded_lane.packet)['payload'].get('retry_reason'))
+    instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, fence=bounded_lane.fence, retry_reason=_object(bounded_lane.packet)['payload'].get('retry_reason'))
     return (bounded_lane.budget.count(instructions) + bounded_lane.budget.count(bounded_lane.packet)
         + bounded_lane.budget.count(serialize_packet(schema)) + bounded_lane.budget.framing_headroom)
 
@@ -809,7 +809,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
         'author_timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}[role]
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
-    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, strategy=bool(bounded.fence.two_lane and bounded.fence.two_lane.strategy_mode), fence=bounded.fence, retry_reason=_object(bounded.packet)['payload'].get('retry_reason'))
+    instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, fence=bounded.fence, retry_reason=_object(bounded.packet)['payload'].get('retry_reason'))
     from .conversation_reply_transport import stream_document
     endpoint = urlsplit(base_url)
     if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname

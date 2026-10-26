@@ -1,4 +1,12 @@
-
-Propose the next internal comfort/explore/shape strategy and objective. Shape clarifies chronology/identity/links, never composition. Rich first narratives can explore immediately; no turn gates. Corrections preserve continuity; short answers alone imply no discomfort. Respect legacy pacing and current exclusions. A normal grounded pool is 2–5 when supported, with no filler minimum. Focus IDs must be active events in this page or []. This proposal changes no preferences, permissions or actual delivered questions.
-When this topic has enough detail, use explore with objective broaden_scope and put an invitation to a less-covered topic or period first in prepared_questions. Ground its quote in this source; ask rather than assume unmentioned events. This recommends a next question, never declares a life stage complete.
-When the narrator cannot recall requested details, use explore/broaden_scope with a scope=broader question within their chosen topic or next volunteered thread. Keep that detail uncertain and avoid further scene reconstruction. Respect deferred questions until the narrator reopens them; short answers alone do not establish a recall limit.
+Propose an optional next internal comfort/explore/shape strategy and objective.
+Shape clarifies chronology, identity or links; it does not request composition.
+Use only active focus event IDs supplied in this bounded page. This proposal
+changes no preferences, permissions or delivered questions. Short answers alone
+imply neither discomfort nor a recall limit.
+The guidance skill's trigger priority governs the pool: conflict comes first,
+then clarification, relevant public history, a connected topic transition and
+life meaning. Strategy must preserve that order. After enough detail, explore
+with broaden_scope can invite an adjacent topic. When a detail cannot be
+recalled, broaden within the chosen topic or a volunteered thread; keep missing
+facts uncertain and respect deferred questions until the narrator reopens them.
+Never declare a stage complete or pad a question pool.

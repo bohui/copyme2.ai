@@ -11,7 +11,7 @@ def from_legacy_questions(packet, by_source, *, strategy=None):
                 historical_clue_id=raw.get('historical_clue_id'), bridge=raw.get('bridge',''))
             questions.append(question)
             signals.setdefault(question['trigger'], dict(kind=question['trigger'],
-                source_refs=[dict(source_id=source['id'], version=source['version'],quote=raw['quote'])],
+                source_refs=[dict(source_id=source['id'], version=source['version'],quote=raw['quote'],char_start=raw.get('char_start'),char_end=raw.get('char_end'))],
                 detail_question_ids=[],recall_limit_quote=None))
         if questions:
             break
@@ -32,3 +32,17 @@ def select_news(context, **changes):
             quote='A narrator context anchor',source_id='context',source_version=1,char_start=0,char_end=25,
             trigger='historical_news',historical_clue_id=clue['id'],bridge=bridge,scope='broader',requires_confirmation=False))
     return context
+
+
+def choose_prepared(output, candidate):
+    """Make the controlled Lane A model explicitly choose a visible candidate."""
+    from apps.api.interview_questions import hint_evidence
+    if 'plan' in output:
+        selected=output['plan']['candidates'][0]
+        selected.update(id=candidate['id'],question=candidate['question'].strip())
+        selected['context']['evidence']=hint_evidence(candidate,{})
+        output['plan']['chosen_id']=candidate['id']
+    else:
+        output.update(question=candidate['question'].strip(),selected_candidate_id=candidate['id'],
+            question_evidence=hint_evidence(candidate,{}),selection_reason='prepared_candidate')
+    return output

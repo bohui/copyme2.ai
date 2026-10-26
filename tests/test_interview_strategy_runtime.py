@@ -289,7 +289,7 @@ def test_active_selector_finishes_actual_send_while_planner_transport_is_stalled
             release.set()
             if background=='failed':
                 with pytest.raises(httpx.HTTPStatusError):await job
-            else:assert (await job)['strategy_proposal']['strategy']=='shape'
+            else:assert await job==dict(events=[],place_journeys=[])
         finally:
             release.set()
             if not job.done():job.cancel()

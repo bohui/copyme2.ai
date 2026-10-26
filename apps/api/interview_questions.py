@@ -17,6 +17,15 @@ def question_priority(question):
     return GUIDANCE_KINDS.index(kind) if kind in GUIDANCE_KINDS else 1 if question.get('requires_confirmation') else len(GUIDANCE_KINDS)
 
 
+class GuidanceDependency(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    source_id: str = Field(min_length=1, max_length=128)
+    version: int = Field(ge=1)
+    char_start: int = Field(ge=0)
+    char_end: int = Field(ge=1)
+    quote_sha256: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
 class PreparedQuestion(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     question: str = Field(min_length=1, max_length=800)

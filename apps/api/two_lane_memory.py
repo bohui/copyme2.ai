@@ -23,7 +23,7 @@ class DerivedHints(_Places):
     """Timeline-owned geography only; interviewing belongs to the guidance skill."""
 
 
-def extraction_contract(*, strategy=False, attribution=False, continuity=False, source=None):
+def extraction_contract(*, attribution=False, continuity=False, source=None):
     from .memory_events import extraction_instructions, extraction_schema
     schema=extraction_schema()
     extension=DerivedHints.model_json_schema()
@@ -100,11 +100,9 @@ def prioritize_question(value, context, *, selection_reason):
                 for item in value['plan'].get(name, [])}
     question = pending_confirmation(context, exclude_ids=resolved)
     if (question is None and context.get('reply_contract') == 'reply-v2'
-            and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context', 'latest_story'}):
+            and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context'}):
         from .conversation_reply import reply_candidates
-        question = next((item for item in reply_candidates(context) if item['id'] not in resolved
-                         and (selection_reason != 'latest_story' or item.get('trigger') in
-                              {'historical_news', 'topic_transition', 'life_essence'})), None)
+        question = next((item for item in reply_candidates(context) if item['id'] not in resolved), None)
     # The independent skill supplies next-turn options, not a guardrail that
     # rewrites a reply already chosen or streamed by Lane A.
     if question and question.get('trigger'):
