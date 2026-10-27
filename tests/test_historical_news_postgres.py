@@ -140,6 +140,14 @@ def test_fenced_job_dedup_and_ready_projection(sql):
     assert begin(sql) is None
 
 
+@pytest.mark.parametrize('elapsed_seconds,expected', [(47, True), (120, False)])
+def test_claim_covers_search_budget_and_result_commit_but_remains_bounded(sql, elapsed_seconds, expected):
+    job = begin(sql)
+    # Advance the claim through a 45-second search and bookkeeping without sleeping.
+    sql(f"update public.user_historical_news_job set expires_at=expires_at-interval '{elapsed_seconds} seconds' where id='{job['id']}';")
+    assert finish(sql, job) is expected
+
+
 def test_native_rls_cross_project_and_direct_write_denial(sql):
     job=begin(sql);finish(sql,job)
     for table in ('state','job','clue'):

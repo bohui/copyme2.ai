@@ -136,25 +136,18 @@ def _bounded(value, maximum):
     return value.strip()
 
 
-def validate_evidence(proposal, receipt, page, hypothesis):
-    """Discovery/model text is a lead. Require inspected verbatim support.
-
-    These deterministic checks cannot establish historical truth. The provider
-    must identify provenance and conflicts; unsupported/ambiguous records are
-    excluded. No search snippet is passed in as an inspected page.
-    """
+def validate_lead(proposal, receipt, hypothesis):
+    """Reject ineligible leads before spending the source-inspection budget."""
     if (receipt.get('status')!='completed' or not receipt.get('response_id') or not receipt.get('tool_call_id')
         or not receipt.get('provider') or proposal.get('conflicting') or proposal.get('category') not in CATEGORIES):
         raise ValueError('Historical evidence unavailable')
     url=canonical_url(proposal.get('source_url'))
-    if url not in {canonical_url(u) for u in receipt.get('urls',[])} or canonical_url(page.get('url'))!=url:
+    if url not in {canonical_url(u) for u in receipt.get('urls',[])}:
         raise ValueError('Unobserved historical source')
-    receipt=deepcopy(receipt)
-    origins=receipt.pop('source_tool_calls',None)
+    origins=receipt.get('source_tool_calls')
     if origins is not None:
         if not isinstance(origins,dict) or not isinstance(origins.get(url),str) or not origins[url]:
             raise ValueError('Unobserved historical source receipt')
-        receipt.update(tool_call_id=origins[url],urls=[url])
     title=_bounded(proposal.get('title'),200)
     excerpt=_bounded(proposal.get('excerpt'),800)
     summary=_bounded(proposal.get('summary'),500)
@@ -163,7 +156,7 @@ def validate_evidence(proposal, receipt, page, hypothesis):
     # Keep the assertion verifiable instead of accepting a plausible generated
     # paraphrase unrelated to the page. Whitespace is the only normalization.
     normalized=lambda s:' '.join(s.split())
-    if normalized(excerpt) not in normalized(page.get('text','')) or normalized(summary) not in normalized(excerpt):
+    if normalized(summary) not in normalized(excerpt):
         raise ValueError('Uninspected historical claim')
     dates=_window({'start':proposal.get('event_start'),'end':proposal.get('event_end')})
     if not dates or not hypothesis['start']<=dates[0]<=dates[1]<=hypothesis['end']:
@@ -171,10 +164,7 @@ def validate_evidence(proposal, receipt, page, hypothesis):
     if any(not re.search(rf'(?<!\d){y}(?!\d)',summary) for y in set(dates)) or any(
         not dates[0] <= int(y) <= dates[1] for y in re.findall(r'(?<!\d)((?:18|19|20)\d{2})(?!\d)',summary)):
         raise ValueError('Event date is not source supported')
-    if (normalized(title).casefold() not in normalized(excerpt).casefold()
-        or proposal.get('source_title') != page.get('source_title')
-        or proposal.get('publisher') != page.get('publisher')
-        or proposal.get('publication_date') != page.get('publication_date')):
+    if normalized(title).casefold() not in normalized(excerpt).casefold():
         raise ValueError('Unsupported event or source identity')
     if re.search(r'published|publication|copyright|发表于|出版',summary,re.I):
         raise ValueError('Publication metadata is not event evidence')
@@ -183,14 +173,35 @@ def validate_evidence(proposal, receipt, page, hypothesis):
         raise ValueError('Unsupported historical place')
     if proposal.get('precision') not in {'year','range'}:
         raise ValueError('Unsupported historical precision')
-    observed=_bounded(page.get('retrieved_at'),40)
-    if datetime.fromisoformat(observed.replace('Z','+00:00')).tzinfo is None:
-        raise ValueError('Retrieval timestamp needs a timezone')
+    _bounded(proposal.get('source_title'),300)
+    _bounded(proposal.get('publisher'),200)
     publication=proposal.get('publication_date')
     if publication is not None:
         from datetime import date
         if not isinstance(publication,str) or len(publication)!=10 or date.fromisoformat(publication).isoformat()!=publication:
             raise ValueError('Malformed source publication date')
+    return url,title,excerpt,summary,dates,place
+
+
+def validate_evidence(proposal, receipt, page, hypothesis):
+    """A lead becomes a clue only after independent, verbatim page inspection."""
+    url,title,excerpt,summary,dates,place=validate_lead(proposal,receipt,hypothesis)
+    if canonical_url(page.get('url'))!=url:
+        raise ValueError('Unobserved historical source')
+    normalized=lambda s:' '.join(s.split())
+    if normalized(excerpt) not in normalized(page.get('text','')):
+        raise ValueError('Uninspected historical claim')
+    if (proposal.get('source_title') != page.get('source_title')
+        or proposal.get('publisher') != page.get('publisher')
+        or proposal.get('publication_date') != page.get('publication_date')):
+        raise ValueError('Unsupported event or source identity')
+    observed=_bounded(page.get('retrieved_at'),40)
+    if datetime.fromisoformat(observed.replace('Z','+00:00')).tzinfo is None:
+        raise ValueError('Retrieval timestamp needs a timezone')
+    receipt=deepcopy(receipt)
+    origins=receipt.pop('source_tool_calls',None)
+    if origins is not None:
+        receipt.update(tool_call_id=origins[url],urls=[url])
     identity='|'.join([normalized(title).casefold(),str(dates[0]),str(dates[1]),place.casefold()])
     return {'id':'news-'+hashlib.sha256(identity.encode()).hexdigest()[:24],
         'title':title,'summary':summary,'event_start':dates[0],'event_end':dates[1],
@@ -260,8 +271,8 @@ class HistoricalResearch:
         if cached and 0 <= start-cached[0]<86400:
             return {'status':'ready','clues':deepcopy(cached[1]),'accounting':{**account,'cache':'hit'}}
         clues={};pages={};failures=[]
-        async def bounded(coroutine):
-            remaining=45-(self.clock()-start)
+        async def bounded(coroutine,limit=45):
+            remaining=min(limit,45-(self.clock()-start))
             if remaining<=0:
                 coroutine.close()
                 raise TimeoutError()
@@ -285,14 +296,22 @@ class HistoricalResearch:
             for proposal in discovery.get('events',[])[:20]:
                 if len(clues)>=5:break
                 try:
-                    url=canonical_url(proposal.get('source_url'))
-                    if url not in {canonical_url(u) for u in r.get('urls',[])}:continue
+                    url,*_=validate_lead(proposal,r,hypothesis)
+                except (ValueError,TypeError,KeyError):
+                    continue
+                try:
                     if url not in pages:
                         if account['source_reads']>=6:continue
                         account['source_reads']+=1
                         pages[url]=None # failures count too and are not retried
-                        pages[url]=await bounded(self.provider.inspect(url,timeout=max(.01,45-(self.clock()-start))))
+                        # One slow origin must leave time for the second query.
+                        timeout=max(.01,min(8,45-(self.clock()-start)))
+                        pages[url]=await bounded(self.provider.inspect(url,timeout=timeout),limit=timeout)
                     if not pages[url]:continue
+                except (TimeoutError,OSError,ValueError,TypeError,KeyError):
+                    failures.append('source_unavailable')
+                    continue
+                try:
                     clue=validate_evidence(proposal,r,pages[url],hypothesis)
                     if clue['id'] in clues:
                         old=clues[clue['id']]
@@ -300,8 +319,8 @@ class HistoricalResearch:
                         if clue['source_url']!=old['source_url'] and clue['source_url'] not in [s['source_url'] for s in old['supporting_sources']]:
                             old['supporting_sources'].append(public_clue(clue))
                     else:clues[clue['id']]=clue
-                except (TimeoutError,OSError,ValueError,TypeError,KeyError):
-                    failures.append('source_unavailable')
+                except (ValueError,TypeError,KeyError):
+                    continue
             if self.clock()-start>=45:break
         result=list(clues.values())
         if result and not failures:

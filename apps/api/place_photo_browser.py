@@ -576,7 +576,7 @@ def crawl_place_photos(provider: str, place: str, period: str, *, limit: int = 1
             _warm_runtime.loop,
         )
         try:
-            return future.result(timeout=timeout * 2 + 5)
+            return future.result(timeout=timeout + 5)
         except Exception as error:
             future.cancel()
             logger.warning('%s photo browser unavailable: %s', provider, type(error).__name__)
@@ -617,7 +617,8 @@ class WarmPhotoBrowser:
         return self
 
     async def search(self, provider, place, period, url, *, limit, timeout, on_items=None):
-        async with self.lock:
+        # Queueing for Chromium consumes the same budget as browsing.
+        async with asyncio.timeout(timeout), self.lock:
             try:
                 return await asyncio.wait_for(_browse(
                     provider, place, period, url, limit=limit, timeout=timeout,

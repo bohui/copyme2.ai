@@ -15,6 +15,58 @@ from apps.api.place_photo_repository import PhotoRepository
 from test_llm_place_photos import search_world
 
 
+@pytest.mark.parametrize('remote_worker',[False,True])
+@pytest.mark.parametrize('stream',[False,True])
+def test_failed_photo_job_is_reused_briefly_and_explicit_retry_can_recover(monkeypatch,remote_worker,stream):
+    from types import SimpleNamespace
+    now=[100.0];calls=[];healthy=[False]
+    monkeypatch.setattr(pages,'time',SimpleNamespace(monotonic=lambda:now[0]))
+    failures=[{'provider':'google','reason':'quota_exhausted'},{'provider':'commons','reason':'robots_denied'}]
+    def search(place,period,**kwargs):
+        calls.append((place,period))
+        if not healthy[0]:raise pages.PhotoResearchUnavailable(failures=failures)
+        return [{'asset_id':'recovered','date_expression':'1983','location_evidence':'Chengde',
+            'image_url':'https://images.example/recovered.jpg','source_url':'https://archive.example/recovered'}]
+    monkeypatch.setattr(pages,'search_place_photos',search)
+    monkeypatch.delenv('MEMORY_SPARK_PHOTO_WORKER_URL',raising=False)
+    cache=None
+    if remote_worker:
+        cache=pages.PhotoPages()
+        worker=create_photo_worker(pages=cache)
+        original=httpx.AsyncClient
+        monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_URL','http://worker:8767')
+        monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_SECRET','fixture-secret')
+        monkeypatch.setattr(httpx,'AsyncClient',lambda **kwargs:original(transport=httpx.ASGITransport(app=worker),**kwargs))
+    def result(response):
+        assert response.status_code==200,response.text
+        return json.loads(response.text.splitlines()[-1]) if stream else response.json()
+    try:
+        with TestClient(create_app(MemoryStore())) as client:
+            headers={'X-Account-Id':'failure-owner','Accept':'application/x-ndjson' if stream else 'application/json'}
+            project=client.post('/v1/projects',headers=headers,json={'mode':'self'}).json()
+            url=f"/v1/projects/{project['id']}/place-photos"
+            params={'place':'Chengde','period':'1980s'}
+            first=result(client.get(url,params=params,headers=headers))
+            assert first['status']=='UNAVAILABLE' and first['failures']==failures
+            from pathlib import Path
+            import subprocess
+            replay=Path(__file__).parent/'js/helpers/replay-photo-provider-failure.mjs'
+            client_result=subprocess.run(['node',str(replay)],input=json.dumps(first),text=True,capture_output=True,timeout=20)
+            assert client_result.returncode==0,client_result.stdout+client_result.stderr
+            count=len(calls)
+            repeated=result(client.get(url,params=params,headers=headers))
+            assert repeated['status']=='UNAVAILABLE' and repeated['job_id']==first['job_id']
+            assert len(calls)==count, 'Repeated UI reads must not immediately restart failed research'
+            now[0]+=61
+            expired=result(client.get(url,params=params,headers=headers))
+            assert expired['job_id']!=first['job_id'] and len(calls)>count
+            healthy[0]=True
+            recovered=result(client.get(url,params={**params,'refresh':'true'},headers=headers))
+            assert recovered['items'][0]['asset_id']=='recovered'
+    finally:
+        if cache:cache.close()
+
+
 def test_progress_forwarder_handles_split_unicode_without_changing_worker_credentials(monkeypatch):
     from apps.api.background_skills import photo_step
     monkeypatch.delenv('MEMOIR_PUBLICATION_DATABASE_URL',raising=False)

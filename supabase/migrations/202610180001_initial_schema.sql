@@ -3693,7 +3693,8 @@ begin
  if exists(select 1 from public.user_historical_news_job where user_id=auth.uid() and project_id=p_project_id
    and context_revision=rev and hypothesis=p_hypothesis and (status='running' or status in ('ready','empty','unavailable') and expires_at>clock_timestamp()-interval '24 hours')) then return null; end if;
  insert into public.user_historical_news_job(user_id,project_id,context_revision,source_sequence,status,expires_at,hypothesis)
- values(auth.uid(),p_project_id,rev,project.source_sequence,'running',clock_timestamp()+interval '45 seconds',p_hypothesis) returning * into job;
+ -- Keep the 45-second search budget separate from claim/progress I/O and result commit time.
+ values(auth.uid(),p_project_id,rev,project.source_sequence,'running',clock_timestamp()+interval '90 seconds',p_hypothesis) returning * into job;
  return to_jsonb(job)-'user_id';
 end $$;
 

@@ -843,6 +843,34 @@ def test_warm_worker_reuses_chromium_across_requests_and_closes_search_contexts(
     asyncio.run(check())
 
 
+def test_warm_browser_timeout_includes_queue_without_cancelling_the_active_search(fake_crawler,monkeypatch):
+    async def check():
+        entered,release=asyncio.Event(),asyncio.Event()
+        async def browse(*args,**kwargs):
+            entered.set()
+            await release.wait()
+            return []
+        monkeypatch.setattr(browser,'_browse',browse)
+        runtime=await browser.WarmPhotoBrowser().start()
+        active=asyncio.create_task(runtime.search('google','Chengde','1980s','https://cse.google.com/cse?cx=engine',limit=10,timeout=1))
+        try:
+            await entered.wait()
+            queued=asyncio.create_task(runtime.search('google','Chengde','1990s','https://cse.google.com/cse?cx=engine',limit=10,timeout=.02))
+            done,_=await asyncio.wait({queued},timeout=.1)
+            assert queued in done, 'Queue wait must consume the search timeout'
+            with pytest.raises(TimeoutError):
+                await queued
+            assert not active.done()
+            release.set()
+            assert await active==[]
+        finally:
+            release.set()
+            await asyncio.gather(active,return_exceptions=True)
+            if 'queued' in locals():await asyncio.gather(queued,return_exceptions=True)
+            await runtime.close()
+    asyncio.run(check())
+
+
 def test_google_verification_screen_is_unavailable_not_a_successful_empty_search(fake_crawler):
     pages, calls, _ = fake_crawler
     search = 'https://cse.google.com/cse?cx=engine'
