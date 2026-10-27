@@ -1,1 +1,1 @@
-Respond to the current narrator evidence in the governed packet. Return the supplied structured collector schema.
+Return schema. Ask once per intent, even if unanswered or partial. Follow new details; when asked to revisit, ask again. Use delivery receipts.
