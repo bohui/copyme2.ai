@@ -1026,7 +1026,8 @@ def _google_serpapi_expanded(place: str, period: str, *, on_items=None) -> list[
         if data.get('status') != 'success':
             error = data.get('error')
             reason = ('timeout' if error == 'TimeoutError' else
-                      error if isinstance(error, str) and re.fullmatch(r'http_\d{3}', error)
+                      error if isinstance(error, str) and (re.fullmatch(r'http_\d{3}', error)
+                          or error in {'quota_exhausted','rate_limited'})
                       else 'unavailable')
             failures.append({'provider': 'google', 'reason': reason})
             break

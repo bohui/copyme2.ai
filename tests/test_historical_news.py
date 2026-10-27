@@ -172,6 +172,50 @@ def test_provider_failure_is_unavailable_and_not_a_success_cache():
     asyncio.run(run())
 
 
+@pytest.mark.parametrize('change', ['place', 'date', 'category', 'sensitive'])
+def test_ineligible_news_leads_are_empty_without_fetching_the_source(change):
+    import asyncio
+    from apps.api.historical_news import HistoricalResearch
+    lead=evidence()
+    if change=='place':lead['place']='Sydney, Australia'
+    elif change=='date':lead.update(event_start=1983,event_end=1983)
+    elif change=='category':lead['category']='violence'
+    else:lead['summary']=lead['excerpt']='A murder occurred in Boston in 1970.'
+    class Provider:
+        async def discover(self,query,timeout):return {'receipt':receipt(),'events':[lead]}
+        async def inspect(self,url,timeout):pytest.fail('Ineligible leads must not consume source time')
+    result=asyncio.run(HistoricalResearch(Provider()).run(ready_context()['historical_news']['clues'][0]['relevance']))
+    assert result['status']=='empty' and not result['clues']
+    assert result['accounting']['source_reads']==0
+
+
+def test_slow_city_source_leaves_time_to_verify_the_second_discovery():
+    import asyncio
+    from apps.api.historical_news import HistoricalResearch
+    now=[0.0];reads=[]
+    class Provider:
+        async def discover(self,query,timeout):
+            now[0]+=14
+            r=receipt();lead=evidence()
+            if query.startswith('Boston,'):
+                lead['source_url']='https://slow.example/fair'
+                r['urls']=[lead['source_url']]
+            return {'receipt':r,'events':[lead]}
+        async def inspect(self,url,timeout):
+            reads.append(url)
+            if 'slow.example' in url:
+                now[0]+=min(timeout,17)
+                raise TimeoutError()
+            if timeout<3:raise TimeoutError()
+            now[0]+=3
+            lead=evidence()
+            return {'url':url,'text':lead['excerpt'],'retrieved_at':'2026-10-11T00:00:00Z',
+                'source_title':lead['source_title'],'publisher':lead['publisher'],'publication_date':lead['publication_date']}
+    result=asyncio.run(HistoricalResearch(Provider(),clock=lambda:now[0]).run(ready_context()['historical_news']['clues'][0]['relevance']))
+    assert result['status']=='ready' and len(result['clues'])==1
+    assert len(reads)==2 and now[0]<45
+
+
 def test_accepted_source_basis_omits_identity_and_private_text():
     from apps.api.historical_news import accepted_hypothesis
     view={'sources':[{'id':'private-id','version':1,'status':'active','text':

@@ -377,7 +377,8 @@ def test_shared_place_pass_is_embedded_not_a_second_model_request(sql,tmp_path,m
         assert all(item['skill']!='memoir-family-tree' for item in steps)
 
 
-def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_path,monkeypatch,request,fake_crawler):
+@pytest.mark.parametrize('research_elapsed_seconds', [0, 47])
+def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_path,monkeypatch,request,fake_crawler,research_elapsed_seconds):
     import json
     from pathlib import Path
     import subprocess
@@ -542,8 +543,12 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     monkeypatch.setattr(httpx,'get',external_get)
     class Provider:
         identity = 'synthetic-place-news'
+        advanced = False
         async def discover(self, query, **kwargs):
             queries.append(('news',query))
+            if research_elapsed_seconds and not self.advanced:
+                sql(f"update public.user_historical_news_job set expires_at=expires_at-interval '{research_elapsed_seconds} seconds' where status='running';")
+                self.advanced = True
             return {'receipt':{'status':'completed','response_id':'r','tool_call_id':'w','urls':[]},'events':[]}
     conversation = Conversation(sql,tmp_path,monkeypatch,extract)
     monkeypatch.setattr(supabase_routes, 'storage', agent_routes.authenticated_storage)

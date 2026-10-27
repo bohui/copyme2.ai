@@ -53,6 +53,7 @@ test('photo research reports real request progress and an unavailable provider f
     document: {querySelector: () => null}, profile: () => ({memory_places: [entry]}),
     api: async () => { calls++; return {items: [], status: 'UNAVAILABLE', failures: [
       {provider:'flickr', reason:'robots_denied', private:'secret'}, {provider:'loc', reason:'http_403'},
+      {provider:'google', reason:'quota_exhausted'}, {provider:'google', reason:'rate_limited'},
       {provider:'google', reason:'https://secret.example/key'}]}; },
     placeHistoryKey: place => place.place, translate: key => key, render: () => {},
     persistChatHistory: () => {},
@@ -65,7 +66,7 @@ test('photo research reports real request progress and an unavailable provider f
   assert.deepEqual(events.map(step => [step.skill, step.status]),
     [['memoir-place-photo-research', 'running'], ['memoir-place-photo-research', 'failed']]);
   assert.match(events[0].detail, /承德市 · 1983年4月/);
-  assert.match(events[1].detail, /flickr: robots_denied; loc: http_403/);
+  assert.match(events[1].detail, /flickr: robots_denied; loc: http_403; google: quota_exhausted; google: rate_limited/);
   assert.doesNotMatch(JSON.stringify(events), /secret/);
 });
 
