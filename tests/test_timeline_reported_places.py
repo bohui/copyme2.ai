@@ -15,8 +15,9 @@ from test_lifetime_composer_capacity import page
 from test_memory_context_transport import Publisher
 
 
-def extract_places(monkeypatch, text, raw, *, offset=0, commit=False):
+def extract_places(monkeypatch, text, raw, *, offset=0, commit=False, chosen_name=None):
     current = page(text=text)
+    current['preferences']['chosen_name'] = chosen_name
     current['source'].update(char_start=offset, char_end=offset + len(text), original_length=offset + len(text))
     current['two_lane'] = dict(schema_version=1, task_version='two-lane-v1', execution_generation=1,
         phase_revision=0, work_mode='extract', reply_contract='reply-v2')
@@ -190,6 +191,19 @@ def test_ordinary_narrator_place_remains_available(monkeypatch, subject):
     assert [p['place'] for p in result['place_journeys']] == ['Hobart']
 
 
+@pytest.mark.parametrize('event_subject,ref_subject', [('慧博', None), (None, '慧博'), ('慧博', '慧博')])
+def test_named_narrator_keeps_places_in_the_first_response(monkeypatch, event_subject, ref_subject):
+    text = '我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'
+    evidence = {**ref(text), 'attribution':ref_subject}
+    event = dict(kind='event', title='出生于承德市', attribution=event_subject, source_refs=[evidence])
+    places = [dict(place=label, hierarchy=['Earth', country, label], granularity='city',
+        latitude=None, longitude=None, research=None) for label, country in [('悉尼', '澳大利亚'), ('承德市', '中国')]]
+    raw = dict(events=[event], place_journeys=places, prepared_questions=[],
+        event_places=[], continuity_updates=[], passage_dispositions=[])
+    result = extract_places(monkeypatch, text, raw, chosen_name='慧博', commit=True)
+    assert [p['place'] for p in result['place_journeys']] == ['悉尼', '承德市']
+
+
 def test_profile_place_cue_does_not_require_an_event(monkeypatch):
     text = 'My hometown is Hobart.'
     raw = dict(events=[], place_journeys=[place('Hobart')], prepared_questions=[],
@@ -200,11 +214,13 @@ def test_profile_place_cue_does_not_require_an_event(monkeypatch):
     assert [p['place'] for p in result['place_journeys']] == ['Hobart']
 
 
-@pytest.mark.parametrize('scenario', ['father_only', 'mixed', 'same_place', 'ordinary',
+@pytest.mark.parametrize('scenario', ['father_only', 'mixed', 'same_place', 'ordinary', 'named_narrator',
     'withheld_research', 'unresolved_research'])
 def test_reported_places_replay_from_sql_api_to_client(sql, tmp_path, monkeypatch, scenario):
     from pathlib import Path
     import subprocess
+    if scenario == 'named_narrator':
+        monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
     father = '父亲说他小时候在承德修自行车。我没有做过这件事。'
     label = '承德' if scenario == 'same_place' else 'Hobart'
     own = f'我在{label}学会了做陶器。'
@@ -214,22 +230,26 @@ def test_reported_places_replay_from_sql_api_to_client(sql, tmp_path, monkeypatc
         if scenario == 'withheld_research':
             father += ' Do not record this event.'
         own = 'In 2004 I learned pottery in Hobart.'
-    text = father if scenario == 'father_only' else own if scenario == 'ordinary' else father + own
+    text = (father if scenario == 'father_only' else '我叫慧博，' + own if scenario == 'named_narrator'
+        else own if scenario == 'ordinary' else father + own)
     expected = [] if scenario == 'father_only' else [label]
     def extract(packet):
         events = [] if scenario == 'father_only' else [episode(packet, own, title='Learning pottery')]
+        if scenario == 'named_narrator':
+            events[0]['attribution'] = events[0]['source_refs'][0]['attribution'] = '慧博'
         cues = ([place(label if restricted_research else '承德')] if scenario != 'ordinary' else [])
         if label not in [p['place'] for p in cues] and events: cues.append(place(label))
         if restricted_research:
             cues[0]['research'] = dict(year_start=2004, year_end=2004, anchor_year=2004,
                 basis='explicit_period', quote=text, char_start=0, char_end=len(text))
-        dispositions = [] if scenario in {'ordinary', 'withheld_research'} else [dict(
+        dispositions = [] if scenario in {'ordinary', 'named_narrator', 'withheld_research'} else [dict(
             disposition='unresolved' if scenario == 'unresolved_research' else 'non_story',
             reason='uncertain_attribution' if scenario == 'unresolved_research' else 'no_supported_event',
             source_ref=reference(packet, father))]
         return {**empty(packet), 'events':events, 'place_journeys':cues,
             'event_places':[], 'passage_dispositions':dispositions}
-    conversation = Conversation(sql, tmp_path, monkeypatch, extract)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract,
+        name='慧博' if scenario == 'named_narrator' else None)
     with conversation.client:
         accepted = conversation.say(text)
         conversation.drain()

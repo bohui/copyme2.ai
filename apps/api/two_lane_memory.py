@@ -62,6 +62,9 @@ def derived_hints(raw, page, *, attribution=None):
         blocked = [item['source_ref'] for item in attribution['passage_dispositions']
             if item['disposition'] != 'non_story' or item['reason'] != 'profile_introduction']
         narrator = {'narrator', 'storyteller', 'self', '我', '本人', page['user_id']}
+        chosen_name = page.get('preferences', {}).get('chosen_name')
+        if chosen_name:
+            narrator.add(chosen_name.casefold())
         blocked.extend(ref for event in attribution['events'] for ref in event['source_refs']
             if any(label and label.casefold() not in narrator
                 for label in (ref.get('attribution'), event.get('attribution'))))
