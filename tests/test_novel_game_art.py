@@ -38,6 +38,14 @@ def broken_pixel_png():
     return result
 
 
+def short_scanline_png():
+    def chunk(kind,content):
+        return struct.pack('>I',len(content))+kind+content+struct.pack('>I',zlib.crc32(kind+content))
+    header=struct.pack('>IIBBBBB',768,512,8,6,0,0,0)
+    row=b'\x00'+bytes((81,119,105,255))*768
+    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',header)+chunk(b'IDAT',zlib.compress(row))+chunk(b'IEND',b'')
+
+
 @pytest.fixture
 def fence(tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_OBJECT_STORE_PATH',str(tmp_path/'objects'))
@@ -99,8 +107,9 @@ def test_bad_png_and_corrupt_cache_fail_without_publishing_or_paid_replacement(t
         asyncio.run(art.prepare_backgrounds(tmp_path/'game',bindings,scene_library(),fence,generator=forbidden))
 
 
-def test_broken_compressed_pixels_are_rejected_before_immutable_cache_write(tmp_path,fence):
-    async def generate(*_):return broken_pixel_png(),{}
+@pytest.mark.parametrize('bad_png',[broken_pixel_png,short_scanline_png],ids=['invalid_zlib','short_scanlines'])
+def test_broken_compressed_pixels_are_rejected_before_immutable_cache_write(tmp_path,fence,bad_png):
+    async def generate(*_):return bad_png(),{}
     with pytest.raises(OSError):
         asyncio.run(art.prepare_backgrounds(tmp_path/'game',{'hill':{'prompt':'A hilltop.'}},
             scene_library(),fence,generator=generate))
@@ -108,16 +117,17 @@ def test_broken_compressed_pixels_are_rejected_before_immutable_cache_write(tmp_
     assert not list(art.cache_root().rglob('*.json'))
 
 
-def test_previously_cached_broken_pixels_are_rejected_without_paid_replacement(tmp_path,fence):
+@pytest.mark.parametrize('bad_png',[broken_pixel_png,short_scanline_png],ids=['invalid_zlib','short_scanlines'])
+def test_previously_cached_broken_pixels_are_rejected_without_paid_replacement(tmp_path,fence,bad_png):
     async def generate(*_):return png(),{}
     bindings={'hill':{'prompt':'A hilltop.'}}
     _,images,_=asyncio.run(art.prepare_backgrounds(tmp_path/'game',bindings,scene_library(),fence,generator=generate))
-    path=art.cache_root()/(images[0]['cache_key']+'.png');path.write_bytes(broken_pixel_png())
+    path=art.cache_root()/(images[0]['cache_key']+'.png');path.write_bytes(bad_png())
     receipt_path=path.with_suffix('.json');receipt=json.loads(receipt_path.read_text())
     receipt['sha256']=art.assets.sha256(path);receipt_path.write_text(json.dumps(receipt))
     async def forbidden(*_):raise AssertionError('Corrupt cached pixels must fail without another paid image call')
     with pytest.raises(OSError):
-        asyncio.run(art.prepare_backgrounds(tmp_path/'game',bindings,scene_library(),fence,generator=forbidden))
+        asyncio.run(art.prepare_backgrounds(tmp_path/'resumed-game',bindings,scene_library(),fence,generator=forbidden))
     with pytest.raises(OSError):art.read_illustration({**images[0],'sha256':receipt['sha256']})
 
 

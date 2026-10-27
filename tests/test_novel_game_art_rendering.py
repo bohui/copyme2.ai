@@ -14,7 +14,7 @@ import pytest
 from apps.api import novel_game_art as art
 from apps.api.novel_game import confirmed_source,runner
 from apps.api.novel_game_bundle import journey,scene_library
-from test_novel_game_art import png,broken_pixel_png,fence
+from test_novel_game_art import png,broken_pixel_png,short_scanline_png,fence
 from test_story_game_runtime import build_packet
 
 
@@ -60,7 +60,7 @@ def test_worker_build_paints_the_same_generated_background_in_both_scenes(worker
         server.terminate();server.wait(timeout=10);server.stdout.close();server.stderr.close()
 
 
-@pytest.mark.parametrize('damage,phone',[('pixel_stream',False),('cell_mapping',True)])
+@pytest.mark.parametrize('damage,phone',[('pixel_stream',False),('short_scanlines',False),('cell_mapping',True)])
 def test_verifier_replaces_pass_with_render_failure_for_broken_scene_art(worker_game,damage,phone):
     catalog_path=worker_game/'build/asset-catalog.json';catalog=json.loads(catalog_path.read_text())
     catalog['scenes'][0]['cells']={'observatory':0,'observatory-later':0}
@@ -72,8 +72,9 @@ def test_verifier_replaces_pass_with_render_failure_for_broken_scene_art(worker_
     if phone:command.append('--phone')
     first=subprocess.run(command,capture_output=True,text=True,timeout=60)
     assert first.returncode==0,first.stdout+first.stderr
-    if damage=='pixel_stream':
-        (worker_game/'build/app'/catalog['scenes'][0]['url']).write_bytes(broken_pixel_png())
+    if damage in ('pixel_stream','short_scanlines'):
+        (worker_game/'build/app'/catalog['scenes'][0]['url']).write_bytes(
+            broken_pixel_png() if damage=='pixel_stream' else short_scanline_png())
     else:
         del catalog['scenes'][0]['cells'];catalog_path.write_text(json.dumps(catalog))
         journey.materialise(worker_game,source,runner.public_source(source),require_art=True)

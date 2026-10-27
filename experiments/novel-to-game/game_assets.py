@@ -4,6 +4,8 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import struct
+import zlib
 
 from PIL import Image
 
@@ -96,6 +98,41 @@ def scene_key(plan, art):
     return hashlib.sha256(canonical(dict(style=pack_catalog()['scene_style'], **spec)).encode()).hexdigest()
 
 
+def _check_png_scanlines(path, width, height):
+    """Require the full filtered raster, including every nonempty Adam7 pass."""
+    data=path.read_bytes()
+    if len(data)<33 or data[8:16]!=b'\x00\x00\x00\rIHDR':
+        raise OSError('Scene PNG requires an initial IHDR')
+    w,h,depth,color,compression,filters,interlace=struct.unpack('>IIBBBBB',data[16:29])
+    samples,depths={0:(1,(1,2,4,8,16)),2:(3,(8,16)),3:(1,(1,2,4,8)),4:(2,(8,16)),6:(4,(8,16))}.get(color,(0,()))
+    if (w,h)!=(width,height) or depth not in depths or compression or filters or interlace not in (0,1):
+        raise OSError('Scene PNG has an invalid pixel layout')
+    passes=[(0,0,1,1)] if not interlace else [
+        (0,0,8,8),(4,0,8,8),(0,4,4,8),(2,0,4,4),(0,2,2,4),(1,0,2,2),(0,1,1,2)]
+    expected=0
+    for x,y,dx,dy in passes:
+        columns=max(0,(width-x+dx-1)//dx);rows=max(0,(height-y+dy-1)//dy)
+        if columns and rows:expected+=rows*(1+(columns*samples*depth+7)//8)
+    compressed=bytearray();offset=8;started=ended=False
+    while offset+12<=len(data):
+        length=int.from_bytes(data[offset:offset+4],'big');kind=data[offset+4:offset+8]
+        if offset+length+12>len(data):raise OSError('Scene PNG has a truncated chunk')
+        if kind in (b'acTL',b'fdAT'):raise OSError('Scene artwork must be a static PNG')
+        if kind==b'IDAT':
+            if ended:raise OSError('Scene PNG IDAT chunks must be consecutive')
+            started=True;compressed.extend(memoryview(data)[offset+8:offset+8+length])
+        elif started:ended=True
+        offset+=length+12
+        if kind==b'IEND':break
+    decoder=zlib.decompressobj()
+    try:
+        pixels=decoder.decompress(compressed,expected+1)
+    except zlib.error as error:
+        raise OSError('Scene PNG has an invalid compressed pixel stream') from error
+    if len(pixels)!=expected or not decoder.eof or decoder.unconsumed_tail or decoder.unused_data:
+        raise OSError('Scene PNG pixel stream does not match its declared scanlines')
+
+
 def png_info(path, art):
     if path.stat().st_size > 20_000_000:
         raise ValueError('Scene PNG exceeds 20 MB')
@@ -108,7 +145,8 @@ def png_info(path, art):
         image.verify()
     if width % art['columns'] or height % art['rows']:
         raise ValueError('Scene PNG does not divide into the planned atlas grid')
-    # verify() checks PNG chunks; reopening and loading also checks compressed pixels.
+    # Pillow can zero-fill missing rows after an early zlib EOF, even when load() succeeds.
+    _check_png_scanlines(path,width,height)
     with Image.open(path) as image:
         image.load()
     return dict(width=width, height=height, cell_width=width // art['columns'], cell_height=height // art['rows'])
