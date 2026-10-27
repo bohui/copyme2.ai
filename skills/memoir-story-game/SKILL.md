@@ -2,7 +2,7 @@
 name: memoir-story-game
 description: Recommend memoir scenes by life stage, wait for the owner's selection, then build a continuous illustrated RPG with the separately installed NovelToGame skills. Keep Higgsfield available as a backup.
 metadata:
-  version: "0.6.0"
+  version: "0.6.1"
   product: "CopyMe2 Memoir"
 ---
 
@@ -46,6 +46,8 @@ Build one chronological path with free forward/backward walking, unlimited
 nearby rereading and unique-memory progress, including after completion.
 Memoir owns the executable runtime. Reuse stock life-stage avatars and audio;
 reuse compatible illustrated places before generating missing scene art.
+The application art handoff can request missing backgrounds; the host checks its
+private style/prompt cache, generates and validates PNGs, then reuses them on retry.
 Only approved source metadata can establish age or profession.
 
 Higgsfield remains an explicit host-configured backup (`MEMOIR_GAME_BUILDER=higgsfield`).

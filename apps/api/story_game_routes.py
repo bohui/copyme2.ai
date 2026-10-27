@@ -104,10 +104,12 @@ class StoryGameResponse(Response):
                     (self.project_id, self.game_id, self.review)) if self.game_id else
                     await connection.execute('select public.read_story_game_page(%s)', (self.project_id,)))
                 value = (await cursor.fetchone())[0]
+                from .novel_game_art import hydrate_illustrations
+                value = await asyncio.to_thread(hydrate_illustrations,value)
                 response = JSONResponse(value, headers={'Cache-Control': 'private, no-store'})
                 async with asyncio.timeout(2):
                     await response(scope, receive, guarded_send)
-        except (Error, ValueError, TimeoutError) as error:
+        except (Error, ValueError, OSError, TimeoutError) as error:
             if started:
                 raise RuntimeError('game_delivery_interrupted') from None
             code = getattr(error, 'sqlstate', None)

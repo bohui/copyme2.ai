@@ -207,6 +207,10 @@ services:
       MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMOIR_HIGGSFIELD_SKILL_PATH: /opt/memoir/external-skills/higgsfield-websites
       MEMOIR_GAME_BUILDER: ${MEMOIR_GAME_BUILDER:-novel-to-game}
+      MEMOIR_GAME_IMAGE_MODEL: ${MEMOIR_GAME_IMAGE_MODEL:-gpt-image-2.5-sunburst}
+      MEMOIR_GAME_IMAGE_BASE_URL: "${MEMOIR_GAME_IMAGE_BASE_URL:-}"
+      MEMOIR_GAME_IMAGE_API_KEY: "${MEMOIR_GAME_IMAGE_API_KEY:-}"
+      MEMORY_SPARK_OBJECT_STORE_PATH: /var/lib/memory-spark/objects
       MEMORY_SPARK_TASK_STORE_URL: http://api:8000
       MEMORY_SPARK_CODEX_WORKER_SECRET: ${MEMORY_SPARK_CODEX_WORKER_SECRET:-memory-spark-local-worker-secret}
       MEMORY_SPARK_CODEX_WORKER_TIMEOUT: ${MEMORY_SPARK_CODEX_WORKER_TIMEOUT:-120}
@@ -227,6 +231,7 @@ services:
       PYTHONUNBUFFERED: "1"
     volumes:
       - codex-worker-home:/var/lib/memory-spark/codex-users
+      - ./var/memory-spark/objects/story-game-scenes:/var/lib/memory-spark/objects/story-game-scenes
       - ./var/external-skills:/opt/memoir/external-skills:ro
       - ./experiments/novel-to-game:/app/experiments/novel-to-game:ro
       - ./deps:/app/deps:ro

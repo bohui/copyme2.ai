@@ -40,9 +40,15 @@ allows both-direction keyboard/touch walking, smooth reversible scene transition
 unlimited proximity reading before/after completion, unique-memory progress,
 source text, reduced motion, ending and restart. Models supply data and styling;
 they cannot supply executable HTML/JavaScript. The application art pass binds
-source-supported locations to the original shared illustrated place library.
-The standalone adapter can additionally prepare new scene illustrations through
-its explicit image-generation workflow. Shared avatars, UI and music are reused.
+compatible locations to the shared illustrated library and requests new
+backgrounds for unsupported settings. The host reuses its private exact
+style/prompt cache before calling the configured Images API. Each completed PNG
+is validated for format, dimensions and byte limits before caching. Image failures
+leave the art decision checkpointed; a retry restores completed images. Shared
+avatars, UI and music are reused. Generated backgrounds stay in the private object
+store and enter the player only through the authorized game response, never the
+public stock-asset endpoint. PNG validation establishes file integrity; visual
+fidelity still requires inspecting the rendered scene.
 A missing age uses an explicitly unspecified stage and imagined generic avatar.
 
 The host plays the whitebox before art, then runs complete desktop and touch

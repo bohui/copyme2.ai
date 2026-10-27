@@ -103,10 +103,32 @@ def png_info(path, art):
         if image.format != 'PNG':
             raise ValueError('Scene artwork must be PNG')
         width, height = image.size
+        if max(width,height)>3840 or width*height>8_294_400:
+            raise ValueError('Scene PNG exceeds dimension or pixel limits')
         image.verify()
     if width % art['columns'] or height % art['rows']:
         raise ValueError('Scene PNG does not divide into the planned atlas grid')
+    # verify() checks PNG chunks; reopening and loading also checks compressed pixels.
+    with Image.open(path) as image:
+        image.load()
     return dict(width=width, height=height, cell_width=width // art['columns'], cell_height=height // art['rows'])
+
+
+def cached_scene(plan, art, cache=DEFAULT_CACHE):
+    key=scene_key(plan,art)
+    cached,receipt=cache/(key+'.png'),cache/(key+'.json')
+    if not cached.exists() or not receipt.exists():return None
+    record=json.loads(receipt.read_text())
+    if record['cache_key']!=key or record['sha256']!=sha256(cached):
+        raise ValueError('Scene cache integrity failed: '+art['id'])
+    return dict(cache_key=key,sha256=record['sha256'],**png_info(cached,art))
+
+
+def cache_scene(plan, art, image, cache=DEFAULT_CACHE):
+    info=png_info(image,art);key=scene_key(plan,art)
+    write_bytes(cache,key+'.png',image.read_bytes(),immutable=True)
+    write_json(cache,key+'.json',dict(cache_key=key,sha256=sha256(image),**info))
+    return cached_scene(plan,art,cache)
 
 
 def prepare(workspace, cache=DEFAULT_CACHE, *, include_scenes=True, require_ready=False):
@@ -119,14 +141,11 @@ def prepare(workspace, cache=DEFAULT_CACHE, *, include_scenes=True, require_read
         plan = validate_plan(json.loads(plan_path.read_text()))
         for art in plan['illustrations']:
             key = scene_key(plan, art)
-            cached, receipt = cache / (key + '.png'), cache / (key + '.json')
             item = dict(art, cache_key=key, url='assets/scenes/' + art['id'] + '-' + key[:12] + '.png')
-            if cached.exists() and receipt.exists():
-                record = json.loads(receipt.read_text())
-                if record['cache_key'] != key or record['sha256'] != sha256(cached):
-                    raise ValueError('Scene cache integrity failed: ' + art['id'])
-                item.update(png_info(cached, art), sha256=record['sha256'], status='ready')
-                write_bytes(workspace, 'build/app/' + item['url'], cached.read_bytes(), immutable=True)
+            cached = cached_scene(plan,art,cache)
+            if cached:
+                item.update(cached,status='ready')
+                write_bytes(workspace, 'build/app/' + item['url'], (cache/(key+'.png')).read_bytes(), immutable=True)
             else:
                 item['status'] = 'missing'
                 catalog['missing'].append(art['id'])
@@ -144,10 +163,7 @@ def record_scene(workspace, art_id, image, cache=DEFAULT_CACHE):
     art = next((a for a in plan['illustrations'] if a['id'] == art_id), None)
     if art is None:
         raise ValueError('Unknown scene illustration: ' + art_id)
-    info = png_info(image, art)
-    key = scene_key(plan, art)
-    write_bytes(cache, key + '.png', image.read_bytes(), immutable=True)
-    write_json(cache, key + '.json', dict(cache_key=key, sha256=sha256(image), **info))
+    cache_scene(plan,art,image,cache)
     return prepare(workspace, cache)
 
 

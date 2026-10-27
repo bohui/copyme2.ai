@@ -41,7 +41,8 @@ def outputs(stage):
     }[stage]
 
 
-def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_max(approved,draft_prompts,tmp_path,monkeypatch):
+@pytest.mark.parametrize('missing_background',[False,True])
+def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_max(approved,draft_prompts,tmp_path,monkeypatch,missing_background):
     calls,stored,verified=[],{},[]
     @asynccontextmanager
     async def guard(self,fence):
@@ -51,6 +52,7 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_max(app
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL','controlled-database')
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL','https://gateway.test/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY','controlled-secret-value')
+    monkeypatch.setenv('MEMORY_SPARK_OBJECT_STORE_PATH',str(tmp_path/'objects'))
     async def load(_): return approved
     async def store(fence,stage,signature,value=None):
         if value is not None: stored[stage,signature]=copy.deepcopy(value)
@@ -67,17 +69,29 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_max(app
         assert payload['source']['chapters'][0]['blocks']==[dict(text='My father tended the garden.')]
         assert novel_game.runner.STAGES[stage]['skill']+'/SKILL.md' in body['instructions']
         if stage=='art' and fail: raise httpx.ReadTimeout('controlled interrupted art stage')
-        value=dict(files=[dict(path=p,content=c) for p,c in outputs(stage).items()],notes='Controlled transport, browser verifier is mocked.')
+        files=outputs(stage)
+        if stage=='art' and missing_background:files['design/SCENE_BINDINGS.json']='{"garden":{"prompt":"A supported garden background."}}'
+        value=dict(files=[dict(path=p,content=c) for p,c in files.items()],notes='Controlled transport, browser verifier is mocked.')
         result=dict(status='completed',id='resp-'+stage,model='gpt-6.1-sol',reasoning=dict(effort='max'),
             output=[dict(type='message',content=[dict(type='output_text',text=json.dumps(value))])])
         return httpx.Response(200,text='data: '+json.dumps(dict(type='response.completed',response=result))+'\n\n',headers={'Content-Type':'text/event-stream'})
     fence=dict(game_id=GAME,token=TOKEN,authority=approved['authority'])
+    image_calls=[];image_fail=True
+    async def image(prompt,_):
+        image_calls.append(prompt)
+        if image_fail:raise httpx.ReadTimeout('controlled missing-background interruption')
+        from test_novel_game_art import png
+        return png(),{'model':'controlled-image'}
     def run():
         return asyncio.run(novel_game.run_novel_game(fence,packet_loader=load,transport=httpx.MockTransport(transport),
-            stage_store=store,verifier=verify,output=tmp_path))
+            stage_store=store,verifier=verify,output=tmp_path,image_generator=image))
     with pytest.raises(httpx.ReadTimeout): run()
     assert calls==['analyze','concept','design','whitebox','art'] and len(stored)==4
     fail=False
+    if missing_background:
+        with pytest.raises(httpx.ReadTimeout):run()
+        assert len(stored)==5, 'The art decision must survive an image-generation failure'
+    image_fail=False
     result=run()
     assert calls==['analyze','concept','design','whitebox','art','art','production']
     bundle=result['webpage']['novel_game']
@@ -87,6 +101,8 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_max(app
     before=list(calls)
     run()
     assert calls==before, 'Matching completed stages must not call the model again'
+    assert len(image_calls)==(2 if missing_background else 0)
+    assert bundle['version']==(2 if missing_background else 1)
     assert len(stored)==6
     assert validate_bundle(bundle,[approved['scene_pool']['scenes'][0]])==bundle
     altered=copy.deepcopy(bundle); altered['source']['chapters'][0]['text']='Unselected invented text.'
