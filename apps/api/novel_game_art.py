@@ -154,7 +154,7 @@ async def prepare_backgrounds(workspace,bindings,library,fence,*,generator=None)
         if total>MAX_GAME_IMAGE_BYTES:raise ValueError('game_scene_image_limit')
         url='assets/scenes/'+key+'.png';assets.write_bytes(workspace,'build/app/'+url,data,immutable=True)
         references.append(reference)
-        catalog.append(dict(reference,url=url,status='ready',columns=1,rows=1))
+        catalog.append(dict(reference,url=url,status='ready',columns=1,rows=1,cells={scene:0 for scene in entry['scenes']}))
         receipts.append(dict(cache_key=reference['cache_key'],sha256=item['sha256'],reused=reused,
             provider=json.loads((cache/(key+'-provider.json')).read_text()) if (cache/(key+'-provider.json')).exists() else None))
     pack=assets.pack_catalog()

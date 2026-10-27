@@ -103,9 +103,14 @@ def png_info(path, art):
         if image.format != 'PNG':
             raise ValueError('Scene artwork must be PNG')
         width, height = image.size
+        if max(width,height)>3840 or width*height>8_294_400:
+            raise ValueError('Scene PNG exceeds dimension or pixel limits')
         image.verify()
     if width % art['columns'] or height % art['rows']:
         raise ValueError('Scene PNG does not divide into the planned atlas grid')
+    # verify() checks PNG chunks; reopening and loading also checks compressed pixels.
+    with Image.open(path) as image:
+        image.load()
     return dict(width=width, height=height, cell_width=width // art['columns'], cell_height=height // art['rows'])
 
 

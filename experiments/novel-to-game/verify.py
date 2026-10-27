@@ -13,6 +13,9 @@ from uuid import uuid4
 from playwright.sync_api import sync_playwright, expect
 
 PACKAGE = Path(__file__).resolve().parent
+sys.path.insert(0,str(PACKAGE))
+from game_assets import png_info
+
 HERE = PACKAGE.parents[1] / 'var/novel-to-game-rpg-scroller'
 CHECKS = ('launch', 'render', 'input', 'coreLoop', 'outcome', 'restart')
 
@@ -107,6 +110,15 @@ def verify(stage, phone=False):
             initial_text = page.locator('body').inner_text()
             observe(page, 'launch', [{'action': 'navigate', 'url': '/'}], 'initial-state')
             current_check = 'render'
+            if linear:
+                for art in json.loads((HERE/'build/journey.json').read_text())['illustrations']:
+                    image=(app/art['url']).resolve()
+                    assert image.is_relative_to(app.resolve()), 'Scene image escapes the build'
+                    info=png_info(image,art)
+                    assert (info['width'],info['height'])==(art['width'],art['height']), 'Scene image dimensions changed'
+                    for index,scene in enumerate(art['scenes']):
+                        cell=art.get('cells',{}).get(scene,index)
+                        assert type(cell) is int and 0<=cell<art['columns']*art['rows'], 'Scene atlas cell is outside its image: '+scene
             assert page.locator('body').bounding_box()['height'] > 100
             assert len(initial_text.strip()) > 50
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth + 1'), 'Horizontal overflow'

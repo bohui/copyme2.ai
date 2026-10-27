@@ -89,6 +89,14 @@ def test_cache_rejects_corruption_and_never_overwrites_different_predefined_art(
     assert (workspace / 'build/app' / stock['url']).read_bytes() == b'local different art'
 
 
+@pytest.mark.parametrize('size',[(3841,512),(3000,3000)])
+def test_scene_size_limits_are_checked_before_pixel_allocation(tmp_path,monkeypatch,size):
+    path=tmp_path/'oversized.png';Image.new('RGB',size,'green').save(path)
+    def forbidden(*_):raise AssertionError('Do not decode oversized scene pixels')
+    monkeypatch.setattr(Image.Image,'load',forbidden)
+    with pytest.raises(ValueError,match='limits'):assets.png_info(path,dict(columns=1,rows=1))
+
+
 def test_staging_refuses_a_link_outside_the_game_workspace(tmp_path):
     workspace, outside = tmp_path / 'game', tmp_path / 'outside'
     (workspace / 'build').mkdir(parents=True)
