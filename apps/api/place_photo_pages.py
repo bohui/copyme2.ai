@@ -15,6 +15,7 @@ from .place_photos import ANY_PHOTO_DATE, MAX_RESULTS, PhotoResearchUnavailable,
 MAX_SNAPSHOTS = 32
 MAX_ACTIVE_SEARCHES = 4
 SNAPSHOT_TTL = 15 * 60
+FAILURE_TTL = 60
 
 
 class PhotoPages:
@@ -100,7 +101,7 @@ class PhotoPages:
             with self.lock:
                 job['revision'] += 1
                 job['done'].set()
-                job['expires'] = time.monotonic() + (0 if job['error'] and not job['items'] else SNAPSHOT_TTL)
+                job['expires'] = time.monotonic() + (FAILURE_TTL if job['error'] and not job['items'] else SNAPSHOT_TTL)
 
     def _snapshot(self, owner, place, period, cursor, *, refresh=False, latitude=None, longitude=None,
                   context_year=None):

@@ -173,6 +173,16 @@ class ParallelTests(unittest.TestCase):
         self.assertEqual(result["error"], "http_401")
         self.assertNotIn("fake-private-key", json.dumps(result))
 
+    def test_exhausted_search_quota_is_distinct_from_transient_rate_limiting(self):
+        for message,reason in [('Your account has run out of searches. fake-private-key','quota_exhausted'),
+                               ('Too many requests. fake-private-key','rate_limited')]:
+            error=HTTPError('https://serpapi.com/search?api_key=fake-private-key',429,'secret',None,
+                io.BytesIO(json.dumps({'error':message}).encode()))
+            with patch.object(s,'urlopen',side_effect=error):
+                result=s.serpapi('Chengde')
+            self.assertEqual(result['error'],reason)
+            self.assertNotIn('fake-private-key',json.dumps(result))
+
     def test_forced_search_disables_provider_cache(self):
         response = SimpleNamespace(read=lambda limit: b'{"images_results":[],"search_metadata":{"status":"Success"}}')
         with patch.object(s, "urlopen", return_value=contextlib.nullcontext(response)) as opened:

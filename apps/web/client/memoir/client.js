@@ -1156,7 +1156,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const reportProgress = (status, label, failures = []) => {
     const safeFailures = (Array.isArray(failures) ? failures : []).filter(item => item
       && ["flickr", "google", "loc", "commons", "llm"].includes(item.provider)
-      && /^(?:robots_denied|verification_required|timeout|network_error|invalid_response|unavailable|http_\d{3})$/.test(item.reason))
+      && /^(?:robots_denied|verification_required|quota_exhausted|rate_limited|timeout|network_error|invalid_response|unavailable|http_\d{3})$/.test(item.reason))
       .map(({provider, reason}) => ({provider, reason}));
     recordWorkspaceSkillProgress({id: progressIdentity, replaces_id:progressIdentity===`photos:${requestKey}` ? null : `photos:${requestKey}`, kind: "skill", skill: "memoir-place-photo-research",
       project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:status === "cached" ? "cache" : "provider", model_invoked:status === "cached" ? false : null,

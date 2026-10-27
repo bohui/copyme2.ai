@@ -101,6 +101,14 @@ def serpapi(query, *, refresh=False, engine='google_images'):
                  for item in results if isinstance(item, dict)]
         return {"status": "success", "cards": normalize_cards(cards, "serpapi"), "requests": 1}
     except HTTPError as error:
+        if error.code == 429:
+            try:
+                message=str(json.loads(error.read(32768)).get('error',''))
+            except (ValueError,TypeError,AttributeError,OSError):
+                message=''
+            reason=('quota_exhausted' if re.search(r'run out|quota|credit',message,re.I)
+                    else 'rate_limited')
+            return {'status':'error','error':reason,'cards':[],'requests':1}
         return {"status": "error", "error": f"http_{error.code}", "cards": [], "requests": 1}
     except Exception as error:
         return {"status": "error", "error": type(error).__name__, "cards": [], "requests": 1}
