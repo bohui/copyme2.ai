@@ -15180,8 +15180,10 @@ begin
  package:=public.story_game_package(expected,p_proposal->>'html',game.authority->>'locale');
  if novel then
    if jsonb_typeof(p_proposal->'novel_game') is distinct from 'object'
-     or (select count(*) from jsonb_object_keys(p_proposal->'novel_game'))<>5
-     or p_proposal->'novel_game'->>'version' is distinct from '1'
+     or not coalesce((p_proposal->'novel_game'->>'version'='1' and (select count(*) from jsonb_object_keys(p_proposal->'novel_game'))=5)
+       or (p_proposal->'novel_game'->>'version'='2' and (select count(*) from jsonb_object_keys(p_proposal->'novel_game'))=6
+         and jsonb_typeof(p_proposal->'novel_game'->'illustrations')='array'
+         and jsonb_array_length(p_proposal->'novel_game'->'illustrations') between 1 and 24),false)
      or octet_length((p_proposal->'novel_game')::text)>262144
      or jsonb_typeof(p_proposal->'novel_game'->'source'->'chapters') is distinct from 'array'
      or jsonb_array_length(p_proposal->'novel_game'->'source'->'chapters')<>jsonb_array_length(expected)
@@ -15189,6 +15191,20 @@ begin
      or length(p_proposal->'novel_game'->>'css')>24000
      or p_proposal->'novel_game'->>'css'~*'(<|url[[:space:]]*\(|@import|expression[[:space:]]*\()' then
      raise exception 'GAME_JOURNEY_INVALID' using errcode='22023';end if;
+   for item in select value from jsonb_array_elements(coalesce(p_proposal->'novel_game'->'illustrations','[]')) loop
+     if jsonb_typeof(item) is distinct from 'object' or (select count(*) from jsonb_object_keys(item))<>5
+       or not (item ?& array['cache_key','sha256','width','height','scenes'])
+       or jsonb_typeof(item->'cache_key') is distinct from 'string' or jsonb_typeof(item->'sha256') is distinct from 'string'
+       or jsonb_typeof(item->'width') is distinct from 'number' or jsonb_typeof(item->'height') is distinct from 'number'
+       or item->>'cache_key' !~ '^[a-f0-9]{64}/[a-f0-9]{64}$'
+       or item->>'sha256' !~ '^[a-f0-9]{64}$'
+       or item->>'width' !~ '^[0-9]{3,4}$' or item->>'height' !~ '^[0-9]{3,4}$'
+       or (item->>'width')::integer not between 256 and 3840 or (item->>'height')::integer not between 256 and 3840
+       or (item->>'width')::integer*(item->>'height')::integer>8294400
+       or jsonb_typeof(item->'scenes') is distinct from 'array' or jsonb_array_length(item->'scenes') not between 1 and 128
+       or exists(select 1 from jsonb_array_elements(item->'scenes') s where jsonb_typeof(s)<>'string' or s#>>'{}' !~ '^[a-z][a-z0-9-]{0,47}$') then
+       raise exception 'GAME_JOURNEY_INVALID' using errcode='22023';end if;
+   end loop;
    memory_index:=0;
    for item in select value from jsonb_array_elements(expected) loop
      if p_proposal->'novel_game'->'source'->'chapters'->memory_index is distinct from

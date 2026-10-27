@@ -282,7 +282,10 @@
       "type": "object",
       "properties": {
         "version": {
-          "const": 1
+          "enum": [
+            1,
+            2
+          ]
         },
         "source": {
           "type": "object",
@@ -447,7 +450,7 @@
         },
         "scene_bindings": {
           "type": "object",
-          "minProperties": 1,
+          "minProperties": 0,
           "maxProperties": 128,
           "additionalProperties": {
             "enum": [
@@ -459,6 +462,52 @@
               "garden"
             ]
           }
+        },
+        "illustrations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 24,
+          "items": {
+            "type": "object",
+            "properties": {
+              "cache_key": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}/[a-f0-9]{64}$"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 256,
+                "maximum": 3840
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 256,
+                "maximum": 3840
+              },
+              "scenes": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 128,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]{0,47}$"
+                }
+              }
+            },
+            "required": [
+              "cache_key",
+              "sha256",
+              "width",
+              "height",
+              "scenes"
+            ],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -468,7 +517,30 @@
         "css",
         "scene_bindings"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "version": {
+                "const": 2
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "illustrations"
+            ]
+          },
+          "else": {
+            "not": {
+              "required": [
+                "illustrations"
+              ]
+            }
+          }
+        }
+      ]
     }
   },
   "required": [

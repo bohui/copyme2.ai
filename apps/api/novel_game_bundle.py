@@ -4,6 +4,7 @@ import hashlib
 from importlib import import_module
 import json
 import re
+from .novel_game_art import validate_illustration
 
 journey = import_module('experiments.novel-to-game.journey')
 assets = import_module('experiments.novel-to-game.game_assets')
@@ -32,8 +33,8 @@ def validate_style(css):
 
 
 def validate_bundle(value, scenes):
-    if (not isinstance(value, dict) or set(value) != {'version', 'source', 'plan', 'css', 'scene_bindings'}
-            or type(value['version']) is not int or value['version'] != 1):
+    if (not isinstance(value, dict) or type(value.get('version')) is not int or value['version'] not in (1,2)
+            or set(value) != {'version', 'source', 'plan', 'css', 'scene_bindings'} | ({'illustrations'} if value['version']==2 else set())):
         raise ValueError('game_journey_bundle_invalid')
     source = value['source']
     if (not isinstance(source, dict) or set(source) != {'title', 'fictional', 'chapters'}
@@ -65,7 +66,13 @@ def validate_bundle(value, scenes):
     if not isinstance(plan['order_note'],str) or len(plan['order_note'])>1000:
         raise ValueError('game_journey_order_invalid')
     bindings = value['scene_bindings']
-    if (not isinstance(bindings,dict) or set(bindings) != {s['scene'] for s in plan['segments']}
+    illustrations=value.get('illustrations',[])
+    if not isinstance(illustrations,list) or (value['version']==2 and not 1<=len(illustrations)<=24):
+        raise ValueError('game_scene_illustration_invalid')
+    generated=[]
+    for art in illustrations:generated.extend(validate_illustration(art)['scenes'])
+    if (not isinstance(bindings,dict) or set(bindings)&set(generated) or len(set(generated))!=len(generated)
+            or set(bindings)|set(generated) != {s['scene'] for s in plan['segments']}
             or any(cell not in scene_library()['cells'] for cell in bindings.values())):
         raise ValueError('game_scene_bindings_invalid')
     validate_style(value['css'])

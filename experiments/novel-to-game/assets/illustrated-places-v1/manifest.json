@@ -14,5 +14,13 @@
     "interior",
     "garden"
   ],
+  "descriptions": {
+    "home": "Generic modest house exterior and garden gate, warm daylight.",
+    "school": "Generic primary-school building and grounds, warm daylight.",
+    "workshop": "Domestic bicycle/tool workshop or shed, timber work surfaces.",
+    "town": "Neighbourhood outdoor market and adjacent library frontage, warm daylight.",
+    "interior": "Quiet generic domestic or classroom interior; no specialised equipment.",
+    "garden": "Small domestic vegetable garden and fence, warm daylight."
+  },
   "provenance": "Original generic fictional gouache environments generated for the approved age-eight example on 2026-10-26. Shared location illustrations, not documentary depictions."
 }

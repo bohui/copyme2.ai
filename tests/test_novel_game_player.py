@@ -14,7 +14,8 @@ from test_story_game_runtime import build_packet
 
 
 @pytest.mark.parametrize('width,touch',[(1280,False),(390,True)])
-def test_app_frame_walks_both_ways_and_rereads_after_completion(width,touch,tmp_path):
+@pytest.mark.parametrize('generated',[False,True])
+def test_app_frame_walks_both_ways_and_rereads_after_completion(width,touch,tmp_path,monkeypatch,generated):
     packet=build_packet()
     packet['selection']['scene_ids']=['scene-1','scene-2']
     for event in packet['timeline']: event.update(life_stage='childhood',age={'minimum':8,'maximum':8})
@@ -25,6 +26,19 @@ def test_app_frame_walks_both_ways_and_rereads_after_completion(width,touch,tmp_
         stops=[dict(chapter='C1',segment='garden',x=420),dict(chapter='C2',segment='garden-later',x=1060)])
     game=dict(novel_game=validate_bundle(dict(version=1,source=runner.public_source(source),plan=journey.bind_journey(plan,source),
         css='body{color:#243d33}',scene_bindings={'garden':'garden','garden-later':'garden'}),packet['scene_pool']['scenes']))
+    if generated:
+        import asyncio
+        from apps.api.novel_game_art import prepare_backgrounds
+        from apps.api.novel_game_bundle import scene_library
+        from apps.api.story_game_runtime import GameFence
+        from test_novel_game_art import png
+        from test_story_game_runtime import GAME,TOKEN
+        monkeypatch.setenv('MEMORY_SPARK_OBJECT_STORE_PATH',str(tmp_path/'objects'))
+        async def image(*_):return png(),{'model':'controlled-image'}
+        _,images,_=asyncio.run(prepare_backgrounds(tmp_path,{'garden':{'prompt':'Garden.'},'garden-later':{'prompt':'Garden.'}},
+            scene_library(),GameFence(game_id=GAME,token=TOKEN,authority={}),generator=image))
+        game['novel_game'].update(version=2,scene_bindings={},illustrations=images)
+        validate_bundle(game['novel_game'],packet['scene_pool']['scenes'])
     root=Path(__file__).parents[1]
     (tmp_path/'game-package.json').write_text(json.dumps(dict(game=game)))
     server=subprocess.Popen([sys.executable,'-B',str(root/'experiments/novel-to-game/serve.py'),
@@ -40,6 +54,8 @@ def test_app_frame_walks_both_ways_and_rereads_after_completion(width,touch,tmp_
             frame=page.frame_locator('iframe')
             expect(frame.locator('#game')).to_have_attribute('data-x','80')
             assert page.locator('iframe').get_attribute('sandbox')=='allow-scripts'
+            if generated:
+                assert frame.locator('#scenery image').last.get_attribute('href').startswith('data:image/png;base64,')
             def walk_to(target):
                 frame.locator('#game').focus();page.keyboard.down('ArrowRight')
                 deadline=time.monotonic()+5
