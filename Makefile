@@ -451,6 +451,7 @@ container-up: ## Start local services and build changed images; CONTAINER_REBUIL
 
 _container-up: runtime-start _validate-skills
 	@mkdir -p var/memory-spark
+	@mkdir -p var/memory-spark/objects/story-game-scenes
 	@set -e; \
 	memoir_env_file="$(ENV_FILE)"; case "$$memoir_env_file" in /*) ;; *) memoir_env_file="./$$memoir_env_file" ;; esac; \
 	set -a; if test -f "$$memoir_env_file"; then . "$$memoir_env_file"; fi; set +a; \

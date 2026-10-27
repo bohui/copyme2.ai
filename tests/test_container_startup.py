@@ -263,6 +263,16 @@ def test_repeat_up_skips_builds_and_reuses_every_service(stack):
     assert not any('--volumes' in c or c[:2] == ['compose', 'down'] for c in repeated)
 
 
+def test_up_creates_story_game_object_mount_source(stack):
+    root, up, _ = stack
+    mount_source = root / 'var/memory-spark/objects/story-game-scenes'
+    assert not mount_source.exists()
+
+    up()
+
+    assert mount_source.is_dir()
+
+
 def test_up_restores_current_checkout_after_another_worktree_takes_over(stack):
     root, up, calls = stack
     up()
