@@ -22,7 +22,6 @@ export function applyDerivedWorkspace(state, update) {
   });
   state.derivedWorkspace = {project_id:update.project_id, policy_epoch:update.policy_epoch, source_revision:update.source_revision};
   if (!places.length) {
-    state.workspaceActivatedProjectId = null;
     state.placeWorkspaceMap = null;
   }
   if (JSON.stringify(previousPlaces) === JSON.stringify(places)

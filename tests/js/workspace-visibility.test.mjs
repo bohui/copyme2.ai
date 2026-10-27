@@ -2,11 +2,12 @@ import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import {applyDerivedWorkspace} from '../../apps/web/client/memoir/derived-workspace.mjs';
 
 const source = readMemoirClientSource();
 const extract = name => source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0];
 
-function renderedWorkspace(overrides = {}, dependencies = {}) {
+function workspaceHarness(overrides = {}, dependencies = {}) {
   const app = {innerHTML: ''};
   const state = {
     project: {id: 'project'}, chat: [{role: 'user', text: 'I grew up in Chengde.'}],
@@ -35,6 +36,11 @@ function renderedWorkspace(overrides = {}, dependencies = {}) {
     'workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible', 'workspaceDetail', 'renderStory']) {
     vm.runInContext(extract(name), context);
   }
+  return {state, context, app};
+}
+
+function renderedWorkspace(overrides = {}, dependencies = {}) {
+  const {context, app} = workspaceHarness(overrides, dependencies);
   context.renderStory();
   return app.innerHTML;
 }
@@ -207,4 +213,37 @@ test('an activated workspace survives a later unresolved location and respects c
   state.project = {id: 'another-project'};
   state.placeJourney = null;
   assert.equal(context.workspaceIsVisible(), false, 'a past map must not activate a new empty project');
+});
+
+for (const policyEpoch of [1, 2]) test(`an activated workspace stays rendered after an empty place snapshot at policy epoch ${policyEpoch}`, () => {
+  const journey = {place:'Chengde', hierarchy:['Earth', 'China', 'Chengde'], status:'active',
+    latitude:40.95, longitude:117.96};
+  const {state, context, app} = workspaceHarness({
+    project:{id:'project', profile:{memory_places:[journey]}}, placeJourney:journey,
+    placeWorkspaceMap:{projectId:'project', key:'saved-map'},
+  }, {workspaceMediaOverview:() => ''});
+  context.renderStory();
+  assert.match(app.innerHTML, /story-shell context-visible/);
+
+  assert.equal(applyDerivedWorkspace(state, {project_id:'project', source_revision:2,
+    policy_epoch:policyEpoch, authoritative:true, places:[]}), true);
+  context.renderStory();
+  assert.match(app.innerHTML, /story-shell context-visible/);
+  assert.match(app.innerHTML, /id="workspace-detail"/);
+  assert.doesNotMatch(app.innerHTML, /conversation-only|workspace-collapsed/);
+  assert.equal(state.placeJourney, null);
+  assert.equal(state.placeWorkspaceMap, null);
+  assert.deepEqual(state.project.profile.memory_places, []);
+
+  state.workspaceCollapsed = true;
+  context.renderStory();
+  assert.match(app.innerHTML, /workspace-detail is-collapsed/);
+  state.workspaceCollapsed = false;
+  context.renderStory();
+  assert.match(app.innerHTML, /story-shell context-visible/);
+
+  state.project = {id:'another-project', profile:{}};
+  context.renderStory();
+  assert.match(app.innerHTML, /story-shell conversation-only/);
+  assert.doesNotMatch(app.innerHTML, /id="workspace-detail"/);
 });

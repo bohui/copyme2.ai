@@ -1,7 +1,9 @@
 // Actual canonical SQL/API output must not activate a relative's place on the client.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
 import {applyDerivedWorkspace} from '../../../apps/web/client/memoir/derived-workspace.mjs';
+import {readMemoirClientSource} from './memoir-source.mjs';
 
 const {ready,expected_places:expected,expect_no_research:noResearch} = JSON.parse(readFileSync(0,'utf8'));
 const update = ready.derived_workspace;
@@ -17,6 +19,20 @@ if (noResearch) {
 }
 if (!expected.length) {
   assert.equal(state.selectedPlace,null);
-  assert.equal(state.workspaceActivatedProjectId,null);
+  assert.equal(state.workspaceActivatedProjectId,update.project_id);
   assert.equal(state.placeWorkspaceMap,null);
 }
+
+const context = vm.createContext({state, composingWorkspaceActive:() => false, freeRecallFinished:() => false,
+  placeWorkspaceSelection:() => state.placeJourney, placeMapTarget:place => place});
+const source = readMemoirClientSource();
+for (const name of ['workspaceContentAvailable', 'workspaceHasContent', 'workspaceIsVisible']) {
+  vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0], context);
+}
+assert.equal(context.workspaceIsVisible(),true,'A background snapshot must not hide an activated workspace');
+state.workspaceCollapsed = true;
+assert.equal(context.workspaceIsVisible(),false,'The narrator can still collapse the workspace');
+state.workspaceCollapsed = false;
+state.project = {id:'another-project',profile:{}};
+state.placeJourney = null;
+assert.equal(context.workspaceIsVisible(),false,'Activation must stay scoped to the original project');

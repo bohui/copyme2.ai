@@ -52,6 +52,7 @@ def photo_page(request):
                 data=dict(id='photos',mode='self',profile=profile if route.request.headers.get('authorization')=='Bearer fixture-owner' else {},revision=1)
             elif path.endswith('/journey'): data=dict(active_session=None)
             elif path=='/story/state': data=dict(family_features_enabled=False,recall_status=dict(payment_required=False))
+            elif path=='/story/readiness': data=profile.get('readiness',{})
             elif path=='/user/conversations':data=dict(items=[])
             elif path=='/user/projects/photos/history':data=dict(project_id='photos',policy_epoch='1',items=profile.get('history',[]),next_cursor=None)
             elif path=='/story/transcriptions':data=dict(text='I caught insects with my parents.')
@@ -170,6 +171,38 @@ def test_acceptance_clears_cue_shows_response_card_and_keeps_only_one_question(p
     expect(page.locator('.assistant-message .response-photo-card')).to_have_count(1)
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
     out=Path('/tmp/issue41-ui');out.mkdir(exist_ok=True);page.screenshot(path=str(out/f'{viewport}-response.png'))
+
+
+def test_referenced_image_keeps_activated_workspace_visible_after_empty_background_snapshot(photo_page):
+    page,profile,_,viewport=photo_page
+    profile['memory_places']=[dict(place='Chengde', hierarchy=['Earth','China','Chengde'],
+        granularity='city', status='active', latitude=40.95, longitude=117.96)]
+    page.reload(wait_until='networkidle')
+    workspace=page.locator('#workspace-detail')
+    expect(workspace).to_be_visible()
+    expect(page.locator('.workspace-media-map')).to_be_visible()
+
+    profile['readiness']=dict(pending=False,derived_workspace=dict(project_id='photos',
+        source_revision=2,policy_epoch=1,authoritative=True,places=[]))
+    send(page,'We used jars to catch fish and shrimp near the garden.')
+    cards=[dict(photo_id='reference:gate',kind='public_reference',title='Public gate reference',
+        image_url='/static/reference-fixture.png',source_url='https://archive.example/gate')]
+    with page.expect_response(lambda response:'/story/readiness?' in response.url) as snapshot:
+        page.evaluate('(data)=>finishTurn(data)',dict(reply='Who went fishing with you?',response_photos=cards,**receipt()))
+    assert snapshot.value.json()['derived_workspace']['places']==[]
+    expect(page.locator('.workspace-media-map')).to_have_count(0)
+    expect(page.locator('.response-photo-card')).to_be_visible()
+    expect(page.locator('.story-shell.context-visible')).to_be_visible()
+    expect(workspace).to_be_visible()
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    out=Path('/tmp/memoir-workspace-visibility');out.mkdir(exist_ok=True)
+    page.screenshot(path=str(out/f'{viewport}-image-reference.png'))
+
+    page.get_by_role('button',name='Collapse workspace',exact=True).click()
+    expect(page.locator('#workspace-detail.is-collapsed')).to_be_visible()
+    page.get_by_role('button',name='Show workspace',exact=True).click()
+    expect(page.locator('.story-shell.context-visible')).to_be_visible()
+    expect(workspace).to_be_visible()
 
 
 def test_acknowledgement_and_validated_reply_do_not_unlock_until_save(photo_page):

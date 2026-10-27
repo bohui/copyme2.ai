@@ -33,7 +33,7 @@ test('an authoritative privacy revocation removes inaccessible places',()=>{
   assert.equal(s.placeJourney,null);
   assert.equal(s.project.profile.memory_places.length,0);
   assert.equal(s.recording,true);
-  assert.equal(s.workspaceActivatedProjectId,null);
+  assert.equal(s.workspaceActivatedProjectId,'p');
   assert.equal(s.placeWorkspaceMap,null);
 });
 test('a first accepted background place activates only the place state',()=>{

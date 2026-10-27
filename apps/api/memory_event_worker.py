@@ -4,6 +4,7 @@ No credentials or story bytes enter Temporal. PostgreSQL receipt and token RPCs
 resolve authorisation and perform the final atomic/fenced commits.
 """
 import asyncio
+from datetime import datetime, timezone
 import json
 import os
 import logging
@@ -39,6 +40,32 @@ _SAFE_MEMORY_ERROR_KINDS = (
     'complete canonical source inventory required', 'checkpoint predecessor or coverage changed',
     'stale semantic checkpoint', 'incomplete accepted summary receipts', 'semantic checkpoint CAS failed',
     'summary admission differs from canonical page', 'semantic page requires its canonical writer',
+    'background continuity replay conflict', 'bounded current background continuity required',
+    'reply only work cannot create continuity', 'current background original required',
+    'descriptive background continuity required', 'exact admitted background continuity evidence required',
+    'background continuity requires a saved reply v2 handoff', 'atomic background continuity commit required',
+    'background original changed during canonical commit', 'background continuity identity conflict',
+    'background continuity commit receipt required',
+    'attribution replay conflict', 'bounded attribution result required', 'bounded attribution proposals required',
+    'rule handling cannot add model attribution', 'exact current attribution evidence required',
+    'invalid passage disposition', 'non-story disposition conflicts with direct testimony',
+    'bounded event proposal index required', 'invalid selective event place', 'public coarse geography required',
+    'place requires one exact event passage',
+    'profile rollout disabled', 'timeline owner required', 'profile commit deferred during interactive turn',
+    'bounded profile patch required', 'profile retry body changed', 'stale profile page',
+    'profile disposition differs from admitted work', 'auto eligible profile field and original evidence required',
+    'invalid profile birth year', 'invalid profile value', 'exact current profile evidence required',
+    'newer chosen name authority', 'chosen name authority changed',
+    'guidance context changed', 'attribution context changed', 'canonical profile owner required',
+    'profile admission deferred or stopped', 'stale canonical profile admission',
+    'profile cannot reuse timeline outputs', 'revision instruction changed', 'bounded lane fence required',
+    'canonical lane owner mismatch', 'current privacy requires maintenance', 'stale canonical lane admission',
+    'bounded prior output proofs required', 'derived lane output belongs to another page',
+    'stale progressive authority', 'canonical lane unavailable', 'stale canonical lane page',
+    'bounded skill phase required', 'profile model not admitted', 'skill phase mismatch',
+    'timeline model not admitted', 'skill page changed',
+    'ambiguous question evidence requires exact offsets', 'typed question evidence offsets required',
+    'question evidence span must match the referenced passage',
 )
 
 # Match only fixed validator messages. Exception bodies may include private
@@ -86,21 +113,26 @@ def _safe_validation_failure(failure):
 
 
 def _safe_rpc_failure(failure):
-    """Return stable PostgREST diagnostics without copying private messages."""
-    if not isinstance(failure, httpx.HTTPStatusError):
-        return None, None
+    """Classify PostgREST and wrapped database errors without copying private messages."""
     code = None
     kind = None
     try:
-        body = failure.response.json()
+        if isinstance(failure, httpx.HTTPStatusError):
+            body = failure.response.json()
+        else:
+            from psycopg import Error
+            cause = failure if isinstance(failure, Error) else failure.__cause__
+            if not isinstance(cause, Error):
+                return None, None
+            body = {'code': cause.sqlstate, 'message': cause.diag.message_primary or str(cause)}
         if isinstance(body, dict) and isinstance(body.get('code'), str):
             candidate = body['code']
-            if len(candidate) <= 32 and candidate.replace('_', '').isalnum():
+            if len(candidate) <= 32 and candidate.isascii() and candidate.replace('_', '').isalnum():
                 code = candidate
         message = body.get('message', '') if isinstance(body, dict) else ''
         if isinstance(message, str):
-            kind = next((value for value in _SAFE_MEMORY_ERROR_KINDS if value in message), None)
-    except (ValueError, TypeError):
+            kind = next((value for value in sorted(_SAFE_MEMORY_ERROR_KINDS, key=len, reverse=True) if value in message), None)
+    except (ImportError, ValueError, TypeError):
         pass
     return code, kind
 
@@ -112,10 +144,20 @@ class MemoirLaneBroker:
         self.client = client or httpx.AsyncClient(timeout=30)
 
     async def rpc(self, name, **payload):
-        response = await self.client.post(self.url + '/rest/v1/rpc/' + name,
-            headers={'apikey': self.key, 'Authorization': 'Bearer ' + self.key}, json=payload)
-        response.raise_for_status()
-        return response.json()
+        started = time.monotonic()
+        try:
+            response = await self.client.post(self.url + '/rest/v1/rpc/' + name,
+                headers={'apikey': self.key, 'Authorization': 'Bearer ' + self.key}, json=payload)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as failure:
+            code, kind = _safe_rpc_failure(failure)
+            logging.getLogger(__name__).warning(
+                'memoir_lane rpc_failure rpc_name=%s lane_id=%s page_number=%s page_digest=%s failure_type=%s http_status=%s elapsed_ms=%d rpc_code=%s rpc_kind=%s at=%s',
+                name, payload.get('p_lane_id'), payload.get('p_page_number'), payload.get('p_page_digest'),
+                type(failure).__name__, failure.response.status_code if isinstance(failure, httpx.HTTPStatusError) else None,
+                int((time.monotonic() - started) * 1000), code, kind, datetime.now(timezone.utc).isoformat())
+            raise
 
     async def drain_once(self):
         receipts = await self.rpc('pending_memoir_receipts', p_limit=50)
@@ -251,8 +293,11 @@ class MemoryEventWorker:
                 lane_id, job['skill'], type(failure).__name__,
                 failure.response.status_code if isinstance(failure, httpx.HTTPStatusError) else None,
                 int((time.monotonic() - started) * 1000), rpc_name, rpc_code, rpc_kind, _safe_validation_failure(failure))
-            return await self.broker.rpc('fail_memoir_lane', p_lane_id=lane_id, p_token=job['token'],
+            recovery = await self.broker.rpc('fail_memoir_lane', p_lane_id=lane_id, p_token=job['token'],
                 p_error='MEMOIR_UNAVAILABLE', p_retryable=True)
+            logging.getLogger(__name__).warning('memoir_lane recovery lane_id=%s skill=%s status=%s',
+                lane_id, job['skill'], recovery.get('status'))
+            return recovery
         finally:
             renewal.cancel()
             await asyncio.gather(renewal, return_exceptions=True)

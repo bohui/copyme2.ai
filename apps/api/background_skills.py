@@ -127,7 +127,14 @@ async def _record(function, arguments, *, owner=None):
                 await connection.execute('select public.'+function+'('+','.join(['%s']*len(arguments))+')',
                     tuple(Jsonb(value) if isinstance(value,dict) else value for value in arguments))
     except Exception as error:
-        logging.getLogger(__name__).warning('Background progress unavailable: %s',type(error).__name__)
+        from .memory_event_worker import _safe_rpc_failure
+        code, kind = _safe_rpc_failure(error)
+        lane_phase = function == 'record_lifetime_skill_phase'
+        fence = arguments[0] if lane_phase else {}
+        logging.getLogger(__name__).warning(
+            'Background progress unavailable: %s function=%s lane_id=%s snapshot_id=%s page_number=%s phase=%s status=%s rpc_code=%s rpc_kind=%s',
+            type(error).__name__, function, fence.get('lane_id'), fence.get('snapshot_id'), fence.get('page_number'),
+            arguments[1] if lane_phase else None, arguments[2] if lane_phase else None, code, kind)
 
 
 class ServiceWork:
