@@ -348,6 +348,9 @@ The API, background worker, and photo worker
 share the backend image; Temporal uses its upstream image. API and worker Python
 sources and all service skills are bind-mounted. The default `app` Containerfile
 targets still bake application files into self-contained images for other deployments.
+After pulling backend changes, run `make up` before sending another turn. Changed
+mounted files do not reload cached Python modules; a running process can otherwise
+combine an older helper with a newly imported caller.
 
 The collector and organiser are two **roles within `codex-worker`**, not separate
 containers. Collection remains the default. In the profile menu, choose
