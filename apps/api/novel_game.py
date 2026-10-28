@@ -13,6 +13,7 @@ import httpx
 
 from .higgsfield_game import load_build_packet
 from .model_request import instruction_manifest, manifest_metadata
+from .model_configuration import game_configuration
 from .novel_game_bundle import assets, journey, scene_library, validate_bundle, validate_style
 from .novel_game_art import prepare_backgrounds,validate_bindings,generate_background
 from .prompt_artifact import load_prompt_artifact, prompt_path
@@ -21,8 +22,6 @@ from .story_game_selection import selected_scenes, validate_brief
 
 runner = import_module('experiments.novel-to-game.stages')
 ROOT = journey.PACKAGE.parents[1]
-MODEL = 'gpt-6.1-sol'
-EFFORT = 'low'
 STAGES = ('analyze', 'concept', 'design', 'whitebox', 'art', 'production')
 
 
@@ -118,7 +117,7 @@ async def model_stage(body, fence, *, transport=None, issue14_admission=None, ob
     request = GameRequestBody(encoded,publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
         fence=fence.model_dump(mode='json'))
     try:
-        with trace_llm_call('story.game.novel.'+body['metadata']['stage'],MODEL,
+        with trace_llm_call('story.game.novel.'+body['metadata']['stage'],body['model'],
                 metadata={'prompt_manifest':prompt_manifest or body['metadata']}) as trace:
             async with httpx.AsyncClient(trust_env=False,follow_redirects=False,timeout=590,
                     **({'transport':transport} if transport is not None else {})) as client:
@@ -146,7 +145,7 @@ async def model_stage(body, fence, *, transport=None, issue14_admission=None, ob
                                 raise ValueError('incomplete_game_response')
                     if not result or result.get('status')!='completed' or not result.get('id'):
                         raise ValueError('incomplete_game_response')
-                    if result.get('model')!=MODEL or (result.get('reasoning') or {}).get('effort')!=EFFORT:
+                    if result.get('model')!=body['model'] or (result.get('reasoning') or {}).get('effort')!=body['reasoning']['effort']:
                         raise ValueError('game_model_or_effort_mismatch')
                     update_llm_trace(trace,metadata={'response_id':result['id'],'usage':result.get('usage')})
                     return result
@@ -161,6 +160,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
     check_issue14_dispatch(issue14_admission,role='tool_loop')
     check_lane_generation()
     fence = GameFence.model_validate(fence)
+    model, effort = game_configuration()
     packet = await (packet_loader or load_build_packet)(fence)
     selected = selected_scenes(packet)
     brief = validate_brief(packet['brief'],len(selected['scenes']))
@@ -189,7 +189,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
                 allowed_output_paths=outputs,scene_library=scene_library(),stock_catalog=assets.pack_catalog())
             schema = runner.SCHEMA
             manifest = instruction_manifest(instructions,schema,variant='novel-game-'+stage)
-            body = dict(model=MODEL,reasoning={'effort':EFFORT},instructions=instructions,input=canonical(payload),store=False,
+            body = dict(model=model,reasoning={'effort':effort},instructions=instructions,input=canonical(payload),store=False,
                 stream=True,max_output_tokens=config['budget'],metadata={**manifest_metadata(manifest),
                     'generation_name':'memoir-story-game-novel-'+stage,'trace_name':'memoir-story-game-build',
                     'stage':stage,'upstream_revision':dependency['revision'],'synthetic':str(source['fictional']).lower()},
@@ -204,7 +204,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
                 assets.write_json(workspace,'stages/'+stage+'/response.json',result)
                 text=''.join(p.get('text','') for item in result.get('output',[]) if item.get('type')=='message' for p in item.get('content',[]) if p.get('type')=='output_text')
                 value=json.loads(text)
-                receipt=dict(status='completed',model=result['model'],requested_model=MODEL,reasoning_effort=EFFORT,
+                receipt=dict(status='completed',model=result['model'],requested_model=model,reasoning_effort=effort,
                     response_id=result['id'],usage=result.get('usage'),prompt_manifest=manifest,stage=stage,
                     upstream_revision=dependency['revision'],request_sha256=signature)
             files = value['files']
@@ -250,7 +250,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
             css=artifacts['build/app/game.css'],scene_bindings=stock_bindings)
         if illustrations:bundle['illustrations']=illustrations
         validate_bundle(bundle,selected['scenes'])
-        receipt=dict(status='completed',skill='novel-to-game',model=MODEL,requested_model=MODEL,reasoning_effort=EFFORT,
+        receipt=dict(status='completed',skill='novel-to-game',model=model,requested_model=model,reasoning_effort=effort,
             response_id=receipts[-1]['response_id'],response_ids=[r['response_id'] for r in receipts],stages=receipts,
             upstream_revision=dependency['revision'],skill_sha256=fingerprint(dependency),artifact_sha256=fingerprint(bundle),
             runtime_sha256=journey.runtime_hashes(),qa=qa,selection_digest=packet['selection_digest'],scene_illustrations=illustration_receipts)

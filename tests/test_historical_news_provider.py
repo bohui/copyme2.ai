@@ -7,12 +7,17 @@ from test_historical_news import evidence
 
 
 @pytest.mark.parametrize('research_model',[None,'approved-low-model'])
-def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(monkeypatch,research_model):
+@pytest.mark.parametrize('research_effort',[None,'medium'])
+def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(monkeypatch,research_model,research_effort):
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL','https://gateway.example/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL','approved-model')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY','synthetic-key')
     monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS_MODEL',raising=False)
+    monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS_REASONING_EFFORT',raising=False)
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL','background-model')
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT','high')
     if research_model:monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS_MODEL',research_model)
+    if research_effort:monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS_REASONING_EFFORT',research_effort)
     captured=[]
     async def transport(request):
         captured.append(json.loads(request.content))
@@ -31,9 +36,9 @@ def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(mo
             assert result['events']==[evidence()]
     asyncio.run(run())
     assert captured[0]['tools']==[{'type':'web_search'}]
-    assert captured[0]['model']==(research_model or 'approved-model')
+    assert captured[0]['model']==(research_model or 'background-model')
     assert 'max_tool_calls' not in captured[0] and captured[0]['store'] is False
-    assert captured[0]['reasoning']=={'effort':'low'}
+    assert captured[0]['reasoning']=={'effort':research_effort or 'high'}
     assert {k:captured[0]['metadata'][k] for k in ('generation_name','trace_name')} == {
         'generation_name':'memoir-historical-news-research',
         'trace_name':'memoir-historical-news-research'}

@@ -74,12 +74,15 @@ def run(tmp_path,bounded=None,publisher=None):
 
 
 @pytest.mark.parametrize('phase',['leaf','merge'])
-def test_job_engine_is_fresh_private_and_fenced(tmp_path,phase):
+def test_job_engine_is_fresh_private_and_fenced(tmp_path,phase,monkeypatch):
+    monkeypatch.setenv('MEMORY_SPARK_LLM_REASONING_EFFORT','high')
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT','medium')
     bounded=transport(phase);publisher=Publisher()
     result=run(tmp_path,bounded,publisher)
     connection=Connection.instances[0]
     assert connection.requests[0][0]=='thread/start' and connection.requests[0][1]['ephemeral']
     assert connection.turns[0][1]==bounded.packet and result['artifacts']==[]
+    assert connection.turns[0][2]['effort']=='medium'
     metadata=connection.turns[0][2]['responsesapi_client_metadata']
     assert metadata['generation_name']==metadata['trace_name']=='memoir-composer'
     assert set(metadata)=={'generation_name','trace_name','prompt_sha256','schema_sha256','manifest_sha256'}

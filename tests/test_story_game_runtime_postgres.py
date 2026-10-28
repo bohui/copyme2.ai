@@ -104,7 +104,8 @@ def proposal_from_packet(packet):
 def stage(sql, game, claim, proposal, **kwargs):
     proposal = {**proposal, **webpage()}
     selection_digest = json.loads(sql(f"select to_jsonb(selection_digest) from public.user_story_game where id='{game['game_id']}';").stdout.strip() or 'null')
-    model_receipt = {**receipt('higgsfield'), 'requested_model': 'gpt-6-astra', 'skill': 'higgsfield-websites',
+    model_receipt = {**receipt('higgsfield'), 'model': 'gpt-6-astra', 'requested_model': 'gpt-6-astra',
+        'reasoning_effort': 'medium', 'skill': 'higgsfield-websites',
         'skill_sha256': 'a'*64, 'selection_digest': selection_digest}
     return service(sql, 'stage_story_game', f"'{game['game_id']}','{claim['token']}',{literal(proposal)},"
         + literal(model_receipt), **kwargs)
@@ -396,7 +397,9 @@ def test_provider_body_holds_authority_only_until_transmission_finishes(sql, rea
                 packet = json.loads(json.loads(body)['input'])
                 assert 'token' not in packet
                 output = pool_from_packet(packet)
-                result=dict(id='resp-controlled',model='gpt-6.1-sol',status='completed',reasoning={'effort':'max'},
+                sent=json.loads(body)
+                assert sent['model']=='controlled-game-model' and sent['reasoning']=={'effort':'low'}
+                result=dict(id='resp-controlled',model=sent['model'],status='completed',reasoning=sent['reasoning'],
                     output=[dict(type='message',content=[dict(type='output_text',text=json.dumps(output))])])
                 return httpx.Response(200,text='data: '+json.dumps(dict(type='response.completed',response=result))+'\n\n',
                     headers={'Content-Type':'text/event-stream'})

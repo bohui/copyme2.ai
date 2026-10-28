@@ -33,6 +33,7 @@ def test_inconclusive_review_retries_before_reply_and_keeps_audit(
         sql, tmp_path, monkeypatch, caplog, streaming, opening, outcome):
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT', 'medium')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'compact-v1')
     monkeypatch.setenv('MEMOIR_TWO_LANES', '0')
     monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK', '1' if opening else '0')
@@ -49,6 +50,8 @@ def test_inconclusive_review_retries_before_reply_and_keeps_audit(
 
     def review_provider(request):
         body = json.loads(request.content)
+        assert body['model'] == 'gpt-5.6-luna-pooled'
+        assert body['reasoning'] == {'effort':'medium'}
         payload = json.loads(body['input'])
         assert 'reason' in body['text']['format']['schema']['required']
         requests.append((body, payload))

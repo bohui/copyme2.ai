@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .lifetime_memory_publication import ProviderPublication, GovernedRequestBody
 from .lifetime_memory_policy import PolicyUnavailable
 from .model_request import complete_json
+from .model_configuration import configured_model, configured_effort
 from .diagnostics import configure_diagnostic_logger, log_diagnostic, new_request_id
 
 
@@ -106,7 +107,8 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     for attempt in range(2):
         output, receipt = await complete_json(prompt,
             payload, schema,
-            model=model or os.getenv('MEMORY_SPARK_COLLECTOR_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL'),
+            model=model or configured_model('MEMORY_SPARK_COLLECTOR_MODEL', 'MEMORY_SPARK_LLM_MODEL'),
+            effort=configured_effort('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT', 'MEMORY_SPARK_LLM_REASONING_EFFORT'),
             base_url=base_url, api_key=api_key,
             trace_name='memoir-interviewer', diagnostic_request_id=request_id,
             body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))

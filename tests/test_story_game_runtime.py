@@ -227,7 +227,7 @@ def test_complete_static_page_is_accepted():
 
 @pytest.mark.parametrize('phase', ['scenes', 'brief'])
 @pytest.mark.parametrize('bad', [None, 'duplicate_json', 'missing_receipt', 'incomplete', 'credential'])
-def test_both_planning_calls_use_sol_max_and_distinct_managed_prompts(monkeypatch, phase, bad):
+def test_both_planning_calls_use_configured_route_and_distinct_managed_prompts(monkeypatch, phase, bad):
     @asynccontextmanager
     async def admitted(self, fence):
         assert fence['game_id'] == GAME and fence['token'] == TOKEN
@@ -237,20 +237,21 @@ def test_both_planning_calls_use_sol_max_and_distinct_managed_prompts(monkeypatc
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL', 'https://gateway.test/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY', 'private-game-test-key')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'configured-scene-model')
-    monkeypatch.delenv('MEMORY_SPARK_STORY_GAME_BUILD_MODEL', raising=False)
+    monkeypatch.delenv('MEMOIR_GAME_MODEL', raising=False)
+    monkeypatch.delenv('MEMOIR_GAME_REASONING_EFFORT', raising=False)
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', ' high ')
     result = pool() if phase == 'scenes' else {'design_brief': 'Quiet garden journey.', 'scene_indices': [0, 1]}
     output = json.dumps(result)
     if bad == 'duplicate_json': output *= 2
     if bad == 'credential': output = 'private-game-test-key'
-    response = {'id': None if bad == 'missing_receipt' else 'resp-test', 'model': 'gpt-6.1-sol',
-        'status': 'incomplete' if bad == 'incomplete' else 'completed', 'reasoning': {'effort': 'low'},
+    response = {'id': None if bad == 'missing_receipt' else 'resp-test', 'model': 'configured-scene-model',
+        'status': 'incomplete' if bad == 'incomplete' else 'completed', 'reasoning': {'effort': 'high'},
         'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': output}]}]}
     client_type = httpx.AsyncClient
     def transport(request):
         sent = json.loads(request.content)
-        assert sent['model'] == 'gpt-6.1-sol'
-        assert sent['reasoning'] == {'effort': 'low'} and sent['store'] is False and sent['stream'] is True
+        assert sent['model'] == 'configured-scene-model'
+        assert sent['reasoning'] == {'effort': 'high'} and sent['store'] is False and sent['stream'] is True
         assert sent['text']['format']['strict'] is True
         assert sent['metadata']['generation_name'] == 'memoir-story-game-' + phase
         payload = json.loads(sent['input'])
@@ -269,6 +270,8 @@ def test_both_planning_calls_use_sol_max_and_distinct_managed_prompts(monkeypatc
     else:
         actual, observed = asyncio.run(call)
         assert actual == result and observed['status'] == 'completed'
+        assert observed['requested_model'] == 'configured-scene-model'
+        assert observed['requested_reasoning_effort'] == observed['provider_reasoning_effort'] == 'high'
 
 
 def test_game_routes_require_auth_and_reject_browser_supplied_authority(monkeypatch):

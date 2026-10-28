@@ -90,9 +90,12 @@ def inspect_public_source(url, timeout):
 
 class GatewayHistoricalProvider:
     def __init__(self, *, client=None):
+        from .model_configuration import configured_model, configured_effort
         self.client=client
-        self.model=os.getenv('MEMORY_SPARK_HISTORICAL_NEWS_MODEL') or os.getenv('MEMORY_SPARK_LLM_MODEL','')
-        self.identity='approved_gateway:'+self.model
+        self.model=configured_model('MEMORY_SPARK_HISTORICAL_NEWS_MODEL', 'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'MEMORY_SPARK_LLM_MODEL')
+        self.effort=configured_effort('MEMORY_SPARK_HISTORICAL_NEWS_REASONING_EFFORT',
+            'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'MEMORY_SPARK_LLM_REASONING_EFFORT')
+        self.identity='approved_gateway:'+self.model+':'+self.effort
 
     async def discover(self,query,*,timeout):
         labels={', '.join(p) for p in PUBLIC_PLACES}|{p[1] for p in PUBLIC_PLACES}
@@ -111,7 +114,7 @@ class GatewayHistoricalProvider:
         manifest = prompt_manifest([name],instructions,variant='historical-native-search')
         prompt = instructions.replace('{{query}}', query)
         body={'model':model,'input':prompt,'tools':[{'type':'web_search'}],'tool_choice':'required',
-            'include':['web_search_call.action.sources'],'reasoning':{'effort':'low'},
+            'include':['web_search_call.action.sources'],'reasoning':{'effort':self.effort},
             'max_output_tokens':3000,'store':False,
             'metadata':{**manifest_metadata(manifest),'generation_name':'memoir-historical-news-research',
                 'trace_name':'memoir-historical-news-research'}}

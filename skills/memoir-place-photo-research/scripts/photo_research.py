@@ -973,10 +973,15 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
     if _configured_env("MEMORY_SPARK_PHOTO_WEB_SEARCH").lower() not in {"1", "true", "yes"}:
         fail("llm_search_disabled")
     base = _configured_env("MEMORY_SPARK_LLM_BASE_URL").rstrip("/")
-    model = _configured_env("MEMORY_SPARK_LLM_MODEL")
+    model = (_configured_env("MEMORY_SPARK_MEMOIR_COMPOSER_MODEL")
+             or _configured_env("MEMORY_SPARK_LLM_MODEL"))
+    effort = (os.getenv("MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT", "").strip()
+              or os.getenv("MEMORY_SPARK_LLM_REASONING_EFFORT", "").strip())
     key = _configured_env("MEMORY_SPARK_LLM_API_KEY")
-    if not base or not model or not key:
+    if not base or not model or not key or not effort:
         fail("llm_search_not_configured")
+    if effort not in {"none", "minimal", "low", "medium", "high", "xhigh", "max"}:
+        fail("llm_search_invalid_effort")
     endpoint = urlsplit(base)
     if (endpoint.scheme not in {"http", "https"} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
@@ -990,7 +995,7 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
             "tools": [{"type": "web_search"}],
             "tool_choice": "required", "include": ["web_search_call.action.sources"],
             "metadata": {'prompt_manifest_sha256': manifest['manifest_sha256']},
-            "reasoning": {"effort": "low"}, "max_output_tokens": 1024, "store": False}
+            "reasoning": {"effort": effort}, "max_output_tokens": 1024, "store": False}
     req = http_request.Request(base + "/responses", data=json.dumps(body).encode(),
                                headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     try:

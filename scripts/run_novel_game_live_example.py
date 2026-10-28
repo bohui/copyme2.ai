@@ -73,8 +73,13 @@ def run(sql,tmp_path,monkeypatch,output,env_file,*,resume=False,prepare_only=Fal
         from apps.api.codex_worker_service import app as worker_app
         from dotenv import dotenv_values
         settings=dotenv_values(env_file,interpolate=False)
-        for key in ('MEMORY_SPARK_LLM_BASE_URL','MEMORY_SPARK_LLM_API_KEY'):
-            monkeypatch.setenv(key,settings[key])
+        for key in ('MEMORY_SPARK_LLM_BASE_URL','MEMORY_SPARK_LLM_API_KEY',
+                'MEMORY_SPARK_LLM_MODEL','MEMORY_SPARK_LLM_REASONING_EFFORT',
+                'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL','MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT',
+                'MEMOIR_GAME_MODEL','MEMOIR_GAME_REASONING_EFFORT','MEMOIR_GAME_IMAGE_MODEL',
+                'MEMOIR_GAME_IMAGE_BASE_URL','MEMOIR_GAME_IMAGE_API_KEY'):
+            if settings.get(key) is not None:
+                monkeypatch.setenv(key,settings[key])
         original_model=novel_game.model_stage
         async def observed(body,fence,**options):
             stage=body['metadata']['stage']
@@ -183,7 +188,8 @@ def run(sql,tmp_path,monkeypatch,output,env_file,*,resume=False,prepare_only=Fal
                 sql_receipt=json.loads(sql(f"select model_receipt from public.user_story_game where id='{game_id}';").stdout.strip())
                 (output/'application-receipt.json').write_text(json.dumps(sql_receipt,indent=2)+'\n')
                 summary=dict(status='PASS',fictional=True,project_id=project,game_id=game_id,source_chapters=10,
-                    offered_scenes=total,default_recommendations=recommended_count,confirmed_scenes=total,live_builder='novel-to-game',model='gpt-6.1-sol',effort='low',resumed=resume)
+                    offered_scenes=total,default_recommendations=recommended_count,confirmed_scenes=total,live_builder='novel-to-game',
+                    model=sql_receipt['requested_model'],effort=sql_receipt['reasoning_effort'],resumed=resume)
                 (output/'live-test.json').write_text(json.dumps(summary,indent=2)+'\n');print(json.dumps(summary),flush=True)
                 browser.close()
         finally:
@@ -230,7 +236,11 @@ def main():
     parser.add_argument('--prepare-only',action='store_true',help='Prepare or check the fixture without any paid model calls')
     args=parser.parse_args()
     if not args.execute:
-        print(json.dumps(dict(calls=0,source='fictional full age-eight benchmark',builder='novel-to-game',model='gpt-6.1-sol',effort='low',human_selection_ui=True)))
+        from dotenv import dotenv_values
+        from apps.api.model_configuration import game_configuration
+        settings={**os.environ,**{key:value for key,value in dotenv_values(args.env_file,interpolate=False).items() if value is not None}}
+        model,effort=game_configuration(settings)
+        print(json.dumps(dict(calls=0,source='fictional full age-eight benchmark',builder='novel-to-game',model=model,effort=effort,human_selection_ui=True)))
         return
     if not args.resume and args.output.exists() and any(args.output.iterdir()):
         parser.error('Use a fresh private output directory; previous live attempts are preserved')
