@@ -44,7 +44,7 @@ function harness() {
     chatComposer: () => '', privateDraftPreview: () => '', activeWorkspaceTab() {}, bindViewActions() {},
     disposeCesiumPlaceJourney() {}, initCesiumPlaceJourney() {}, initFamilyVisualizations() {},
     bindPhotoPagination() {}, bindPhotoMemoryActions() {}, resizeChatInput() {}, persistChatHistory() {},
-    authReminder: {mount() {}, open() {opened++;}}, mapPhotoAlbums: {sync() {}},
+    authReminder: {mount() {}, open() {opened++;}}, mapPhotoAlbums: {sync() {}}, mapMemoryEvents: {sync() {}},
     currentUiLocale: () => 'en-AU', memoirApiPath: path => path, privateDraftTimer: null,
     storyApi: async path => {assert.match(path, /^\/v1\/story\/(private-draft|readiness)\?project_id=a/); return {};},
     nextAssistantMessageId: () => 'opening', ASSISTANT_STREAM_CHUNK_SIZE: 5,

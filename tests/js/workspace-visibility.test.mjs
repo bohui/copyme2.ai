@@ -29,7 +29,7 @@ function workspaceHarness(overrides = {}, dependencies = {}) {
     bindViewActions() {}, bindProfileMenu() {}, disposeCesiumPlaceJourney() {}, initCesiumPlaceJourney() {},
     initFamilyVisualizations() {}, bindPhotoPagination() {}, bindPhotoMemoryActions() {}, resizeChatInput() {}, persistChatHistory() {},
     authReminder: {mount() {}}, render() {},
-    mapPhotoAlbums: {sync() {}},
+    mapPhotoAlbums: {sync() {}}, mapMemoryEvents: {sync() {}},
     ...dependencies,
   });
   for (const name of ['freeRecallFinished', 'composingWorkspaceActive', 'workspaceTabs', 'activeWorkspaceTab',

@@ -1,5 +1,7 @@
 import { $, escapeHtml } from "./dom.mjs";
 import { createMapPhotoAlbums } from "./map-photo-albums.mjs";
+import { createMapMemoryEvents } from "./map-memory-events.mjs";
+import { matchesEventPlace } from "./map-memory-journey.mjs";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
 import { groupMapFrame, groupPlaces, mapTarget, matchesPlaceStage, mergePlaces, placeHistoryKey, specificPlaceChoices } from "./places.mjs";
 
@@ -8,7 +10,7 @@ export const PLACE_JOURNEY_PROJECT_STORAGE_KEY = "memory-spark-place-journey-pro
 export function createPlaceWorkspace({
   api, captureProjectScope, isCurrentProjectScope, lifeStageText, loadPlacePictures, persistChatHistory,
   profile, recordWorkspaceSkillProgress, render, saveProfileUpdates, state, supabaseApi, workspaceHasContent,
-  photos
+  photos, storyApi, onExploreMapMemory, onLoadMoreMapEvents
 }) {
   const { bindPhotoMemoryActions, favoritePhotoWall, photoRequestKey, pictureWall, renderablePictureItems, workspacePictureItems } = photos;
 
@@ -24,6 +26,24 @@ export function createPlaceWorkspace({
     },
     closeLabel: () => translate("Memoir.workspace.closePhotoAlbum"),
     onOpen: album => void loadPlacePictures(album.entry, state.project?.id),
+  });
+
+  const mapMemoryEvents = createMapMemoryEvents({
+    getEvents: () => state.timeline || [],
+    getGroups: mapMemoryPlaceGroups,
+    getProfile: profile,
+    getScope: () => JSON.stringify([state.project?.id, state.supabase?.user?.id,
+      state.memoryEventPage?.policy_epoch, state.memoryEventPage?.source_revision, state.memoryEventPage?.event_revision,
+      state.derivedWorkspace?.policy_epoch, state.derivedWorkspace?.source_revision]),
+    getIdentity: () => JSON.stringify([state.project?.id, state.supabase?.user?.id,
+      state.memoryEventPage?.policy_epoch, state.derivedWorkspace?.policy_epoch]),
+    getStage: () => state.lifeStage || "all",
+    getPage: () => state.memoryEventPage,
+    readPlaces: (eventId, cursor) => storyApi(`/v1/story/events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/places${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+    resolvePlaces: resolveMapMemoryPlaces,
+    t: (key, values) => translateWith(`Memoir.workspace.${key}`, values),
+    lifeStageText, onExplore: onExploreMapMemory, onLoadMore: onLoadMoreMapEvents,
+    onOverview: () => { state.lifeStage = "all"; state.selectedPlace = null; render(); },
   });
 
   const CESIUM_VERSION = "1.145";
@@ -249,6 +269,7 @@ export function createPlaceWorkspace({
   }
 
   function disposeCesiumPlaceJourney() {
+    mapMemoryEvents.dispose();
     mapPhotoAlbums.dispose();
     if (!cesiumPlaceJourneyViewer) return;
     try {
@@ -318,6 +339,54 @@ export function createPlaceWorkspace({
       return record && record.language === currentUiLocale() && record.input === JSON.stringify(publicPlaceFields(place))
         ? {...place, map_city: record.city, map_city_key: record.city_key, map_pin: record.pin} : place;
     }));
+  }
+
+  async function resolveMapMemoryPlaces(entries) {
+    const scope = captureProjectScope();
+    const known = workspacePlaceGroups(profile().memory_places || [])
+      .flatMap(group => group.members.map(member => ({group,member})));
+    const resolved = entries.map(place => {
+      const exact = known.filter(({member}) => placeHistoryKey(place) === placeHistoryKey(member));
+      const matches = exact.length ? exact : known.filter(({member}) => matchesEventPlace(place,member));
+      if (matches.length !== 1) return place;
+      const {group,member} = matches[0];
+      return {...publicPlaceFields(member),map_city:group.city,map_city_key:group.key,
+        map_pin:Object.hasOwn(member,"map_pin") ? member.map_pin : publicPlaceFields(member)};
+    });
+    const pending = resolved.map((place,index) => ({place,index})).filter(({place}) => {
+      const pin = Object.hasOwn(place,"map_pin") ? place.map_pin : place;
+      return !Number.isFinite(pin?.latitude) || !Number.isFinite(pin?.longitude);
+    });
+    if (!pending.length) return resolved;
+    const path = state.supabase?.accessToken ? `/v1/agent/places/${state.project.id}/groups` : `/v1/projects/${state.project.id}/place-groups`;
+    const result = await (state.supabase?.accessToken ? supabaseApi : api)(path, {method:"POST",
+      body:JSON.stringify({places:pending.map(({place}) => publicPlaceFields(place)),language:currentUiLocale()})});
+    if (!isCurrentProjectScope(scope)) return [];
+    for (const record of result.places || []) {
+      const item = pending[record.index];
+      if (item) resolved[item.index] = {...item.place,map_city:record.city,map_city_key:record.city_key,map_pin:record.pin};
+    }
+    return resolved;
+  }
+
+  function mapMemoryPlaceGroups(eventPlaces) {
+    const keys = new Set(eventPlaces.map(placeHistoryKey));
+    let changed = false;
+    if (state.placeJourney?.event_map_key && !keys.has(state.placeJourney.event_map_key)) {
+      state.placeJourney = null;state.selectedPlace = null;changed = true;
+    }
+    if (!state.placeJourney || !placeMapAvailable(state.placeJourney)) {
+      for (const place of eventPlaces) {
+        const own = Object.hasOwn(place,"map_pin") ? place.map_pin : place;
+        const target = Number.isFinite(own?.latitude) && Number.isFinite(own?.longitude) ? own : place.map_city;
+        if (!Number.isFinite(target?.latitude) || !Number.isFinite(target?.longitude)) continue;
+        state.placeJourney = {...target,preview:true,event_map_key:placeHistoryKey(place)};
+        state.selectedPlace = placeHistoryKey(state.placeJourney);changed = true;
+        break;
+      }
+    }
+    if (changed) queueMicrotask(render);
+    return workspacePlaceGroups([...(profile().memory_places || []),...eventPlaces]);
   }
 
   function groupChoices(groups) {
@@ -489,6 +558,8 @@ export function createPlaceWorkspace({
         }, cesium.ScreenSpaceEventType.LEFT_CLICK);
         mapPhotoAlbums.sync(container.closest(".place-journey-scene"));
         mapPhotoAlbums.attach(viewer, cesium, pins);
+        mapMemoryEvents.sync(container.closest(".place-journey-scene"));
+        mapMemoryEvents.attach(viewer, cesium);
 
         const showFinalRoadMap = () => {
           if (!arrivalComplete || !mapLayerReady || mapLayerFailed || finalViewStarted || !container.isConnected || viewer.isDestroyed()) return;
@@ -603,7 +674,7 @@ export function createPlaceWorkspace({
   }
 
   return {
-    disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, mapPhotoAlbums,
+    disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, mapPhotoAlbums, mapMemoryEvents,
     placeJourneySurface, placeMapTarget, placeWorkspaceSelection, rememberPlaceJourneyProject, resolvePlaceMap,
     selectPlace, workspaceMediaOverview, resizeCesiumPlaceJourney
   };

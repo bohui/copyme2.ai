@@ -151,10 +151,12 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
         return {key:pin.key,x:point?.x,y:point?.y};
       });
       const hasUnpinnedAlbums = Boolean(layer.querySelector('[data-album-pinned="false"]'));
-      const boxes = layoutMapAlbums(projected,layer.clientWidth,layer.clientHeight,hasUnpinnedAlbums ? 94 : 50);
+      const memoryCards = Boolean(layer.closest('.has-map-memories'));
+      const boxes = memoryCards ? projected.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y))
+        .map(point => ({...point,overflow:true})) : layoutMapAlbums(projected,layer.clientWidth,layer.clientHeight,hasUnpinnedAlbums ? 94 : 50);
       for (const marker of layer.querySelectorAll('[data-photo-marker]')) {
         const point = boxes.find(item => item.key === marker.dataset.photoMarker);
-        marker.hidden = !point;
+        marker.hidden = !point || memoryCards;
         if (point) { marker.style.left = `${point.x-22}px`; marker.style.top = `${point.y-22}px`; }
       }
       const overflow = layer.querySelector('.map-album-overflow');

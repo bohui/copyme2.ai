@@ -234,13 +234,14 @@ const {
 } = photos;
 
 const {
-  disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, mapPhotoAlbums,
+  disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, mapPhotoAlbums, mapMemoryEvents,
   placeJourneySurface, placeMapTarget, placeWorkspaceSelection, rememberPlaceJourneyProject, resolvePlaceMap,
   selectPlace, workspaceMediaOverview, resizeCesiumPlaceJourney
 } = createPlaceWorkspace({
   api, captureProjectScope, isCurrentProjectScope, lifeStageText, loadPlacePictures, persistChatHistory,
   profile, recordWorkspaceSkillProgress, render, saveProfileUpdates, state, supabaseApi, workspaceHasContent,
-  photos
+  photos, storyApi, onExploreMapMemory: eventId => focusWorkspaceMemory(eventId),
+  onLoadMoreMapEvents: () => loadMoreMemoryEvents(),
 });
 
 const {
@@ -2225,6 +2226,7 @@ function renderStory() {
   const profileTriggerFocused = document.activeElement?.hasAttribute?.("data-profile-trigger");
   const hadRecallPrompt = Boolean($(".recall-package-prompt"));
   const albumFocus = document.activeElement?.dataset?.photoAlbum || document.activeElement?.dataset?.photoMarker;
+  const mapMemoryFocus = document.activeElement?.dataset?.mapMemory;
   const previousScene = $(".place-journey-scene");
   const previousMap = previousScene?.querySelector("[data-cesium-place]");
   const previousScroll = $("#chat-scroll");
@@ -2289,6 +2291,7 @@ function renderStory() {
     initCesiumPlaceJourney();
   }
   mapPhotoAlbums.sync($(".place-journey-scene"), albumFocus);
+  mapMemoryEvents.sync($(".place-journey-scene"), mapMemoryFocus);
   initFamilyVisualizations();
   const nextGallery = $(".place-pictures[data-photo-place]");
   if (nextGallery && nextGallery.dataset.photoPlace === galleryPlace) nextGallery.scrollTop = galleryTop;
@@ -2935,7 +2938,7 @@ function bindViewActions() {
     state.storyBookCount = Number(event.target.value) || 2;
     render();
   });
-  $("[data-all-places]")?.addEventListener("click", () => { state.lifeStage = "all"; state.selectedPlace = null; render(); });
+  $("[data-all-places]")?.addEventListener("click", () => mapMemoryEvents.overview());
   bindHistoricalControls(document, {scope:captureProjectScope, current:isCurrentProjectScope,
     api:supabaseApi, notify:toast, locale:currentUiLocale});
   document.querySelectorAll("[data-place-choice]").forEach(button => button.addEventListener("click", () => selectPlace(button.dataset.placeChoice)));
