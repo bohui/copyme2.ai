@@ -338,18 +338,19 @@ async def run_bounded_job(*,command,home_root,base_url,api_key,model,bounded_job
     fence=bounded.fence
     home=root/f'job-{fence.user_id}-{fence.conversation_id}-{fence.snapshot_id}-epoch-{fence.policy_epoch}-page-{fence.page_number}-{uuid4()}'
     home.mkdir(mode=0o700)
-    write_config(home,root,os.getuid() if uid is None else uid,provider_config(base_url,model,governed=True),apply_owner=apply_owner)
-    async with (connection_factory or CodexConnection)(command,home,
-            provider_env={'MEMORY_SPARK_LLM_API_KEY':api_key},timeout=timeout,progress=progress,
-            request_admission=request_admission,**issue14_connection_options(issue14_admission)) as connection:
-        opened=await open_execution(connection,thread_id=None,compatible=False,
-            start_params={'cwd':str(home),'ephemeral':True,'modelProvider':'llm_provider','model':model,
-                'approvalPolicy':'never','sandbox':'read-only','baseInstructions':instructions},
-            identity={'owner_id':str(fence.user_id),'conversation_id':str(fence.conversation_id)})
-        manifest = instruction_manifest(instructions, schema, variant=fence.phase)
-        with trace_llm_call('memoir.' + str(fence.phase), model, metadata={'contract_version': 'lifetime-organiser-v1', 'prompt_manifest': manifest}):
+    manifest = instruction_manifest(instructions, schema, variant=fence.phase)
+    with trace_llm_call('memoir.' + str(fence.phase), model,
+            metadata={'contract_version': 'lifetime-organiser-v1', 'prompt_manifest': manifest}, gateway=True):
+        write_config(home,root,os.getuid() if uid is None else uid,provider_config(base_url,model,governed=True),apply_owner=apply_owner)
+        async with (connection_factory or CodexConnection)(command,home,
+                provider_env={'MEMORY_SPARK_LLM_API_KEY':api_key},timeout=timeout,progress=progress,
+                request_admission=request_admission,**issue14_connection_options(issue14_admission)) as connection:
+            opened=await open_execution(connection,thread_id=None,compatible=False,
+                start_params={'cwd':str(home),'ephemeral':True,'modelProvider':'llm_provider','model':model,
+                    'approvalPolicy':'never','sandbox':'read-only','baseInstructions':instructions},
+                identity={'owner_id':str(fence.user_id),'conversation_id':str(fence.conversation_id)})
             reply=await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
                 effort=effort or background_effort(),
                 responsesapi_client_metadata={**manifest_metadata(manifest),'generation_name':'memoir-composer','trace_name':'memoir-composer'})
-        validate_job_result(fence,reply)
+            validate_job_result(fence,reply)
     return {'thread_id':opened['thread_id'],'reply':reply,'artifacts':[]}

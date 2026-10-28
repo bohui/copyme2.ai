@@ -8,7 +8,7 @@ homes and transcripts are disposable; they are never a source of personal truth.
 from __future__ import annotations
 
 from .model_request import instruction_manifest, manifest_metadata
-from .llm_tracing import trace_llm_call
+from .llm_tracing import trace_llm_call, update_llm_trace
 
 from copy import deepcopy
 from contextlib import AsyncExitStack
@@ -405,6 +405,8 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # Only the complete validated acknowledgement crosses this boundary.
             await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
     async with AsyncExitStack() as stack:
+        trace = stack.enter_context(trace_llm_call(
+            'memoir.' + ('collector-repair' if repair_reason else 'collector'), model, gateway=True))
         direct_reply = interview_context.get('reply_contract') == 'reply-v2'
         if direct_reply:
             candidate = 'reply-' + uuid4().hex
@@ -446,24 +448,22 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}
         metadata = {**manifest_metadata(manifest), **(responsesapi_client_metadata or {}),
                     'generation_name': 'memoir-interviewer', 'trace_name': 'memoir-interviewer'}
-        with trace_llm_call('memoir.' + str('collector-repair' if repair_reason else 'collector'),
-                            model, metadata=trace_metadata) as trace:
-            if direct_reply:
-                from .conversation_reply_transport import stream_reply
-                from .llm_tracing import update_llm_trace
-                reply, receipt = await stream_reply(view=json.loads(model_packet), prompt=prompt,
-                    schema=output_schema, model=model, effort=effort, budget=governed.budget,
-                    base_url=base_url, api_key=api_key, publisher=publisher, fence=packet.fence,
-                    metadata=metadata, timeout=timeout, on_delta=model_delta if on_delta else None,
-                    issue14_admission=issue14_admission)
-                update_llm_trace(trace, metadata={**trace_metadata, 'transport': 'responses', **receipt})
-            else:
-                reply = await connection.turn(candidate, prompt,
-                    output_schema=output_schema,
-                    **({'on_delta':model_delta} if on_delta else {}),
-                    **({'on_event':on_event} if on_event else {}),
-                    **({'effort':effort} if effort else {}),
-                    responsesapi_client_metadata=metadata)
+        update_llm_trace(trace, metadata=trace_metadata)
+        if direct_reply:
+            from .conversation_reply_transport import stream_reply
+            reply, receipt = await stream_reply(view=json.loads(model_packet), prompt=prompt,
+                schema=output_schema, model=model, effort=effort, budget=governed.budget,
+                base_url=base_url, api_key=api_key, publisher=publisher, fence=packet.fence,
+                metadata=metadata, timeout=timeout, on_delta=model_delta if on_delta else None,
+                issue14_admission=issue14_admission)
+            update_llm_trace(trace, metadata={**trace_metadata, 'transport': 'responses', **receipt})
+        else:
+            reply = await connection.turn(candidate, prompt,
+                output_schema=output_schema,
+                **({'on_delta':model_delta} if on_delta else {}),
+                **({'on_event':on_event} if on_event else {}),
+                **({'effort':effort} if effort else {}),
+                responsesapi_client_metadata=metadata)
         try:
             validated = validate_governed_collector_result(reply, interview_context)
             expected = acknowledgement if acknowledgement is not None else streamed_acknowledgement

@@ -7,7 +7,7 @@ from pathlib import Path
 try:
     from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
     from apps.api.model_request import prompt_manifest
-    from apps.api.llm_tracing import trace_llm_call
+    from apps.api.llm_tracing import trace_llm_call, gateway_trace_headers
 except ModuleNotFoundError as error:
     if error.name != 'apps' and not error.name.startswith('apps.'):
         raise
@@ -44,3 +44,6 @@ except ModuleNotFoundError as error:
 
     def trace_llm_call(*args, **kwargs):
         return nullcontext()
+
+    def gateway_trace_headers():
+        return {}

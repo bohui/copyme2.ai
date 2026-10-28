@@ -14,6 +14,7 @@ import httpx
 from .higgsfield_game import load_build_packet
 from .model_request import instruction_manifest, manifest_metadata
 from .model_configuration import game_configuration
+from .llm_tracing import gateway_trace_headers
 from .novel_game_bundle import assets, journey, scene_library, validate_bundle, validate_style
 from .novel_game_art import prepare_backgrounds,validate_bindings,generate_background
 from .prompt_artifact import load_prompt_artifact, prompt_path
@@ -118,11 +119,12 @@ async def model_stage(body, fence, *, transport=None, issue14_admission=None, ob
         fence=fence.model_dump(mode='json'))
     try:
         with trace_llm_call('story.game.novel.'+body['metadata']['stage'],body['model'],
-                metadata={'prompt_manifest':prompt_manifest or body['metadata']}) as trace:
+                metadata={'prompt_manifest':prompt_manifest or body['metadata']}, gateway=True) as trace:
             async with httpx.AsyncClient(trust_env=False,follow_redirects=False,timeout=590,
                     **({'transport':transport} if transport is not None else {})) as client:
                 async with client.stream('POST',base+'/responses',content=request,
-                        headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Content-Length':str(len(encoded))}) as response:
+                        headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Content-Length':str(len(encoded)),
+                            **gateway_trace_headers()}) as response:
                     response.raise_for_status()
                     result = None
                     received = 0
