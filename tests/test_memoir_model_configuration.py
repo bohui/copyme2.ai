@@ -32,16 +32,16 @@ def test_lane_a_and_b_sol_low_configuration_reaches_api_and_worker(monkeypatch, 
     assert lane_model_budget().model == lane_model_budget(composer=True).model == 'gpt-6.1-sol'
 
 
-def test_memoir_defaults_to_sol_61_with_low_reasoning(monkeypatch, tmp_path):
+def test_missing_shared_model_or_effort_never_chooses_a_model_in_code(monkeypatch, tmp_path):
     monkeypatch.delenv('MEMORY_SPARK_LLM_MODEL', raising=False)
     monkeypatch.delenv('MEMORY_SPARK_LLM_REASONING_EFFORT', raising=False)
-    runtime = CodexRuntime(home_root=tmp_path / 'api')
-    worker = CodexWorker(home_root=tmp_path / 'worker')
-
-    assert runtime.model == worker.model == 'gpt-6.1-sol'
-    config = tomllib.loads(provider_config('http://gateway.test/v1', runtime.model))
-    assert config['model'] == runtime.model
-    assert config['model_reasoning_effort'] == 'low'
+    for runtime in (CodexRuntime, CodexWorker):
+        configured = runtime(home_root=tmp_path / 'missing-model')
+        assert configured.model == ''  # Importing the demo API needs no model provider.
+        with pytest.raises(ValueError, match='not configured'):
+            provider_config('http://gateway.test/v1', configured.model)
+    with pytest.raises(ValueError, match='not configured'):
+        provider_config('http://gateway.test/v1', 'configured-model')
 
 
 @pytest.mark.parametrize('effort', ['low', 'max', 'high'])

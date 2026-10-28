@@ -11,6 +11,7 @@ from .diagnostics import configure_diagnostic_logger, elapsed_ms, log_diagnostic
 from .trajectory_evaluation import normalise_correlation, protocol_request_evidence
 from .issue14_execution_admission import check_issue14_dispatch, validate_optional_issue14_admission
 from .codex_progress import WorkerProgress
+from .model_configuration import configured_model, configured_effort
 
 
 diagnostic_logger = logging.getLogger("memoir.appserver.diagnostics")
@@ -152,7 +153,7 @@ class CodexConnection:
         self.events.clear()
         started = time.perf_counter()
         params = {'threadId': thread_id, 'input': [{'type': 'text', 'text': text}],
-                  'effort': effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'low')}
+                  'effort': effort or configured_effort()}
         if output_schema is not None:
             params['outputSchema'] = output_schema
         metadata = normalise_correlation(responsesapi_client_metadata)
@@ -288,10 +289,11 @@ class CodexConnection:
 
 def provider_config(base_url, model, *, governed=False):
     """Generate credential-free config; governed homes cannot create/use memories."""
+    model = configured_model(environment={'MEMORY_SPARK_LLM_MODEL': model})
     return '\n'.join([
         'model_provider = "llm_provider"',
         'model = ' + json.dumps(model),
-        'model_reasoning_effort = ' + json.dumps(os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'low')),
+        'model_reasoning_effort = ' + json.dumps(configured_effort()),
         'approval_policy = "never"',
         'sandbox_mode = "read-only"',
         *(['project_doc_max_bytes = 0'] if governed else []),

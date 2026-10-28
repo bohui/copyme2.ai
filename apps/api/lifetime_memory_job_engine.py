@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from .model_request import instruction_manifest, manifest_metadata
 from .llm_tracing import trace_llm_call
+from .model_configuration import background_effort
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -348,7 +349,7 @@ async def run_bounded_job(*,command,home_root,base_url,api_key,model,bounded_job
         manifest = instruction_manifest(instructions, schema, variant=fence.phase)
         with trace_llm_call('memoir.' + str(fence.phase), model, metadata={'contract_version': 'lifetime-organiser-v1', 'prompt_manifest': manifest}):
             reply=await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
-                **({'effort':effort} if effort else {}),
+                effort=effort or background_effort(),
                 responsesapi_client_metadata={**manifest_metadata(manifest),'generation_name':'memoir-composer','trace_name':'memoir-composer'})
         validate_job_result(fence,reply)
     return {'thread_id':opened['thread_id'],'reply':reply,'artifacts':[]}

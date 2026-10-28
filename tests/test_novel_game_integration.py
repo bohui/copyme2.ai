@@ -42,7 +42,8 @@ def outputs(stage):
 
 
 @pytest.mark.parametrize('missing_background',[False,True])
-def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_low(approved,draft_prompts,tmp_path,monkeypatch,missing_background):
+@pytest.mark.parametrize('model,effort',[('gpt-6.1-sol','low'),('gpt-5.6-sol','medium')])
+def test_resumable_transport_honours_configured_route_and_confirmed_subset(approved,draft_prompts,tmp_path,monkeypatch,missing_background,model,effort):
     calls,stored,verified=[],{},[]
     @asynccontextmanager
     async def guard(self,fence):
@@ -53,6 +54,8 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_low(app
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL','https://gateway.test/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY','controlled-secret-value')
     monkeypatch.setenv('MEMORY_SPARK_OBJECT_STORE_PATH',str(tmp_path/'objects'))
+    monkeypatch.setenv('MEMOIR_GAME_MODEL',model)
+    monkeypatch.setenv('MEMOIR_GAME_REASONING_EFFORT',effort)
     async def load(_): return approved
     async def store(fence,stage,signature,value=None):
         if value is not None: stored[stage,signature]=copy.deepcopy(value)
@@ -63,7 +66,7 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_low(app
     fail=True
     def transport(request):
         body=json.loads(request.content); stage=body['metadata']['stage']; calls.append(stage)
-        assert body['model']=='gpt-6.1-sol' and body['reasoning']=={'effort':'low'} and body['stream'] is True
+        assert body['model']==model and body['reasoning']=={'effort':effort} and body['stream'] is True
         payload=json.loads(body['input'])
         assert 'mother repaired' not in body['input'] and approved['chapters'][0]['chapter_id'] not in body['input']
         assert payload['source']['chapters'][0]['blocks']==[dict(text='My father tended the garden.')]
@@ -72,7 +75,7 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_low(app
         files=outputs(stage)
         if stage=='art' and missing_background:files['design/SCENE_BINDINGS.json']='{"garden":{"prompt":"A supported garden background."}}'
         value=dict(files=[dict(path=p,content=c) for p,c in files.items()],notes='Controlled transport, browser verifier is mocked.')
-        result=dict(status='completed',id='resp-'+stage,model='gpt-6.1-sol',reasoning=dict(effort='low'),
+        result=dict(status='completed',id='resp-'+stage,model=model,reasoning=dict(effort=effort),
             output=[dict(type='message',content=[dict(type='output_text',text=json.dumps(value))])])
         return httpx.Response(200,text='data: '+json.dumps(dict(type='response.completed',response=result))+'\n\n',headers={'Content-Type':'text/event-stream'})
     fence=dict(game_id=GAME,token=TOKEN,authority=approved['authority'])
@@ -97,6 +100,7 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_low(app
     bundle=result['webpage']['novel_game']
     assert bundle['source']['chapters']==[dict(id='C1',title='father',text='My father tended the garden.')]
     assert result['receipt']['skill']=='novel-to-game' and len(result['receipt']['stages'])==6
+    assert result['receipt']['requested_model']==model and result['receipt']['reasoning_effort']==effort
     assert ('production',False) in verified and ('production',True) in verified
     before=list(calls)
     run()
@@ -107,6 +111,13 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_low(app
     assert validate_bundle(bundle,[approved['scene_pool']['scenes'][0]])==bundle
     altered=copy.deepcopy(bundle); altered['source']['chapters'][0]['text']='Unselected invented text.'
     with pytest.raises(ValueError,match='selection_changed'): validate_bundle(altered,[approved['scene_pool']['scenes'][0]])
+    for key,value in [('MEMOIR_GAME_MODEL','another-configured-model'),('MEMOIR_GAME_REASONING_EFFORT','high')]:
+        monkeypatch.setenv(key,value)
+        if key=='MEMOIR_GAME_MODEL':model=value
+        else:effort=value
+        before=len(calls)
+        run()
+        assert len(calls)==before+6, 'Changing model or effort must invalidate every stage checkpoint'
 
 
 def test_no_selection_never_dispatches_novel_game(approved):
@@ -130,7 +141,7 @@ def test_completed_stream_returns_without_waiting_for_provider_disconnect(approv
             raise AssertionError('Read continued after terminal response')
     async def transport(request): return httpx.Response(200,stream=Stream())
     observed=[]
-    actual=asyncio.run(novel_game.model_stage(dict(model='gpt-6.1-sol',metadata={'stage':'concept'}),
+    actual=asyncio.run(novel_game.model_stage(dict(model='gpt-6.1-sol',reasoning={'effort':'low'},metadata={'stage':'concept'}),
         novel_game.GameFence(game_id=GAME,token=TOKEN,authority=approved['authority']),
         transport=httpx.MockTransport(transport),observer=lambda kind,value:observed.append(kind)))
     assert actual==result and observed[0]=='request' and observed[-1]=='response'

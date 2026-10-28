@@ -12,6 +12,7 @@ from .issue14_execution_admission import check_issue14_dispatch
 from .lifetime_memory_context import serialize_packet
 from .lifetime_memory_publication import GovernedRequestBody
 from .model_request import completed_response_text
+from .model_configuration import configured_effort
 from .trajectory_evaluation import normalise_correlation
 
 
@@ -89,7 +90,7 @@ async def stream_reply(*, view, prompt, schema, model, effort, budget, base_url,
         raise ValueError('Interview provider is not configured')
     body = dict(model=model, input=reply_messages(view, prompt), store=False, stream=True,
         tools=[], tool_choice='none', parallel_tool_calls=False,
-        reasoning=dict(effort=effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'low'), context='all_turns'),
+        reasoning=dict(effort=effort or configured_effort(), context='all_turns'),
         max_output_tokens=budget.output_headroom,
         prompt_cache_key='memoir-reply-v2-' + hashlib.sha256(
             str(fence.identity.owner_id).encode()).hexdigest()[:32],

@@ -12,6 +12,7 @@ import os
 from uuid import UUID
 
 from .lifetime_memory_contracts import ContextBudget
+from .model_configuration import background_model
 from .lifetime_memory_publication import PublicationUnavailable
 from .lifetime_memory_read_api import mapped_identity
 from .lifetime_memory_reads import ReadPublication, ReadFence, _settle, snapshot_lifetime_read
@@ -139,7 +140,7 @@ class CollectionJobWorker:
         self.worker_secret = worker_secret if worker_secret is not None else os.getenv('MEMORY_SPARK_CODEX_WORKER_SECRET')
         self.worker_transport = worker_transport
         self.publisher = publisher
-        self.budget = budget or ContextBudget(model=os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-6.1-sol'),
+        self.budget = budget or ContextBudget(model=background_model(),
             context_window=131072, input_budget=65536, output_headroom=32768, framing_headroom=4096)
 
     async def _defer_policy(self, claim, processed):

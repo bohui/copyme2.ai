@@ -22,11 +22,12 @@ def installed(tmp_path):
 
 
 def response(output, index):
-    return httpx.Response(200, json=dict(status='completed', id=f'resp-build-{index}', model='served-astra', output=output))
+    return httpx.Response(200, json=dict(status='completed', id=f'resp-build-{index}',
+        model='configured-higgsfield-model', reasoning={'effort':'medium'}, output=output))
 
 
 @pytest.mark.parametrize('failure', [None, 'deployment', 'path', 'unvalidated', 'unread'])
-def test_separate_skill_tool_loop_is_bounded_and_uses_only_astra(installed, monkeypatch, failure):
+def test_separate_skill_tool_loop_is_bounded_and_honours_environment(installed, monkeypatch, failure):
     packet = build_packet()
     packet['brief'] = dict(design_brief='A reflective garden.', scene_indices=[0])
     html = webpage()['html']
@@ -41,12 +42,15 @@ def test_separate_skill_tool_loop_is_bounded_and_uses_only_astra(installed, monk
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', 'controlled-publication')
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL', 'https://gateway.test/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY', 'unique-higgsfield-test-key')
+    monkeypatch.setenv('MEMOIR_GAME_MODEL', 'configured-higgsfield-model')
+    monkeypatch.setenv('MEMOIR_GAME_REASONING_EFFORT', 'medium')
     async def load(_): return packet
 
     def transport(request):
         body = json.loads(request.content)
         requests.append(body)
-        assert body['model'] == 'gpt-6-astra' and body['store'] is False
+        assert body['model'] == 'configured-higgsfield-model' and body['store'] is False
+        assert body['reasoning'] == {'effort':'medium'}
         assert body['metadata']['generation_name'] == 'higgsfield-websites-game'
         assert 'mother repaired' not in body['input'][0]['content']
         assert 'chapter_id' not in body['input'][0]['content'] and 'event_ids' not in body['input'][0]['content']
@@ -68,7 +72,8 @@ def test_separate_skill_tool_loop_is_bounded_and_uses_only_astra(installed, monk
     else:
         result = asyncio.run(call)
         assert result['webpage'] == {'html': html} and len(requests) == 3
-        assert result['receipt']['requested_model'] == 'gpt-6-astra'
+        assert result['receipt']['requested_model'] == 'configured-higgsfield-model'
+        assert result['receipt']['reasoning_effort'] == 'medium'
         assert result['receipt']['skill'] == 'higgsfield-websites'
         assert result['receipt']['skill_sha256'] == skill_snapshot(installed)[1]
 
