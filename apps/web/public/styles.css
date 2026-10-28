@@ -701,6 +701,54 @@ h3 { line-height: 1.1; }
 .place-pin-dot { color: var(--green); }
 .place-map-pins small { color: var(--muted); }
 
+/* Timeline memories stay attached to geographic positions as the camera moves. */
+.map-memory-layer { position: absolute; inset: 0; z-index: 3; overflow: hidden; pointer-events: none; }
+.map-memory-layer[hidden] { display: none; }
+.map-memory-trail { position: absolute; inset: 0; width: 100%; height: 100%; }
+.map-memory-toolbar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }
+.map-memory-caption, .map-memory-toolbar > button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid #ded9ca; border-radius: 18px; background: #fffdf5f5; color: #354b3c; box-shadow: 0 2px 8px #233b2920; font-size: 10px; font-weight: 700; }
+.map-memory-caption img { width: 16px; height: 16px; }
+.map-memory-toolbar button { pointer-events: auto; cursor: pointer; }
+.map-memory-toolbar > button { min-height: 44px; }
+.map-memory-toolbar button:focus-visible, .map-memory-card:focus-visible, .map-memory-detail button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+.map-memory-status { flex-basis: 100%; color: #354b3c; background: #fffdf5f5; border-radius: 6px; padding: 4px 8px; font-size: 10px; }
+.map-memory-status button { margin-left: 8px; min-height: 32px; border: 0; background: transparent; color: var(--green-dark); text-decoration: underline; }
+.map-memory-anchor { position: absolute; width: 194px; height: 126px; }
+.map-memory-anchor[hidden] { display: none; }
+.map-memory-card { position: relative; display: flex; flex-direction: column; width: 100%; height: 126px; gap: 4px; padding: 10px 12px; border: 1px solid #d6ccb4; border-left: 3px solid #668270; border-radius: 5px 12px 12px 5px; color: #333f34; background: #fffdf5; box-shadow: 0 4px 14px #293e3130; text-align: left; cursor: pointer; pointer-events: auto; touch-action: manipulation; }
+.map-memory-card.is-city { border-left-color: #aa7852; background: #fff8e7; }
+.map-memory-card:hover, .map-memory-card.is-active { border-color: #647b61; box-shadow: 0 5px 18px #293e3145; }
+.map-memory-meta { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.map-memory-age { color: #6c4d32; font-size: 10px; font-weight: 800; }
+.map-memory-count { padding: 2px 5px; border-radius: 8px; color: #4d6455; background: #e7ecdf; font-size: 9px; white-space: nowrap; }
+.map-memory-card strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: Georgia, serif; font-size: 17px; line-height: 1.15; }
+.map-memory-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 11px; line-height: 1.4; }
+.map-memory-stage { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #677063; font-size: 9px; }
+.map-memory-hint { margin-top: auto; color: #6f6a58; font-size: 9px; }
+.map-memory-stem { position: absolute; top: 126px; left: 50%; width: 1px; background: #6c775c; transform-origin: center top; }
+.map-memory-cards, .map-memory-trail { visibility: hidden; }
+.map-memory-layer.is-ready .map-memory-cards, .map-memory-layer.is-ready .map-memory-trail { visibility: visible; }
+.map-memory-overflow { position: absolute; bottom: 88px; left: 8px; right: 8px; display: flex; gap: 8px; padding: 4px; overflow-x: auto; pointer-events: auto; }
+.map-memory-overflow[hidden], .map-memory-layer:not(.is-ready) .map-memory-overflow { display: none; }
+.map-memory-overflow .map-memory-anchor { position: relative; flex: 0 0 194px; }
+.map-memory-overflow .map-memory-stem { display: none; }
+.map-memory-detail { position: absolute; bottom: 28px; left: 10px; right: 10px; max-height: calc(100% - 86px); overflow: auto; padding: 12px 16px 16px; border: 1px solid #d6ccb4; border-radius: 12px; background: #fffdf5; color: #333f34; box-shadow: 0 6px 28px #24382d40; pointer-events: auto; }
+.map-memory-detail[hidden] { display: none; }
+.map-memory-detail header { display: flex; align-items: center; justify-content: space-between; }
+.map-memory-detail [data-memory-close] { width: 44px; height: 44px; margin: -6px -10px -4px 0; border: 0; background: transparent; font-size: 24px; color: #53664f; cursor: pointer; }
+.map-memory-detail h3 { margin: 4px 0 8px; font-family: Georgia, serif; font-size: 20px; }
+.map-memory-detail p { margin: 6px 0; font-size: 13px; line-height: 1.6; }
+.map-memory-detail small { color: #677063; font-size: 11px; }
+.map-memory-detail .map-memory-uncertainty { color: #805c3c; font-size: 11px; }
+.map-memory-detail .text-button { min-height: 44px; }
+@media (max-width: 500px) {
+  .map-memory-anchor { width: 164px; }
+  .map-memory-overflow .map-memory-anchor { flex-basis: 164px; }
+  .map-memory-card { padding: 9px 10px; }
+  .map-memory-card strong { font-size: 15px; }
+  .map-memory-caption { font-size: 9px; }
+}
+
 /* Compact workspace chrome with a shared map-and-picture overview. */
 .workspace-detail-top {
   min-height: 50px;

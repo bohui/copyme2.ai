@@ -285,3 +285,45 @@ def test_profile_reason_cannot_override_a_withheld_or_unresolved_passage(monkeyp
         event_places=[], continuity_updates=[], passage_dispositions=[dict(disposition=disposition,
         reason='profile_introduction', source_ref=ref(text))])
     assert extract_places(monkeypatch, text, raw)['place_journeys'] == []
+
+
+def test_map_cards_replay_canonical_places_at_city_and_event_scale(sql, tmp_path, monkeypatch):
+    from pathlib import Path
+    import subprocess
+    quotes = ['At age 6 I attended school in Newtown, Sydney.',
+              'At age 25 I worked in Pyrmont, Sydney.']
+    labels = ['Newtown', 'Pyrmont']
+
+    def extract(packet):
+        events, links = [], []
+        for index, (quote, label) in enumerate(zip(quotes, labels)):
+            evidence = reference(packet, quote)
+            events.append(dict(episode(packet, quote, title=['Starting school', 'My first job'][index]),
+                life_stage=['childhood', 'young_adulthood'][index], stage_evidence=[evidence],
+                temporal=dict(expression=f'age {[6, 25][index]}', precision='age', basis=[evidence])))
+            links.append(dict(event_index=index, role='setting', source_ref=evidence,
+                place=dict(place=label, hierarchy=['Earth', 'Australia', 'Sydney', label], granularity='suburb')))
+        return {**empty(packet), 'events':events, 'event_places':links}
+
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract)
+    with conversation.client:
+        conversation.say(' '.join(quotes))
+        conversation.drain()
+        response = conversation.client.get('/v1/story/events', params={'project_id':conversation.project})
+        assert response.status_code == 200, response.text
+        events = response.json()['events']
+        assert len(events) == 2, 'The controlled Lane B extraction must persist both events'
+        locations = {}
+        for event in events:
+            response = conversation.client.get(f'/v1/story/events/{conversation.project}/{event["id"]}/places')
+            assert response.status_code == 200, response.text
+            locations[event['id']] = response.json()
+        city = dict(place='Sydney', hierarchy=['Earth', 'Australia', 'Sydney'], granularity='city',
+            latitude=-33.8688, longitude=151.2093)
+        places = [city, *[dict(place=label, hierarchy=city['hierarchy']+[label], granularity='suburb',
+            latitude=latitude, longitude=longitude) for label, latitude, longitude in
+            [('Newtown', -33.898, 151.178), ('Pyrmont', -33.872, 151.195)]]]
+        replay = Path(__file__).parent/'js/helpers/replay-map-memory-events.mjs'
+        result = subprocess.run(['node', str(replay)], input=json.dumps(dict(events=events,
+            locations=locations, places=places)), text=True, capture_output=True, timeout=10)
+        assert result.returncode == 0, result.stdout + result.stderr
