@@ -118,10 +118,11 @@ class GatewayHistoricalProvider:
             'max_output_tokens':3000,'store':False,
             'metadata':{**manifest_metadata(manifest),'generation_name':'memoir-historical-news-research',
                 'trace_name':'memoir-historical-news-research'}}
+        from .llm_tracing import gateway_trace_headers
         async def request(client):
             try:
                 async with client.stream('POST',base+'/responses',json=body,
-                    headers={'Authorization':'Bearer '+key},timeout=timeout) as response:
+                    headers={'Authorization':'Bearer '+key, **gateway_trace_headers()},timeout=timeout) as response:
                     response.raise_for_status();raw=bytearray()
                     async for chunk in response.aiter_bytes():
                         raw.extend(chunk)
@@ -132,7 +133,7 @@ class GatewayHistoricalProvider:
                 return decoded
             except httpx.HTTPError:raise OSError('Historical provider unavailable') from None
         from .llm_tracing import trace_llm_call
-        with trace_llm_call('historical.discovery',model,metadata={'prompt_manifest':manifest}):
+        with trace_llm_call('historical.discovery',model,metadata={'prompt_manifest':manifest}, gateway=True):
             if self.client:return await request(self.client)
             async with httpx.AsyncClient(follow_redirects=False) as client:return await request(client)
 

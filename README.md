@@ -279,6 +279,13 @@ can override them. Game stage cache keys include the selected model and effort.
 Image generation and speech retain their modality-specific settings.
 Model changes remain subject to each role's reviewed model and budget limits.
 
+Gateway-backed model calls share one Langfuse trace: the application records a
+redacted span and forwards its W3C `traceparent`; the gateway records the child
+generation with the model input, output and token usage. Prompt provenance stays
+on the application span. Native worker homes receive the same parent header in
+their provider configuration. Direct provider calls retain generation
+observations. Tracing failures do not prevent model requests.
+
 The reviewed Sol route retains the conservative UTF-8 byte bound and existing
 application budgets: 131,072 context, 98,304 composer input, 16,384 composer output
 and 2,048 reserved framing units. Foreground input remains bounded separately.

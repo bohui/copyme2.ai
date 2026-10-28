@@ -206,7 +206,12 @@ def test_governed_config_disables_both_memory_paths_without_changing_legacy():
     assert governed['memories'] == {'generate_memories':False, 'use_memories':False}
 
 
-def test_fresh_turn_uses_exact_packet_once_and_no_secret_or_old_home(tmp_path):
+def test_fresh_turn_uses_exact_packet_once_and_no_secret_or_old_home(tmp_path, monkeypatch):
+    import tomllib
+    from apps.api import llm_tracing
+    from test_gateway_trace_correlation import ApplicationTracer, TRACE_ID, SPAN_ID
+    tracer=ApplicationTracer()
+    monkeypatch.setattr(llm_tracing,'_client_cache',tracer)
     governed, context = fixture()
     old_home = tmp_path / str(IDENTITY.owner_id)
     old_home.mkdir()
@@ -225,6 +230,10 @@ def test_fresh_turn_uses_exact_packet_once_and_no_secret_or_old_home(tmp_path):
     assert not (connection.home / 'MEMORY.md').exists()
     assert 'transient-test-secret' not in (connection.home / 'config.toml').read_text()
     assert connection.options['provider_env']['MEMORY_SPARK_LLM_API_KEY'] == 'transient-test-secret'
+    config=tomllib.loads((connection.home/'config.toml').read_text())
+    assert config['model_providers']['llm_provider']['http_headers']=={
+        'traceparent':f'00-{TRACE_ID}-{SPAN_ID}-01'}
+    assert tracer.observations[0].fields['as_type']=='span'
     assert result['thread_id'] == 'fresh-thread' and result['artifacts'] == []
     assert result['cold_resume_reason'] == 'unvalidated_transcript'
     assert (old_home / 'MEMORY.md').read_text() == 'WITHDRAWN PRIVATE FACT'
