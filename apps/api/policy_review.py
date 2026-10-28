@@ -10,7 +10,7 @@ from .lifetime_memory_publication import ProviderPublication, GovernedRequestBod
 from .lifetime_memory_policy import PolicyUnavailable
 from .model_request import complete_json
 from .model_configuration import configured_model, configured_effort
-from .diagnostics import configure_diagnostic_logger, log_diagnostic, new_request_id
+from .diagnostics import configure_diagnostic_logger, failure_class, log_diagnostic, new_request_id
 
 
 diagnostic_logger = configure_diagnostic_logger(logging.getLogger('memoir.policy_review'))
@@ -169,4 +169,9 @@ async def review_pending_policy(storage, lease, conversation_id, *, model=None, 
             model=model, base_url=base_url, api_key=api_key, language=language, fallback_language=fallback_language,
             include_decision=include_decision)
     except (ValueError, KeyError, TypeError, OSError, httpx.HTTPError, psycopg.Error) as error:
+        status = getattr(getattr(error, 'response', None), 'status_code', None)
+        log_diagnostic(diagnostic_logger, 'policy_review_failed', conversation_id,
+            component='memoir.policy_review', status='failed', call_type='review',
+            failure_class=failure_class(error, status_code=status),
+            error_code=type(error).__name__, http_status=status)
         raise PolicyUnavailable() from error
