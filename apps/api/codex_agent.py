@@ -152,7 +152,7 @@ class CodexConnection:
         self.events.clear()
         started = time.perf_counter()
         params = {'threadId': thread_id, 'input': [{'type': 'text', 'text': text}],
-                  'effort': effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max')}
+                  'effort': effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'low')}
         if output_schema is not None:
             params['outputSchema'] = output_schema
         metadata = normalise_correlation(responsesapi_client_metadata)
@@ -291,7 +291,7 @@ def provider_config(base_url, model, *, governed=False):
     return '\n'.join([
         'model_provider = "llm_provider"',
         'model = ' + json.dumps(model),
-        'model_reasoning_effort = ' + json.dumps(os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max')),
+        'model_reasoning_effort = ' + json.dumps(os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'low')),
         'approval_policy = "never"',
         'sandbox_mode = "read-only"',
         *(['project_doc_max_bytes = 0'] if governed else []),

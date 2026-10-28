@@ -251,52 +251,45 @@ is in the private [`codex-worker/Containerfile`](codex-worker/Containerfile).
 
 The API uses the user's Supabase bearer token for RLS-protected story and Codex-memory operations. Codex runs only in the private worker container, which uses a dedicated volume and per-user OS identities; the API sends it only the already-authorized memory context. Set `MEMORY_SPARK_CODEX_WORKER_SECRET` to a long random value outside local development. Private original/generated blobs remain below `var/memory-spark/objects`. Copy `.env.example` to `.env` and configure Supabase and the local LLM provider before using the connected Codex agent.
 
-Memoir interviews default to the ChatGPT subscription pool through LiteLLM's
-`gpt-5.6-luna-pooled` route, backed by `codex-lb`, with
-`MEMORY_SPARK_LLM_REASONING_EFFORT=max`. Canonical event extraction and the legacy
-shared model consumers use `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL`, which defaults
-to `memoir-luna-low`. The provider must configure this alias with a
-dedicated same-model codex-lb key enforcing low reasoning; an alias alone
-cannot override the shared upstream key's max policy. Set
-`MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT` to control canonical event
-extraction separately; it defaults to `low` for background checkpoints. The
-Temporal worker also needs `SUPABASE_URL` and `SUPABASE_SECRET_KEY` to dispatch
-and commit those shared memoir lanes. Set
-`MEMORY_SPARK_LLM_BASE_URL` to the provider network's current gateway on port
-4000; the LiteLLM gateway and `codex-lb` must both be running. Keep the Memoir
-consumer key in `MEMORY_SPARK_LLM_API_KEY` authorized for both model routes; the
-`codex-lb` key stays in the provider stack.
+Lane A and model-backed Lane B skills default to `gpt-6.1-sol` with light
+reasoning (`low` in the API). The existing LiteLLM Memoir consumer must authorize
+that exact route. Keep the gateway and `codex-lb` running and configure
+`MEMORY_SPARK_LLM_BASE_URL` and the server-only `MEMORY_SPARK_LLM_API_KEY`.
 
-Composer model phases have separate settings: `MEMOIR_COMPOSER_MODEL=gpt-5.6-sol`
-and `MEMOIR_COMPOSER_REASONING_EFFORT=high` select preparation, drafting and
-independent review only. Short lossless preparation still makes no model call.
-Timeline/profile extraction, policy, collector and story-game settings retain
-their current routes. The exact Sol alias must be exposed to the existing Memoir
-consumer; there is no automatic Luna or paid-provider fallback. Invalid settings
-and API/worker model mismatches fail before composer dispatch. The API, Codex
-worker and checkpoint worker must receive matching dedicated settings. Changing
-the selected composer model or effort invalidates its composition cache.
-The Sol lane retains the conservative UTF-8 byte bound and current maximum
-131,072 context, 98,304 input, 16,384 output and 2,048 reserved framing units;
-larger advertised provider capacity does not expand application budgets or
-retries. [Routing evidence and activation limits](docs/memoir-composer-sol-routing-20261025.md)
-distinguish controlled tests from the still-pending matched Sol live comparison.
+`MEMORY_SPARK_LLM_MODEL` and `MEMORY_SPARK_LLM_REASONING_EFFORT` select the shared
+route. `MEMORY_SPARK_COLLECTOR_MODEL` and
+`MEMORY_SPARK_COLLECTOR_REASONING_EFFORT` can override Lane A replies and privacy
+review. Background extraction, profile, summaries and guidance use
+`MEMORY_SPARK_MEMOIR_COMPOSER_MODEL`; extraction retains its separate
+`MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT=low` setting. Photo model calls and
+historical-news research use the shared route with low reasoning; an explicit
+`MEMORY_SPARK_HISTORICAL_NEWS_MODEL` overrides news only.
 
-The shared `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL` setting also accepts
-`gpt-5.6-sol` and `gpt-6.1-sol` for bounded timeline/profile lanes. Authorize the
-selected alias on the existing Memoir consumer key and team, then recreate the
-API, Codex worker and checkpoint worker. Extraction retains its separate
-`MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT` setting. Composition uses the
-dedicated settings and reviewed model list above; `gpt-6.1-sol` is currently
-supported only by the shared lane model list.
+Composer preparation, drafting and review use dedicated
+`MEMOIR_COMPOSER_MODEL=gpt-6.1-sol` and
+`MEMOIR_COMPOSER_REASONING_EFFORT=low` defaults. Short lossless preparation makes
+no model call. The API, Codex worker and checkpoint worker must receive matching
+settings; mismatches fail before composer dispatch. Changing model or effort
+invalidates composition caches. Scene selection, briefs and the default
+NovelToGame build stages also use GPT-6.1 Sol/low. Existing verified max-effort
+game receipts remain readable; new low-effort requests have distinct cache keys.
+Image generation and speech retain their modality-specific settings.
 
-For the opted-in `reply-v2` interviewer, requesting
-`MEMORY_SPARK_COLLECTOR_REASONING_EFFORT=low` with
-`gpt-5.6-luna-pooled` resolves to the existing
-`gpt-5.6-luna-memoir-low` route for both policy review and reply generation.
-The gateway must authorize that route with a dedicated low-policy key. Other
-routes and collector versions retain their configured behavior; use `max` to
-retain the pooled policy. Requested effort alone does not prove served effort.
+The reviewed Sol route retains the conservative UTF-8 byte bound and existing
+application budgets: 131,072 context, 98,304 composer input, 16,384 composer output
+and 2,048 reserved framing units. Foreground input remains bounded separately.
+A model upgrade does not expand budgets or retries. The Temporal worker also
+needs `SUPABASE_URL` and `SUPABASE_SECRET_KEY` for shared memoir lanes.
+
+Explicit older model settings remain supported for rollback. In `reply-v2`,
+`gpt-5.6-luna-pooled` with requested low reasoning still resolves to the dedicated
+`gpt-5.6-luna-memoir-low` alias; requested effort alone does not establish the
+provider's served policy. Model changes do not enable reply-v2 or publish draft
+prompts: retain the normal merged-main prompt workflow before activation.
+For an existing checkout, update the matching model/effort overrides in `.env`;
+explicit older values continue to win. Deploy the matching checkpoint/game schema
+changes and recreate the API, Codex worker and checkpoint worker together after
+merged prompt publication.
 
 ### Public hostname through Cloudflare Tunnel
 

@@ -139,7 +139,7 @@ class CollectionJobWorker:
         self.worker_secret = worker_secret if worker_secret is not None else os.getenv('MEMORY_SPARK_CODEX_WORKER_SECRET')
         self.worker_transport = worker_transport
         self.publisher = publisher
-        self.budget = budget or ContextBudget(model=os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled'),
+        self.budget = budget or ContextBudget(model=os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-6.1-sol'),
             context_window=131072, input_budget=65536, output_headroom=32768, framing_headroom=4096)
 
     async def _defer_policy(self, claim, processed):

@@ -61,7 +61,7 @@ def valid_reply():
         'associations':[], 'response_photo_ids':[], 'stopped':False})
 
 
-@pytest.mark.parametrize('model', ['gpt-5.6-luna-memoir-low', 'gpt-5.6-luna-memoir-high'])
+@pytest.mark.parametrize('model', ['gpt-5.6-luna-memoir-low', 'gpt-5.6-luna-memoir-high', 'gpt-6.1-sol'])
 def test_dedicated_same_model_collector_alias_retains_the_declared_byte_bound(model, tmp_path):
     governed, context = fixture()
     packet = json.loads(governed.packet)

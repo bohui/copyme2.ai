@@ -20,7 +20,7 @@ SOURCE_WINDOW = 2304
 
 def lane_model_budget(*, composer=False):
     model = composer_configuration().model if composer else os.getenv(
-        'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled'))
+        'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-6.1-sol'))
     return ContextBudget(model=model,
         context_window=int(os.getenv('MEMOIR_LANE_CONTEXT_WINDOW','131072')),
         input_budget=int(os.getenv('MEMOIR_LANE_INPUT_BUDGET','98304' if composer else '65536')),
@@ -265,7 +265,7 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
         if page['complete']:
             if page['skill']=='timeline' and page.get('two_lane_maintenance_required') is True:
                 from .collector_configuration import collector_configuration
-                model=collector_configuration(os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled')).model
+                model=collector_configuration(os.getenv('MEMORY_SPARK_LLM_MODEL','gpt-6.1-sol')).model
                 checkpoint=await worker.broker.rpc('advance_two_lane_checkpoint',p_lane_id=job['lane_id'],p_token=job['token'],p_steps=1,p_model=model)
                 if not checkpoint['complete']:
                     return await worker.broker.rpc('yield_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'])

@@ -42,7 +42,7 @@ def outputs(stage):
 
 
 @pytest.mark.parametrize('missing_background',[False,True])
-def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_max(approved,draft_prompts,tmp_path,monkeypatch,missing_background):
+def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_low(approved,draft_prompts,tmp_path,monkeypatch,missing_background):
     calls,stored,verified=[],{},[]
     @asynccontextmanager
     async def guard(self,fence):
@@ -63,7 +63,7 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_max(app
     fail=True
     def transport(request):
         body=json.loads(request.content); stage=body['metadata']['stage']; calls.append(stage)
-        assert body['model']=='gpt-6.1-sol' and body['reasoning']=={'effort':'max'} and body['stream'] is True
+        assert body['model']=='gpt-6.1-sol' and body['reasoning']=={'effort':'low'} and body['stream'] is True
         payload=json.loads(body['input'])
         assert 'mother repaired' not in body['input'] and approved['chapters'][0]['chapter_id'] not in body['input']
         assert payload['source']['chapters'][0]['blocks']==[dict(text='My father tended the garden.')]
@@ -72,7 +72,7 @@ def test_resumable_live_transport_uses_only_the_confirmed_subset_and_sol_max(app
         files=outputs(stage)
         if stage=='art' and missing_background:files['design/SCENE_BINDINGS.json']='{"garden":{"prompt":"A supported garden background."}}'
         value=dict(files=[dict(path=p,content=c) for p,c in files.items()],notes='Controlled transport, browser verifier is mocked.')
-        result=dict(status='completed',id='resp-'+stage,model='gpt-6.1-sol',reasoning=dict(effort='max'),
+        result=dict(status='completed',id='resp-'+stage,model='gpt-6.1-sol',reasoning=dict(effort='low'),
             output=[dict(type='message',content=[dict(type='output_text',text=json.dumps(value))])])
         return httpx.Response(200,text='data: '+json.dumps(dict(type='response.completed',response=result))+'\n\n',headers={'Content-Type':'text/event-stream'})
     fence=dict(game_id=GAME,token=TOKEN,authority=approved['authority'])
@@ -123,7 +123,7 @@ def test_completed_stream_returns_without_waiting_for_provider_disconnect(approv
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL','controlled')
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL','https://gateway.test/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY','controlled-terminal-secret')
-    result=dict(status='completed',id='resp-terminal',model='gpt-6.1-sol',reasoning={'effort':'max'},output=[])
+    result=dict(status='completed',id='resp-terminal',model='gpt-6.1-sol',reasoning={'effort':'low'},output=[])
     class Stream(httpx.AsyncByteStream):
         async def __aiter__(self):
             yield ('data: '+json.dumps(dict(type='response.completed',response=result))+'\n\n').encode()

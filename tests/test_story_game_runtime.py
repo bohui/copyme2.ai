@@ -244,13 +244,13 @@ def test_both_planning_calls_use_sol_max_and_distinct_managed_prompts(monkeypatc
     if bad == 'duplicate_json': output *= 2
     if bad == 'credential': output = 'private-game-test-key'
     response = {'id': None if bad == 'missing_receipt' else 'resp-test', 'model': 'gpt-6.1-sol',
-        'status': 'incomplete' if bad == 'incomplete' else 'completed', 'reasoning': {'effort': 'max'},
+        'status': 'incomplete' if bad == 'incomplete' else 'completed', 'reasoning': {'effort': 'low'},
         'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': output}]}]}
     client_type = httpx.AsyncClient
     def transport(request):
         sent = json.loads(request.content)
         assert sent['model'] == 'gpt-6.1-sol'
-        assert sent['reasoning'] == {'effort': 'max'} and sent['store'] is False and sent['stream'] is True
+        assert sent['reasoning'] == {'effort': 'low'} and sent['store'] is False and sent['stream'] is True
         assert sent['text']['format']['strict'] is True
         assert sent['metadata']['generation_name'] == 'memoir-story-game-' + phase
         payload = json.loads(sent['input'])

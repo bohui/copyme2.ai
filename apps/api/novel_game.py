@@ -22,6 +22,7 @@ from .story_game_selection import selected_scenes, validate_brief
 runner = import_module('experiments.novel-to-game.stages')
 ROOT = journey.PACKAGE.parents[1]
 MODEL = 'gpt-6.1-sol'
+EFFORT = 'low'
 STAGES = ('analyze', 'concept', 'design', 'whitebox', 'art', 'production')
 
 
@@ -145,7 +146,7 @@ async def model_stage(body, fence, *, transport=None, issue14_admission=None, ob
                                 raise ValueError('incomplete_game_response')
                     if not result or result.get('status')!='completed' or not result.get('id'):
                         raise ValueError('incomplete_game_response')
-                    if result.get('model')!=MODEL or (result.get('reasoning') or {}).get('effort')!='max':
+                    if result.get('model')!=MODEL or (result.get('reasoning') or {}).get('effort')!=EFFORT:
                         raise ValueError('game_model_or_effort_mismatch')
                     update_llm_trace(trace,metadata={'response_id':result['id'],'usage':result.get('usage')})
                     return result
@@ -188,7 +189,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
                 allowed_output_paths=outputs,scene_library=scene_library(),stock_catalog=assets.pack_catalog())
             schema = runner.SCHEMA
             manifest = instruction_manifest(instructions,schema,variant='novel-game-'+stage)
-            body = dict(model=MODEL,reasoning={'effort':'max'},instructions=instructions,input=canonical(payload),store=False,
+            body = dict(model=MODEL,reasoning={'effort':EFFORT},instructions=instructions,input=canonical(payload),store=False,
                 stream=True,max_output_tokens=config['budget'],metadata={**manifest_metadata(manifest),
                     'generation_name':'memoir-story-game-novel-'+stage,'trace_name':'memoir-story-game-build',
                     'stage':stage,'upstream_revision':dependency['revision'],'synthetic':str(source['fictional']).lower()},
@@ -203,7 +204,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
                 assets.write_json(workspace,'stages/'+stage+'/response.json',result)
                 text=''.join(p.get('text','') for item in result.get('output',[]) if item.get('type')=='message' for p in item.get('content',[]) if p.get('type')=='output_text')
                 value=json.loads(text)
-                receipt=dict(status='completed',model=result['model'],requested_model=MODEL,reasoning_effort='max',
+                receipt=dict(status='completed',model=result['model'],requested_model=MODEL,reasoning_effort=EFFORT,
                     response_id=result['id'],usage=result.get('usage'),prompt_manifest=manifest,stage=stage,
                     upstream_revision=dependency['revision'],request_sha256=signature)
             files = value['files']
@@ -249,7 +250,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
             css=artifacts['build/app/game.css'],scene_bindings=stock_bindings)
         if illustrations:bundle['illustrations']=illustrations
         validate_bundle(bundle,selected['scenes'])
-        receipt=dict(status='completed',skill='novel-to-game',model=MODEL,requested_model=MODEL,reasoning_effort='max',
+        receipt=dict(status='completed',skill='novel-to-game',model=MODEL,requested_model=MODEL,reasoning_effort=EFFORT,
             response_id=receipts[-1]['response_id'],response_ids=[r['response_id'] for r in receipts],stages=receipts,
             upstream_revision=dependency['revision'],skill_sha256=fingerprint(dependency),artifact_sha256=fingerprint(bundle),
             runtime_sha256=journey.runtime_hashes(),qa=qa,selection_digest=packet['selection_digest'],scene_illustrations=illustration_receipts)

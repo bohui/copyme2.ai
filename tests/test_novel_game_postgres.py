@@ -31,7 +31,8 @@ def build_receipt(packet):
 
 
 @pytest.mark.parametrize('generated',[False,True])
-def test_novel_save_preserves_selection_and_private_delivery(sql,ready,generated,tmp_path,monkeypatch):
+@pytest.mark.parametrize('effort',['low','max'])
+def test_novel_save_preserves_selection_and_private_delivery(sql,ready,generated,effort,tmp_path,monkeypatch):
     project,_,_=ready
     game,claim,packet,proposal=prepare(sql,project,count=2)
     bundle=prepared_bundle(packet,proposal['scenes'])
@@ -46,6 +47,9 @@ def test_novel_save_preserves_selection_and_private_delivery(sql,ready,generated
         validate_bundle(bundle,proposal['scenes'])
     artifact={**proposal,'novel_game':bundle}
     receipt=build_receipt(packet)
+    receipt['reasoning_effort']=effort
+    unsupported=copy.deepcopy(receipt); unsupported['reasoning_effort']='medium'
+    assert service(sql,'stage_story_game',f"'{game['game_id']}','{claim['token']}',{literal(artifact)},{literal(unsupported)}",check=False).returncode
     bad=copy.deepcopy(artifact); bad['novel_game']['source']['chapters'][0]['text']='An invented memory.'
     assert service(sql,'stage_story_game',f"'{game['game_id']}','{claim['token']}',{literal(bad)},{literal(receipt)}",check=False).returncode
     incomplete=copy.deepcopy(receipt); incomplete['qa']['touch']['status']='FAIL'
@@ -81,13 +85,16 @@ def test_novel_save_preserves_selection_and_private_delivery(sql,ready,generated
             assert delivered.headers['cache-control']=='private, no-store'
 
 
-def test_checkpoint_reads_and_writes_require_current_build_authority(sql,ready):
+@pytest.mark.parametrize('effort',['low','max'])
+def test_checkpoint_reads_and_writes_require_current_build_authority(sql,ready,effort):
     project,_,_=ready
     game,claim,packet,_=prepare(sql,project,count=1)
     prefix=f"'{game['game_id']}','{claim['token']}','analyze','"+'c'*64+"'"
     result=dict(value=dict(files=[dict(path='analysis/SOURCE_BIBLE.md',content='Controlled selected source.')],notes='Fixture'),
-        receipt=dict(status='completed',requested_model='gpt-6.1-sol',reasoning_effort='max',stage='analyze',request_sha256='c'*64))
+        receipt=dict(status='completed',requested_model='gpt-6.1-sol',reasoning_effort=effort,stage='analyze',request_sha256='c'*64))
     assert service(sql,'read_story_game_stage',prefix) is None
+    unsupported=copy.deepcopy(result); unsupported['receipt']['reasoning_effort']='medium'
+    assert service(sql,'save_story_game_stage',prefix+','+literal(unsupported),check=False).returncode
     assert service(sql,'save_story_game_stage',prefix+','+literal(result))==result
     assert service(sql,'read_story_game_stage',prefix)==result
     changed=copy.deepcopy(result); changed['value']['notes']='Changed bytes'

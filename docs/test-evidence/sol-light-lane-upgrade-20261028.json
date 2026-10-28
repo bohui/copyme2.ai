@@ -1,0 +1,737 @@
+{
+  "schema_version": 1,
+  "baseline_commit": "5d2bfc5e1ef71281fb201e3fd6ef041d66690c79",
+  "target": {
+    "model": "gpt-6.1-sol",
+    "reasoning_effort": "low",
+    "user_label": "light"
+  },
+  "connectivity": {
+    "http_status": 200,
+    "requested_model": "gpt-6.1-sol",
+    "requested_effort": "low",
+    "status": "completed",
+    "model": "gpt-6.1-sol",
+    "served_effort": "low",
+    "probe_pass": true
+  },
+  "code_scope": [
+    "Lane A reply and privacy-review configuration",
+    "Lane B extraction, summary, profile, guidance, composition and research defaults",
+    "Story-game planning/build reasoning",
+    "Reviewed UTF-8 model allowlists and SQL checkpoint admission",
+    "New low-effort game receipts alongside existing max-effort receipts"
+  ],
+  "final_reply_source_sha256": "1d8e844c1e3a08562a8775ea7a2d01a84931182115d06e467e420d798babd2bd",
+  "final_compiled_reply_characters": 1923,
+  "live_application_model_calls": 49,
+  "application_retries": 0,
+  "judge_calls": 0,
+  "lane_a": {
+    "initial_attempts": 20,
+    "initial_control_passed": 19,
+    "initial_failure": [
+      {
+        "locale": "zh-CN",
+        "scenario": "stop",
+        "variant": "simplified",
+        "current": "今天先到这里，请不要再问了。",
+        "prior_dialogue": [
+          {
+            "status": "responded",
+            "question": {
+              "id": "fictional-snail-question",
+              "text": "你们通常一起做些什么？",
+              "role": "assistant",
+              "personal_testimony": false,
+              "delivered": true
+            },
+            "response": {
+              "id": "00000000-0000-0000-0000-000000000005",
+              "version": 1,
+              "text": "我小时候常跟奶奶一起做饭。",
+              "role": "user",
+              "kind": "narrator_chat",
+              "complete": true
+            }
+          }
+        ],
+        "raw": {
+          "acknowledgement": "好的，今天就到这里，不再提问。",
+          "recall_limit_quote": null,
+          "reason": "pause",
+          "quote": null,
+          "hint": null,
+          "question": null,
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "model": "gpt-6.1-sol",
+        "valid": true,
+        "delivered": "好的，今天就到这里，不再提问。",
+        "error_type": "AssertionError",
+        "control_pass": false,
+        "elapsed_seconds": 6.52
+      }
+    ],
+    "routing_clarification": "Use only CURRENT narration for work routing; pure greetings/stops are reply_only.",
+    "after_routing_clarification": {
+      "calls": 20,
+      "schema_and_controls_passed": 20,
+      "prompt": {
+        "instructions_sha256": "9b86f3b1cdefdafb34677206567cacfa6228abab08a51bbdfe95268ade5d1f31",
+        "dispatch_sha256": "4640c9c4f5b4a28ac6446be5c895b34a0fc36315b895b837eb3889fe471ccb77",
+        "instruction_characters": 1834
+      }
+    },
+    "semantic_observation": "The Chinese reflection asked how the narrator waited for Mother to finish work, assuming presence. Added a generic instruction to ask whether an unstated link exists instead of assuming participation.",
+    "final_controls": {
+      "calls": 4,
+      "passed": 4,
+      "prompt": {
+        "instructions_sha256": "1d8e844c1e3a08562a8775ea7a2d01a84931182115d06e467e420d798babd2bd",
+        "dispatch_sha256": "4640c9c4f5b4a28ac6446be5c895b34a0fc36315b895b837eb3889fe471ccb77",
+        "instruction_characters": 1923
+      },
+      "results": [
+        {
+          "locale": "en-AU",
+          "scenario": "reflection",
+          "raw": {
+            "acknowledgement": "You now see those late hours as her way of caring for your family.",
+            "recall_limit_quote": null,
+            "reason": "return_context",
+            "quote": null,
+            "hint": null,
+            "question": "What did those late hours mean for everyday life in your family?",
+            "work": {
+              "mode": "extract",
+              "name": null
+            }
+          },
+          "valid": true,
+          "control_pass": true
+        },
+        {
+          "locale": "en-AU",
+          "scenario": "stop",
+          "raw": {
+            "acknowledgement": "Of course. We’ll stop here for today.",
+            "recall_limit_quote": null,
+            "reason": "pause",
+            "quote": null,
+            "hint": null,
+            "question": null,
+            "work": {
+              "mode": "reply_only",
+              "name": null
+            }
+          },
+          "valid": true,
+          "control_pass": true
+        },
+        {
+          "locale": "zh-CN",
+          "scenario": "reflection",
+          "raw": {
+            "acknowledgement": "现在回头看，您把妈妈营业到很晚理解为她照顾一家人的方式。",
+            "recall_limit_quote": null,
+            "reason": "return_context",
+            "quote": null,
+            "hint": null,
+            "question": "那时候，您对妈妈总是很晚才关店是怎么想的？",
+            "work": {
+              "mode": "extract",
+              "name": null
+            }
+          },
+          "valid": true,
+          "control_pass": true
+        },
+        {
+          "locale": "zh-CN",
+          "scenario": "stop",
+          "raw": {
+            "acknowledgement": "好的，今天就到这里，不再提问。",
+            "recall_limit_quote": null,
+            "reason": "pause",
+            "quote": null,
+            "hint": null,
+            "question": null,
+            "work": {
+              "mode": "reply_only",
+              "name": null
+            }
+          },
+          "valid": true,
+          "control_pass": true
+        }
+      ]
+    },
+    "story_samples": [
+      {
+        "locale": "en-AU",
+        "scenario": "new_scene",
+        "raw": {
+          "acknowledgement": "The walk to the clock tower felt much longer in childhood than it did when you grew up.",
+          "recall_limit_quote": null,
+          "reason": "latest_story",
+          "quote": "As a child the walk from the entrance felt very long, but it seemed much shorter when I grew up.",
+          "hint": null,
+          "question": "What do you remember noticing along that walk through River Gardens as a child?",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "en-AU",
+        "scenario": "known_company",
+        "raw": {
+          "acknowledgement": "That walk felt much longer to you as a child than it did when you grew up.",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": null,
+          "hint": null,
+          "question": "What would you and your mother usually do when you visited River Gardens?",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "en-AU",
+        "scenario": "closed_topic",
+        "raw": {
+          "acknowledgement": "We’ll set aside the children from the compound and focus on River Gardens.",
+          "recall_limit_quote": null,
+          "reason": "user_redirect",
+          "quote": "As a child the walk from the entrance felt very long, but it seemed much shorter when I grew up.",
+          "hint": null,
+          "question": "What do you remember noticing along that walk to the clock tower as a child?",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "en-AU",
+        "scenario": "unfolding",
+        "raw": {
+          "acknowledgement": "Closing the valve didn’t stop the water rising.",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": null,
+          "hint": null,
+          "question": "What did you do next?",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "en-AU",
+        "scenario": "routine",
+        "raw": {
+          "acknowledgement": "Your dumplings split when boiled, while Grandma’s stayed intact.",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": null,
+          "hint": null,
+          "question": "How did Grandma help you learn to fold them?",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "en-AU",
+        "scenario": "consequence",
+        "raw": {
+          "acknowledgement": "You said that decision changed how you chose later jobs.",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": null,
+          "hint": null,
+          "question": "What did you look for in later jobs after that experience?",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "en-AU",
+        "scenario": "reflection",
+        "raw": {
+          "acknowledgement": "You now see those late hours as her way of caring for your family.",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": null,
+          "hint": null,
+          "question": "What do you remember of being around the shop when she worked late?",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "en-AU",
+        "scenario": "partial",
+        "raw": {
+          "acknowledgement": "You and Robin later started a book club together.",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": "Later we started a book club together.",
+          "hint": null,
+          "question": "How did you and Robin get the book club started?",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "en-AU",
+        "scenario": "stop",
+        "raw": {
+          "acknowledgement": "Of course. We’ll stop here for today.",
+          "recall_limit_quote": null,
+          "reason": "pause",
+          "quote": null,
+          "hint": null,
+          "question": null,
+          "work": {
+            "mode": "reply_only",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "en-AU",
+        "scenario": "recall",
+        "raw": {
+          "acknowledgement": "You don’t need to remember exactly how you folded them.",
+          "recall_limit_quote": "I cannot remember exactly how I folded the dumplings.",
+          "reason": "recall_limit",
+          "quote": "I cannot remember exactly how I folded the dumplings.",
+          "hint": null,
+          "question": null,
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "new_scene",
+        "raw": {
+          "acknowledgement": "从大门到钟楼的那段路，在小时候和长大后的感觉不一样。",
+          "recall_limit_quote": null,
+          "reason": "latest_story",
+          "quote": "小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。",
+          "hint": null,
+          "question": "小时候去河畔公园，你通常会和谁一起走到钟楼？",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "known_company",
+        "raw": {
+          "acknowledgement": "小时候觉得从大门到钟楼很远，长大后再看，那段路就没那么远了。",
+          "recall_limit_quote": null,
+          "reason": "latest_story",
+          "quote": "那时每次去都是妈妈带我去的。",
+          "hint": null,
+          "question": "妈妈带你去河畔公园时，你们通常会做些什么？",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "closed_topic",
+        "raw": {
+          "acknowledgement": "好，先不聊家属院的小朋友，聊聊河畔公园。",
+          "recall_limit_quote": null,
+          "reason": "user_redirect",
+          "quote": "小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。",
+          "hint": null,
+          "question": "小时候从大门走到钟楼的那段路，你还记得沿途有什么吗？",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "unfolding",
+        "raw": {
+          "acknowledgement": "你关上了阀门，水却还在不断上涨。",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": null,
+          "hint": null,
+          "question": "接下来你怎么办的？",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "routine",
+        "raw": {
+          "acknowledgement": "奶奶包的饺子不会破，你包的却一煮就裂开了。",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": null,
+          "hint": null,
+          "question": "看到你包的饺子煮裂了，奶奶通常会怎么说、怎么做？",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "consequence",
+        "raw": {
+          "acknowledgement": "你说，那次辞职改变了你后来选工作的方式。",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": null,
+          "hint": null,
+          "question": "那以后，你选工作时会特别留意什么？",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "reflection",
+        "raw": {
+          "acknowledgement": "如今，您把妈妈把修车铺开到很晚这件事，理解为她照顾一家人的方式。",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": null,
+          "hint": null,
+          "question": "那时候，您通常是怎么等妈妈收工的？",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "partial",
+        "raw": {
+          "acknowledgement": "你提到，后来你和小宁还一起办了读书会。",
+          "recall_limit_quote": null,
+          "reason": "return_context",
+          "quote": "后来我们还一起办了读书会。",
+          "hint": null,
+          "question": "你们的读书会是怎么开始的？",
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "stop",
+        "raw": {
+          "acknowledgement": "好的，今天就到这里。",
+          "recall_limit_quote": null,
+          "reason": "pause",
+          "quote": null,
+          "hint": null,
+          "question": null,
+          "work": {
+            "mode": "reply_only",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      },
+      {
+        "locale": "zh-CN",
+        "scenario": "recall",
+        "raw": {
+          "acknowledgement": "具体怎么捏的，可以先留白。",
+          "recall_limit_quote": "我不记得包饺子时具体怎么捏了。",
+          "reason": "recall_limit",
+          "quote": "我不记得包饺子时具体怎么捏了。",
+          "hint": null,
+          "question": null,
+          "work": {
+            "mode": "extract",
+            "name": null
+          }
+        },
+        "valid": true,
+        "control_pass": true
+      }
+    ]
+  },
+  "lane_b": {
+    "calls": 4,
+    "passed": 4,
+    "scope": "Canonical bounded extraction and preparation, English/Chinese, synthetic source evidence, no application saves.",
+    "results": [
+      {
+        "locale": "en-AU",
+        "phase": "extract",
+        "requested_model": "gpt-6.1-sol",
+        "requested_effort": "low",
+        "source": "When I was eight, Grandma taught me to fold dumplings every Saturday.",
+        "valid": true,
+        "raw": {
+          "events": [
+            {
+              "id": null,
+              "existing_id": null,
+              "expected_revision": null,
+              "kind": "period",
+              "title": "Learning to fold dumplings with Grandma every Saturday",
+              "life_stage": "childhood",
+              "temporal": {
+                "expression": "When I was eight",
+                "precision": "age",
+                "year_start": null,
+                "year_end": null,
+                "basis": [
+                  {
+                    "source_id": "00000000-0000-0000-0000-000000000006",
+                    "version": 1,
+                    "quote": "When I was eight",
+                    "char_start": null,
+                    "char_end": null,
+                    "attribution": null
+                  }
+                ]
+              },
+              "stage_evidence": [
+                {
+                  "source_id": "00000000-0000-0000-0000-000000000006",
+                  "version": 1,
+                  "quote": "When I was eight",
+                  "char_start": null,
+                  "char_end": null,
+                  "attribution": null
+                }
+              ],
+              "source_refs": [
+                {
+                  "source_id": "00000000-0000-0000-0000-000000000006",
+                  "version": 1,
+                  "quote": "When I was eight, Grandma taught me to fold dumplings every Saturday.",
+                  "char_start": null,
+                  "char_end": null,
+                  "attribution": null
+                }
+              ],
+              "uncertainty": null,
+              "person_ids": null,
+              "visibility": null,
+              "include_in_print": null,
+              "attribution": null,
+              "candidate_ids": null,
+              "relations": [],
+              "correction": null
+            }
+          ]
+        }
+      },
+      {
+        "locale": "en-AU",
+        "phase": "prepare",
+        "requested_model": "gpt-6.1-sol",
+        "requested_effort": "low",
+        "source": "When I was eight, Grandma taught me to fold dumplings every Saturday.",
+        "valid": true,
+        "raw": {
+          "event_id": "00000000-0000-0000-0000-000000000007",
+          "context": "At age eight, the storyteller learnt to fold dumplings with Grandma every Saturday.",
+          "source_refs": [
+            {
+              "source_id": "00000000-0000-0000-0000-000000000006",
+              "version": 1,
+              "quote": "When I was eight, Grandma taught me to fold dumplings every Saturday.",
+              "char_start": 0,
+              "char_end": 69,
+              "attribution": null
+            }
+          ]
+        }
+      },
+      {
+        "locale": "zh-CN",
+        "phase": "extract",
+        "requested_model": "gpt-6.1-sol",
+        "requested_effort": "low",
+        "source": "我八岁时，每周六奶奶都教我包饺子。",
+        "valid": true,
+        "raw": {
+          "events": [
+            {
+              "id": null,
+              "existing_id": null,
+              "expected_revision": null,
+              "kind": "period",
+              "title": "八岁时每周六跟奶奶学包饺子",
+              "life_stage": "childhood",
+              "temporal": {
+                "expression": "八岁时",
+                "precision": "age",
+                "year_start": null,
+                "year_end": null,
+                "basis": [
+                  {
+                    "source_id": "00000000-0000-0000-0000-000000000006",
+                    "version": 1,
+                    "quote": "我八岁时，每周六奶奶都教我包饺子。",
+                    "char_start": null,
+                    "char_end": null,
+                    "attribution": null
+                  }
+                ]
+              },
+              "stage_evidence": [
+                {
+                  "source_id": "00000000-0000-0000-0000-000000000006",
+                  "version": 1,
+                  "quote": "我八岁时",
+                  "char_start": null,
+                  "char_end": null,
+                  "attribution": null
+                }
+              ],
+              "source_refs": [
+                {
+                  "source_id": "00000000-0000-0000-0000-000000000006",
+                  "version": 1,
+                  "quote": "我八岁时，每周六奶奶都教我包饺子。",
+                  "char_start": null,
+                  "char_end": null,
+                  "attribution": null
+                }
+              ],
+              "uncertainty": null,
+              "person_ids": null,
+              "visibility": null,
+              "include_in_print": null,
+              "attribution": null,
+              "candidate_ids": null,
+              "relations": [],
+              "correction": null
+            }
+          ]
+        }
+      },
+      {
+        "locale": "zh-CN",
+        "phase": "prepare",
+        "requested_model": "gpt-6.1-sol",
+        "requested_effort": "low",
+        "source": "我八岁时，每周六奶奶都教我包饺子。",
+        "valid": true,
+        "raw": {
+          "event_id": "00000000-0000-0000-0000-000000000007",
+          "context": "讲述者回忆，八岁时，奶奶每周六都教自己包饺子。",
+          "source_refs": [
+            {
+              "source_id": "00000000-0000-0000-0000-000000000006",
+              "version": 1,
+              "quote": "我八岁时，每周六奶奶都教我包饺子。",
+              "char_start": 0,
+              "char_end": 17,
+              "attribution": null
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "verification": {
+    "focused_passed": 242,
+    "legacy_removed_worker_fixture_tests_deselected": 9,
+    "final_prompt_checks_passed": 108,
+    "opt_in_live_skipped": 34,
+    "existing_policy_prompt_size_check_deselected": 1,
+    "composer_routing_passed": 20,
+    "game_receipt_sql_passed": 6,
+    "required_gate": {
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=apple-container make test-place-research",
+      "web": 613,
+      "api_database": 629,
+      "skill": 96
+    }
+  },
+  "limitations": [
+    "Synthetic component smoke tests do not establish broad memoir quality or latency improvements.",
+    "No live concurrent Lane B, browser or long-history verification; draft/review/news/photo/game calls use controlled regressions rather than live content generation.",
+    "No deployed configuration switch, prompt publication, receipt fabrication or customer data mutation.",
+    "Existing .env overrides require updating during activation after merge, publication and matching schema changes.",
+    "Specialized image/speech settings and historical experimental model baselines retain their existing roles."
+  ]
+}

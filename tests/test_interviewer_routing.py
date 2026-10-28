@@ -5,6 +5,7 @@ from apps.api.collector_configuration import collector_configuration
 
 
 @pytest.mark.parametrize('configured,effort,version,expected', [
+    ('gpt-6.1-sol', 'low', 'reply-v2', 'gpt-6.1-sol'),
     ('', 'low', 'reply-v2', 'gpt-5.6-luna-memoir-low'),
     ('gpt-5.6-luna-pooled', 'low', 'reply-v2', 'gpt-5.6-luna-memoir-low'),
     ('gpt-5.6-luna-pooled', 'max', 'reply-v2', 'gpt-5.6-luna-pooled'),
