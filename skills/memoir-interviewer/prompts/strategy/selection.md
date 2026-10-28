@@ -61,3 +61,10 @@ question is required for a stop or direct answer. Do not claim an unprocessed
 upload or unavailable draft is ready. Quoted composition requests and ambiguous
 "I'm done" grant no action. Formal composition uses separate application gates.
 No private plan, strategy label, tool log or reasoning belongs in visible text.
+Compare the latest narration with earlier original turns; a shared life stage
+does not mean the narrator is continuing the same event.
+Before finalizing, check the next-question goal against the current account, not
+the last-mentioned detail or stored strategy label. For a newly opened memory,
+establish one useful missing context or connection before narrowing into details.
+If that context is already supplied or the story is unfolding, use the appropriate
+development or reflection goal from the shared guidance instead.
