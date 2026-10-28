@@ -3,6 +3,7 @@ import asyncio
 from copy import deepcopy
 import json
 from types import SimpleNamespace
+import time
 
 import httpx
 import pytest
@@ -11,14 +12,20 @@ from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
 from apps.api.lifetime_memory_composer import execute_lifetime_lane
 from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, LanePublication, run_bounded_lane
 from controlled_composer_review import controlled_review
+from test_agent_commit_postgres import database as base_database
 from test_canonical_composer_provenance import controlled_draft
 from test_conversation_reply_transport import events, sse
 from test_lifetime_composer_capacity import (sql, event_database, private_database, attachment_database,  # noqa: F401
-    database, seeded_composer, rpc, literal, service, OWNER, OTHER)
+    seeded_composer, rpc, literal, service, OWNER, OTHER)
+
+
+@pytest.fixture(scope='module')
+def database():
+    yield from base_database.__wrapped__(publication_tcp=True, deadline=time.monotonic() + 300)
 
 
 @pytest.mark.parametrize('entry', ['direct', 'worker'])
-def test_canonical_composer_defaults_to_sol_high_without_changing_shared_routes(sql, monkeypatch, tmp_path, entry):
+def test_canonical_composer_defaults_to_sol_61_low_without_changing_explicit_shared_routes(sql, monkeypatch, tmp_path, entry):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'memoir-luna-low')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')
@@ -42,15 +49,15 @@ def test_canonical_composer_defaults_to_sol_high_without_changing_shared_routes(
     async def worker(request):
         wire = json.loads(request.content)
         bounded = BoundedLaneInput.model_validate(wire['bounded_lane'])
-        assert wire['model'] == bounded.budget.model == 'gpt-5.6-sol'
+        assert wire['model'] == bounded.budget.model == 'gpt-6.1-sol'
         assert bounded.budget.context_window == 131072
         assert bounded.budget.input_budget == 98304
         assert bounded.budget.output_headroom == 16384
 
         async def provider(incoming):
             body = json.loads(b''.join([chunk async for chunk in incoming.stream]))
-            assert body['model'] == 'gpt-5.6-sol'
-            assert body['reasoning']['effort'] == 'high'
+            assert body['model'] == 'gpt-6.1-sol'
+            assert body['reasoning']['effort'] == 'low'
             assert body['max_output_tokens'] == 16384
             submissions.append(bounded.phase)
             payload = json.loads(body['input'])['payload']
@@ -164,7 +171,7 @@ def test_worker_rejects_invalid_or_stale_composer_configuration_before_dispatch(
     ('composer','gpt-5.6-sol',{},True),
     ('timeline','gpt-5.6-sol',{},True),
     ('timeline','gpt-6.1-sol',{},True),
-    ('composer','gpt-6.1-sol',{},False),
+    ('composer','gpt-6.1-sol',{},True),
     ('composer','unreviewed-sol-alias',{},False),
     ('composer','gpt-5.6-sol',{'context_window':131073},False),
     ('composer','gpt-5.6-sol',{'input_budget':98305},False),

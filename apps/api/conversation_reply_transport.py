@@ -89,7 +89,7 @@ async def stream_reply(*, view, prompt, schema, model, effort, budget, base_url,
         raise ValueError('Interview provider is not configured')
     body = dict(model=model, input=reply_messages(view, prompt), store=False, stream=True,
         tools=[], tool_choice='none', parallel_tool_calls=False,
-        reasoning=dict(effort=effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'max'), context='all_turns'),
+        reasoning=dict(effort=effort or os.getenv('MEMORY_SPARK_LLM_REASONING_EFFORT', 'low'), context='all_turns'),
         max_output_tokens=budget.output_headroom,
         prompt_cache_key='memoir-reply-v2-' + hashlib.sha256(
             str(fence.identity.owner_id).encode()).hexdigest()[:32],

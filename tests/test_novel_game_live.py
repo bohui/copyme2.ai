@@ -12,5 +12,5 @@ def test_live_example_defaults_to_zero_calls_and_creates_no_output(tmp_path):
     assert result.returncode==0,result.stderr
     plan=json.loads(result.stdout)
     assert plan['calls']==0 and plan['builder']=='novel-to-game'
-    assert plan['model']=='gpt-6.1-sol' and plan['effort']=='max' and plan['human_selection_ui'] is True
+    assert plan['model']=='gpt-6.1-sol' and plan['effort']=='low' and plan['human_selection_ui'] is True
     assert not output.exists()

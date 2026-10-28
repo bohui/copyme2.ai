@@ -184,7 +184,7 @@ class CodexRuntime:
         self.home_root = Path(home_root or os.getenv('MEMORY_SPARK_CODEX_HOME', 'var/codex-users'))
         self.command = command or [os.getenv('MEMORY_SPARK_CODEX_BIN', 'codex'), 'app-server']
         self.provider_env = provider_env or {}
-        self.model = model or os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')
+        self.model = model or os.getenv('MEMORY_SPARK_LLM_MODEL', 'gpt-6.1-sol')
         self.base_url = base_url or os.getenv('MEMORY_SPARK_LLM_BASE_URL', 'http://127.0.0.1:4000/v1')
         self.api_key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
         if timeout is None:

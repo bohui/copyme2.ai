@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import os
 from collections.abc import Mapping
 
-REVIEWED_COMPOSER_MODELS = frozenset({'gpt-5.6-sol', 'gpt-5.6-luna-pooled',
+REVIEWED_COMPOSER_MODELS = frozenset({'gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-5.6-luna-pooled',
     'legal2ai-luna-low', 'memoir-luna-low', 'synthetic-byte-bpe'})
 
 
@@ -19,8 +19,8 @@ class ComposerConfiguration:
 
 def composer_configuration(environment: Mapping | None = None) -> ComposerConfiguration:
     environment = os.environ if environment is None else environment
-    model = environment.get('MEMOIR_COMPOSER_MODEL', 'gpt-5.6-sol')
-    effort = environment.get('MEMOIR_COMPOSER_REASONING_EFFORT', 'high')
+    model = environment.get('MEMOIR_COMPOSER_MODEL', 'gpt-6.1-sol')
+    effort = environment.get('MEMOIR_COMPOSER_REASONING_EFFORT', 'low')
     if not isinstance(model, str) or not isinstance(effort, str):
         raise ComposerConfigurationError('Invalid composer configuration')
     selection = ComposerConfiguration(model.strip(), effort.strip())

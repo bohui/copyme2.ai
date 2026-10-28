@@ -8,19 +8,43 @@ from apps.api.codex_runtime import CodexRuntime
 from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
 
 
-def test_memoir_defaults_to_chatgpt_pooled_luna_with_max_reasoning(monkeypatch, tmp_path):
+def test_lane_a_and_b_sol_low_configuration_reaches_api_and_worker(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    from apps.api.collector_configuration import collector_configuration
+    from apps.api.composer_configuration import composer_configuration
+    from apps.api.lifetime_memory_composer import lane_model_budget
+
+    for key in ('MEMORY_SPARK_LLM_MODEL', 'MEMORY_SPARK_COLLECTOR_MODEL',
+                'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'MEMOIR_COMPOSER_MODEL'):
+        monkeypatch.setenv(key, 'gpt-6.1-sol')
+    for key in ('MEMORY_SPARK_LLM_REASONING_EFFORT', 'MEMORY_SPARK_COLLECTOR_REASONING_EFFORT',
+                'MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'MEMOIR_COMPOSER_REASONING_EFFORT'):
+        monkeypatch.setenv(key, 'low')
+    runtime = CodexRuntime(home_root=tmp_path / 'api')
+    worker = CodexWorker(home_root=tmp_path / 'worker')
+    collector = collector_configuration(runtime.model)
+    composer = composer_configuration()
+    assert runtime.model == worker.model == collector.model == composer.model == 'gpt-6.1-sol'
+    assert collector.effort == composer.effort == 'low'
+    for role in ('collector', 'author_timeline', 'composer'):
+        payload = SimpleNamespace(agent_role=role, model=None)
+        assert worker._model_for(payload) == 'gpt-6.1-sol'
+    assert lane_model_budget().model == lane_model_budget(composer=True).model == 'gpt-6.1-sol'
+
+
+def test_memoir_defaults_to_sol_61_with_low_reasoning(monkeypatch, tmp_path):
     monkeypatch.delenv('MEMORY_SPARK_LLM_MODEL', raising=False)
     monkeypatch.delenv('MEMORY_SPARK_LLM_REASONING_EFFORT', raising=False)
     runtime = CodexRuntime(home_root=tmp_path / 'api')
     worker = CodexWorker(home_root=tmp_path / 'worker')
 
-    assert runtime.model == worker.model == 'gpt-5.6-luna-pooled'
-    config = tomllib.loads((runtime._home('test-user') / 'config.toml').read_text())
+    assert runtime.model == worker.model == 'gpt-6.1-sol'
+    config = tomllib.loads(provider_config('http://gateway.test/v1', runtime.model))
     assert config['model'] == runtime.model
-    assert config['model_reasoning_effort'] == 'max'
+    assert config['model_reasoning_effort'] == 'low'
 
 
-@pytest.mark.parametrize('effort', ['max', 'high'])
+@pytest.mark.parametrize('effort', ['low', 'max', 'high'])
 def test_every_turn_explicitly_selects_configured_reasoning(monkeypatch, tmp_path, effort):
     # An existing thread can retain its old effort. A turn override must win
     # even when the caller resumes that thread instead of starting a new one.

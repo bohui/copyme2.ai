@@ -173,7 +173,7 @@ class CodexWorker:
         self.base_url = base_url or os.getenv(
             "MEMORY_SPARK_LLM_BASE_URL", "http://127.0.0.1:4000/v1"
         )
-        self.model = model or os.getenv("MEMORY_SPARK_LLM_MODEL", "gpt-5.6-luna-pooled")
+        self.model = model or os.getenv("MEMORY_SPARK_LLM_MODEL", "gpt-6.1-sol")
         self.api_key = api_key if api_key is not None else os.getenv("MEMORY_SPARK_LLM_API_KEY", "")
         self.reasoning_effort = reasoning_effort
         # Bound the whole execution, not each protocol request separately.
