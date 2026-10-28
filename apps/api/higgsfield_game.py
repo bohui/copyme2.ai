@@ -1,4 +1,4 @@
-"""Astra's bounded tool loop for the separate Higgsfield game skill.
+"""Bounded tool loop for the separate Higgsfield game skill.
 
 This Memoir adapter exports static scenery to the existing trusted player. It
 has skill-file reads and document validation, never shell or deployment tools.
@@ -14,13 +14,13 @@ import httpx
 from pydantic import BaseModel, Field
 
 from .model_request import instruction_manifest, manifest_metadata
+from .model_configuration import game_configuration
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .story_game_selection import public_scenes, selected_scenes, validate_brief
 from .story_game_runtime import GameFence, GamePublication, GameRequestBody, game_ui
 from .story_game_webpage import validate_webpage
 
 
-MODEL = 'gpt-6-astra'
 REQUIRED_FILES = frozenset({'SKILL.md', 'references/game-flow.md',
     'references/game-design-system.md', 'references/game-stylization.md'})
 
@@ -78,6 +78,7 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
     from .lifetime_memory_lane_engine import check_lane_generation
     from .llm_tracing import trace_llm_call, update_llm_trace
     fence = GameFence.model_validate(fence)
+    model, effort = game_configuration()
     check_issue14_dispatch(issue14_admission, role='tool_loop')
     check_lane_generation()
     packet = await (packet_loader or load_build_packet)(fence)
@@ -103,9 +104,9 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
         for _ in range(12):
             check_issue14_dispatch(issue14_admission, role='tool_loop')
             check_lane_generation()
-            body = dict(model=MODEL, instructions=instructions, input=history, tools=TOOLS,
+            body = dict(model=model, instructions=instructions, input=history, tools=TOOLS,
                 tool_choice='auto', parallel_tool_calls=True, store=False,
-                reasoning={'effort': 'low'}, include=['reasoning.encrypted_content'], max_output_tokens=20000,
+                reasoning={'effort': effort}, include=['reasoning.encrypted_content'], max_output_tokens=20000,
                 metadata={**manifest_metadata(manifest), 'generation_name': 'higgsfield-websites-game',
                     'trace_name': 'memoir-story-game-build'},
                 text={'format': {'type': 'json_schema', 'name': 'memoir_game_artifact', 'strict': True, 'schema': schema}})
@@ -114,7 +115,7 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
                 raise ValueError('game_build_context_limit')
             request = GameRequestBody(encoded, publisher=publisher, fence=fence.model_dump(mode='json'))
             try:
-                with trace_llm_call('story.game.higgsfield', MODEL, metadata={
+                with trace_llm_call('story.game.higgsfield', model, metadata={
                         'prompt_manifest': manifest, 'skill_sha256': skill_digest}) as trace:
                     async with client.stream('POST', base + '/responses', content=request,
                             headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
@@ -130,6 +131,8 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
                     result = json.loads(raw)
                     if result.get('status') != 'completed' or not result.get('id') or not result.get('model'):
                         raise ValueError('incomplete_game_response')
+                    if result['model'] != model or (result.get('reasoning') or {}).get('effort') != effort:
+                        raise ValueError('game_model_or_effort_mismatch')
                     responses.append(result['id'])
                     update_llm_trace(trace, metadata={'response_id': result['id'], 'skill_sha256': skill_digest})
             finally:
@@ -171,7 +174,7 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
                 raise ValueError('game_skill_or_validation_required')
             return dict(webpage={'html': artifacts[artifact.artifact_sha256]}, receipt=dict(
                 status='completed', response_id=responses[-1], response_ids=responses,
-                model=result['model'], requested_model=MODEL, skill='higgsfield-websites',
+                model=result['model'], requested_model=model, reasoning_effort=effort, skill='higgsfield-websites',
                 skill_sha256=skill_digest, skill_files=sorted(read), artifact_sha256=artifact.artifact_sha256,
                 prompt_manifest=manifest))
     raise ValueError('game_build_turn_limit')

@@ -175,10 +175,11 @@ def test_compose_keeps_optional_image_overrides_empty_or_explicit(tmp_path,overr
     compose=tmp_path/'compose.yml';compose.write_text((Path(__file__).parents[1]/'compose.yml').read_text())
     environment={k:v for k,v in os.environ.items() if not k.startswith(('MEMOIR_GAME_IMAGE','MEMORY_SPARK_LLM'))}
     environment.update(MEMORY_SPARK_LLM_BASE_URL='https://controlled-gateway.test/v1',MEMORY_SPARK_LLM_API_KEY='controlled-placeholder')
-    if override:environment.update(MEMOIR_GAME_IMAGE_BASE_URL='https://controlled-image.test/v1',MEMOIR_GAME_IMAGE_API_KEY='controlled-image-placeholder')
+    if override:environment.update(MEMOIR_GAME_IMAGE_BASE_URL='https://controlled-image.test/v1',
+        MEMOIR_GAME_IMAGE_API_KEY='controlled-image-placeholder',MEMOIR_GAME_IMAGE_MODEL='configured-image-model')
     result=subprocess.run(['mocker','compose','config','-f',str(compose)],cwd=tmp_path,env=environment,capture_output=True,text=True,timeout=20)
     assert result.returncode==0
     lines=[s.strip().removeprefix('- ').strip('"') for s in result.stdout.splitlines()]
     assert 'MEMOIR_GAME_IMAGE_BASE_URL='+('https://controlled-image.test/v1' if override else '') in lines
     assert 'MEMOIR_GAME_IMAGE_API_KEY='+('controlled-image-placeholder' if override else '') in lines
-    assert 'MEMOIR_GAME_IMAGE_MODEL=gpt-image-2.5-sunburst' in lines
+    assert 'MEMOIR_GAME_IMAGE_MODEL='+('configured-image-model' if override else '') in lines

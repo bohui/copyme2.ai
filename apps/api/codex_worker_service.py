@@ -27,6 +27,7 @@ from pydantic import BaseModel, Field, model_validator
 from .codex_agent import CodexConnection
 from .collector_configuration import CollectorConfigurationError, collector_configuration
 from .composer_configuration import ComposerConfigurationError, composer_configuration
+from .model_configuration import configured_effort
 from .codex_timeout_policy import WORKER_TIMEOUT, WORKER_MAX_TIMEOUT
 from .codex_progress import WorkerProgress
 from .issue14_execution_admission import (
@@ -173,7 +174,7 @@ class CodexWorker:
         self.base_url = base_url or os.getenv(
             "MEMORY_SPARK_LLM_BASE_URL", "http://127.0.0.1:4000/v1"
         )
-        self.model = model or os.getenv("MEMORY_SPARK_LLM_MODEL", "gpt-6.1-sol")
+        self.model = model or os.getenv('MEMORY_SPARK_LLM_MODEL', '').strip()
         self.api_key = api_key if api_key is not None else os.getenv("MEMORY_SPARK_LLM_API_KEY", "")
         self.reasoning_effort = reasoning_effort
         # Bound the whole execution, not each protocol request separately.
@@ -217,8 +218,8 @@ class CodexWorker:
             if payload.model is not None and payload.model != selection.model:
                 raise ComposerConfigurationError('Composer model differs from configured route')
             return selection.model
-        return payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', self.model)
-            if payload.agent_role == 'author_timeline' else self.model)
+        return payload.model or (os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', '').strip() or self.model
+            if payload.agent_role in {'author_timeline', 'organiser'} else self.model)
 
     def execution_deadline_expired(self, payload):
         """Read this task's actual timeout context for this exact dispatch."""
@@ -407,8 +408,8 @@ class CodexWorker:
                 uid=uid,apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',effort=self.reasoning_effort)
         if payload.bounded_lane is not None:
             effort = (composer_configuration().effort if payload.agent_role == 'composer'
-                else self.reasoning_effort or os.getenv(
-                    'MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'low').strip() or 'low')
+                else self.reasoning_effort or configured_effort('MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT',
+                    'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'MEMORY_SPARK_LLM_REASONING_EFFORT'))
             return await run_bounded_lane(command=self._run_command(uid),home_root=self.home_root,
                 base_url=self.base_url,api_key=self.api_key,model=model,
                 bounded_lane=payload.bounded_lane,timeout=self._execution_timeout(payload.agent_role,payload.composer_phase),

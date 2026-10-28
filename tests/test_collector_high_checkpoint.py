@@ -21,6 +21,9 @@ def test_high_collector_checkpoint_keeps_originals_and_rejects_unreviewed_models
     rejected = sql(f"set role service_role; select public.advance_two_lane_checkpoint("
         f"'{lane_id}','{page['token']}',1,'unreviewed-model');", check=False)
     assert rejected.returncode != 0 and 'bounded checkpoint configuration required' in rejected.stderr
+    missing = sql(f"set role service_role; select public.advance_two_lane_checkpoint("
+        f"'{lane_id}','{page['token']}',1);", check=False)
+    assert missing.returncode != 0 and 'bounded checkpoint configuration required' in missing.stderr
     stale = sql(f"set role service_role; select public.advance_two_lane_checkpoint("
         f"'{lane_id}','{uuid4()}',1,'{model}');", check=False)
     assert stale.returncode != 0

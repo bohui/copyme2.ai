@@ -17,6 +17,12 @@ import pytest
 
 from apps.api import prompt_artifact
 from scripts.prompt_registry import prompt_registry, ROOT
+from dotenv import dotenv_values
+
+# Tests use explicit settings from the example configuration, never runtime defaults.
+_example_settings = dotenv_values(ROOT / '.env.example')
+for key in ('MEMORY_SPARK_LLM_MODEL', 'MEMORY_SPARK_LLM_REASONING_EFFORT', 'MEMOIR_GAME_IMAGE_MODEL'):
+    os.environ.setdefault(key, _example_settings[key])
 
 # Use the same fixtures that ship in an isolated photo-skill installation.
 sys.path.insert(0, str(ROOT / 'skills/memoir-place-photo-research/tests'))

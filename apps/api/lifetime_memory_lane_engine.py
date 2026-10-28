@@ -9,6 +9,7 @@ from __future__ import annotations
 from .model_request import instruction_manifest, manifest_metadata
 from .llm_tracing import trace_llm_call
 from .composer_configuration import REVIEWED_COMPOSER_MODELS, composer_configuration
+from .model_configuration import configured_effort
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -818,7 +819,9 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
     payload = dict(model=model, instructions=instructions, input=bounded.packet,
         store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
-        reasoning={'effort': effort or (composer_configuration().effort if role == 'composer' else 'low'), 'summary': 'auto'},
+        reasoning={'effort': effort or (composer_configuration().effort if role == 'composer' else configured_effort(
+            'MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT',
+            'MEMORY_SPARK_LLM_REASONING_EFFORT')), 'summary': 'auto'},
         max_output_tokens=bounded.budget.output_headroom,
         metadata={**manifest_metadata(manifest), 'generation_name':skill_name, 'trace_name':skill_name},
         text={'format':{'type':'json_schema', 'name':'codex_output_schema', 'strict':True, 'schema':schema}})

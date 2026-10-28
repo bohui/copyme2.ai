@@ -88,8 +88,8 @@ class GameRequestBody(LaneRequestBody):
 
 async def _game_response(packet, *, token, phase, payload):
     base = os.getenv('MEMORY_SPARK_LLM_BASE_URL', '').rstrip('/')
-    from .novel_game import MODEL, EFFORT
-    model, effort = MODEL, EFFORT
+    from .model_configuration import game_configuration
+    model, effort = game_configuration()
     key = os.getenv('MEMORY_SPARK_LLM_API_KEY', '')
     parsed = urlsplit(base)
     if (not key or not model or parsed.scheme not in {'http', 'https'} or not parsed.hostname

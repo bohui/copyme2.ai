@@ -158,11 +158,6 @@ def test_extraction_schema_limits_evidence_and_relations_to_the_claimed_page(sav
 def test_configured_model_alias_respects_bounded_lane_scope(phase,model):
     current=page('timeline' if phase=='extract' else 'composer')
     budget=BUDGET.model_copy(update={'model':model})
-    if model=='gpt-6.1-sol' and phase!='extract':
-        with pytest.raises(ValueError,match='No reviewed byte-token bound'):
-            build_bounded_lane_input(current,phase=phase,
-                packet=packet_for(current,phase),budget=budget)
-        return
     bounded=build_bounded_lane_input(current,phase=phase,
         packet=packet_for(current,phase),budget=budget)
     assert bounded.budget.model==model
@@ -272,9 +267,10 @@ def test_lane_attempts_cannot_resume_a_prior_native_session(tmp_path):
     ('draft','composer','MEMOIR_COMPOSER_REASONING_EFFORT'),
 ])
 @pytest.mark.parametrize('configured',[None,'','low'])
-def test_lanes_use_separate_reasoning_policies_instead_of_global_max(tmp_path,monkeypatch,phase,role,setting,configured):
+def test_lanes_inherit_background_effort_and_honour_role_overrides(tmp_path,monkeypatch,phase,role,setting,configured):
     import apps.api.codex_worker_service as worker_module
     monkeypatch.setenv('MEMORY_SPARK_LLM_REASONING_EFFORT','max')
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT','medium')
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
     if configured is None:monkeypatch.delenv(setting,raising=False)
     else:monkeypatch.setenv(setting,configured)
@@ -288,13 +284,8 @@ def test_lanes_use_separate_reasoning_policies_instead_of_global_max(tmp_path,mo
     payload=WorkerTurnInput(user_id=bounded.fence.user_id,project_id=bounded.fence.project_id,
         agent_role=role,model=BUDGET.model,bounded_lane=bounded,
         **({'composer_phase':phase} if role=='composer' else {}))
-    if role == 'composer' and configured == '':
-        with pytest.raises(ValueError, match='composer'):
-            asyncio.run(worker.turn(payload))
-        assert calls == []
-        return
     asyncio.run(worker.turn(payload))
-    assert len(calls)==1 and calls[0]['effort']==('high' if role=='composer' and configured is None else 'low')
+    assert len(calls)==1 and calls[0]['effort']==(configured or 'medium')
     assert calls[0]['model']==BUDGET.model
 
 

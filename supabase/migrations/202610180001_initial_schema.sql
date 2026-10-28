@@ -734,7 +734,8 @@ CREATE TABLE public.user_lifetime_compaction (
     summary_revision bigint DEFAULT 0 NOT NULL,
     summary_windows bigint DEFAULT 0 NOT NULL,
     summary_complete boolean DEFAULT false NOT NULL,
-    summary_model text DEFAULT 'gpt-6.1-sol'::text NOT NULL
+    summary_model text,
+    CHECK (NOT summary_required OR coalesce(length(btrim(summary_model)),0)>0)
 );
 
 CREATE TABLE public.user_lifetime_continuity (
@@ -2756,7 +2757,7 @@ begin
   return new;
 end $$;
 
-CREATE FUNCTION public.advance_two_lane_checkpoint(p_lane_id uuid, p_token uuid, p_steps integer DEFAULT 1, p_model text DEFAULT 'gpt-6.1-sol'::text) RETURNS jsonb
+CREATE FUNCTION public.advance_two_lane_checkpoint(p_lane_id uuid, p_token uuid, p_steps integer DEFAULT 1, p_model text DEFAULT NULL::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public', 'auth'
     AS $$
@@ -2766,7 +2767,7 @@ declare snap public.user_lifetime_lane_snapshot%rowtype; identity public.user_li
  previous_owner text; candidate uuid; evidence jsonb:='[]'; manifest_sources jsonb:='[]'; item record;
  processed integer; fingerprint text; count_items bigint; chain text; last_seq bigint; last_start integer;
 begin
- if p_steps is null or p_steps not between 1 and 4 or p_model not in
+ if p_steps is null or p_steps not between 1 and 4 or p_model is null or p_model not in
    ('gpt-5.6-luna-pooled','gpt-5.6-luna-memoir-low','gpt-5.6-luna-memoir-high','gpt-6.1-sol','memoir-luna-low','legal2ai-luna-low','synthetic-byte-bpe') then raise exception 'bounded checkpoint configuration required';end if;
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  owner:=snap.user_id;
@@ -14796,8 +14797,12 @@ language plpgsql security definer set search_path='' as $$
 declare existing jsonb;
 begin
  perform public.lock_story_game(p_game_id,p_token,true);
- if p_result->'receipt'->>'status' is distinct from 'completed' or p_result->'receipt'->>'requested_model' is distinct from 'gpt-6.1-sol'
-   or not coalesce(p_result->'receipt'->>'reasoning_effort' in ('low','max'),false) or p_result->'receipt'->>'stage' is distinct from p_stage
+ if p_result->'receipt'->>'status' is distinct from 'completed'
+   or jsonb_typeof(p_result->'receipt'->'requested_model') is distinct from 'string'
+   or coalesce(length(btrim(p_result->'receipt'->>'requested_model')),0) not between 1 and 256
+   or p_result->'receipt'->>'model' is distinct from p_result->'receipt'->>'requested_model'
+   or not coalesce(p_result->'receipt'->>'reasoning_effort' in ('none','minimal','low','medium','high','xhigh','max'),false)
+   or p_result->'receipt'->>'stage' is distinct from p_stage
    or p_result->'receipt'->>'request_sha256' is distinct from p_sha256 then
    raise exception 'GAME_STAGE_RECEIPT_INVALID' using errcode='22023';end if;
  select result into existing from public.user_story_game_stage where game_id=p_game_id and stage=p_stage and request_sha256=p_sha256;
@@ -15158,14 +15163,16 @@ begin
    or p_model_receipt->>'status' is distinct from 'completed'
    or coalesce(length(p_model_receipt->>'response_id'),0)=0
    or coalesce(length(p_model_receipt->>'model'),0)=0
-   or not coalesce(case when novel then p_model_receipt->>'requested_model'='gpt-6.1-sol'
-       and p_model_receipt->>'reasoning_effort' in ('low','max')
-       and p_model_receipt->'qa'->'desktop'->>'status'='PASS'
+   or jsonb_typeof(p_model_receipt->'requested_model') is distinct from 'string'
+   or coalesce(length(btrim(p_model_receipt->>'requested_model')),0) not between 1 and 256
+   or p_model_receipt->>'model' is distinct from p_model_receipt->>'requested_model'
+   or not coalesce(p_model_receipt->>'reasoning_effort' in ('none','minimal','low','medium','high','xhigh','max'),false)
+   or not coalesce(case when novel then p_model_receipt->'qa'->'desktop'->>'status'='PASS'
        and p_model_receipt->'qa'->'touch'->>'status'='PASS'
        and p_model_receipt->'qa'->'desktop'->'checks'='{"launch":"PASS","render":"PASS","input":"PASS","coreLoop":"PASS","outcome":"PASS","restart":"PASS"}'::jsonb
        and p_model_receipt->'qa'->'touch'->'checks'='{"launch":"PASS","render":"PASS","input":"PASS","coreLoop":"PASS","outcome":"PASS","restart":"PASS"}'::jsonb
        and jsonb_array_length(p_model_receipt->'stages')=6
-       else p_model_receipt->>'skill'='higgsfield-websites' and p_model_receipt->>'requested_model'='gpt-6-astra' end,false)
+       else p_model_receipt->>'skill'='higgsfield-websites' end,false)
    or p_model_receipt->>'skill_sha256' !~ '^[a-f0-9]{64}$'
    or p_model_receipt->>'skill_sha256' is null
    or jsonb_typeof(p_proposal) is distinct from 'object' or (select count(*) from jsonb_object_keys(p_proposal))<>2

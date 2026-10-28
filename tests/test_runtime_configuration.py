@@ -58,7 +58,8 @@ def test_temporal_worker_can_dispatch_supabase_memoir_lanes():
     worker = compose.split('\n  worker:\n', 1)[1].split('\n  temporal:\n', 1)[0]
     assert 'SUPABASE_URL: ${SUPABASE_URL:-}' in worker
     assert 'SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}' in worker
-    assert 'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL: ${MEMORY_SPARK_MEMOIR_COMPOSER_MODEL:-memoir-luna-low}' in worker
+    assert 'MEMORY_SPARK_MEMOIR_COMPOSER_MODEL: "${MEMORY_SPARK_MEMOIR_COMPOSER_MODEL:-}"' in worker
+    assert 'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT: "${MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT:-}"' in worker
     assert 'MEMOIR_TWO_LANES: ${MEMOIR_TWO_LANES:-0}' in worker
 
 

@@ -104,6 +104,16 @@ def test_gateway_routing_receipts_are_preserved_without_truncation(search_world)
     assert result['sources'][0]['response_id'] == world['response']['id']
 
 
+def test_native_photo_search_uses_background_environment_settings(search_world, monkeypatch):
+    helper, world = search_world
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'background-search-model')
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'medium')
+    helper.llm_search('Chengde', helper.normalize_period('1980s', date.today()))
+    request, = world['calls']
+    assert request['model'] == 'background-search-model'
+    assert request['reasoning'] == {'effort': 'medium'}
+
+
 def test_later_search_call_citation_keeps_its_actual_discovery_receipt(search_world, tmp_path, capsys):
     helper, world = search_world
     first = world['response']['output'][0]

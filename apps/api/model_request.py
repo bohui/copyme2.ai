@@ -9,6 +9,7 @@ from .prompt_artifact import ROOT, load_prompt_artifact, prompt_path
 from .prompt_catalog import PROMPT_PATHS
 from .prompt_composition import component_paths, render_prompt_artifact
 from .llm_tracing import trace_llm_call, update_llm_trace
+from .model_configuration import background_model, background_effort
 
 
 def digest(value):
@@ -41,12 +42,11 @@ def prompt_manifest(names, instructions, schema=None, *, variant=None):
     return {**result, 'manifest_sha256': digest(result)}
 
 
-def managed_json_request(name, payload, schema, *, model=None):
+def managed_json_request(name, payload, schema, *, model=None, effort=None):
     instructions = render_prompt_artifact(prompt_path(name))
-    body = dict(model=model or os.getenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL')
-                or os.getenv('MEMORY_SPARK_LLM_MODEL', ''), instructions=instructions,
+    body = dict(model=model or background_model(), instructions=instructions,
                 input=json.dumps(payload, ensure_ascii=False), store=False,
-                reasoning={'effort': 'low'}, max_output_tokens=3000,
+                reasoning={'effort': effort or background_effort()}, max_output_tokens=3000,
                 text={'format': {'type': 'json_schema', 'name': 'memoir_proposal', 'strict': True, 'schema': schema}})
     manifest=prompt_manifest([name],instructions,schema)
     body['metadata']=manifest_metadata(manifest)
@@ -70,10 +70,10 @@ def decode_json_response(value):
     return json.loads(completed_response_text(value))
 
 
-async def complete_json(name, payload, schema, *, model=None, transport=None, body_factory=None,
+async def complete_json(name, payload, schema, *, model=None, effort=None, transport=None, body_factory=None,
                         base_url=None, api_key=None, trace_name=None, diagnostic_request_id=None):
     import httpx
-    body, manifest = managed_json_request(name, payload, schema, model=model)
+    body, manifest = managed_json_request(name, payload, schema, model=model, effort=effort)
     if trace_name:
         body['metadata'] = {**body.get('metadata', {}),
                             'generation_name': trace_name, 'trace_name': trace_name}

@@ -25,13 +25,13 @@ def database():
 
 
 @pytest.mark.parametrize('entry', ['direct', 'worker'])
-def test_canonical_composer_defaults_to_sol_61_low_without_changing_explicit_shared_routes(sql, monkeypatch, tmp_path, entry):
+def test_canonical_composer_honours_dedicated_settings_without_changing_shared_routes(sql, monkeypatch, tmp_path, entry):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'memoir-luna-low')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')
     monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')
-    monkeypatch.delenv('MEMOIR_COMPOSER_MODEL', raising=False)
-    monkeypatch.delenv('MEMOIR_COMPOSER_REASONING_EFFORT', raising=False)
+    monkeypatch.setenv('MEMOIR_COMPOSER_MODEL', 'gpt-6.1-sol')
+    monkeypatch.setenv('MEMOIR_COMPOSER_REASONING_EFFORT', 'low')
     identity, source, _, claim = seeded_composer(sql, summary_messages=('Thanks. ' * 160,) * 4)
     publisher = LanePublication(sql.publication_dsn, authenticated_owner=OWNER)
     submissions = []
@@ -145,7 +145,6 @@ def test_completed_composer_cache_tracks_only_its_selected_model_and_effort(monk
     ('MEMOIR_COMPOSER_MODEL', 'gpt-6.1-sol', 'gpt-5.6-sol'),
     ('MEMOIR_COMPOSER_MODEL', '', 'gpt-5.6-sol'),
     ('MEMOIR_COMPOSER_REASONING_EFFORT', 'unbounded', 'gpt-5.6-sol'),
-    ('MEMOIR_COMPOSER_REASONING_EFFORT', '', 'gpt-5.6-sol'),
     ('MEMOIR_COMPOSER_MODEL', 'gpt-5.6-sol', 'memoir-luna-low'),
 ])
 def test_worker_rejects_invalid_or_stale_composer_configuration_before_dispatch(monkeypatch, tmp_path, setting, value, budget_model):

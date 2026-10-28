@@ -15,6 +15,11 @@ from test_agent_commit_postgres import OWNER,OTHER,as_user
 from test_interview_strategy import wire
 
 
+@pytest.fixture(autouse=True)
+def checkpoint_model(monkeypatch):
+    monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')
+
+
 class Broker:
     def __init__(self,sql):self.sql=sql
     async def rpc(self,name,**args):
@@ -39,7 +44,7 @@ def setup_backlog(sql,tmp_path,monkeypatch,*,count=25):
     sql("update public.user_narrator_source set processing_status='succeeded';")
     lane_id=lane(sql,identity);page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
     assert page['complete'] and page['source'] is None
-    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1")
+    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1,'gpt-5.6-luna-pooled'")
     return identity,lane_id,service(sql,'read_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}'"),packets
 
 
@@ -322,7 +327,7 @@ def test_long_unicode_original_uses_every_absolute_window_without_raw_overflow(s
     rpc(sql,'accept_two_lane_interview_turn',f"{literal(identity['project_id'])},'{turn}','I remember the first shop.'")
     page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
     for _ in range(10):
-        state=service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1")
+        state=service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1,'gpt-5.6-luna-pooled'")
         if state['complete']:break
     page=service(sql,'read_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}'")
     seen=[]
@@ -362,7 +367,7 @@ def test_new_checkpoint_extends_previous_summary_and_flag_rollback_reads_it(sql,
         assert response.status_code==200,response.text
     sql("update public.user_narrator_source set processing_status='succeeded';")
     page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
-    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1")
+    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1,'gpt-5.6-luna-pooled'")
     page=service(sql,'read_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}'")
     assert page['source']['sequence']==25 and 'violet kite' in json.dumps(page['memory_summary']['prior'])
     calls.clear();drain(sql,lane_id,page,worker)
@@ -453,7 +458,7 @@ def test_lossless_predecessor_is_processed_before_selective_summary_replaces_it(
     rpc(sql,'accept_two_lane_interview_turn',f"{literal(identity['project_id'])},'{turn}','I remember the first shop.'")
     sql("update public.user_narrator_source set processing_status='succeeded';")
     page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
-    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1")
+    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1,'gpt-5.6-luna-pooled'")
     page=service(sql,'read_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}'")
     assert page['source']['sequence']==1,'A verbatim prefix has no accepted semantic replacement yet'
     seen=[]
@@ -537,7 +542,7 @@ def test_old_pending_turn_can_retry_after_background_checkpoint_has_passed_it(sq
     rpc(sql,'accept_two_lane_interview_turn',f"{literal(identity['project_id'])},'{accepted['client_turn_id']}','I remember the first shop.'")
     sql("update public.user_narrator_source set processing_status='succeeded';")
     lane_id=lane(sql,identity);page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
-    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1")
+    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1,'gpt-5.6-luna-pooled'")
     page=service(sql,'read_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}'")
     def provider(request):return httpx.Response(200,json={'reply':json.dumps({'items':[]}), 'thread_id':'ahead','artifacts':[]})
     drain(sql,lane_id,page,summary_worker(sql,provider))

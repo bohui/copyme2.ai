@@ -26,7 +26,7 @@ def test_every_source_remains_in_lossless_checkpoint_or_mandatory_tail(sql):
     # Wake the same owner at the newest canonical source revision.
     accept(sql,text='First recollection.',project=identity['project_id'],turn=accepted['client_turn_id'])
     lane_id=lane(sql,identity);page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
-    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1")
+    service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1,'gpt-5.6-luna-pooled'")
     checkpoint=rpc(sql,'read_lifetime_checkpoint',f"'{identity['conversation_id']}',1,'gpt-5.6-luna-pooled','lifetime-v1'")
     assert checkpoint is not None
     parsed=ContextCheckpoint.model_validate(checkpoint)

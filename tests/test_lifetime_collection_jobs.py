@@ -3,12 +3,17 @@ import json
 from uuid import uuid4
 
 import pytest
-from test_agent_commit_postgres import database, as_user, OWNER, OTHER
+from test_agent_commit_postgres import database as base_database, as_user, OWNER, OTHER
 from test_guest_conversation_transfer import attachment_database
 from test_private_rounds_postgres import private_database
 from test_shared_memory_events_postgres import rpc, literal
 from test_lifetime_memory_postgres import resolve
 from pathlib import Path
+
+
+@pytest.fixture(scope='module')
+def database():
+    yield from base_database.__wrapped__(publication_tcp=True)
 
 
 @pytest.fixture(scope='module')
@@ -458,9 +463,9 @@ def test_real_worker_dispatches_fenced_leaf_and_merge_without_legacy_history(sql
     import asyncio
     import httpx
     from apps.api.lifetime_memory_collection_jobs import CollectionJobWorker
-    from apps.api.lifetime_memory_contracts import ContextBudget
     from apps.api.lifetime_memory_job_engine import JobPublication
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','true')
+    monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL','gpt-6.1-sol')
     monkeypatch.delenv('MEMOIR_LIFETIME_GENERATION_PAUSED',raising=False)
     project=resolve(sql)['project_id'];originals=[source(sql,project,f'Memory {i}') for i in range(2)]
     confirm(sql,project,originals);paid(sql);job=create(sql,project,[],'BuildOutline',1)
@@ -477,13 +482,13 @@ def test_real_worker_dispatches_fenced_leaf_and_merge_without_legacy_history(sql
     phases=[]
     async def transport(request):
         wire=json.loads(await request.aread())
+        assert wire['model']=='gpt-6.1-sol'
         assert 'task_sources' not in wire and 'memories' not in wire
         bounded=wire['bounded_job'];fence=bounded['fence'];phases.append(fence['phase'])
         assert len(bounded['packet'].encode())<65536
         return httpx.Response(200,json={'reply':json.dumps(outline_result(fence)),'thread_id':str(uuid4()),'artifacts':[]})
-    budget=ContextBudget(model='synthetic-byte-bpe',context_window=131072,input_budget=65536,output_headroom=32768,framing_headroom=4096)
     worker=CollectionJobWorker(Broker(),worker_url='http://synthetic-worker.invalid',worker_secret='synthetic',
-        worker_transport=httpx.MockTransport(transport),publisher=JobPublication(dsn,authenticated_owner=OWNER),budget=budget)
+        worker_transport=httpx.MockTransport(transport),publisher=JobPublication(dsn,authenticated_owner=OWNER))
     assert asyncio.run(worker.execute(job['id']))=={'status':'succeeded','processed':3}
     assert phases==['leaf','leaf','merge']
     assert rpc(sql,'read_lifetime_collection_job',f"'{job['id']}',null,8")['status']=='SUCCEEDED'

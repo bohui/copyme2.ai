@@ -78,7 +78,7 @@ async def generate_background(prompt,fence,*,transport=None,issue14_admission=No
     check_issue14_dispatch(issue14_admission,role='tool_loop');check_lane_generation()
     base=(os.getenv('MEMOIR_GAME_IMAGE_BASE_URL') or os.getenv('MEMORY_SPARK_LLM_BASE_URL','')).rstrip('/')
     key=os.getenv('MEMOIR_GAME_IMAGE_API_KEY') or os.getenv('MEMORY_SPARK_LLM_API_KEY','')
-    model=os.getenv('MEMOIR_GAME_IMAGE_MODEL','gpt-image-2.5-sunburst')
+    model=os.getenv('MEMOIR_GAME_IMAGE_MODEL','').strip()
     endpoint=urlsplit(base)
     if (not key or not model or endpoint.scheme not in {'http','https'} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):

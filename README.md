@@ -145,9 +145,9 @@ enable optional public historical context during interviews. Research starts
 after the saved reply has been sent and its interview lease released; only
 inspected, cited clues become available to later questions. Missing or ambiguous
 life context and project opt-outs suppress research. It uses the existing LLM
-gateway and credentials. `MEMORY_SPARK_HISTORICAL_NEWS_MODEL` optionally selects
-an existing gateway alias for low reasoning effort when the main alias forces
-higher effort; blank uses `MEMORY_SPARK_LLM_MODEL`.
+gateway and credentials. `MEMORY_SPARK_HISTORICAL_NEWS_MODEL` and
+`MEMORY_SPARK_HISTORICAL_NEWS_REASONING_EFFORT` optionally override Lane B's
+model and effort for news research.
 
 ## Story packages and Stripe
 
@@ -251,29 +251,33 @@ is in the private [`codex-worker/Containerfile`](codex-worker/Containerfile).
 
 The API uses the user's Supabase bearer token for RLS-protected story and Codex-memory operations. Codex runs only in the private worker container, which uses a dedicated volume and per-user OS identities; the API sends it only the already-authorized memory context. Set `MEMORY_SPARK_CODEX_WORKER_SECRET` to a long random value outside local development. Private original/generated blobs remain below `var/memory-spark/objects`. Copy `.env.example` to `.env` and configure Supabase and the local LLM provider before using the connected Codex agent.
 
-Lane A and model-backed Lane B skills default to `gpt-6.1-sol` with light
-reasoning (`low` in the API). The existing LiteLLM Memoir consumer must authorize
-that exact route. Keep the gateway and `codex-lb` running and configure
+The example environment selects `gpt-6.1-sol` with light reasoning (`low` in the
+API) for Lane A and model-backed Lane B skills. Application code and Compose do
+not select a fallback model or effort. The existing LiteLLM Memoir consumer must
+authorize the configured route. Keep the gateway and `codex-lb` running and configure
 `MEMORY_SPARK_LLM_BASE_URL` and the server-only `MEMORY_SPARK_LLM_API_KEY`.
 
 `MEMORY_SPARK_LLM_MODEL` and `MEMORY_SPARK_LLM_REASONING_EFFORT` select the shared
-route. `MEMORY_SPARK_COLLECTOR_MODEL` and
+route; both are required for model calls. Blank overrides inherit these settings.
+`MEMORY_SPARK_COLLECTOR_MODEL` and
 `MEMORY_SPARK_COLLECTOR_REASONING_EFFORT` can override Lane A replies and privacy
 review. Background extraction, profile, summaries and guidance use
-`MEMORY_SPARK_MEMOIR_COMPOSER_MODEL`; extraction retains its separate
-`MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT=low` setting. Photo model calls and
-historical-news research use the shared route with low reasoning; an explicit
-`MEMORY_SPARK_HISTORICAL_NEWS_MODEL` overrides news only.
+`MEMORY_SPARK_MEMOIR_COMPOSER_MODEL` and
+`MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT`. Extraction can override effort
+with `MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT`. Photo model calls inherit
+Lane B settings. `MEMORY_SPARK_HISTORICAL_NEWS_MODEL` and
+`MEMORY_SPARK_HISTORICAL_NEWS_REASONING_EFFORT` can override news research.
 
 Composer preparation, drafting and review use dedicated
-`MEMOIR_COMPOSER_MODEL=gpt-6.1-sol` and
-`MEMOIR_COMPOSER_REASONING_EFFORT=low` defaults. Short lossless preparation makes
+`MEMOIR_COMPOSER_MODEL` and `MEMOIR_COMPOSER_REASONING_EFFORT` overrides,
+inheriting Lane B settings when blank. Short lossless preparation makes
 no model call. The API, Codex worker and checkpoint worker must receive matching
 settings; mismatches fail before composer dispatch. Changing model or effort
-invalidates composition caches. Scene selection, briefs and the default
-NovelToGame build stages also use GPT-6.1 Sol/low. Existing verified max-effort
-game receipts remain readable; new low-effort requests have distinct cache keys.
+invalidates composition caches. Scene selection, briefs and both game builders
+inherit Lane B settings; `MEMOIR_GAME_MODEL` and `MEMOIR_GAME_REASONING_EFFORT`
+can override them. Game stage cache keys include the selected model and effort.
 Image generation and speech retain their modality-specific settings.
+Model changes remain subject to each role's reviewed model and budget limits.
 
 The reviewed Sol route retains the conservative UTF-8 byte bound and existing
 application budgets: 131,072 context, 98,304 composer input, 16,384 composer output
@@ -682,9 +686,9 @@ adapter through `.agents/skills/`; the staged runner reads the dependency direct
 and records its actual commit. Memoir's adapter stays in
 [`experiments/novel-to-game`](experiments/novel-to-game/SKILL.md). Existing examples
 retain their original generation receipts. The application preserves the recommended scene pool and explicit owner
-confirmation, then runs checkpointed NovelToGame stages on GPT-6.1 Sol max.
+confirmation, then runs checkpointed NovelToGame stages on the configured game route.
 `MEMOIR_GAME_BUILDER=higgsfield` explicitly selects the independently installed
-Astra backup. Failed default builds remain resumable rather than silently
+backup, using the same configurable game model and effort. Failed default builds remain resumable rather than silently
 starting another provider.
 The shared adapter validates one chronological route with bidirectional walking and repeatable memories and uses a shared runtime
 for movement, illustrated scene blending, reading and restart. Models supply
@@ -693,10 +697,11 @@ life-stage and profession metadata. New approved composer/timeline inputs use
 `stages.py analyze --source <input.json> --brief <PRODUCT_BRIEF.md>` before later stages.
 The application reuses compatible library backgrounds and requests new PNGs for
 unsupported settings. It checks the private style/prompt cache first, so repeated
-locations and retries reuse completed images. The Images API defaults to the
-existing gateway/key and `MEMOIR_GAME_IMAGE_MODEL=gpt-image-2.5-sunburst`; expose
-that model or a compatible alias on the gateway, or set `MEMOIR_GAME_IMAGE_BASE_URL`
-and `MEMOIR_GAME_IMAGE_API_KEY`. Text/design stages remain Sol max. Image failure
+locations and retries reuse completed images. The Images API inherits the
+existing gateway/key. Set `MEMOIR_GAME_IMAGE_MODEL`; the example environment
+selects `gpt-image-2.5-sunburst`. The gateway must expose the configured model;
+`MEMOIR_GAME_IMAGE_BASE_URL` and `MEMOIR_GAME_IMAGE_API_KEY` can override its
+provider. Text/design stages use the configured game route. Image failure
 keeps the art checkpoint for an explicit retry. Cache bytes persist under
 `MEMORY_SPARK_OBJECT_STORE_PATH/story-game-scenes`, shared privately by API and
 worker. Generated PNGs are delivered through the authorized game response; the
