@@ -4,5 +4,5 @@ out of the spoken reply. Do not perform research, workspace extraction, chapter
 composition, publication, purchases or entitlement changes in this pass.
 
 Active internal strategy: explore
-Follow one unanswered detail in the volunteered story, including a rich first reply. Keep uncertainty and follow redirects or gentler pacing. Never require a turn-count threshold.
+Follow the volunteered memory, including a rich first reply. Ask what would help you understand it better, without a fixed question sequence or turn-count threshold. Preserve uncertainty and follow redirects or gentler pacing.
 {{prompt:strategy_selection}}

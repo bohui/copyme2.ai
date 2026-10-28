@@ -1,0 +1,936 @@
+{
+  "schema_version": 1,
+  "scope": "Synthetic reply-v2 prompt-component smoke comparison on unchanged Luna/high, plus offline host regressions. No quality or latency superiority claim.",
+  "baseline_commit": "73b02552d2b1054cd9883cc006608ca09e720c73",
+  "requested_model": "gpt-5.6-luna-memoir-high",
+  "requested_effort": "high",
+  "provider_models": [
+    "gpt-5.6-luna"
+  ],
+  "prompt_sources": [
+    {
+      "path": "skills/memoir-interviewer/prompts/reply.md",
+      "before_characters": 1850,
+      "after_characters": 1547,
+      "sha256": "9f36d7ca853c0b80f9575243e965374f0bb5aa7e00d954443659208201c6a59e"
+    },
+    {
+      "path": "skills/memoir-interviewer/prompts/governed-turn.md",
+      "before_characters": 147,
+      "after_characters": 146,
+      "sha256": "4640c9c4f5b4a28ac6446be5c895b34a0fc36315b895b837eb3889fe471ccb77"
+    },
+    {
+      "path": "skills/memoir-interviewer/prompts/guidance.md",
+      "before_characters": 14983,
+      "after_characters": 6439,
+      "sha256": "2a599823d29bcd376751ec6e414f11c4ff8fc2647771ba9741551b37e1378704"
+    },
+    {
+      "path": "skills/memoir-interviewer/prompts/collector-plan.md",
+      "before_characters": 9545,
+      "after_characters": 3928,
+      "sha256": "ddb92987d3a2235585e0bd9ce1fca3a19f42578e356fbda7567ebfa047a7d352"
+    },
+    {
+      "path": "skills/memoir-interviewer/prompts/strategy/selection.md",
+      "before_characters": 5454,
+      "after_characters": 2878,
+      "sha256": "01ceb607bf23bf6c6d32a0be1d59b95449524b8e5eb1833857d1430256258d74"
+    },
+    {
+      "path": "skills/memoir-interviewer/prompts/strategy/explore.md",
+      "before_characters": 720,
+      "after_characters": 639,
+      "sha256": "09349dd09a537180b158fef5fdd0d8ad6fad2d7e76c25de00a4b816abda639ac"
+    }
+  ],
+  "variants": {
+    "pr168": {
+      "instructions_sha256": "8e6fa4273ed2b48344457d7620b424a9b4dadf630221b3833890c514938e02c5",
+      "dispatch_sha256": "bbb98f450e1292cb439126655e81a718a230aa448f00580f98c39154a010f0cb",
+      "instruction_characters": 1998
+    },
+    "simplified": {
+      "instructions_sha256": "9f36d7ca853c0b80f9575243e965374f0bb5aa7e00d954443659208201c6a59e",
+      "dispatch_sha256": "4640c9c4f5b4a28ac6446be5c895b34a0fc36315b895b837eb3889fe471ccb77",
+      "instruction_characters": 1694
+    }
+  },
+  "live_calls": 40,
+  "judge_calls": 0,
+  "controls": "Strict response schema and existing host validation; one question and extract for story cases, pause/no question/reply_only for whole stops, recall_limit/no model question/extract for recall difficulty.",
+  "review": {
+    "reviewer": "Codex inspection, known variant labels; no independent human or blind judge",
+    "findings": [
+      "Both arms produce one relevant follow-up for each story case and respect the supplied topic pause.",
+      "Neither arm repeats the library-route question after a partial answer introduces a book club.",
+      "Known companionship is not asked again; no new-scene question asserts old companions were present.",
+      "Simplified new-scene questions follow the walk without requiring company/time anchors.",
+      "Simplified reflection questions explore remembered late evenings; baseline asks what led to the narrator's interpretation. Both follow the current account.",
+      "Both arms still routinely recap answers. Some Chinese simplified questions remain generic invitations to recall more detail. Naturalness has no established winner."
+    ]
+  },
+  "limitations": [
+    "One sample per language/scenario/arm; twenty responses per arm.",
+    "Draft-source component comparison only; no live privacy review, concurrent Lane B, durable application saves, browser, long-history session or composed memoir.",
+    "Requested route/effort is not independent proof of upstream serving policy.",
+    "Normal serving prompt receipts remain unpublished; no service config or deployment changed.",
+    "Provider-internal retries and monetary cost were not measured."
+  ],
+  "results": [
+    {
+      "locale": "en-AU",
+      "scenario": "new_scene",
+      "variant": "pr168",
+      "current": "This photo is of the clock tower in River Gardens. As a child the walk from the entrance felt very long, but it seemed much shorter when I grew up.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You describe the clock tower in River Gardens, where the walk from the entrance felt long in childhood but much shorter when you grew up.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "This photo is of the clock tower in River Gardens.",
+        "hint": null,
+        "question": "Who would you usually walk there with as a child?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "new_scene",
+      "variant": "simplified",
+      "current": "This photo is of the clock tower in River Gardens. As a child the walk from the entrance felt very long, but it seemed much shorter when I grew up.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You remember the walk to River Gardens’ clock tower feeling long as a child, then shorter as you grew up.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "What do you remember seeing or doing along the way to the clock tower?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "known_company",
+      "variant": "simplified",
+      "current": "This photo is of the clock tower in River Gardens. As a child the walk from the entrance felt very long, but it seemed much shorter when I grew up.Those visits were always with my mother.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You remember the walk to the clock tower in River Gardens feeling very long as a child but shorter when you grew up, and those visits were always with your mother.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "Those visits were always with my mother.",
+        "hint": null,
+        "question": "What do you remember doing once you reached the clock tower with your mother?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "known_company",
+      "variant": "pr168",
+      "current": "This photo is of the clock tower in River Gardens. As a child the walk from the entrance felt very long, but it seemed much shorter when I grew up.Those visits were always with my mother.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You identify the photo as the clock tower in River Gardens, and remember visiting there with your mother. The walk felt long as a child but shorter when you grew up.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "What would you and your mother do once you reached the clock tower?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "closed_topic",
+      "variant": "pr168",
+      "current": "Please set aside the children from the compound. This photo is of the clock tower in River Gardens. As a child the walk from the entrance felt very long, but it seemed much shorter when I grew up.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "Understood—I’ll set aside the children from the compound. This photo is of the clock tower in River Gardens; you remember the walk from the entrance feeling long as a child but shorter when you were grown.",
+        "recall_limit_quote": null,
+        "reason": "user_redirect",
+        "quote": null,
+        "hint": null,
+        "question": "Who would you usually walk to River Gardens with?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "closed_topic",
+      "variant": "simplified",
+      "current": "Please set aside the children from the compound. This photo is of the clock tower in River Gardens. As a child the walk from the entrance felt very long, but it seemed much shorter when I grew up.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "I’ll set aside the children from the compound. This photo is of the clock tower in River Gardens, where the walk from the entrance felt very long when you were a child but shorter as you grew up.",
+        "recall_limit_quote": null,
+        "reason": "current_correction",
+        "quote": null,
+        "hint": null,
+        "question": "What do you remember about the walk itself?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "unfolding",
+      "variant": "simplified",
+      "current": "One day I was alone in the shop when a pipe burst. I closed the valve, but the water kept rising.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You were alone when the pipe burst, and closing the valve didn’t stop the water.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "What did you do when the water kept rising?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "unfolding",
+      "variant": "pr168",
+      "current": "One day I was alone in the shop when a pipe burst. I closed the valve, but the water kept rising.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You were alone in the repair shop when a pipe burst. You closed the valve, but the water kept rising.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "What did you do next?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "routine",
+      "variant": "pr168",
+      "current": "Every Saturday Grandma taught me to fold dumplings. Hers stayed intact, but mine split when boiled.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "Every Saturday, Grandma taught you to fold dumplings. Hers stayed intact when boiled, while yours split.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "Every Saturday Grandma taught me to fold dumplings. Hers stayed intact, but mine split when boiled.",
+        "hint": null,
+        "question": "What did Grandma do when your dumplings split?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "routine",
+      "variant": "simplified",
+      "current": "Every Saturday Grandma taught me to fold dumplings. Hers stayed intact, but mine split when boiled.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You remember Grandma’s dumplings staying intact while yours split when boiled.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "What did Grandma do when your dumplings split in the pot?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "consequence",
+      "variant": "simplified",
+      "current": "The boss announced a pay cut, so I resigned. I finished the handover and left on Friday. That decision changed how I chose later jobs.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You resigned after the announced pay cut, completed the handover, and left on Friday; that decision influenced your later job choices.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "What did you look for in later jobs that you hadn’t looked for before?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "consequence",
+      "variant": "pr168",
+      "current": "The boss announced a pay cut, so I resigned. I finished the handover and left on Friday. That decision changed how I chose later jobs.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You resigned after the pay cut, completed the handover and left on Friday. You said that decision changed how you chose later jobs.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "That decision changed how I chose later jobs.",
+        "hint": null,
+        "question": "What changed about how you chose later jobs?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "reflection",
+      "variant": "pr168",
+      "current": "Mother always kept the repair shop open late. Now I understand that was how she cared for our family.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You now understand that keeping the repair shop open late was how your mother cared for your family.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "Now I understand that was how she cared for our family.",
+        "hint": null,
+        "question": "What helped you come to understand it that way?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "reflection",
+      "variant": "simplified",
+      "current": "Mother always kept the repair shop open late. Now I understand that was how she cared for our family.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You now see that keeping the repair shop open late was one of the ways your mother cared for the family.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "What do you remember about those late evenings at the shop?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "partial",
+      "variant": "simplified",
+      "current": "There were lots of trees. My friend Robin loved science fiction and often recommended books to me. Later we started a book club together.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You and Robin later started a book club after sharing science-fiction recommendations.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "My friend Robin loved science fiction and often recommended books to me. Later we started a book club together.",
+        "hint": null,
+        "question": "What do you remember about starting the book club?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "partial",
+      "variant": "pr168",
+      "current": "There were lots of trees. My friend Robin loved science fiction and often recommended books to me. Later we started a book club together.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You remember lots of trees along the route, and that Robin recommended science-fiction books before you later started a book club together.",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "Later we started a book club together.",
+        "hint": null,
+        "question": "Was the book club connected to those library visits, or did it begin later?",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "stop",
+      "variant": "pr168",
+      "current": "Please stop here for today. No more questions.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "Of course—we’ll stop here for today.",
+        "recall_limit_quote": null,
+        "reason": "pause",
+        "quote": null,
+        "hint": null,
+        "question": null,
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "stop",
+      "variant": "simplified",
+      "current": "Please stop here for today. No more questions.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "Of course. We’ll stop here for today.",
+        "recall_limit_quote": null,
+        "reason": "pause",
+        "quote": null,
+        "hint": null,
+        "question": null,
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "recall",
+      "variant": "simplified",
+      "current": "I cannot remember exactly how I folded the dumplings.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "You can’t remember exactly how you folded the dumplings.",
+        "recall_limit_quote": "I cannot remember exactly how I folded the dumplings.",
+        "reason": "recall_limit",
+        "quote": "I cannot remember exactly how I folded the dumplings.",
+        "hint": null,
+        "question": null,
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "en-AU",
+      "scenario": "recall",
+      "variant": "pr168",
+      "current": "I cannot remember exactly how I folded the dumplings.",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "That’s okay—you can’t remember exactly how you folded the dumplings.",
+        "recall_limit_quote": "I cannot remember exactly how I folded the dumplings.",
+        "reason": "recall_limit",
+        "quote": "I cannot remember exactly how I folded the dumplings.",
+        "hint": null,
+        "question": null,
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "new_scene",
+      "variant": "pr168",
+      "current": "这张照片是河畔公园的钟楼。小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你记得河畔公园的钟楼：小时候从大门走过去觉得很远，长大后再看却觉得没那么远了。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "这张照片是河畔公园的钟楼。小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。",
+        "hint": null,
+        "question": "这座钟楼和你小时候住的学校家属院有关系吗？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "new_scene",
+      "variant": "simplified",
+      "current": "这张照片是河畔公园的钟楼。小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你记得河畔公园的钟楼：小时候从大门走过去觉得很远，长大后再看却没那么远了。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "这张照片是河畔公园的钟楼。小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。",
+        "hint": null,
+        "question": "小时候走去钟楼的路上，还有什么让你印象深刻吗？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "known_company",
+      "variant": "simplified",
+      "current": "这张照片是河畔公园的钟楼。小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。那时每次去都是妈妈带我去的。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你记得小时候从公园大门走到钟楼总觉得很远，后来长大了却觉得没那么远，而且那时每次都是妈妈带你去的。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "这张照片是河畔公园的钟楼。小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。那时每次去都是妈妈带我去的。",
+        "hint": null,
+        "question": "妈妈带你到钟楼后，你们通常会在那里做些什么？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "known_company",
+      "variant": "pr168",
+      "current": "这张照片是河畔公园的钟楼。小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。那时每次去都是妈妈带我去的。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你小时候总觉得从大门走到钟楼很远，那时每次都是妈妈带你去；长大后再看，似乎没那么远了。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "后来是什么让你觉得这段路没有小时候那么远了？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "closed_topic",
+      "variant": "pr168",
+      "current": "先不聊家属院的小朋友了。这张照片是河畔公园的钟楼。小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "好，我们先不聊家属院的小朋友。这张照片是河畔公园的钟楼；你记得小时候从大门走到那里觉得很远，长大后却觉得没那么远了。",
+        "recall_limit_quote": null,
+        "reason": "user_redirect",
+        "quote": null,
+        "hint": null,
+        "question": "你觉得是什么让你后来对这段距离的感觉发生了变化？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "closed_topic",
+      "variant": "simplified",
+      "current": "先不聊家属院的小朋友了。这张照片是河畔公园的钟楼。小时候从大门走到钟楼总觉得好远，长大后觉得没有那么远了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "好，那我们先不聊家属院的小朋友。你记得小时候从大门走到河畔公园的钟楼，总觉得路很远。",
+        "recall_limit_quote": null,
+        "reason": "user_redirect",
+        "quote": null,
+        "hint": null,
+        "question": "小时候走去钟楼时，路上有没有什么让你特别记得的地方或事情？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "unfolding",
+      "variant": "simplified",
+      "current": "有一天我独自在店里，水管突然爆了。我关上阀门，可水还在不断上涨。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "那天你独自在修车铺里，水管突然爆裂；你关了阀门，但水还在不断上涨。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "有一天我独自在店里，水管突然爆了。我关上阀门，可水还在不断上涨。",
+        "hint": null,
+        "question": "接下来你是怎么处理的？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "unfolding",
+      "variant": "pr168",
+      "current": "有一天我独自在店里，水管突然爆了。我关上阀门，可水还在不断上涨。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你回忆起有一天独自在修车铺时，水管突然爆裂；你关上了阀门，但水还在不断上涨。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "有一天我独自在店里，水管突然爆了。我关上阀门，可水还在不断上涨。",
+        "hint": null,
+        "question": "后来你是怎么处理的？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "routine",
+      "variant": "pr168",
+      "current": "每周六奶奶教我包饺子。她包的不会破，我包的一煮就裂开了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "每周六奶奶教你包饺子；她包的不会破，而你包的下锅就裂开。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "每周六奶奶教我包饺子。她包的不会破，我包的一煮就裂开了。",
+        "hint": null,
+        "question": "奶奶当时会怎么教你，才能让你包的饺子不容易裂开？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "routine",
+      "variant": "simplified",
+      "current": "每周六奶奶教我包饺子。她包的不会破，我包的一煮就裂开了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你每周六跟奶奶学包饺子，她包的不会破，而你包的下锅就裂开了。",
+        "recall_limit_quote": null,
+        "reason": "return_context",
+        "quote": null,
+        "hint": null,
+        "question": "饺子裂开时，奶奶通常会怎么教你？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "consequence",
+      "variant": "simplified",
+      "current": "老板宣布降工资，我就辞职了。我交接完工作，周五离开了。那次决定改变了我后来选工作的方式。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "老板宣布降工资后，您完成交接，于周五离开了；这次决定也影响了您后来选择工作的方式。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "后来选择工作时，您特别看重哪些方面？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "consequence",
+      "variant": "pr168",
+      "current": "老板宣布降工资，我就辞职了。我交接完工作，周五离开了。那次决定改变了我后来选工作的方式。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "原来，老板宣布降工资后，你完成交接并在周五离开了；这次决定也影响了你后来选择工作的方式。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "那次决定改变了我后来选工作的方式。",
+        "hint": null,
+        "question": "后来你选择工作时，具体会更看重哪些方面？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "reflection",
+      "variant": "pr168",
+      "current": "妈妈总是把修车铺开到很晚。现在我明白了，那是她照顾我们一家人的方式。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你现在明白，妈妈总是把修车铺开到很晚，是为了照顾你们一家人。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "是什么让你后来有了这样的理解？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "reflection",
+      "variant": "simplified",
+      "current": "妈妈总是把修车铺开到很晚。现在我明白了，那是她照顾我们一家人的方式。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你现在明白，妈妈把修车铺开到很晚，是在照顾你们一家人。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "妈妈总是把修车铺开到很晚。现在我明白了，那是她照顾我们一家人的方式。",
+        "hint": null,
+        "question": "那时候，你对她一直工作到很晚有什么印象？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "partial",
+      "variant": "simplified",
+      "current": "路旁有不少树。小宁爱看科幻小说，经常给我推荐书，后来我们还一起办了读书会。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你和小宁后来还一起办了读书会。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": "小宁爱看科幻小说，经常给我推荐书，后来我们还一起办了读书会。",
+        "hint": null,
+        "question": "你们的读书会后来是怎么开始的？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "partial",
+      "variant": "pr168",
+      "current": "路旁有不少树。小宁爱看科幻小说，经常给我推荐书，后来我们还一起办了读书会。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你们从分享科幻小说，发展到一起办读书会。",
+        "recall_limit_quote": null,
+        "reason": "latest_story",
+        "quote": null,
+        "hint": null,
+        "question": "你们当时是怎么开始办读书会的？",
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "stop",
+      "variant": "pr168",
+      "current": "今天先到这里，请不要再问了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "好的，今天先到这里。我会尊重你的决定。",
+        "recall_limit_quote": null,
+        "reason": "pause",
+        "quote": null,
+        "hint": null,
+        "question": null,
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "stop",
+      "variant": "simplified",
+      "current": "今天先到这里，请不要再问了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "好的，今天就到这里，不再继续提问。",
+        "recall_limit_quote": null,
+        "reason": "pause",
+        "quote": null,
+        "hint": null,
+        "question": null,
+        "work": {
+          "mode": "reply_only",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "recall",
+      "variant": "simplified",
+      "current": "我不记得包饺子时具体怎么捏了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你不记得包饺子时具体怎么捏了。",
+        "recall_limit_quote": "我不记得包饺子时具体怎么捏了。",
+        "reason": "recall_limit",
+        "quote": "我不记得包饺子时具体怎么捏了。",
+        "hint": null,
+        "question": null,
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    },
+    {
+      "locale": "zh-CN",
+      "scenario": "recall",
+      "variant": "pr168",
+      "current": "我不记得包饺子时具体怎么捏了。",
+      "valid": true,
+      "control_pass": true,
+      "raw": {
+        "acknowledgement": "你记得小时候常和奶奶一起做饭，但不记得包饺子时具体怎么捏。",
+        "recall_limit_quote": "我不记得包饺子时具体怎么捏了。",
+        "reason": "recall_limit",
+        "quote": "我不记得包饺子时具体怎么捏了。",
+        "hint": null,
+        "question": null,
+        "work": {
+          "mode": "extract",
+          "name": null
+        }
+      }
+    }
+  ],
+  "captured_simplified_outputs_passing_fixture_guards": [
+    "en-AU/new_scene",
+    "en-AU/known_company",
+    "en-AU/closed_topic",
+    "en-AU/unfolding",
+    "en-AU/routine",
+    "en-AU/consequence",
+    "en-AU/reflection",
+    "en-AU/partial",
+    "zh-CN/new_scene",
+    "zh-CN/known_company",
+    "zh-CN/closed_topic",
+    "zh-CN/unfolding",
+    "zh-CN/routine",
+    "zh-CN/consequence",
+    "zh-CN/reflection",
+    "zh-CN/partial"
+  ],
+  "verification": {
+    "required_gate": {
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=apple-container make test-place-research",
+      "web_passed": 613,
+      "api_database_passed": 629,
+      "skill_passed": 96
+    },
+    "focused": {
+      "passed": 164,
+      "skipped_live_opt_in": 34
+    },
+    "runtime": {
+      "command": "MEMOIR_TEST_POSTGRES_BACKEND=apple-container python3 -m pytest -q tests/test_interview_strategy_runtime.py tests/test_conversation_reply_runtime.py",
+      "passed": 44,
+      "baseline_failures": [
+        "tests/test_conversation_reply_runtime.py::test_bad_b_continuity_cannot_commit_or_advance_coverage[bad_span]",
+        "tests/test_conversation_reply_runtime.py::test_bad_b_continuity_cannot_commit_or_advance_coverage[foreign_source]",
+        "tests/test_conversation_reply_runtime.py::test_bad_b_continuity_cannot_commit_or_advance_coverage[missing]",
+        "tests/test_conversation_reply_runtime.py::test_bad_b_continuity_cannot_commit_or_advance_coverage[oversized]",
+        "tests/test_conversation_reply_runtime.py::test_bad_b_continuity_cannot_commit_or_advance_coverage[oversized_text]",
+        "tests/test_conversation_reply_runtime.py::test_bad_b_continuity_cannot_commit_or_advance_coverage[privacy]",
+        "tests/test_conversation_reply_runtime.py::test_bad_b_continuity_cannot_commit_or_advance_coverage[stale_source]",
+        "tests/test_conversation_reply_runtime.py::test_saved_reply_hands_descriptive_work_to_one_b_pass_with_exact_replay"
+      ],
+      "unmodified_pr_comparison": "Same eight failures and eleven passes for test_conversation_reply_runtime.py on isolated PR head archive."
+    },
+    "other_baseline_failures": {
+      "reply_compatibility": 4,
+      "policy_prompt_size": 1,
+      "stage_transitions": 11,
+      "observed": "Observed before and after on unchanged code; no production validator/schema or policy prompt edits."
+    },
+    "initial_environment_failures": "Native PostgreSQL initialization hit host shared-memory exhaustion; supported disposable Apple Container backend completed required gate. Initial provider probes were network-restricted ConnectErrors before any model response; successful run made forty model calls."
+  },
+  "application_retries": 0
+}
