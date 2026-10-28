@@ -12,6 +12,37 @@ const ageWord = `(?:${[...ageUnits,...ageTens].join("|")})(?:[- ](?:${ageUnits.s
 const wordAge = value => value.toLowerCase().split(/[- ]/).reduce((sum,word) =>
   sum + (ageUnits.includes(word) ? ageUnits.indexOf(word) : (ageTens.indexOf(word) + 2) * 10),0);
 
+export function matchesEventPlace(place, candidate) {
+  if (label(place.place) !== label(candidate.place)) return false;
+  const path = item => (item.hierarchy || []).map(label).filter(part => !["earth","地球"].includes(part));
+  const a = path(place), b = path(candidate);
+  if (!a.length || !b.length) return true;
+  if (a[0] !== b[0]) return false;
+  const shorter = a.length <= b.length ? a : b, longer = a.length <= b.length ? b : a;
+  let at = 0;
+  for (const part of longer) if (part === shorter[at]) at++;
+  return at === shorter.length;
+}
+
+function eventCalendar(event) {
+  if (event.timing_conflict) return null;
+  const timing = event.temporal || {};
+  const expression = timing.expression || event.date_expression || "";
+  const precision = timing.precision || event.precision;
+  const exact = expression.match(/^([12]\d{3})[-/年](\d{1,2})(?:[-/月](\d{1,2})日?)?月?$/);
+  if (exact && ["day","month","exact"].includes(precision)) {
+    const year = Number(exact[1]), month = Number(exact[2]), day = Number(exact[3] || 1);
+    const start = Date.UTC(year,month - 1,precision === "month" ? 1 : day);
+    const date = new Date(start);
+    if (date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === (precision === "month" ? 1 : day)) {
+      return {start, end:precision === "month" ? Date.UTC(year,month,0) : start};
+    }
+  }
+  const year = number(timing.year_start) ?? (/^[12]\d{3}$/.test(expression) ? Number(expression) : null);
+  const end = number(timing.year_end) ?? year;
+  return year && end >= year ? {start:Date.UTC(year,0,1),end:Date.UTC(end,11,31)} : null;
+}
+
 export function eventAge(event, profile = {}) {
   if (event.timing_conflict) return {start:null, end:null};
   const timing = event.temporal || {};
@@ -57,6 +88,7 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
     const stage = stages.indexOf(event.life_stage);
     const year = number(event.temporal?.year_start) ?? (age.start !== null && number(profile.birth_year)
       ? profile.birth_year + age.start : null);
+    const calendar = eventCalendar(event);
     const links = Array.isArray(event.map_places) ? event.map_places : Array.isArray(event.places) ? event.places
       : event.canonical ? [] : event.place ? [{role:"setting", place:typeof event.place === "string" ? {place:event.place} : event.place}] : [];
     let located = false;
@@ -65,9 +97,11 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
       if (link.status === "conflicted" || event.place_conflicts?.includes(link.role)) continue;
       const place = link.place;
       if (!place?.place) continue;
-      const matches = groups.flatMap(group => group.members.filter(member =>
+      let matches = groups.flatMap(group => group.members.filter(member =>
         place.hierarchy?.length ? placeHistoryKey(member) === placeHistoryKey(place) : label(member.place) === label(place.place))
         .map(member => ({group, member})));
+      if (!matches.length) matches = groups.flatMap(group => group.members.filter(member => matchesEventPlace(place,member))
+        .map(member => ({group,member})));
       if (matches.length !== 1) continue;
       const {group, member} = matches[0];
       const own = Object.hasOwn(member, "map_pin") ? member.map_pin : member;
@@ -79,25 +113,27 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
       seen.add(key);
       const cityOnly = !coordinates(own) || member.granularity === "city"
         || (member.granularity !== "city" && target.latitude === city?.latitude && target.longitude === city?.longitude);
-      nodes.push({key, event, age, year, index, stage, role:link.role, groupKey:group.key,
+      nodes.push({key, event, age, year, calendar, index, stage, role:link.role, groupKey:group.key,
         city:group.city.place, cityLatitude:city?.latitude ?? target.latitude, cityLongitude:city?.longitude ?? target.longitude,
         place:member.place, latitude:target.latitude, longitude:target.longitude, cityOnly,
         summary:event.summary || event.title, uncertainty:event.uncertainty || "",
-        dated:!event.timing_conflict && (age.start !== null || year !== null)});
+        dated:!event.timing_conflict && (age.start !== null || year !== null || Boolean(calendar))});
       located = true;
     }
     if (!located) unmapped++;
   }
-  nodes.sort((a,b) => (a.year !== null && b.year !== null ? a.year - b.year
+  nodes.sort((a,b) => (a.calendar && b.calendar ? a.calendar.start - b.calendar.start
+    : a.year !== null && b.year !== null ? a.year - b.year
     : a.age.start !== null && b.age.start !== null ? a.age.start - b.age.start
       : a.stage >= 0 && b.stage >= 0 ? a.stage - b.stage : 0) || a.index - b.index);
   const legs = [];
   for (let i = 1; i < nodes.length; i++) {
     const from = nodes[i - 1], to = nodes[i];
     const different = from.latitude !== to.latitude || from.longitude !== to.longitude;
-    const ordered = (from.dated && to.dated && ((from.year !== null && to.year !== null && from.year < to.year)
-        || (from.age.start !== null && to.age.start !== null && from.age.start < to.age.start)))
-      || (from.stage >= 0 && to.stage > from.stage && !from.event.timing_conflict && !to.event.timing_conflict)
+    const ordered = (from.dated && to.dated && ((from.calendar && to.calendar && from.calendar.end < to.calendar.start)
+        || (from.age.start !== null && to.age.start !== null && from.age.end < to.age.start)))
+      || (from.stage >= 0 && to.stage > from.stage && !(from.calendar && to.calendar)
+        && !(from.age.start !== null && to.age.start !== null) && !from.event.timing_conflict && !to.event.timing_conflict)
       || (from.event.id === to.event.id && from.role === "origin" && to.role === "destination");
     if (different && ordered) legs.push({from, to, stageTransition:from.stage !== to.stage});
   }

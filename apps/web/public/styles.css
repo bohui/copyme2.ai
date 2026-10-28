@@ -741,13 +741,11 @@ h3 { line-height: 1.1; }
 .map-memory-detail small { color: #677063; font-size: 11px; }
 .map-memory-detail .map-memory-uncertainty { color: #805c3c; font-size: 11px; }
 .map-memory-detail .text-button { min-height: 44px; }
-@media (max-width: 500px) {
-  .map-memory-anchor { width: 164px; }
-  .map-memory-overflow .map-memory-anchor { flex-basis: 164px; }
-  .map-memory-card { padding: 9px 10px; }
-  .map-memory-card strong { font-size: 15px; }
-  .map-memory-caption { font-size: 9px; }
-}
+.map-memory-layer.is-compact .map-memory-anchor { width: 164px; }
+.map-memory-layer.is-compact .map-memory-overflow .map-memory-anchor { flex-basis: 164px; }
+.map-memory-layer.is-compact .map-memory-card { padding: 9px 10px; }
+.map-memory-layer.is-compact .map-memory-card strong { font-size: 15px; }
+.map-memory-layer.is-compact .map-memory-caption { font-size: 9px; }
 
 /* Compact workspace chrome with a shared map-and-picture overview. */
 .workspace-detail-top {

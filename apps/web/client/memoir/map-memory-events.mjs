@@ -2,7 +2,8 @@ import { escapeHtml } from "./dom.mjs";
 import { buildMapMemoryJourney, cityEventCards, eventAgeLabel, layoutMemoryCards, memoryEventCardMarkup } from "./map-memory-journey.mjs";
 
 export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScope, getIdentity = getScope, getStage,
-  getPage = () => null, readPlaces, t, lifeStageText, onExplore, onLoadMore, onOverview = () => {}}) {
+  getPage = () => null, readPlaces, resolvePlaces = async places => places,
+  t, lifeStageText, onExplore, onLoadMore, onOverview = () => {}}) {
   let layer, sceneElement, viewer, cesium, removePostRender, scope, journey, signature, selectedKey;
   let expandedCity = null, lastMode, initialIdentity, overviewRequested = false;
   const places = new Map();
@@ -11,11 +12,12 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
 
   function loadPlaces(events) {
     for (const event of events) {
-      if (!event.canonical || event.status !== "active" || Array.isArray(event.places)) continue;
+      if (!event.canonical || event.status !== "active") continue;
       const key = `${event.id}:${event.revision}`;
       if (places.has(key)) continue;
       const captured = scope;
-      const entry = {items:[]};
+      const supplied = Array.isArray(event.places);
+      const entry = {items:supplied ? event.places.filter(item => !item.status || item.status === "supported") : []};
       places.set(key, entry);
       // Event locations have their own bounded pages; never infer them from a
       // shared source passage that may describe several different memories.
@@ -23,17 +25,20 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         let cursor;
         const seen = new Set();
         try {
-          do {
-            const page = await readPlaces(event.id, cursor);
-            if (getScope() !== captured || places.get(key) !== entry) return;
-            entry.items.push(...(page.items || []).filter(item => item.status === "supported"));
-            cursor = page.next_cursor;
-            if (cursor && seen.has(cursor)) throw new Error("Repeated event location page");
-            seen.add(cursor);
-          } while (cursor);
+          if (!supplied) do {
+              const page = await readPlaces(event.id, cursor);
+              if (getScope() !== captured || places.get(key) !== entry) return;
+              entry.items.push(...(page.items || []).filter(item => item.status === "supported"));
+              cursor = page.next_cursor;
+              if (cursor && seen.has(cursor)) throw new Error("Repeated event location page");
+              seen.add(cursor);
+            } while (cursor);
+          const resolved = await resolvePlaces(entry.items.map(item => item.place));
+          if (getScope() !== captured || places.get(key) !== entry) return;
+          entry.items = entry.items.map((item,index) => ({...item,place:resolved[index] || item.place}));
           entry.complete = true;
         } catch { entry.items = []; entry.failed = true; }
-        if (sceneElement?.isConnected && getScope() === captured) sync(sceneElement);
+        if (getScope() === captured) sync(sceneElement?.isConnected ? sceneElement : null);
       })();
     }
   }
@@ -42,13 +47,16 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const nextScope = getScope();
     if (nextScope !== scope) { scope = nextScope; places.clear(); selectedKey = null; expandedCity = null; signature = null; }
     sceneElement = scene;
-    if (!scene) return;
     const events = getEvents();
     loadPlaces(events);
     const stage = getStage();
     const visible = events.filter(event => stage === "all" || event.life_stage === stage)
-      .map(event => ({...event, map_places:event.places || places.get(`${event.id}:${event.revision}`)?.items}));
-    journey = buildMapMemoryJourney(visible, getGroups(), getProfile());
+      .map(event => ({...event, map_places:places.get(`${event.id}:${event.revision}`)?.items || event.places}));
+    const eventPlaces = visible.filter(event => !event.status || event.status === "active")
+      .flatMap(event => (event.map_places || []).filter(link => link.status !== "conflicted"
+        && !event.place_conflicts?.includes(link.role)).map(link => link.place));
+    journey = buildMapMemoryJourney(visible, getGroups(eventPlaces), getProfile());
+    if (!scene) return;
     layer = scene.querySelector(".map-memory-layer");
     if (!layer) {
       layer = document.createElement("div");
@@ -151,6 +159,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       initialIdentity = identity;overviewRequested = false;frame(journey.nodes,40000);
     }
     const width = layer.clientWidth, height = layer.clientHeight;
+    layer.classList.toggle("is-compact",width < 500);
     const zoom = viewer.scene.mode === cesium.SceneMode.SCENE2D ? viewer.camera.frustum.right - viewer.camera.frustum.left
       : viewer.camera.positionCartographic.height;
     const detailed = zoom < 18000;

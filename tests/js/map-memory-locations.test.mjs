@@ -9,7 +9,7 @@ const events = [{id:'school',revision:1,canonical:true,status:'active',title:'St
   temporal:{precision:'age',expression:'Age 6'},life_stage:'childhood'}];
 const supported = {role:'setting',status:'supported',place:city};
 
-function setup(t, readPlaces) {
+function setup(t, readPlaces, options = {}) {
   const toolbar = {innerHTML:''};
   const panel = {hidden:true};
   const layer = {hidden:true,innerHTML:'',addEventListener(){},querySelector:selector=>selector==='.map-memory-toolbar'?toolbar:panel,
@@ -22,7 +22,7 @@ function setup(t, readPlaces) {
   t.after(()=>{if(original===undefined)delete globalThis.document;else globalThis.document=original;});
   let scope='project:1';
   const overlay = createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([city]),getProfile:()=>({}),
-    getScope:()=>scope,getStage:()=> 'all',readPlaces,t:key=>key,lifeStageText:()=> 'Childhood'});
+    getScope:()=>scope,getStage:()=> 'all',readPlaces,t:key=>key,lifeStageText:()=> 'Childhood',...options});
   return {overlay,scene,toolbar,classes,setScope:value=>{scope=value;}};
 }
 
@@ -69,4 +69,30 @@ test('failed location reads expose a retry and cannot become an automatic reques
   assert.equal(calls,1);
   assert.match(h.toolbar.innerHTML,/data-memory-retry/);
   assert.doesNotMatch(h.toolbar.innerHTML,/private provider detail/);
+});
+
+test('canonical locations resolve before a map exists and join the map groups independently', async t => {
+  const received=[];
+  const h=setup(t,async()=>({items:[{...supported,place:{...city,latitude:null,longitude:null}}],next_cursor:null}),{
+    resolvePlaces:async entries=>entries.map(place=>({...place,latitude:city.latitude,longitude:city.longitude})),
+    getGroups:entries=>{received.push(...entries);return groupPlaces(entries);},
+  });
+  h.overlay.sync(null);await settle();
+  assert.ok(received.some(place=>place.latitude===city.latitude));
+  assert.equal(h.scene.child,undefined,'Location resolution must not require a map DOM container');
+  h.overlay.sync(h.scene);
+  assert.ok(h.classes.has('has-map-memories'));
+});
+
+test('a late geocoding result cannot revive a previous policy scope', async t => {
+  const pending=[];
+  const h=setup(t,async()=>({items:[supported],next_cursor:null}),{
+    resolvePlaces:entries=>new Promise(resolve=>pending.push(()=>resolve(entries))),
+  });
+  h.overlay.sync(h.scene);await settle();
+  h.setScope('project:2');h.overlay.sync(h.scene);await settle();
+  pending[0]();await settle();
+  assert.equal(h.classes.has('has-map-memories'),false);
+  pending[1]();await settle();
+  assert.ok(h.classes.has('has-map-memories'));
 });

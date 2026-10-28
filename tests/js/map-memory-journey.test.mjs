@@ -42,6 +42,31 @@ test('calendar dates determine the route within a stage even without a birth yea
   assert.equal(legs.length,1);
 });
 
+test('supported month and day dates order events within the same year', () => {
+  for (const [earlier,later,precision] of [['1986-01-01','1986-09-01','day'],['1986-02','1986-09','month'],['1986年2月1日','1986年9月1日','day']]) {
+    const dated = (id,date,place) => ({...event(id,6,place),temporal:{expression:date,precision,year_start:1986}});
+    const {nodes,legs} = buildMapMemoryJourney([dated('later',later,work),dated('earlier',earlier,school)],groups);
+    assert.deepEqual(nodes.map(node=>node.event.id),['earlier','later']);
+    assert.equal(legs.length,1);
+  }
+});
+
+test('overlapping date ranges do not imply a footprint order', () => {
+  const early = {...event('earlier',6,school),temporal:{expression:'1986–1990',precision:'range',year_start:1986,year_end:1990}};
+  const later = {...event('later',8,work),temporal:{expression:'1988',precision:'year',year_start:1988}};
+  assert.equal(buildMapMemoryJourney([early,later],groups).legs.length,0);
+});
+
+test('a unique compatible hierarchy reuses known geography without crossing regions or countries', () => {
+  const fuller = {...city,hierarchy:['Earth','Australia','New South Wales','Sydney']};
+  assert.equal(buildMapMemoryJourney([event('home',6,city)],groupPlaces([fuller])).nodes.length,1);
+  const abroad = {...fuller,hierarchy:['Earth','Canada','Nova Scotia','Sydney']};
+  assert.equal(buildMapMemoryJourney([event('home',6,city)],groupPlaces([abroad])).nodes.length,0);
+  const otherRegion = {...fuller,hierarchy:['Earth','Australia','Victoria','Sydney']};
+  assert.equal(buildMapMemoryJourney([event('home',6,fuller)],groupPlaces([otherRegion])).nodes.length,0);
+  assert.equal(buildMapMemoryJourney([event('home',6,city)],groupPlaces([fuller,otherRegion])).nodes.length,0);
+});
+
 test('a move retains its explicit origin and destination within the same event', () => {
   const moving = {...event('move',20,city,'young_adulthood'),places:[link(melbourne,'destination'),link(city,'origin')]};
   const {nodes,legs} = buildMapMemoryJourney([moving],groups);
