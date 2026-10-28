@@ -1219,12 +1219,22 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 }
 @media (prefers-reduced-motion: reduce) { .map-photo-album.is-loading .map-album-placeholder { animation: none; } }
 
-.response-photo-cards { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px; }
-.response-photo-card { margin: 0; width: min(240px, 100%); min-width: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-.response-photo-card img { display: block; width: 100%; max-height: 180px; object-fit: contain; background: var(--paper); }
-.response-photo-card figcaption { display: grid; gap: 6px; padding: 10px; overflow-wrap: anywhere; }
-.response-photo-card small, .response-photo-card p { font-size: 12px; color: var(--muted); margin: 0; }
-.response-photo-card a { min-height: 44px; display: flex; align-items: center; }
+.response-photo-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); gap: 8px; margin-top: 14px; }
+.response-photo-card { position: relative; margin: 0; min-width: 0; aspect-ratio: 5 / 4; border-radius: 16px; overflow: hidden; background: var(--paper); }
+.response-photo-card img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.response-photo-card img[hidden] { display: none; }
+.response-photo-card > button { display: block; width: 100%; height: 100%; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: zoom-in; }
+.response-photo-card > button:focus-visible { outline: 3px solid var(--coral); outline-offset: -3px; }
+.response-photo-card > p { position: absolute; inset: 0; margin: 0; padding: 12px; font-size: 12px; color: var(--muted); }
+.response-photo-viewer { width: min(960px, calc(100vw - 24px)); max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); padding: 16px; border: 1px solid var(--line); border-radius: 20px; background: var(--white); color: var(--ink); overflow: auto; }
+.response-photo-viewer::backdrop { background: rgba(25, 44, 38, .65); }
+.response-photo-viewer form { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+.response-photo-viewer button { width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--paper); color: var(--ink); font-size: 26px; }
+.response-photo-viewer figure { display: grid; gap: 14px; margin: 0; }
+.response-photo-viewer img { display: block; width: 100%; max-height: 70dvh; object-fit: contain; border-radius: 12px; }
+.response-photo-viewer figcaption { display: grid; gap: 8px; overflow-wrap: anywhere; }
+.response-photo-viewer small, .response-photo-viewer p { margin: 0; font-size: 14px; color: var(--muted); }
+.response-photo-viewer a { display: flex; align-items: center; min-height: 44px; color: var(--green-dark); }
 .retry-interview-turn { min-height: 44px; margin-bottom: 8px; }
 
 /* Recall views share the workspace with location cues until composition.

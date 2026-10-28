@@ -16,6 +16,7 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   uuid = () => globalThis.crypto.randomUUID(), onRecovered = () => {}}) {
   if (!storage) { try { storage = globalThis.sessionStorage; } catch { /* Storage can be disabled. */ } }
   let active = null;
+  let photoViewer = null;
   const images = new Map();
   const current = turn => turn && turn.projectId === scope().projectId && turn.ownerId === scope().ownerId
     && turn.generation === scope().generation;
@@ -160,6 +161,9 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   }
   function clearDisplay() {
     active = null;
+    photoViewer?.close();
+    photoViewer?.remove();
+    photoViewer = null;
     state.audioRecordings = [];
     state.pendingAudioUpload = null;
     for (const image of images.values()) {
@@ -175,6 +179,40 @@ export function createInterviewPhotoState({state, scope, render, api, storage,
   }
   async function bindImages(root, {path, errorText}) {
     const ownerScope = scope();
+    for (const button of root.querySelectorAll('[data-response-photo]')) {
+      if (button.photoViewerBound) continue;
+      button.photoViewerBound = true;
+      button.addEventListener('click', () => {
+        if (!current(ownerScope)) return;
+        const image = button.querySelector('img');
+        if (!image?.src || image.hidden) return;
+        photoViewer?.close();
+        const dialog = document.createElement('dialog');
+        photoViewer = dialog;
+        dialog.className = 'response-photo-viewer';
+        dialog.setAttribute('aria-label', image.alt);
+        dialog.innerHTML = '<form method="dialog"><button type="submit">×</button></form><figure></figure>';
+        dialog.querySelector('button').setAttribute('aria-label', button.dataset.closeLabel);
+        const enlarged = image.cloneNode();
+        enlarged.removeAttribute('data-private-response-photo');
+        enlarged.removeAttribute('loading');
+        const caption = document.createElement('figcaption');
+        caption.append(button.closest('figure').querySelector('[data-response-photo-details]').content.cloneNode(true));
+        dialog.querySelector('figure').append(enlarged, caption);
+        dialog.addEventListener('close', () => {
+          dialog.remove();
+          if (photoViewer === dialog) photoViewer = null;
+          if (current(ownerScope)) {
+            const trigger = button.isConnected ? button : [...root.querySelectorAll('[data-response-photo]')]
+              .find(node => node.dataset.responsePhoto === button.dataset.responsePhoto);
+            trigger?.focus({preventScroll:true});
+          }
+        }, {once:true});
+        dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
+        document.body.append(dialog);
+        dialog.showModal();
+      });
+    }
     for (const node of root.querySelectorAll('[data-private-response-photo]')) {
       const id = node.dataset.privateResponsePhoto;
       if (!/^[0-9a-f-]{36}$/i.test(id)) { node.alt = errorText; continue; }

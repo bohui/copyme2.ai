@@ -387,6 +387,8 @@
       "privatePhoto": "您的私人照片",
       "publicPhoto": "公共参考照片",
       "photoSource": "查看来源",
+      "enlargePhoto": "放大照片",
+      "closePhoto": "关闭照片",
       "discardAudio": "删除草稿录音"
     },
     "workspace": {

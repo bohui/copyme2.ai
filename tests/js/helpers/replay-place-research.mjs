@@ -5,6 +5,7 @@ import vm from 'node:vm';
 import {readMemoirClientSource} from './memoir-source.mjs';
 import {applyDerivedWorkspace} from '../../../apps/web/client/memoir/derived-workspace.mjs';
 import {createPhotoWorkspace} from '../../../apps/web/client/memoir/photo-workspace.mjs';
+import {responsePhotoCards} from '../../../apps/web/client/memoir/interview-photo-turns.mjs';
 import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
 import {placeHistoryKey} from '../../../apps/web/client/memoir/places.mjs';
 import {translate,translateWith} from '../../../apps/web/client/i18n.js';
@@ -16,7 +17,7 @@ const state = {project:{id:projectId,profile:{}},projectPrincipalId:'owner',
   supabase:{accessToken:'fixture',user:{id:'owner'}},navigationGeneration:0,
   lifeStage:'childhood',chat:packet.history.items.filter(item=>item.narrator_text)
     .map(item=>({role:'user',text:item.narrator_text})),
-  people:[],relationships:[],timeline:[],sources:[],storyPlans:[]};
+  people:[],relationships:[],timeline:[],sources:[],storyPlans:[],photoTurns:{cards:responsePhotoCards}};
 const plain = value => JSON.parse(JSON.stringify(value));
 const settle = () => new Promise(resolve => setImmediate(resolve));
 const timers = new Map(), photoCalls = [], loads = [], groups = [], steps = [], memoryWrites = [];
@@ -229,6 +230,14 @@ assert.equal(landmarkPhotos[0].date_expression,'1983-10-01');
 const landmarkWall=photos.pictureWall(landmarkPhotos,landmark);
 assert.match(landmarkWall,/resort\.jpg/);
 assert.doesNotMatch(landmarkWall,/Beijing|beijing\.jpg/);
+const replyGallery=photos.responsePhotoMarkup(landmarkPhotos.map(photo=>({...photo,
+  photo_id:photo.asset_id,kind:'public_reference'})));
+assert.match(replyGallery,/<img[^>]*src="[^"]*resort\.jpg"/,
+  'API research photographs must render in the interview gallery');
+assert.doesNotMatch(replyGallery.replace(/<template\b[^]*?<\/template>/g,''),/<figcaption|<small|<strong|查看来源|公共参考照片|View source|Public reference photo/,
+  'Interview photographs must omit the surrounding source, filename and reference captions');
+assert.match(replyGallery,/<template data-response-photo-details>[^]*<strong>Mountain Resort<\/strong>/,
+  'Source details must remain available when the narrator enlarges the photograph');
 for (const parent of packet.containing_places) {
   state.project.profile.memory_places=[parent];state.placeJourney=parent;
   await context.loadPlacePictures(parent,projectId);

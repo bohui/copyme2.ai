@@ -173,6 +173,62 @@ def test_acceptance_clears_cue_shows_response_card_and_keeps_only_one_question(p
     out=Path('/tmp/issue41-ui');out.mkdir(exist_ok=True);page.screenshot(path=str(out/f'{viewport}-response.png'))
 
 
+@pytest.mark.parametrize('locale',['en-AU','zh-CN'])
+def test_response_photos_are_equal_rounded_tiles_without_visible_captions(photo_page,locale):
+    page,_,_,viewport=photo_page
+    title='File:Chengde Mountain Resort 2.jpg - 维基百科，自由的百科全书'
+    send(page)
+    cards=[dict(photo_id=f'reference:{index}',kind='public_reference',title=title,
+        description='公共参考照片' if locale=='zh-CN' else 'Public reference photo',
+        image_url='/static/reference-fixture.png',source_url=f'https://archive.example/gate/{index}')
+        for index in range(3)]
+    page.evaluate('(data)=>finishTurn(data)',dict(reply='Which view do you remember?',response_photos=cards,**receipt()))
+    gallery=page.locator('.assistant-message .response-photo-cards')
+    expect(gallery.locator('img')).to_have_count(3)
+    expect(gallery.locator('figcaption')).to_have_count(0)
+    expect(gallery).to_have_text('',use_inner_text=True)
+    expect(gallery.locator('a')).to_have_count(0)
+    expect(gallery.locator('img').first).to_have_attribute('alt',title)
+    page.wait_for_function('''() => [...document.querySelectorAll('.response-photo-card img')]
+        .every(image => image.complete && image.naturalWidth > 0)''')
+    tiles=gallery.locator('.response-photo-card').evaluate_all('''cards => cards.map(card => {
+        const image=card.querySelector('img'), box=card.getBoundingClientRect(), imageBox=image.getBoundingClientRect();
+        return {width:box.width,height:box.height,imageWidth:imageBox.width,imageHeight:imageBox.height,
+            radius:getComputedStyle(card).borderRadius,fit:getComputedStyle(image).objectFit};
+    })''')
+    for tile in tiles:
+        assert abs(tile['width']-tiles[0]['width'])<1
+        assert abs(tile['height']-tiles[0]['height'])<1
+        assert abs(tile['width']/tile['height']-1.25)<0.01
+        assert abs(tile['imageWidth']-tile['width'])<1
+        assert abs(tile['imageHeight']-tile['height'])<1
+        assert tile['radius']=='16px' and tile['fit']=='cover'
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    out=Path('/tmp/memoir-photo-tiles');out.mkdir(exist_ok=True)
+    gallery.screenshot(path=str(out/f'{locale}-{viewport}.png'))
+    trigger=gallery.locator('[data-response-photo]').first
+    trigger.click()
+    viewer=page.get_by_role('dialog',name=title,exact=True)
+    expect(viewer).to_be_visible()
+    expect(viewer.locator('strong')).to_have_text(title)
+    expect(viewer.locator('small')).to_have_text('公共参考照片' if locale=='zh-CN' else 'Public reference photo')
+    expect(viewer.locator('p')).to_have_text(cards[0]['description'])
+    expect(viewer.get_by_role('link',name='查看来源' if locale=='zh-CN' else 'View source')).to_have_attribute('href','https://archive.example/gate/0')
+    assert viewer.locator('img').evaluate('image=>getComputedStyle(image).objectFit')=='contain'
+    if viewport.startswith('desktop'):
+        assert viewer.locator('img').bounding_box()['width']>tiles[0]['width']
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+    viewer.screenshot(path=str(out/f'{locale}-{viewport}-enlarged.png'))
+    page.keyboard.press('Escape')
+    expect(viewer).to_have_count(0)
+    expect(trigger).to_be_focused()
+    expect(gallery).to_have_text('',use_inner_text=True)
+    trigger.press('Enter')
+    expect(viewer).to_be_visible()
+    viewer.get_by_role('button',name='关闭照片' if locale=='zh-CN' else 'Close photo',exact=True).click()
+    expect(viewer).to_have_count(0)
+
+
 def test_referenced_image_keeps_activated_workspace_visible_after_empty_background_snapshot(photo_page):
     page,profile,_,viewport=photo_page
     profile['memory_places']=[dict(place='Chengde', hierarchy=['Earth','China','Chengde'],
@@ -261,7 +317,14 @@ def test_private_upload_uses_owned_id_and_authenticated_blob_display(photo_page)
     expect(image).to_have_attribute('src',__import__('re').compile('^blob:'))
     private_reads=[headers for path,headers,_ in calls if path.endswith('/content')]
     assert private_reads and all(h['authorization']=='Bearer fixture-owner' for h in private_reads)
+    page.locator('.assistant-message [data-response-photo]').click()
+    viewer=page.get_by_role('dialog',name='Your private photo',exact=True)
+    expect(viewer).to_be_visible()
+    expect(viewer.locator('small')).to_have_text('Your private photo')
+    expect(viewer.locator('img')).to_have_attribute('src',__import__('re').compile('^blob:'))
+    expect(viewer.locator('a')).to_have_count(0)
     page.evaluate('fixturePrincipal("other")')
+    expect(page.locator('.response-photo-viewer')).to_have_count(0)
     expect(page.locator('.response-photo-card')).to_have_count(0)
     expect(page.locator('.composer-attachment')).to_have_count(0)
 

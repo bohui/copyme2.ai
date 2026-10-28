@@ -387,6 +387,8 @@
       "privatePhoto": "Your private photo",
       "publicPhoto": "Public reference photo",
       "photoSource": "View source",
+      "enlargePhoto": "Enlarge photo",
+      "closePhoto": "Close photo",
       "discardAudio": "Discard draft recordings"
     },
     "workspace": {

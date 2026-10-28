@@ -2,6 +2,28 @@ import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createInterviewPhotoState, responsePhotoCards} from '../../apps/web/client/memoir/interview-photo-turns.mjs';
+import {escapeHtml} from '../../apps/web/client/memoir/dom.mjs';
+
+test('response photos keep captions in an inert viewer template and retain safe sources and private fallbacks',async()=>{
+ const vm=await import('node:vm');
+ const context=vm.createContext({state:{photoTurns:{cards:responsePhotoCards}},escapeHtml,translate:key=>key,
+  URL,window:{location:{origin:'https://memoir.test'}}});
+ const source=readMemoirClientSource();
+ for(const name of ['referenceUrl','responsePhotoMarkup'])vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
+ const html=context.responsePhotoMarkup([
+  {photo_id:'reference:resort',kind:'public_reference',title:'File:Chengde Mountain Resort 2.jpg',
+   description:'Public reference description',image_url:'https://images.example/resort.jpg',source_url:'https://archive.example/resort'},
+  {photo_id:'reference:unsafe',kind:'public_reference',title:'Gate',image_url:'javascript:alert(1)',source_url:'javascript:alert(1)'},
+  {photo_id:'upload:11111111-1111-4111-8111-111111111111',kind:'private_upload',title:'My garden',image_url:'https://secret.example/private'}
+ ]);
+ const thumbnails=html.replace(/<template\b[^]*?<\/template>/g,'');
+ assert.match(thumbnails,/<button[^>]*data-response-photo="reference:resort"[^>]*aria-haspopup="dialog"><img[^>]*alt="File:Chengde Mountain Resort 2.jpg"/);
+ assert.doesNotMatch(thumbnails,/<figcaption|<small|<strong|Public reference description|photoSource|publicPhoto|privatePhoto/);
+ assert.match(html,/<template data-response-photo-details><small>Memoir.story.publicPhoto<\/small><strong>File:Chengde Mountain Resort 2.jpg<\/strong><p>Public reference description<\/p><a href="https:\/\/archive.example\/resort"/);
+ assert.doesNotMatch(html,/javascript:|secret\.example/);
+ assert.match(html,/data-private-response-photo="11111111-1111-4111-8111-111111111111"[^>]*hidden/);
+ assert.match(html,/<p data-photo-unavailable hidden>/);
+});
 
 function harness() {
  const state={project:{id:'p',profile:{photo_memories:{p:{favorites:[{key:'photo-a'}],selected:'photo-a',selection_revision:'r1'}}}},supabase:{user:{id:'owner'},accessToken:'token'},navigationGeneration:1,attachments:[],chat:[]};
@@ -145,7 +167,7 @@ test('private display requests authenticate each owned identity and revoke previ
  try{
   globalThis.fetch=async(path,options)=>{requests.push({path,options});return new Response(new Blob(['synthetic'],{type:'image/png'}),{headers:{'Content-Type':'image/png'}})};
   URL.revokeObjectURL=url=>{revoked.push(url);oldRevoke(url)};
-  await photos.bindImages({querySelectorAll:()=>[image]},{path:x=>x,errorText:'Unavailable'});
+  await photos.bindImages({querySelectorAll:selector=>selector==='[data-private-response-photo]'?[image]:[]},{path:x=>x,errorText:'Unavailable'});
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(requests[0].options.headers.Authorization,'Bearer token');
   assert.equal(requests[0].options.cache,'no-store');assert.match(image.src,/^blob:/);
@@ -160,7 +182,7 @@ test('a late private image response is discarded after principal change',async()
  const image={dataset:{privateResponsePhoto:'11111111-1111-4111-8111-111111111111'},isConnected:true,hidden:true};
  try{
   globalThis.fetch=()=>new Promise(done=>resolve=done);
-  await photos.bindImages({querySelectorAll:()=>[image]},{path:x=>x,errorText:'Unavailable'});
+  await photos.bindImages({querySelectorAll:selector=>selector==='[data-private-response-photo]'?[image]:[]},{path:x=>x,errorText:'Unavailable'});
   state.supabase.user.id='other';photos.clearDisplay();
   resolve(new Response(new Blob(['synthetic'],{type:'image/png'}),{headers:{'Content-Type':'image/png'}}));
   await new Promise(done=>setImmediate(done));

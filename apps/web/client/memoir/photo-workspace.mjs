@@ -361,7 +361,8 @@ export function createPhotoWorkspace({
       const image = privatePhoto ? `<img data-private-response-photo="${escapeHtml(id)}" alt="${escapeHtml(photo.title)}" hidden />`
         : referenceUrl(photo.image_url) ? `<img src="${escapeHtml(referenceUrl(photo.image_url))}" alt="${escapeHtml(photo.title)}" loading="lazy" />` : "";
       const source = !privatePhoto && referenceUrl(photo.source_url);
-      return `<figure class="response-photo-card" data-photo-kind="${photo.kind}">${image}<figcaption><small>${escapeHtml(translate(`Memoir.story.${privatePhoto ? "privatePhoto" : "publicPhoto"}`))}</small><strong>${escapeHtml(photo.title)}</strong>${photo.description ? `<p>${escapeHtml(photo.description)}</p>` : ""}<p data-photo-unavailable hidden>${escapeHtml(translate("Memoir.story.photoUnavailable"))}</p>${source ? `<a href="${escapeHtml(source)}" target="_blank" rel="noreferrer">${escapeHtml(translate("Memoir.story.photoSource"))}</a>` : ""}</figcaption></figure>`;
+      const details = `<small>${escapeHtml(translate(`Memoir.story.${privatePhoto ? "privatePhoto" : "publicPhoto"}`))}</small><strong>${escapeHtml(photo.title)}</strong>${photo.description ? `<p>${escapeHtml(photo.description)}</p>` : ""}${source ? `<a href="${escapeHtml(source)}" target="_blank" rel="noreferrer">${escapeHtml(translate("Memoir.story.photoSource"))}</a>` : ""}`;
+      return `<figure class="response-photo-card" data-photo-kind="${photo.kind}"><button type="button" data-response-photo="${escapeHtml(photo.photo_id)}" data-close-label="${escapeHtml(translate("Memoir.story.closePhoto"))}" aria-label="${escapeHtml(translate("Memoir.story.enlargePhoto"))}: ${escapeHtml(photo.title)}" aria-haspopup="dialog">${image}</button><template data-response-photo-details>${details}</template><p data-photo-unavailable hidden>${escapeHtml(translate("Memoir.story.photoUnavailable"))}</p></figure>`;
     }).join("")}</div>`;
   }
 
