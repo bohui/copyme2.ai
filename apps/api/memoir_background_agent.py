@@ -16,8 +16,7 @@ from .lifetime_memory_contracts import Contract
 from .lifetime_memory_publication import PublicationUnavailable
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
-LANE_SKILLS = {'timeline': 'memoir-author-timeline', 'composer': 'memoir-composer',
-    'guidance': 'memoir-interview-guidance'}
+LANE_SKILLS = {'timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}
 
 
 class BackgroundAgentInput(Contract):
@@ -132,7 +131,8 @@ class BackgroundSkills:
 
     async def work(self):
         current = await self.broker.rpc('read_memoir_background_work', p_fence=self.fence)
-        work = [{'skill': LANE_SKILLS[row['skill']], 'required': True} for row in current['lanes']]
+        work = [{'skill': LANE_SKILLS[row['skill']], 'required': True} for row in current['lanes']
+            if row['skill'] in LANE_SKILLS]
         if any(row['skill'] == 'timeline' for row in current['lanes']):
             for item in work:
                 if item['skill'] != 'memoir-author-timeline':
@@ -145,7 +145,7 @@ class BackgroundSkills:
 
     async def execute(self, name):
         current = await self.broker.rpc('read_memoir_background_work', p_fence=self.fence)
-        lane = next((row for row in current['lanes'] if LANE_SKILLS[row['skill']] == name), None)
+        lane = next((row for row in current['lanes'] if LANE_SKILLS.get(row['skill']) == name), None)
         if lane:
             result = await self.event_worker.execute_lane(lane['id'])
             return {'status': result['status']}

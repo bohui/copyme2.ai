@@ -58,8 +58,7 @@ def extract(sql, page):
     def provider(request):
         calls.append(request)
         source = page['source']
-        output = dict(events=[], place_journeys=[], prepared_questions=[], event_places=[], passage_dispositions=[],
-            strategy_proposal=dict(strategy='explore', objective='follow_story', focus_event_ids=[]),
+        output = dict(events=[], place_journeys=[], event_places=[], passage_dispositions=[],
             continuity_updates=[dict(kind='person', text='Ming', quote='Ming', assertion='asserted',
                 uncertainty=None, source_id=source['id'], source_version=source['version'],
                 char_start=None, char_end=None)])

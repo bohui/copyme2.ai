@@ -9,7 +9,6 @@ import pytest
 
 from apps.api.conversation_reply import reply_candidates
 from apps.api.historical_news import HistoricalResearch
-from apps.api.interview_plan import historical_acknowledgements
 from test_conversation_reply import proposal
 from test_historical_news import evidence, receipt
 from test_interview_strategy_runtime import client_fixture
@@ -24,21 +23,22 @@ def response(request, output):
 
 
 @pytest.mark.parametrize('language', ['en-AU', 'zh-CN'])
-@pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate'])
-def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql, tmp_path, monkeypatch, language, reason):
+@pytest.mark.parametrize('use_news', [False, True])
+def test_mira_decides_whether_ready_news_changes_the_reply_and_replays_her_choice(sql, tmp_path, monkeypatch, language, use_news):
     from apps.api import agent_routes
     calls = []
     def provider(request):
         context = json.loads(request.content)['interview_context']
         calls.append(context)
         output = proposal()
-        hints = reply_candidates(context)
-        news = next(((index, hint) for index, hint in enumerate(hints) if hint.get('historical_clue_id')), None)
+        assert reply_candidates(context)==[]
+        news = context.get('historical_news',{}).get('clues',[])
         if news:
-            index, hint = news
-            output.update(acknowledgement=sorted(historical_acknowledgements(context))[0],
-                hint=index, reason=reason,
-                question='You were at the fair, right?' if reason == 'adapted_candidate' else hint['question'])
+            output.update(acknowledgement='您还记得波士顿的生活。' if language=='zh-CN' else 'You remember your life in Boston.',
+                question=('那份档案记载的集市，会让您想起街坊间的什么吗？' if language=='zh-CN'
+                    else 'Does the public fair described in that archive bring any neighbourhood memories to mind?') if use_news
+                    else ('当时街坊间的日常生活是怎样的？' if language=='zh-CN' else 'What was everyday life in your neighbourhood like?'),
+                historical_clue_id=news[0]['id'] if use_news else None)
         return response(request, output)
 
     class PublicSources:
@@ -62,7 +62,7 @@ def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql,
         run_optional_background(sql,project,tmp_path,monkeypatch,agent_routes.runtime._news_engine)
         publish_ready_news(sql,identity,language)
         assert len(rpc(sql, 'read_user_historical_news', literal(project))['clues']) == 1
-        selected=rpc(sql,'read_lifetime_prepared_questions',f"'{identity['conversation_id']}'")[0]
+        assert rpc(sql,'read_lifetime_prepared_questions',f"'{identity['conversation_id']}'")==[]
         turn = str(uuid4())
         payload = dict(project_id=project, text='What else could we explore?', language=language, client_turn_id=turn)
         later = client.post('/v1/agent/turn', json=payload, headers={'accept': 'application/x-ndjson'})
@@ -71,20 +71,24 @@ def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql,
         assert not [event for event in events if event['type'] == 'error'], later.text
         saved = next(event['data'] for event in events if event['type'] == 'result')
         assert saved['conversation_saved']
-        from apps.api.historical_news import HISTORICAL_INVITATIONS
-        assert saved['reply'].endswith(HISTORICAL_INVITATIONS[language][0])
-        assert saved['historical_context']['source_url'] == evidence()['source_url']
-        assert rpc(sql, 'read_user_historical_news', literal(project))['clues'] == []
+        if use_news:
+            assert saved['historical_context']['source_url'] == evidence()['source_url']
+            assert rpc(sql, 'read_user_historical_news', literal(project))['clues'] == []
+        else:
+            assert saved.get('historical_context') is None
+            assert len(rpc(sql,'read_user_historical_news',literal(project))['clues'])==1
         replay = client.post('/v1/agent/turn', json=payload)
         assert replay.status_code == 200, replay.text
-        assert replay.json()['cached'] and replay.json()['historical_context'] == saved['historical_context']
+        assert replay.json()['cached'] and replay.json().get('historical_context') == saved.get('historical_context')
+        assert replay.json()['reply']==saved['reply']
         rendered = subprocess.run(['node', 'tests/historical-news/replay-api.mjs'],
             input=json.dumps(dict(saved=saved, replay=replay.json(), language=language)),
             text=True, capture_output=True, timeout=20, cwd=Path(__file__).resolve().parents[1])
         assert rendered.returncode == 0, rendered.stdout + rendered.stderr
         assert len(calls) == 2, 'Exactly one reply call per new turn, none on replay'
         outcome = json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o order by source_sequence desc limit 1;').stdout)
-        assert outcome['delivered'] and outcome['selected_candidate_id'] == selected['id']
+        assert outcome['delivered'] and outcome['selected_candidate_id'] is None
+        assert sql("select count(*) from public.user_memoir_lane where skill='guidance';").stdout.strip()=='0'
         assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'
 
 
@@ -103,9 +107,9 @@ def test_ready_news_can_save_and_replay_an_explicit_stop_without_touching_the_pr
         output = proposal()
         if len(calls) == 2:
             assert context['historical_news']['clues'], 'Exercise a ready clue at actual reply admission'
-            assert any(hint.get('historical_clue_id') for hint in reply_candidates(context))
-            output.update(acknowledgement=sorted(historical_acknowledgements(context))[0], question=None, reason='pause',
-                work={'mode': 'reply_only', 'name': None})
+            assert reply_candidates(context)==[]
+            output.update(acknowledgement=acknowledgement, question=None, reason='pause',
+                historical_clue_id=None,work={'mode': 'reply_only', 'name': None})
         return response(request, output)
 
     class PublicSources:
@@ -224,16 +228,14 @@ def test_correction_after_stop_saves_and_replays_without_reopening_questions_or_
     ('chronology', 'Did the shop open before or after the move?'),
     ('broaden_scope', 'What changed in your life after school?'),
 ])
-def test_background_pool_priority_reaches_actual_saved_reply(sql, tmp_path, monkeypatch, kind, question):
+def test_mira_makes_interviewing_decisions_in_the_current_saved_reply(sql, tmp_path, monkeypatch, kind, question):
     calls = []
     def provider(request):
         context = json.loads(request.content)['interview_context']
         calls.append(context)
         output = proposal()
-        if len(calls) == 2:
-            hints = reply_candidates(context)
-            assert hints[0]['purpose'] == ('broaden_scope' if kind == 'broaden_scope' else 'clarification')
-            output.update(hint=0, reason='prepared_candidate', question=hints[0]['question'])
+        assert reply_candidates(context)==[]
+        output.update(question=question)
         return response(request, output)
 
     with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
@@ -241,19 +243,12 @@ def test_background_pool_priority_reaches_actual_saved_reply(sql, tmp_path, monk
         first = client.post('/v1/agent/turn', json={'text': 'I cannot remember whether my sister and I opened the shop before the move.'})
         assert first.status_code == 200, first.text
         identity = rpc(sql, 'resolve_lifetime_conversation', literal(first.json()['project_id']))
-        lane_id = lane(sql, identity)
-        page = service(sql, 'claim_memoir_lane', f"'{lane_id}',300")
-        hint = dict(question=question, topic=kind, quote=page['source']['text'], requires_confirmation=kind != 'broaden_scope')
-        objective = 'broaden_scope' if kind == 'broaden_scope' else 'clarify_identity' if kind == 'identity' else 'clarify_order'
-        result = dict(events=[], place_journeys=[], prepared_questions=[hint], continuity_updates=[],
-            strategy_proposal=dict(strategy='explore', objective=objective, focus_event_ids=[]))
-        service(sql, 'commit_lifetime_memoir_lane_page', f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
-        plan = rpc(sql, 'read_lifetime_strategy_context', f"'{identity['conversation_id']}'")['plan']
-        assert plan['objective'] == objective
+        assert first.json()['reply'].endswith(question)
+        assert sql('select count(*) from public.user_memory_event;').stdout.strip()=='0'
+        assert sql("select count(*) from public.user_memoir_lane where skill='guidance';").stdout.strip()=='0'
         later = client.post('/v1/agent/turn', json=dict(project_id=identity['project_id'], text='Please go on.'))
         assert later.status_code == 200, later.text
         assert later.json()['reply'].endswith(question)
         assert len(calls) == 2
         outcome = json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o order by source_sequence desc limit 1;').stdout)
-        assert outcome['delivered'] and outcome['selected_candidate_id'] == plan['candidates'][0]['id']
-        assert rpc(sql, 'read_lifetime_strategy_context', f"'{identity['conversation_id']}'")['plan']['candidates'] == []
+        assert outcome['delivered'] and outcome['selected_candidate_id'] is None

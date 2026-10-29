@@ -113,7 +113,6 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         user_response=True,on_delta=None,on_event=None,workspace_focus=None,evaluation=None,trajectory=None,**unused):
     turn_started=time.monotonic()
     from .collector_configuration import collector_configuration, CollectorConfigurationError
-    from .interview_strategy import strategy_enabled,InterviewStrategyPlan,StrategyMetrics
     from .two_lane_memory import two_lanes_enabled
     two_lane=two_lanes_enabled()
     from .conversation_locale import detect_reply_locale,explicit_request
@@ -298,13 +297,14 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     except Exception:
                         pass  # Optional stale clues remain excluded on read/validation failure.
                 context.pop('conversation_phase',None)
+                for retired in ('prepared_questions','interview_guidance','strategy_context','strategy_selector'):
+                    context.pop(retired,None)
                 context.update(source=source,sources=[source],photo_context=accepted.get('photo_context',[]),
                     interview_language=selected_language,opening_turn=accepted.get('sequence')==1)
                 from .interview_strategy import stage_breadth_checkpoint
                 context['breadth_checkpoint'] = stage_breadth_checkpoint(context.pop('stage_coverage', []))
                 if two_lane:
                     context['two_lane_memory']=True
-                    context['prepared_questions']=await call('read_lifetime_prepared_questions',p_conversation_id=str(identity.conversation_id))
                 from .policy_review import reviewed_acknowledgement
                 from .interview_plan import historical_acknowledgement_allowed, defer_prepared_acknowledgement
                 opening=None if revisable else reviewed_acknowledgement(reviewed_opening or policy_status.get('reviewed_acknowledgement'),
@@ -316,16 +316,9 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     opening=None
                 collector=collector_configuration(runtime.model)
                 context['reply_contract'] = 'reply-v2'
+                context['strategy_selector'] = True  # Save Mira's decision without a background plan.
                 if revisable:
                     context.update(revisable_reply=True, policy_review_pending=pending_review)
-                if strategy_enabled():
-                    state=await call('read_lifetime_strategy_context',p_conversation_id=str(identity.conversation_id))
-                    if state['mode']=='active':
-                        if state.get('plan') is not None:InterviewStrategyPlan.model_validate(state['plan'])
-                        context.update(strategy_selector=True,strategy_context=state,
-                            active_strategy=(state.get('plan') or {}).get('strategy') or state.get('planned_strategy_hint') or
-                                ('explore' if context['has_accepted_narration'] else 'comfort'))
-                        publication.strategy_metrics=StrategyMetrics(client_turn_id,source['sequence'],context,start=turn_started)
                 overall=ContextBudget(model=collector.model,context_window=131072,input_budget=65536,output_headroom=8192,framing_headroom=2048)
                 overhead=governed_request_overhead(context,overall)
                 packet_budget=overall.model_copy(update={'input_budget':overall.input_budget-overhead})
@@ -510,9 +503,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             async def strategy_delivery():
                 await call('commit_lifetime_attribution_delivery',p_fence=publication.fence,
                     p_client_turn_id=client_turn_id,p_reply_id=response['reply_id'])
-                if strategy_enabled():
-                    return await call('commit_lifetime_strategy_delivery',p_fence=publication.fence,
-                        p_client_turn_id=client_turn_id,p_reply_id=response['reply_id'])
+                return await call('commit_lifetime_strategy_delivery',p_fence=publication.fence,
+                    p_client_turn_id=client_turn_id,p_reply_id=response['reply_id'])
             publication.strategy_delivery=strategy_delivery
         publication.scope=scope;scope=None
         return GovernedResult(response,fence) if publication.emitter else response

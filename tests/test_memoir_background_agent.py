@@ -27,10 +27,11 @@ def test_background_dispatch_requires_exact_owner_project_and_no_legacy_context(
             'agent_role':'background_agent','background_agent':current},**patch})
 
 
-def test_agent_can_choose_guidance_before_composer_and_refresh_current_work(monkeypatch):
+def test_agent_executes_saved_work_without_offering_retired_interview_guidance(monkeypatch):
     monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
     async def scenario():
-        pending=[{'id':'composer-id','skill':'composer'},{'id':'guidance-id','skill':'guidance'}]
+        pending=[{'id':'composer-id','skill':'composer'},{'id':'timeline-id','skill':'timeline'},
+            {'id':'retired-guidance','skill':'guidance'}]
         executed=[]
         class Broker:
             async def rpc(self,name,**arguments):
@@ -42,12 +43,14 @@ def test_agent_can_choose_guidance_before_composer_and_refresh_current_work(monk
                 pending[:]=[row for row in pending if row['id']!=lane_id]
                 return {'status':'finished'}
         skills=BackgroundSkills(fence(),Broker(),Executor())
-        assert [item['skill'] for item in (await skills.work())['work']]==['memoir-composer','memoir-interview-guidance']
-        await skills.execute('memoir-interview-guidance')
-        assert executed==['guidance-id']
+        assert [item['skill'] for item in (await skills.work())['work']]==['memoir-composer','memoir-author-timeline']
+        assert await skills.execute('memoir-interview-guidance')=={'status':'unavailable'}
+        assert executed==[]
+        await skills.execute('memoir-author-timeline')
+        assert executed==['timeline-id']
         assert [item['skill'] for item in (await skills.work())['work']]==['memoir-composer']
         assert await skills.execute('memoir-story-game')=={'status':'unavailable'}
-        assert executed==['guidance-id']
+        assert executed==['timeline-id']
     asyncio.run(scenario())
 
 

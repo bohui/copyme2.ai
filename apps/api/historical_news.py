@@ -231,6 +231,16 @@ def public_clue(clue):
     return {k:deepcopy(v) for k,v in clue.items() if k in keys}
 
 
+def ready_clues(context):
+    result = []
+    for clue in (context.get('historical_news') or {}).get('clues', [])[:5]:
+        try:
+            result.append(authorized_clue(context, clue.get('id')))
+        except ValueError:
+            continue
+    return result
+
+
 HISTORICAL_INVITATIONS = {
     'en-AU': ('Does this bring any memory of that time to mind?',
               'An optional public-history clue; it is fine to skip.'),
@@ -243,11 +253,7 @@ def question_hints(context):
     """Expose inspected public clues as optional questions, never narrator evidence."""
     question, bridge = HISTORICAL_INVITATIONS.get(context.get('interview_language'), HISTORICAL_INVITATIONS['en-AU'])
     hints = []
-    for clue in (context.get('historical_news') or {}).get('clues', [])[:5]:
-        try:
-            authorized_clue(context, clue.get('id'))
-        except ValueError:
-            continue
+    for clue in ready_clues(context):
         hints.append(dict(id=clue['id'], question=question, bridge=bridge,
             historical_clue_id=clue['id'], purpose='historical_news', public_context=public_clue(clue)))
     return hints

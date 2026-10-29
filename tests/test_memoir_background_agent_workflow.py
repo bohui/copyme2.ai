@@ -39,7 +39,8 @@ def test_background_agent_selects_skills_and_persists_results_after_the_reply(sq
             assert result['status']=='finished',result
         asyncio.run(scenario())
         assert 'memoir-author-timeline' in ControlledSkillConnection.selected
-        assert 'memoir-interview-guidance' in ControlledSkillConnection.selected
+        assert 'memoir-interview-guidance' not in ControlledSkillConnection.selected
+        assert sql("select count(*) from public.user_memoir_lane where skill='guidance';").stdout.strip()=='0'
         assert sql('select bool_and(processing_status=\'succeeded\') from public.user_narrator_source;').stdout.strip()=='t'
         assert sql('select token is null from public.user_memoir_background_agent;').stdout.strip()=='t'
         assert conversation.admissions==[], 'The old fixed worker request path must not execute the B work.'

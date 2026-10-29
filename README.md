@@ -261,7 +261,7 @@ authorize the configured route. Keep the gateway and `codex-lb` running and conf
 route; both are required for model calls. Blank overrides inherit these settings.
 `MEMORY_SPARK_COLLECTOR_MODEL` and
 `MEMORY_SPARK_COLLECTOR_REASONING_EFFORT` can override Lane A replies and privacy
-review. Background extraction, profile, summaries and guidance use
+review. Background extraction, profile and summaries use
 `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL` and
 `MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT`. Extraction can override effort
 with `MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT`. Photo model calls inherit
@@ -343,7 +343,7 @@ Lane B runs a durable `MemoirBackgroundAgent` workflow in the private Codex
 worker. Codex owns the agent loop: it sees the eligible skill catalog, chooses
 work, reads the selected versioned `SKILL.md` through `memoir_read_skill`, and
 calls `memoir_execute_skill`. The background catalog covers timeline extraction,
-interview guidance, private-draft composition and enabled historical-news
+private-draft composition and enabled historical-news
 research; bounded extraction/profile/composition turns also read their actual
 skill instructions. The host retains ownership, consent, dependency, evidence
 and publication checks. Explicit book/game actions and independent photo/group
@@ -677,23 +677,27 @@ Before changing the deployment default, compare both providers on 50–100 repre
 
 The [`memoir-author-timeline` skill](skills/memoir-author-timeline/SKILL.md) processes every durably accepted narrator message in the background. PostgreSQL stores one canonical MemoryEvent index with stable IDs, supported stage/year placement, uncertainty, revisions, and many-to-many original source links. Accepted evidence survives an assistant-delivery failure; completed-round usage requires a saved successful reply. Agent memory is a context view of those records.
 
-The independent [`memoir-interview-guidance` skill](skills/memoir-interview-guidance/SKILL.md)
-in Lane B prepares the next turn's question pool and optional tentative life-meaning
-acknowledgement. It prioritizes conflicts, identity/reference clarification,
-relevant inspected public history, connected topic transitions after enough detail,
-and expressed life meaning, followed by ordinary grounded follow-ups. A conflict
-needs two exact original passages; public history never becomes personal testimony.
-Indexed English stems and Chinese bigrams find older canonical evidence without
-loading the full transcript. Each request retains at most eight events and eight
-original windows, with a 32 KiB guidance-context limit. Retrieval proposes matches;
-the model still judges whether accounts concern the same event or person.
+Mira makes interviewing decisions in Lane A's current reply. Her system prompt
+covers conflicts, ambiguity about people or timing, connected topic development,
+recall limits and tentative reflection on expressed values. Authorized original
+passages and recent exchanges provide evidence; alternatives remain unresolved
+until the narrator clarifies them. The background catalog and fresh-install
+triggers no longer schedule `memoir-interview-guidance`.
 
-Guidance has its own durable claim and retry, so generation failure cannot block
-timeline extraction. Unrelated new turns coalesce into later work. Each Lane A turn freezes its candidate and acknowledgement read set. Publication
-can update the pool while that turn keeps its captured context.
-A new pool cannot replace or regenerate text already streaming. Lane A considers
-ranked candidates against the latest narration, corrections, boundaries and recall
-limits. Optional acknowledgement guidance is available for one subsequent reply.
+Saved timeline events, accepted memory context and inspected public news appear
+as `background_deliveries` in a final user message after the current narration.
+Timeline deliveries use bounded coordinates and authorized original passages;
+generated titles and uncertainty prose do not become narrator evidence.
+Mira decides whether they help the acknowledgement or next question. News is
+optional public context, never personal testimony; a selected supplied clue ID
+keeps its validated citation. A completed background job contributes to later
+turns without replacing text already streaming. Existing guidance storage and
+validators remain available for older records, but current replies do not load
+their prepared questions or acknowledgement copy.
+
+The updated Mira and timeline Markdown need the normal merged-main publication
+before runtime activation. A bounded draft comparison for the bilingual current
+reply cases is available with `scripts/evaluate_mira_prompt.py --realtime`.
 
 The [`memoir-composer` skill](skills/memoir-composer/SKILL.md) consumes the same event IDs. Every five completed rounds by default, it waits for extraction, freezes the latest eligible snapshot, prepares dirty stage/year/event groups in bounded parallel work, and preserves unchanged prose and revisions. Temporal coordinates one active run per project/skill lane with coalesced catch-up, bounded deadlines, retries, and fenced commits. A validated repeat of unchanged event facts advances extraction without rewriting prose. A checkpoint with no supported events finishes collecting without inventing prose or requesting a provider retry.
 

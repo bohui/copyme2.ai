@@ -17,7 +17,7 @@ def two_lanes_enabled():
 
 
 class DerivedHints(_Places):
-    """Timeline-owned geography only; interviewing belongs to the guidance skill."""
+    """Timeline-owned geography; Mira owns the current interviewing decisions."""
 
 
 def extraction_contract(*, attribution=False, continuity=False, source=None):

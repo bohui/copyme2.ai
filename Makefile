@@ -221,12 +221,12 @@ test-place-research: test-web ## Replay the two-place interview through the API,
 		tests/test_place_photo_pages.py tests/test_place_photo_persistence.py tests/test_photo_worker.py \
 		tests/test_lane_clarifications.py tests/test_timeline_reported_places.py \
 		tests/test_lane_b_question_priorities.py tests/test_lane_b_question_priorities_postgres.py \
-		tests/test_interview_guidance.py tests/test_interview_guidance_workflow.py \
+		tests/test_interview_guidance.py tests/test_interview_guidance_workflow.py tests/test_mira_realtime_interviewing.py \
 		tests/test_recall_limit_questions.py tests/test_recall_limit_postgres.py \
 		tests/test_two_lane_memory.py::test_confirmations_rank_first_and_survive_the_ordinary_hint_expiry \
 		tests/test_two_lane_memory.py::test_confirmation_from_an_earlier_source_window_stays_queued \
-		tests/test_background_skill_workflow.py::test_lane_b_confirmation_preempts_the_next_question_and_is_consumed_once \
-		tests/test_background_skill_workflow.py::test_model_recognized_control_overrides_a_saved_lane_b_confirmation \
+		tests/test_background_skill_workflow.py::test_mira_asks_current_clarification_without_a_lane_b_pool_and_replays_once \
+		tests/test_background_skill_workflow.py::test_model_recognized_control_stays_current_without_a_background_question_pool \
 		tests/test_background_skill_workflow.py::test_restored_chengde_period_drives_both_photo_and_news_research \
 		tests/test_database_baseline.py::test_one_fresh_baseline_has_no_upgrade_or_backfill_statements
 	@python3 -m unittest discover -s skills/memoir-place-photo-research/tests

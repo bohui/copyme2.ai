@@ -21,7 +21,7 @@ class Skill:
 
 
 SKILLS = {item.name: item for item in (
-    Skill('memoir-interview-guidance', 'guidance', 'model', 'accepted_context_change',
+    Skill('memoir-interview-guidance', 'guidance', 'model', 'accepted_context_change', status='legacy',
         gates=('canonical_activation','source_policy_fence','delivered_dialogue','current_public_news'),recovery='durable_lane'),
     Skill('memoir-author-timeline', 'timeline', 'model', 'accepted_source',
         gates=('canonical_activation','source_policy_fence','A_work_decision'),recovery='durable_lane'),
@@ -53,7 +53,7 @@ def execution_map():
         'cadence':{'every_completed_rounds':private_draft_cadence()} if item.name=='memoir-composer' else
             {'default_rounds':'1, 5, 10, 20, 30, ...; SQL-owned'} if item.name=='memoir-memory-context' else None,
         'compatibility':'flag_off_place_in_A' if item.name == 'memoir-place-journey' else None}
-        for item in SKILLS.values()]
+        for item in SKILLS.values() if item.status!='legacy']
 
 
 class SkillUnavailable(ValueError):
@@ -94,7 +94,7 @@ def admit_lane(fence, phase):
     if fence.skill == 'guidance':
         if phase != 'guidance' or fence.guidance_context is None:
             raise SkillUnavailable('phase_required')
-        return admit('memoir-interview-guidance', 'accepted_context_change')
+        return SKILLS['memoir-interview-guidance']  # Retained validator path; never scheduled or advertised.
     if fence.skill == 'timeline':
         if phase not in {'extract','summarize','profile'}:
             raise SkillUnavailable('phase_required')

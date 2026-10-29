@@ -113,7 +113,7 @@ def test_crashed_agent_and_expired_domain_leases_are_reclaimed(sql):
 def test_repeated_agent_failure_exposes_required_work_through_existing_retry_state(sql):
     identity,run=queued(sql)
     sql(f"insert into public.user_memoir_lane(user_id,project_id,skill) values('{OWNER}',{literal(identity['project_id'])},'timeline');")
-    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill) values('{OWNER}',{literal(identity['project_id'])},'guidance');")
+    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill) values('{OWNER}',{literal(identity['project_id'])},'composer');")
     for attempt in range(3):
         sql(f"update public.user_memoir_background_agent set available_at=clock_timestamp() where id='{run}';")
         claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)

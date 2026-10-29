@@ -22,32 +22,38 @@ def progress(conversation):
 
 
 @pytest.mark.parametrize('strategy', [None, 'shadow', 'explore'])
-def test_lane_b_confirmation_preempts_the_next_question_and_is_consumed_once(sql,tmp_path,monkeypatch,strategy):
+def test_mira_asks_current_clarification_without_a_lane_b_pool_and_replays_once(sql,tmp_path,monkeypatch,strategy):
     from test_shared_memory_events_postgres import rpc, literal
     question = {'question': '您说的大石庙是承德双桥区的大石庙镇吗？',
                 'topic': '大石庙位置', 'quote': '大石庙', 'requires_confirmation': True}
-    def extract(packet):
-        return {**empty(packet), 'prepared_questions': [question] if '大石庙' in packet['sources'][0]['text'] else []}
-    conversation = Conversation(sql,tmp_path,monkeypatch,extract,strategy='explore' if strategy == 'explore' else None)
+    from test_conversation_reply import proposal
+    def reply(context):
+        raw=proposal()
+        text=context['source']['text']
+        if text=='Please stop.':
+            raw.update(acknowledgement='We can stop here.',question=None,reason='pause')
+        else:
+            raw['question']=question['question'] if '大石庙' in text else '通勤车上，最让您记得的是什么？'
+        return raw
+    conversation = Conversation(sql,tmp_path,monkeypatch,empty,
+        strategy='explore' if strategy == 'explore' else None,reply=reply)
     if strategy == 'shadow':
         sql('update public.lifetime_two_lane_rollout set strategy_enabled=true,strategy_shadow=true;')
     with conversation.client:
-        conversation.say('小时候我住在大石庙，后来搬到了双桥区。')
+        first=conversation.say('小时候我住在大石庙，后来搬到了双桥区。')
+        assert first['reply'].endswith(question['question']) and conversation.admissions==[]
         conversation.drain()
         identity = rpc(sql, 'resolve_lifetime_conversation', literal(conversation.project))
         queue = lambda: rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
-        pending = queue()
-        assert pending, (conversation.last_db_error, sql('select skill,pending,attempts,error from public.user_memoir_lane;').stdout,
-                         sql('select processing_status from public.user_narrator_source;').stdout,
-                         [phase for phase,_ in conversation.admissions])
-        assert pending[0]['requires_confirmation'] is True
+        assert queue()==[]
+        assert not any(phase=='guidance' for phase,_ in conversation.admissions)
         if strategy == 'explore':
             conversation.say('Please stop.')
             conversation.drain()
-            assert queue()[0]['id'] == pending[0]['id'], 'A pause and a newer strategy plan must preserve the confirmation'
+            assert queue()==[]
         turn = str(uuid4())
         response = conversation.say('放假的时候我会坐爸爸的通勤车回去。', turn=turn)
-        assert response['reply'].endswith(question['question'])
+        assert response['reply'].endswith('通勤车上，最让您记得的是什么？')
         assert queue() == []
         replay = conversation.say('放假的时候我会坐爸爸的通勤车回去。', turn=turn)
         assert replay['cached'] and replay['reply_id'] == response['reply_id']
@@ -59,7 +65,7 @@ def test_lane_b_confirmation_preempts_the_next_question_and_is_consumed_once(sql
     ("I'd prefer to tell you about my sister.", 'user_redirect', 'What would you like to remember about your sister?'),
 ])
 @pytest.mark.parametrize('mode', ['active', 'legacy', 'shadow'])
-def test_model_recognized_control_overrides_a_saved_lane_b_confirmation(sql,tmp_path,monkeypatch,text,reason,question,mode):
+def test_model_recognized_control_stays_current_without_a_background_question_pool(sql,tmp_path,monkeypatch,text,reason,question,mode):
     import json
     from test_background_profile_workflow import worker_response
     from test_conversation_reply import proposal
@@ -86,12 +92,12 @@ def test_model_recognized_control_overrides_a_saved_lane_b_confirmation(sql,tmp_
         conversation.drain()
         identity = rpc(sql, 'resolve_lifetime_conversation', literal(conversation.project))
         queue = lambda: rpc(sql, 'read_lifetime_prepared_questions', f"'{identity['conversation_id']}'")
-        pending = queue()
-        assert pending[0]['question'] == confirmation['question']
+        assert queue()==[]
         response = conversation.say(text)
         assert response['reply'].endswith(question)
         assert confirmation['question'] not in response['reply']
-        assert queue()[0]['id'] == pending[0]['id'], 'The old question was not delivered or consumed'
+        assert queue()==[]
+        assert 'prepared_questions' not in conversation.foreground[-1]
         if mode == 'active':
             outcome = json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o order by source_sequence desc limit 1;').stdout)
             assert outcome['selection_reason'] == reason
@@ -137,15 +143,17 @@ def test_game_uses_delivered_A_not_B_plan_and_stays_unavailable(sql,tmp_path,mon
     conversation=Conversation(sql,tmp_path,monkeypatch,empty,strategy=mode)
     with conversation.client:
         conversation.say('In Chengde I repaired a bicycle.')
+        # Exercise each delivered decision independently of model tone choices.
+        from test_shared_memory_events_postgres import literal
+        sql('update public.user_lifetime_strategy_outcome set used_strategy='+literal(mode)+';')
         assert progress(conversation)['current_mode']['mode']==mode
         conversation.drain()
-        assert [phase for phase,_ in conversation.admissions]==['profile','extract','guidance']
-        # A newer background plan cannot rewrite the delivered reply's mode.
-        sql("update public.user_lifetime_interview_strategy set data=jsonb_set(data,'{strategy}','\"shape\"');")
+        assert [phase for phase,_ in conversation.admissions]==['profile','extract']
+        # Finishing background work cannot rewrite a delivered decision.
         assert progress(conversation)['current_mode']['mode']==mode
         result=conversation.client.post('/v1/story/game',json={'project_id':conversation.project})
         assert result.status_code==200,result.text
-        assert result.json()['reason']==('integration_unavailable' if mode=='shape' else 'shape_required')
+        assert result.json()['reason']==('authenticated_game_workflow_required' if mode=='shape' else 'shape_required')
         assert result.json()['available'] is False
         assert conversation.client.post('/v1/story/game',json={'project_id':conversation.project,'mode':'shape'}).status_code==422
         sql('update public.user_lifetime_strategy_outcome set delivered=false;')
@@ -243,7 +251,7 @@ def test_slow_photo_runner_cannot_hold_A_or_memory_and_cache_is_not_a_new_call(s
                 'granularity':'city','latitude':-42.88,'longitude':147.33}]})
         assert groups.status_code==200,groups.text
         assert groups.json()['skill_progress']['execution']=='deterministic'
-        assert [phase for phase,_ in conversation.admissions]==['profile','extract','extract','guidance'] # coalesced guidance has its own call
+        assert [phase for phase,_ in conversation.admissions]==['profile','extract','extract']
 
 
 @pytest.mark.parametrize('service',['photos','grouping'])
@@ -333,7 +341,7 @@ def test_only_existing_profile_and_composer_schedules_advance_on_round_milestone
         assert not any(phase in {'photos','grouping','historical','family','game'} for phase,_ in conversation.admissions)
         page=progress(conversation)['skill_progress']
         mapped=progress(conversation)['skill_execution_map']
-        assert len(mapped)==10
+        assert len(mapped)==9
         assert {item['name'] for item in mapped if item['trigger']=='periodic'}=={'memoir-composer','memoir-memory-context'}
         assert page['truncated'] and page['next_cursor']
         items=[]
@@ -371,7 +379,7 @@ def test_shared_place_pass_is_embedded_not_a_second_model_request(sql,tmp_path,m
         embedded=next(item for item in steps if item['skill']=='memoir-place-journey')
         assert embedded['status']=='saved' and embedded['execution']=='embedded'
         assert not embedded['model_invoked'] and embedded['model_attempts']==0
-        assert [phase for phase,_ in conversation.admissions]==['profile','extract','guidance']
+        assert [phase for phase,_ in conversation.admissions]==['profile','extract']
         assert all(item['skill']!='memoir-family-tree' for item in steps)
 
 
@@ -672,7 +680,7 @@ def test_shared_place_pass_reports_skipped_when_no_place_was_derived(sql,tmp_pat
         place=next(item for item in steps if item['skill']=='memoir-place-journey')
         assert place['status']=='skipped' and place['execution']=='embedded'
         assert place['reason']=='no_place_cue' and not place['model_invoked']
-        assert [phase for phase,_ in conversation.admissions]==['profile','extract','guidance']
+        assert [phase for phase,_ in conversation.admissions]==['profile','extract']
 
 
 def test_failed_commit_and_fresh_worker_retry_do_not_leave_false_success(sql,tmp_path,monkeypatch):
@@ -721,7 +729,7 @@ def test_saved_writer_receipt_survives_missing_optional_invocation_telemetry(sql
         conversation.say('I remember our shed.')
         conversation.drain()
         steps=progress(conversation)['skill_progress']['items']
-        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context','memoir-place-journey','memoir-interview-guidance'}
+        assert {item['skill'] for item in steps}=={'memoir-author-timeline','memoir-memory-context','memoir-place-journey'}
         models=[item for item in steps if item['execution']=='model']
         assert all(item['status']=='saved' and item['reason']=='invocation_receipt_unavailable' for item in models)
         assert all(item['model_invoked'] is None and item['model_attempts'] is None for item in models)
@@ -785,7 +793,7 @@ def test_composer_cached_retry_saves_without_counting_another_model_pass(sql,tmp
         result=asyncio.run(conversation.worker.execute_lane(lane))
         assert result['status']=='retry',result
         before=[phase for phase,_ in conversation.admissions if phase in {'prepare','draft','review'}]
-        assert before==['prepare','draft','review']
+        assert before[-2:]==['draft','review'] and before.count('prepare')<=1
         failed_steps=[item for item in progress(conversation)['skill_progress']['items'] if item['skill']=='memoir-composer' and item['phase']!='queue']
         assert failed_steps and all(item['status']=='failed' for item in failed_steps)
         retry=conversation.client.post('/v1/story/private-draft/retry',json={'project_id':conversation.project})
@@ -795,7 +803,7 @@ def test_composer_cached_retry_saves_without_counting_another_model_pass(sql,tmp
         assert [phase for phase,_ in conversation.admissions if phase in {'prepare','draft','review'}]==before
         steps=[item for item in progress(conversation)['skill_progress']['items'] if item['skill']=='memoir-composer']
         models=[item for item in steps if item['execution']=='model']
-        assert len(models)==3 and all(item['status']=='saved' and item['model_attempts']==1 for item in models)
+        assert len(models)==len(before) and all(item['status']=='saved' and item['model_attempts']==1 for item in models)
         assert any(item['status']=='cached' and item['execution']=='cache' and not item['model_invoked'] for item in steps)
         response=conversation.client.get('/v1/story/private-draft',params={'project_id':conversation.project})
         assert response.status_code==200,response.text

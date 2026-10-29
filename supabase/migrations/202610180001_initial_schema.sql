@@ -5307,6 +5307,10 @@ begin
      or prior.selection_reason is distinct from p_outcome->>'selection_reason' or prior.used_strategy is distinct from p_outcome->>'used_strategy'
      or prior.question_delivered is distinct from question or prior.work_hint is distinct from p_outcome->>'work_hint' then
      raise exception 'saved outcome identity conflict' using errcode='PT409';end if;
+ elsif p_prompt_version='reply-v2' and p_outcome->>'plan_revision_seen' is null
+   and p_outcome->>'selected_candidate_id' is null then
+   -- Mira's current interviewing decision has no background strategy dependency.
+   null;
  else
    -- A validates its pinned revision, not the newest optional B result.
    -- The publication fence still owns current policy/source authority. A
@@ -8130,7 +8134,7 @@ CREATE FUNCTION public.pending_memoir_lanes(p_limit integer DEFAULT 50) RETURNS 
     SET search_path TO ''
     AS $$
  select coalesce(jsonb_agg(id),'[]'::jsonb) from (
-   select l.id from public.user_memoir_lane l where l.attempts<3 and l.available_at<=clock_timestamp()
+   select l.id from public.user_memoir_lane l where l.skill in ('timeline','composer') and l.attempts<3 and l.available_at<=clock_timestamp()
      and exists(select 1 from public.user_lifetime_conversation c where c.user_id=l.user_id and c.project_id=l.project_id)
      and (l.pending or (l.token is not null and (l.lease_until<=clock_timestamp() or l.run_deadline<=clock_timestamp())))
      and not exists(select 1 from public.user_lifetime_pending_policy p where p.user_id=l.user_id and p.project_id=l.project_id)
@@ -9117,12 +9121,28 @@ begin
  if not found then raise exception 'conversation unavailable'; end if;
  perform 1 from public.user_memoir_project where user_id=owner and project_id=project for share;
  select p.plan into plan from public.user_interview_plan p where user_id=owner and project_id=project;
- select coalesce(jsonb_agg(public.bounded_lifetime_event_record(e)),'[]') into events from (select e.* from public.user_memory_event e
+ -- Derived titles and uncertainty are not original evidence. Give Mira the
+ -- bounded coordinates and authorized original passages behind saved events.
+ select coalesce(jsonb_agg(
+   jsonb_set(public.bounded_lifetime_event_record(e),'{temporal,expression}','null')||
+   '{"title":null,"title_complete":false,"uncertainty":null,"uncertainty_complete":false,"temporal_complete":false}'::jsonb||
+   jsonb_build_object('original_passages',coalesce((select jsonb_agg(passage) from (
+     select w passage from public.user_memory_event_source r cross join lateral
+       public.lifetime_guidance_source_windows(r.user_id,r.project_id,r.source_id,r.source_version,
+         coalesce((r.evidence->>'char_start')::integer,0),
+         least(coalesce((r.evidence->>'char_end')::integer,2147483647),
+           coalesce((r.evidence->>'char_start')::integer,0)+500)) w
+     where r.user_id=e.user_id and r.project_id=e.project_id and r.event_id=e.id
+     order by r.source_id,r.source_version,r.evidence_hash limit 2
+   ) originals),'[]'::jsonb))),'[]') into events from (select e.* from public.user_memory_event e
  where e.user_id=owner and e.project_id=project and e.status='active'
- and e.id in (select c->'context'->>'event_id' from jsonb_array_elements(coalesce(plan->'candidates','[]')) c)
  and not exists(select 1 from public.user_memory_event_source r where r.user_id=owner and r.project_id=project and r.event_id=e.id
    and not exists(select 1 from public.user_narrator_source s where s.user_id=owner and s.project_id=project and s.id=r.source_id
-     and s.version=r.source_version and s.status='active')) order by e.change_sequence desc,e.id limit 8) e;
+     and s.version=r.source_version and s.status='active'
+     and not exists(select 1 from public.user_memory_attribution_window w where w.user_id=s.user_id and w.project_id=s.project_id
+       and w.source_id=s.id and w.source_version=s.version and w.disposition in ('withheld','non_story')
+       and w.char_start<coalesce((r.evidence->>'char_end')::integer,length(s.text))
+       and w.char_end>coalesce((r.evidence->>'char_start')::integer,0)))) order by e.change_sequence desc,e.id limit 8) e;
  -- Count canonical events with current original evidence, never raw turns or word volume.
  with grounded as (
    select e.id,e.life_stage,max(s.sequence) last_sequence
@@ -9144,21 +9164,11 @@ begin
  ) select coalesce(jsonb_agg(row),'[]') into coverage from (
    select life_stage,count(*) grounded_events,max(last_sequence) last_source_sequence
    from grounded group by life_stage order by life_stage) row;
- -- Keep bounded recent exchanges plus the original exchanges behind at most
- -- three pending hints. Old answered facts remain available after compaction.
- select coalesce(jsonb_agg(pair order by (pair->'question'->>'sequence')::bigint),'[]') into dialogue from (
-   select distinct on (pair->'question'->>'reply_id') pair from (
-     select pair from jsonb_array_elements(public.lifetime_question_dialogue(owner,project)) pair
-     union all
-     select pair from jsonb_array_elements(public.read_lifetime_prepared_questions_live(p_conversation_id)) pending
-       cross join lateral jsonb_array_elements(public.lifetime_question_dialogue(owner,project,
-         (pending->>'source_id')::uuid)) pair
-   ) exchanges order by pair->'question'->>'reply_id'
- ) bounded;
+ -- Mira reads current authorized conversation and saved results directly.
+ dialogue:=public.lifetime_question_dialogue(owner,project);
  return jsonb_build_object('plan',plan,'events',events,'stage_coverage',coverage,'photos','[]'::jsonb,'photo_associations','[]'::jsonb,
    'recent_dialogue',dialogue,
    'historical_context_complete',false,'historical_news',public.read_user_historical_news(project),
-   'interview_guidance',public.read_lifetime_interview_guidance(p_conversation_id),
    'has_accepted_narration',public.conversation_has_narration(owner,project));
 end $$;
 
@@ -15977,10 +15987,7 @@ end $$;
 REVOKE ALL ON FUNCTION public.read_lifetime_interview_guidance_live(uuid) FROM PUBLIC,anon,authenticated,service_role;
 
 
-CREATE TRIGGER lifetime_guidance_original AFTER UPDATE OF processing_status ON public.user_narrator_source
- FOR EACH ROW EXECUTE FUNCTION public.enqueue_lifetime_interview_guidance();
-CREATE TRIGGER lifetime_guidance_news AFTER INSERT OR UPDATE ON public.user_historical_news_clue
- FOR EACH ROW EXECUTE FUNCTION public.enqueue_lifetime_interview_guidance();
+-- Mira owns interviewing; extraction and news do not enqueue a guidance model.
 
 REVOKE ALL ON FUNCTION public.enqueue_lifetime_interview_guidance(),public.read_lifetime_interview_guidance_page(uuid,uuid),
  public.lifetime_guidance_ref(jsonb,jsonb),public.lifetime_guidance_priority(jsonb),public.commit_lifetime_interview_guidance(uuid,uuid,text,jsonb),
@@ -16038,7 +16045,7 @@ begin
  select distinct l.user_id,l.project_id,p.source_sequence from public.user_memoir_lane l
  join public.user_memoir_project p on p.user_id=l.user_id and p.project_id=l.project_id
  join public.user_lifetime_conversation c on c.user_id=l.user_id and c.project_id=l.project_id
- where l.attempts<3 and l.available_at<=clock_timestamp() and (l.pending or
+ where l.skill in ('timeline','composer') and l.attempts<3 and l.available_at<=clock_timestamp() and (l.pending or
    l.token is not null and (l.lease_until<=clock_timestamp() or l.run_deadline<=clock_timestamp()))
  on conflict(user_id,project_id) do update set pending=public.user_memoir_background_agent.pending
      or public.user_memoir_background_agent.token is null
@@ -16117,7 +16124,7 @@ begin
  perform public.lock_memoir_background_agent(p_fence);
  select * into a from public.user_memoir_background_agent where id=(p_fence->>'id')::uuid;
  return jsonb_build_object('lanes',coalesce((select jsonb_agg(jsonb_build_object('id',id,'skill',skill))
-   from public.user_memoir_lane where user_id=a.user_id and project_id=a.project_id and attempts<3
+   from public.user_memoir_lane where user_id=a.user_id and project_id=a.project_id and skill in ('timeline','composer') and attempts<3
    and (pending or token is not null and (lease_until<=clock_timestamp() or run_deadline<=clock_timestamp()))
    and available_at<=clock_timestamp() and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp())),'[]'),
    'selection',a.selection);
@@ -16147,14 +16154,14 @@ begin
    exists(select 1 from public.user_lifetime_conversation c where c.user_id=a.user_id and c.project_id=a.project_id
      and c.preference_revision<>a.preference_revision);
  remaining:=p_success is not true or changed or exists(select 1 from public.user_memoir_lane l
-   where l.user_id=a.user_id and l.project_id=a.project_id and (l.pending or l.token is not null));
+   where l.user_id=a.user_id and l.project_id=a.project_id and l.skill in ('timeline','composer') and (l.pending or l.token is not null));
  if not changed and p_success is not true and a.attempts>=3 then
    update public.user_memoir_lane set attempts=3,error='MEMOIR_UNAVAILABLE',pending=true,
      token=null,lease_until=null,run_deadline=null
-   where user_id=a.user_id and project_id=a.project_id and (pending or token is not null)
+   where user_id=a.user_id and project_id=a.project_id and skill in ('timeline','composer') and (pending or token is not null)
      and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp());
  end if;
- blocked:=exists(select 1 from public.user_memoir_lane l where l.user_id=a.user_id and l.project_id=a.project_id
+ blocked:=exists(select 1 from public.user_memoir_lane l where l.user_id=a.user_id and l.project_id=a.project_id and l.skill in ('timeline','composer')
    and (l.pending or l.token is not null) and l.attempts>=3);
  update public.user_memoir_background_agent set token=null,lease_until=null,run_deadline=null,
    attempts=case when blocked then 3 when changed or p_success then 0 else attempts end,

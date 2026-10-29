@@ -263,7 +263,7 @@ def test_hint_quote_mismatch_is_rejected_then_repaired_without_replacing_its_evi
     ('en-AU', 'What else could we explore from those years?'),
     ('zh-CN', '关于那些年，我们还可以聊些什么？'),
 ])
-def test_question_reason_repair_keeps_the_current_invitation_and_ready_news_hint(tmp_path, monkeypatch, language, current):
+def test_question_reason_repair_keeps_current_narration_before_optional_news_delivery(tmp_path, monkeypatch, language, current):
     import asyncio
     from apps.api.lifetime_memory_engine import run_governed_collector
     from test_conversation_reply_transport import install_reply_provider
@@ -271,8 +271,7 @@ def test_question_reason_repair_keeps_the_current_invitation_and_ready_news_hint
     from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
 
     governed, ctx = fixture()
-    from controlled_interview_guidance import select_news
-    select_news(ctx, reply_contract='reply-v2', two_lane_memory=True, interview_language=language)
+    ctx.update(deepcopy(ready_context()), reply_contract='reply-v2', two_lane_memory=True, interview_language=language)
     ctx['source']['text'] = current
     packet = json.loads(governed.packet)
     packet['current']['narrator'].update(original=current, char_end=len(current), language=language)
@@ -286,11 +285,13 @@ def test_question_reason_repair_keeps_the_current_invitation_and_ready_news_hint
     def repaired(body):
         feedback = body['input'][0]['content'][1]['text']
         assert 'CONTRACT_16' in feedback and 'No-question outcome requires an explicit reason' in feedback
-        context = json.loads(body['input'][1]['content'])
-        hint = context['brief']['hints'][0]
-        assert hint['historical_clue_id'] == ctx['historical_news']['clues'][0]['id']
-        assert json.loads(body['input'][-1]['content'])['current']['narrator']['original'] == current
-        return {**invalid, 'reason': 'prepared_candidate', 'hint': 0, 'question': hint['question']}
+        delivery = json.loads(body['input'][-1]['content'])['background_deliveries'][-1]
+        clue = delivery['clues'][0]
+        assert clue['id'] == ctx['historical_news']['clues'][0]['id']
+        assert json.loads(body['input'][-2]['content'])['current']['narrator']['original'] == current
+        return {**invalid, 'reason': 'latest_story', 'historical_clue_id': clue['id'],
+            'question': 'Does that public fair connect with any memory of your neighbourhood?' if language=='en-AU'
+                else '这场公开记载的集市，会让您想起当时街坊间的什么吗？'}
 
     captured = install_reply_provider(monkeypatch, [invalid, repaired])
     result = asyncio.run(run_governed_collector(command=['forbidden'], home_root=tmp_path,
@@ -310,7 +311,7 @@ def test_question_reason_repair_keeps_the_current_invitation_and_ready_news_hint
 ])
 @pytest.mark.parametrize('revisable', [False, True])
 @pytest.mark.parametrize('anchored', [False, True])
-def test_ready_news_pause_delivers_an_explicit_stop_instead_of_the_continuation_copy(
+def test_ready_news_preserves_miras_explicit_stop(
         tmp_path, monkeypatch, language, current, continuation, stopped, revisable, anchored):
     import asyncio
     from apps.api.lifetime_memory_engine import run_governed_collector
@@ -328,7 +329,7 @@ def test_ready_news_pause_delivers_an_explicit_stop_instead_of_the_continuation_
     packet['pinned']['language'] = language
     packet.update(instructions=reply_instructions(), interview_context={
         key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
-    raw = {**proposal(), 'acknowledgement': continuation, 'question': None, 'reason': 'pause',
+    raw = {**proposal(), 'acknowledgement': stopped, 'question': None, 'reason': 'pause',
         'quote': current if anchored else None, 'work': {'mode': 'reply_only', 'name': None}}
     captured = install_reply_provider(monkeypatch, [raw])
     visible = []

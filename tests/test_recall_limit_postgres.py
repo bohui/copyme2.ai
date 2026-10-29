@@ -6,7 +6,6 @@ import httpx
 import pytest
 
 from apps.api.conversation_reply import reply_candidates
-from apps.api.interview_questions import recall_question
 from test_conversation_reply import proposal
 from test_interview_strategy_runtime import client_fixture
 from test_two_lane_memory import (database, sql, event_database, private_database, attachment_database,
@@ -23,13 +22,11 @@ from test_agent_commit_postgres import OWNER
     ('zh-CN', '我和爸爸一起给新家刷墙。', '那有点记不得了，只记得在旁边等了半天。',
      '说起那个家，您还会想起哪些日常生活？'),
 ])
-def test_recall_limit_selects_broader_pool_and_defers_without_resolving(sql, tmp_path, monkeypatch,
+def test_mira_saves_her_connected_question_after_recall_limit_and_ignores_legacy_pool(sql, tmp_path, monkeypatch,
         language, story, limited, broader, use_pool):
     calls = []
-    deferred_id = None
 
     def provider(request):
-        nonlocal deferred_id
         context = json.loads(request.content)['interview_context']
         calls.append(context)
         output = proposal()
@@ -37,14 +34,9 @@ def test_recall_limit_selects_broader_pool_and_defers_without_resolving(sql, tmp
             output.update(question='How did you help?', quote=story)
         else:
             hints = reply_candidates(context)
-            output.update(question='What exactly did you do while waiting?', reason='recall_limit',
+            assert hints==[]
+            output.update(question=broader, reason='recall_limit',recall_limit_quote=limited,
                           work={'mode': 'reply_only', 'name': None})
-            if use_pool:
-                detail = next(item for item in hints if item.get('requires_confirmation'))
-                deferred_id = detail['id']
-                source = context['source']
-                output.update(hint=next(i for i, item in enumerate(hints) if item.get('scope') == 'broader'),
-                    deferred_hints=[i for i, item in enumerate(hints) if item['id'] == detail['id']], quote=limited)
         return httpx.Response(200, json={'reply': json.dumps(output), 'thread_id': 'recall-test', 'artifacts': []})
 
     with client_fixture(sql, tmp_path, monkeypatch, provider) as client:
@@ -71,7 +63,7 @@ def test_recall_limit_selects_broader_pool_and_defers_without_resolving(sql, tmp
         events = [json.loads(line) for line in saved.text.splitlines()]
         assert events[-1]['type'] == 'result', saved.text
         value = events[-1]['data']
-        expected = broader if use_pool else recall_question({'interview_language': language})
+        expected = broader
         assert value['reply'].endswith(expected)
         visible = ''.join(event.get('text', '') for event in events if event['type'] == 'text_delta')
         assert 'What exactly did you do while waiting?' not in visible
@@ -83,13 +75,10 @@ def test_recall_limit_selects_broader_pool_and_defers_without_resolving(sql, tmp
     assert len(calls) == 2
     outcome = json.loads(sql(f"select to_jsonb(o) from public.user_lifetime_strategy_outcome o where client_turn_id='{turn}';").stdout)
     assert outcome['selection_reason'] == 'recall_limit' and outcome['delivered']
-    if use_pool:
-        assert outcome['selected_candidate_id'] != deferred_id
-        assert sql(f"select question_id from public.lifetime_deferred_questions('{OWNER}',{literal(project)});").stdout.strip() == deferred_id
-    else:
-        assert outcome['selected_candidate_id'] is None
+    assert outcome['selected_candidate_id'] is None
+    assert sql(f"select count(*) from public.lifetime_deferred_questions('{OWNER}',{literal(project)});").stdout.strip()=='0'
     assert sql(f"select count(*) from public.lifetime_resolved_questions('{OWNER}',{literal(project)});").stdout.strip() == '0'
-    assert rpc(sql, 'read_lifetime_prepared_questions', literal(identity['conversation_id'])) == []
+    assert bool(rpc(sql,'read_lifetime_prepared_questions',literal(identity['conversation_id'])))==use_pool
     assert sql('select count(*) from public.user_memory_event;').stdout.strip() == '0'
 
 

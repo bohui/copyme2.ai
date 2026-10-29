@@ -434,7 +434,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             variant='collector-repair' if repair is not None else 'collector',
             extra_names=(['memoir/agents/mira/repair-codes'] if repair is not None else [])
                 + (['memoir/shared/historical-acknowledgements']
-                    if interview_context.get('historical_news',{}).get('clues') else []))
+                    if not direct_reply and interview_context.get('historical_news',{}).get('clues') else []))
         trace_metadata = {
                 'contract_version': interview_context.get('reply_contract', 'lifetime-v1'),
                 'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}
