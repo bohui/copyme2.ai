@@ -66,6 +66,7 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
     monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
     nested = []
+    nested_metadata = []
     class ChoosingConnection(ControlledSkillConnection):
         source_choices = ()
         async def turn(self,thread_id,prompt,**options):
@@ -75,6 +76,7 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
                 fields = options['output_schema']['properties']
                 phase = 'profile_patch' if 'profile_patch' in fields else 'events'
                 nested.append(phase)
+                nested_metadata.append(options['responsesapi_client_metadata'])
                 output = json.loads(result)
                 if phase == 'profile_patch':
                     source = value['task']['payload']['source']
@@ -117,6 +119,11 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
         conversation.deliver_receipts()
         asyncio.run(drain())
         assert nested == phases
+        assert all(meta['trace_name']=='memoir-background-agent' for meta in nested_metadata)
+        assert [meta['generation_name'] for meta in nested_metadata]==[
+            'memoir-memory-context' if phase=='profile_patch' else
+            'memoir-author-timeline' if 'memoir-author-timeline' in choices else 'memoir-place-journey'
+            for phase in phases]
         assert sql('select bool_and(processing_status=\'succeeded\') from public.user_narrator_source;').stdout.strip() == 't'
         if choices == ('memoir-memory-context',):
             assert sql('select profile->>\'birth_year\' from public.user_profile;').stdout.strip() == '1960'

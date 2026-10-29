@@ -95,6 +95,26 @@ def test_source_choices_apply_only_to_the_original_window_returned_to_the_agent(
     asyncio.run(scenario())
 
 
+def test_failed_news_research_is_visible_even_when_its_unavailable_result_is_saved(monkeypatch):
+    from unittest.mock import AsyncMock
+    from apps.api import llm_tracing
+    from test_llm_tracing import FakeLangfuse
+    monkeypatch.setenv('MEMORY_SPARK_HISTORICAL_NEWS','1')
+    monkeypatch.setattr('apps.api.background_skills.ServiceWork.update',AsyncMock())
+    client=FakeLangfuse()
+    monkeypatch.setattr(llm_tracing,'_client_cache',client)
+    class Broker:
+        async def rpc(self,name,**arguments):
+            return {'lanes':[]} if name=='read_memoir_background_work' else {'id':'research-job'} if name=='begin_user_historical_news' else True
+    skills=BackgroundSkills(fence(),Broker(),None,news_engine=SimpleNamespace(run=AsyncMock(return_value={
+        'status':'unavailable','clues':[]})))
+    skills.news_basis=AsyncMock(return_value=({'news_snapshot':{}},{'place':'Hobart','start':1960,'end':1970}))
+    assert asyncio.run(skills.execute('memoir-historical-news-research'))['status']=='saved'
+    attempt=next(o for o in client.observations if o.fields['metadata']['phase']=='research')
+    assert attempt.fields['name']=='memoir-historical-news-research'
+    assert attempt.updates[-1]['metadata']['status']=='failed'
+
+
 def test_slow_background_agent_does_not_take_foreground_capacity(tmp_path,monkeypatch):
     from apps.api.codex_worker_service import CodexWorker
     from test_lifetime_memory_engine import fixture as collector_fixture, IDENTITY

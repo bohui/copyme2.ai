@@ -221,6 +221,33 @@ def test_blocked_B_progress_is_late_correlated_and_does_not_block_A(sql,tmp_path
         assert any(step['source_id']==saved['accepted_source_id'] and step['status']=='saved' for step in steps)
 
 
+def test_foreground_finishes_while_background_is_stalled_then_fails(sql,tmp_path,monkeypatch):
+    entered=release=None
+    async def extract(packet):
+        entered.set()
+        await release.wait()
+        raise RuntimeError('Controlled background provider failure')
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract)
+    with conversation.client:
+        conversation.say('I repaired bicycles in the garden.')
+        async def run():
+            nonlocal entered,release
+            entered,release=asyncio.Event(),asyncio.Event()
+            lane=sql("select id from public.user_memoir_lane where skill='timeline';").stdout.strip()
+            background=asyncio.create_task(conversation.worker.execute_lane(lane))
+            try:
+                await asyncio.wait_for(entered.wait(),10)
+                reply=await asyncio.wait_for(asyncio.to_thread(conversation.say,'We also played in the courtyard.'),10)
+                assert reply['conversation_saved'] and reply['reply']
+                assert not background.done()
+            finally:
+                release.set()
+                result=await background
+            assert result['status']=='retry'
+        asyncio.run(run())
+        assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='2'
+
+
 def test_slow_photo_runner_cannot_hold_A_or_memory_and_cache_is_not_a_new_call(sql,tmp_path,monkeypatch):
     import threading
     from apps.api import place_photo_pages

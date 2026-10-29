@@ -27,6 +27,42 @@ def database():
     yield from base_database.__wrapped__(publication_tcp=True)
 
 
+@pytest.mark.parametrize('fault', ['once','persistent','unauthorized'])
+def test_gateway_failure_is_bounded_and_recovered_before_foreground_reply(sql,tmp_path,monkeypatch,fault):
+    from test_conversation_attribution import Conversation, empty
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
+    monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK','0')
+    monkeypatch.setenv('MEMORY_SPARK_PARALLEL_POLICY_REVIEW','0')
+    requests=[]
+    def gateway(request):
+        requests.append(json.loads(request.content))
+        if len(requests)==1 or fault!='once':
+            return httpx.Response(401 if fault=='unauthorized' else 502,json={'error':{
+                'message':'Request to upstream timed out','type':'server_error','code':'upstream_unavailable'}})
+        return httpx.Response(200,json={'id':'policy-recovered','status':'completed','output':[
+            {'type':'message','content':[{'type':'output_text','text':json.dumps({
+                'complete':True,'restrictions':[],'reason':None})}]}]})
+    async def review(*args,**kwargs):
+        kwargs.update(base_url='http://controlled.invalid/v1',api_key='synthetic-policy-key')
+        return await complete_json(*args,**kwargs,transport=httpx.MockTransport(gateway))
+    conversation=Conversation(sql,tmp_path,monkeypatch,empty)
+    monkeypatch.setattr(policy_review,'complete_json',review)
+    payload={'client_turn_id':str(uuid4()),'text':'We played in the school courtyard.','language':'en-AU'}
+    with conversation.client:
+        response=conversation.client.post('/v1/agent/turn',json=payload,headers={'Accept':'application/x-ndjson'})
+        events=[json.loads(line) for line in response.text.splitlines()]
+        assert len(requests)==(1 if fault=='unauthorized' else 2)
+        assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='1'
+        if fault=='once':
+            assert events[-1]['type']=='result',events
+            assert events[-1]['data']['conversation_saved'] and len(conversation.foreground)==1
+            assert json.loads(requests[0]['input'])['source']==json.loads(requests[1]['input'])['source']
+            assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip()=='0'
+        else:
+            assert events[-1]['type']=='error' and not conversation.foreground
+            assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip()=='1'
+
+
 @pytest.mark.parametrize('streaming,opening', [(False, False), (True, False), (True, True)])
 @pytest.mark.parametrize('outcome', ['clear', 'restricted', 'incomplete', 'legacy'])
 def test_inconclusive_review_retries_before_reply_and_keeps_audit(

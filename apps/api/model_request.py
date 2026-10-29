@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from .prompt_artifact import ROOT, load_prompt_artifact, prompt_path
 from .prompt_catalog import PROMPT_PATHS
 from .prompt_composition import component_paths, render_prompt_artifact
-from .llm_tracing import trace_llm_call, update_llm_trace, gateway_trace_headers
+from .llm_tracing import trace_llm_call, update_llm_trace, gateway_trace_headers, gateway_metadata
 from .model_configuration import background_model, background_effort
 
 
@@ -75,8 +75,7 @@ async def complete_json(name, payload, schema, *, model=None, effort=None, trans
     import httpx
     body, manifest = managed_json_request(name, payload, schema, model=model, effort=effort)
     if trace_name:
-        body['metadata'] = {**body.get('metadata', {}),
-                            'generation_name': trace_name, 'trace_name': trace_name}
+        body['metadata'] = {**body.get('metadata', {}), **gateway_metadata(trace_name)}
     if diagnostic_request_id is not None:
         from .diagnostics import new_request_id
         body['metadata']['request_id'] = new_request_id(diagnostic_request_id)

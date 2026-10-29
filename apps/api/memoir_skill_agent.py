@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 
 from .codex_agent import CodexConnection, provider_config
 from .codex_worker_files import write_config
-from .llm_tracing import trace_llm_call, update_llm_trace
+from .llm_tracing import trace_llm_call, update_llm_trace, gateway_metadata
 from .model_request import instruction_manifest
 from .prompt_artifact import ROOT, load_prompt_artifact, prompt_path
 from .prompt_catalog import PROMPT_PATHS
@@ -171,7 +171,7 @@ async def run_skill_agent(*, command, home_root, base_url, api_key, model,
                     'baseInstructions': instructions, 'dynamicTools': tools.specs()})
                 thread_id = opened['thread']['id']
                 reply = await connection.turn(thread_id, prompt, output_schema=schema, effort=effort,
-                    responsesapi_client_metadata={'generation_name':trace_name,'trace_name':trace_name})
+                    responsesapi_client_metadata=gateway_metadata(trace_name))
             if not tools.sources_processed and not any(path in tools.reads for path in tools.paths.values()):
                 raise ValueError('Memoir agent did not read a skill')
             # The trace records what the agent actually read, including references.

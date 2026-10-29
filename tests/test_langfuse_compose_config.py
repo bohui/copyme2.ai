@@ -23,7 +23,7 @@ def test_langfuse_configuration_reaches_api_and_workers(tmp_path, trace_url):
     result = subprocess.run(['mocker', 'compose', 'config', '-f', str(compose)],
                             env=environment, capture_output=True, text=True, timeout=10)
     assert result.returncode == 0
-    expected = {'LANGFUSE_BASE_URL': trace_url or 'http://192.168.67.1:3001',
+    expected = {'LANGFUSE_BASE_URL': trace_url or 'http://192.168.65.1:3001',
                 'LANGFUSE_PUBLIC_KEY': 'test-public', 'LANGFUSE_SECRET_KEY': 'test-secret',
                 'LANGFUSE_TRACING_ENVIRONMENT': 'trace-test'}
     for service in ['api', 'worker', 'codex-worker', 'photo-worker']:

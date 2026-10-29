@@ -79,6 +79,48 @@ def test_direct_trace_marks_errors_but_preserves_provider_error(monkeypatch):
     assert client.observations[0].closed
 
 
+def test_skill_metadata_keeps_the_coordinator_trace_and_scope_does_not_leak(monkeypatch):
+    monkeypatch.setattr(llm_tracing,'_client_cache',FakeLangfuse())
+    with llm_tracing.trace_llm_call('memoir-background-agent','synthetic',gateway=True):
+        with llm_tracing.trace_skill_execution('memoir-memory-context','profile'):
+            assert llm_tracing.gateway_metadata('memoir-memory-context')=={
+                'generation_name':'memoir-memory-context','trace_name':'memoir-background-agent'}
+    assert llm_tracing.gateway_metadata('memoir-interviewer')=={
+        'generation_name':'memoir-interviewer','trace_name':'memoir-interviewer'}
+
+
+def test_unavailable_tracing_does_not_block_execution(monkeypatch):
+    class Unavailable:
+        def start_as_current_observation(self,**fields):
+            raise RuntimeError('Tracing is offline')
+    monkeypatch.setattr(llm_tracing,'_client_cache',Unavailable())
+    executed=[]
+    with llm_tracing.trace_skill_execution('memoir-memory-context','profile'):
+        executed.append(True)
+    assert executed==[True]
+
+
+def test_background_trace_scope_does_not_change_a_concurrent_foreground_trace(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(llm_tracing,'_client_cache',FakeLangfuse())
+    async def run():
+        entered,release=asyncio.Event(),asyncio.Event()
+        async def background():
+            with llm_tracing.trace_llm_call('memoir-background-agent','synthetic',gateway=True):
+                entered.set()
+                await release.wait()
+                assert llm_tracing.gateway_metadata('memoir-memory-context')['trace_name']=='memoir-background-agent'
+        task=asyncio.create_task(background())
+        try:
+            await entered.wait()
+            with llm_tracing.trace_llm_call('memoir-interviewer','synthetic',gateway=True):
+                assert llm_tracing.gateway_metadata('memoir-interviewer')['trace_name']=='memoir-interviewer'
+        finally:
+            release.set()
+            await task
+    asyncio.run(run())
+
+
 def test_speech_calls_are_traced_without_recording_audio_or_text(monkeypatch):
     client = FakeLangfuse()
     monkeypatch.setattr(llm_tracing, "_client_cache", client)
