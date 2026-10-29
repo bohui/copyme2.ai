@@ -77,7 +77,8 @@ export function eventAgeLabel(age, t) {
   return t(age.approximate ? "mapEventAgeApproximate" : "mapEventAge", {age:value});
 }
 
-// Confirmed locations require event/place links; suggestions carry their own label.
+// Only explicit event/place links supply locations. Shared testimony, a nearby
+// city or a matching life stage does not establish an event's setting.
 export function buildMapMemoryJourney(events, groups, profile = {}) {
   const nodes = [];
   let unmapped = 0;
@@ -115,7 +116,7 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
       nodes.push({key, event, age, year, calendar, index, stage, role:link.role, groupKey:group.key,
         city:group.city.place, cityLatitude:city?.latitude ?? target.latitude, cityLongitude:city?.longitude ?? target.longitude,
         place:member.place, latitude:target.latitude, longitude:target.longitude, cityOnly,
-        summary:event.summary || event.title, uncertainty:event.uncertainty || "", locationInferred:link.inferred === true,
+        summary:event.summary || event.title, uncertainty:event.uncertainty || "",
         dated:!event.timing_conflict && (age.start !== null || year !== null || Boolean(calendar))});
       located = true;
     }
@@ -134,25 +135,9 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
       || (from.stage >= 0 && to.stage > from.stage && !(from.calendar && to.calendar)
         && !(from.age.start !== null && to.age.start !== null) && !from.event.timing_conflict && !to.event.timing_conflict)
       || (from.event.id === to.event.id && from.role === "origin" && to.role === "destination");
-    if (different && ordered && !from.locationInferred && !to.locationInferred) legs.push({from, to, stageTransition:from.stage !== to.stage});
+    if (different && ordered) legs.push({from, to, stageTransition:from.stage !== to.stage});
   }
   return {nodes, legs, unmapped};
-}
-
-export function suggestChildhoodCity(events, groups, profile = {}) {
-  const known = buildMapMemoryJourney(events, groups, profile).nodes;
-  const early = known.filter(node => node.event.life_stage === "baby" && node.age.start === 0
-    && node.role === "setting" && !node.locationInferred);
-  const cities = new Set(early.map(node => node.groupKey));
-  if (cities.size !== 1 || known.some(node => node.event.life_stage === "childhood" && !cities.has(node.groupKey))) return events;
-  const group = groups.find(group => cities.has(group.key));
-  const city = group?.members.find(place => place.granularity === "city");
-  if (!city) return events;
-  // This is a reversible map suggestion for an undated childhood period, never a saved place claim.
-  return events.map(event => event.canonical && event.status === "active" && event.kind === "period"
-    && event.life_stage === "childhood" && event.map_location_unrecorded && !event.map_places?.length
-    && !event.temporal?.year_start && eventAge(event, profile).start === null
-      ? {...event, map_places:[{role:"setting", status:"supported", place:city, inferred:true}]} : event);
 }
 
 export function cityEventCards(nodes) {
@@ -178,10 +163,7 @@ export function memoryEventCardMarkup(card, {t, lifeStageText, active = false}) 
   const title = city ? card.city : card.place;
   const summary = city ? card.nodes[0].summary : card.summary;
   const count = city ? t(card.count === 1 ? "mapEventCountOne" : "mapEventCount", {count:card.count}) : "";
-  const inferred = city ? card.nodes.filter(node => node.locationInferred).length : Number(card.locationInferred);
-  const hint = inferred ? t(city ? "mapEventAssumedCount" : "mapEventLocationAssumed", {count:inferred})
-    : t(city ? "mapEventZoomIn" : card.cityOnly ? "mapEventCityLocation" : "mapEventOpen");
-  return `<button type="button" class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count,summary,inferred ? hint : ""].filter(Boolean).join(" · "))}" aria-expanded="${active}"><span class="map-memory-meta"><span class="map-memory-age">${escapeHtml(age)}</span>${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span><strong>${escapeHtml(title)}</strong><span class="map-memory-summary">${escapeHtml(summary)}</span>${stage ? `<span class="map-memory-stage">${escapeHtml(stage)}</span>` : ""}<span class="map-memory-hint">${escapeHtml(hint)}</span></button>`;
+  return `<button type="button" class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count,summary].filter(Boolean).join(" · "))}" aria-expanded="${active}"><span class="map-memory-meta"><span class="map-memory-age">${escapeHtml(age)}</span>${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span><strong>${escapeHtml(title)}</strong><span class="map-memory-summary">${escapeHtml(summary)}</span>${stage ? `<span class="map-memory-stage">${escapeHtml(stage)}</span>` : ""}<span class="map-memory-hint">${escapeHtml(t(city ? "mapEventZoomIn" : card.cityOnly ? "mapEventCityLocation" : "mapEventOpen"))}</span></button>`;
 }
 
 // Move colliding cards while preserving a stem to the true map position.

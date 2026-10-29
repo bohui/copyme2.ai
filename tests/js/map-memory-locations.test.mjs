@@ -48,35 +48,6 @@ test('conflicted locations are excluded even when they have a matching city', as
   assert.match(h.toolbar.innerHTML,/mapEventsUnmapped/);
 });
 
-test('childhood filtering can use a loaded early-city suggestion and removes it when its anchor disappears', async t => {
-  const input=[{id:'birth',revision:1,canonical:true,status:'active',kind:'event',life_stage:'baby',
-    temporal:{precision:'age',expression:'Age 0'}},
-  {id:'compound',revision:1,canonical:true,status:'active',kind:'period',life_stage:'childhood',temporal:null}];
-  const before=JSON.stringify(input);
-  let anchor=true;
-  const h=setup(t,async id=>({items:id==='birth' && anchor ? [supported] : [],complete:true}),{
-    getEvents:()=>input,getStage:()=> 'childhood',
-  });
-  h.overlay.sync(h.scene);await settle();
-  assert.ok(h.classes.has('has-map-memories'),'The childhood period should appear at the suggested city');
-  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventsUnmapped/);
-  assert.equal(JSON.stringify(input),before);
-  anchor=false;h.setScope('project:2');h.overlay.sync(h.scene);await settle();
-  assert.equal(h.classes.has('has-map-memories'),false,'An unavailable anchor must remove its dependent suggestion');
-});
-
-test('a conflicting childhood place cannot be replaced by an early-city assumption', async t => {
-  const input=[{id:'birth',revision:1,canonical:true,status:'active',kind:'event',life_stage:'baby',
-    temporal:{precision:'age',expression:'Age 0'}},
-  {id:'compound',revision:1,canonical:true,status:'active',kind:'period',life_stage:'childhood',temporal:null}];
-  const h=setup(t,async id=>({items:[id==='birth' ? supported : {...supported,status:'conflicted'}],complete:true}),{
-    getEvents:()=>input,getStage:()=> 'childhood',
-  });
-  h.overlay.sync(h.scene);await settle();
-  assert.equal(h.classes.has('has-map-memories'),false);
-  assert.match(h.toolbar.innerHTML,/mapEventsUnmapped/);
-});
-
 test('a late location page cannot paint into a different project or policy scope', async t => {
   const requests=[];
   const h=setup(t,()=>new Promise(resolve=>requests.push(resolve)));

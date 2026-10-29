@@ -185,14 +185,14 @@ test('reload restores the latest mentioned place while preserving chronological 
     {place: 'Sydney', granularity: 'city', hierarchy: ['Earth', 'Australia', 'Sydney'], life_stage: 'young_adulthood', revision: 2},
   ];
   const context = vm.createContext({
-    state: {project: {id: 'p'}}, profile: () => ({memory_places: places}), mergePlaces,
+    state: {project: {id: 'p'},lifeStage:'all'}, profile: () => ({memory_places: places}), mergePlaces,
     placeHistoryKey: item => item.place, rememberPlaceJourneyProject: () => {},
     saveProfileUpdates: async () => {}, loadPlacePictures: async () => {}, resolvePlaceMap: () => {},
   });
   vm.runInContext(extract('hydratePlaceJourney'), context);
   await context.hydratePlaceJourney();
   assert.equal(context.state.placeJourney.place, 'Chengde');
-  assert.equal(context.state.lifeStage, 'childhood');
+  assert.equal(context.state.lifeStage, 'all');
   assert.equal(mergePlaces(places).at(-1).place, 'Sydney');
 });
 

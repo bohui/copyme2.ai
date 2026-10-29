@@ -37,6 +37,7 @@ def test_missing_canonical_draft_identity_returns_not_found():
 @pytest.fixture
 def mapped(monkeypatch, tmp_path):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '0')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB', str(tmp_path / 'tasks.db'))
     calls = []
     fence = deepcopy(FENCE)
