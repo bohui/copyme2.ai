@@ -37,7 +37,7 @@ draft. See the [paired draft evaluation](test-evidence/mira-role-prompt-20261029
 
 ## Mira role-prompt evaluation — 29 October 2026
 
-The agent prompt is **1,033 characters**, down from **1,922** characters for the
+The initial concise role was **1,033 characters**, down from **1,922** characters for the
 previous reply-plus-dispatch instructions (46% less static text). The output
 schema and host validators still own evidence spans, prepared-question identity,
 private work routing, privacy epochs and atomic saving. No judgement rules were
@@ -74,6 +74,53 @@ passed 52 PostgreSQL-backed cases. Legacy native-runtime fixtures still expect
 retired reply shapes and are not included in these passing results. Live prompt
 comparisons establish model-proposal quality only; runtime publication still
 requires merged-main Langfuse receipts. No new receipt versions were invented.
+
+## Emotional attunement refinement — 29 October 2026
+
+The current compiled system role is **1,504 characters**. Mira listens with the ease and
+care of an old friend, notices emotional meaning in specific details, and keeps
+unspoken feelings as hunches the narrator can confirm or correct. The narrator's
+account defines their feelings, relationships and motives. The role also makes
+room for joy and ordinary moments, follows boundaries, and keeps the conversation
+moving with a useful next question when one helps.
+
+The configured model and independent blind judge compared this role with the
+1,033-character role on 16 new fictional cases, paired across English and Chinese.
+They cover humour masking hurt, unexplained absence, minimised childhood
+responsibility, private relief, quiet joy, a topic boundary, an ordinary day and
+correction of an emotional interpretation. All 16 proposals passed production
+validation for each prompt. Mean quality was **3.750 versus 3.438** on a 0–4 scale;
+the new role was preferred six times, the baseline once, and nine pairs tied.
+Neither prompt had a critical issue flagged in this final emotional sample.
+
+The 36 existing conversation cases also passed for both prompts, with no critical
+issues flagged. Mean quality was 3.944 for the new role and 3.917 for the baseline;
+three pairs preferred the new role, two preferred the baseline and 31 tied.
+All six Lane B probes passed for both prompts, with no critical issues flagged.
+Their mean quality was 3.833 for the new role versus 4.000 for the baseline;
+five pairs tied and one preferred the baseline. Across all three final samples,
+both prompts passed 58/58 proposal validations. The 91 focused offline prompt,
+projection and transport tests also passed.
+These are small exploratory comparisons, not statistical evidence of superiority.
+
+An initial pilot caught an omitted follow-up, an unsupported shared-life claim
+and an overconfident emotional inference. Three generation requests encountered
+gateway 502 errors across the pilot and initial refined runs. A final Lane B
+rerun with the unchanged refined prompt completed all six cases. The refinement
+made emotional readings explicitly tentative
+and restored the existing next-question guidance. Final comparisons reuse the
+verified baseline outputs and rerun candidate generation and blind judging;
+baseline judgments can therefore differ between rounds. Pilot evidence is retained.
+These are draft model proposals; publication and recovery of the pending live turn
+still require the merged-main prompt workflow.
+
+- [Emotional comparison](test-evidence/mira-emotional-attunement-20261029.json)
+- [Conversation regression comparison](test-evidence/mira-emotional-core-20261029.json)
+- [Lane B comparison](test-evidence/mira-emotional-lane-b-20261029.json)
+- [Emotional pilot](test-evidence/mira-emotional-attunement-20261029-pilot.json)
+- [Conversation pilot](test-evidence/mira-emotional-core-20261029-pilot.json)
+- [Lane B pilot](test-evidence/mira-emotional-lane-b-20261029-pilot.json)
+- [Lane B run with a gateway failure](test-evidence/mira-emotional-lane-b-20261029-transport-retry.json)
 
 ## Earlier recorded request measurements
 

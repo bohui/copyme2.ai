@@ -107,6 +107,29 @@ def lane_b_cases():
     return result
 
 
+def emotional_cases():
+    from apps.api.conversation_reply import reply_instructions, reply_packet
+    from apps.api.lifetime_memory_engine import validate_governed_context
+    from test_lifetime_memory_engine import fixture, encode
+    probes = json.loads((ROOT / 'tests/evaluation/mira_emotional_cases.json').read_text())
+    result = []
+    for probe in probes:
+        for locale, text in probe['sources'].items():
+            governed, context = fixture()
+            context['source']['text'] = text
+            context['sources'] = [context['source']]
+            context.update(reply_contract='reply-v2', two_lane_memory=True, interview_language=locale)
+            packet = json.loads(governed.packet)
+            packet['current']['narrator'].update(original=text, char_end=len(text), language=locale)
+            packet['pinned']['language'] = locale
+            packet.update(instructions=reply_instructions(), interview_context={
+                key: value for key, value in context.items() if key not in {'source', 'sources'}})
+            view = reply_packet(validate_governed_context(encode(packet), context))
+            result.append(dict(id=f'emotional/{probe["id"]}/{locale}', context=context,
+                view=view, criteria=deepcopy(probe['criteria'])))
+    return result
+
+
 async def evaluate(args, inputs):
     import httpx
     from dotenv import dotenv_values
@@ -225,7 +248,9 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--judge-model', default='gpt-5.6-luna-memoir-low')
     parser.add_argument('--execute', action='store_true')
-    parser.add_argument('--lane-b', action='store_true', help='Evaluate the six bilingual Lane B handoff probes')
+    probes = parser.add_mutually_exclusive_group()
+    probes.add_argument('--lane-b', action='store_true', help='Evaluate the six bilingual Lane B handoff probes')
+    probes.add_argument('--emotional', action='store_true', help='Evaluate the bilingual emotional-attunement probes')
     args = parser.parse_args()
     from apps.api import prompt_artifact
     published_loader = prompt_artifact.load_prompt_artifact
@@ -236,6 +261,8 @@ def main():
         inputs = cases()  # Import and prepare the shared production fixtures.
         if args.lane_b:
             inputs = lane_b_cases()
+        elif args.emotional:
+            inputs = emotional_cases()
         if not args.execute:
             print(json.dumps(dict(cases=len(inputs), generation_requests=2 * len(inputs),
                 judge_requests=(len(inputs) + 3) // 4, synthetic=True, requests=0)))

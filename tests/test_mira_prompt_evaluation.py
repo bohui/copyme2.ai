@@ -2,7 +2,7 @@
 import pytest
 from jsonschema import ValidationError, validate
 
-from scripts.evaluate_mira_prompt import cases, lane_b_cases, judge_schema
+from scripts.evaluate_mira_prompt import cases, lane_b_cases, emotional_cases, judge_schema
 
 
 def test_comparison_uses_existing_bilingual_cases_and_real_reply_projections():
@@ -31,3 +31,14 @@ def test_lane_b_probes_keep_prepared_hints_and_current_narration_in_the_real_pac
     for case in inputs:
         assert len(case['view']['brief']['hints']) == 2
         assert case['view']['current']['narrator']['original'] == case['context']['source']['text']
+
+
+def test_emotional_probes_cover_both_languages_without_putting_judge_criteria_in_requests():
+    cases()
+    inputs = emotional_cases()
+    assert len(inputs) == len({case['id'] for case in inputs}) == 16
+    assert {case['view']['reply_language'] for case in inputs} == {'en-AU', 'zh-CN'}
+    for case in inputs:
+        assert case['view']['current']['narrator']['original'] == case['context']['source']['text']
+        assert case['criteria']['required']
+        assert 'criteria' not in case['view'] and 'gold' not in case['view']
