@@ -38,11 +38,13 @@ def test_manifest_ignores_catalog_sources_not_shipped_to_runtime(monkeypatch):
     assert 'memoir/evaluation/not-shipped' not in {item['name'] for item in manifest['artifacts']}
 
 
-def test_behavioral_schema_descriptions_are_not_a_second_prompt_store():
+def test_conversational_voice_lives_in_the_agent_prompt_not_schema_descriptions():
     schema = governed_collector_schema({'sources':[],'events':[],'photos':[]})
     def visit(value):
         if isinstance(value,dict):
-            assert not isinstance(value.get('description'),str)
+            description = value.get('description')
+            if isinstance(description, str):
+                assert all(text not in description.lower() for text in ('you are mira', 'be warm', 'be curious'))
             for item in value.values(): visit(item)
         elif isinstance(value,list):
             for item in value: visit(item)
@@ -65,7 +67,7 @@ def test_explicit_missing_provider_binding_never_falls_back_to_environment(monke
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY', 'environment-fixture-key')
     calls = []
     async def run():
-        return await complete_json('memoir/skills/memoir-interviewer/policy-review', {}, {}, model='fixture-model',
+        return await complete_json('memoir/agents/mira/policy-review', {}, {}, model='fixture-model',
             transport=httpx.MockTransport(lambda request: calls.append(request)), **binding)
     with pytest.raises(ValueError, match='not configured'):
         asyncio.run(run())
@@ -113,15 +115,15 @@ def test_structured_request_forwards_skill_trace_identity(monkeypatch):
         })
 
     asyncio.run(complete_json(
-        'memoir/skills/memoir-interviewer/policy-review', {}, {},
+        'memoir/agents/mira/policy-review', {}, {},
         model='fixture-model', transport=httpx.MockTransport(provider),
         base_url='https://fixture.invalid/v1', api_key='fixture-key',
-        trace_name='memoir-interviewer', diagnostic_request_id='policy-fixture-turn'))
+        trace_name='mira', diagnostic_request_id='policy-fixture-turn'))
 
-    assert captured['metadata']['generation_name'] == 'memoir-interviewer'
-    assert captured['metadata']['trace_name'] == 'memoir-interviewer'
+    assert captured['metadata']['generation_name'] == 'mira'
+    assert captured['metadata']['trace_name'] == 'mira'
     assert captured['metadata']['request_id'] == 'policy-fixture-turn'
-    assert client.observations[0].fields['name'] == 'memoir-interviewer'
+    assert client.observations[0].fields['name'] == 'mira'
     assert client.observations[0].fields['metadata']['request_id'] == 'policy-fixture-turn'
 
 
@@ -160,7 +162,7 @@ def test_worker_manifest_does_not_require_uninstalled_evaluation_prompts(monkeyp
     from apps.api.prompt_artifact import load_prompt_artifact
     from apps.api.model_request import PROMPT_PATHS
 
-    name = 'memoir/skills/memoir-interviewer/governed-turn'
+    name = 'memoir/agents/mira/system'
     instructions = load_prompt_artifact(prompt_path(name))
     missing = 'memoir/evaluation/not-installed-in-worker'
     monkeypatch.setitem(PROMPT_PATHS, missing, 'tests/evaluation/not-installed-in-worker.md')

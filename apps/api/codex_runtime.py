@@ -21,7 +21,6 @@ from .composer_configuration import composer_configuration
 from .issue14_execution_admission import (
     check_issue14_dispatch, validate_optional_issue14_admission,
 )
-from .prompt_artifact import load_prompt_artifact, prompt_path
 from .memoir_tasks import MemorySource
 from .trajectory_evaluation import (
     TrajectoryRecorder,
@@ -78,18 +77,11 @@ def _worker_error_payload(response: httpx.Response) -> Mapping[str, Any] | None:
     return payload if isinstance(payload, Mapping) else None
 
 
-CONVERSATION_LANGUAGE_INSTRUCTIONS = {
-    locale: load_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/language-{locale}'))
-    for locale in ("en-AU", "zh-CN")
-}
+CONVERSATION_LANGUAGES = frozenset({'en-AU', 'zh-CN'})
 
 
 def normalize_conversation_language(language: str | None) -> str:
-    return language if language in CONVERSATION_LANGUAGE_INSTRUCTIONS else "en-AU"
-
-
-def conversation_language_instruction(language: str | None) -> str:
-    return CONVERSATION_LANGUAGE_INSTRUCTIONS[normalize_conversation_language(language)]
+    return language if language in CONVERSATION_LANGUAGES else "en-AU"
 
 
 def _timeline_source_spans(text: str) -> list[tuple[str, int, int]]:

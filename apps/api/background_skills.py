@@ -185,16 +185,12 @@ async def photo_step(owner,project_id,result,*,client_turn_id=None):
 
 
 def queue_research(publication,runtime,storage,project_id):
-    """The sole after-delivery registration point; no launch while A holds a lease."""
+    """Register a background-agent wakeup after delivery and A lease release."""
     try:
         admit('memoir-historical-news-research','place_selection')
     except SkillUnavailable:
         return
-    from .historical_news import HistoricalResearch
-    from .historical_news_provider import GatewayHistoricalProvider
-    if runtime._news_engine is None:
-        runtime._news_engine = HistoricalResearch(GatewayHistoricalProvider())
-    publication.historical_research = (storage,project_id,runtime._news_engine)
+    publication.historical_research = (storage,project_id)
 
 
 async def observe_lane(fence, phase, status, invocation_id):

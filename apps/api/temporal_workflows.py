@@ -84,3 +84,29 @@ class MemoirSkillLane:
             except asyncio.TimeoutError:
                 pass
         workflow.continue_as_new(lane_id)
+
+
+@workflow.defn(name='MemoirBackgroundAgent')
+class MemoirBackgroundAgent:
+    def __init__(self):
+        self.notified = False
+
+    @workflow.signal(name='notify')
+    def notify(self, change_sequence: int = 0):
+        self.notified = True
+
+    @workflow.run
+    async def run(self, run_id: str, single_attempt: bool = False) -> dict:
+        if type(single_attempt) is not bool:
+            raise ValueError('single_attempt must be a boolean')
+        for _ in range(100):
+            self.notified = False
+            result = await workflow.execute_activity('memoir.execute_background_agent', run_id,
+                start_to_close_timeout=timedelta(seconds=1860), heartbeat_timeout=timedelta(seconds=60),
+                retry_policy=RetryPolicy(maximum_attempts=1 if single_attempt else 3))
+            if result['status'] == 'retry_required' or single_attempt:
+                return result
+            if result['status'] == 'finished' and not result.get('pending') and not self.notified:
+                return result
+            await workflow.sleep(timedelta(seconds=5))
+        workflow.continue_as_new(run_id)

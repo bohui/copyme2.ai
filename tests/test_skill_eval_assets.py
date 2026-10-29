@@ -200,7 +200,7 @@ def test_judge_sources_use_main_publisher_and_require_runtime_receipts(tmp_path)
     from apps.api.prompt_artifact import load_prompt_artifact
     ordinary = prompt_registry()
     publishing = prompt_registry(include_unpublished=True)
-    assert len(EVALUATION_PROMPT_PATHS) == 11
+    assert len(EVALUATION_PROMPT_PATHS) == 12
     for name, relative in EVALUATION_PROMPT_PATHS.items():
         assert publishing[name] == relative
         source = suite.ROOT / relative

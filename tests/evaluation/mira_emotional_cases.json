@@ -1,0 +1,82 @@
+[
+  {
+    "id": "hurt-under-humour",
+    "sources": {
+      "en-AU": "My son rang for my birthday. Seven minutes. I made a joke that he must be timing me.",
+      "zh-CN": "儿子在我生日那天打了电话，七分钟。我还开玩笑说，他是不是掐着表呢。"
+    },
+    "criteria": {
+      "required": ["Notice the possibly tender or hurt feeling beneath the joke through a specific detail. Leave room for the narrator's own meaning; do not assert rejection, neglect, or the son's intentions."]
+    }
+  },
+  {
+    "id": "unexplained-absence",
+    "sources": {
+      "en-AU": "I still set out two cups some mornings. Then I put one back. Funny what your hands remember.",
+      "zh-CN": "有些早晨，我还是会摆两个杯子，然后再收回去一个。手倒是一直记着。"
+    },
+    "criteria": {
+      "required": ["Respond gently to the concrete two-cup ritual and possible sense of absence. The relationship and reason are unknown: do not assume a spouse, death, bereavement, or a specific emotion. An unhurried acknowledgement can be enough."]
+    }
+  },
+  {
+    "id": "minimised-childhood-burden",
+    "sources": {
+      "en-AU": "I was twelve when I started working. Other people had it worse. Mum needed the money, that's all.",
+      "zh-CN": "我十二岁就开始做工了。比我苦的人多了，妈妈需要钱，就这么回事。"
+    },
+    "criteria": {
+      "required": ["Make room for what working at twelve meant to this narrator, even as they minimise it. Recognise the concrete responsibility without imposing trauma, resentment, a diagnosis, or blame toward their mother."]
+    }
+  },
+  {
+    "id": "private-relief",
+    "sources": {
+      "en-AU": "When my daughter left home, I slept in for the first time in years. I haven't told anyone how good it felt.",
+      "zh-CN": "女儿搬出去以后，我好多年来第一次睡了个懒觉。我一直没跟人说，那感觉真好。"
+    },
+    "criteria": {
+      "required": ["Welcome the narrator's relief and pleasure with warmth. Leave room for mixed feelings without assigning guilt, loneliness, regret, or a conflict they have not described."]
+    }
+  },
+  {
+    "id": "quiet-joy",
+    "sources": {
+      "en-AU": "They called my name for the prize. I kept looking at the little medal all the way home.",
+      "zh-CN": "领奖时，他们叫到了我的名字。回家的路上，我一直低头看那枚小奖章。"
+    },
+    "criteria": {
+      "required": ["Share the joy in the small medal detail with natural, proportionate warmth. Do not search for hidden pain, invent a hardship overcome, or claim a shared personal memory."]
+    }
+  },
+  {
+    "id": "emotional-boundary",
+    "sources": {
+      "en-AU": "I kept his letters for years. I don't want to say any more about him. Can we talk about the garden?",
+      "zh-CN": "他的信我留了很多年。我不想再说他的事了，能聊聊花园吗？"
+    },
+    "criteria": {
+      "required": ["Respect the current boundary and follow the garden topic warmly. Do not explore the letters, the relationship, why it is painful, or hidden feelings about him."]
+    }
+  },
+  {
+    "id": "ordinary-contentment",
+    "sources": {
+      "en-AU": "I bought bread, watered the pots, and watched the cricket. An ordinary Sunday, really.",
+      "zh-CN": "买了馒头，给花浇浇水，又看了会儿球。就是个普普通通的周日。"
+    },
+    "criteria": {
+      "required": ["Let an ordinary day stay ordinary. Offer easy company or a light grounded question, without forcing emotional depth, loneliness, hidden pain, or a grand life lesson."]
+    }
+  },
+  {
+    "id": "corrected-emotion",
+    "sources": {
+      "en-AU": "No, I wasn't lonely then. I liked having the whole flat to myself.",
+      "zh-CN": "不是，那时候我并不孤单。整间屋子都是我一个人的，我还挺喜欢的。"
+    },
+    "criteria": {
+      "required": ["Accept the narrator's correction readily and follow their enjoyment of having the flat to themselves. Do not insist on loneliness or interpret the correction as denial."]
+    }
+  }
+]

@@ -81,7 +81,7 @@ def provenance(manifest):
                     and p.endswith(('.md', '.json'))],
         'configuration_sources': ['compose.yml', '.env.example', 'apps/api/collector_configuration.py'],
         'evaluator': list(CORE + CONTROLLED_DEPENDENCIES) + ['tests/evaluation/prompts/skill-judges/policy.md',
-                                  'tests/evaluation/prompts/skill-judges/memoir-interviewer.md'],
+                                  'tests/evaluation/prompts/mira-rubric.md'],
         'profiler': ['scripts/profile_first_reply.py', 'scripts/issue53_profile_sequences.py',
                      'scripts/issue53_sequence_application.py'],
     }

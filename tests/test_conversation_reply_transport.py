@@ -57,7 +57,7 @@ def options(**changes):
     return dict(view=view, prompt=GOVERNED_TURN_PROMPT, schema=dict(type='object'),
         model=BUDGET.model, effort='low', budget=BUDGET, base_url='https://provider.invalid/v1',
         api_key='fixture-secret-key', publisher=FakePublisher(), fence=FENCE,
-        metadata={'generation_name':'memoir-interviewer'}, timeout=1, **changes)
+        metadata={'generation_name':'mira'}, timeout=1, **changes)
 
 
 def test_messages_keep_static_prefix_and_complete_current_evidence_last():
@@ -86,7 +86,7 @@ def test_actual_request_is_tools_free_scoped_and_keeps_schema_and_route():
     assert body['text']['verbosity'] == 'low'
     assert body['tools'] == [] and body['tool_choice'] == 'none'
     assert body['text']['format']['strict'] and body['text']['format']['schema'] == {'type':'object'}
-    assert body['metadata']['generation_name'] == 'memoir-interviewer'
+    assert body['metadata']['generation_name'] == 'mira'
     assert body['max_output_tokens'] == BUDGET.output_headroom
     assert all(item.get('type') != 'additional_tools' for item in body['input'])
     assert 'skills_instructions' not in json.dumps(body) and 'environment_context' not in json.dumps(body)
@@ -281,13 +281,17 @@ def test_deny_only_admission_blocks_before_contacting_provider():
     assert calls == []
 
 
-def test_worker_uses_http_only_after_full_governed_validation(tmp_path, monkeypatch):
+@pytest.mark.parametrize('version', [None, 'reply-v2'])
+def test_worker_uses_http_only_after_full_governed_validation(tmp_path, monkeypatch, version):
     from apps.api import codex_worker_service, lifetime_memory_engine
     from apps.api.conversation_reply import reply_instructions
     from test_conversation_reply import proposal
     from test_lifetime_memory_engine import IDENTITY, encode
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP', '1')
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
+    if version is None:
+        monkeypatch.delenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', raising=False)
+    else:
+        monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', version)
     monkeypatch.setenv('MEMOIR_TWO_LANES', '1')
     monkeypatch.setattr(lifetime_memory_engine, 'ProviderPublication', lambda *args, **kwargs: FakePublisher())
     def forbidden(*args, **kwargs):
@@ -432,5 +436,5 @@ def test_repair_sends_only_relevant_rule_and_retains_catalog_provenance(monkeypa
     assert 'clear question evidence/candidate anchors' in prompt
     assert 'infer no unstated time/place links' in prompt
     assert len(prompt) < 1000
-    assert any(item['name'] == 'memoir/skills/memoir-interviewer/repair-codes'
+    assert any(item['name'] == 'memoir/agents/mira/repair-codes'
                for item in manifests[0]['artifacts'])

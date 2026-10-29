@@ -43,7 +43,7 @@ def test_current_collector_policy_on_resumed_turn_and_rollback(monkeypatch, tmp_
             if enabled:
                 monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'memoir-luna-low')
                 monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT', 'low')
-                monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'compact-v1')
+                monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
             else:
                 for key in ('MODEL', 'REASONING_EFFORT', 'PROMPT_VERSION'):
                     monkeypatch.delenv('MEMORY_SPARK_COLLECTOR_' + key)
@@ -241,7 +241,7 @@ def test_evaluation_attributes_actual_collector_route_without_losing_requested_m
     from apps.api import codex_worker_service
 
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'candidate-route')
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'compact-v1')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
     monkeypatch.setenv('MEMORY_SPARK_CODEX_WORKER_SECRET', 'fixture-secret')
     metadata = []
 
@@ -332,7 +332,7 @@ def test_resumed_stream_preserves_populated_planning_and_current_testimony(monke
             await options['on_delta'](raw)
             return raw
 
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'compact-v1')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
     monkeypatch.setattr('apps.api.codex_runtime.CodexConnection', Connection)
     if execution == 'worker':
         import httpx

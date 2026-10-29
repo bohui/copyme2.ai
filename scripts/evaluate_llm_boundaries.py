@@ -14,8 +14,8 @@ DATASET = ROOT / 'tests/evaluation/llm-boundaries.json'
 
 
 def contract(case):
-    from apps.api.interview_strategy import strategy_instructions
-    from apps.api.lifetime_memory_continuity import governed_collector_schema, GOVERNED_CONTINUITY_INSTRUCTIONS
+    from apps.api.conversation_reply import reply_instructions
+    from apps.api.lifetime_memory_continuity import governed_collector_schema
     from apps.api.policy_review import PolicyReview
     from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
     from apps.api.two_lane_memory import extraction_contract
@@ -23,14 +23,15 @@ def contract(case):
                   status='active', kind='narrator_chat', text=case['source'], language=case['locale'], author_role='storyteller')
     context = dict(source=source, sources=[source], events=[], photos=[], photo_context=[],
                    interview_language=case['locale'], active_strategy='explore', strategy_selector=True,
-                   two_lane_memory=True, prepared_questions=[])
+                   two_lane_memory=True, reply_contract='reply-v2', prepared_questions=[],
+                   reply_language=case['locale'], brief={'hints': []})
     if case['contract'] == 'policy':
-        return load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/policy-review')), PolicyReview.model_json_schema(), {'source': source}
+        return load_prompt_artifact(prompt_path('memoir/agents/mira/policy-review')), PolicyReview.model_json_schema(), {'source': source}
     if case['contract'] == 'collector':
-        return (strategy_instructions('explore') + '\n' + GOVERNED_CONTINUITY_INSTRUCTIONS,
+        return (reply_instructions(),
                 governed_collector_schema(context), context)
     if case['contract'] == 'extract':
-        instructions, schema = extraction_contract(strategy=True)
+        instructions, schema = extraction_contract()
         return instructions, schema, {'schema_version':1,'sources':[{**source,'char_start':0,'char_end':len(source['text'])}], 'events': [], 'interview_language': case['locale']}
     raise ValueError(f"Unsupported semantic contract: {case['contract']}")
 

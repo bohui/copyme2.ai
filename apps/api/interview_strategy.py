@@ -17,8 +17,6 @@ from .interview_questions import PreparedQuestion, GuidanceKind, GuidanceDepende
 from .interview_questions import QuestionResolution, resolution_schema
 from .interview_questions import hint_evidence, question_evidence_schema, recall_question, recall_hint
 from .memory_events import EvidenceRef
-from .prompt_composition import render_prompt_artifact
-from .prompt_artifact import prompt_path
 from .stage_readiness import LIFE_STAGES
 
 Strategy=Literal['comfort','explore','shape']
@@ -85,9 +83,6 @@ def strategy_enabled():
     return os.getenv('MEMOIR_INTERVIEW_STRATEGY','').lower() in {'1','true','yes'}
 
 
-STRATEGY_MODULES = frozenset({'comfort', 'explore', 'shape'})
-
-
 def stage_breadth_checkpoint(coverage):
     """Three distinct grounded events permit an invitation, never completion."""
     stages = {row['life_stage']: row for row in coverage or [] if row['life_stage'] in LIFE_STAGES
@@ -105,11 +100,6 @@ def stage_breadth_checkpoint(coverage):
     return dict(current_stage=current, suggested_stage=next_stage,
                 grounded_events=stages[current]['grounded_events'], minimum_grounded_events=3)
 
-
-def strategy_instructions(strategy):
-    if strategy not in STRATEGY_MODULES:
-        raise ValueError('Unknown internal strategy')
-    return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/strategy-{strategy}'))
 
 def selection_candidates(context):
     from .interview_questions import question_candidates

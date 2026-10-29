@@ -339,6 +339,31 @@ auth callback settings, and rollback.
 
 ### Collection agents and background tasks
 
+Lane B runs a durable `MemoirBackgroundAgent` workflow in the private Codex
+worker. Codex owns the agent loop: it sees the eligible skill catalog, chooses
+work, reads the selected versioned `SKILL.md` through `memoir_read_skill`, and
+calls `memoir_execute_skill`. The background catalog covers timeline extraction,
+interview guidance, private-draft composition and enabled historical-news
+research; bounded extraction/profile/composition turns also read their actual
+skill instructions. The host retains ownership, consent, dependency, evidence
+and publication checks. Explicit book/game actions and independent photo/group
+services retain their existing application contracts.
+
+New narrator evidence and selected place/period cues wake one coalesced agent
+per owner/project. Results are saved for later turns. Lane A has reserved worker
+capacity and its own execution lock, so it does not wait for the background
+agent. Agent leases, revision checks and bounded retries survive restarts;
+required source work remains pending when a model stops early or a skill fails.
+Traces record the skills actually read and their prompt manifests, while native
+tool results contain the corresponding instructions.
+
+Activation requires the updated fresh-install schema and the published pins for
+`memoir/shared/background-agent`, `memoir/shared/skill-agent` and
+`memoir/skills/memoir-composer/instructions`. Review and merge the Markdown to
+`main`, then use the normal publisher described below. Feature branches do not
+publish or fabricate receipts; missing pins fail closed. The background run
+deadline is `MEMORY_SPARK_MEMOIR_RUN_SECONDS` (900 seconds by default).
+
 For streamed conversations, private workspace extraction runs alongside the
 visible reply. A complete, validated place marker emits a temporary map preview
 immediately, without waiting for profile extraction or artifact transfer. The
@@ -455,11 +480,14 @@ the current prompts, models and validation.
 ### Versioned prompt artifacts
 
 Merged Git `main` owns prompt content; Memoir's Langfuse project owns published
-versions. Each skill owns its model
+versions. Mira owns its always-loaded agent instructions and supporting prompts
+under `memoir/agents/mira/...`, stored in `apps/api/prompts/mira/`. Each skill owns its model
 instructions under `memoir/skills/<skill>/...`, including composer phases and
 shared editorial policy. Repository sources live under that skill's directory.
 Common bounded-worker instructions use `memoir/shared/...`; judge/probe and
 synthesis instructions use `memoir/evaluation/...` and `memoir/speech/...`.
+Mira's comparison and rubric save under `memoir/evaluation/agents/mira/...`;
+historical evaluation dataset IDs remain stable.
 Issue numbers and release dates stay in metadata and numeric version history.
 The [structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md) explains
 the execution paths, and the [individual inventory](docs/Langfuse_Prompt_Usage.md)
@@ -470,10 +498,14 @@ Langfuse. Integration guides, schemas and validators remain repository resources
 Canonical composition consumes host-owned events. Its retired full-source preview
 fallback and uncalled private-draft executor were removed. The HTTP first-response
 and canonical controlled profilers remain available. Collector configuration
-accepts `compact-v1`, `two-lane-v1` and the opt-in `reply-v2`, defaulting to
-`compact-v1`. The [small reply contract](docs/issue53-reply-v2.md) requires
-enabled two lanes, matching API/worker code and published prompt receipts;
-activation awaits matched live latency, semantic quality and background-state acceptance.
+supports only `reply-v2`, which is also the default. The older collector modes
+and their 13 prompt sources and receipts have been removed. Mira is an agent,
+not a callable skill; its system prompt is sent on every reply. Application-owned
+privacy review and database policy fences remain mandatory. Codex execution
+sandboxing does not classify memoir privacy restrictions. The
+[small reply contract](docs/issue53-reply-v2.md) requires enabled two lanes,
+matching API/worker code and published prompt receipts. Two lanes are enabled
+by default; the separate database rollout guard still applies. The [Mira prompt evaluation](docs/Langfuse_Prompt_Usage.md#mira-role-prompt-evaluation--29-october-2026) compares the concise role with the earlier instructions on 42 fictional bilingual cases.
 
 `MEMORY_SPARK_PARALLEL_POLICY_REVIEW=1` additionally opts into
 [revisable current replies](docs/issue53-parallel-reply-streaming.md). The API and
@@ -502,6 +534,12 @@ and dataset evaluations use this same builder. The browser sends original
 narration, without constructing model instructions. Each managed file has a `.langfuse.json`
 receipt with its exact numeric version and SHA-256. An unpublished draft does not
 pass runtime receipt validation; synchronize merged `main` before running it.
+
+`make up` validates all runtime prompt receipts before building or replacing
+application services. Missing, stale, malformed or wrongly owned receipts stop
+startup and list the prompt names needing publication. Run
+`python3 -B -m apps.api.prompt_artifact` to perform this local check independently;
+it reads no credentials and makes no network requests.
 
 Run `make prompt-sync-install` once per clone. The tracked Git `post-merge` hook
 then synchronizes prompts automatically after a successful merge/fast-forward

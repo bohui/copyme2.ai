@@ -8,17 +8,26 @@ ROOT = Path(__file__).resolve().parents[1]
 # New evaluation sources enter the merged-main publisher before receipts exist.
 # Runtime/export consumers still require an actual publication receipt.
 EVALUATION_PROMPT_PATHS = {
+    'memoir/evaluation/agents/mira/comparison': 'tests/evaluation/prompts/mira-comparison.md',
+    'memoir/evaluation/agents/mira/rubric': 'tests/evaluation/prompts/mira-rubric.md',
     'memoir/evaluation/skills/shared-policy': 'tests/evaluation/prompts/skill-judges/policy.md',
     **{'memoir/evaluation/skills/' + name + '/rubric':
        'tests/evaluation/prompts/skill-judges/' + name + '.md' for name in (
-           'memoir-interviewer', 'memoir-author-timeline', 'memoir-composer', 'memoir-family-tree',
+           'memoir-author-timeline', 'memoir-composer', 'memoir-family-tree',
            'memoir-memory-context', 'memoir-place-journey', 'memoir-place-groups',
            'memoir-place-photo-research', 'memoir-historical-news-research', 'memoir-story-game')},
 }
 
+# New runtime sources are published only after their reviewed Markdown reaches main.
+NEW_RUNTIME_PROMPTS = {'memoir/shared/background-agent', 'memoir/shared/skill-agent',
+    'memoir/skills/memoir-composer/instructions',
+    *[name for name in PROMPT_PATHS if name.startswith('memoir/agents/mira/')]}
+
 
 def prompt_registry(root: Path = ROOT, *, include_unpublished: bool = False) -> dict[str, str]:
-    result = dict(PROMPT_PATHS)
+    result = {name: path for name, path in PROMPT_PATHS.items()
+              if name not in NEW_RUNTIME_PROMPTS or include_unpublished
+              or (root / (path + '.langfuse.json')).is_file()}
     result.update({name: path for name, path in EVALUATION_PROMPT_PATHS.items()
                    if include_unpublished or (root / (path + '.langfuse.json')).is_file()})
     if len(result) != len(set(result.values())):

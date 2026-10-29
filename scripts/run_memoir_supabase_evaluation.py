@@ -1020,7 +1020,7 @@ async def _execute(plan,directory,settings,*,start_backend,create_confirm,backen
     if plan.get('progressive_rerun'):
         collector = {'model':settings.get('MEMORY_SPARK_COLLECTOR_MODEL') or settings.get('MEMORY_SPARK_LLM_MODEL','gpt-5.6-luna-pooled'),
             'requested_effort':settings.get('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT') or settings.get('MEMORY_SPARK_LLM_REASONING_EFFORT','max'),
-            'prompt_version':settings.get('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION') or 'compact-v1'}
+            'prompt_version':settings.get('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION') or 'reply-v2'}
         receipt['active_collector_configuration'] = collector
         receipt.setdefault('execution_profiles',[]).append({'attempt_id':receipt['attempt_id'],
             'collector_configuration':collector,'prior_original_submissions':receipt['backend_turn_submissions']})

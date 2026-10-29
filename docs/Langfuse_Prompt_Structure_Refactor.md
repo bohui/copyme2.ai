@@ -1,31 +1,16 @@
-# Skill-owned prompt structure
+# Agent and skill prompt structure
 
 ## One owner per instruction
 
-Langfuse owns versions; the repository contains exported, pinned deployment
-artifacts. The name identifies the skill and task. Issue numbers, dates and
-release versions belong in metadata and version history.
+Merged Git main owns prompt content; Langfuse owns published versions and the
+repository stores their pinned receipts. The name identifies the owning agent
+or skill and its task. Issue numbers, dates and release versions belong in
+metadata and version history.
 
 ```text
 memoir/
+  agents/mira/{system,policy-review,repair,repair-codes,strategy-proposal}
   skills/
-    memoir-interviewer/
-      reply
-      policy-review
-      policy-review-opening
-      governed-turn
-      repair-{codes,prefix,suffix,acknowledgement}
-      greeting-{begin,continue}
-      strategy-proposal
-      collector
-      collector-plan
-      background-memory
-      governed-continuity
-      governed-places
-      guidance
-      privacy-guard
-      strategy-{comfort,explore,shape,selection}
-      language-{en-AU,zh-CN}
     memoir-author-timeline/
       instructions
       contract
@@ -54,6 +39,7 @@ memoir/
     bounded-context/{policy,en-AU,zh-CN}
     place-conflicts
   evaluation/
+    agents/mira/{comparison,rubric}
     five-case-judge
     five-case-judge/guard
     trajectory-judge/{system,rubric}
@@ -61,19 +47,28 @@ memoir/
   speech/{default,en-AU,zh-CN}
 ```
 
-`memoir-interviewer` names the existing foreground collector's prompt ownership;
-it adds no runner or scheduler. The other skill sources remain inside their
-existing skill directories. Generic bounded-worker policy has one shared owner
-because both timeline and composer consume it.
+Mira is the conversational agent. Its five prompt sources live in
+`apps/api/prompts/mira/` under `memoir/agents/mira/...`; no interviewer skill is
+installed or invoked. The system prompt is included on every reply. Optional
+repair guidance, source-only privacy review and Lane B strategy proposals enter
+only their relevant calls. Greeting text is application-owned.
 
-The interviewer catalog contains 24 prompts reachable through supported modes,
-including a new conditional policy-review opening template awaiting publication.
-Eleven serve `reply-v2`, its conditional repairs, begin/continue actions and Lane B
-strategy proposal. Thirteen also serve `compact-v1` or `two-lane-v1`, so they
-remain active prompts. No `legacy` folder is created: retirement requires removing
-the supported callers first. Language and strategy variants use flat root names.
-Repository source paths remain stable: the catalog maps Langfuse names to these
-existing files. The cleanup does not change the configured collector mode.
+Mira's comparison judge and quality rubric save under
+`memoir/evaluation/agents/mira/{comparison,rubric}`, from
+`tests/evaluation/prompts/mira-{comparison,rubric}.md`. The publisher creates
+these names and the five runtime names, then writes matching receipts beside
+their source files. Recovery export uses the full managed names; the single
+artifact exporter's `mira` target resolves to the agent's `system.md`.
+Old skill prompt versions remain historical records, outside the managed
+registry. Existing dataset and case IDs remain stable for experiment continuity.
+
+New namespace pins require normal merged-main publication. Until then, source-only
+offline tests and explicitly labelled draft evaluations can inspect these drafts;
+production receipt validation still rejects missing or stale publication receipts.
+
+Memoir's application and SQL gates enforce privacy, evidence and commit authority.
+The Codex harness supplies bounded execution and tool handling, not an automatic
+classifier of memoir topic restrictions.
 
 The [privacy/repair optimization](issue53-policy-repair-20261022.md) composes
 optional acknowledgement guidance from the same privacy core and transmits only

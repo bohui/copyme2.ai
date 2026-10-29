@@ -19,14 +19,15 @@ def wire(question='What do you enjoy growing?',**changes):
         'question_evidence':None,**changes}
 
 
-def test_shared_core_plus_one_active_module_without_legacy_shape_gate():
-    from apps.api.interview_strategy import strategy_instructions
-    for strategy in ['comfort','explore','shape']:
-        prompt=strategy_instructions(strategy)
-        assert prompt.count('Active internal strategy:')==1
-        assert 'Active internal strategy: '+strategy in prompt
-        assert 'Shape only on the storyteller' not in prompt
-        assert 'publication' in prompt and 'untrusted' in prompt
+def test_reply_keeps_strategy_in_context_instead_of_prompt_variants():
+    from apps.api.conversation_reply import reply_instructions
+    from apps.api.prompt_catalog import PROMPT_PATHS
+    prompt = reply_instructions()
+    assert 'Active internal strategy:' not in prompt
+    assert "narrator's latest wishes" in prompt
+    assert [name for name in PROMPT_PATHS if name.startswith(
+        'memoir/agents/mira/strategy-')] == [
+            'memoir/agents/mira/strategy-proposal']
 
 
 def test_compact_selector_has_no_fresh_future_pool():

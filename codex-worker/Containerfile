@@ -25,7 +25,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     && rm /tmp/memory-spark-requirements.txt \
     && python -m playwright install --with-deps chromium
 
-ARG CODEX_VERSION=0.156.1
+ARG CODEX_VERSION=0.165.0
 RUN --mount=type=cache,target=/root/.npm \
     npm install --global --no-audit --no-fund npm@latest @openai/codex@${CODEX_VERSION}
 

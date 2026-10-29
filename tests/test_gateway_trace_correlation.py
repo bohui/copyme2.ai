@@ -47,13 +47,13 @@ def test_structured_gateway_call_joins_application_span(monkeypatch):
         body = json.loads(request.content)
         assert json.loads(body['input']) == payload
         assert int(request.headers['Content-Length']) == len(request.content)
-        assert body['metadata']['generation_name'] == 'memoir-interviewer'
+        assert body['metadata']['generation_name'] == 'mira'
         return httpx.Response(200, json={'id': 'response-same-request', 'status': 'completed',
             'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': '{}'}]}]})
 
     output, receipt = asyncio.run(complete_json(
-        'memoir/skills/memoir-interviewer/policy-review', payload, {},
-        model='configured-model', effort='low', trace_name='memoir-interviewer',
+        'memoir/agents/mira/policy-review', payload, {},
+        model='configured-model', effort='low', trace_name='mira',
         diagnostic_request_id='same-request', base_url='https://gateway.invalid/v1',
         api_key='test-key', transport=httpx.MockTransport(gateway)))
 
@@ -101,7 +101,7 @@ def test_unavailable_tracing_keeps_provider_request_working(monkeypatch, failure
         assert 'traceparent' not in request.headers
         return httpx.Response(200, json={'id': 'untraced-response', 'status': 'completed',
             'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': '{}'}]}]})
-    output, _ = asyncio.run(complete_json('memoir/skills/memoir-interviewer/policy-review', {}, {},
+    output, _ = asyncio.run(complete_json('memoir/agents/mira/policy-review', {}, {},
         model='model', effort='low', base_url='https://gateway.invalid/v1', api_key='test-key',
         transport=httpx.MockTransport(gateway)))
     assert output == {} and len(calls) == 1
@@ -125,6 +125,34 @@ def test_streaming_gateway_call_keeps_the_application_parent(monkeypatch):
     assert output == '{"ok":true}'
 
 
+def test_skill_agent_provider_config_uses_its_own_application_span(tmp_path, monkeypatch):
+    import tomllib
+    from apps.api.memoir_skill_agent import run_skill_agent
+    from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
+    from controlled_skill_harness import ControlledSkillConnection
+    from test_memoir_skill_agent import Publication
+    tracer = ApplicationTracer()
+    monkeypatch.setattr(llm_tracing, '_client_cache', tracer)
+    configs = []
+    class Connection(ControlledSkillConnection):
+        async def __aenter__(self):
+            configs.append(tomllib.loads((self.home / 'config.toml').read_text()))
+            return await super().__aenter__()
+    async def run():
+        with llm_tracing.trace_llm_call('background-parent', 'model', gateway=True):
+            return await run_skill_agent(command=['controlled'], home_root=tmp_path,
+                base_url='https://gateway.invalid/v1', api_key='test-key', model='model',
+                instructions=load_prompt_artifact(prompt_path('memoir/shared/background-agent')),
+                packet={}, skills=['memoir-author-timeline'], schema={'properties':{'events':{}}},
+                publisher=Publication(), fence={}, connection_factory=Connection)
+    asyncio.run(run())
+    parent, agent = tracer.observations
+    assert agent.fields['as_type'] == 'span'
+    assert configs[0]['model_providers']['llm_provider']['http_headers'] == {
+        'traceparent': f'00-{agent.trace_id}-{agent.id}-01'}
+    assert agent.id != parent.id
+
+
 def test_concurrent_gateway_calls_keep_independent_trace_parents(monkeypatch):
     tracer = ApplicationTracer()
     monkeypatch.setattr(llm_tracing, '_client_cache', tracer)
@@ -138,7 +166,7 @@ def test_concurrent_gateway_calls_keep_independent_trace_parents(monkeypatch):
         return httpx.Response(200, json={'id': 'concurrent-response', 'status': 'completed',
             'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': '{}'}]}]})
     async def run():
-        await asyncio.gather(*(complete_json('memoir/skills/memoir-interviewer/policy-review', {}, {},
+        await asyncio.gather(*(complete_json('memoir/agents/mira/policy-review', {}, {},
             model='model', effort='low', base_url='https://gateway.invalid/v1', api_key='test-key',
             diagnostic_request_id='request-' + str(index), transport=httpx.MockTransport(gateway))
             for index in range(2)))

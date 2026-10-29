@@ -143,10 +143,6 @@ def collector_schema(context=None):
     return question_evidence_schema(resolution_schema(schema, context, plan=True), context)
 
 
-def collector_instructions(context):
-    prefix = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/collector-plan'))
-    return prefix + json.dumps(context, ensure_ascii=False, separators=(',', ':'))
-
 def _questions(value):
     return len(re.findall(r'[?？]', value))
 

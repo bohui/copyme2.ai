@@ -27,3 +27,27 @@ def load_prompt_artifact(path: Path) -> str:
             or receipt.get("sha256") != hashlib.sha256(prompt.encode("utf-8")).hexdigest()):
         raise ValueError(f"Invalid Langfuse prompt artifact: {path}")
     return prompt
+
+
+def validate_runtime_prompt_artifacts() -> None:
+    invalid = []
+    for name, relative in PROMPT_PATHS.items():
+        path = ROOT / relative
+        try:
+            load_prompt_artifact(path)
+            receipt = json.loads(path.with_name(path.name + '.langfuse.json').read_text())
+            if receipt['name'] != name:
+                raise ValueError('Prompt receipt belongs to another managed name')
+        except (OSError, ValueError):
+            invalid.append(name)
+    if invalid:
+        raise ValueError('Runtime prompts need valid Langfuse publication receipts: '
+            + ', '.join(invalid) + '. Merge the prompt changes to main, pull main, '
+            'and run make prompt-sync before starting services.')
+
+
+if __name__ == '__main__':
+    try:
+        validate_runtime_prompt_artifacts()
+    except ValueError as error:
+        raise SystemExit(str(error)) from None

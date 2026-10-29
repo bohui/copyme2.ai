@@ -92,6 +92,8 @@ def test_selected_photo_request_uses_the_shared_period_and_triggers_news(monkeyp
         client = SimpleNamespace(close=lambda: None)
         def memoir_project(self, project): return {'project_id': project}
         def research_places(self, project): return research_places(PLACES, view()['sources'])
+        def queue_background_agent(self, project, selection):
+            calls.append(('background', project, selection))
         def historical_news_basis(self, project):
             return {**view(), 'news_snapshot': {'source_sequence': 1, 'context_revision': 'revision'}}
         def begin_historical_news(self, project, hypothesis, snapshot):
@@ -114,4 +116,5 @@ def test_selected_photo_request_uses_the_shared_period_and_triggers_news(monkeyp
     assert response.status_code == 200, response.text
     assert response.json()['items'][0]['date_expression'] == '1983'
     assert calls[0] == ('photos', '承德市', '1980s')
-    assert ('news', '承德, 中国', 1980, 1989) in calls
+    assert ('background', 'project', {'place':'承德市','period':'1980s'}) in calls
+    assert not any(row[0]=='news' for row in calls)

@@ -53,16 +53,22 @@ def inventory():
     from apps.api.background_skills import SKILLS
     from apps.api.prompt_catalog import PROMPT_PATHS
     owners = {name.split('/')[2] for name in PROMPT_PATHS if name.startswith('memoir/skills/')}
-    actual = set(SKILLS) | owners
+    # Retain stable case IDs while evaluating Mira as an agent. Guidance is an
+    # embedded background dependency, without a standalone scenario catalog.
+    actual = (set(SKILLS) | owners) - {'memoir-interview-guidance'}
+    if any(name.startswith('memoir/agents/mira/') for name in PROMPT_PATHS):
+        actual.add('memoir-interviewer')
     if actual != KNOWN:
         raise ValueError('unmapped_skill_inventory: ' + ', '.join(sorted(actual ^ KNOWN)))
     result = {}
     for skill in sorted(actual):
         definition = asdict(SKILLS[skill]) if skill in SKILLS else dict(
             name=skill, execution='model', runner='foreground_collector', status='implemented', trigger='foreground_turn')
+        definition['kind'] = 'agent' if skill == 'memoir-interviewer' else 'skill'
         definition['prompt_sources'] = []
+        prefix = 'memoir/agents/mira/' if skill == 'memoir-interviewer' else 'memoir/skills/' + skill + '/'
         for name, relative in sorted(PROMPT_PATHS.items()):
-            if not name.startswith('memoir/skills/' + skill + '/'):
+            if not name.startswith(prefix):
                 continue
             from apps.api.prompt_artifact import load_prompt_artifact
             from apps.api.prompt_composition import render_prompt_artifact
@@ -79,7 +85,9 @@ def inventory():
 
 
 def judge_definition(skill):
-    paths = [JUDGES / 'policy.md', JUDGES / (skill + '.md')]
+    rubric = (ROOT / 'tests/evaluation/prompts/mira-rubric.md'
+              if skill == 'memoir-interviewer' else JUDGES / (skill + '.md'))
+    paths = [JUDGES / 'policy.md', rubric]
     components, texts = [], []
     for path in paths:
         from scripts.prompt_registry import EVALUATION_PROMPT_PATHS
@@ -168,13 +176,14 @@ def packet(item):
         instructions, schema = profile_contract(task['page'])
         payload = profile_packet(task['page'])
     elif skill == 'memoir-interviewer':
-        from apps.api.interview_strategy import strategy_instructions
-        from apps.api.lifetime_memory_continuity import GOVERNED_CONTINUITY_INSTRUCTIONS, governed_collector_schema
-        from apps.api.prompt_composition import render_prompt_artifact
-        instructions = '\n'.join((strategy_instructions(task['strategy']), render_prompt_artifact(
-            prompt_path('memoir/skills/memoir-interviewer/language-' + item['locale'])), GOVERNED_CONTINUITY_INSTRUCTIONS))
+        from apps.api.conversation_reply import reply_candidates, reply_instructions
+        from apps.api.lifetime_memory_continuity import governed_collector_schema
+        task['context'].update(reply_contract='reply-v2', two_lane_memory=True)
+        instructions = reply_instructions()
         schema = governed_collector_schema(task['context'])
-        payload = task['context']
+        payload = {**task['context'], 'reply_language': item['locale'],
+            'brief': {'hints': [dict(index=index, **hint)
+                for index, hint in enumerate(reply_candidates(task['context']))]}}
     elif skill in {'memoir-author-timeline', 'memoir-place-journey'}:
         from apps.api.lifetime_memory_lane_engine import lane_contract, EXTRACTION_WINDOW_CONTRACT
         instructions, schema = lane_contract('extract', item['locale'], two_lane=skill == 'memoir-place-journey')
@@ -224,7 +233,7 @@ def validate(item, output):
         from apps.api.lifetime_memory_continuity import validate_governed_collector_result
         from jsonschema import Draft202012Validator
         Draft202012Validator(packet(item)['schema']).validate(output)
-        result = validate_governed_collector_result(output, task['context'])
+        result = validate_governed_collector_result(output, packet(item)['input'])
         outcome = result['strategy_outcome']
         if result['stopped'] != facts['stopped'] or bool(outcome['question_delivered']) != facts['question']:
             raise ValueError('interviewer_control_mismatch')

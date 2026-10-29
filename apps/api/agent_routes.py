@@ -23,7 +23,6 @@ from .place_geocoding import geo_provider
 from .workspace_memory_actions import WorkspaceMemoryFocus
 from .formal_memoir_routes import router as formal_memoir_router
 from .story_game_routes import router as story_game_router
-from .prompt_artifact import load_prompt_artifact, prompt_path
 
 router = APIRouter(prefix='/v1/agent', tags=['Codex agent'])
 router.include_router(formal_memoir_router)
@@ -80,12 +79,6 @@ class GreetingInput(BaseModel):
     project_id: str | None = Field(default=None, min_length=1, max_length=128)
     language: Literal['en-AU', 'zh-CN'] | None = None
     first_reply_localization: bool = False
-
-
-GREETING_PROMPTS = {
-    action: load_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/greeting-{action}'))
-    for action in ('begin', 'continue')
-}
 
 
 ProfileField = Literal['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']
@@ -337,17 +330,13 @@ async def project_place_photos(project_id: str, request: Request, background_tas
 
 
 async def _selected_place_news(authorization, project_id, place, period):
-    """Reuse the news runner and durable claim after the selected photo response."""
+    """Wake the durable background agent after a selected-place photo response."""
     from .background_skills import admit, SkillUnavailable
-    from .historical_news import HistoricalResearch, enrich
-    from .historical_news_provider import GatewayHistoricalProvider
     storage = None
     try:
         admit('memoir-historical-news-research', 'place_selection')
         storage = await asyncio.to_thread(authenticated_storage, authorization)
-        if runtime._news_engine is None:
-            runtime._news_engine = HistoricalResearch(GatewayHistoricalProvider())
-        await enrich(storage, project_id, runtime._news_engine, selection={'place': place, 'period': period})
+        await asyncio.to_thread(storage.queue_background_agent, project_id, {'place': place, 'period': period})
     except SkillUnavailable:
         pass
     except Exception as error:
@@ -420,7 +409,7 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     from .lifetime_memory_runtime import lifetime_http_turn
-    return await lifetime_http_turn(runtime, storage, GREETING_PROMPTS[payload.action], accept=accept, options={
+    return await lifetime_http_turn(runtime, storage, '', accept=accept, options={
         'project_id': payload.project_id, 'language': payload.language, 'user_response': False,
         'client_turn_id': str(payload.client_turn_id) if payload.client_turn_id else None})
 

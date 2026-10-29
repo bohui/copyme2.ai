@@ -11,13 +11,118 @@ copy. After a reply identifies unavailable details, the host renders a selected
 broader pool question verbatim or this optional invitation. It makes no extra
 model call and does not treat the unavailable detail as an answered fact.
 
-The interviewer rows were refreshed on 22 October. The privacy optimization adds
-one conditional opening template, making 24 catalog entries, all at the skill
-root. Language, strategy, greeting and repair names are flat. None are classified
-as retired. Changed and new sources below await main-only publication; existing
-receipts remain untouched until then. The remaining rows retain the original
-audit date. See the
-[layout and migration details](Langfuse_Prompt_Structure_Refactor.md).
+Mira uses only `reply-v2`, with five agent-owned prompt drafts under
+`apps/api/prompts/mira/`: `system`, `policy-review`, `repair`, `repair-codes`
+and `strategy-proposal`. They publish under `memoir/agents/mira/...` after merge
+to main; new namespace receipts are not fabricated from the older skill pins.
+
+The greeting endpoint returns localized application text without a model call.
+Duplicate dispatch instructions, the separate early-ack template and three repair
+fragments have been removed or folded into the five retained sources. The system
+prompt owns voice and interviewing judgement; the schema and host validate the
+private work handoff to Lane B. Background workers read the accepted original
+source, so Mira does not extract or retell it in that handoff.
+
+Privacy is enforced by Memoir's current-source policy review and database policy
+fences, not by the generic Codex harness. Its review prompt remains separate from
+Mira's conversational role. Existing `memoir-interviewer` evaluation case IDs are
+stable historical identifiers; evaluation inventory classifies Mira as an agent.
+Its quality rubric and paired comparison prompt save under
+`memoir/evaluation/agents/mira/{rubric,comparison}`. The older skill rubric name
+is no longer managed, and its receipt is not reused for the new agent identity.
+
+Earlier character counts below describe the recorded optimization, not the new
+draft. See the [paired draft evaluation](test-evidence/mira-role-prompt-20261029.json).
+
+
+## Mira role-prompt evaluation — 29 October 2026
+
+The initial concise role was **1,033 characters**, down from **1,922** characters for the
+previous reply-plus-dispatch instructions (46% less static text). The output
+schema and host validators still own evidence spans, prepared-question identity,
+private work routing, privacy epochs and atomic saving. No judgement rules were
+moved into hidden runtime string classifiers as part of this simplification.
+
+Paired evaluation used the configured `gpt-6.1-sol` route at low requested effort
+for both prompts. A separate `gpt-5.6-luna-memoir-low` call reviewed anonymous A/B
+outputs. All inputs were fictional: 36 existing bilingual conversation cases and
+six additional Lane B cases covering prepared clarification, recall difficulty
+and the latest redirect overriding queued hints.
+
+| Observed measure | Previous prompt | Concise Mira role |
+| --- | ---: | ---: |
+| Validated proposals | 42/42 | 42/42 |
+| Blind mean quality, 0–4 | 3.762 | 3.810 |
+| Critical issues flagged in final sample | 0 | 0 |
+| Preferred in paired review | 7 | 9 |
+
+The other 26 comparisons tied. This small exploratory sample supports preserving
+conversation quality; the score difference is not evidence of statistical
+superiority. Initial pilots caught an assumed narrator presence and an unsupported
+causal link. The final role therefore preserves uncertainty about who was involved
+and how events connect. The judge rubric also distinguishes acknowledging rejected
+wording from asserting it as true. Pilot and refinement evidence are retained.
+
+- [36-case comparison](test-evidence/mira-role-prompt-20261029.json)
+- [Six Lane B comparisons](test-evidence/mira-lane-b-prompt-20261029.json)
+- [Initial pilot](test-evidence/mira-role-prompt-20261029-pilot.json)
+- [Intermediate refinement](test-evidence/mira-role-prompt-20261029-refinement.json)
+
+The required `make test-place-research` regression passed: 633 web tests,
+631 Python cases and 96 skill-unit checks. The current privacy/early-ack tests
+passed 52 PostgreSQL-backed cases. Legacy native-runtime fixtures still expect
+retired reply shapes and are not included in these passing results. Live prompt
+comparisons establish model-proposal quality only; runtime publication still
+requires merged-main Langfuse receipts. No new receipt versions were invented.
+
+## Emotional attunement refinement — 29 October 2026
+
+The current compiled system role is **1,504 characters**. Mira listens with the ease and
+care of an old friend, notices emotional meaning in specific details, and keeps
+unspoken feelings as hunches the narrator can confirm or correct. The narrator's
+account defines their feelings, relationships and motives. The role also makes
+room for joy and ordinary moments, follows boundaries, and keeps the conversation
+moving with a useful next question when one helps.
+
+The configured model and independent blind judge compared this role with the
+1,033-character role on 16 new fictional cases, paired across English and Chinese.
+They cover humour masking hurt, unexplained absence, minimised childhood
+responsibility, private relief, quiet joy, a topic boundary, an ordinary day and
+correction of an emotional interpretation. All 16 proposals passed production
+validation for each prompt. Mean quality was **3.750 versus 3.438** on a 0–4 scale;
+the new role was preferred six times, the baseline once, and nine pairs tied.
+Neither prompt had a critical issue flagged in this final emotional sample.
+
+The 36 existing conversation cases also passed for both prompts, with no critical
+issues flagged. Mean quality was 3.944 for the new role and 3.917 for the baseline;
+three pairs preferred the new role, two preferred the baseline and 31 tied.
+All six Lane B probes passed for both prompts, with no critical issues flagged.
+Their mean quality was 3.833 for the new role versus 4.000 for the baseline;
+five pairs tied and one preferred the baseline. Across all three final samples,
+both prompts passed 58/58 proposal validations. The 91 focused offline prompt,
+projection and transport tests also passed.
+These are small exploratory comparisons, not statistical evidence of superiority.
+
+An initial pilot caught an omitted follow-up, an unsupported shared-life claim
+and an overconfident emotional inference. Three generation requests encountered
+gateway 502 errors across the pilot and initial refined runs. A final Lane B
+rerun with the unchanged refined prompt completed all six cases. The refinement
+made emotional readings explicitly tentative
+and restored the existing next-question guidance. Final comparisons reuse the
+verified baseline outputs and rerun candidate generation and blind judging;
+baseline judgments can therefore differ between rounds. Pilot evidence is retained.
+These are draft model proposals; publication and recovery of the pending live turn
+still require the merged-main prompt workflow.
+
+- [Emotional comparison](test-evidence/mira-emotional-attunement-20261029.json)
+- [Conversation regression comparison](test-evidence/mira-emotional-core-20261029.json)
+- [Lane B comparison](test-evidence/mira-emotional-lane-b-20261029.json)
+- [Emotional pilot](test-evidence/mira-emotional-attunement-20261029-pilot.json)
+- [Conversation pilot](test-evidence/mira-emotional-core-20261029-pilot.json)
+- [Lane B pilot](test-evidence/mira-emotional-lane-b-20261029-pilot.json)
+- [Lane B run with a gateway failure](test-evidence/mira-emotional-lane-b-20261029-transport-retry.json)
+
+## Earlier recorded request measurements
 
 For a normal `reply-v2` narrator turn, these are separate model calls:
 
@@ -34,8 +139,7 @@ template composes the core rules and original acknowledgement guidance into
 1,998 characters. On a rejected reply, selected repair guidance uses 431–823
 static characters, down from 3,215, plus error data and the optional
 acknowledgement-preservation rule. Greetings and Lane B have separate triggers;
-the other supported modes assemble their own prompts. The 24-entry inventory is
-not the prompt input for every turn. See the
+the five-source inventory is not the prompt input for every turn. See the
 [profiled optimization](issue53-policy-repair-20261022.md), including slower
 held-out cases and the remaining deployment/acceptance gates.
 
@@ -49,8 +153,8 @@ held-out cases and the remaining deployment/acceptance gates.
 
 `lane`, `two-lane` and `organiser-job` are execution details, not parallel prompt
 owners. Composer batch preparation and composition now belong to composer;
-place/question fields extend the existing timeline request. The foreground
-collector has its own background-memory guidance.
+place fields extend the existing timeline request. The foreground reply consumes
+bounded background hints as data.
 
 The composer guide points to the actual phase templates and shared policies.
 Its guide, integration contracts and editorial documentation remain ordinary
@@ -70,10 +174,15 @@ host-owned events. Historical preview job IDs resolve to canonical draft state;
 polling cannot restart the retired model workflow. Deterministic source-reference
 and cache readers remain available for historical data.
 
-## Every retained prompt
+## Prompt inventory
 
 | Langfuse name | Version | Classification | Consumer / condition |
 | --- | ---: | --- | --- |
+| [`memoir/agents/mira/system`](../apps/api/prompts/mira/system.md) | Pending main publication | Agent runtime | Always-loaded Mira identity, conversational judgement and private work handoff. |
+| [`memoir/agents/mira/policy-review`](../apps/api/prompts/mira/policy-review.md) | Pending main publication | Runtime gate | Current-source privacy controls, with an optional schema-requested early acknowledgement. |
+| [`memoir/agents/mira/repair`](../apps/api/prompts/mira/repair.md) | Pending main publication | Conditional runtime | Correction instructions for rejected or incomplete output; acknowledgement locking stays in the schema. |
+| [`memoir/agents/mira/repair-codes`](../apps/api/prompts/mira/repair-codes.md) | Pending main publication | Conditional runtime | Only the matching validation rule and common guidance enter the repair. |
+| [`memoir/agents/mira/strategy-proposal`](../apps/api/prompts/mira/strategy-proposal.md) | Pending main publication | Conditional background runtime | Optional Lane B strategy planning, without permission or publication authority. |
 | [`memoir/evaluation/five-case-judge`](../tests/evaluation/memoir_five_case_judge_prompt.md) | 1 | Evaluation only | [`scripts/run_memoir_five_case_semantic_judge.py`](../scripts/run_memoir_five_case_semantic_judge.py) — Five-case semantic judge template. |
 | [`memoir/evaluation/five-case-judge/guard`](../tests/evaluation/prompts/five-case-judge/guard.md) | 1 | Evaluation only | [`scripts/run_memoir_five_case_semantic_judge.py`](../scripts/run_memoir_five_case_semantic_judge.py) — Semantic judge guard for retained evaluation evidence. |
 | [`memoir/evaluation/live-skills/historical-lead`](../tests/evaluation/prompts/live-skills/historical-lead.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Isolated live-skill contract probe; no production persistence. |
@@ -113,30 +222,6 @@ and cache readers remain available for historical data.
 | [`memoir/skills/memoir-composer/shared/editorial-review`](../skills/memoir-composer/references/editorial-review.prompt.md) | 1 | Shared runtime | [`apps/api/memoir_preview.py`](../apps/api/memoir_preview.py) — Review-only editorial component. |
 | [`memoir/skills/memoir-composer/shared/narrative-enrichment`](../skills/memoir-composer/references/narrative-enrichment.md) | 1 | Shared runtime | [`apps/api/memoir_preview.py`](../apps/api/memoir_preview.py) — Single narrative policy read by drafting and review. |
 | [`memoir/skills/memoir-family-tree/instructions`](../skills/memoir-family-tree/SKILL.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Explicit isolated probe/native-search model input; does not prove a production binding. |
-| [`memoir/skills/memoir-interviewer/reply`](../skills/memoir-interviewer/prompts/reply.md) | 1 | Runtime | [`apps/api/conversation_reply.py`](../apps/api/conversation_reply.py) — Small foreground proposal for `reply-v2`; locale and strategy arrive as data. |
-| [`memoir/skills/memoir-interviewer/policy-review`](../skills/memoir-interviewer/prompts/policy-review.md) | Pending | Runtime | [`apps/api/policy_review.py`](../apps/api/policy_review.py) — Source-only privacy policy review before the governed reply; changed source awaits publication. |
-| [`memoir/skills/memoir-interviewer/policy-review-opening`](../skills/memoir-interviewer/prompts/policy-review-opening.md) | Pending | Conditional runtime | [`apps/api/policy_review.py`](../apps/api/policy_review.py) — Composes the core once with original style guidance only when early acknowledgement is requested. |
-| [`memoir/skills/memoir-interviewer/repair-codes`](../skills/memoir-interviewer/prompts/governed-repair/codes.md) | Pending | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Managed rule catalog; only common guidance and the matching rule enter a bounded repair. |
-| [`memoir/skills/memoir-interviewer/governed-places`](../skills/memoir-interviewer/prompts/governed-places.md) | 1 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Foreground place extraction when background extraction is disabled. |
-| [`memoir/skills/memoir-interviewer/background-memory`](../skills/memoir-interviewer/prompts/background-memory.md) | 2 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Optional foreground hint when background extraction owns place work. |
-| [`memoir/skills/memoir-interviewer/collector`](../skills/memoir-interviewer/prompts/collector.md) | 2 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Default foreground collector; one governed request. |
-| [`memoir/skills/memoir-interviewer/collector-plan`](../skills/memoir-interviewer/prompts/collector-plan.md) | 4 | Compatibility runtime | [`apps/api/interview_plan.py`](../apps/api/interview_plan.py) — Structured result/plan contract appended to the default collector. |
-| [`memoir/skills/memoir-interviewer/governed-continuity`](../skills/memoir-interviewer/prompts/governed-continuity.md) | 3 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Continuity output contract appended to the same collector call. |
-| [`memoir/skills/memoir-interviewer/repair-acknowledgement`](../skills/memoir-interviewer/prompts/governed-repair/acknowledgement.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Retain the already streamed acknowledgement during bounded repair. |
-| [`memoir/skills/memoir-interviewer/repair-prefix`](../skills/memoir-interviewer/prompts/governed-repair/prefix.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Bounded repair prefix after a rejected collector output. |
-| [`memoir/skills/memoir-interviewer/repair-suffix`](../skills/memoir-interviewer/prompts/governed-repair/suffix.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Bounded repair suffix after a rejected collector output. |
-| [`memoir/skills/memoir-interviewer/governed-turn`](../skills/memoir-interviewer/prompts/governed-turn.md) | 1 | Runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Structured governed user packet, not a second collector workflow. |
-| [`memoir/skills/memoir-interviewer/greeting-begin`](../skills/memoir-interviewer/prompts/greeting/begin.md) | 1 | Runtime | [`apps/api/agent_routes.py`](../apps/api/agent_routes.py) — Server-owned begin action through the same governed conversation transport. |
-| [`memoir/skills/memoir-interviewer/greeting-continue`](../skills/memoir-interviewer/prompts/greeting/continue.md) | 1 | Runtime | [`apps/api/agent_routes.py`](../apps/api/agent_routes.py) — Server-owned return action through the same governed conversation transport. |
-| [`memoir/skills/memoir-interviewer/guidance`](../skills/memoir-interviewer/prompts/guidance.md) | 4 | Compatibility runtime | [`apps/api/prompt_composition.py`](../apps/api/prompt_composition.py) — One behavior component shared by the default collector and three strategy variants. |
-| [`memoir/skills/memoir-interviewer/language-en-AU`](../skills/memoir-interviewer/prompts/language/en-AU.md) | 1 | Compatibility runtime | [`apps/api/codex_runtime.py`](../apps/api/codex_runtime.py) — Select the English interview policy; does not create another generation. |
-| [`memoir/skills/memoir-interviewer/language-zh-CN`](../skills/memoir-interviewer/prompts/language/zh-CN.md) | 1 | Compatibility runtime | [`apps/api/codex_runtime.py`](../apps/api/codex_runtime.py) — Select the Chinese interview policy; does not create another generation. |
-| [`memoir/skills/memoir-interviewer/privacy-guard`](../skills/memoir-interviewer/prompts/privacy-guard.md) | 1 | Compatibility runtime | [`apps/api/lifetime_memory_runtime.py`](../apps/api/lifetime_memory_runtime.py) — Default collector privacy rule in the existing request. |
-| [`memoir/skills/memoir-interviewer/strategy-comfort`](../skills/memoir-interviewer/prompts/strategy/comfort.md) | 2 | Compatibility runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — Comfort selection within the existing foreground collector, gated by two-lane/strategy configuration. |
-| [`memoir/skills/memoir-interviewer/strategy-explore`](../skills/memoir-interviewer/prompts/strategy/explore.md) | 2 | Compatibility runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — Explore selection within the existing foreground collector, gated by two-lane/strategy configuration. |
-| [`memoir/skills/memoir-interviewer/strategy-proposal`](../skills/memoir-interviewer/prompts/strategy/proposal.md) | 1 | Conditional runtime | [`apps/api/two_lane_memory.py`](../apps/api/two_lane_memory.py) — Optional future-strategy output on that extraction call. |
-| [`memoir/skills/memoir-interviewer/strategy-selection`](../skills/memoir-interviewer/prompts/strategy/selection.md) | 6 | Compatibility runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — One selection/work-hint contract shared by the three strategies. |
-| [`memoir/skills/memoir-interviewer/strategy-shape`](../skills/memoir-interviewer/prompts/strategy/shape.md) | 2 | Compatibility runtime | [`apps/api/interview_strategy.py`](../apps/api/interview_strategy.py) — Shape selection within the existing foreground collector, gated by two-lane/strategy configuration. |
 | [`memoir/skills/memoir-memory-context/instructions`](../skills/memoir-memory-context/SKILL.md) | 1 | Runtime | [`apps/api/background_profile.py`](../apps/api/background_profile.py) — Automatic profile extraction for currently admitted targets. |
 | [`memoir/skills/memoir-memory-context/summary`](../skills/memoir-memory-context/prompts/summary.md) | 1 | Runtime | [`apps/api/lifetime_memory_summary.py`](../apps/api/lifetime_memory_summary.py) — Canonical source-linked memory summary phase. |
 | [`memoir/skills/memoir-place-groups/instructions`](../skills/memoir-place-groups/SKILL.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Explicit isolated probe/native-search model input; does not prove a production binding. |

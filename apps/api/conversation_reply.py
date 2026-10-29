@@ -38,9 +38,8 @@ def reply_candidates(context):
 
 
 def reply_instructions():
-    core = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/reply'))
-    dispatch = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-turn'))
-    if len(core + '\n' + dispatch) >= 2000:
+    core = load_prompt_artifact(prompt_path('memoir/agents/mira/system'))
+    if len(core) >= 2000:
         raise ValueError('Compiled reply instructions exceed the 2000 character budget')
     return core
 

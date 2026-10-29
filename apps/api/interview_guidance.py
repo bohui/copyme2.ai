@@ -155,7 +155,7 @@ def guidance_contract(fence):
     from .prompt_artifact import load_prompt_artifact, prompt_path
     instructions = load_prompt_artifact(prompt_path('memoir/skills/memoir-interview-guidance/instructions'))
     if fence.two_lane and fence.two_lane.strategy_mode:
-        instructions += '\n' + load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/strategy-proposal'))
+        instructions += '\n' + load_prompt_artifact(prompt_path('memoir/agents/mira/strategy-proposal'))
     schema = GuidanceResult.model_json_schema()
     def required(value):
         if isinstance(value, dict):

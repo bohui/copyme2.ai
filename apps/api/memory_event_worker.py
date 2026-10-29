@@ -240,6 +240,39 @@ class MemoryEventWorker:
         self.worker_secret = worker_secret or os.environ['MEMORY_SPARK_CODEX_WORKER_SECRET']
         self.worker_transport = worker_transport
 
+    async def execute_background_agent(self, run_id):
+        run_seconds = int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS', '900'))
+        job = await self.broker.rpc('claim_memoir_background_agent', p_id=run_id, p_run_seconds=run_seconds)
+        if not job:
+            return {'status': 'finished', 'pending': False}
+        async def heartbeat():
+            while True:
+                await asyncio.sleep(20)
+                if not await self.broker.rpc('heartbeat_memoir_background_agent', p_id=run_id, p_token=job['token']):
+                    return
+        renewal = asyncio.create_task(heartbeat())
+        success = False
+        try:
+            async with asyncio.timeout(run_seconds), httpx.AsyncClient(timeout=run_seconds,
+                    transport=self.worker_transport) as client:
+                response = await client.post(self.worker_url + '/internal/codex/turn',
+                    headers={'X-Codex-Worker-Secret': self.worker_secret}, json={
+                        'user_id': job['user_id'], 'project_id': job['project_id'],
+                        'agent_role': 'background_agent', 'background_agent': job})
+                response.raise_for_status()
+                result = response.json()
+                success = not result.get('pending', True)
+        except (ValueError, RuntimeError, httpx.HTTPError, TimeoutError):
+            logging.getLogger(__name__).warning('Memoir background agent deferred run_id=%s', run_id)
+        finally:
+            renewal.cancel()
+            await asyncio.gather(renewal, return_exceptions=True)
+            from .lifetime_memory_lane_engine import _settle
+            settled = asyncio.create_task(self.broker.rpc('finish_memoir_background_agent',
+                p_id=run_id, p_token=job['token'], p_success=success))
+            await _settle(settled)
+        return settled.result()
+
     async def execute_lane(self, lane_id):
         started = time.monotonic()
         run_seconds = int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS', '900'))
