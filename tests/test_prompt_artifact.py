@@ -157,7 +157,8 @@ def test_catalog_has_one_owner_per_source_and_no_unused_receipts():
         if name.startswith('memoir/skills/'):
             assert relative.startswith('skills/' + name.split('/')[2] + '/')
         assert not name.startswith(('memoir/composer/', 'memoir/memory/', 'memoir/interview/', 'memoir/research/'))
-    assert 'skills/memoir-composer/SKILL.md' not in registry.values()
+    publishing = prompt_registry(include_unpublished=True)
+    assert publishing['memoir/skills/memoir-composer/instructions'] == 'skills/memoir-composer/SKILL.md'
     assert 'skills/memoir-composer/references/workflows.md' not in registry.values()
 
 

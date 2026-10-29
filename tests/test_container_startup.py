@@ -202,6 +202,18 @@ def test_unpublished_runtime_prompt_preserves_running_services_and_cache(stack, 
     assert 'make prompt-sync' in result.stdout + result.stderr
 
 
+def test_runtime_prompt_preflight_ignores_unshipped_evaluation_inputs(stack):
+    root, up, calls = stack
+    catalog = root / 'apps/api/prompt_catalog.py'
+    with catalog.open('a') as stream:
+        stream.write("PROMPT_PATHS['memoir/evaluation/five-case-judge'] = 'tests/evaluation/five-case-judge.md'\n")
+    assert not (root / 'tests/evaluation').exists()
+
+    up()
+
+    assert builds(calls())
+
+
 def test_failed_external_pull_preserves_running_containers_and_startup_cache(stack):
     root, up, calls = stack
     up()
