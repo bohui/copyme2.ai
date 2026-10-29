@@ -5,7 +5,7 @@ from apps.api.prompt_catalog import PROMPT_PATHS
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# New evaluation sources enter the merged-main publisher before receipts exist.
+# New evaluation sources enter the publisher before receipts exist.
 # Runtime/export consumers still require an actual publication receipt.
 EVALUATION_PROMPT_PATHS = {
     'memoir/evaluation/agents/mira/comparison': 'tests/evaluation/prompts/mira-comparison.md',
@@ -18,7 +18,7 @@ EVALUATION_PROMPT_PATHS = {
            'memoir-place-photo-research', 'memoir-historical-news-research', 'memoir-story-game')},
 }
 
-# New runtime sources are published only after their reviewed Markdown reaches main.
+# New runtime sources need publication receipts before runtime/export use.
 NEW_RUNTIME_PROMPTS = {'memoir/shared/background-agent', 'memoir/shared/skill-agent',
     'memoir/skills/memoir-composer/instructions',
     *[name for name in PROMPT_PATHS if name.startswith('memoir/agents/mira/')]}

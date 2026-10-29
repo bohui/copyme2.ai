@@ -44,7 +44,7 @@ def validate_runtime_prompt_artifacts() -> None:
             invalid.append(name)
     if invalid:
         raise ValueError('Runtime prompts need valid Langfuse publication receipts: '
-            + ', '.join(invalid) + '. Merge the prompt changes to main, pull main, '
+            + ', '.join(invalid) + '. Commit the prompt changes on your branch '
             'and run make prompt-sync before starting services.')
 
 

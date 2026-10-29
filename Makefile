@@ -92,10 +92,10 @@ help: ## Show the Apple Container + Mocker commands.
 prompt-sync-install: ## Enable automatic prompt sync after main pulls in this clone.
 	@python3 scripts/publish_langfuse_prompts.py --install-hook
 
-prompt-sync: ## Publish changed prompts from committed origin/main and refresh receipts.
+prompt-sync: ## Publish changed prompts from the committed branch and refresh receipts.
 	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
-prompt-sync-check: ## Check merged main prompt changes without publishing.
+prompt-sync-check: ## Check committed branch prompt changes without publishing.
 	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
 prompt-export: ## Recovery: export published prompts; optional PROMPT_NAME=memoir/agents/mira/system.

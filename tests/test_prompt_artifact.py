@@ -151,7 +151,7 @@ def test_catalog_has_one_owner_per_source_and_no_unused_receipts():
     for name, relative in registry.items():
         receipt_path = ROOT / (relative + '.langfuse.json')
         if not receipt_path.is_file():
-            continue  # Feature-branch sources publish only after merge to main.
+            continue  # New sources can await publication on their branch.
         receipt = json.loads(receipt_path.read_text())
         assert receipt['name'] == name
         if name.startswith('memoir/skills/'):
