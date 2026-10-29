@@ -71,7 +71,7 @@ def hydrate_illustrations(value):
 async def generate_background(prompt,fence,*,transport=None,issue14_admission=None):
     from .issue14_execution_admission import check_issue14_dispatch
     from .lifetime_memory_lane_engine import check_lane_generation
-    from .llm_tracing import trace_llm_call,update_llm_trace
+    from .llm_tracing import trace_llm_call,update_llm_trace,gateway_trace_headers
     from .model_request import instruction_manifest
     from .prompt_artifact import load_prompt_artifact,prompt_path
     from .story_game_runtime import GamePublication,GameRequestBody
@@ -91,11 +91,13 @@ async def generate_background(prompt,fence,*,transport=None,issue14_admission=No
     request=GameRequestBody(encoded,publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
         fence=fence.model_dump(mode='json'))
     try:
-        with trace_llm_call('story.game.novel.illustration',model,metadata={'prompt_manifest':manifest}) as trace:
+        with trace_llm_call('story.game.novel.illustration',model,metadata={'prompt_manifest':manifest},
+                gateway=base==os.getenv('MEMORY_SPARK_LLM_BASE_URL','').rstrip('/')) as trace:
             async with asyncio.timeout(600),httpx.AsyncClient(trust_env=False,follow_redirects=False,timeout=590,
                     **({'transport':transport} if transport is not None else {})) as client:
                 async with client.stream('POST',base+'/images/generations',content=request,
-                        headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Content-Length':str(len(encoded))}) as response:
+                        headers={'Authorization':'Bearer '+key,'Content-Type':'application/json','Content-Length':str(len(encoded)),
+                            **gateway_trace_headers()}) as response:
                     response.raise_for_status();chunks=[];size=0
                     async for chunk in response.aiter_bytes():
                         size+=len(chunk)

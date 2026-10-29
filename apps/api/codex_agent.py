@@ -12,6 +12,7 @@ from .trajectory_evaluation import normalise_correlation, protocol_request_evide
 from .issue14_execution_admission import check_issue14_dispatch, validate_optional_issue14_admission
 from .codex_progress import WorkerProgress
 from .model_configuration import configured_model, configured_effort
+from .llm_tracing import gateway_trace_headers
 
 
 diagnostic_logger = logging.getLogger("memoir.appserver.diagnostics")
@@ -290,6 +291,7 @@ class CodexConnection:
 def provider_config(base_url, model, *, governed=False):
     """Generate credential-free config; governed homes cannot create/use memories."""
     model = configured_model(environment={'MEMORY_SPARK_LLM_MODEL': model})
+    headers = gateway_trace_headers()
     return '\n'.join([
         'model_provider = "llm_provider"',
         'model = ' + json.dumps(model),
@@ -302,6 +304,7 @@ def provider_config(base_url, model, *, governed=False):
         'base_url = ' + json.dumps(base_url.rstrip('/')),
         'wire_api = "responses"',
         'env_key = "MEMORY_SPARK_LLM_API_KEY"',
+        *(['http_headers = { traceparent = ' + json.dumps(headers['traceparent']) + ' }'] if headers else []),
         'requires_openai_auth = false',
         '[features]',
         'memories = ' + ('false' if governed else 'true'),

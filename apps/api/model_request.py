@@ -8,7 +8,7 @@ from urllib.parse import urlsplit
 from .prompt_artifact import ROOT, load_prompt_artifact, prompt_path
 from .prompt_catalog import PROMPT_PATHS
 from .prompt_composition import component_paths, render_prompt_artifact
-from .llm_tracing import trace_llm_call, update_llm_trace
+from .llm_tracing import trace_llm_call, update_llm_trace, gateway_trace_headers
 from .model_configuration import background_model, background_effort
 
 
@@ -98,11 +98,11 @@ async def complete_json(name, payload, schema, *, model=None, effort=None, trans
             trace_metadata['request_id'] = body['metadata']['request_id']
         with trace_llm_call(trace_name or name, body['model'],
                             input_summary={'kind': 'structured_input'},
-                            metadata=trace_metadata) as trace:
+                            metadata=trace_metadata, gateway=True) as trace:
             async with httpx.AsyncClient(transport=transport, timeout=60, trust_env=False, follow_redirects=False) as client:
                 async with client.stream('POST', base + '/responses', content=content,
                     headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
-                             'Content-Length': str(len(encoded))}) as response:
+                             'Content-Length': str(len(encoded)), **gateway_trace_headers()}) as response:
                     response.raise_for_status()
                     raw = bytearray()
                     async for chunk in response.aiter_bytes():

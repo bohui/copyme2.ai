@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from contextvars import ContextVar
 import logging
 import os
 import sys
@@ -12,6 +13,21 @@ from typing import Any, Iterator, Mapping
 _LOGGER = logging.getLogger(__name__)
 _UNSET = object()
 _client_cache: object = _UNSET
+_gateway_span = ContextVar('memoir_gateway_span', default=False)
+
+
+def gateway_trace_headers() -> dict[str, str]:
+    """Forward only W3C trace context, never baggage or private request data."""
+    if not _gateway_span.get():
+        return {}
+    try:
+        from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+        headers = {}
+        TraceContextTextMapPropagator().inject(headers)
+        return {key: value for key, value in headers.items() if key == 'traceparent'}
+    except Exception:
+        _LOGGER.debug('Gateway trace context is unavailable', exc_info=True)
+        return {}
 
 
 def _first_configured(*names: str) -> str:
@@ -127,22 +143,26 @@ def trace_llm_call(
     *,
     input_summary: Mapping[str, Any] | None = None,
     metadata: Mapping[str, Any] | None = None,
+    gateway: bool = False,
 ) -> Iterator[Any | None]:
-    """Create a generation observation, failing open when Langfuse is unavailable."""
+    """Gateway calls get an app span; directly observed calls get a generation."""
     client = _get_client()
     if client is None:
         yield None
         return
 
     try:
-        linked = _linked_prompt(metadata)
+        linked = _linked_prompt(metadata) if not gateway else None
+        attributes = dict(metadata or {})
+        if gateway:
+            attributes['model'] = model
         context = client.start_as_current_observation(
-            **({"prompt": linked} if linked is not None else {}),
-            as_type="generation",
+            **({"prompt": linked} if linked is not None and not gateway else {}),
+            as_type="span" if gateway else "generation",
             name=name,
-            model=model,
+            **({"model": model} if not gateway else {}),
             input=dict(input_summary) if input_summary is not None else None,
-            metadata=dict(metadata) if metadata is not None else None,
+            metadata=attributes or None,
         )
         enter = getattr(context, "__enter__", None)
         active = enter() if callable(enter) else context
@@ -151,6 +171,7 @@ def trace_llm_call(
         yield None
         return
 
+    token = _gateway_span.set(gateway)
     exception_info: tuple[Any, Any, Any] = (None, None, None)
     try:
         try:
@@ -160,6 +181,7 @@ def trace_llm_call(
             mark_llm_trace_error(active, name, error)
             raise
     finally:
+        _gateway_span.reset(token)
         try:
             exit_context = getattr(context, "__exit__", None)
             if callable(exit_context):

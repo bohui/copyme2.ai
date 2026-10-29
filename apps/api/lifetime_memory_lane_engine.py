@@ -829,7 +829,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     request = LaneRequestBody(encoded, publisher=publisher, fence=bounded.fence,
         before_send=lambda: check_issue14_dispatch(issue14_admission, role=role))
     with trace_llm_call('memoir.' + bounded.phase, model,
-            metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}):
+            metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}, gateway=True):
         reply, receipt = await stream_document(request=request, content_length=len(encoded),
             base_url=base_url, api_key=api_key, timeout=timeout, transport=provider_transport,
             max_response_bytes=2_000_000)

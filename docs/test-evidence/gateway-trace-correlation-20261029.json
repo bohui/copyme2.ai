@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "date": "2026-10-29",
+  "timezone": "Australia/Sydney",
+  "status": "active-local-verified",
+  "project_id": "cmut9t75w00071z02n8bdv7it",
+  "checks": [
+    {
+      "name": "isolated-candidate",
+      "trace_id": "da4e8a0ff3cf1c5358a3b5aaaf064a44",
+      "app_span_id": "8a8d626565ccd96e",
+      "generation_id": "e5413b9b1e094b03",
+      "trace_count": 1,
+      "app_spans": 1,
+      "gateway_generations": 1,
+      "gateway_parent_matches_app_span": true,
+      "model": "gpt-6.1-sol",
+      "usage_recorded_only_on_gateway": true,
+      "url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/traces?peek=e5413b9b1e094b03&observation=e5413b9b1e094b03&traceId=da4e8a0ff3cf1c5358a3b5aaaf064a44&timestamp=2026-10-28T22%3A44%3A20.102Z"
+    },
+    {
+      "name": "active-api",
+      "trace_id": "573138c450b0feb280822782a6ba625a",
+      "app_span_id": "957ac0c9770099f0",
+      "generation_id": "3854b19e5c8f25cc",
+      "trace_count": 1,
+      "app_spans": 1,
+      "gateway_generations": 1,
+      "gateway_parent_matches_app_span": true,
+      "model": "gpt-6.1-sol",
+      "usage_recorded_only_on_gateway": true,
+      "url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/traces?peek=3854b19e5c8f25cc&observation=3854b19e5c8f25cc&traceId=573138c450b0feb280822782a6ba625a&timestamp=2026-10-28T22%3A53%3A02.883Z"
+    },
+    {
+      "name": "active-native-worker",
+      "trace_id": "9276558690c436332582d170126a850f",
+      "app_span_id": "fa5f84c732ec3a9d",
+      "generation_id": "b61a9e6767b05d5c",
+      "trace_count": 1,
+      "app_spans": 1,
+      "gateway_generations": 1,
+      "gateway_parent_matches_app_span": true,
+      "model": "gpt-6.1-sol",
+      "usage_recorded_only_on_gateway": true,
+      "url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/traces?peek=b61a9e6767b05d5c&observation=b61a9e6767b05d5c&traceId=9276558690c436332582d170126a850f&timestamp=2026-10-28T22%3A53%3A03.148Z"
+    }
+  ],
+  "tests": {
+    "focused": {
+      "passed": 319
+    },
+    "place_research": {
+      "web_passed": 633,
+      "api_database_passed": 631,
+      "standalone_skill_passed": 96
+    },
+    "native_header_config": {
+      "accepted": true,
+      "provider_calls": 0
+    }
+  },
+  "scope": "Tracing source only; model settings, prompt artifacts and conversation data preserved."
+}
