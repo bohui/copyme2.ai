@@ -350,5 +350,11 @@ def provider_config(base_url, model, *, governed=False):
         '[memories]',
         'generate_memories = ' + ('false' if governed else 'true'),
         'use_memories = ' + ('false' if governed else 'true'),
+        *([
+            '[skills]',
+            'include_instructions = false',
+            '[skills.bundled]',
+            'enabled = false',
+        ] if governed else []),
         '',
     ])

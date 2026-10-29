@@ -142,3 +142,10 @@ async def readiness(address, namespace, task_queue):
     # Health is contingent on a live Temporal connection, not an empty store.
     if not await client.service_client.check_health():
         raise RuntimeError('Temporal is unavailable')
+    from apps.api.memory_event_worker import MemoirLaneBroker
+    broker = MemoirLaneBroker()
+    try:
+        # Use the dispatcher RPC so missing database functions cannot look healthy.
+        await broker.rpc('pending_memoir_background_agents', p_limit=1)
+    finally:
+        await broker.client.aclose()

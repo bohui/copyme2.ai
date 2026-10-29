@@ -170,6 +170,8 @@ async def evaluate(args, inputs):
     async with httpx.AsyncClient(timeout=75, trust_env=False, follow_redirects=False) as client:
         async def request(body):
             nonlocal calls
+            body = {**body, 'metadata': {**body.get('metadata', {}),
+                'generation_name':'memoir-interviewer', 'trace_name':'memoir-interviewer'}}
             async with semaphore:
                 calls += 1
                 if calls > 100:

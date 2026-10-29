@@ -4,6 +4,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import shutil
 import threading
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -13,7 +15,8 @@ from test_memoir_skill_agent import Publication
 
 
 @pytest.mark.skipif(not shutil.which('codex'), reason='Codex app-server is not installed')
-def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_path,monkeypatch):
+@pytest.mark.parametrize('background', [False, True])
+def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_path,monkeypatch,background):
     from apps.api import llm_tracing
     from test_gateway_trace_correlation import ApplicationTracer
     tracer=ApplicationTracer()
@@ -40,6 +43,17 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
             body=json.loads(raw)
             requests.append(body)
             parents.append(self.headers.get('traceparent'))
+            schema=body.get('text',{}).get('format',{}).get('schema')
+            if schema and schema['properties']['status'].get('type')!='string':
+                # The real Responses provider rejects an untyped const before inference.
+                error=json.dumps({'error':{'message':'status schema must have a type key',
+                    'type':'invalid_request_error','code':'invalid_json_schema'}}).encode()
+                self.send_response(400)
+                self.send_header('Content-Type','application/json')
+                self.send_header('Content-Length',str(len(error)))
+                self.end_headers()
+                self.wfile.write(error)
+                return
             ordinal=len(requests)
             if ordinal==1:
                 output={'type':'function_call','id':'fc_read','call_id':'read-skill',
@@ -66,18 +80,35 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
     thread=threading.Thread(target=server.serve_forever,daemon=True)
     thread.start()
     try:
-        result=asyncio.run(run_skill_agent(command=[shutil.which('codex'),'app-server'],
-            home_root=tmp_path / 'homes',base_url=f'http://127.0.0.1:{server.server_port}/v1',
-            api_key='synthetic-loopback-key',model='gpt-6.1-sol',
-            instructions=load_prompt_artifact(prompt_path('memoir/shared/background-agent')),
-            packet={'lane':'B','work':[]},skills=['memoir-interview-guidance'],
-            publisher=Publication(),fence={},timeout=20,effort='low'))
+        if background:
+            from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
+            from apps.api.memoir_background_agent import run_background_agent
+            from test_memoir_background_agent import fence
+            monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
+            monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL','gpt-6.1-sol')
+            monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL','gpt-6.1-sol')
+            current=fence()
+            worker=CodexWorker(home_root=tmp_path / 'homes',command=[shutil.which('codex'),'app-server'],
+                base_url=f'http://127.0.0.1:{server.server_port}/v1',api_key='synthetic-loopback-key')
+            broker=SimpleNamespace(rpc=AsyncMock(return_value={
+                'lanes':[{'id':'guidance-id','skill':'guidance'}],'selection':None}))
+            payload=WorkerTurnInput(user_id=current['user_id'],project_id=current['project_id'],
+                agent_role='background_agent',background_agent=current)
+            result=asyncio.run(run_background_agent(worker,payload,publisher=Publication(),broker=broker))
+        else:
+            result=asyncio.run(run_skill_agent(command=[shutil.which('codex'),'app-server'],
+                home_root=tmp_path / 'homes',base_url=f'http://127.0.0.1:{server.server_port}/v1',
+                api_key='synthetic-loopback-key',model='gpt-6.1-sol',
+                instructions=load_prompt_artifact(prompt_path('memoir/shared/background-agent')),
+                packet={'lane':'B','work':[]},skills=['memoir-interview-guidance'],
+                publisher=Publication(),fence={},timeout=20,effort='low'))
     finally:
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
     assert json.loads(result['reply'])=={'status':'finished'}
     assert len(requests)==2
+    assert all('<skills_instructions>' not in json.dumps(request.get('input',[])) for request in requests)
     observation,=tracer.observations
     assert parents==[f'00-{observation.trace_id}-{observation.id}-01']*2
     assert not any(tool.get('type') in {'web_search','web_search_preview'} for tool in requests[0].get('tools',[]))

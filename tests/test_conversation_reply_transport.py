@@ -57,7 +57,7 @@ def options(**changes):
     return dict(view=view, prompt=GOVERNED_TURN_PROMPT, schema=dict(type='object'),
         model=BUDGET.model, effort='low', budget=BUDGET, base_url='https://provider.invalid/v1',
         api_key='fixture-secret-key', publisher=FakePublisher(), fence=FENCE,
-        metadata={'generation_name':'mira'}, timeout=1, **changes)
+        metadata={'generation_name':'memoir-interviewer'}, timeout=1, **changes)
 
 
 def test_messages_keep_static_prefix_and_complete_current_evidence_last():
@@ -86,7 +86,7 @@ def test_actual_request_is_tools_free_scoped_and_keeps_schema_and_route():
     assert body['text']['verbosity'] == 'low'
     assert body['tools'] == [] and body['tool_choice'] == 'none'
     assert body['text']['format']['strict'] and body['text']['format']['schema'] == {'type':'object'}
-    assert body['metadata']['generation_name'] == 'mira'
+    assert body['metadata']['generation_name'] == 'memoir-interviewer'
     assert body['max_output_tokens'] == BUDGET.output_headroom
     assert all(item.get('type') != 'additional_tools' for item in body['input'])
     assert 'skills_instructions' not in json.dumps(body) and 'environment_context' not in json.dumps(body)

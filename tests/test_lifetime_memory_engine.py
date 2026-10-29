@@ -81,8 +81,8 @@ def test_dedicated_same_model_collector_alias_retains_the_declared_byte_bound(mo
     connection = FakeConnection.instances[-1]
     assert connection.requests[0][1]['model'] == model
     assert connection.turns[0][2]['effort'] == effort
-    assert connection.turns[0][2]['responsesapi_client_metadata']['generation_name'] == 'mira'
-    assert connection.turns[0][2]['responsesapi_client_metadata']['trace_name'] == 'mira'
+    assert connection.turns[0][2]['responsesapi_client_metadata']['generation_name'] == 'memoir-interviewer'
+    assert connection.turns[0][2]['responsesapi_client_metadata']['trace_name'] == 'memoir-interviewer'
     assert result['reply'] == valid_reply()
 
 
@@ -631,6 +631,8 @@ def test_governed_runtime_does_not_advertise_general_agent_tools():
         assert governed['features'][feature] is False
         assert feature not in legacy['features']
     assert governed['features']['skip_host_skill_discovery'] is True
+    assert governed['skills'] == {'include_instructions':False,'bundled':{'enabled':False}}
+    assert 'skills' not in legacy
 
 
 def test_worker_rechecks_mutated_payload_before_dispatch(tmp_path, monkeypatch):
