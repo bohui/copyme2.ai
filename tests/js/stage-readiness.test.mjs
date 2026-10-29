@@ -16,6 +16,7 @@ function harness() {
   let now = 0, sequence = 0;
   let path = '/memoir';
   const requests = [], timers = new Map(), renders = [];
+  let mapReads = 0;
   const state = {project:{id:'p',mode:'self'}, projectPrincipalId:'owner', supabase:{accessToken:'synthetic',user:{id:'owner'}},
     stageReadiness:{}, chat:[]};
   const context = vm.createContext({state, AbortController, Date:{now:() => now},
@@ -26,7 +27,8 @@ function harness() {
     stopVoiceMode() {}, restoreChatHistory:() => [], hydrateAccountHistory:async () => {},
     startCodexConversation:async () => {},
     markWorkspaceFocusStarted() {}, conversationLanguage:() => 'en-AU', simulatedLoopTrace:() => [],
-    refreshPrivateDraft() {}, refreshProfileMenu() {}, applyCommittedConversationLocale:async () => {}, persistChatHistory() {},
+    refreshPrivateDraft() {}, refreshProfileMenu() {}, refreshFamilyContext() {mapReads++;},
+    applyCommittedConversationLocale:async () => {}, persistChatHistory() {},
     render:() => renders.push(JSON.parse(JSON.stringify(state.stageReadiness))),
     toast:message => {throw new Error(message);},
     nextAssistantMessageId:() => 'reply', updateStreamingAssistantMessage() {},
@@ -45,8 +47,18 @@ function harness() {
     assert.ok(next, 'Recovery must schedule another bounded read');
     now = next[1].at; timers.delete(next[0]); next[1].callback(); await settle();
   }
-  return {context,state,requests,timers,renders,nextTimer,now:() => now};
+  return {context,state,requests,timers,renders,nextTimer,now:() => now,mapReads:()=>mapReads};
 }
+
+test('background extraction completion refreshes the map event feed once', async () => {
+  const h=harness();
+  const pending=h.context.refreshStageReadiness();
+  h.requests[0](stage(10,true));await settle();
+  assert.equal(h.mapReads(),0);
+  await h.nextTimer();
+  h.requests[1](stage(20,false));await pending;
+  assert.equal(h.mapReads(),1);
+});
 
 test('active interview polling follows pending profile work and replaces saved or withdrawn facts', async () => {
   const h = harness();

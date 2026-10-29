@@ -79,6 +79,22 @@ def collection_page(storage, project_id, *, kind, cursor=None, limit=8, event_id
         p_kind=kind, p_after=str(cursor) if cursor else None, p_limit=limit, p_event_id=event_id)
 
 
+def map_event_page(storage, project_id, *, cursor=None, limit=8):
+    page = collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit)
+    fields = {'id', 'revision', 'kind', 'life_stage', 'status', 'change_sequence', 'title',
+              'temporal', 'uncertainty', 'assertion', 'timing_conflict'}
+    return {**page, 'events': [{key: value for key, value in event.items() if key in fields}
+                             for event in page.get('events', []) if event.get('status') == 'active']}
+
+
+def map_event_places(storage, project_id, event_id, *, cursor=None, limit=8):
+    page = storage.lifetime_rpc('read_lifetime_event_places', p_project_id=project_id,
+        p_event_id=event_id, p_after=str(cursor) if cursor else None, p_limit=limit)
+    fields = {'key', 'role', 'status', 'place'}
+    return {**page, 'items': [{key: value for key, value in item.items() if key in fields}
+                            for item in page.get('items', [])]}
+
+
 def canonical_collection(storage, project_id, *, cursor=None, task_cursor=None, limit=8):
     page = collection_page(storage, project_id, kind='sources', cursor=cursor, limit=limit)
     selection = storage.lifetime_rpc('read_lifetime_collection_selection', p_project_id=project_id,

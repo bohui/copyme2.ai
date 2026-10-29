@@ -73,6 +73,8 @@ def mapped(monkeypatch, tmp_path):
     ('/v1/story/private-draft/page?project_id=read-project&snapshot_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'read_lifetime_private_draft_page'),
     ('/v1/story/private-draft/section?project_id=read-project&snapshot_id=aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa&partition_id=selected', 'read_workspace_draft_section'),
     ('/v1/story/events?project_id=read-project', 'read_lifetime_collection_page'),
+    ('/v1/story/map-events?project_id=read-project', 'read_lifetime_collection_page'),
+    ('/v1/story/map-events/read-project/event/places', 'read_lifetime_event_places'),
     ('/v1/story/sources?project_id=read-project', 'read_lifetime_collection_page'),
     ('/v1/story/readiness?project_id=read-project', 'read_lifetime_stage_readiness'),
 ])
@@ -89,6 +91,7 @@ def test_mapped_story_gets_capture_before_rpc_and_guard_actual_send(mapped, path
 @pytest.mark.parametrize('path', [
     '/v1/story/private-draft?project_id=read-project',
     '/v1/story/events?project_id=read-project',
+    '/v1/story/map-events?project_id=read-project',
     '/v1/story/sources?project_id=read-project',
     '/v1/story/readiness?project_id=read-project',
     '/v1/agent/collection/read-project',
@@ -146,10 +149,49 @@ def test_family_display_gate_still_precedes_canonical_event_read(mapped):
     assert calls == []
 
 
+def test_map_cards_read_active_events_during_ordinary_recall_without_original_evidence(mapped):
+    client, storage, calls, result = mapped
+    storage.story_entitlement = lambda: None
+    result.clear()
+    result.update(events=[dict(id='birth', revision=1, status='active', title='Birth', life_stage='baby',
+        temporal={'expression':'1991年4月', 'precision':'month', 'year_start':1991, 'year_end':1991},
+        source_refs=[{'quote':'Original private testimony'}], include_in_print=True),
+        dict(id='withheld', status='withdrawn', title='Withdrawn event')],
+        complete=False, next_cursor='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+    response = client.get('/v1/story/map-events?project_id=read-project')
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert [event['id'] for event in body['events']] == ['birth']
+    assert 'source_refs' not in body['events'][0] and 'include_in_print' not in body['events'][0]
+    assert 'Original private testimony' not in response.text
+    assert body['next_cursor'] == result['next_cursor'] and body['complete'] is False
+    assert response.headers['cache-control'] == 'no-store'
+    assert calls[-1][0] == 'actual_send_guard'
+    assert client.get('/v1/story/events?project_id=read-project').status_code == 403
+
+
+def test_map_locations_keep_event_and_cursor_scope_without_exposing_passage_fields(mapped):
+    client, storage, calls, result = mapped
+    storage.story_entitlement = lambda: None
+    result.clear()
+    result.update(event_id='birth', items=[dict(key='place-key', role='setting', status='supported',
+        place={'place':'Hobart', 'hierarchy':['Earth','Australia','Hobart'], 'granularity':'city'},
+        source_id='source', source_version=1, char_start=0, char_end=20)], complete=True, next_cursor=None)
+    cursor = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
+    response = client.get(f'/v1/story/map-events/read-project/birth/places?cursor={cursor}')
+    assert response.status_code == 200, response.text
+    assert set(response.json()['items'][0]) == {'key','role','status','place'}
+    _, arguments = next(call for call in calls if call[0] == 'read_lifetime_event_places')
+    assert arguments == dict(p_project_id='read-project', p_event_id='birth', p_after=cursor, p_limit=8)
+    assert calls[-1][0] == 'actual_send_guard'
+
+
 def test_page_parameter_bounds_reject_before_database(mapped):
     client, _, calls, _ = mapped
     assert client.get('/v1/story/private-draft/page?project_id=read-project&snapshot_id=not-uuid').status_code == 422
     assert client.get('/v1/story/events?project_id=read-project&limit=9').status_code == 422
+    assert client.get('/v1/story/map-events?project_id=read-project&limit=9').status_code == 422
+    assert client.get('/v1/story/map-events/read-project/birth/places?cursor=invalid').status_code == 422
     assert calls == []
 
 

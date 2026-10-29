@@ -39,7 +39,7 @@ export function createPlaceWorkspace({
       state.memoryEventPage?.policy_epoch, state.derivedWorkspace?.policy_epoch]),
     getStage: () => state.lifeStage || "all",
     getPage: () => state.memoryEventPage,
-    readPlaces: (eventId, cursor) => storyApi(`/v1/story/events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/places${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
+    readPlaces: (eventId, cursor) => storyApi(`/v1/story/map-events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/places${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
     resolvePlaces: resolveMapMemoryPlaces,
     t: (key, values) => translateWith(`Memoir.workspace.${key}`, values),
     lifeStageText, onExplore: onExploreMapMemory, onLoadMore: onLoadMoreMapEvents,

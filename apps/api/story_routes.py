@@ -31,7 +31,8 @@ from .codex_runtime import normalize_conversation_language
 from .preview_jobs import PreviewJobs
 from .stage_readiness import stage_readiness
 from .background_profile import PROFILE_FIELDS
-from .lifetime_memory_read_api import read_mapped, draft_head, draft_page, retry_draft, collection_page, canonical_only, mapped_identity
+from .lifetime_memory_read_api import (read_mapped, draft_head, draft_page, retry_draft, collection_page,
+    canonical_only, mapped_identity, map_event_page, map_event_places)
 from .story_payments import (
     StripeAPIError,
     StripeCheckoutClient,
@@ -544,6 +545,28 @@ def build_router(
             return await asyncio.to_thread(read_mapped, storage, project_id,
                 lambda fence: storage.lifetime_rpc('read_lifetime_source_attribution', p_project_id=project_id,
                     p_source_id=str(source_id), p_after=str(cursor) if cursor else None, p_limit=limit), canonical_only)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.get('/map-events')
+    async def memory_map_events(project_id: str, cursor: UUID | None = None,
+                                limit: int = Query(default=8, ge=1, le=8),
+                                authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: map_event_page(storage, project_id, cursor=cursor, limit=limit), canonical_only)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.get('/map-events/{project_id}/{event_id}/places')
+    async def memory_map_places(project_id: str, event_id: str, cursor: UUID | None = None,
+                                limit: int = Query(default=8, ge=1, le=8),
+                                authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: map_event_places(storage, project_id, event_id, cursor=cursor, limit=limit), canonical_only)
         finally:
             await asyncio.to_thread(_close, storage)
 
