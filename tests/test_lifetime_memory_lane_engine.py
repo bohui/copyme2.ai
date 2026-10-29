@@ -208,7 +208,26 @@ class Provider(httpx.AsyncBaseTransport):
 
 
 def forbidden_connection(*args,**kwargs):
-    raise AssertionError('Bounded lanes must not start a native agent')
+    raise AssertionError('Unadmitted work must not start a native agent')
+
+
+class SkillConnection(Connection):
+    async def request(self, method, params):
+        async with self.options['request_admission']():
+            Provider.bodies.append(params)
+            if Provider.failure:
+                raise Provider.failure
+            self.requests.append((method, params))
+        return {'thread': {'id': 'fresh-lane-' + str(len(Provider.bodies))}}
+
+    async def turn(self, thread, prompt, **options):
+        async with self.options['request_admission']():
+            self.turns.append((thread, prompt, options))
+        catalog = json.loads(prompt)['available_skills']
+        result = await self.options['tool_handler']({'tool':'memoir_read_skill',
+            'arguments': {'skill': catalog[0]['name']}})
+        assert result['success']
+        return '{"events":[]}'
 
 
 @pytest.fixture(autouse=True)
@@ -226,39 +245,74 @@ def run(tmp_path,bounded=None,publisher=None,**kwargs):
     return asyncio.run(run_bounded_lane(command=['fake'],home_root=tmp_path,
         base_url='http://provider.invalid',api_key='transient-secret',model=BUDGET.model,
         bounded_lane=bounded or transport(),publisher=publisher or Publisher(),
-        connection_factory=forbidden_connection,provider_transport=Provider(),**kwargs))
+        connection_factory=SkillConnection,**kwargs))
 
 
-def test_extraction_request_keeps_exact_packet_schema_manifest_and_http_fence(tmp_path):
+def test_extraction_harness_keeps_exact_packet_schema_manifest_and_fence(tmp_path):
     bounded=transport();publisher=Publisher()
     result=run(tmp_path,bounded,publisher)
     body,=Provider.bodies
-    assert body['input']==bounded.packet
-    assert body['tools']==[] and body['tool_choice']=='none'
-    metadata=body['metadata']
-    assert metadata['generation_name']==metadata['trace_name']=='memoir-author-timeline'
-    assert set(metadata)=={'generation_name','trace_name','prompt_sha256','schema_sha256','manifest_sha256'}
-    assert len(bytes.fromhex(metadata['manifest_sha256']))==32
-    assert publisher.snapshots==[bounded.fence.model_dump(mode='json')]
+    instance = SkillConnection.instances[-1]
+    _, prompt, options = instance.turns[0]
+    assert json.loads(prompt)['task'] == json.loads(bounded.packet)
+    assert body['dynamicTools'][0]['name'] == 'memoir_read_skill'
+    assert body['ephemeral'] is True
+    assert publisher.snapshots and all(LaneFence.model_validate(snapshot) == bounded.fence
+        for snapshot in publisher.snapshots)
     assert not publisher.active
     assert lane_request_tokens(bounded)<=bounded.budget.input_budget
     from apps.api.lifetime_memory_lane_engine import lane_contract
     instructions,schema=lane_contract('extract',bounded.fence.locale,fence=bounded.fence)
-    assert body['instructions']==instructions
-    assert body['text']['format']['schema']==schema
-    assert metadata['prompt_sha256']==hashlib.sha256(instructions.encode()).hexdigest()
-    assert metadata['schema_sha256']==hashlib.sha256(json.dumps(schema,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
-    assert lane_request_tokens(bounded)==(bounded.budget.count(instructions)
-        +bounded.budget.count(bounded.packet)+bounded.budget.count(serialize_packet(schema))
-        +bounded.budget.framing_headroom)
-    assert result=={'artifacts':[],'thread_id':'resp_gateway_id==','reply':'{"events":[]}'}
+    from apps.api.prompt_artifact import load_prompt_artifact,prompt_path
+    assert body['baseInstructions']==load_prompt_artifact(prompt_path('memoir/shared/skill-agent'))+'\n\n'+instructions
+    assert options['output_schema']==schema
+    assert lane_request_tokens(bounded)>(bounded.budget.count(instructions)
+        +bounded.budget.count(bounded.packet)+bounded.budget.count(serialize_packet(schema)))
+    assert result['reply'] == '{"events":[]}' and result['artifacts'] == []
+    assert result['skill_receipt']['skills_read'] == ['memoir-author-timeline']
     assert not list(tmp_path.iterdir())
+
+
+@pytest.mark.parametrize('phase,two_lane',[('extract',False),('extract',True),('draft',False)])
+@pytest.mark.parametrize('read_file',[None,'./SKILL.md'])
+def test_admitted_page_can_read_its_skills_at_the_exact_input_budget(tmp_path,monkeypatch,phase,two_lane,read_file):
+    from apps.api.lifetime_memory_lane_engine import lane_contract
+    from apps.api.prompt_artifact import load_prompt_artifact,prompt_path
+    current=page('timeline' if phase=='extract' else 'composer')
+    if two_lane:
+        current['two_lane']=dict(schema_version=1,task_version='two-lane-v1',execution_generation=1,
+            phase_revision=0,work_mode='extract',reply_contract='reply-v2')
+    bounded=transport(phase,current)
+    limit=lane_request_tokens(bounded)
+    budget=bounded.budget.model_copy(update={'input_budget':limit})
+    bounded=BoundedLaneInput.model_validate(bounded.model_copy(update={'budget':budget}).model_dump(mode='json'))
+    responses=[]
+    async def read_all(connection,thread,prompt,**options):
+        for skill in json.loads(prompt)['available_skills']:
+            arguments={'skill':skill['name']}
+            if read_file is not None:
+                arguments['file']=read_file
+            result=await connection.options['tool_handler']({'tool':'memoir_read_skill',
+                'arguments':arguments})
+            assert result['success']
+            responses.append(result['contentItems'][0]['text'])
+        return '{"events":[]}'
+    monkeypatch.setattr(SkillConnection,'turn',read_all)
+    run(tmp_path,bounded)
+    instructions,schema=lane_contract(phase,bounded.fence.locale,two_lane=two_lane,fence=bounded.fence)
+    static=sum(budget.count(value) for value in (instructions,bounded.packet,serialize_packet(schema),
+        load_prompt_artifact(prompt_path('memoir/shared/skill-agent'))))+budget.framing_headroom
+    assert static+sum(budget.count(value) for value in responses)==limit
+    with pytest.raises(ValueError,match='exceed budget'):
+        BoundedLaneInput.model_validate(bounded.model_copy(update={
+            'budget':budget.model_copy(update={'input_budget':limit-1})}).model_dump(mode='json'))
 
 
 def test_lane_attempts_cannot_resume_a_prior_native_session(tmp_path):
     run(tmp_path);run(tmp_path)
     assert len(Provider.bodies)==2
-    assert Provider.bodies[0]['input']==Provider.bodies[1]['input']
+    assert SkillConnection.instances[-1].turns[0][1] == SkillConnection.instances[-2].turns[0][1]
+    assert SkillConnection.instances[-1].turns[0][0] != SkillConnection.instances[-2].turns[0][0]
     assert not list(tmp_path.iterdir())
 
 

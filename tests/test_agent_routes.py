@@ -112,7 +112,7 @@ def test_greeting_route_uses_only_server_owned_prompt_and_marks_assistant_only(m
     )
 
     assert response.status_code == 200
-    assert captured['text'] == agent_routes.GREETING_PROMPTS['begin']
+    assert captured['text'] == ''
     assert captured['user_response'] is False
     assert 'conversation_text' not in captured
 

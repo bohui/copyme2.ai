@@ -20,7 +20,7 @@ from scripts.langfuse_prompt_client import prompt_client
 
 
 TARGETS = {
-    "collector": Path("skills/memoir-interviewer/prompts/collector.md"),
+    "mira": Path("apps/api/prompts/mira/system.md"),
 }
 
 
@@ -67,7 +67,7 @@ def sync_prompt(client, *, target: str, name: str, version: int,
             or not isinstance(content, str) or not content.strip()):
         raise ValueError("Langfuse returned a different, fallback or empty prompt version")
     if expected_content is not None and content != expected_content:
-        raise ValueError("Langfuse prompt differs from the merged main content")
+        raise ValueError("Langfuse prompt differs from the committed prompt content")
     receipt = {
         "schema_version": 1,
         "name": name,
@@ -94,7 +94,7 @@ def sync_prompt(client, *, target: str, name: str, version: int,
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--target", required=True,
-                        help="collector, or an existing prompt .md under skills/, apps/api/prompts/ or tests/evaluation/")
+                        help="mira, or an existing prompt .md under skills/, apps/api/prompts/ or tests/evaluation/")
     parser.add_argument("--name", required=True, help="Langfuse prompt name")
     parser.add_argument("--version", required=True, type=int, help="Exact immutable Langfuse version")
     parser.add_argument("--check", action="store_true", help="Compare with the checked-in artifact without writing")

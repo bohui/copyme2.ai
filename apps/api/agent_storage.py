@@ -473,6 +473,10 @@ class UserStorage:
                 view['places'] = places
         return view
 
+    def queue_background_agent(self, project_id, selection=None):
+        return self.request('POST', '/rest/v1/rpc/queue_user_memoir_background_agent', json={
+            'p_project_id': project_id, 'p_selection': selection}).json()
+
     def research_places(self, project_id, places=None):
         from .place_research import load_research_places
         if places is None:

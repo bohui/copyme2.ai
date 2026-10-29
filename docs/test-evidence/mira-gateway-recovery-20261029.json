@@ -1,0 +1,58 @@
+{
+  "schema_version": "mira-gateway-recovery/1",
+  "date": "2026-10-29",
+  "cause": "API model-provider endpoint used the gateway of another container network.",
+  "before": {
+    "model_base_url": "http://192.168.67.1:4000/v1",
+    "synthetic_policy_stream": "error",
+    "failure_class": "ConnectTimeout"
+  },
+  "after": {
+    "model_base_url": "http://192.168.65.1:4000/v1",
+    "synthetic_policy_stream": "result",
+    "failure_classes": [],
+    "stack_health": "passed"
+  },
+  "configuration_change": "Only MEMORY_SPARK_LLM_BASE_URL in the local ignored .env was changed; affected application services were restarted.",
+  "runtime_prompt_check": "Evaluation-only catalog entries are excluded because tests/evaluation is not shipped in API and worker containers.",
+  "prompt_publication_check": {
+    "command": "make prompt-check",
+    "artifacts_verified": 94,
+    "created_versions": 0
+  },
+  "regressions": {
+    "command": "python3 -m pytest -q tests/test_container_startup.py tests/test_prompt_artifact.py tests/test_prompt_publication.py",
+    "passed": 66
+  },
+  "synthetic_end_to_end": {
+    "command": "python3 scripts/profile_first_reply.py first-turn --origin http://127.0.0.1:3010 --language en-AU --case story --timeout 120",
+    "project_id": "lifetime-7eea6df5-8ab5-403f-9c65-84f501dc887b",
+    "kind": "first_turn_summary",
+    "language": "en-AU",
+    "case": "story",
+    "timings": {
+      "headers_s": 0.52,
+      "started": 0.526,
+      "source_accepted": 8.319,
+      "progress:memory-context:running": 8.351,
+      "progress:memory-context:completed": 8.96,
+      "progress:collector-call:running": 9.085,
+      "first_visible_text_s": 13.409,
+      "text_delta": 13.409,
+      "progress:collector-call:completed": 14.175,
+      "progress:save:running": 14.303,
+      "progress:save:completed": 14.896,
+      "progress:question-pool:completed": 14.973,
+      "question_validated": 15.107,
+      "reply_complete": 15.38,
+      "conversation_saved": 15.508
+    },
+    "measurement": "HTTP events received; browser paint is not measured"
+  },
+  "reported_project": {
+    "retained_sources": 1,
+    "pending_replies": 1,
+    "pending_policy_reviews": 1,
+    "retry": "Requires the original owner session; the available browser session could not access this private project."
+  }
+}

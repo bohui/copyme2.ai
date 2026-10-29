@@ -81,9 +81,11 @@ def lane(sql, identity):
 
 
 
-def test_flag_is_off_and_foreground_optional_place_schema_is_removed_only_when_enabled(monkeypatch):
+def test_two_lanes_default_on_and_foreground_place_work_stays_in_background(monkeypatch):
     from apps.api.two_lane_memory import two_lanes_enabled
     monkeypatch.delenv('MEMOIR_TWO_LANES',raising=False)
+    assert two_lanes_enabled()
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '0')
     assert not two_lanes_enabled()
     assert 'place_journeys' in governed_collector_schema()['required']
     context={'two_lane_memory':True,'source':{'id':str(uuid4()),'version':1,'text':TEXT,'status':'active'}}

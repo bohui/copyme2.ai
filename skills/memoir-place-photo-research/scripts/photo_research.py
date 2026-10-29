@@ -999,7 +999,9 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
     req = http_request.Request(base + "/responses", data=json.dumps(body).encode(),
                                headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     try:
-        with prompts.trace_llm_call(name,model,metadata={'prompt_manifest':manifest}):
+        with prompts.trace_llm_call(name,model,metadata={'prompt_manifest':manifest}, gateway=True):
+            for header,value in prompts.gateway_trace_headers().items():
+                req.add_header(header,value)
             with http_request.urlopen(req, timeout=timeout) as response:
                 raw = response.read(MAX_PAGE_BYTES + 1)
         if len(raw) > MAX_PAGE_BYTES:

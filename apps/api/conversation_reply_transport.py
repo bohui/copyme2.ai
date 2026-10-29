@@ -13,6 +13,7 @@ from .lifetime_memory_context import serialize_packet
 from .lifetime_memory_publication import GovernedRequestBody
 from .model_request import completed_response_text
 from .model_configuration import configured_effort
+from .llm_tracing import gateway_trace_headers
 from .trajectory_evaluation import normalise_correlation
 
 
@@ -23,12 +24,18 @@ def reply_messages(view, prompt):
     context = dict(view)
     instructions = context.pop('instructions')
     current = context.pop('current')
-    return [
-        dict(role='developer', content=[dict(type='input_text', text=instructions),
-                                      dict(type='input_text', text=prompt)]),
+    background = context.pop('background_deliveries', [])
+    content = [dict(type='input_text', text=instructions)]
+    if prompt:
+        content.append(dict(type='input_text', text=prompt))
+    messages = [
+        dict(role='developer', content=content),
         dict(role='user', content=serialize_packet(context)),
         dict(role='user', content=serialize_packet(dict(current=current))),
     ]
+    if background:
+        messages.append(dict(role='user', content=serialize_packet(dict(background_deliveries=background))))
+    return messages
 
 
 class ReplyRequestBody(GovernedRequestBody):
@@ -116,7 +123,8 @@ async def stream_document(*, request, content_length, base_url, api_key, timeout
                                         trust_env=False, follow_redirects=False) as client:
                 async with client.stream('POST', base_url.rstrip('/') + '/responses', content=request,
                     headers={'Authorization': 'Bearer ' + api_key, 'Content-Type': 'application/json',
-                             'Content-Length': str(content_length), 'Accept': 'text/event-stream'}) as response:
+                             'Content-Length': str(content_length), 'Accept': 'text/event-stream',
+                             **gateway_trace_headers()}) as response:
                     response.raise_for_status()
                     async for event in _events(response, max_response_bytes=max_response_bytes):
                         kind = event.get('type')

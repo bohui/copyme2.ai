@@ -22,8 +22,8 @@ def test_controlled_comparison_matches_real_prestate_and_labels_actual_contract(
         assert {row['variant'] for row in pair}=={'baseline','candidate'}
         assert len({row['pre_state_sha256'] for row in pair})==1
         assert len({row['input_sha256'] for row in pair})==1
-        assert all(row['appserver_turns']==row['private_worker_requests']==1 for row in pair)
-        assert all(row['thread_policy']=='fresh_ephemeral' and row['effective_prompt_version']=='lifetime-v1' for row in pair)
+        assert all(row['appserver_turns']==0 and row['private_worker_requests']==1 for row in pair)
+        assert all(row['thread_policy']=='responses' and row['effective_prompt_version']=='reply-v2' for row in pair)
         assert all(row['effective_effort'] is None and row['provider_request_count'] is None for row in pair)
         assert all(row['timings']['first_visible_text_s']<=row['timings']['conversation_saved_s'] for row in pair)
     assert all(os.environ['MEMORY_SPARK_COLLECTOR_'+key]=='' for key in ('MODEL','REASONING_EFFORT','PROMPT_VERSION'))

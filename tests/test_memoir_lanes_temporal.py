@@ -1,8 +1,5 @@
 """Real Temporal/PostgreSQL/private-worker integration; provider is controlled."""
 import asyncio
-import json
-import sys
-from pathlib import Path
 
 import httpx
 from fastapi import FastAPI
@@ -16,6 +13,7 @@ from test_shared_memory_events_postgres import (
     rpc, OWNER, TURN, ROOT,
 )
 from memoir_postgres_workflow import PostgresRest
+from test_conversation_attribution import Conversation, empty
 import pytest
 
 
@@ -24,15 +22,21 @@ import pytest
 def test_real_temporal_dispatch_commits_evidence_without_story_text_in_history(sql, tmp_path, monkeypatch):
     from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
     from apps.api.memory_event_worker import MemoirLaneBroker, MemoryEventWorker
-    from apps.api.temporal_workflows import MemoirSkillLane
+    from apps.api.temporal_workflows import MemoirBackgroundAgent
+    from controlled_skill_harness import ControlledSkillConnection
     from scripts.task_runtime import dispatch_memoir_lanes_once
     secret = 'Private synthetic memory retained outside workflow history.'
-    rpc(sql, 'accept_user_narrator_source', f"'project', '{TURN}', '{secret}'")
-    control = tmp_path / 'provider.json'
-    control.write_text(json.dumps({'reply': {'events': []}}))
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
+    conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
+    with conversation.client:
+        assert conversation.say(secret)['conversation_saved']
+        conversation.deliver_receipts()
+    project=conversation.project
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP', '1')
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',ControlledSkillConnection)
     provider_worker = CodexWorker(home_root=tmp_path / 'worker-homes',
-        command=[sys.executable, str(ROOT / 'tests/fixtures/issue6_controlled_app_server.py'), str(control)])
+        command=['controlled'],base_url='http://synthetic.invalid',api_key='synthetic')
     app = FastAPI()
     @app.post('/internal/codex/turn')
     async def worker_turn(payload: WorkerTurnInput):
@@ -45,15 +49,15 @@ def test_real_temporal_dispatch_commits_evidence_without_story_text_in_history(s
                 broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic-service', client=client)
                 event_worker = MemoryEventWorker(broker, worker_url='http://controlled-worker.invalid',
                     worker_secret='synthetic-worker-secret', worker_transport=httpx.ASGITransport(app=app))
-                @activity.defn(name='memoir.execute_lane')
-                async def execute_lane(lane_id: str):
-                    result = await event_worker.execute_lane(lane_id)
-                    return {'status': result['status']}
-                async with Worker(env.client, task_queue='issue6-synthetic', workflows=[MemoirSkillLane], activities=[execute_lane]):
+                @activity.defn(name='memoir.execute_background_agent')
+                async def execute_agent(run_id: str):
+                    return await event_worker.execute_background_agent(run_id)
+                async with Worker(env.client, task_queue='issue6-synthetic', workflows=[MemoirBackgroundAgent], activities=[execute_agent]):
                     handles = await dispatch_memoir_lanes_once(env.client, broker, 'issue6-synthetic')
                     assert len(handles) == 1
                     await asyncio.wait_for(handles[0].result(), 20)
-                    assert rpc(sql, 'read_user_memory_events', "'project'")['processing']['extracted_through'] == 1
+                    from test_shared_memory_events_postgres import literal
+                    assert rpc(sql, 'read_user_memory_events', literal(project))['processing']['extracted_through'] == 1
                     history = await handles[0].fetch_history()
                     assert secret.encode() not in b''.join(event.SerializeToString() for event in history.events)
     asyncio.run(scenario())
@@ -65,16 +69,25 @@ def test_configured_deadline_stops_hung_provider_and_exposes_bounded_retry(sql,t
     from test_shared_memory_events_postgres import story_client
     from apps.api.codex_worker_service import CodexWorker,WorkerTurnInput
     from apps.api.memory_event_worker import MemoirLaneBroker,MemoryEventWorker
-    from apps.api.temporal_workflows import MemoirSkillLane
+    from apps.api.temporal_workflows import MemoirBackgroundAgent
+    from controlled_skill_harness import ControlledSkillConnection
     from scripts.task_runtime import dispatch_memoir_lanes_once
-    rpc(sql,'accept_user_narrator_source',f"'project','{TURN}','An original retained through timeout.'")
-    gate=tmp_path/'hold'
-    gate.touch()
-    control=tmp_path/'provider.json'
-    control.write_text(json.dumps({'mode':'timeline','reply':{'events':[]},'calls':str(tmp_path/'calls.jsonl'),'hold_phase':'timeline','gate':str(gate)}))
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
+    conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
+    with conversation.client:
+        assert conversation.say('An original retained through timeout.')['conversation_saved']
+        conversation.deliver_receipts()
+    project=conversation.project
+    class HungSkillConnection(ControlledSkillConnection):
+        async def turn(self,thread_id,prompt,**options):
+            if options['output_schema']['properties'].get('events'):
+                await asyncio.Event().wait()
+            return await super().turn(thread_id,prompt,**options)
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS','1')
-    provider=CodexWorker(home_root=tmp_path/'worker',command=[sys.executable,str(ROOT/'tests/fixtures/issue6_controlled_app_server.py'),str(control)])
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',HungSkillConnection)
+    provider=CodexWorker(home_root=tmp_path/'worker',command=['controlled'],base_url='http://synthetic.invalid',api_key='synthetic')
     app=FastAPI()
     @app.post('/internal/codex/turn')
     async def turn(payload:WorkerTurnInput): return await provider.turn(payload)
@@ -84,20 +97,19 @@ def test_configured_deadline_stops_hung_provider_and_exposes_bounded_retry(sql,t
             async with httpx.AsyncClient(transport=httpx.MockTransport(PostgresRest(sql,OWNER,service=True).handle)) as client:
                 broker=MemoirLaneBroker(url='http://synthetic.invalid',key='synthetic',client=client)
                 worker=MemoryEventWorker(broker,worker_url='http://controlled.invalid',worker_secret='synthetic',worker_transport=httpx.ASGITransport(app=app))
-                @activity.defn(name='memoir.execute_lane')
-                async def execute(lane_id:str):
-                    result=await worker.execute_lane(lane_id)
-                    state=await broker.rpc('read_memoir_lane_state',p_lane_id=lane_id)
-                    return {'status':result['status'],'pending':state['pending']}
-                async with Worker(env.client,task_queue='issue6-deadline',workflows=[MemoirSkillLane],activities=[execute]):
+                @activity.defn(name='memoir.execute_background_agent')
+                async def execute(run_id:str):
+                    return await worker.execute_background_agent(run_id)
+                async with Worker(env.client,task_queue='issue6-deadline',workflows=[MemoirBackgroundAgent],activities=[execute]):
                     handle=(await dispatch_memoir_lanes_once(env.client,broker,'issue6-deadline'))[0]
                     assert (await asyncio.wait_for(handle.result(),30))['status']=='retry_required'
-                    view=rpc(sql,'read_user_memory_events',"'project'")
+                    from test_shared_memory_events_postgres import literal
+                    view=rpc(sql,'read_user_memory_events',literal(project))
                     assert view['sources'][0]['text']=='An original retained through timeout.'
-                    assert view['processing']['extracted_through']==0 and view['completed_rounds']==0
-                    saved=story_client(sql).get('/v1/story/private-draft?project_id=project',headers={'Authorization':'Bearer synthetic-author'}).json()
+                    assert view['processing']['extracted_through']==0 and view['completed_rounds']==1
+                    saved=story_client(sql).get('/v1/story/private-draft',params={'project_id':project},headers={'Authorization':'Bearer synthetic-author'}).json()
                     assert saved['progress']['extraction']['state']=='retry_required' and saved['error']
                     assert not saved['updating']
-                    retry=story_client(sql).post('/v1/story/private-draft/retry',headers={'Authorization':'Bearer synthetic-author'},json={'project_id':'project'}).json()
+                    retry=story_client(sql).post('/v1/story/private-draft/retry',headers={'Authorization':'Bearer synthetic-author'},json={'project_id':project}).json()
                     assert retry['progress']['extraction']['state']=='pending'
     asyncio.run(scenario())

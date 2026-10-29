@@ -1,8 +1,8 @@
 """Provider-free canonical comparison candidate; no legacy prompt/resume claims.
 
 This separately versioned diagnostic executes real SQL, runtime and private
-workers. Its checked-in app-server supplies synthetic proposals. Requested
-settings and actual canonical prompt/home policy are recorded separately. It
+workers. Its in-process Responses provider supplies synthetic proposals. Requested
+settings and actual canonical reply policy are recorded separately. It
 cannot establish model quality, effective provider effort, or latency acceptance.
 """
 import argparse
@@ -12,10 +12,10 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import sys
 import tempfile
 import time
 from uuid import uuid4
+from unittest.mock import patch
 
 import httpx
 from apps.api.codex_runtime import CodexRuntime
@@ -59,6 +59,7 @@ def offline_settings():
 @contextmanager
 def settings(dsn, variant):
     values={'MEMOIR_PUBLICATION_DATABASE_URL':dsn,'MEMORY_SPARK_DISABLE_PRIVDROP':'1',
+        'MEMOIR_TWO_LANES':'1',
         'MEMORY_SPARK_COLLECTOR_MODEL':variant['model'],
         'MEMORY_SPARK_COLLECTOR_REASONING_EFFORT':variant['requested_effort'],
         'MEMORY_SPARK_COLLECTOR_PROMPT_VERSION':variant['requested_prompt_version']}
@@ -71,9 +72,45 @@ def settings(dsn, variant):
             else:os.environ[key]=value
 
 
+@contextmanager
+def controlled_reply_provider():
+    from apps.api import conversation_reply_transport, model_request
+    send_reply = conversation_reply_transport.stream_reply
+    replies = []
+    def provider(request):
+        body = json.loads(request.content)
+        if body.get('stream'):
+            replies.append(body)
+            output = dict(acknowledgement='We can follow that memory.',
+                question='What other details do you remember?', reason='latest_story',
+                hint=None, quote=None, recall_limit_quote=None,
+                work=dict(mode='extract', name=None), resolved_questions=[])
+        else:
+            output = dict(complete=True, restrictions=[], reason=None)
+        text = json.dumps(output)
+        response = dict(id='controlled-response-' + str(uuid4()), status='completed', model=body['model'],
+            output=[dict(type='message', status='completed', role='assistant',
+                content=[dict(type='output_text', text=text)])])
+        if body.get('stream'):
+            events = [dict(type='response.output_text.delta', delta=text),
+                      dict(type='response.completed', response=response)]
+            return httpx.Response(200, headers={'content-type':'text/event-stream'},
+                content=''.join('data: ' + json.dumps(event) + '\n\n' for event in events))
+        return httpx.Response(200, json=response)
+    transport = httpx.MockTransport(provider)
+    async def reply(**options):
+        return await send_reply(**options, transport=transport)
+    async def review(*args, **options):
+        options.update(base_url='http://controlled.invalid/v1', api_key='controlled-provider-key', transport=transport)
+        return await model_request.complete_json(*args, **options)
+    with patch('apps.api.conversation_reply_transport.stream_reply', reply), \
+            patch('apps.api.policy_review.complete_json', review):
+        yield replies
+
+
 @sigterm_cancellable
 async def canonical_campaign(rounds, *, timeout=20, candidate_model='gpt-5.6-luna-memoir-low'):
-    with offline_settings():
+    with offline_settings(), controlled_reply_provider():
         return await _canonical_campaign(rounds, timeout=timeout, candidate_model=candidate_model)
 
 
@@ -84,20 +121,18 @@ async def _canonical_campaign(rounds, *, timeout, candidate_model):
         raise ValueError('Bounded synthetic inputs and a reviewed canonical model are required')
     if type(timeout) not in (int,float) or not 0<timeout<=60:
         raise ValueError('A finite controlled per-turn timeout is required')
-    variants={'baseline':dict(model='gpt-5.6-luna-pooled',requested_effort='max',requested_prompt_version='compact-v1'),
-        'candidate':dict(model=candidate_model,requested_effort='low',requested_prompt_version='compact-v1')}
-    receipt={'schema_version':'memoir-canonical-controlled-comparison/1','status':'started',
+    variants={'baseline':dict(model='gpt-5.6-luna-pooled',requested_effort='max',requested_prompt_version='reply-v2'),
+        'candidate':dict(model=candidate_model,requested_effort='low',requested_prompt_version='reply-v2')}
+    receipt={'schema_version':'memoir-canonical-controlled-comparison/2','status':'started',
         'evidence_mode':'mock_only','provider_requests_started':0,'variants':variants,'results':[],
-        'effective_prompt_version':'lifetime-v1','thread_policy':'fresh_ephemeral',
+        'effective_prompt_version':'reply-v2','thread_policy':'responses',
         'semantic_acceptance':'not_run','latency_acceptance':'not_run','effective_provider_effort':None,
         'legacy_prompt_comparison':'blocked_pending_benchmark_definition'}
-    async def ready(reader,writer):
-        writer.close();await writer.wait_closed()
-    server=await asyncio.start_server(ready,'127.0.0.1',0)
     try:
         with tempfile.TemporaryDirectory(prefix='memoir-canonical-profile-') as directory:
             root=Path(directory)
             with controlled_database() as baseline_sql:
+                baseline_sql('update public.lifetime_two_lane_rollout set enabled=true;')
                 case={'id':'canonical-comparison','project_id':'controlled-comparison'}
                 baseline,_,legacy=open_case(baseline_sql,case)
                 try:
@@ -106,6 +141,7 @@ async def _canonical_campaign(rounds, *, timeout, candidate_model):
                         before=snapshot_case(baseline_sql,baseline,legacy)
                         state_hash=digest(before['canonical_state'])
                         with controlled_database() as candidate_sql:
+                            candidate_sql('update public.lifetime_two_lane_rollout set enabled=true;')
                             candidate,_,_=open_case(candidate_sql,case,before)
                             try:
                                 assert digest(snapshot_case(candidate_sql,candidate,legacy)['canonical_state'])==state_hash
@@ -113,21 +149,18 @@ async def _canonical_campaign(rounds, *, timeout, candidate_model):
                                 order=['baseline','candidate'] if ordinal%2 else ['candidate','baseline']
                                 for variant in order:
                                     sql,storage=(baseline_sql,baseline) if variant=='baseline' else (candidate_sql,candidate)
-                                    # The only model protocol executable is this checked-in fixture.
-                                    from controlled_collector import extraction_proposal
-                                    control=root/f'{ordinal}-{variant}.json'
-                                    control.write_text(json.dumps({'reply':extraction_proposal()}))
-                                    worker=CodexWorker(home_root=root/f'{ordinal}-{variant}',api_key='synthetic',
-                                        base_url=f'http://127.0.0.1:{server.sockets[0].getsockname()[1]}/v1',
+                                    worker=CodexWorker(home_root=root/f'{ordinal}-{variant}',api_key='controlled-provider-key',
+                                        base_url='http://controlled.invalid/v1',
                                         model=variants[variant]['model'],timeout=timeout,
-                                        command=[sys.executable,str(ROOT/'tests/fixtures/issue6_controlled_app_server.py'),str(control)])
+                                        command=['forbidden-codex'])
                                     contacts=[]
                                     async def provider(request):
                                         payload=WorkerTurnInput.model_validate_json(request.content)
                                         contacts.append(payload.diagnostic_request_id)
                                         return httpx.Response(200,headers={'content-type':'application/x-ndjson'},
                                             stream=WorkerStream(turn_events(lambda emit:worker.turn(payload,on_delta=emit,on_event=emit.event))))
-                                    runtime=CodexRuntime(home_root=root/'api',model=worker.model,worker_url='http://controlled.invalid',
+                                    runtime=CodexRuntime(home_root=root/'api',model=worker.model,
+                                        base_url=worker.base_url,worker_url='http://controlled.invalid',
                                         worker_secret='synthetic',worker_transport=httpx.MockTransport(provider),timeout=timeout)
                                     timings={};started=time.monotonic()
                                     async def observe(event):
@@ -136,7 +169,7 @@ async def _canonical_campaign(rounds, *, timeout, candidate_model):
                                         if event['type']=='conversation_saved':
                                             timings['conversation_saved_s']=time.monotonic()-started
                                     result={'round':ordinal,'variant':variant,'pre_state_sha256':state_hash,'input_sha256':digest(text),
-                                        **variants[variant],'effective_prompt_version':'lifetime-v1','thread_policy':'fresh_ephemeral',
+                                        **variants[variant],'effective_prompt_version':'reply-v2','thread_policy':'responses',
                                         'effective_effort':None,'provider_request_count':None}
                                     with settings(sql.publication_dsn,variants[variant]):
                                         try:
@@ -158,7 +191,6 @@ async def _canonical_campaign(rounds, *, timeout, candidate_model):
         receipt['temporary_homes_removed']=not root.exists()
         return receipt
     finally:
-        server.close();await server.wait_closed()
         if 'root' in locals():
             receipt['temporary_homes_removed']=not root.exists()
 

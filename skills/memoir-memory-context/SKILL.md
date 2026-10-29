@@ -1,15 +1,14 @@
 ---
 name: memoir-memory-context
-description: Parse evidence-linked narrator profile changes in scheduled Lane B work when the host supplies an eligible original source window, saved profile reference, and writable target fields.
+description: Parse supported narrator profile facts or corrections when Lane B selects this skill from an original source window, saved profile reference, and writable target fields.
 ---
 
 # Narrator profile
 
-Process the host-admitted Lane B profile page. The host owns scheduling: default
-checkpoints are completed rounds 1, 5, 10, 20, 30, and subsequent multiples of 10,
-separate from the composer schedule. It supplies accumulated unprocessed originals
-in bounded pages, including earlier rounds and failed intervals. Parse the supplied
-window; the prompt neither schedules calls nor claims checkpoint completion.
+Process the host-admitted Lane B profile page. The background agent chooses this
+skill when original narration supports a profile fact or correction, on any turn.
+The host supplies the selected original window, saved reference and writable
+fields. Parse that window; the host owns coverage, retries and saving.
 
 Before loading this skill, the host checks current manual authority. Whole-profile
 confirmation stops invocation, and an empty target set skips invocation. Fields set

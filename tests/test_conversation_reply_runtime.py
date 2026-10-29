@@ -58,8 +58,7 @@ def extract(sql, page):
     def provider(request):
         calls.append(request)
         source = page['source']
-        output = dict(events=[], place_journeys=[], prepared_questions=[], event_places=[], passage_dispositions=[],
-            strategy_proposal=dict(strategy='explore', objective='follow_story', focus_event_ids=[]),
+        output = dict(events=[], place_journeys=[], event_places=[], passage_dispositions=[],
             continuity_updates=[dict(kind='person', text='Ming', quote='Ming', assertion='asserted',
                 uncertainty=None, source_id=source['id'], source_version=source['version'],
                 char_start=None, char_end=None)])
@@ -113,8 +112,16 @@ def test_bad_b_continuity_cannot_commit_or_advance_coverage(sql, tmp_path, monke
     assert sql('select count(*) from public.user_lifetime_source_extraction;').stdout.strip() == '0'
 
 
-def test_name_only_reply_preserves_chosen_name_and_b_skips_model_work(sql, tmp_path, monkeypatch):
+def test_name_only_reply_leaves_the_profile_to_selected_background_work(sql, tmp_path, monkeypatch):
     identity, lane_id, page = saved_turn(sql, tmp_path, monkeypatch, text='My name is Avery.', name='Avery')
+    assert rpc(sql, 'read_lifetime_pinned', literal(identity['conversation_id']))['chosen_name'] is None
+    from test_memoir_background_agent_postgres import service as source_service
+    assert source_service(sql,'select_lifetime_source_skills',p_lane_id=lane_id,p_token=page['token'],
+        p_source=page['source'],p_skills=['memoir-memory-context'])
+    from test_background_profile_postgres import read, commit as commit_profile, result as profile_result
+    profile = read(sql,lane_id,page)
+    assert commit_profile(sql,lane_id,profile,profile_result(profile,'name','Avery'))['status'] == 'page_saved'
+    page = service(sql,'read_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}'")
     assert page['two_lane']['work_mode'] == 'reply_only'
     result, calls = extract(sql, page)
     assert not calls and result['continuity_updates'] == []
@@ -123,12 +130,20 @@ def test_name_only_reply_preserves_chosen_name_and_b_skips_model_work(sql, tmp_p
     assert pins['chosen_name'] == 'Avery'
 
 
-def test_name_update_with_new_story_is_committed_before_b_runs(sql, tmp_path, monkeypatch):
+def test_name_with_new_story_waits_for_background_profile_selection(sql, tmp_path, monkeypatch):
     identity, lane_id, page = saved_turn(sql, tmp_path, monkeypatch,
         text='Please call me Avery. My brother Ming moved to Perth.', name='Avery', mode='extract')
     assert page['two_lane']['work_mode'] == 'extract'
     pins = rpc(sql, 'read_lifetime_pinned', literal(identity['conversation_id']))
-    assert pins['chosen_name'] == 'Avery'
+    assert pins['chosen_name'] is None
+    assert sql('select count(*) from public.user_lifetime_source_extraction;').stdout.strip() == '0'
+    from test_memoir_background_agent_postgres import service as source_service
+    assert source_service(sql,'select_lifetime_source_skills',p_lane_id=lane_id,p_token=page['token'],
+        p_source=page['source'],p_skills=['memoir-memory-context','memoir-author-timeline'])
+    from test_background_profile_postgres import read, commit as commit_profile, result as profile_result
+    profile = read(sql,lane_id,page)
+    assert commit_profile(sql,lane_id,profile,profile_result(profile,'name','Avery'))['status'] == 'page_saved'
+    assert rpc(sql,'read_lifetime_pinned',literal(identity['conversation_id']))['chosen_name'] == 'Avery'
     assert sql('select count(*) from public.user_lifetime_source_extraction;').stdout.strip() == '0'
 
 

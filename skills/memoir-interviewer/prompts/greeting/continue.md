@@ -1,1 +1,0 @@
-The storyteller wants to continue with another memory. Ask one open-ended question based on the conversation, without restarting onboarding.

@@ -9,7 +9,7 @@ from temporalio.exceptions import ApplicationError
 from temporalio.worker import Worker
 
 from apps.api.task_queue import configured_queue
-from apps.api.temporal_workflows import MemoirSkillLane
+from apps.api.temporal_workflows import MemoirSkillLane, MemoirBackgroundAgent
 from apps.api.lifetime_memory_collection_workflow import MemoirCollectionJob
 
 log = logging.getLogger(__name__)
@@ -41,24 +41,37 @@ async def execute_memoir_lane(lane_id: str) -> dict:
 async def dispatch_memoir_lanes_once(client, broker, task_queue, *, single_attempt=False):
     if type(single_attempt) is not bool or (single_attempt and not task_queue.startswith('canary-')):
         raise ValueError('Single-attempt execution requires a task-owned canary queue')
-    lane_ids = await broker.drain_once()
-    lane_ids.extend(await broker.rpc('pending_memoir_lanes', p_limit=100))
+    await broker.drain_once()
+    lane_ids = await broker.rpc('pending_memoir_background_agents', p_limit=100)
     handles = []
     for lane_id in dict.fromkeys(lane_ids):
-        handle = await client.start_workflow(MemoirSkillLane.run,
+        handle = await client.start_workflow(MemoirBackgroundAgent.run,
             args=[lane_id, True] if single_attempt else [lane_id],
-            id='memoir-lane:' + lane_id, task_queue=task_queue,
+            id='memoir-background:' + lane_id, task_queue=task_queue,
             id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
             id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
             start_signal='notify', start_signal_args=[0])
         handles.append(handle)
-        # The canary broker returns timeline before composer. Await each lane
-        # so a composer cannot consume its sole attempt before extraction.
+        # Each canary agent must settle its own required work before continuing.
         if single_attempt:
             outcome = await handle.result()
             if outcome.get('status') != 'finished':
                 raise RuntimeError('Canary lane did not settle on its first attempt')
     return handles
+
+
+@activity.defn(name='memoir.execute_background_agent')
+async def execute_background_agent(run_id: str) -> dict:
+    from apps.api.memory_event_worker import MemoryEventWorker, MemoirLaneBroker
+    broker = MemoirLaneBroker()
+    heartbeat = asyncio.create_task(_heartbeat_lane_activity()) if activity.in_activity() else None
+    try:
+        return await MemoryEventWorker(broker).execute_background_agent(run_id)
+    finally:
+        if heartbeat:
+            heartbeat.cancel()
+            await asyncio.gather(heartbeat, return_exceptions=True)
+        await broker.client.aclose()
 
 
 @activity.defn(name='memoir.execute_collection_job')
@@ -102,8 +115,8 @@ async def run_task_worker(address, namespace, task_queue, interval):
     from apps.api.memory_event_worker import MemoirLaneBroker
     broker = MemoirLaneBroker()
     try:
-        async with Worker(client, task_queue=task_queue, workflows=[MemoirSkillLane, MemoirCollectionJob],
-                          activities=[execute_memoir_lane, execute_collection_job], max_concurrent_activities=4):
+        async with Worker(client, task_queue=task_queue, workflows=[MemoirSkillLane, MemoirBackgroundAgent, MemoirCollectionJob],
+                          activities=[execute_memoir_lane, execute_background_agent, execute_collection_job], max_concurrent_activities=4):
             while True:
                 try:
                     await dispatch_memoir_lanes_once(client, broker, task_queue)
@@ -129,3 +142,10 @@ async def readiness(address, namespace, task_queue):
     # Health is contingent on a live Temporal connection, not an empty store.
     if not await client.service_client.check_health():
         raise RuntimeError('Temporal is unavailable')
+    from apps.api.memory_event_worker import MemoirLaneBroker
+    broker = MemoirLaneBroker()
+    try:
+        # Use the dispatcher RPC so missing database functions cannot look healthy.
+        await broker.rpc('pending_memoir_background_agents', p_limit=1)
+    finally:
+        await broker.client.aclose()

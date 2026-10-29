@@ -13,6 +13,25 @@ from temporalio.exceptions import ApplicationError
 from scripts import task_runtime
 
 
+@pytest.mark.parametrize('dispatch_available', [False, True])
+def test_readiness_requires_background_dispatch_and_closes_broker(monkeypatch, dispatch_available):
+    from apps.api import memory_event_worker
+    monkeypatch.setattr(task_runtime, 'configured_queue', lambda: None)
+    client = SimpleNamespace(service_client=SimpleNamespace(check_health=AsyncMock(return_value=True)))
+    monkeypatch.setattr(task_runtime.Client, 'connect', AsyncMock(return_value=client))
+    broker = SimpleNamespace(client=SimpleNamespace(aclose=AsyncMock()), rpc=AsyncMock(
+        return_value=[], side_effect=None if dispatch_available else RuntimeError('Background schema unavailable')))
+    monkeypatch.setattr(memory_event_worker, 'MemoirLaneBroker', lambda: broker)
+
+    if dispatch_available:
+        asyncio.run(task_runtime.readiness('temporal:7233', 'default', 'memoir-tasks'))
+    else:
+        with pytest.raises(RuntimeError, match='Background schema unavailable'):
+            asyncio.run(task_runtime.readiness('temporal:7233', 'default', 'memoir-tasks'))
+    broker.rpc.assert_awaited_once_with('pending_memoir_background_agents', p_limit=1)
+    broker.client.aclose.assert_awaited_once()
+
+
 def test_api_and_worker_keep_sqlite_caches_on_separate_vm_volumes():
     compose = (Path(__file__).resolve().parents[1] / 'compose.yml').read_text()
     volumes = []

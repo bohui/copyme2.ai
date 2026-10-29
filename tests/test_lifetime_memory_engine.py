@@ -28,13 +28,14 @@ TEXT = 'I carried a blue umbrella in Sydney.'
 
 
 def fixture():
+    from apps.api.conversation_reply import reply_instructions
     source = ContextSource(identity=IDENTITY, policy_epoch=1, source_id=UUID(int=4),
         version=1, sequence=1, original=TEXT, language='en-AU')
     context = {'source': {'id': str(source.source_id), 'version': 1, 'text': TEXT, 'status': 'active'},
         'sources': [], 'events': [], 'photo_context': [], 'interview_language': 'en-AU'}
     packet = build_context(identity=IDENTITY, policy_epoch=1,
         pinned=PinnedContinuity(preference_revision=0, language='en-AU'),
-        instructions='Use only authorized narrator evidence.', current=source,
+        instructions=reply_instructions(), current=source,
         tail=[], retrieved=[], budget=BUDGET, tail_coverage=TailCoverage(identity=IDENTITY,
             policy_epoch=1, after_sequence=0, through_sequence=0, complete=True))
     packet.update(fence=FENCE.model_dump(mode='json'), model=BUDGET.model, prompt_version='lifetime-v1',
@@ -206,7 +207,12 @@ def test_governed_config_disables_both_memory_paths_without_changing_legacy():
     assert governed['memories'] == {'generate_memories':False, 'use_memories':False}
 
 
-def test_fresh_turn_uses_exact_packet_once_and_no_secret_or_old_home(tmp_path):
+def test_fresh_turn_uses_exact_packet_once_and_no_secret_or_old_home(tmp_path, monkeypatch):
+    import tomllib
+    from apps.api import llm_tracing
+    from test_gateway_trace_correlation import ApplicationTracer, TRACE_ID, SPAN_ID
+    tracer=ApplicationTracer()
+    monkeypatch.setattr(llm_tracing,'_client_cache',tracer)
     governed, context = fixture()
     old_home = tmp_path / str(IDENTITY.owner_id)
     old_home.mkdir()
@@ -225,6 +231,10 @@ def test_fresh_turn_uses_exact_packet_once_and_no_secret_or_old_home(tmp_path):
     assert not (connection.home / 'MEMORY.md').exists()
     assert 'transient-test-secret' not in (connection.home / 'config.toml').read_text()
     assert connection.options['provider_env']['MEMORY_SPARK_LLM_API_KEY'] == 'transient-test-secret'
+    config=tomllib.loads((connection.home/'config.toml').read_text())
+    assert config['model_providers']['llm_provider']['http_headers']=={
+        'traceparent':f'00-{TRACE_ID}-{SPAN_ID}-01'}
+    assert tracer.observations[0].fields['as_type']=='span'
     assert result['thread_id'] == 'fresh-thread' and result['artifacts'] == []
     assert result['cold_resume_reason'] == 'unvalidated_transcript'
     assert (old_home / 'MEMORY.md').read_text() == 'WITHDRAWN PRIVATE FACT'
@@ -527,8 +537,8 @@ def test_repair_recovers_an_incomplete_provider_turn_without_losing_the_acknowle
                 if attempt>1:assert 'INVALID_JSON' in prompt
                 await options['on_delta'](json.dumps({'acknowledgement':original}))
                 return 'invalid JSON'
-            assert original in prompt
-            assert 'previous attempt' in prompt
+            assert options['output_schema']['properties']['acknowledgement']['enum'] == [original]
+            assert 'Correct the previous reply' in prompt
             if attempt==invalid_attempts+1:
                 assert 'INVALID_JSON' in prompt
                 return await incomplete_provider_turn(tmp_path)
@@ -621,6 +631,8 @@ def test_governed_runtime_does_not_advertise_general_agent_tools():
         assert governed['features'][feature] is False
         assert feature not in legacy['features']
     assert governed['features']['skip_host_skill_discovery'] is True
+    assert governed['skills'] == {'include_instructions':False,'bundled':{'enabled':False}}
+    assert 'skills' not in legacy
 
 
 def test_worker_rechecks_mutated_payload_before_dispatch(tmp_path, monkeypatch):

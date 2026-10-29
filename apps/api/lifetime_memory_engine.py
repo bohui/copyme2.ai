@@ -8,7 +8,7 @@ homes and transcripts are disposable; they are never a source of personal truth.
 from __future__ import annotations
 
 from .model_request import instruction_manifest, manifest_metadata
-from .llm_tracing import trace_llm_call
+from .llm_tracing import trace_llm_call, update_llm_trace
 
 from copy import deepcopy
 from contextlib import AsyncExitStack
@@ -45,7 +45,7 @@ diagnostic_logger = configure_diagnostic_logger(logging.getLogger('memoir.collec
 # Native outputSchema also constrains commentary. Forcing a preamble required
 # extra schema-shaped messages and slowed final replies in the issue 53 probes.
 # Stream the acknowledgement from this single final document instead.
-GOVERNED_TURN_PROMPT = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-turn'))
+GOVERNED_TURN_PROMPT = ''
 # Reviewed models retain the conservative UTF-8 byte bound.
 # No wildcard or arbitrary operator-defined alias is admitted.
 SUPPORTED_BYTE_BOUND_MODELS = frozenset({'gpt-5.6-luna-pooled', 'gpt-5.6-luna-memoir-low',
@@ -54,7 +54,7 @@ SUPPORTED_PROMPT_VERSIONS = frozenset({'lifetime-v1'})
 
 
 def repair_instructions(reason):
-    rules = json.loads(load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-codes')))
+    rules = json.loads(load_prompt_artifact(prompt_path('memoir/agents/mira/repair-codes')))
     key = 'SCHEMA_FIELD' if reason.startswith('SCHEMA_FIELD_') else reason
     return rules['common'] + '\n' + rules.get(key, rules['SCHEMA_OR_OTHER_CONTRACT'])
 
@@ -356,13 +356,11 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     prompt=GOVERNED_TURN_PROMPT
     repair = repair_instructions(repair_reason) if repair_reason is not None else None
     if repair is not None:
-        prompt += repair
-        prompt+=(load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-prefix'))
-            +json.dumps({'error_code': repair_reason},ensure_ascii=False)+load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-suffix')))
+        prompt = load_prompt_artifact(prompt_path('memoir/agents/mira/repair')) + json.dumps(
+            {'error_code': repair_reason, 'guidance': repair}, ensure_ascii=False)
     if acknowledgement is not None:
         # A fresh-home repair must preserve the acknowledgement already shown.
         constrain_acknowledgement(output_schema, [acknowledgement])
-        prompt+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/repair-acknowledgement'))+json.dumps(acknowledgement,ensure_ascii=False)+'.'
     if (governed.budget.count(governed.packet) + governed_request_overhead(
             interview_context, governed.budget, output_schema=output_schema,prompt=prompt) > governed.budget.input_budget):
         raise CollectorResponseUnavailable('The acknowledged reply exceeds the request budget')
@@ -405,6 +403,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # Only the complete validated acknowledgement crosses this boundary.
             await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
     async with AsyncExitStack() as stack:
+        trace = stack.enter_context(trace_llm_call('memoir-interviewer', model, gateway=True))
         direct_reply = interview_context.get('reply_contract') == 'reply-v2'
         if direct_reply:
             candidate = 'reply-' + uuid4().hex
@@ -427,43 +426,36 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                     'model':model, 'approvalPolicy':'never', 'sandbox':'read-only',
                     'baseInstructions':model_packet}, identity=identity.model_dump(mode='json'))
             candidate = opened['thread_id']
-        static_parts = [packet.instructions, GOVERNED_TURN_PROMPT]
+        static_parts = [packet.instructions]
         if repair is not None:
             static_parts.append(repair)
-            static_parts.extend(load_prompt_artifact(prompt_path(
-                'memoir/skills/memoir-interviewer/repair-' + part))
-                for part in ('prefix', 'suffix'))
-        if acknowledgement is not None:
-            static_parts.append(load_prompt_artifact(prompt_path(
-                'memoir/skills/memoir-interviewer/repair-acknowledgement')))
+            static_parts.append(load_prompt_artifact(prompt_path('memoir/agents/mira/repair')))
         manifest = instruction_manifest('\n'.join(static_parts), output_schema,
             variant='collector-repair' if repair is not None else 'collector',
-            extra_names=(['memoir/skills/memoir-interviewer/repair-codes'] if repair is not None else [])
+            extra_names=(['memoir/agents/mira/repair-codes'] if repair is not None else [])
                 + (['memoir/shared/historical-acknowledgements']
-                    if interview_context.get('historical_news',{}).get('clues') else []))
+                    if not direct_reply and interview_context.get('historical_news',{}).get('clues') else []))
         trace_metadata = {
                 'contract_version': interview_context.get('reply_contract', 'lifetime-v1'),
                 'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}
         metadata = {**manifest_metadata(manifest), **(responsesapi_client_metadata or {}),
                     'generation_name': 'memoir-interviewer', 'trace_name': 'memoir-interviewer'}
-        with trace_llm_call('memoir.' + str('collector-repair' if repair_reason else 'collector'),
-                            model, metadata=trace_metadata) as trace:
-            if direct_reply:
-                from .conversation_reply_transport import stream_reply
-                from .llm_tracing import update_llm_trace
-                reply, receipt = await stream_reply(view=json.loads(model_packet), prompt=prompt,
-                    schema=output_schema, model=model, effort=effort, budget=governed.budget,
-                    base_url=base_url, api_key=api_key, publisher=publisher, fence=packet.fence,
-                    metadata=metadata, timeout=timeout, on_delta=model_delta if on_delta else None,
-                    issue14_admission=issue14_admission)
-                update_llm_trace(trace, metadata={**trace_metadata, 'transport': 'responses', **receipt})
-            else:
-                reply = await connection.turn(candidate, prompt,
-                    output_schema=output_schema,
-                    **({'on_delta':model_delta} if on_delta else {}),
-                    **({'on_event':on_event} if on_event else {}),
-                    **({'effort':effort} if effort else {}),
-                    responsesapi_client_metadata=metadata)
+        update_llm_trace(trace, metadata=trace_metadata)
+        if direct_reply:
+            from .conversation_reply_transport import stream_reply
+            reply, receipt = await stream_reply(view=json.loads(model_packet), prompt=prompt,
+                schema=output_schema, model=model, effort=effort, budget=governed.budget,
+                base_url=base_url, api_key=api_key, publisher=publisher, fence=packet.fence,
+                metadata=metadata, timeout=timeout, on_delta=model_delta if on_delta else None,
+                issue14_admission=issue14_admission)
+            update_llm_trace(trace, metadata={**trace_metadata, 'transport': 'responses', **receipt})
+        else:
+            reply = await connection.turn(candidate, prompt,
+                output_schema=output_schema,
+                **({'on_delta':model_delta} if on_delta else {}),
+                **({'on_event':on_event} if on_event else {}),
+                **({'effort':effort} if effort else {}),
+                responsesapi_client_metadata=metadata)
         try:
             validated = validate_governed_collector_result(reply, interview_context)
             expected = acknowledgement if acknowledgement is not None else streamed_acknowledgement

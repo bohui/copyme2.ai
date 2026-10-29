@@ -248,11 +248,28 @@ def test_reported_places_replay_from_sql_api_to_client(sql, tmp_path, monkeypatc
             source_ref=reference(packet, father))]
         return {**empty(packet), 'events':events, 'place_journeys':cues,
             'event_places':[], 'passage_dispositions':dispositions}
+    async def background_name(request, delegate):
+        response = await delegate(request)
+        import json
+        bounded = json.loads(request.content).get('bounded_lane')
+        if bounded and bounded['phase'] == 'profile':
+            from test_background_profile_workflow import worker_response
+            source = json.loads(bounded['packet'])['payload']['source']
+            quote = '我叫慧博'
+            start = source['text'].index(quote)
+            return worker_response(request,{'profile_patch':[{'field':'name','value':'慧博','source_refs':[{
+                'source_id':source['id'],'version':source['version'],'quote':quote,
+                'char_start':start,'char_end':start+len(quote)}]}]})
+        return response
     conversation = Conversation(sql, tmp_path, monkeypatch, extract,
-        name='慧博' if scenario == 'named_narrator' else None)
+        external_boundary=background_name if scenario == 'named_narrator' else None)
     with conversation.client:
         accepted = conversation.say(text)
+        if scenario == 'named_narrator':
+            assert not sql("select profile->>'name' from public.user_profile;").stdout.strip()
         conversation.drain()
+        if scenario == 'named_narrator':
+            assert sql("select profile->>'name' from public.user_profile;").stdout.strip() == '慧博'
         response = conversation.client.get('/v1/story/readiness', params={'project_id':conversation.project})
         assert response.status_code == 200, response.text
         ready = response.json()

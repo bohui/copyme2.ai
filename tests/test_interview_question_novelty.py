@@ -156,17 +156,7 @@ def question_goal_case(locale, scenario, contract):
             response=dict(id='00000000-0000-0000-0000-000000000005', version=1,
                           text=earlier, role='user', kind='narrator_chat', complete=True))])
     context['source']['text'] = current
-    if contract == 'reply-v2':
-        instructions = reply_instructions()
-    else:
-        from apps.api.interview_strategy import strategy_instructions
-        from apps.api.prompt_composition import render_prompt_artifact
-        from apps.api.prompt_artifact import prompt_path
-        from apps.api.lifetime_memory_continuity import GOVERNED_CONTINUITY_INSTRUCTIONS
-        context.update(strategy_selector=True, active_strategy='explore')
-        instructions = '\n'.join((strategy_instructions('explore'), render_prompt_artifact(
-            prompt_path('memoir/skills/memoir-interviewer/language-' + locale)),
-            GOVERNED_CONTINUITY_INSTRUCTIONS))
+    instructions = reply_instructions()
     packet = json.loads(governed.packet)
     packet['current']['narrator'].update(original=current, char_end=len(current), language=locale)
     packet['pinned']['language'] = locale
@@ -178,7 +168,7 @@ def question_goal_case(locale, scenario, contract):
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
 @pytest.mark.parametrize('scenario', SCENARIOS)
-@pytest.mark.parametrize('contract', ['reply-v2', 'two-lane-v1'])
+@pytest.mark.parametrize('contract', ['reply-v2'])
 def test_question_goal_request_preserves_the_prior_exchange_and_current_narration(locale, scenario, contract):
     context, view = question_goal_case(locale, scenario, contract)
     messages = reply_messages(view, GOVERNED_TURN_PROMPT)
@@ -192,7 +182,7 @@ def test_question_goal_request_preserves_the_prior_exchange_and_current_narratio
                     reason='Opt in to fictional model calls with MEMOIR_LIVE_QUESTION_NOVELTY=1')
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
 @pytest.mark.parametrize('scenario', SCENARIOS)
-@pytest.mark.parametrize('contract', ['reply-v2', 'two-lane-v1'])
+@pytest.mark.parametrize('contract', ['reply-v2'])
 def test_live_next_question_follows_the_current_memory(locale, scenario, contract, monkeypatch):
     context, view = question_goal_case(locale, scenario, contract)
     question, receipt = live_question(context, view, monkeypatch)

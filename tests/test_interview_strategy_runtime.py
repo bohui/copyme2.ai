@@ -5,10 +5,14 @@ import httpx
 import pytest
 from test_interview_strategy_postgres import (database,sql,event_database,private_database,attachment_database,
     enable_only_disposable_database_rollout,setup,commit)
-from test_two_lane_memory import accept,lane,service,proposal
+from test_two_lane_memory import accept,lane,service
 from test_shared_memory_events_postgres import rpc,literal
 from test_agent_commit_postgres import OWNER
-from test_interview_strategy import wire
+from test_conversation_reply import proposal
+
+
+def wire(question='What do you enjoy growing?', **changes):
+    return {**proposal(), 'question': question, **changes}
 
 
 def client_fixture(sql,tmp_path,monkeypatch,provider):
@@ -19,7 +23,7 @@ def client_fixture(sql,tmp_path,monkeypatch,provider):
     from fastapi.testclient import TestClient
     from memoir_postgres_workflow import PostgresRest
     monkeypatch.setenv('MEMOIR_TWO_LANES','1');monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY','1')
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','two-lane-v1')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','reply-v2')
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     sql('update public.lifetime_two_lane_rollout set strategy_enabled=true,strategy_shadow=false;')
     monkeypatch.setattr(agent_routes,'authenticated_storage',lambda _:PostgresRest(sql,OWNER).storage())
@@ -49,10 +53,10 @@ def test_strategy_prompt_preserves_work_routing_and_background_map(sql,tmp_path,
     def provider(request):
         body=json.loads(request.content)
         instructions=json.loads(body['governed']['packet'])['instructions']
-        assert 'Use "extract" when' in instructions
-        assert 'work.mode' in instructions and 'work.name' in instructions
-        assert 'plan.work' not in instructions
-        output=wire(selection_reason='latest_story',work={'mode':mode,'name':name})
+        from apps.api.conversation_reply import reply_instructions
+        assert instructions == reply_instructions()
+        assert body['interview_context']['reply_contract'] == 'reply-v2'
+        output=wire(reason='latest_story',work={'mode':mode,'name':name})
         return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'work-routing','artifacts':[]})
     with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
         response=client.post('/v1/agent/turn',json={'text':text,'language':language,'client_turn_id':str(uuid4())})
@@ -67,8 +71,7 @@ def test_strategy_prompt_preserves_work_routing_and_background_map(sql,tmp_path,
             return json.loads(sql('set role service_role;select to_jsonb(public.'+rpc_name+'('+query+'));').stdout.splitlines()[-1])
     def background(request):
         calls.append(request)
-        result={'events':[],'place_journeys':[place],'prepared_questions':[],
-            'strategy_proposal':{'strategy':'explore','objective':'follow_story','focus_event_ids':[]}}
+        result={'events':[],'place_journeys':[place],'continuity_updates':[]}
         return httpx.Response(200,json={'reply':json.dumps(result),'thread_id':'background-map','artifacts':[]})
     worker=SimpleNamespace(broker=Broker(),worker_url='http://controlled.invalid',worker_secret='synthetic',
         worker_transport=httpx.MockTransport(background),lane_publisher=LanePublication(sql.publication_dsn,authenticated_owner=OWNER))
@@ -87,8 +90,9 @@ def test_active_full_turn_saves_one_question_and_records_only_actual_delivery(sq
         body=json.loads(request.content);calls.append(body);context=body['interview_context']
         assert context['strategy_selector'] and context['active_strategy'] in {'comfort','explore','shape'}
         packet=json.loads(body['governed']['packet'])
-        assert packet['instructions'].count('Active internal strategy:')==1
-        return httpx.Response(200,json={'reply':json.dumps(wire(selection_reason='latest_story',used_strategy=strategy)), 'thread_id':'controlled','artifacts':[]})
+        from apps.api.conversation_reply import reply_instructions
+        assert packet['instructions'] == reply_instructions()
+        return httpx.Response(200,json={'reply':json.dumps(wire(reason='latest_story')), 'thread_id':'controlled','artifacts':[]})
     import logging
     caplog.set_level(logging.INFO,logger='memoir.strategy.metrics')
     with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
@@ -105,7 +109,7 @@ def test_active_full_turn_saves_one_question_and_records_only_actual_delivery(sq
     assert len(calls)==1
     state=json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o;').stdout.strip())
     assert state['delivered'] and state['question_delivered']=='What do you enjoy growing?'
-    assert state['used_strategy']==strategy and state['selected_candidate_id'] is None
+    assert state['used_strategy']==calls[0]['interview_context']['active_strategy'] and state['selected_candidate_id'] is None
     assert sql('select count(*) from public.user_completed_round;').stdout.strip()=='1'
     assert sql("select count(*) from public.user_memoir_lane where skill='composer';").stdout.strip()=='0'
     metrics=[json.loads(r.message) for r in caplog.records if r.name=='memoir.strategy.metrics']
@@ -137,7 +141,7 @@ def test_current_intent_matrix_uses_one_call_without_composition_permissions(sql
     calls=[]
     def provider(request):
         body=json.loads(request.content);calls.append(body)
-        output=wire(question=question,selection_reason=reason,used_strategy=strategy,stopped=stopped)
+        output=wire(question=question,reason=reason)
         if reason in {'no_plan','pause','direct_answer'}:output['work']={'mode':'reply_only','name':'Joan' if text.startswith('My name') else None}
         return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'intent','artifacts':[]})
     with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
@@ -146,7 +150,7 @@ def test_current_intent_matrix_uses_one_call_without_composition_permissions(sql
         saved=response.json();assert saved['conversation_saved']
     assert len(calls)==1
     state=json.loads(sql('select to_jsonb(o) from public.user_lifetime_strategy_outcome o;').stdout.strip())
-    assert state['delivered'] and state['selection_reason']==reason and state['used_strategy']==strategy
+    assert state['delivered'] and state['selection_reason']==reason and state['used_strategy']==calls[0]['interview_context']['active_strategy']
     assert state['question_delivered']==question
     assert sql("select count(*) from public.user_memoir_lane where skill='composer';").stdout.strip()=='0'
     if text=='Yes.':assert 'legacy_strategy' not in calls[0]['interview_context']
@@ -158,12 +162,12 @@ def test_accepted_plan_is_selected_once_and_a_redirect_does_not_rewrite_it(sql,t
     def provider(request):
         body=json.loads(request.content);calls.append(body);state=body['interview_context']['strategy_context']
         if len(calls)==1:
-            output=wire(selection_reason='latest_story')
+            output=wire(reason='latest_story')
         elif len(calls)==2:
             assert state['plan']['strategy']==planned_strategy
             assert body['interview_context']['active_strategy']==planned_strategy
             assert state['prior_delivered_question']=='What do you enjoy growing?'
-            output=wire(question=plan['candidates'][0]['question'],selected_candidate_id=plan['candidates'][0]['id'],selection_reason='prepared_candidate',used_strategy=planned_strategy)
+            output=wire(question=plan['candidates'][0]['question'],hint=0,reason='prepared_candidate')
         else:
             assert not (state['plan'] or {}).get('candidates')
             output=wire()
@@ -193,8 +197,8 @@ def test_saved_but_failed_send_does_not_mark_candidate_asked_and_retry_recovers(
     def provider(request):
         body=json.loads(request.content);calls.append(body)
         plan=(body['interview_context'].get('strategy_context') or {}).get('plan')
-        output=wire(selection_reason='latest_story') if plan is None else wire(question=plan['candidates'][0]['question'],
-            selected_candidate_id=plan['candidates'][0]['id'],selection_reason='prepared_candidate',used_strategy='shape')
+        output=wire(reason='latest_story') if plan is None else wire(question=plan['candidates'][0]['question'],
+            hint=0,reason='prepared_candidate')
         return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'delivery-'+str(len(calls)),'artifacts':[]})
     with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
         first=client.post('/v1/agent/turn',json={'text':'The shop came before the move.','client_turn_id':str(uuid4())})
@@ -228,7 +232,7 @@ def test_rollback_uses_collector_schema_without_restoring_user_modes(sql,tmp_pat
         body=json.loads(request.content);calls.append(body)
         assert not body['interview_context'].get('strategy_selector')
         assert 'conversation_phase' not in body['interview_context']
-        return httpx.Response(200,json={'reply':json.dumps(proposal(mode='extract',name=None)), 'thread_id':'legacy','artifacts':[]})
+        return httpx.Response(200,json={'reply':json.dumps(wire()), 'thread_id':'legacy','artifacts':[]})
     with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
         identity=rpc(sql,'resolve_lifetime_conversation','null')
         if rollback=='shadow':sql('update public.lifetime_two_lane_rollout set strategy_shadow=true;')
@@ -251,7 +255,7 @@ def test_active_selector_finishes_actual_send_while_planner_transport_is_stalled
     from apps.api.lifetime_memory_lane_engine import LanePublication
     from memoir_postgres_workflow import PostgresRest
     monkeypatch.setenv('MEMOIR_TWO_LANES','1');monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY','1')
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','two-lane-v1')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','reply-v2')
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     identity,accepted,lane_id,page=setup(sql,shadow=False,text='The shop came before the move.')
     async def scenario():
@@ -265,7 +269,7 @@ def test_active_selector_finishes_actual_send_while_planner_transport_is_stalled
                     'strategy_proposal':{'strategy':'shape','objective':'clarify_order','focus_event_ids':[]}}
             else:
                 assert body['thread_id'] is None and body['interview_context']['strategy_selector']
-                output=wire(selection_reason='latest_story')
+                output=wire(reason='latest_story')
             return httpx.Response(200,json={'reply':json.dumps(output),'thread_id':'barrier','artifacts':[]})
         class Broker:
             async def rpc(self,name,**args):
@@ -313,7 +317,7 @@ def test_exclusion_acknowledgement_saves_privacy_work_without_forcing_a_redirect
         body=json.loads(request.content);calls.append(body)
         assert json.loads(body['governed']['packet'])['current']['narrator']['original']==text
         return httpx.Response(200,json={'reply':json.dumps(wire(acknowledgement='Understood.',question=None,
-            selection_reason='direct_answer',work={'mode':'extract','name':None})),
+            reason='direct_answer',work={'mode':'extract','name':None})),
             'thread_id':'exclusion','artifacts':[]})
     with client_fixture(sql,tmp_path,monkeypatch,provider) as client:
         response=client.post('/v1/agent/turn',json={'text':text,'language':language,'client_turn_id':str(uuid4())},

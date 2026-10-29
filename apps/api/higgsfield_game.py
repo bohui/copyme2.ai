@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from .model_request import instruction_manifest, manifest_metadata
 from .model_configuration import game_configuration
+from .llm_tracing import gateway_trace_headers
 from .prompt_artifact import load_prompt_artifact, prompt_path
 from .story_game_selection import public_scenes, selected_scenes, validate_brief
 from .story_game_runtime import GameFence, GamePublication, GameRequestBody, game_ui
@@ -116,10 +117,10 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
             request = GameRequestBody(encoded, publisher=publisher, fence=fence.model_dump(mode='json'))
             try:
                 with trace_llm_call('story.game.higgsfield', model, metadata={
-                        'prompt_manifest': manifest, 'skill_sha256': skill_digest}) as trace:
+                        'prompt_manifest': manifest, 'skill_sha256': skill_digest}, gateway=True) as trace:
                     async with client.stream('POST', base + '/responses', content=request,
                             headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',
-                                'Content-Length': str(len(encoded))}) as response:
+                                'Content-Length': str(len(encoded)), **gateway_trace_headers()}) as response:
                         response.raise_for_status()
                         raw = bytearray()
                         async for chunk in response.aiter_bytes():

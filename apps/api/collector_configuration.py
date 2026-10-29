@@ -22,14 +22,14 @@ def collector_configuration(default_model: str) -> CollectorConfiguration:
     # Resolve at generation time, never when a session/runtime is constructed.
     model = os.getenv('MEMORY_SPARK_COLLECTOR_MODEL', '').strip() or default_model
     effort = os.getenv('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT', '').strip() or None
-    version = os.getenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', '').strip() or 'compact-v1'
+    version = os.getenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', '').strip() or 'reply-v2'
     if len(model) > 256 or any(ord(char) < 32 for char in model):
         raise CollectorConfigurationError('Invalid collector model configuration')
     if effort not in {None, 'none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'}:
         raise CollectorConfigurationError('Invalid collector reasoning effort configuration')
-    if version not in {'compact-v1', 'two-lane-v1', 'reply-v2'}:
+    if version != 'reply-v2':
         raise CollectorConfigurationError('Invalid collector prompt version configuration')
-    if version == 'reply-v2' and effort == 'low' and model == 'gpt-5.6-luna-pooled':
+    if effort == 'low' and model == 'gpt-5.6-luna-pooled':
         # The pooled key enforces max; this existing same-model route has a low-policy key.
         model = 'gpt-5.6-luna-memoir-low'
     return CollectorConfiguration(model, effort, version)

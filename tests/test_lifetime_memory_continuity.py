@@ -8,7 +8,6 @@ from jsonschema import validate
 
 from apps.api.interview_plan import collector_schema, validate_collector_result
 from apps.api.lifetime_memory_continuity import (
-    GOVERNED_CONTINUITY_INSTRUCTIONS,
     governed_collector_schema,
     validate_governed_collector_result,
 )

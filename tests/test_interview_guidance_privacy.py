@@ -15,7 +15,7 @@ from apps.api.interview_guidance import execute_guidance_lane, validate_guidance
 from test_agent_commit_postgres import OWNER, OTHER, OLD
 from test_background_profile_workflow import database, worker_response
 from test_conversation_attribution import Conversation, empty, episode, reference
-from test_interview_guidance_workflow import (activate_guidance_pool, drain_timeline,
+from legacy_guidance_fixtures import (activate_guidance_pool, drain_timeline,
     claimed_guidance, commit_guidance, identity, pool)
 from test_lifetime_memory_postgres import event_database, private_database, attachment_database, resolve
 from test_shared_memory_events_postgres import sql, rpc, literal
@@ -87,7 +87,9 @@ def test_guarded_guidance_excludes_withheld_neighbors_of_an_allowed_citation(sql
         candidate = pool(conversation)[0]
         response = conversation.say('I would like to continue.')
         assert 'bicycle accident' not in response['reply']
-        assert response['reply'].endswith(SAFE_QUESTION)
+        from test_conversation_reply import proposal as current_reply
+        assert response['reply'].endswith(current_reply()['question'])
+        assert SAFE_QUESTION not in response['reply'], 'Saved legacy guidance is not a current interviewing instruction'
         assert candidate['question'] == SAFE_QUESTION
         assert PRIVATE not in json.dumps(dispatched, ensure_ascii=False)
         packet = json.loads(dispatched[-1]['bounded_lane']['packet'])['payload']
@@ -247,12 +249,8 @@ def test_guidance_envelope_does_not_copy_withheld_quotes_from_pins_or_questions(
         if (body.get('bounded_lane') or {}).get('phase') == 'guidance':
             dispatched.append(body)
         if copy == 'question' and not body.get('bounded_lane'):
-            from test_name_only_opening import proposal as collector_proposal
-            output = collector_proposal(mode='extract', name=None, question=UNSAFE_QUESTION)
-            source = body['interview_context']['source']
-            output['plan']['candidates'][0]['context']['evidence'] = dict(source_id=source['id'],
-                version=source['version'], quote=PRIVATE, char_start=MIXED.index(PRIVATE),
-                char_end=MIXED.index(PRIVATE)+len(PRIVATE), attribution=None)
+            from test_conversation_reply import proposal as collector_proposal
+            output = dict(collector_proposal(),question=UNSAFE_QUESTION,quote=PRIVATE)
             return worker_response(request, output)
         return await provider(request)
     conversation = Conversation(sql, tmp_path, monkeypatch, extract, guidance=proposal, external_boundary=boundary)

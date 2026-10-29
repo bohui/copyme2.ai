@@ -15,7 +15,6 @@ from .lifetime_memory_contracts import ContextBudget, IdentityEnvelope
 from .lifetime_memory_context import ContextSource, TailCoverage, InputLimitExceeded, serialize_packet
 from .lifetime_memory_service import LifetimeMemoryService,MaintenancePending
 from .lifetime_memory_transport import GovernedResult
-from .prompt_artifact import load_prompt_artifact, prompt_path
 
 
 class MappingRequired(RuntimeError):
@@ -91,10 +90,9 @@ class LifetimePublicationContext:
             await scope.aclose()
         research,self.historical_research=self.historical_research,None
         if delivered and research is not None:
-            from .historical_news import enrich
-            storage,project_id,engine=research
+            storage,project_id=research
             try:
-                await enrich(storage,project_id,engine)
+                await asyncio.to_thread(storage.queue_background_agent,project_id)
             except Exception as error:
                 import logging
                 logging.getLogger(__name__).warning('Historical research unavailable: %s',type(error).__name__)
@@ -115,12 +113,11 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         user_response=True,on_delta=None,on_event=None,workspace_focus=None,evaluation=None,trajectory=None,**unused):
     turn_started=time.monotonic()
     from .collector_configuration import collector_configuration, CollectorConfigurationError
-    from .interview_strategy import strategy_enabled,strategy_instructions,InterviewStrategyPlan,StrategyMetrics
-    from .two_lane_memory import two_lanes_enabled, CONVERSATION_INSTRUCTIONS
+    from .two_lane_memory import two_lanes_enabled
     two_lane=two_lanes_enabled()
     from .conversation_locale import detect_reply_locale,explicit_request
-    from .interview_plan import CollectorVisibleStream,collector_instructions,public_interview_fields
-    from .lifetime_memory_continuity import (GOVERNED_CONTINUITY_INSTRUCTIONS,validate_governed_collector_result)
+    from .interview_plan import CollectorVisibleStream,public_interview_fields
+    from .lifetime_memory_continuity import validate_governed_collector_result
     from .lifetime_memory_engine import (CollectorResponseUnavailable,GovernedCollectorInput,
         governed_request_overhead,run_governed_collector)
     from .lifetime_memory_outbox import LifetimeMemoryOutbox
@@ -232,7 +229,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         elif lifetime_generation_paused():
             raise GenerationPaused('Conversation generation is paused; saved history and receipts remain available')
         else:
-            if collector_configuration(runtime.model).prompt_version == 'reply-v2' and not two_lane:
+            collector_configuration(runtime.model)
+            if not two_lane:
                 raise CollectorConfigurationError('Reply v2 requires the enabled two-lane workflow')
             if workspace_focus and not already_accepted:
                 from .workspace_memory_actions import read_workspace_focus
@@ -247,8 +245,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             accepted_source_id=source['id']
             from .parallel_reply import parallel_policy_enabled, RevisableReplyStream, reviewed_reply
             revisable=(parallel_policy_enabled() and two_lane and publication.emitter is not None
-                and on_delta is not None and not already_accepted
-                and collector_configuration(runtime.model).prompt_version=='reply-v2')
+                and on_delta is not None and not already_accepted)
             reviewed_opening=None
             pending_review=revisable
             if not revisable:
@@ -300,13 +297,14 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     except Exception:
                         pass  # Optional stale clues remain excluded on read/validation failure.
                 context.pop('conversation_phase',None)
+                for retired in ('prepared_questions','interview_guidance','strategy_context','strategy_selector'):
+                    context.pop(retired,None)
                 context.update(source=source,sources=[source],photo_context=accepted.get('photo_context',[]),
                     interview_language=selected_language,opening_turn=accepted.get('sequence')==1)
                 from .interview_strategy import stage_breadth_checkpoint
                 context['breadth_checkpoint'] = stage_breadth_checkpoint(context.pop('stage_coverage', []))
                 if two_lane:
                     context['two_lane_memory']=True
-                    context['prepared_questions']=await call('read_lifetime_prepared_questions',p_conversation_id=str(identity.conversation_id))
                 from .policy_review import reviewed_acknowledgement
                 from .interview_plan import historical_acknowledgement_allowed, defer_prepared_acknowledgement
                 opening=None if revisable else reviewed_acknowledgement(reviewed_opening or policy_status.get('reviewed_acknowledgement'),
@@ -317,20 +315,10 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 else:
                     opening=None
                 collector=collector_configuration(runtime.model)
-                if collector.prompt_version == 'reply-v2':
-                    if not two_lane:
-                        raise CollectorConfigurationError('Reply v2 requires the enabled two-lane workflow')
-                    context['reply_contract'] = 'reply-v2'
+                context['reply_contract'] = 'reply-v2'
+                context['strategy_selector'] = True  # Save Mira's decision without a background plan.
                 if revisable:
                     context.update(revisable_reply=True, policy_review_pending=pending_review)
-                if two_lane and strategy_enabled() and collector.prompt_version in {'two-lane-v1', 'reply-v2'}:
-                    state=await call('read_lifetime_strategy_context',p_conversation_id=str(identity.conversation_id))
-                    if state['mode']=='active':
-                        if state.get('plan') is not None:InterviewStrategyPlan.model_validate(state['plan'])
-                        context.update(strategy_selector=True,strategy_context=state,
-                            active_strategy=(state.get('plan') or {}).get('strategy') or state.get('planned_strategy_hint') or
-                                ('explore' if context['has_accepted_narration'] else 'comfort'))
-                        publication.strategy_metrics=StrategyMetrics(client_turn_id,source['sequence'],context,start=turn_started)
                 overall=ContextBudget(model=collector.model,context_window=131072,input_budget=65536,output_headroom=8192,framing_headroom=2048)
                 overhead=governed_request_overhead(context,overall)
                 packet_budget=overall.model_copy(update={'input_budget':overall.input_budget-overhead})
@@ -344,21 +332,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 def row(value):return ContextSource(identity=identity,policy_epoch=fence['policy_epoch'],source_id=value['id'],version=value['version'],sequence=value['sequence'],original=value['text'],language=value['language'],kind=value['kind'],conversation_saved=value.get('conversation_saved',False),assistant_reply=value.get('assistant_reply'),reply_policy_epoch=value.get('reply_policy_epoch'))
                 coverage=TailCoverage(identity=identity,policy_epoch=fence['policy_epoch'],after_sequence=after,through_sequence=source['sequence']-1,complete=tail['complete'],tombstones=tail['tombstones'])
                 service=LifetimeMemoryService(storage.lifetime_rpc,budget=packet_budget)
-                if context.get('reply_contract') == 'reply-v2':
-                    from .conversation_reply import reply_instructions
-                    instructions = reply_instructions()
-                else:
-                    from .collector_prompt import COMPACT_COLLECTOR_PROMPT
-                    from .codex_runtime import conversation_language_instruction
-                    if context.get('strategy_selector'):
-                        instructions=strategy_instructions(context['active_strategy'])+'\n'+conversation_language_instruction(selected_language)+GOVERNED_CONTINUITY_INSTRUCTIONS
-                    else:
-                        privacy_guard = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/privacy-guard'))
-                        instructions=COMPACT_COLLECTOR_PROMPT+'\n'+conversation_language_instruction(selected_language)+'\n'+privacy_guard+collector_instructions({})+GOVERNED_CONTINUITY_INSTRUCTIONS
-                    if two_lane:
-                        instructions+=CONVERSATION_INSTRUCTIONS
-                    else:
-                        instructions+=load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-places'))
+                from .conversation_reply import reply_instructions
+                instructions = reply_instructions()
                 try:
                     packet=await lease.io(service.assemble,fence=fence,current=row(source),instructions=instructions,
                     tail=[row(value) for value in tail['records']],tail_coverage=coverage,interview_context=context,accepted_checkpoint=saved)
@@ -528,9 +503,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             async def strategy_delivery():
                 await call('commit_lifetime_attribution_delivery',p_fence=publication.fence,
                     p_client_turn_id=client_turn_id,p_reply_id=response['reply_id'])
-                if strategy_enabled():
-                    return await call('commit_lifetime_strategy_delivery',p_fence=publication.fence,
-                        p_client_turn_id=client_turn_id,p_reply_id=response['reply_id'])
+                return await call('commit_lifetime_strategy_delivery',p_fence=publication.fence,
+                    p_client_turn_id=client_turn_id,p_reply_id=response['reply_id'])
             publication.strategy_delivery=strategy_delivery
         publication.scope=scope;scope=None
         return GovernedResult(response,fence) if publication.emitter else response

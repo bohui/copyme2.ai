@@ -3,7 +3,7 @@ import json
 import pytest
 
 from apps.api.interview_plan import (CollectorVisibleStream, validate_collector_result,
-    collector_instructions, collector_schema)
+    collector_schema)
 
 SOURCE = {'id':'source-1','version':1,'status':'active','text':'小时候还经常去离宫，这张照片就是丽正门的照片'}
 PHOTO = {'photo_id':'reference:one','kind':'public_reference','title':'Generic source title','image_url':'https://images.example/one.jpg'}
@@ -146,12 +146,11 @@ def test_stream_does_not_leak_malformed_prefix_or_acknowledgement_questions():
         assert CollectorVisibleStream().feed(raw,final=True)==''
 
 
-def test_schema_and_instruction_keep_source_and_metadata_distinct():
+def test_saved_plan_schema_keeps_source_and_metadata_distinct():
     schema=collector_schema()
     assert schema['additionalProperties'] is False
     assert schema['properties']['plan']['$ref']
-    instruction=collector_instructions(CONTEXT)
-    assert 'untrusted' in instruction and 'metadata' in instruction
+    assert 'PhotoAssociation' in schema['$defs']
 
 
 def test_collector_schema_requires_every_wire_field_and_keeps_work_nullable():

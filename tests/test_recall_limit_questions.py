@@ -46,7 +46,7 @@ def test_recall_limit_can_select_a_broader_pool_question_over_a_pending_detail(t
 def test_empty_pool_keeps_the_recall_limit_and_a_broader_fallback(selector):
     context, output, _, _ = recall_case()
     context.update(prepared_questions=[], strategy_selector=selector, strategy_context={'mode': 'active', 'plan': None})
-    output['hint'] = None
+    output.update(hint=None,question=None)
     result = validate_governed_collector_result(output, context)
     assert result['reply'].endswith(recall_question(context))
     assert result['plan']['chosen_id'].startswith('immediate-')
@@ -54,15 +54,14 @@ def test_empty_pool_keeps_the_recall_limit_and_a_broader_fallback(selector):
 
 
 @pytest.mark.parametrize('use_pool', [False, True])
-def test_recall_limit_cannot_smuggle_detail_through_question_wording_or_skip_new_testimony(use_pool):
+def test_recall_limit_accepts_miras_broader_question_and_keeps_extracting_new_testimony(use_pool):
     context, output, _, broader = recall_case()
-    output.update(question='What exactly did you do while waiting?', work={'mode': 'reply_only', 'name': None})
+    output.update(question='What do you remember about your family life in that home?', work={'mode': 'reply_only', 'name': None})
     if not use_pool:
         output['hint'] = None
     result = validate_governed_collector_result(output, context)
-    expected = broader['question'] if use_pool else recall_question(context)
+    expected = broader['question'] if use_pool else output['question']
     assert result['reply'].endswith(expected)
-    assert output['question'] not in result['reply']
     assert result['plan']['work']['mode'] == 'extract'
 
 

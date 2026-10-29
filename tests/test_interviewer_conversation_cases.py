@@ -45,16 +45,16 @@ def test_observed_stop_gold_does_not_require_a_followup(text):
 
 
 def test_reviewed_indirect_departure_accepts_the_valid_production_stop():
-    from test_interview_strategy import wire
+    from test_conversation_reply import proposal
     text = 'I meant my mother. I need to leave for my appointment.'
     sources = [original(1, text)]
     template = suite.plan(case=['memoir-interviewer/grounded-question/en-AU'])['items'][0]
     row = conversation_cases(template, sources, [], control_expectations=controls(
         sources, stopped=True, question=False, reason='pause'))[0]
-    output = wire(question=None, selection_reason='pause', stopped=True)
+    output = {**proposal(), 'question': None, 'reason': 'pause'}
     suite.validate(row, output)
     with pytest.raises(Exception):
-        suite.validate(row, wire(selection_reason='current_correction'))
+        suite.validate(row, {**proposal(), 'reason': 'current_correction'})
 
 
 def test_unreviewed_or_changed_source_cannot_silently_gain_question_gold():
@@ -68,12 +68,12 @@ def test_unreviewed_or_changed_source_cannot_silently_gain_question_gold():
 
 
 def test_reviewed_direct_answer_does_not_inherit_story_followup_requirements():
-    from test_interview_strategy import wire
+    from test_conversation_reply import proposal
     sources = [original(1, 'What happens to my memories?')]
     template = suite.plan(case=['memoir-interviewer/grounded-question/en-AU'])['items'][0]
     row = conversation_cases(template, sources, [], control_expectations=controls(
         sources, question=False, reason='direct_answer'))[0]
-    suite.validate(row, wire(question=None, selection_reason='direct_answer'))
+    suite.validate(row, {**proposal(), 'question': None, 'reason': 'direct_answer'})
     assert not any('unanswered question' in requirement for requirement in row['gold']['required'])
 
 

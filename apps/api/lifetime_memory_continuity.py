@@ -17,15 +17,11 @@ from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .prompt_artifact import load_prompt_artifact, prompt_path
 from .interview_plan import collector_schema, constrain_acknowledgement, validate_collector_result
 from .place_journey import grounded_place_journeys, validate_place_journey, PlaceResearchWindow
 
 
 MAX_CONTINUITY_UPDATES = 8
-
-
-GOVERNED_CONTINUITY_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-continuity'))
 
 
 class _ContinuityUpdate(BaseModel):
@@ -215,7 +211,8 @@ def validate_governed_collector_result(raw, context):
             plan['work'] = {'mode': 'extract', 'name': None}
     ordinary = {key: item for key, item in value.items() if key not in {'continuity_updates', 'place_journeys'}}
     result = validate_collector_result(ordinary, context)
-    if selection_reason == 'pause' and context.get('historical_news', {}).get('clues'):
+    if (context.get('reply_contract') != 'reply-v2' and selection_reason == 'pause'
+            and context.get('historical_news', {}).get('clues')):
         # The news wire permits neutral continuation copy; the host renders a validated stop.
         acknowledgement = ('好的，今天就到这里。' if context.get('interview_language') == 'zh-CN'
                            else 'Understood. We’ll stop here for today.')
@@ -229,7 +226,7 @@ def validate_governed_collector_result(raw, context):
     from .two_lane_memory import pending_confirmation, prioritize_question
     selects_background = (context.get('reply_contract') == 'reply-v2'
         and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context'})
-    if pending_confirmation(context) or selects_background:
+    if context.get('reply_contract') != 'reply-v2' and (pending_confirmation(context) or selects_background):
         # A validated stop already carries intent; a follow-up needs the model's signal.
         if selection_reason is None and not result['stopped']:
             raise ValueError('Pending confirmation requires selection_reason')
@@ -241,15 +238,6 @@ def validate_governed_collector_result(raw, context):
                 outcome = {**outcome, 'selected_candidate_id': chosen['id'],
                            'selection_reason': 'prepared_candidate', 'question_delivered': chosen['question']}
     if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
-    if context.get('reply_contract') == 'reply-v2' and context.get('reviewed_acknowledgement') is None:
-        from .interview_questions import question_candidates
-        from .interview_plan import neutral_acknowledgement
-        if any(q['id'] == result['plan']['chosen_id'] and q.get('requires_confirmation')
-               for q in question_candidates(context)):
-            # A prepared clarification is the sole question, including unpunctuated speech.
-            acknowledgement = neutral_acknowledgement(context)
-            result['reply'] = acknowledgement + result['reply'][len(result['acknowledgement'].strip()):]
-            result['acknowledgement'] = acknowledgement
     source = _current_source(context)
     updates = validate_continuity_updates(value.get('continuity_updates', []), source)
 

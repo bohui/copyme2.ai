@@ -16,7 +16,7 @@ from controlled_collector import worker_reply
 from memoir_postgres_workflow import PostgresRest
 from test_agent_commit_postgres import OWNER
 from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database as base_database
-from test_name_only_opening import proposal
+from test_conversation_reply import proposal
 
 
 REASON = {'code': 'ambiguous_restriction', 'detail': 'The apparent restriction has an unclear referent.'}
@@ -34,8 +34,9 @@ def test_inconclusive_review_retries_before_reply_and_keeps_audit(
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT', 'medium')
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'compact-v1')
-    monkeypatch.setenv('MEMOIR_TWO_LANES', '0')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '1')
+    sql('update public.lifetime_two_lane_rollout set enabled=true;')
     monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK', '1' if opening else '0')
     logger = logging.getLogger('tests.policy_review_recovery')
     monkeypatch.setattr(policy_review, 'diagnostic_logger', logger, raising=False)
@@ -84,7 +85,7 @@ def test_inconclusive_review_retries_before_reply_and_keeps_audit(
         assert pending == '0', 'Reply generation must wait for completed policy review'
         if outcome == 'restricted':
             assert restriction in json.dumps(body['interview_context'], ensure_ascii=False)
-        output = proposal(mode='extract', name=None, question='您还记得小时候和伙伴一起做过什么吗？')
+        output = {**proposal(), 'question': '您还记得小时候和伙伴一起做过什么吗？'}
         output['acknowledgement'] = acknowledgement
         return worker_reply(request, dict(reply=json.dumps(output, ensure_ascii=False),
                                          thread_id='policy-recovery', artifacts=[]))
@@ -173,8 +174,9 @@ def test_invalid_completed_review_reassesses_exact_source_before_any_reply_or_sa
         sql, tmp_path, monkeypatch, caplog, language, opening, fault, recover):
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'compact-v1')
-    monkeypatch.setenv('MEMOIR_TWO_LANES', '0')
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '1')
+    sql('update public.lifetime_two_lane_rollout set enabled=true;')
     monkeypatch.setenv('MEMORY_SPARK_PARALLEL_POLICY_REVIEW', '0')
     monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK', '1' if opening else '0')
     restriction = ('Please do not bring up my father again.' if language == 'en-AU'
@@ -213,7 +215,7 @@ def test_invalid_completed_review_reassesses_exact_source_before_any_reply_or_sa
         assert len(requests) == 2
         assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip() == '0'
         assert restriction in json.dumps(body['interview_context'], ensure_ascii=False)
-        output = proposal(mode='extract', name=None, question=question)
+        output = {**proposal(), 'question': question}
         output['acknowledgement'] = acknowledgement
         return worker_reply(request, dict(reply=json.dumps(output), thread_id='review-recovery', artifacts=[]))
 
