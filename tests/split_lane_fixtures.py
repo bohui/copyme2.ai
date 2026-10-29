@@ -32,7 +32,8 @@ def publish(sql,page,questions,proposal=None):
 
 
 def publish_questions(sql,page,by_source,proposal=None):
-    """Publish a fresh guidance decision without re-extracting old sources."""
+    """Explicitly seed a legacy record for storage/validator compatibility tests."""
+    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill) values('{page['user_id']}',{literal(page['project_id'])},'guidance') on conflict(user_id,project_id,skill) do nothing;")
     lane=sql(f"select id from public.user_memoir_lane where user_id='{page['user_id']}' and project_id={literal(page['project_id'])} and skill='guidance';").stdout.strip()
     assert lane, 'Finish canonical extraction before publishing guidance'
     sql(f"update public.user_memoir_lane set pending=true,guidance_revision=guidance_revision+1,available_at=clock_timestamp() where id='{lane}';")
@@ -60,16 +61,8 @@ def service(sql,name,args):
 
 
 def publish_ready_news(sql,identity,language='en-AU'):
-    """Complete the fixed source fixture and publish an explicit B relevance choice."""
-    from apps.api.historical_news import HISTORICAL_INVITATIONS
-    from test_shared_memory_events_postgres import rpc
+    """Complete source work; Mira receives ready clues without a question pool."""
     lane=sql(f"select id from public.user_memoir_lane where project_id={literal(identity['project_id'])} and skill='timeline';").stdout.strip()
     page=canonical_service(sql,'claim_memoir_lane',f"'{lane}',300")
     assert page
-    clues=rpc(sql,'read_user_historical_news',literal(identity['project_id']))['clues']
-    question,bridge=HISTORICAL_INVITATIONS[language]
-    hints=[dict(question=question,topic='Public history',quote=page['source']['text'],scope='broader',
-        trigger='historical_news',historical_clue_id=clue['id'],bridge=bridge) for clue in clues]
-    result=dict(events=[],place_journeys=[],prepared_questions=hints)
-    if (page.get('two_lane') or {}).get('reply_contract')=='reply-v2':result['continuity_updates']=[]
-    return service(sql,'commit_lifetime_memoir_lane_page',f"'{lane}','{page['token']}',{page['page_number']},{literal(result)}")
+    finish_timeline(sql,page)

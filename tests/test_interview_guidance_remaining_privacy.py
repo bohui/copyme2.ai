@@ -11,7 +11,7 @@ from test_background_profile_workflow import database
 from test_conversation_attribution import Conversation, empty, episode, reference
 from test_interview_guidance_privacy import (PRIVATE, ALLOWED, MIXED, SAFE_QUESTION,
     UNSAFE_QUESTION, extract, proposal)
-from test_interview_guidance_workflow import (activate_guidance_pool, drain_timeline,
+from legacy_guidance_fixtures import (activate_guidance_pool, drain_timeline,
     claimed_guidance, commit_guidance, identity, pool)
 from test_lifetime_memory_postgres import event_database, private_database, attachment_database
 from test_shared_memory_events_postgres import sql, rpc, literal
@@ -64,13 +64,14 @@ def test_supported_continuity_ids_have_stable_opaque_guidance_identity(sql, tmp_
         assert original['known_continuity'][0]['record_id'] == identifier
         response = conversation.say('I would like to continue.')
         assert 'bicycle accident' not in response['reply']
-        assert response['reply'].endswith(SAFE_QUESTION)
+        from test_conversation_reply import proposal as current_reply
+        assert response['reply'].endswith(current_reply()['question'])
         assert identifier not in json.dumps(dispatched, ensure_ascii=False)
         assert re.fullmatch(r'ct-[0-9a-f]{64}', current['record_id'])
         envelope = json.loads(dispatched[-1]['bounded_lane']['packet'])
         assert envelope['lane_context']['preferences'] == dispatched[-1]['bounded_lane']['fence']['preferences']
         assert current['data']['text'] == ALLOWED and current['data']['source_refs'][0]['quote'] == ALLOWED
-        assert pool(conversation) == []
+        assert pool(conversation)[0]['question']==SAFE_QUESTION
 
 
 def test_latest_authorized_tail_precedes_a_fully_withheld_original_suffix(sql, tmp_path, monkeypatch):

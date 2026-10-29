@@ -50,8 +50,10 @@ memoir/
 Mira is the conversational agent. Its five prompt sources live in
 `apps/api/prompts/mira/` under `memoir/agents/mira/...`; no interviewer skill is
 installed or invoked. The system prompt is included on every reply. Optional
-repair guidance, source-only privacy review and Lane B strategy proposals enter
-only their relevant calls. Greeting text is application-owned.
+repair guidance and source-only privacy review enter only their relevant calls.
+Mira owns current clarification, topic development and values reflection; Lane B
+does not schedule interview guidance. Saved background deliveries enter a final
+user message for Mira to consider. Greeting text is application-owned.
 
 Mira's comparison judge and quality rubric save under
 `memoir/evaluation/agents/mira/{comparison,rubric}`, from

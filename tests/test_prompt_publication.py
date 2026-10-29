@@ -1,4 +1,4 @@
-"""Merged Git content is the only source of automatic prompt publication."""
+"""Committed branch content is the source of prompt publication."""
 import hashlib
 import json
 from pathlib import Path
@@ -174,14 +174,40 @@ def test_merged_change_is_published_once_and_its_stale_receipt_is_refreshed(repo
     assert json.loads((root / (TARGET + '.langfuse.json')).read_text())['version'] == 2
 
 
-@pytest.mark.parametrize('state', ['feature', 'detached', 'dirty', 'unpushed', 'behind'])
-def test_unmerged_or_uncommitted_content_is_refused_before_langfuse(repo, monkeypatch, tmp_path, state):
+def test_committed_feature_branch_syncs_without_a_remote_and_records_its_source(repo, capsys):
+    root, _, client = repo
+    branch = 'feature/prompt-sync'
+    git(root, 'checkout', '-b', branch)
+    git(root, 'remote', 'remove', 'origin')
+    (root / TARGET).write_text('Feature branch prompt\n')
+    commit(root, 'Feature prompt change')
+    revision = git(root, 'rev-parse', 'HEAD')
+    receipt = root / (TARGET + '.langfuse.json')
+    before = receipt.read_bytes()
+
+    assert publication.main(['--check'], root=root) == 1
+    assert client.creates == []
+    assert receipt.read_bytes() == before
+    capsys.readouterr()
+    assert publication.main([], root=root) == 0
+    summary = json.loads(capsys.readouterr().out.splitlines()[0])
+    assert summary['git_branch'] == branch
+    assert summary['git_commit'] == revision
+    assert publication.main(['--check'], root=root) == 0
+    assert publication.main([], root=root) == 0
+    assert len(client.creates) == 1
+    assert client.creates[0]['commit_message'] == f'Publish {branch} {revision}'
+    assert load_prompt_artifact(root / TARGET) == 'Feature branch prompt\n'
+
+
+@pytest.mark.parametrize('state', ['detached', 'dirty', 'feature-dirty', 'unpushed', 'behind'])
+def test_invalid_git_source_is_refused_before_langfuse(repo, monkeypatch, tmp_path, state):
     root, origin, client = repo
-    if state == 'feature':
-        git(root, 'checkout', '-b', 'feature')
-    elif state == 'detached':
+    if state == 'detached':
         git(root, 'checkout', '--detach')
-    elif state == 'dirty':
+    elif state in {'dirty', 'feature-dirty'}:
+        if state == 'feature-dirty':
+            git(root, 'checkout', '-b', 'feature')
         (root / TARGET).write_text('Uncommitted prompt')
     elif state == 'unpushed':
         (root / TARGET).write_text('Local-only main change')
@@ -203,6 +229,29 @@ def test_automatic_hook_quietly_skips_feature_branches(repo, monkeypatch, capsys
     monkeypatch.setattr(publication, 'prompt_client', lambda *args: pytest.fail('No Langfuse access permitted'))
     assert publication.main(['--after-pull'], root=root) == 0
     assert capsys.readouterr().out == ''
+
+
+@pytest.mark.parametrize('change', ['branch', 'commit'])
+def test_git_source_change_during_planning_stops_before_publication(repo, change):
+    root, _, client = repo
+    git(root, 'checkout', '-b', 'feature')
+    (root / TARGET).write_text('Feature branch prompt\n')
+    commit(root)
+    receipt = root / (TARGET + '.langfuse.json')
+    before = receipt.read_bytes()
+
+    def change_source(**kwargs):
+        if change == 'branch':
+            git(root, 'checkout', '-b', 'other-feature')
+        else:
+            (root / 'other.txt').write_text('New commit')
+            commit(root)
+        return client.list(**kwargs)
+
+    client.api.prompts.list = change_source
+    assert publication.main([], root=root) == 1
+    assert client.creates == []
+    assert receipt.read_bytes() == before
 
 
 def test_read_only_check_does_not_publish_or_rewrite_receipts(repo):

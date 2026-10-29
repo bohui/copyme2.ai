@@ -273,7 +273,7 @@ class MemoryEventWorker:
             await _settle(settled)
         return settled.result()
 
-    async def execute_lane(self, lane_id):
+    async def execute_lane(self, lane_id, *, source_work=None):
         started = time.monotonic()
         run_seconds = int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS', '900'))
         try:
@@ -300,6 +300,13 @@ class MemoryEventWorker:
                 if job.get('protocol') != 'lifetime_composer_pages':
                     raise ValueError('Unsupported canonical lane page')
                 from .lifetime_memory_composer import execute_lifetime_lane
+                if source_work is not None:
+                    selected = await self.broker.rpc('select_lifetime_source_skills',
+                        p_lane_id=lane_id, p_token=job['token'],
+                        p_source=source_work['source'], p_skills=source_work['skills'])
+                    if not selected:
+                        return await self.broker.rpc('yield_lifetime_memoir_lane',p_lane_id=lane_id,p_token=job['token'])
+                    job = await self.broker.rpc('read_lifetime_memoir_lane_page',p_lane_id=lane_id,p_token=job['token'])
                 return await execute_lifetime_lane(job, self)
         except asyncio.CancelledError:
             if job.get('protocol') == 'lifetime_composer_pages':

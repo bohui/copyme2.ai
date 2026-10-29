@@ -37,7 +37,7 @@ def test_ready_news_can_change_the_next_reply_question_with_active_strategy():
     'Which sister were you describing?',
     'Did the shop open before or after the move?',
 ])
-def test_plan_confirmation_preempts_an_ordinary_reply(question):
+def test_saved_confirmation_does_not_replace_miras_current_question(question):
     context = reply_context()
     confirmation = {**hint(context, 'a', confirmation=True), 'question': question}
     context.update(strategy_selector=True, strategy_context={'mode': 'active',
@@ -45,8 +45,9 @@ def test_plan_confirmation_preempts_an_ordinary_reply(question):
 
     result = validate_governed_collector_result(proposal(), context)
 
-    assert result['plan']['chosen_id'] == confirmation['id']
-    assert result['strategy_outcome']['selected_candidate_id'] == confirmation['id']
+    assert result['plan']['chosen_id'] != confirmation['id']
+    assert result['plan']['candidates'][0]['question']==proposal()['question']
+    assert result['strategy_outcome']['selected_candidate_id'] is None
 
 
 def test_background_can_propose_broadening_without_declaring_a_completed_stage():
@@ -192,7 +193,7 @@ def test_answered_plan_confirmation_is_not_forced_back_into_reply():
 
 @pytest.mark.parametrize('news_ready', [False, True])
 @pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate', 'return_context'])
-def test_resolving_first_confirmation_keeps_second_ahead_of_news_and_ordinary_hints(news_ready, reason):
+def test_resolving_a_confirmation_does_not_force_another_over_miras_selection(news_ready, reason):
     context = reply_context('The umbrella was blue.')
     prior = dict(id='prior-story', version=1, status='active', text=(
         'I cannot remember whether the umbrella was blue or green. '
@@ -219,10 +220,10 @@ def test_resolving_first_confirmation_keeps_second_ahead_of_news_and_ordinary_hi
 
     result = validate_governed_collector_result(raw, context)
 
-    assert result['plan']['chosen_id'] == second['id']
-    assert result['plan']['candidates'][0]['question'] == second['question']
-    assert result['strategy_outcome']['selected_candidate_id'] == second['id']
-    assert result['strategy_outcome']['question_delivered'] == second['question']
+    assert result['plan']['chosen_id'] != second['id']
+    assert result['plan']['candidates'][0]['question'] == ordinary['question']
+    assert result['strategy_outcome']['selected_candidate_id'] == (ordinary['id'] if raw['hint'] is not None else None)
+    assert result['strategy_outcome']['question_delivered'] == ordinary['question']
     assert result['plan']['resolved_questions'] == raw['resolved_questions']
     assert result.get('historical_context') is None
 

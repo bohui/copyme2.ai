@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish changed prompts only from the current, committed origin/main tree."""
+"""Publish changed prompts from the current committed branch."""
 
 import argparse
 import fcntl
@@ -27,18 +27,20 @@ def git(root: Path, *args: str) -> str:
     return result.stdout.strip() if args[0] != "show" else result.stdout
 
 
-def main_revision(root: Path) -> str:
-    if git(root, "branch", "--show-current") != "main":
-        raise ValueError("Prompt publication requires main; merge the PR and pull main first")
+def publication_source(root: Path) -> tuple[str, str]:
+    branch = git(root, "branch", "--show-current")
+    if not branch:
+        raise ValueError("Prompt publication requires a branch; check out the branch to publish")
     receipts = {path + ".langfuse.json" for path in prompt_registry(root, include_unpublished=True).values()}
     changed = set(git(root, "diff", "--name-only", "-z", "HEAD").split("\0")) - {""}
     if changed - receipts:
-        raise ValueError("Commit or set aside local edits before publishing merged main prompts")
+        raise ValueError("Commit or set aside local edits before publishing prompts")
     revision = git(root, "rev-parse", "HEAD")
-    remote = git(root, "ls-remote", "--exit-code", "origin", "refs/heads/main").split()
-    if len(remote) != 2 or remote[0] != revision:
-        raise ValueError("Local main must match origin/main; pull main before publishing")
-    return revision
+    if branch == "main":
+        remote = git(root, "ls-remote", "--exit-code", "origin", "refs/heads/main").split()
+        if len(remote) != 2 or remote[0] != revision:
+            raise ValueError("Local main must match origin/main; pull main before publishing")
+    return branch, revision
 
 
 def install_hook(root: Path) -> None:
@@ -61,10 +63,10 @@ def install_hook(root: Path) -> None:
     git(root, "config", "--local", "core.hooksPath", ".githooks")
 
 
-def publish(client, *, root: Path, revision: str, check: bool = False,
+def publish(client, *, root: Path, branch: str, revision: str, check: bool = False,
             names: list[str] | None = None) -> list[dict]:
-    if main_revision(root) != revision:
-        raise ValueError("Git main changed before publication; retry after pulling main")
+    if publication_source(root) != (branch, revision):
+        raise ValueError("Git branch or commit changed before publication; retry prompt sync")
     registry = prompt_registry(root, include_unpublished=True)
     if names and set(names) - registry.keys():
         raise ValueError('Unknown managed prompt name; use its full Langfuse name')
@@ -74,7 +76,7 @@ def publish(client, *, root: Path, revision: str, check: bool = False,
             continue
         text = git(root, "show", f"{revision}:{target}")
         if not text.strip() or (root / target).read_text(encoding="utf-8") != text:
-            raise ValueError(f"Prompt differs from committed main: {target}")
+            raise ValueError(f"Prompt differs from committed branch: {target}")
         matches = [item for item in client.api.prompts.list(name=name, limit=100).data
                    if item.name == name]
         current = None
@@ -92,15 +94,15 @@ def publish(client, *, root: Path, revision: str, check: bool = False,
     for name, target, text, current in plan:
         changed = current is None or current.prompt != text
         receipt_pending = False
-        if git(root, "branch", "--show-current") != "main" or git(root, "rev-parse", "HEAD") != revision:
-            raise ValueError("Git main changed during prompt publication; retry after pulling main")
+        if git(root, "branch", "--show-current") != branch or git(root, "rev-parse", "HEAD") != revision:
+            raise ValueError("Git branch or commit changed during prompt publication; retry prompt sync")
         if (root / target).read_text(encoding="utf-8") != text:
             raise ValueError(f"Prompt changed during publication: {target}")
         if not check:
             if changed:
                 current = client.create_prompt(name=name, prompt=text, type="text",
                     config=current.config if current else {},
-                    commit_message=f"Publish merged main {revision}")
+                    commit_message=f"Publish {branch} {revision}")
             receipt = sync_prompt(client, target=target, name=name, version=current.version,
                                   root=root, expected_content=text)
             sync_prompt(client, target=target, name=name, version=current.version,
@@ -141,10 +143,12 @@ def main(argv=None, *, root: Path = ROOT) -> int:
             lock = root / lock
         with lock.open("a") as stream:
             fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            revision = main_revision(root)
+            branch, revision = publication_source(root)
             client = prompt_client(args.credential_file)
-            results = publish(client, root=root, revision=revision, check=args.check, names=args.name)
-        print(json.dumps({"mode": "check" if args.check else "sync", "main_commit": revision,
+            results = publish(client, root=root, branch=branch, revision=revision,
+                              check=args.check, names=args.name)
+        print(json.dumps({"mode": "check" if args.check else "sync", "git_branch": branch,
+                          "git_commit": revision,
                           "artifacts": len(results),
                           "published": sum(row["published"] for row in results),
                           "changed": [row["name"] for row in results if row["content_changed"]],

@@ -110,6 +110,9 @@ class TwoLaneFence(Contract):
     strategy_mode: Literal['shadow','active'] | None = None
     strategy_revision: int = Field(default=0,ge=0,strict=True)
     reply_contract: Literal['reply-v2'] | None = Field(default=None, exclude_if=lambda value: value is None)
+    selected_skills: list[Literal['memoir-author-timeline','memoir-place-journey','memoir-memory-context']] | None = Field(
+        default=None, max_length=3, exclude_if=lambda value: value is None)
+    profile_complete: bool | None = Field(default=None,exclude_if=lambda value: value is None)
 
 
 class AttributionContext(Contract):
@@ -206,7 +209,8 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
             from .two_lane_memory import extraction_contract
             instructions,schema=extraction_contract(attribution=bool(fence and fence.attribution_context),
                 continuity=bool(fence and fence.two_lane and fence.two_lane.reply_contract == 'reply-v2'),
-                source=fence.source if fence else None)
+                source=fence.source if fence else None,
+                selected_skills=fence.two_lane.selected_skills if fence and fence.two_lane else None)
         else:
             from .memory_events import extraction_instructions, extraction_schema
             instructions, schema = extraction_instructions(), extraction_schema()
@@ -611,6 +615,9 @@ async def validate_lane_payload(bounded):
 
 def lane_skill_names(bounded_lane):
     if bounded_lane.phase == 'extract':
+        chosen = bounded_lane.fence.two_lane.selected_skills if bounded_lane.fence.two_lane else None
+        if chosen is not None:
+            return tuple(name for name in chosen if name != 'memoir-memory-context')
         return ('memoir-author-timeline', 'memoir-place-journey') if bounded_lane.fence.two_lane else ('memoir-author-timeline',)
     if bounded_lane.phase == 'guidance':
         return ('memoir-interview-guidance',)
@@ -829,6 +836,8 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
         'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer')
     skill_name = {'interview_guidance': 'memoir-interview-guidance', 'memory_context': 'memoir-memory-context',
         'author_timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}[role]
+    if bounded.phase == 'extract' and lane_skill_names(bounded) == ('memoir-place-journey',):
+        skill_name = 'memoir-place-journey'
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
     instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, fence=bounded.fence, retry_reason=_object(bounded.packet)['payload'].get('retry_reason'))

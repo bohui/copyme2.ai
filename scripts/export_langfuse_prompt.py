@@ -67,7 +67,7 @@ def sync_prompt(client, *, target: str, name: str, version: int,
             or not isinstance(content, str) or not content.strip()):
         raise ValueError("Langfuse returned a different, fallback or empty prompt version")
     if expected_content is not None and content != expected_content:
-        raise ValueError("Langfuse prompt differs from the merged main content")
+        raise ValueError("Langfuse prompt differs from the committed prompt content")
     receipt = {
         "schema_version": 1,
         "name": name,

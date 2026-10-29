@@ -10,7 +10,7 @@ from test_background_profile_workflow import database
 from test_conversation_attribution import Conversation
 from test_interview_guidance_privacy import (PRIVATE, ALLOWED, MIXED, SAFE_QUESTION,
     UNSAFE_QUESTION, extract, proposal)
-from test_interview_guidance_workflow import (activate_guidance_pool, drain_timeline,
+from legacy_guidance_fixtures import (activate_guidance_pool, drain_timeline,
     claimed_guidance, commit_guidance, identity, pool)
 from apps.api.interview_guidance import execute_guidance_lane
 from test_lifetime_memory_postgres import event_database, private_database, attachment_database
@@ -71,8 +71,9 @@ def test_derived_prose_with_allowed_citations_cannot_enter_guidance_or_the_next_
         assert evidence['quote'] == ALLOWED
         response = conversation.say('I would like to continue.')
         assert 'bicycle accident' not in response['reply']
-        assert response['reply'].endswith(SAFE_QUESTION)
-        assert pool(conversation) == []
+        from test_conversation_reply import proposal as current_reply
+        assert response['reply'].endswith(current_reply()['question'])
+        assert pool(conversation)[0]['question']==SAFE_QUESTION
         assert poison not in json.dumps(dispatched, ensure_ascii=False)
         packet = json.loads(dispatched[-1]['bounded_lane']['packet'])['payload']
         allowed = next(w for w in packet['guidance_context']['source_windows'] if ALLOWED in w['text'])
@@ -123,22 +124,11 @@ def test_fragmented_latest_source_reserves_an_authorized_tail_for_recall_limits(
 
 def test_private_collector_ids_become_stable_opaque_delivered_identities(sql, tmp_path, monkeypatch):
     dispatched, results = [], []
-    collector_calls = 0
     async def boundary(request, provider):
-        nonlocal collector_calls
         body = json.loads(request.content)
         if (body.get('bounded_lane') or {}).get('phase') == 'guidance':
             dispatched.append(body)
-        response = await provider(request)
-        if not body.get('bounded_lane'):
-            collector_calls += 1
-            if collector_calls <= 3:
-                from test_background_profile_workflow import worker_response
-                output = json.loads(response.json()['reply'])
-                output['plan']['candidates'][0]['id'] = PRIVATE
-                output['plan']['chosen_id'] = PRIVATE
-                return worker_response(request, output)
-        return response
+        return await provider(request)
     def prepare(packet):
         unsafe = PRIVATE in json.dumps(dispatched[-1], ensure_ascii=False)
         result = proposal(packet, UNSAFE_QUESTION if unsafe else SAFE_QUESTION)
@@ -152,6 +142,11 @@ def test_private_collector_ids_become_stable_opaque_delivered_identities(sql, tm
     with conversation.client:
         for _ in range(3):
             conversation.say(MIXED)
+        # Current Mira owns opaque IDs. Seed the arbitrary IDs that historical
+        # collectors could store to exercise the retained compatibility reader.
+        sql("update public.user_interview_turn set collector=jsonb_set(jsonb_set(collector,"
+            "'{plan,candidates,0,id}',to_jsonb("+literal(PRIVATE)+"::text)),"
+            "'{plan,chosen_id}',to_jsonb("+literal(PRIVATE)+"::text));")
         drain_timeline(conversation)
         page = claimed_guidance(conversation)
         async def run():
@@ -168,5 +163,6 @@ def test_private_collector_ids_become_stable_opaque_delivered_identities(sql, tm
         assert PRIVATE not in json.dumps(dispatched, ensure_ascii=False)
         ids = [item['question']['id'] for item in page['guidance_context']['recent_dialogue']]
         assert len(set(ids)) == 3 and all(re.fullmatch(r'dq-[0-9a-f]{64}', value) for value in ids)
-        assert response['reply'].endswith(SAFE_QUESTION)
-        assert pool(conversation) == []
+        from test_conversation_reply import proposal as current_reply
+        assert response['reply'].endswith(current_reply()['question'])
+        assert pool(conversation)[0]['question']==SAFE_QUESTION

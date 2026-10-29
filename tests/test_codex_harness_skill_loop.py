@@ -57,7 +57,7 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
             ordinal=len(requests)
             if ordinal==1:
                 output={'type':'function_call','id':'fc_read','call_id':'read-skill',
-                    'name':'memoir_read_skill','arguments':json.dumps({'skill':'memoir-interview-guidance'}),
+                    'name':'memoir_read_skill','arguments':json.dumps({'skill':'memoir-author-timeline'}),
                     'status':'completed'}
             else:
                 output={'type':'message','id':'message','role':'assistant','status':'completed',
@@ -91,7 +91,7 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
             worker=CodexWorker(home_root=tmp_path / 'homes',command=[shutil.which('codex'),'app-server'],
                 base_url=f'http://127.0.0.1:{server.server_port}/v1',api_key='synthetic-loopback-key')
             broker=SimpleNamespace(rpc=AsyncMock(return_value={
-                'lanes':[{'id':'guidance-id','skill':'guidance'}],'selection':None}))
+                'lanes':[{'id':'timeline-id','skill':'timeline'}],'selection':None}))
             payload=WorkerTurnInput(user_id=current['user_id'],project_id=current['project_id'],
                 agent_role='background_agent',background_agent=current)
             result=asyncio.run(run_background_agent(worker,payload,publisher=Publication(),broker=broker))
@@ -100,7 +100,7 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
                 home_root=tmp_path / 'homes',base_url=f'http://127.0.0.1:{server.server_port}/v1',
                 api_key='synthetic-loopback-key',model='gpt-6.1-sol',
                 instructions=load_prompt_artifact(prompt_path('memoir/shared/background-agent')),
-                packet={'lane':'B','work':[]},skills=['memoir-interview-guidance'],
+                packet={'lane':'B','work':[]},skills=['memoir-author-timeline'],
                 publisher=Publication(),fence={},timeout=20,effort='low'))
     finally:
         server.shutdown()
@@ -112,9 +112,9 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
     observation,=tracer.observations
     assert parents==[f'00-{observation.trace_id}-{observation.id}-01']*2
     assert not any(tool.get('type') in {'web_search','web_search_preview'} for tool in requests[0].get('tools',[]))
-    assert result['skill_receipt']['skills_read']==['memoir-interview-guidance']
+    assert result['skill_receipt']['skills_read']==['memoir-author-timeline']
     artifacts={item['name'] for item in result['skill_receipt']['prompt_manifest']['artifacts']}
     assert {'memoir/shared/skill-agent','memoir/shared/background-agent',
-        'memoir/skills/memoir-interview-guidance/instructions'}<=artifacts
+        'memoir/skills/memoir-author-timeline/instructions'}<=artifacts
     # The second inference contains the actual tool result, not just a skill label.
-    assert '# Memoir Interview Guidance' in json.dumps(requests[1],ensure_ascii=False)
+    assert '# Memoir Author Timeline' in json.dumps(requests[1],ensure_ascii=False)

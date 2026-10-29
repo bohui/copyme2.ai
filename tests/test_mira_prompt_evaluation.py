@@ -7,7 +7,7 @@ import httpx
 import pytest
 from jsonschema import ValidationError, validate
 
-from scripts.evaluate_mira_prompt import cases, lane_b_cases, emotional_cases, judge_schema
+from scripts.evaluate_mira_prompt import cases, lane_b_cases, emotional_cases, realtime_cases, judge_schema
 
 
 def test_comparison_uses_existing_bilingual_cases_and_real_reply_projections():
@@ -27,6 +27,21 @@ def test_judge_schema_rejects_unbounded_scores_and_unrecognized_winners():
         validate(dict(results=[{**row, 'A': {**rating, 'score': 5}}]), judge_schema())
     with pytest.raises(ValidationError):
         validate(dict(results=[{**row, 'winner': 'candidate'}]), judge_schema())
+
+
+def test_realtime_probes_use_no_background_question_pool_and_append_optional_news_last():
+    from apps.api.conversation_reply_transport import reply_messages
+    inputs = realtime_cases()
+    assert len(inputs) == len({case['id'] for case in inputs}) == 12
+    for case in inputs:
+        assert case['view']['brief']['hints'] == []
+        messages = reply_messages(case['view'], '')
+        if case['id'].split('/')[1].endswith('news'):
+            assert json.loads(messages[-1]['content'])['background_deliveries'][-1]['skill']=='memoir-historical-news-research'
+            assert json.loads(messages[-2]['content'])['current']['narrator']['original']==case['context']['source']['text']
+        else:
+            assert json.loads(messages[-1]['content'])['current']['narrator']['original']==case['context']['source']['text']
+        assert 'criteria' not in json.dumps(case['view'])
 
 
 def test_lane_b_probes_keep_prepared_hints_and_current_narration_in_the_real_packet():

@@ -261,7 +261,7 @@ authorize the configured route. Keep the gateway and `codex-lb` running and conf
 route; both are required for model calls. Blank overrides inherit these settings.
 `MEMORY_SPARK_COLLECTOR_MODEL` and
 `MEMORY_SPARK_COLLECTOR_REASONING_EFFORT` can override Lane A replies and privacy
-review. Background extraction, profile, summaries and guidance use
+review. Background extraction, profile and summaries use
 `MEMORY_SPARK_MEMOIR_COMPOSER_MODEL` and
 `MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT`. Extraction can override effort
 with `MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT`. Photo model calls inherit
@@ -340,12 +340,16 @@ auth callback settings, and rollback.
 ### Collection agents and background tasks
 
 Lane B runs a durable `MemoirBackgroundAgent` workflow in the private Codex
-worker. Codex owns the agent loop: it sees the eligible skill catalog, chooses
-work, reads the selected versioned `SKILL.md` through `memoir_read_skill`, and
-calls `memoir_execute_skill`. The background catalog covers timeline extraction,
-interview guidance, private-draft composition and enabled historical-news
-research; bounded extraction/profile/composition turns also read their actual
-skill instructions. The host retains ownership, consent, dependency, evidence
+worker. Codex reviews each bounded original window and selects
+`memoir-author-timeline`, `memoir-place-journey`, `memoir-memory-context`, or none.
+It reads the selected versioned `SKILL.md` through `memoir_read_skill`, then calls
+`memoir_process_source` with those choices. Profile extraction is available on any
+narration, subject to manual field protection and automatic-profile settings.
+Lane A produces its reply without a skill-selection handoff. The host records
+the source choice in the durable lane snapshot; a new window needs a new choice,
+and selected timeline/place work can share one extraction request.
+The agent also uses `memoir_execute_skill` for due private-draft composition and
+enabled historical-news research. The host retains ownership, consent, dependency, evidence
 and publication checks. Explicit book/game actions and independent photo/group
 services retain their existing application contracts.
 
@@ -359,9 +363,9 @@ tool results contain the corresponding instructions.
 
 Activation requires the updated fresh-install schema and the published pins for
 `memoir/shared/background-agent`, `memoir/shared/skill-agent` and
-`memoir/skills/memoir-composer/instructions`. Review and merge the Markdown to
-`main`, then use the normal publisher described below. Feature branches do not
-publish or fabricate receipts; missing pins fail closed. The background run
+`memoir/skills/memoir-composer/instructions`. Commit the Markdown on the current
+branch, then use the normal publisher described below. Feature branches can
+publish before merging; missing pins fail closed. The background run
 deadline is `MEMORY_SPARK_MEMOIR_RUN_SECONDS` (900 seconds by default).
 
 For streamed conversations, private workspace extraction runs alongside the
@@ -479,7 +483,7 @@ the current prompts, models and validation.
 
 ### Versioned prompt artifacts
 
-Merged Git `main` owns prompt content; Memoir's Langfuse project owns published
+Git owns prompt content; Memoir's Langfuse project owns published
 versions. Mira owns its always-loaded agent instructions and supporting prompts
 under `memoir/agents/mira/...`, stored in `apps/api/prompts/mira/`. Each skill owns its model
 instructions under `memoir/skills/<skill>/...`, including composer phases and
@@ -526,14 +530,16 @@ An explicit retry reuses the accepted source and applies completed restrictions
 before generating its reply. A failure before the first streamed text retains
 the turn ID so the browser can replace its error bubble on regeneration.
 
-Edit and review prompt Markdown in a pull request before creating a Langfuse
-version. Feature branches do not publish or fabricate version receipts. The API
-reads checked-in prompt files. Shared instructions have one source;
-task templates reference them through `apps/api/prompt_composition.py`. Runtime
+Commit prompt Markdown on the current branch before creating a Langfuse version
+with `make prompt-sync`. Feature branches can publish without pushing or merging
+to `main`; review the Markdown and generated receipts together in the pull request.
+The API and workers read checked-in prompt files and validate their receipts;
+they do not fetch prompt text from Langfuse at runtime. Shared instructions have
+one source; task templates reference them through `apps/api/prompt_composition.py`. Runtime
 and dataset evaluations use this same builder. The browser sends original
 narration, without constructing model instructions. Each managed file has a `.langfuse.json`
 receipt with its exact numeric version and SHA-256. An unpublished draft does not
-pass runtime receipt validation; synchronize merged `main` before running it.
+pass runtime receipt validation; synchronize the branch before running it.
 
 `make up` validates all runtime prompt receipts before building or replacing
 application services. Missing, stale, malformed or wrongly owned receipts stop
@@ -543,17 +549,20 @@ it reads no credentials and makes no network requests.
 
 Run `make prompt-sync-install` once per clone. The tracked Git `post-merge` hook
 then synchronizes prompts automatically after a successful merge/fast-forward
-pull on `main`. It quietly skips feature branches and refuses publication unless
-local `main` matches the live `origin/main` tip and has no local edits other than
-generated prompt receipts. It reads committed prompt content, reuses unchanged
-Langfuse versions, and creates a version only when the text changed. Each new
-version records the merged Git commit. Receipt updates remain visible as local
-Git changes for review and commit; the hook does not commit, push or restart apps.
+pull on `main`. It quietly skips feature branches; use `make prompt-sync` manually
+on those branches. Publication requires no local edits other than generated prompt
+receipts. On `main`, local HEAD must also match the live `origin/main` tip.
+The publisher reads committed prompt content, reuses unchanged Langfuse versions,
+and creates a version only when the text changed. Each new version records the
+Git branch and commit. Branches share the prompt's version history; each checkout's
+receipts pin the exact numeric versions used by its API and workers.
+Receipt updates remain visible as local Git changes for review and commit;
+the hook does not commit, push or restart apps.
 An already-up-to-date pull does not invoke Git's hook; `make prompt-sync` retries
 a previously failed sync. If Langfuse is unavailable, the pull remains merged and
 the hook reports the failure without inventing receipts.
 
-`make prompt-sync-check` previews publication on current `main` without writing.
+`make prompt-sync-check` previews publication on the current branch without writing.
 Set `PROMPT_NAME` to a full Langfuse name to scope sync/check to one prompt; the
 publisher CLI accepts repeated `--name` options for a skill's related prompts.
 `make prompt-export` remains an explicit recovery command that exports the highest
@@ -568,17 +577,20 @@ different local credential-file location. The hook also honors an exported
 ```sh
 python3 -m pip install -e '.[evaluation]'
 make prompt-sync-install                   # Once per clone; enables the Git hook.
-git switch main
-git pull --ff-only origin main              # Automatically syncs after incoming main changes.
-make prompt-sync                           # Manual retry; publishes changed merged content only.
-make prompt-sync-check                     # Read-only preview on current main.
+# On your feature branch, after committing prompt edits:
+make prompt-sync-check                     # Read-only preview on the current branch.
+make prompt-sync                           # Publishes changed committed prompts and refreshes receipts.
 make prompt-check
 make prompt-eval                           # Read-only preflight for timeline/event-grounding.
+
+# After merging:
+git switch main
+git pull --ff-only origin main              # Automatically syncs after incoming main changes.
 ```
 
 For recovery exports/checks, use `PROMPT_NAME=memoir/skills/memoir-composer/draft`
-to select one artifact. Normal content changes go through Git review, then main
-publication and a receipt update. To preflight another prompt/dataset pair, set
+to select one artifact. Commit prompt edits, sync the branch, then review and
+commit the generated receipts. To preflight another prompt/dataset pair, set
 `PROMPT_EVAL_NAME` and `PROMPT_EVAL_DATASET`. `PROMPT_EVAL_VERSION` can select a
 candidate version before export; otherwise the checked-in version is used.
 Use this evaluation command for composed templates: it supplies the complete
@@ -677,23 +689,27 @@ Before changing the deployment default, compare both providers on 50–100 repre
 
 The [`memoir-author-timeline` skill](skills/memoir-author-timeline/SKILL.md) processes every durably accepted narrator message in the background. PostgreSQL stores one canonical MemoryEvent index with stable IDs, supported stage/year placement, uncertainty, revisions, and many-to-many original source links. Accepted evidence survives an assistant-delivery failure; completed-round usage requires a saved successful reply. Agent memory is a context view of those records.
 
-The independent [`memoir-interview-guidance` skill](skills/memoir-interview-guidance/SKILL.md)
-in Lane B prepares the next turn's question pool and optional tentative life-meaning
-acknowledgement. It prioritizes conflicts, identity/reference clarification,
-relevant inspected public history, connected topic transitions after enough detail,
-and expressed life meaning, followed by ordinary grounded follow-ups. A conflict
-needs two exact original passages; public history never becomes personal testimony.
-Indexed English stems and Chinese bigrams find older canonical evidence without
-loading the full transcript. Each request retains at most eight events and eight
-original windows, with a 32 KiB guidance-context limit. Retrieval proposes matches;
-the model still judges whether accounts concern the same event or person.
+Mira makes interviewing decisions in Lane A's current reply. Her system prompt
+covers conflicts, ambiguity about people or timing, connected topic development,
+recall limits and tentative reflection on expressed values. Authorized original
+passages and recent exchanges provide evidence; alternatives remain unresolved
+until the narrator clarifies them. The background catalog and fresh-install
+triggers no longer schedule `memoir-interview-guidance`.
 
-Guidance has its own durable claim and retry, so generation failure cannot block
-timeline extraction. Unrelated new turns coalesce into later work. Each Lane A turn freezes its candidate and acknowledgement read set. Publication
-can update the pool while that turn keeps its captured context.
-A new pool cannot replace or regenerate text already streaming. Lane A considers
-ranked candidates against the latest narration, corrections, boundaries and recall
-limits. Optional acknowledgement guidance is available for one subsequent reply.
+Saved timeline events, accepted memory context and inspected public news appear
+as `background_deliveries` in a final user message after the current narration.
+Timeline deliveries use bounded coordinates and authorized original passages;
+generated titles and uncertainty prose do not become narrator evidence.
+Mira decides whether they help the acknowledgement or next question. News is
+optional public context, never personal testimony; a selected supplied clue ID
+keeps its validated citation. A completed background job contributes to later
+turns without replacing text already streaming. Existing guidance storage and
+validators remain available for older records, but current replies do not load
+their prepared questions or acknowledgement copy.
+
+The updated Mira and timeline Markdown need the normal merged-main publication
+before runtime activation. A bounded draft comparison for the bilingual current
+reply cases is available with `scripts/evaluate_mira_prompt.py --realtime`.
 
 The [`memoir-composer` skill](skills/memoir-composer/SKILL.md) consumes the same event IDs. Every five completed rounds by default, it waits for extraction, freezes the latest eligible snapshot, prepares dirty stage/year/event groups in bounded parallel work, and preserves unchanged prose and revisions. Temporal coordinates one active run per project/skill lane with coalesced catch-up, bounded deadlines, retries, and fenced commits. A validated repeat of unchanged event facts advances extraction without rewriting prose. A checkpoint with no supported events finishes collecting without inventing prose or requesting a provider retry.
 
@@ -1107,6 +1123,6 @@ host responsibilities.
 Offline feature-branch replays intentionally load registered draft prompt source
 text. Tests of the production loader still require genuine publication receipts.
 No feature-branch test fabricates a Langfuse version or permits production to load
-an unpublished prompt. Merge reviewed prompt sources, pull `main`, run
-`make prompt-sync`, commit the generated receipts, and run `make prompt-check`
+an unpublished prompt. Commit prompt sources on the current branch, run
+`make prompt-sync`, review and commit the generated receipts, and run `make prompt-check`
 before deploying a changed prompt.

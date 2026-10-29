@@ -76,6 +76,38 @@ def test_agent_can_read_a_versioned_reference_and_call_limits_are_enforced():
         asyncio.run(tools.call(params('memoir_read_skill', skill='memoir-author-timeline')))
 
 
+def test_source_choice_requires_each_selected_skill_and_allows_an_explicit_empty_choice():
+    async def scenario():
+        choices = []
+        async def process(names):
+            choices.append(names)
+            return {'status':'saved'}
+        names = ['memoir-author-timeline','memoir-place-journey','memoir-memory-context']
+        tools = SkillTools(names,process_source=process,source_skills=names)
+        assert not (await tools.call(params('memoir_process_source',skills=names)))['success']
+        assert choices == []
+        assert (await tools.call(params('memoir_process_source',skills=[])))['success']
+        for name in names:
+            await tools.call(params('memoir_read_skill',skill=name))
+        assert (await tools.call(params('memoir_process_source',skills=names[1:])))['success']
+        for invalid in (['memoir-story-game'],names+names,['memoir-author-timeline',None]):
+            assert not (await tools.call(params('memoir_process_source',skills=invalid)))['success']
+        assert choices == [[],names[1:]]
+    asyncio.run(scenario())
+
+
+def test_selected_extraction_contract_loads_only_the_requested_skill_instructions():
+    from apps.api.two_lane_memory import extraction_contract
+    places, schema = extraction_contract(selected_skills=['memoir-place-journey'])
+    assert '# Memoir Author Timeline' not in places
+    assert 'canonical two-lane extraction' in places
+    assert schema['properties']['events']['maxItems'] == 0
+    timeline, schema = extraction_contract(selected_skills=['memoir-author-timeline'])
+    assert '# Memoir Author Timeline' in timeline
+    assert 'canonical two-lane extraction' not in timeline
+    assert schema['properties']['place_journeys']['maxItems'] == 0
+
+
 def test_real_stdio_client_handles_skill_read_and_sends_its_body_back_to_harness(tmp_path):
     server = tmp_path / 'controlled_app_server.py'
     journal = tmp_path / 'journal.json'

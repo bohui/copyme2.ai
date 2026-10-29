@@ -33,6 +33,8 @@ def historical_acknowledgements(context):
 
 
 def historical_acknowledgement_allowed(value, context):
+    if (context or {}).get('reply_contract') == 'reply-v2':
+        return True
     state=(context or {}).get('historical_news') or {}
     return not (state.get('enabled') and state.get('clues')) or value in historical_acknowledgements(context)
 
@@ -43,6 +45,8 @@ def neutral_acknowledgement(context):
 
 
 def defer_prepared_acknowledgement(context):
+    if (context or {}).get('reply_contract') == 'reply-v2':
+        return False
     from .two_lane_memory import pending_confirmation
     return bool(context.get('historical_news', {}).get('clues') or pending_confirmation(context)
         or (context.get('interview_guidance') or {}).get('acknowledgement_guidance'))
@@ -237,15 +241,16 @@ def validate_collector_result(value, context):
         if c.historical_clue_id is not None:
             from .historical_news import authorized_clue, public_clue, HISTORICAL_INVITATIONS
             clue = authorized_clue(context, c.historical_clue_id)
-            safe_invitations = dict(HISTORICAL_INVITATIONS.values())
-            if context.get('interview_language') in {'en-AU','zh-CN'} and (
-                ('这条' in candidate.question) != (context['interview_language']=='zh-CN')):
-                raise ValueError('Historical invitation must keep the interview language')
-            if safe_invitations.get(candidate.question.strip()) != candidate.bridge.strip():
-                raise ValueError('Historical questions require a neutral optional memory invitation')
+            if context.get('reply_contract') != 'reply-v2':
+                safe_invitations = dict(HISTORICAL_INVITATIONS.values())
+                if context.get('interview_language') in {'en-AU','zh-CN'} and (
+                    ('这条' in candidate.question) != (context['interview_language']=='zh-CN')):
+                    raise ValueError('Historical invitation must keep the interview language')
+                if safe_invitations.get(candidate.question.strip()) != candidate.bridge.strip():
+                    raise ValueError('Historical questions require a neutral optional memory invitation')
 
             news_count += 1
-            if news_count > 1 or any(v is not None for v in (c.year,c.life_stage,c.event_id,c.photo_id)):
+            if news_count > 1 or any(v is not None for v in (c.year,c.life_stage,c.event_id,c.photo_id,c.evidence)):
                 raise ValueError('Historical context cannot become personal evidence or replace the pool')
             if candidate.id == plan.chosen_id:
                 if plan.active_event_id is not None:

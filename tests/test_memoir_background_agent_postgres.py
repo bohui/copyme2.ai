@@ -67,6 +67,10 @@ def test_background_operations_are_private_and_deletion_removes_claims(sql):
     claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
     assert sql(as_user('select * from public.user_memoir_background_agent;',OTHER),check=False).returncode != 0
     assert sql(as_user('select public.pending_memoir_background_agents();'),check=False).returncode != 0
+    assert sql(as_user("select public.select_lifetime_source_skills('00000000-0000-4000-8000-000000000000',"
+        "'00000000-0000-4000-8000-000000000000','{}','[]');"),check=False).returncode != 0
+    assert sql(as_user("select public.advance_memoir_background_profile('{}',"
+        "'00000000-0000-4000-8000-000000000000','untrusted');"),check=False).returncode != 0
     sql('delete from public.user_lifetime_conversation where user_id=' + literal(OWNER) + ' and project_id=' + literal(identity['project_id']) + ';')
     assert sql('set role service_role;select public.read_memoir_background_work(' + literal(claim) + ');',check=False).returncode!=0
     sql('delete from public.user_memoir_project where user_id=' + literal(OWNER) + ' and project_id=' + literal(identity['project_id']) + ';')
@@ -113,7 +117,7 @@ def test_crashed_agent_and_expired_domain_leases_are_reclaimed(sql):
 def test_repeated_agent_failure_exposes_required_work_through_existing_retry_state(sql):
     identity,run=queued(sql)
     sql(f"insert into public.user_memoir_lane(user_id,project_id,skill) values('{OWNER}',{literal(identity['project_id'])},'timeline');")
-    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill) values('{OWNER}',{literal(identity['project_id'])},'guidance');")
+    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill) values('{OWNER}',{literal(identity['project_id'])},'composer');")
     for attempt in range(3):
         sql(f"update public.user_memoir_background_agent set available_at=clock_timestamp() where id='{run}';")
         claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)

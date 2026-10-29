@@ -56,6 +56,65 @@ def cases():
     return result
 
 
+def realtime_cases():
+    """Exercise Mira's interviewing decisions without a Lane B question pool."""
+    sys.path.insert(0, str(ROOT / 'tests'))
+    from apps.api.conversation_reply import reply_instructions, reply_packet
+    from apps.api.lifetime_memory_engine import validate_governed_context
+    from test_historical_news import ready_context
+    from test_lifetime_memory_engine import fixture, encode
+    stories = {
+        'en-AU': {
+            'conflict': ('I moved to Sydney in 1988.', 'I moved to Sydney in 1992. That was the same move, from Boston.'),
+            'ambiguity': ('My cousin Robin lived nearby.', 'Robin was my colleague. We walked home together after work.'),
+            'topic': ('What did you do while waiting outside the paint shop?',
+                'I cannot remember what I did while waiting. I do remember my sister singing in our kitchen.'),
+            'values': ('', 'I kept choosing jobs close to home because helping my family mattered to me. I turned down a promotion that meant moving away.'),
+            'relevant-news': ('', 'We lived in Boston in 1970. Is there any public history from then that might bring back memories?'),
+            'irrelevant-news': ('', 'Please stay with my sister singing in the kitchen. I do not want to talk about public events.'),
+        },
+        'zh-CN': {
+            'conflict': ('我是1988年搬到悉尼的。', '我是1992年搬到悉尼的，就是同一次从波士顿搬家的事。'),
+            'ambiguity': ('我表姐小宁住在附近。', '小宁是我的同事，我们下班后一起走回家。'),
+            'topic': ('在涂料店外面等爸爸时，您具体做了什么？', '等爸爸买涂料时做了什么，我记不得了。我倒记得姐姐在家里厨房唱歌。'),
+            'values': ('', '我一直挑离家近的工作，因为帮家里人对我很重要。需要搬走的一次晋升，我也放弃了。'),
+            'relevant-news': ('', '1970年我们住在波士顿。有没有当时公开记载的事，能帮我打开一点回忆？'),
+            'irrelevant-news': ('', '我想继续聊姐姐在厨房唱歌的事，先不要聊公开的历史事件。'),
+        },
+    }
+    criteria = {
+        'conflict': 'Notice the two dates for the same move and clarify neutrally; do not silently choose a date or invent a second move.',
+        'ambiguity': 'Clarify whether the cousin and colleague are the same person when needed, leaving both possibilities open.',
+        'topic': 'Accept the unavailable waiting detail and follow the connected sister or kitchen memory without asking for the missing detail again.',
+        'values': 'Tentatively reflect the expressed family priority without imposing a life lesson; let the narrator develop or correct that interpretation.',
+        'relevant-news': 'Consider the inspected public fair as an optional memory invitation. If used, put its ID in historical_clue_id; the application attaches the citation, so never speak the internal ID. Never imply the narrator attended it.',
+        'irrelevant-news': 'Follow the requested sister memory and leave the unrelated public fair unmentioned and unselected.',
+    }
+    result = []
+    for locale, scenarios in stories.items():
+        for kind, (earlier, text) in scenarios.items():
+            governed, context = fixture()
+            context.update(reply_contract='reply-v2', two_lane_memory=True, interview_language=locale)
+            context['source']['text'] = text
+            if earlier:
+                context['recent_dialogue'] = [dict(status='responded',
+                    question=dict(id='fictional-prior-question', text=earlier if kind=='topic' else 'Where shall we begin?',
+                        role='assistant', personal_testimony=False, delivered=True),
+                    response=dict(id='00000000-0000-4000-8000-000000000001', version=1,
+                        text=text if kind=='topic' else earlier, role='user', kind='narrator_chat', complete=True))]
+            if kind.endswith('news'):
+                context.update(deepcopy(ready_context()))
+            packet = json.loads(governed.packet)
+            packet['current']['narrator'].update(original=text, char_end=len(text), language=locale)
+            packet['pinned']['language'] = locale
+            packet.update(instructions=reply_instructions(), interview_context={
+                key: value for key, value in context.items() if key not in {'source', 'sources'}})
+            view = reply_packet(validate_governed_context(encode(packet), context))
+            result.append(dict(id=f'realtime/{kind}/{locale}', context=context, view=view,
+                criteria=dict(required=[criteria[kind]])))
+    return result
+
+
 def judge_schema():
     rating = dict(type='object', additionalProperties=False,
         properties=dict(score=dict(type='integer', minimum=0, maximum=4),
@@ -253,6 +312,7 @@ def main():
     probes = parser.add_mutually_exclusive_group()
     probes.add_argument('--lane-b', action='store_true', help='Evaluate the six bilingual Lane B handoff probes')
     probes.add_argument('--emotional', action='store_true', help='Evaluate the bilingual emotional-attunement probes')
+    probes.add_argument('--realtime', action='store_true', help='Evaluate Mira interviewing and optional background deliveries')
     args = parser.parse_args()
     from apps.api import prompt_artifact
     published_loader = prompt_artifact.load_prompt_artifact
@@ -265,6 +325,8 @@ def main():
             inputs = lane_b_cases()
         elif args.emotional:
             inputs = emotional_cases()
+        elif args.realtime:
+            inputs = realtime_cases()
         if not args.execute:
             print(json.dumps(dict(cases=len(inputs), generation_requests=2 * len(inputs),
                 judge_requests=(len(inputs) + 3) // 4, synthetic=True, requests=0)))

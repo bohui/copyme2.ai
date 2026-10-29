@@ -24,7 +24,7 @@ from test_shared_memory_events_postgres import literal, rpc, sql
 
 class Conversation:
     def __init__(self, sql, tmp_path, monkeypatch, extract, *, work='extract', name=None, family=True, strategy=None,
-                 external_boundary=None, guidance=None):
+                 external_boundary=None, guidance=None, reply=None):
         self.sql, self.extract, self.project = sql, extract, None
         self.admissions = []
         self.foreground = []
@@ -95,6 +95,8 @@ class Conversation:
                 if context.get('reply_contract') == 'reply-v2':
                     from test_conversation_reply import proposal as reply_proposal
                     output = {**reply_proposal(), 'work': {'mode':work, 'name':name}}
+                    if strategy:
+                        output['strategy'] = strategy
                     if context['source']['text'].startswith('Please stop.'):
                         output.update(question=None, reason='pause', work={'mode':'reply_only', 'name':None})
                     elif selected:
@@ -117,6 +119,8 @@ class Conversation:
                     output['acknowledgement']=context['reviewed_acknowledgement']
                 if reflection:
                     output['acknowledgement'] = reflection['text']
+                if reply:
+                    output = reply(context)
             return worker_response(request, output)
         async def bounded_provider(request):
             return await external_boundary(request, provider) if external_boundary else await provider(request)
