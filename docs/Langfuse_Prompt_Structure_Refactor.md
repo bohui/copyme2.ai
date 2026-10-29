@@ -8,15 +8,8 @@ release versions belong in metadata and version history.
 
 ```text
 memoir/
+  agents/mira/{system,policy-review,repair,repair-codes,strategy-proposal}
   skills/
-    memoir-interviewer/
-      reply
-      policy-review
-      policy-review-opening
-      governed-turn
-      repair-{codes,prefix,suffix,acknowledgement}
-      greeting-{begin,continue}
-      strategy-proposal
     memoir-author-timeline/
       instructions
       contract
@@ -52,17 +45,19 @@ memoir/
   speech/{default,en-AU,zh-CN}
 ```
 
-`memoir-interviewer` names the existing foreground collector's prompt ownership;
-it adds no runner or scheduler. The other skill sources remain inside their
-existing skill directories. Generic bounded-worker policy has one shared owner
-because both timeline and composer consume it.
+Mira is the conversational agent. Its five prompt sources live in
+`apps/api/prompts/mira/` under `memoir/agents/mira/...`; no interviewer skill is
+installed or invoked. The system prompt is included on every reply. Optional
+repair guidance, source-only privacy review and Lane B strategy proposals enter
+only their relevant calls. Greeting text is application-owned.
 
-The interviewer catalog contains 11 prompts for the sole `reply-v2` mode,
-including conditional privacy-review opening, repairs, begin/continue actions and
-background strategy proposals. The 13 prompt sources and receipts used only by
-the retired collector variants have been removed with their configuration and
-prompt assembly paths. Language and strategy now reach the reply as context data.
-The catalog maps the retained Langfuse names to their existing source files.
+New namespace pins require normal merged-main publication. Until then, source-only
+offline tests and explicitly labelled draft evaluations can inspect these drafts;
+production receipt validation still rejects missing or stale publication receipts.
+
+Memoir's application and SQL gates enforce privacy, evidence and commit authority.
+The Codex harness supplies bounded execution and tool handling, not an automatic
+classifier of memoir topic restrictions.
 
 The [privacy/repair optimization](issue53-policy-repair-20261022.md) composes
 optional acknowledgement guidance from the same privacy core and transmits only

@@ -141,7 +141,8 @@ async def evaluate(args, inputs):
                 text=dict(format=dict(type='json_schema', name='mira_comparison', strict=True, schema=judge_schema())))
             result, receipt = await request(body)
             validate(result, judge_schema())
-            if {row['id'] for row in result['results']} != {row['id'] for row in batch}:
+            if (len(result['results']) != len(batch)
+                    or {row['id'] for row in result['results']} != {row['id'] for row in batch}):
                 raise ValueError('Judge returned incomplete or foreign cases')
             for row in result['results']:
                 case = next(case for case in inputs if case['id'] == row['id'])

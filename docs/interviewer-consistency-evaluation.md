@@ -20,11 +20,12 @@ to another stage with less coverage. Later stages are suggested first, then
 earlier gaps. This is an interview breadth heuristic, not a quality score, a
 declaration that a stage is complete, or permission to compose/publish a memoir.
 
-The shared interviewer guidance asks for a brief natural bridge and an optional
-question. Explicit continuation, an unfinished anecdote, a correction, the user's
-own question, redirect, distress or stop takes priority. It also protects
-alternate names, uncertainty, conditional events and already answered questions.
-Both the compact collector and strategy selector consume this shared guidance.
+Mira's agent system prompt in `apps/api/prompts/mira/system.md` guides warmth,
+listening and the next question. It is always loaded, independent of callable
+skills. Source-grounded output validation, privacy review and Lane B work routing
+remain application responsibilities. The current prompt comparison uses the
+existing fictional bilingual cases; its results do not certify real persistence
+or browser delivery.
 
 `scripts/interviewer_conversation_cases.py` builds one exact prefix per active
 source from an explicitly selected local export, plus eight labelled

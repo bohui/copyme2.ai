@@ -473,7 +473,8 @@ the current prompts, models and validation.
 ### Versioned prompt artifacts
 
 Merged Git `main` owns prompt content; Memoir's Langfuse project owns published
-versions. Each skill owns its model
+versions. Mira owns its always-loaded agent instructions and supporting prompts
+under `memoir/agents/mira/...`, stored in `apps/api/prompts/mira/`. Each skill owns its model
 instructions under `memoir/skills/<skill>/...`, including composer phases and
 shared editorial policy. Repository sources live under that skill's directory.
 Common bounded-worker instructions use `memoir/shared/...`; judge/probe and
@@ -489,7 +490,10 @@ Canonical composition consumes host-owned events. Its retired full-source previe
 fallback and uncalled private-draft executor were removed. The HTTP first-response
 and canonical controlled profilers remain available. Collector configuration
 supports only `reply-v2`, which is also the default. The older collector modes
-and their 13 prompt sources and receipts have been removed. The
+and their 13 prompt sources and receipts have been removed. Mira is an agent,
+not a callable skill; its system prompt is sent on every reply. Application-owned
+privacy review and database policy fences remain mandatory. Codex execution
+sandboxing does not classify memoir privacy restrictions. The
 [small reply contract](docs/issue53-reply-v2.md) requires enabled two lanes,
 matching API/worker code and published prompt receipts. Two lanes are enabled
 by default; the separate database rollout guard still applies.

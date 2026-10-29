@@ -23,7 +23,6 @@ from .place_geocoding import geo_provider
 from .workspace_memory_actions import WorkspaceMemoryFocus
 from .formal_memoir_routes import router as formal_memoir_router
 from .story_game_routes import router as story_game_router
-from .prompt_artifact import load_prompt_artifact, prompt_path
 
 router = APIRouter(prefix='/v1/agent', tags=['Codex agent'])
 router.include_router(formal_memoir_router)

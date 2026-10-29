@@ -101,11 +101,11 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
                                    prompt="Current", is_fallback=False)
 
     client = CurrentClient()
-    receipts = export_prompts(client, name="reply", root=tmp_path)
+    receipts = export_prompts(client, name="system", root=tmp_path)
     assert receipts[0]["version"] == 3
     assert path.read_text(encoding="utf-8") == "Current"
     assert [call["version"] for call in client.calls] == [3, 3]
-    export_prompts(client, name="reply", check=True, root=tmp_path)
+    export_prompts(client, name="system", check=True, root=tmp_path)
     assert client.calls[-1]["version"] == 3
 
 

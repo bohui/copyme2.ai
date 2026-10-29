@@ -11,24 +11,25 @@ copy. After a reply identifies unavailable details, the host renders a selected
 broader pool question verbatim or this optional invitation. It makes no extra
 model call and does not treat the unavailable detail as an answered fact.
 
-The interviewer uses only `reply-v2`, with 11 managed prompt sources: the reply,
-privacy review and optional opening, governed dispatch, four repair fragments,
-begin/continue actions and the background strategy proposal. The 13 prompt
-sources for the retired collector variants and their receipts have been removed.
-See the [layout details](Langfuse_Prompt_Structure_Refactor.md). Older measurements
-below describe their recorded audit dates; they are not current traffic counts.
+Mira uses only `reply-v2`, with five agent-owned prompt drafts under
+`apps/api/prompts/mira/`: `system`, `policy-review`, `repair`, `repair-codes`
+and `strategy-proposal`. They publish under `memoir/agents/mira/...` after merge
+to main; new namespace receipts are not fabricated from the older skill pins.
 
-Lane B now uses the native Codex tool loop. The coordinator source is
-`memoir/shared/background-agent`; its scoped catalog selects timeline, guidance,
-composer and enabled historical-news work. `memoir_read_skill` returns the actual
-versioned `SKILL.md` and permitted references, and traces record the sources read.
-Bounded profile/place/extraction/composition turns use the same reader. Composer
-instructions are newly registered as `memoir/skills/memoir-composer/instructions`.
-The shared `memoir/shared/skill-agent` source makes reading the selected skill
-mandatory in each native turn. All three new sources require publication from
-reviewed `main` before activation.
-Historical-news discovery now consumes its main instructions and contract in
-production as well. The older inventory below records the earlier caller audit.
+The greeting endpoint returns localized application text without a model call.
+Duplicate dispatch instructions, the separate early-ack template and three repair
+fragments have been removed or folded into the five retained sources. The system
+prompt owns voice and interviewing judgement; the schema and host validate the
+private work handoff to Lane B. Background workers read the accepted original
+source, so Mira does not extract or retell it in that handoff.
+
+Privacy is enforced by Memoir's current-source policy review and database policy
+fences, not by the generic Codex harness. Its review prompt remains separate from
+Mira's conversational role. Existing `memoir-interviewer` evaluation case IDs are
+stable historical identifiers; evaluation inventory classifies Mira as an agent.
+
+Earlier character counts below describe the recorded optimization, not the new
+draft. See the [paired draft evaluation](test-evidence/mira-role-prompt-20261029.json).
 
 For a normal `reply-v2` narrator turn, these are separate model calls:
 
@@ -45,7 +46,7 @@ template composes the core rules and original acknowledgement guidance into
 1,998 characters. On a rejected reply, selected repair guidance uses 431–823
 static characters, down from 3,215, plus error data and the optional
 acknowledgement-preservation rule. Greetings and Lane B have separate triggers;
-the 11-entry inventory is not the prompt input for every turn. See the
+the five-source inventory is not the prompt input for every turn. See the
 [profiled optimization](issue53-policy-repair-20261022.md), including slower
 held-out cases and the remaining deployment/acceptance gates.
 
@@ -80,10 +81,15 @@ host-owned events. Historical preview job IDs resolve to canonical draft state;
 polling cannot restart the retired model workflow. Deterministic source-reference
 and cache readers remain available for historical data.
 
-## Every retained prompt
+## Prompt inventory
 
 | Langfuse name | Version | Classification | Consumer / condition |
 | --- | ---: | --- | --- |
+| [`memoir/agents/mira/system`](../apps/api/prompts/mira/system.md) | Pending main publication | Agent runtime | Always-loaded Mira identity, conversational judgement and private work handoff. |
+| [`memoir/agents/mira/policy-review`](../apps/api/prompts/mira/policy-review.md) | Pending main publication | Runtime gate | Current-source privacy controls, with an optional schema-requested early acknowledgement. |
+| [`memoir/agents/mira/repair`](../apps/api/prompts/mira/repair.md) | Pending main publication | Conditional runtime | Correction instructions for rejected or incomplete output; acknowledgement locking stays in the schema. |
+| [`memoir/agents/mira/repair-codes`](../apps/api/prompts/mira/repair-codes.md) | Pending main publication | Conditional runtime | Only the matching validation rule and common guidance enter the repair. |
+| [`memoir/agents/mira/strategy-proposal`](../apps/api/prompts/mira/strategy-proposal.md) | Pending main publication | Conditional background runtime | Optional Lane B strategy planning, without permission or publication authority. |
 | [`memoir/evaluation/five-case-judge`](../tests/evaluation/memoir_five_case_judge_prompt.md) | 1 | Evaluation only | [`scripts/run_memoir_five_case_semantic_judge.py`](../scripts/run_memoir_five_case_semantic_judge.py) — Five-case semantic judge template. |
 | [`memoir/evaluation/five-case-judge/guard`](../tests/evaluation/prompts/five-case-judge/guard.md) | 1 | Evaluation only | [`scripts/run_memoir_five_case_semantic_judge.py`](../scripts/run_memoir_five_case_semantic_judge.py) — Semantic judge guard for retained evaluation evidence. |
 | [`memoir/evaluation/live-skills/historical-lead`](../tests/evaluation/prompts/live-skills/historical-lead.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Isolated live-skill contract probe; no production persistence. |
@@ -123,17 +129,6 @@ and cache readers remain available for historical data.
 | [`memoir/skills/memoir-composer/shared/editorial-review`](../skills/memoir-composer/references/editorial-review.prompt.md) | 1 | Shared runtime | [`apps/api/memoir_preview.py`](../apps/api/memoir_preview.py) — Review-only editorial component. |
 | [`memoir/skills/memoir-composer/shared/narrative-enrichment`](../skills/memoir-composer/references/narrative-enrichment.md) | 1 | Shared runtime | [`apps/api/memoir_preview.py`](../apps/api/memoir_preview.py) — Single narrative policy read by drafting and review. |
 | [`memoir/skills/memoir-family-tree/instructions`](../skills/memoir-family-tree/SKILL.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Explicit isolated probe/native-search model input; does not prove a production binding. |
-| [`memoir/skills/memoir-interviewer/reply`](../skills/memoir-interviewer/prompts/reply.md) | 8 | Runtime | [`apps/api/conversation_reply.py`](../apps/api/conversation_reply.py) — Small foreground proposal for `reply-v2`; locale and strategy arrive as data. |
-| [`memoir/skills/memoir-interviewer/policy-review`](../skills/memoir-interviewer/prompts/policy-review.md) | 6 | Runtime | [`apps/api/policy_review.py`](../apps/api/policy_review.py) — Source-only privacy policy review before the governed reply. |
-| [`memoir/skills/memoir-interviewer/policy-review-opening`](../skills/memoir-interviewer/prompts/policy-review-opening.md) | 1 | Conditional runtime | [`apps/api/policy_review.py`](../apps/api/policy_review.py) — Composes the core once with original style guidance only when early acknowledgement is requested. |
-| [`memoir/skills/memoir-interviewer/repair-codes`](../skills/memoir-interviewer/prompts/governed-repair/codes.md) | 6 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Managed rule catalog; only common guidance and the matching rule enter a bounded repair. |
-| [`memoir/skills/memoir-interviewer/repair-acknowledgement`](../skills/memoir-interviewer/prompts/governed-repair/acknowledgement.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Retain the already streamed acknowledgement during bounded repair. |
-| [`memoir/skills/memoir-interviewer/repair-prefix`](../skills/memoir-interviewer/prompts/governed-repair/prefix.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Bounded repair prefix after a rejected collector output. |
-| [`memoir/skills/memoir-interviewer/repair-suffix`](../skills/memoir-interviewer/prompts/governed-repair/suffix.md) | 1 | Conditional runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Bounded repair suffix after a rejected collector output. |
-| [`memoir/skills/memoir-interviewer/governed-turn`](../skills/memoir-interviewer/prompts/governed-turn.md) | 3 | Runtime | [`apps/api/lifetime_memory_engine.py`](../apps/api/lifetime_memory_engine.py) — Structured governed user packet, not a second collector workflow. |
-| [`memoir/skills/memoir-interviewer/greeting-begin`](../skills/memoir-interviewer/prompts/greeting/begin.md) | 1 | Runtime | [`apps/api/agent_routes.py`](../apps/api/agent_routes.py) — Server-owned begin action through the same governed conversation transport. |
-| [`memoir/skills/memoir-interviewer/greeting-continue`](../skills/memoir-interviewer/prompts/greeting/continue.md) | 1 | Runtime | [`apps/api/agent_routes.py`](../apps/api/agent_routes.py) — Server-owned return action through the same governed conversation transport. |
-| [`memoir/skills/memoir-interviewer/strategy-proposal`](../skills/memoir-interviewer/prompts/strategy/proposal.md) | 4 | Conditional runtime | [`apps/api/interview_guidance.py`](../apps/api/interview_guidance.py) — Optional future-strategy proposal in the background interview-guidance call. |
 | [`memoir/skills/memoir-memory-context/instructions`](../skills/memoir-memory-context/SKILL.md) | 1 | Runtime | [`apps/api/background_profile.py`](../apps/api/background_profile.py) — Automatic profile extraction for currently admitted targets. |
 | [`memoir/skills/memoir-memory-context/summary`](../skills/memoir-memory-context/prompts/summary.md) | 1 | Runtime | [`apps/api/lifetime_memory_summary.py`](../apps/api/lifetime_memory_summary.py) — Canonical source-linked memory summary phase. |
 | [`memoir/skills/memoir-place-groups/instructions`](../skills/memoir-place-groups/SKILL.md) | 1 | Evaluation only | [`scripts/memoir_live_skill_cases.py`](../scripts/memoir_live_skill_cases.py) — Explicit isolated probe/native-search model input; does not prove a production binding. |
