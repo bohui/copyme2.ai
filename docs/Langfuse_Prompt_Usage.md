@@ -31,6 +31,49 @@ stable historical identifiers; evaluation inventory classifies Mira as an agent.
 Earlier character counts below describe the recorded optimization, not the new
 draft. See the [paired draft evaluation](test-evidence/mira-role-prompt-20261029.json).
 
+
+## Mira role-prompt evaluation — 29 October 2026
+
+The agent prompt is **1,033 characters**, down from **1,922** characters for the
+previous reply-plus-dispatch instructions (46% less static text). The output
+schema and host validators still own evidence spans, prepared-question identity,
+private work routing, privacy epochs and atomic saving. No judgement rules were
+moved into hidden runtime string classifiers as part of this simplification.
+
+Paired evaluation used the configured `gpt-6.1-sol` route at low requested effort
+for both prompts. A separate `gpt-5.6-luna-memoir-low` call reviewed anonymous A/B
+outputs. All inputs were fictional: 36 existing bilingual conversation cases and
+six additional Lane B cases covering prepared clarification, recall difficulty
+and the latest redirect overriding queued hints.
+
+| Observed measure | Previous prompt | Concise Mira role |
+| --- | ---: | ---: |
+| Validated proposals | 42/42 | 42/42 |
+| Blind mean quality, 0–4 | 3.762 | 3.810 |
+| Critical issues flagged in final sample | 0 | 0 |
+| Preferred in paired review | 7 | 9 |
+
+The other 26 comparisons tied. This small exploratory sample supports preserving
+conversation quality; the score difference is not evidence of statistical
+superiority. Initial pilots caught an assumed narrator presence and an unsupported
+causal link. The final role therefore preserves uncertainty about who was involved
+and how events connect. The judge rubric also distinguishes acknowledging rejected
+wording from asserting it as true. Pilot and refinement evidence are retained.
+
+- [36-case comparison](test-evidence/mira-role-prompt-20261029.json)
+- [Six Lane B comparisons](test-evidence/mira-lane-b-prompt-20261029.json)
+- [Initial pilot](test-evidence/mira-role-prompt-20261029-pilot.json)
+- [Intermediate refinement](test-evidence/mira-role-prompt-20261029-refinement.json)
+
+The required `make test-place-research` regression passed: 633 web tests,
+631 Python cases and 96 skill-unit checks. The current privacy/early-ack tests
+passed 52 PostgreSQL-backed cases. Legacy native-runtime fixtures still expect
+retired reply shapes and are not included in these passing results. Live prompt
+comparisons establish model-proposal quality only; runtime publication still
+requires merged-main Langfuse receipts. No new receipt versions were invented.
+
+## Earlier recorded request measurements
+
 For a normal `reply-v2` narrator turn, these are separate model calls:
 
 | Foreground call | Static prompt components | Baseline characters | Proposed characters |

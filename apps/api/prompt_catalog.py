@@ -1,4 +1,4 @@
-"""Model-consumed prompt sources, owned by their skill or shared workflow."""
+"""Model-consumed prompt sources, owned by an agent, skill or shared workflow."""
 
 PROMPT_PATHS = {
     'memoir/agents/mira/system': 'apps/api/prompts/mira/system.md',

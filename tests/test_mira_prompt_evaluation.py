@@ -2,7 +2,7 @@
 import pytest
 from jsonschema import ValidationError, validate
 
-from scripts.evaluate_mira_prompt import cases, judge_schema
+from scripts.evaluate_mira_prompt import cases, lane_b_cases, judge_schema
 
 
 def test_comparison_uses_existing_bilingual_cases_and_real_reply_projections():
@@ -22,3 +22,12 @@ def test_judge_schema_rejects_unbounded_scores_and_unrecognized_winners():
         validate(dict(results=[{**row, 'A': {**rating, 'score': 5}}]), judge_schema())
     with pytest.raises(ValidationError):
         validate(dict(results=[{**row, 'winner': 'candidate'}]), judge_schema())
+
+
+def test_lane_b_probes_keep_prepared_hints_and_current_narration_in_the_real_packet():
+    cases()  # Load the existing shared fixture modules.
+    inputs = lane_b_cases()
+    assert len(inputs) == 6
+    for case in inputs:
+        assert len(case['view']['brief']['hints']) == 2
+        assert case['view']['current']['narrator']['original'] == case['context']['source']['text']

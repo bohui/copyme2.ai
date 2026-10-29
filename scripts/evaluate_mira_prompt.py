@@ -68,6 +68,45 @@ def judge_schema():
         properties=dict(results=dict(type='array', items=row)))
 
 
+def lane_b_cases():
+    from apps.api.conversation_reply import reply_instructions, reply_packet
+    from apps.api.lifetime_memory_engine import validate_governed_context
+    from test_lifetime_memory_engine import fixture, encode
+    from test_recall_limit_questions import recall_case
+    result = []
+    for locale in ('en-AU', 'zh-CN'):
+        texts = (dict(confirmation='I remember waiting outside while Dad bought paint. Please go on.',
+            recall='I cannot remember what I did while waiting. We lived in that home for years.',
+            redirect="Please stop asking about waiting. I'd like to talk about my sister.") if locale == 'en-AU' else
+            dict(confirmation='我记得在外面等爸爸买涂料。请继续聊。',
+                recall='等爸爸买涂料时做了什么，我记不得了。我们在那个家住了很多年。',
+                redirect='先别再问等爸爸的事了，我想聊姐姐。'))
+        for kind, text in texts.items():
+            governed, original = fixture()
+            context, _, detail, broader = recall_case(text)
+            context.update(interview_language=locale)
+            context['source']['id'] = original['source']['id']
+            context['sources'] = [context['source']]
+            for hint in (detail, broader):
+                hint['source_id'] = context['source']['id']
+            if locale == 'zh-CN':
+                detail['question'] = '当时等爸爸的时候，您具体做了什么？'
+                broader['question'] = '说起住在那个家的日子，您会想到什么？'
+            packet = json.loads(governed.packet)
+            packet['current']['narrator'].update(original=text, char_end=len(text),
+                version=context['source']['version'], language=locale)
+            packet['pinned']['language'] = locale
+            packet.update(instructions=reply_instructions(), interview_context={
+                key: value for key, value in context.items() if key not in {'source', 'sources'}})
+            view = reply_packet(validate_governed_context(encode(packet), context))
+            expected = dict(confirmation='Ask the prepared clarification without asserting its proposed answer.',
+                recall='Accept the recall limit, leave the detail unresolved and offer the broader home-memory hint.',
+                redirect='Follow the sister topic; the current boundary overrides both Lane B hints.')[kind]
+            result.append(dict(id=f'lane-b/{kind}/{locale}', context=context, view=view,
+                criteria=dict(required=[expected])))
+    return result
+
+
 async def evaluate(args, inputs):
     import httpx
     from dotenv import dotenv_values
@@ -147,7 +186,8 @@ async def evaluate(args, inputs):
             rows = {row['arm']: row for row in report['results'] if row['id'] == case['id']}
             labels = dict(zip(('A', 'B'), order))
             pairs.append(dict(id=case['id'], task=case['view'], criteria=case['criteria'],
-                A=rows[order[0]].get('output'), B=rows[order[1]].get('output')))
+                **{key: dict(visible_reply=rows[arm].get('reply'), proposal=rows[arm].get('output'))
+                    for key, arm in labels.items()}))
             pairs[-1]['task'] = {key: value for key, value in pairs[-1]['task'].items() if key != 'instructions'}
             case['judge_labels'] = labels
         async def judge(batch):
@@ -185,6 +225,7 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--judge-model', default='gpt-5.6-luna-memoir-low')
     parser.add_argument('--execute', action='store_true')
+    parser.add_argument('--lane-b', action='store_true', help='Evaluate the six bilingual Lane B handoff probes')
     args = parser.parse_args()
     from apps.api import prompt_artifact
     published_loader = prompt_artifact.load_prompt_artifact
@@ -192,7 +233,9 @@ def main():
         path = Path(path)
         return path.read_text() if path.is_relative_to(ROOT / 'apps/api/prompts/mira') else published_loader(path)
     with patch.object(prompt_artifact, 'load_prompt_artifact', draft_source):
-        inputs = cases()
+        inputs = cases()  # Import and prepare the shared production fixtures.
+        if args.lane_b:
+            inputs = lane_b_cases()
         if not args.execute:
             print(json.dumps(dict(cases=len(inputs), generation_requests=2 * len(inputs),
                 judge_requests=(len(inputs) + 3) // 4, synthetic=True, requests=0)))

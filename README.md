@@ -496,7 +496,7 @@ privacy review and database policy fences remain mandatory. Codex execution
 sandboxing does not classify memoir privacy restrictions. The
 [small reply contract](docs/issue53-reply-v2.md) requires enabled two lanes,
 matching API/worker code and published prompt receipts. Two lanes are enabled
-by default; the separate database rollout guard still applies.
+by default; the separate database rollout guard still applies. The [Mira prompt evaluation](docs/Langfuse_Prompt_Usage.md#mira-role-prompt-evaluation--29-october-2026) compares the concise role with the earlier instructions on 42 fictional bilingual cases.
 
 `MEMORY_SPARK_PARALLEL_POLICY_REVIEW=1` additionally opts into
 [revisable current replies](docs/issue53-parallel-reply-streaming.md). The API and

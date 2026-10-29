@@ -528,8 +528,8 @@ def test_repair_recovers_an_incomplete_provider_turn_without_losing_the_acknowle
                 if attempt>1:assert 'INVALID_JSON' in prompt
                 await options['on_delta'](json.dumps({'acknowledgement':original}))
                 return 'invalid JSON'
-            assert original in prompt
-            assert 'previous attempt' in prompt
+            assert options['output_schema']['properties']['acknowledgement']['enum'] == [original]
+            assert 'Correct the previous reply' in prompt
             if attempt==invalid_attempts+1:
                 assert 'INVALID_JSON' in prompt
                 return await incomplete_provider_turn(tmp_path)

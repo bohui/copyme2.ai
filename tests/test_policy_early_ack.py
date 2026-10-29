@@ -13,7 +13,7 @@ from scripts.canonical_turn import canonical_turn, CanonicalTurnFailed
 from memoir_postgres_workflow import PostgresRest
 from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database, database
 from test_agent_commit_postgres import OWNER
-from test_name_only_opening import proposal
+from test_conversation_reply import proposal
 from controlled_collector import worker_reply
 
 
@@ -28,6 +28,8 @@ def test_reviewed_acknowledgement_precedes_blocked_collector_and_replays_once(
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'gpt-5.6-luna-pooled')
     monkeypatch.setenv('MEMORY_SPARK_EARLY_POLICY_ACK', '1')
+    monkeypatch.setenv('MEMOIR_TWO_LANES', '1')
+    sql('update public.lifetime_two_lane_rollout set enabled=true;')
     policy_calls = []
 
     async def review(name, payload, schema, **kwargs):
@@ -69,7 +71,7 @@ def test_reviewed_acknowledgement_precedes_blocked_collector_and_replays_once(
             await release.wait()
             if fault_active and outcome == 'collector_failure':
                 return httpx.Response(503, json={'detail': 'Controlled provider failure'})
-            output = proposal(mode='extract', name=None, question=question)
+            output = {**proposal(), 'question': question}
             output['acknowledgement'] = acknowledgement
             return worker_reply(request, dict(reply=json.dumps(output), thread_id='fixed-collector', artifacts=[]))
         runtime = CodexRuntime(home_root=tmp_path / 'homes', worker_url='http://controlled.invalid',

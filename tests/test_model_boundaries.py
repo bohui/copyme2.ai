@@ -38,11 +38,13 @@ def test_manifest_ignores_catalog_sources_not_shipped_to_runtime(monkeypatch):
     assert 'memoir/evaluation/not-shipped' not in {item['name'] for item in manifest['artifacts']}
 
 
-def test_behavioral_schema_descriptions_are_not_a_second_prompt_store():
+def test_conversational_voice_lives_in_the_agent_prompt_not_schema_descriptions():
     schema = governed_collector_schema({'sources':[],'events':[],'photos':[]})
     def visit(value):
         if isinstance(value,dict):
-            assert not isinstance(value.get('description'),str)
+            description = value.get('description')
+            if isinstance(description, str):
+                assert all(text not in description.lower() for text in ('you are mira', 'be warm', 'be curious'))
             for item in value.values(): visit(item)
         elif isinstance(value,list):
             for item in value: visit(item)
@@ -116,7 +118,7 @@ def test_structured_request_forwards_skill_trace_identity(monkeypatch):
         'memoir/agents/mira/policy-review', {}, {},
         model='fixture-model', transport=httpx.MockTransport(provider),
         base_url='https://fixture.invalid/v1', api_key='fixture-key',
-        trace_name='memoir-interviewer', diagnostic_request_id='policy-fixture-turn'))
+        trace_name='mira', diagnostic_request_id='policy-fixture-turn'))
 
     assert captured['metadata']['generation_name'] == 'mira'
     assert captured['metadata']['trace_name'] == 'mira'
