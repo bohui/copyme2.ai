@@ -13,8 +13,13 @@ from test_memoir_skill_agent import Publication
 
 
 @pytest.mark.skipif(not shutil.which('codex'), reason='Codex app-server is not installed')
-def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_path):
+def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_path,monkeypatch):
+    from apps.api import llm_tracing
+    from test_gateway_trace_correlation import ApplicationTracer
+    tracer=ApplicationTracer()
+    monkeypatch.setattr(llm_tracing,'_client_cache',tracer)
     requests=[]
+    parents=[]
     class Provider(BaseHTTPRequestHandler):
         def log_message(self,*args):
             pass
@@ -34,6 +39,7 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
                 raw=self.rfile.read(int(self.headers['Content-Length']))
             body=json.loads(raw)
             requests.append(body)
+            parents.append(self.headers.get('traceparent'))
             ordinal=len(requests)
             if ordinal==1:
                 output={'type':'function_call','id':'fc_read','call_id':'read-skill',
@@ -72,6 +78,8 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
         thread.join(timeout=2)
     assert json.loads(result['reply'])=={'status':'finished'}
     assert len(requests)==2
+    observation,=tracer.observations
+    assert parents==[f'00-{observation.trace_id}-{observation.id}-01']*2
     assert not any(tool.get('type') in {'web_search','web_search_preview'} for tool in requests[0].get('tools',[]))
     assert result['skill_receipt']['skills_read']==['memoir-interview-guidance']
     artifacts={item['name'] for item in result['skill_receipt']['prompt_manifest']['artifacts']}

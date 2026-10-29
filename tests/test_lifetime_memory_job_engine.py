@@ -75,6 +75,10 @@ def run(tmp_path,bounded=None,publisher=None):
 
 @pytest.mark.parametrize('phase',['leaf','merge'])
 def test_job_engine_is_fresh_private_and_fenced(tmp_path,phase,monkeypatch):
+    from apps.api import llm_tracing
+    from test_gateway_trace_correlation import ApplicationTracer, TRACE_ID, SPAN_ID
+    tracer=ApplicationTracer()
+    monkeypatch.setattr(llm_tracing,'_client_cache',tracer)
     monkeypatch.setenv('MEMORY_SPARK_LLM_REASONING_EFFORT','high')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT','medium')
     bounded=transport(phase);publisher=Publisher()
@@ -93,6 +97,9 @@ def test_job_engine_is_fresh_private_and_fenced(tmp_path,phase,monkeypatch):
     assert metadata['schema_sha256']==hashlib.sha256(json.dumps(schema,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
     assert publisher.snapshots==[bounded.fence.model_dump(mode='json')]*2
     config=tomllib.loads((connection.home/'config.toml').read_text())
+    assert config['model_providers']['llm_provider']['http_headers']=={
+        'traceparent':f'00-{TRACE_ID}-{SPAN_ID}-01'}
+    assert tracer.observations[0].fields['as_type']=='span'
     assert config['memories']=={'generate_memories':False,'use_memories':False}
     assert config['project_doc_max_bytes']==0 and 'transient-only' not in (connection.home/'config.toml').read_text()
     assert 'A narrow original window.' not in connection.requests[0][1]['baseInstructions']

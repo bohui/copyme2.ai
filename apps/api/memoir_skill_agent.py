@@ -133,12 +133,12 @@ async def run_skill_agent(*, command, home_root, base_url, api_key, model,
     home = Path(tempfile.mkdtemp(prefix='memoir-agent-', dir=root))
     try:
         import os
-        write_config(home, root, os.getuid() if uid is None else uid,
-            provider_config(base_url, model, governed=True), apply_owner=apply_owner)
-        options = dict(provider_env={'MEMORY_SPARK_LLM_API_KEY': api_key}, timeout=timeout,
-            request_admission=admission, tool_handler=tools.call,
-            **issue14_connection_options(issue14_admission))
         with trace_llm_call(trace_name, model, gateway=True) as trace:
+            write_config(home, root, os.getuid() if uid is None else uid,
+                provider_config(base_url, model, governed=True), apply_owner=apply_owner)
+            options = dict(provider_env={'MEMORY_SPARK_LLM_API_KEY': api_key}, timeout=timeout,
+                request_admission=admission, tool_handler=tools.call,
+                **issue14_connection_options(issue14_admission))
             async with asyncio.timeout(timeout), (connection_factory or CodexConnection)(command, home, **options) as connection:
                 opened = await connection.request('thread/start', {
                     'cwd': str(home), 'ephemeral': True, 'modelProvider': 'llm_provider',
