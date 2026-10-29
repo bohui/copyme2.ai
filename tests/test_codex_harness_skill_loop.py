@@ -108,6 +108,7 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
         thread.join(timeout=2)
     assert json.loads(result['reply'])=={'status':'finished'}
     assert len(requests)==2
+    assert all('<skills_instructions>' not in json.dumps(request.get('input',[])) for request in requests)
     observation,=tracer.observations
     assert parents==[f'00-{observation.trace_id}-{observation.id}-01']*2
     assert not any(tool.get('type') in {'web_search','web_search_preview'} for tool in requests[0].get('tools',[]))

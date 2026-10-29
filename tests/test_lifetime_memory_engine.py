@@ -631,6 +631,8 @@ def test_governed_runtime_does_not_advertise_general_agent_tools():
         assert governed['features'][feature] is False
         assert feature not in legacy['features']
     assert governed['features']['skip_host_skill_discovery'] is True
+    assert governed['skills'] == {'include_instructions':False,'bundled':{'enabled':False}}
+    assert 'skills' not in legacy
 
 
 def test_worker_rechecks_mutated_payload_before_dispatch(tmp_path, monkeypatch):
