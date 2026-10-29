@@ -17,7 +17,7 @@ def reply_context(text='My brother Ming moved to Perth.'):
 
 def proposal():
     return dict(acknowledgement='We can follow that memory.', recall_limit_quote=None, question='What do you remember about the move?',
-        reason='latest_story', hint=None, quote=None, work={'mode': 'extract', 'name': None})
+        reason='latest_story', hint=None, quote=None)
 
 
 def test_small_wire_keeps_compatibility_and_rejects_host_metadata():
@@ -26,7 +26,8 @@ def test_small_wire_keeps_compatibility_and_rejects_host_metadata():
     schema = governed_collector_schema(ctx)
     validate(raw, schema)
     result = validate_governed_collector_result(raw, ctx)
-    assert result['plan']['work'] == raw['work']
+    assert result['plan']['work'] == {'mode': 'extract', 'name': None}
+    assert 'work' not in schema['properties'] and 'TurnWorkPlan' not in schema.get('$defs', {})
     assert result['plan']['candidates'][0]['question'] == raw['question']
     assert raw['question'] in result['reply']
     assert result['continuity_updates'] == result['place_journeys'] == []
@@ -56,7 +57,6 @@ def test_ambiguous_or_fabricated_quote_is_not_repaired(text, quote):
 
 @pytest.mark.parametrize('change', [
     {'reason': 'pause'}, {'question': None}, {'hint': 0}, {'reason': 'prepared_candidate'},
-    {'work': {'mode': 'reply_only', 'name': 'stored foreign name'}},
 ])
 def test_inconsistent_control_or_foreign_name_is_rejected(change):
     with pytest.raises(ValueError):
@@ -105,10 +105,11 @@ def test_correction_without_a_followup_keeps_extract_work_and_no_question_outcom
         validate_governed_collector_result({**raw, 'quote': 'Invented narrator wording'}, ctx)
 
 
-def test_explicit_current_name_update_survives_extract_work_without_weakening_legacy_plan():
-    raw = {**proposal(), 'work': {'mode': 'extract', 'name': 'Avery'}}
+@pytest.mark.parametrize('mode', ['extract', 'reply_only'])
+def test_older_worker_handoff_cannot_select_background_work_or_update_profile(mode):
+    raw = {**proposal(), 'work': {'mode': mode, 'name': 'Avery'}}
     result = validate_governed_collector_result(raw, reply_context('Please call me Avery. I grew up in Perth.'))
-    assert result['immediate_name'] == 'Avery'
+    assert result['immediate_name'] is None
     assert result['plan']['work'] == {'mode': 'extract', 'name': None}
 
 
@@ -206,7 +207,7 @@ def test_engine_sends_evidence_last_without_launching_a_general_agent(tmp_path, 
     assert not list(tmp_path.iterdir())
 
 
-def test_repair_identifies_a_copied_stored_name_instead_of_repeating_a_generic_failure(tmp_path, monkeypatch):
+def test_retired_work_hint_does_not_repair_the_reply_or_publish_a_name(tmp_path, monkeypatch):
     import asyncio
     from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
     from test_conversation_reply_transport import install_reply_provider
@@ -217,15 +218,13 @@ def test_repair_identifies_a_copied_stored_name_instead_of_repeating_a_generic_f
     packet.update(instructions=reply_instructions(), interview_context={
         key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
     invalid = {**proposal(), 'work':{'mode':'extract', 'name':'Stored name absent from source'}}
-    def repaired(body):
-        assert 'CONTRACT_30' in body['input'][0]['content'][1]['text']
-        return proposal()
-    captured = install_reply_provider(monkeypatch, [invalid, repaired])
+    captured = install_reply_provider(monkeypatch, [invalid])
     result = asyncio.run(run_governed_collector(command=['fake'], home_root=tmp_path,
         base_url='http://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
         governed=encode(packet), interview_context=ctx, publisher=FakePublisher()))
-    assert len(captured) == 2
-    assert json.loads(result['reply'])['work']['name'] is None
+    assert len(captured) == 1
+    assert 'work' not in captured[0]['text']['format']['schema']['properties']
+    assert json.loads(result['reply']) == invalid
 
 
 def test_hint_quote_mismatch_is_rejected_then_repaired_without_replacing_its_evidence(tmp_path, monkeypatch):

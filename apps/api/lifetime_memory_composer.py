@@ -157,6 +157,12 @@ async def _extract(page,worker):
             publisher=getattr(worker,'lane_publisher',None),timeout=240)
         try:
             raw=json.loads(response['reply'])
+            selected = (page.get('two_lane') or {}).get('selected_skills')
+            if selected is not None:
+                if 'memoir-author-timeline' not in selected and any(raw.get(field) for field in ('events','continuity_updates','event_places')):
+                    raise ValueError('Unselected timeline output')
+                if 'memoir-place-journey' not in selected and raw.get('place_journeys'):
+                    raise ValueError('Unselected place output')
             if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
                 allowed = {'events', 'place_journeys', 'continuity_updates'}
                 if page.get('attribution_context'):
@@ -231,13 +237,15 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
     for _ in range(page_quantum):
         validate_page(page)
         if (page.get('two_lane') or {}).get('work_mode')=='pending':
-            # The single A collector owns the decision. A failed reply releases
-            # its lease, so durable source extraction can still recover.
+            # A new original window needs its own Lane B skill choice.
             return receipt(await worker.broker.rpc('yield_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token']))
         if page['preferences'].get('privacy_complete') is not True:
             return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
                 p_reason='LIFETIME_PRIVACY_MAINTENANCE_REQUIRED')
-        if page['skill'] == 'timeline' and (page.get('two_lane') or page.get('two_lane_maintenance_required')):
+        selected = (page.get('two_lane') or {}).get('selected_skills')
+        if (page['skill'] == 'timeline' and (page.get('two_lane') or page.get('two_lane_maintenance_required'))
+                and (selected is None or 'memoir-memory-context' in selected)
+                and (page.get('two_lane') or {}).get('profile_complete') is not True):
             profile_page = await worker.broker.rpc('read_lifetime_profile_page',
                 p_lane_id=job['lane_id'], p_token=job['token'])
             if profile_page is not None:
@@ -262,6 +270,9 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
                 if not page:
                     return {'status': 'stale'}
                 continue
+            if selected is not None and 'memoir-memory-context' in selected:
+                return receipt(await worker.broker.rpc('yield_lifetime_memoir_lane',
+                    p_lane_id=job['lane_id'],p_token=job['token']))
         if page['complete']:
             if page['skill']=='timeline' and page.get('two_lane_maintenance_required') is True:
                 from .collector_configuration import collector_configuration

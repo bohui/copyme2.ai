@@ -2,7 +2,7 @@
 from copy import deepcopy
 from pydantic import BaseModel, ConfigDict, Field
 
-from .interview_plan import PhotoAssociation, TurnWorkPlan, authorized_photos
+from .interview_plan import PhotoAssociation, authorized_photos
 from .interview_questions import (QuestionResolution, hint_evidence, question_candidates,
                                  resolution_schema, validate_question_evidence, recall_question, recall_hint, question_span)
 from .interview_strategy import SelectionReason, selection_candidates, prioritized_candidates
@@ -28,7 +28,6 @@ class ReplyProposal(BaseModel):
         description='One useful next question, including a connected broader direction after a recall limit; null for a stop or direct answer.')
     historical_clue_id: str | None = Field(default=None, max_length=128,
         description='Optional supplied public clue ID used in this question; null when irrelevant. When set, hint and quote must be null. Public history is separate from personal testimony.')
-    work: TurnWorkPlan
     resolved_questions: list[QuestionResolution] = Field(default_factory=list, max_length=5)
     associations: list[PhotoAssociation] = Field(default_factory=list, max_length=20)
     response_photo_ids: list[str] = Field(default_factory=list, max_length=5)
@@ -81,13 +80,12 @@ def reply_schema(context):
 
 
 def adapt_reply(raw, context):
-    item = ReplyProposal.model_validate(raw)
+    # Older workers can still send the retired handoff; it has no routing authority.
+    item = ReplyProposal.model_validate({key: value for key, value in raw.items() if key != 'work'})
     if not authorized_photos(context) and {'associations', 'response_photo_ids'} & raw.keys():
         raise ValueError('Unavailable photo fields must be omitted')
-    name = item.work.name
+    name = None
     source = context.get('source') or {}
-    if name is not None and (not name.strip() or name not in source.get('text', '')):
-        raise ValueError('Opening name requires exact current narrator wording')
     candidates = reply_candidates(context)
     if item.hint is not None and item.hint >= len(candidates):
         raise ValueError('Candidate is stale, asked or outside this project')
@@ -103,7 +101,6 @@ def adapt_reply(raw, context):
         item.hint = next((i for i, hint in enumerate(candidates) if selected and hint['id'] == selected['id']), None)
         if selected is not None or had_hint or item.question is None:
             item.question = recall_question(context, selected)
-        item.work.mode = 'extract'
     deferrals = []
     if item.deferred_hints:
         if item.reason != 'recall_limit' or item.quote is None or len(set(item.deferred_hints)) != len(item.deferred_hints):
@@ -166,8 +163,7 @@ def adapt_reply(raw, context):
         questions[0]['context']['historical_clue_id'] = item.historical_clue_id
     legacy = dict(acknowledgement=item.acknowledgement,
         plan=dict(candidates=questions, chosen_id=identity if questions else None,
-                  active_event_id=None, work=dict(mode=item.work.mode,
-                      name=name if item.work.mode == 'reply_only' else None),
+                  active_event_id=None, work=dict(mode='extract', name=None),
                   resolved_questions=[value.model_dump() for value in item.resolved_questions],
                   deferred_questions=deferrals),
         associations=[value.model_dump() for value in item.associations],
@@ -178,7 +174,7 @@ def adapt_reply(raw, context):
         plan_revision_seen=plan.get('plan_revision', state.get('invalid_plan_revision')),
         selected_candidate_id=hint['id'] if hint else None, selection_reason=item.reason,
         used_strategy=context.get('active_strategy') or plan.get('strategy') or 'explore',
-        question_delivered=item.question, work_hint=item.work.mode) if context.get('strategy_selector') else None
+        question_delivered=item.question, work_hint='extract') if context.get('strategy_selector') else None
     return legacy, item.reason, outcome, item.question is None and item.reason != 'direct_answer', name
 
 

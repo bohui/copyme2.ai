@@ -124,18 +124,17 @@ def test_readiness_reports_saved_skill_with_actual_turn_and_source_coverage(sql,
         assert 'Chengde' not in str(steps)
 
 
-def test_reply_only_is_skipped_not_model_applied_and_hidden_when_thinking_off(sql,tmp_path,monkeypatch):
+def test_thinking_off_hides_queued_background_work_without_selecting_skills(sql,tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
-    conversation=Conversation(sql,tmp_path,monkeypatch,empty,work='reply_only')
+    conversation=Conversation(sql,tmp_path,monkeypatch,empty)
     with conversation.client:
         conversation.say('Thank you.')
         assert any(step['status']=='queued' for step in progress(conversation)['skill_progress']['items'])
-        conversation.drain()
-        steps=progress(conversation)['skill_progress']['items']
-        assert all(step['status']=='skipped' and not step['model_invoked'] for step in steps)
         assert conversation.admissions==[]
+        pending=sql('select count(*) from public.user_memoir_lane where pending;').stdout.strip()
         monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','0')
         assert 'skill_progress' not in progress(conversation)
+        assert sql('select count(*) from public.user_memoir_lane where pending;').stdout.strip()==pending
 
 
 @pytest.mark.parametrize('mode',['comfort','explore','shape'])
@@ -310,7 +309,7 @@ def test_completed_optional_service_receipts_do_not_expire(sql,tmp_path,monkeypa
         assert interrupted['status']=='failed' and interrupted['reason']=='interrupted'
 
 
-def test_only_existing_profile_and_composer_schedules_advance_on_round_milestones(sql,tmp_path,monkeypatch):
+def test_only_composer_is_advertised_as_periodic_on_round_milestones(sql,tmp_path,monkeypatch):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path/'receipts.sqlite3'))
     monkeypatch.setenv('MEMORY_SPARK_PRIVATE_DRAFT_CADENCE','5')
@@ -332,17 +331,16 @@ def test_only_existing_profile_and_composer_schedules_advance_on_round_milestone
             conversation.drain()
             new=conversation.admissions[before:]
             assert any(phase=='extract' for phase,_ in new),(number,conversation.last_db_error)
-            assert any(phase=='profile' for phase,_ in new)==(number in {1,5,10,20,30})
             conversation.deliver_receipts()
             target=sql("select coalesce(max(target_milestone),0) from public.user_memoir_lane where skill='composer';").stdout.strip()
             assert int(target)==number//5*5
-        profiles=[packet['profile_context']['target_round'] for phase,packet in conversation.admissions if phase=='profile']
-        assert set(profiles)=={1,5,10,20,30}
         assert not any(phase in {'photos','grouping','historical','family','game'} for phase,_ in conversation.admissions)
         page=progress(conversation)['skill_progress']
         mapped=progress(conversation)['skill_execution_map']
         assert len(mapped)==9
-        assert {item['name'] for item in mapped if item['trigger']=='periodic'}=={'memoir-composer','memoir-memory-context'}
+        assert {item['name'] for item in mapped if item['trigger']=='periodic'}=={'memoir-composer'}
+        profile = next(item for item in mapped if item['name']=='memoir-memory-context')
+        assert profile['trigger']=='accepted_source' and profile['cadence'] is None
         assert page['truncated'] and page['next_cursor']
         items=[]
         while True:

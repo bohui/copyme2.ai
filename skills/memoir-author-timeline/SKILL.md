@@ -1,13 +1,13 @@
 ---
 name: memoir-author-timeline
-description: Propose canonical MemoryEvents for every authorised narrator input, preserving exact sources, identity, supported placement, uncertainty and author corrections. Premium display remains separately entitled.
+description: Extract new or corrected narrator memories and continuity when Lane B selects timeline work, preserving exact sources, event identity, supported placement and uncertainty. Premium display remains separately entitled.
 ---
 
 # Memoir Author Timeline
 
-The backend processes every unique accepted typed or transcribed narrator input
-in its durable timeline lane, independently of premium display. Conversation
-continues alongside extraction. Accepted evidence survives assistant failure;
+The background agent reviews every unique accepted narrator input and selects
+this skill for supported memory or continuity work, independently of premium
+display. Conversation continues alongside extraction. Accepted evidence survives assistant failure;
 a completed round requires a saved successful reply. Technical replay adds no
 source or round. An empty extraction is successful processing.
 

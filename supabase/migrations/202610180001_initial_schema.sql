@@ -198,6 +198,7 @@ CREATE TABLE public.user_lifetime_lane_snapshot (
     summary_offset integer DEFAULT 0 NOT NULL,
     guidance_revision bigint DEFAULT 0 NOT NULL,
     guidance_news jsonb DEFAULT '{}'::jsonb NOT NULL,
+    source_decision jsonb,
     CONSTRAINT user_lifetime_lane_snapshot_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'completed'::text, 'proposed'::text, 'stale'::text])))
 );
 
@@ -4363,6 +4364,7 @@ begin
   if result->>'status'='page_saved' and result->>'replayed' is distinct from 'true'
       and page->>'skill'='timeline' and page ? 'two_lane'
       and page->'two_lane'->>'work_mode'='extract'
+      and (not(page->'two_lane' ? 'selected_skills') or page->'two_lane'->'selected_skills' ?& array['memoir-author-timeline','memoir-place-journey'])
       and jsonb_array_length(coalesce(p_result->'place_journeys','[]'::jsonb))=0 then
     perform public.background_skill_receipt(
       page,'place','memoir-place-journey','embedded','skipped','no_place_cue');
@@ -4415,13 +4417,16 @@ begin
    if not exists(select 1 from public.user_background_skill_work where lane_id=p_lane_id and page_digest=p_page_digest and status='saved')
      and page->'two_lane'->>'work_mode' is distinct from 'reply_only' then
      perform public.background_skill_receipt(page,case when page->>'skill'='composer' then 'commit' else 'extract' end,
-       case when page->>'skill'='composer' then 'memoir-composer' else 'memoir-author-timeline' end,
+       case when page->>'skill'='composer' then 'memoir-composer'
+         when page->'two_lane' ? 'selected_skills' and not(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline')
+           then 'memoir-place-journey' else 'memoir-author-timeline' end,
        'model','saved','invocation_receipt_unavailable');
    end if;
    if page->'two_lane'->>'work_mode'='reply_only' then
      perform public.background_skill_receipt(page,'extract','memoir-author-timeline','model','skipped','reply_only');
    end if;
-   if page->>'skill'='timeline' and page ? 'two_lane' and jsonb_array_length(coalesce(p_result->'place_journeys','[]'))>0 then
+   if page->>'skill'='timeline' and page ? 'two_lane' and jsonb_array_length(coalesce(p_result->'place_journeys','[]'))>0
+     and (not(page->'two_lane' ? 'selected_skills') or page->'two_lane'->'selected_skills' ? 'memoir-author-timeline') then
      perform public.background_skill_receipt(page,'place','memoir-place-journey','embedded','saved');
    end if;
  end if;
@@ -5247,7 +5252,7 @@ begin
  if skipped then
    update public.user_lifetime_profile_progress set skipped_round=greatest(skipped_round,target),active_round=0
    where user_id=snap.user_id and project_id=snap.project_id;
- elsif not exists(select 1 from public.user_narrator_source s left join public.user_lifetime_profile_coverage c
+ elsif snap.source_decision->'skills' ? 'memoir-memory-context' or not exists(select 1 from public.user_narrator_source s left join public.user_lifetime_profile_coverage c
    on c.user_id=s.user_id and c.project_id=s.project_id and c.source_id=s.id and c.source_version=s.version
    where s.user_id=snap.user_id and s.project_id=snap.project_id and s.status='active' and s.sequence<=frontier
      and coalesce(c.next_offset,0)<length(s.text)) then
@@ -9190,7 +9195,7 @@ CREATE FUNCTION public.read_lifetime_memoir_lane_page(p_lane_id uuid, p_token uu
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
-declare page jsonb; source public.user_narrator_source%rowtype; name text; context jsonb; inputs jsonb; coverage jsonb; events jsonb;
+declare page jsonb; source public.user_narrator_source%rowtype; context jsonb; inputs jsonb; coverage jsonb; events jsonb; decision jsonb;
 begin
  if exists(select 1 from public.user_memoir_lane where id=p_lane_id and skill='guidance') then
    return public.read_lifetime_interview_guidance_page(p_lane_id,p_token);end if;
@@ -9198,9 +9203,7 @@ begin
  if page->>'skill'='timeline' and page ? 'two_lane' and page->'source'<>'null'::jsonb then
    select * into source from public.user_narrator_source where user_id=(page->>'user_id')::uuid
      and project_id=page->>'project_id' and id=(page->'source'->>'id')::uuid;
-   select t.collector->'plan'->'work'->>'name' into name from public.user_interview_turn t
-     where t.user_id=source.user_id and t.project_id=source.project_id and t.source_id=source.id and t.source_version=source.version;
-   context:=public.lifetime_attribution_decision(source.text,name)||jsonb_build_object('delivered_event',
+   context:=public.lifetime_attribution_decision(source.text,null)||jsonb_build_object('delivered_event',
      public.lifetime_source_context(source.user_id,source.project_id,source.id),
      'recent_dialogue',public.lifetime_question_dialogue(source.user_id,source.project_id,source.id,
        (page->>'source_high_water')::bigint));
@@ -9208,8 +9211,27 @@ begin
    page:=jsonb_set(page,'{events}',coalesce((select jsonb_agg(candidate||coalesce(ctx,'{}'))
      from jsonb_array_elements(page->'events') candidate cross join lateral (select public.lifetime_attribution_event_context(
        source.user_id,source.project_id,candidate->>'id') ctx) bounded),'[]'));
-   if coalesce(page->'memory_summary','null')='null' and page->'two_lane'->>'work_mode'<>'pending' then
-     page:=jsonb_set(page,'{two_lane,work_mode}',to_jsonb(case when context->>'decision'='extract' then 'extract' else 'reply_only' end));
+   if coalesce(page->'memory_summary','null')='null' then
+     select source_decision into decision from public.user_lifetime_lane_snapshot where id=(page->>'snapshot_id')::uuid;
+     if decision is not null then
+       if decision->'source'=jsonb_build_object('id',page->'source'->'id','version',page->'source'->'version',
+           'char_start',page->'source'->'char_start','char_end',page->'source'->'char_end') then
+         page:=jsonb_set(page,'{two_lane,selected_skills}',decision->'skills');
+         if decision->'skills' ? 'memoir-memory-context' then
+           page:=jsonb_set(page,'{two_lane,profile_complete}',to_jsonb(
+             exists(select 1 from public.user_lifetime_profile_coverage c where c.user_id=source.user_id
+               and c.project_id=source.project_id and c.source_id=source.id and c.source_version=source.version
+               and c.next_offset>=(page->'source'->>'char_end')::integer)
+             or exists(select 1 from public.user_lifetime_profile_authority a where a.user_id=source.user_id
+               and (not a.auto_enabled or a.manual_complete or a.field_locks ?& array[
+                 'name','birth_year','birth_date_expression','birth_place','childhood_place','avatar_style']))));
+         end if;
+         page:=jsonb_set(page,'{two_lane,work_mode}',to_jsonb(case when decision->'skills' ?| array[
+           'memoir-author-timeline','memoir-place-journey'] then 'extract' else 'reply_only' end));
+       else
+         page:=jsonb_set(page,'{two_lane,work_mode}',to_jsonb('pending'::text));
+       end if;
+     end if;
    end if;
    if exists(select 1 from public.user_lifetime_reply r join public.user_interview_turn t
        on t.user_id=r.user_id and t.project_id=source.project_id and t.client_turn_id=r.client_turn_id
@@ -9442,10 +9464,7 @@ begin
  if page->>'skill'='timeline' and exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) and exists(select 1 from public.user_lifetime_two_lane_source m
    where m.user_id=(page->>'user_id')::uuid and m.project_id=page->>'project_id' and m.source_id=(page->'source'->>'id')::uuid) then
    select jsonb_build_object('schema_version',1,'task_version','two-lane-v1','execution_generation',c.execution_generation,
-     'phase_revision',0,'work_mode',case when t.collector is null and exists(select 1 from public.user_agent_turn_lease a
-       where a.user_id=c.user_id and a.expires_at>clock_timestamp()) then 'pending'
-       when t.source_version=(page->'source'->>'version')::bigint
-       and t.collector->'plan'->'work'->>'mode'='reply_only' then 'reply_only' else 'extract' end) into descriptor
+     'phase_revision',0,'work_mode','extract') into descriptor
    from public.user_lifetime_conversation c
    left join public.user_interview_turn t on t.user_id=c.user_id and t.project_id=c.project_id and t.source_id=(page->'source'->>'id')::uuid
    where c.user_id=(page->>'user_id')::uuid and c.conversation_id=(page->>'conversation_id')::uuid;
@@ -10217,10 +10236,20 @@ CREATE FUNCTION public.read_lifetime_profile_page(p_lane_id uuid, p_token uuid) 
 declare snap public.user_lifetime_lane_snapshot%rowtype; job public.user_lifetime_profile_progress%rowtype;
  authority public.user_lifetime_profile_authority%rowtype; source public.user_narrator_source%rowtype;
  page jsonb; profile jsonb; facts jsonb; targets jsonb; mode text; core integer; lo integer; hi integer; due bigint; frontier bigint;
+ chosen boolean:=false;
 begin
  if not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled) then return null;end if;
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  if not exists(select 1 from public.user_memoir_lane where id=p_lane_id and skill='timeline') then return null;end if;
+ page:=public.read_lifetime_memoir_lane_page_before_background_profile(p_lane_id,p_token);
+ if snap.source_decision is not null then
+   chosen:=snap.source_decision->'skills' ? 'memoir-memory-context'
+     and snap.source_decision->'source'=jsonb_build_object('id',page->'source'->'id','version',page->'source'->'version',
+       'char_start',page->'source'->'char_start','char_end',page->'source'->'char_end');
+   if not coalesce(chosen,false) or exists(select 1 from public.user_lifetime_profile_coverage c
+       where c.user_id=snap.user_id and c.project_id=snap.project_id and c.source_id=(page->'source'->>'id')::uuid
+         and c.source_version=(page->'source'->>'version')::bigint and c.next_offset>=(page->'source'->>'char_end')::integer) then return null;end if;
+ end if;
  perform 1 from public.user_agent_turn_lease where user_id=snap.user_id for share;
  if exists(select 1 from public.user_agent_turn_lease where user_id=snap.user_id and expires_at>clock_timestamp()) then return null;end if;
  perform public.ensure_lifetime_profile_authority(snap.user_id);
@@ -10232,12 +10261,17 @@ begin
  join public.user_narrator_source s on s.user_id=r.user_id and s.project_id=r.project_id and s.client_turn_id=r.turn_id
  join public.user_lifetime_source_position pos on pos.user_id=s.user_id and pos.project_id=s.project_id and pos.source_id=s.id
  where r.user_id=snap.user_id and r.project_id=snap.project_id and r.ordinal<=due;
+ if chosen then due:=greatest(snap.round_high_water,1);frontier:=(page->'source'->>'sequence')::bigint;end if;
  insert into public.user_lifetime_profile_progress(user_id,project_id,requested_round,requested_frontier)
  values(snap.user_id,snap.project_id,due,frontier) on conflict(user_id,project_id) do update set
    requested_round=excluded.requested_round,requested_frontier=excluded.requested_frontier
    where excluded.requested_round>user_lifetime_profile_progress.requested_round;
  select * into job from public.user_lifetime_profile_progress where user_id=snap.user_id and project_id=snap.project_id for update;
- if job.active_round=0 and job.requested_round<=greatest(job.covered_round,job.skipped_round) then return null;end if;
+ if chosen then
+   update public.user_lifetime_profile_progress set active_round=due,source_frontier=frontier
+     where user_id=snap.user_id and project_id=snap.project_id returning * into job;
+ end if;
+ if not chosen and job.active_round=0 and job.requested_round<=greatest(job.covered_round,job.skipped_round) then return null;end if;
  if job.active_round=0 then
    update public.user_lifetime_profile_progress set active_round=requested_round,source_frontier=requested_frontier
    where user_id=snap.user_id and project_id=snap.project_id returning * into job;
@@ -10256,6 +10290,7 @@ begin
  select s.* into source from public.user_narrator_source s left join public.user_lifetime_profile_coverage c
  on c.user_id=s.user_id and c.project_id=s.project_id and c.source_id=s.id and c.source_version=s.version
  where s.user_id=snap.user_id and s.project_id=snap.project_id and s.status='active' and s.sequence<=job.source_frontier
+   and (not chosen or s.id=(page->'source'->>'id')::uuid)
    and coalesce(c.next_offset,0)<length(s.text) order by s.sequence limit 1;
  if source.id is null and mode<>'skip' then mode:='reply_only';end if;
  if source.id is not null then
@@ -10263,9 +10298,7 @@ begin
      and project_id=snap.project_id and source_id=source.id and source_version=source.version),0) into core;
    hi:=least(core+2048,length(source.text));
    lo:=greatest(core-256,0);
-   if mode='extract' and exists(select 1 from public.user_interview_turn t where t.user_id=snap.user_id
-     and t.project_id=snap.project_id and t.source_id=source.id and t.source_version=source.version
-     and t.collector->'plan'->'work'->>'mode'='reply_only') then mode:='reply_only';end if;
+   if chosen then lo:=(page->'source'->>'char_start')::integer;hi:=(page->'source'->>'char_end')::integer;end if;
  end if;
  -- Read the base without recursively calling the profile-aware wrapper below.
  page:=public.read_lifetime_memoir_lane_page_before_background_profile(p_lane_id,p_token);
@@ -11149,7 +11182,8 @@ begin
   if p_phase='extract' and p_status='running' then
     page:=public.read_lifetime_memoir_lane_page(
       (p_fence->>'lane_id')::uuid,(p_fence->>'token')::uuid);
-    if page ? 'two_lane' and page->'two_lane'->>'work_mode'='extract' then
+    if page ? 'two_lane' and page->'two_lane'->>'work_mode'='extract'
+      and (not(page->'two_lane' ? 'selected_skills') or page->'two_lane'->'selected_skills' ?& array['memoir-author-timeline','memoir-place-journey']) then
       perform public.background_skill_receipt(
         page,'place','memoir-place-journey','embedded','running');
     end if;
@@ -11172,6 +11206,8 @@ begin
  else
    page:=public.read_lifetime_memoir_lane_page((p_fence->>'lane_id')::uuid,(p_fence->>'token')::uuid);
    skill:=case when page->>'skill'='composer' then 'memoir-composer' when page->>'skill'='guidance' then 'memoir-interview-guidance' else 'memoir-author-timeline' end;
+   if p_phase='extract' and page->'two_lane' ? 'selected_skills'
+     and not(page->'two_lane'->'selected_skills' ? 'memoir-author-timeline') then skill:='memoir-place-journey';end if;
    if (page->>'skill'='timeline' and p_phase not in ('extract','summarize'))
      or (page->>'skill'='composer' and p_phase not in ('prepare','draft','review','index','guidance')) then
      raise exception 'skill phase mismatch' using errcode='42501';end if;
@@ -13334,7 +13370,7 @@ CREATE TRIGGER lifetime_profile_policy_invalidation AFTER UPDATE OF policy_epoch
 
 CREATE TRIGGER lifetime_profile_privacy_invalidation AFTER INSERT OR DELETE OR UPDATE ON public.user_lifetime_continuity FOR EACH ROW EXECUTE FUNCTION public.invalidate_lifetime_profile_privacy();
 
-CREATE TRIGGER lifetime_profile_round AFTER INSERT ON public.user_completed_round FOR EACH ROW EXECUTE FUNCTION public.schedule_lifetime_profile_round();
+-- The background agent selects profile parsing from each original, independently of round milestones.
 
 CREATE TRIGGER lifetime_profile_source_deletion BEFORE DELETE ON public.user_narrator_source FOR EACH ROW EXECUTE FUNCTION public.invalidate_lifetime_profile_evidence();
 
@@ -16119,16 +16155,101 @@ end $$;
 
 CREATE FUNCTION public.read_memoir_background_work(p_fence jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
-declare a public.user_memoir_background_agent%rowtype;
+declare a public.user_memoir_background_agent%rowtype; source public.user_narrator_source%rowtype;
+ authority public.user_lifetime_profile_authority%rowtype; source_work jsonb; targets jsonb; reference jsonb;
+ core integer; lo integer; hi integer; names jsonb:='["memoir-author-timeline","memoir-place-journey"]';
 begin
  perform public.lock_memoir_background_agent(p_fence);
  select * into a from public.user_memoir_background_agent where id=(p_fence->>'id')::uuid;
+ if exists(select 1 from public.user_memoir_lane where user_id=a.user_id and project_id=a.project_id
+     and skill='timeline' and (pending or token is not null and (lease_until<=clock_timestamp() or run_deadline<=clock_timestamp()))
+     and attempts<3 and available_at<=clock_timestamp()
+     and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp())) then
+   select * into source from public.user_narrator_source where user_id=a.user_id and project_id=a.project_id
+     and status='active' and processing_status<>'succeeded' and sequence<=a.source_high_water order by sequence limit 1;
+   if found then
+     select coalesce((select next_offset from public.user_lifetime_source_extraction where user_id=a.user_id
+       and project_id=a.project_id and source_id=source.id and source_version=source.version),0) into core;
+     if core>=length(source.text) then core:=0;end if;
+     lo:=greatest(core-256,0);hi:=least(core+2048,length(source.text));
+     perform public.ensure_lifetime_profile_authority(a.user_id);
+     select * into authority from public.user_lifetime_profile_authority where user_id=a.user_id;
+     select coalesce(jsonb_agg(f),'[]') into targets from unnest(array['name','birth_year','birth_date_expression',
+       'birth_place','childhood_place','avatar_style']) f where not(authority.field_locks ? f);
+     select coalesce(jsonb_object_agg(f,p.profile->f),'{}') into reference from public.user_profile p,
+       unnest(array['name','birth_year','birth_date_expression','birth_place','childhood_place','avatar_style']) f
+       where p.user_id=a.user_id and octet_length(coalesce((p.profile->f)::text,''))<=1024;
+     if authority.auto_enabled and not authority.manual_complete and jsonb_array_length(targets)>0 then
+       names:=names||'"memoir-memory-context"'::jsonb;
+     else targets:='[]';end if;
+     source_work:=jsonb_build_object('source',jsonb_build_object('id',source.id,'project_id',source.project_id,
+       'version',source.version,'sequence',source.sequence,'text',substring(source.text from lo+1 for hi-lo),
+       'char_start',lo,'char_end',hi,'original_length',length(source.text),'kind',source.kind,
+       'language',source.language,'status',source.status,'author_role','storyteller'),
+       'available_skills',names,'profile_reference',reference,'profile_targets',targets,
+       'recent_dialogue',public.lifetime_question_dialogue(a.user_id,a.project_id,source.id,a.source_high_water));
+   end if;
+ end if;
  return jsonb_build_object('lanes',coalesce((select jsonb_agg(jsonb_build_object('id',id,'skill',skill))
    from public.user_memoir_lane where user_id=a.user_id and project_id=a.project_id and skill in ('timeline','composer') and attempts<3
    and (pending or token is not null and (lease_until<=clock_timestamp() or run_deadline<=clock_timestamp()))
    and available_at<=clock_timestamp() and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp())),'[]'),
-   'selection',a.selection);
+   'selection',a.selection,'source_work',source_work);
 end $$;
+
+CREATE FUNCTION public.select_lifetime_source_skills(p_lane_id uuid,p_token uuid,p_source jsonb,p_skills jsonb) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb;
+begin
+ snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
+ page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
+ if page->>'skill'<>'timeline' then return false;end if;
+ if p_source is null or p_source='null'::jsonb then
+   if p_skills<>'[]'::jsonb or (page->'source'<>'null'::jsonb and not(page ? 'memory_summary')) then return false;end if;
+ else
+   if page->'complete'<>'false'::jsonb or page ? 'memory_summary'
+     or page->'source' is distinct from p_source then return false;end if;
+ end if;
+ if jsonb_typeof(p_skills) is distinct from 'array' or jsonb_array_length(p_skills)>3
+   or exists(select 1 from jsonb_array_elements(p_skills) s where jsonb_typeof(s)<>'string'
+     or s#>>'{}' not in ('memoir-author-timeline','memoir-place-journey','memoir-memory-context'))
+   or (select count(*)<>count(distinct s) from jsonb_array_elements(p_skills) s) then
+   raise exception 'valid source skill selection required' using errcode='22023';end if;
+ update public.user_lifetime_lane_snapshot set source_decision=jsonb_build_object('source',
+   jsonb_build_object('id',p_source->'id','version',p_source->'version',
+     'char_start',p_source->'char_start','char_end',p_source->'char_end'),'skills',p_skills) where id=snap.id;
+ if not(p_skills ? 'memoir-memory-context') then
+   update public.user_lifetime_profile_progress set skipped_round=greatest(skipped_round,requested_round),active_round=0
+     where user_id=snap.user_id and project_id=snap.project_id;
+ end if;
+ return true;
+end $$;
+REVOKE ALL ON FUNCTION public.select_lifetime_source_skills(uuid,uuid,jsonb,jsonb) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.select_lifetime_source_skills(uuid,uuid,jsonb,jsonb) TO service_role;
+
+CREATE FUNCTION public.advance_memoir_background_profile(p_fence jsonb,p_lane_id uuid,p_page_digest text) RETURNS bigint
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare revision bigint;
+begin
+ update public.user_memoir_background_agent a set preference_revision=c.preference_revision
+ from public.user_lifetime_conversation c,public.user_memoir_project p
+ where a.id=(p_fence->>'id')::uuid and a.token=(p_fence->>'token')::uuid
+   and a.user_id::text=p_fence->>'user_id' and a.project_id=p_fence->>'project_id'
+   and a.preference_revision=(p_fence->>'preference_revision')::bigint
+   and a.lease_until>clock_timestamp() and a.run_deadline>clock_timestamp()
+   and c.user_id=a.user_id and c.project_id=a.project_id
+   and p.user_id=a.user_id and p.project_id=a.project_id
+   and p.source_sequence=a.source_high_water and p.policy_epoch=a.policy_epoch
+   and exists(select 1 from public.user_lifetime_profile_receipt r
+     join public.user_lifetime_lane_snapshot s on s.id=r.snapshot_id
+     where r.user_id=a.user_id and r.project_id=a.project_id and r.page_digest=p_page_digest
+       and s.lane_id=p_lane_id and s.preference_revision=c.preference_revision)
+ returning a.preference_revision into revision;
+ if revision is null then raise exception 'profile write changed background scope' using errcode='PT409';end if;
+ return revision;
+end $$;
+REVOKE ALL ON FUNCTION public.advance_memoir_background_profile(jsonb,uuid,text) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.advance_memoir_background_profile(jsonb,uuid,text) TO service_role;
 
 CREATE FUNCTION public.heartbeat_memoir_background_agent(p_id uuid,p_token uuid) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$

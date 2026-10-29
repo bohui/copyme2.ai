@@ -340,12 +340,16 @@ auth callback settings, and rollback.
 ### Collection agents and background tasks
 
 Lane B runs a durable `MemoirBackgroundAgent` workflow in the private Codex
-worker. Codex owns the agent loop: it sees the eligible skill catalog, chooses
-work, reads the selected versioned `SKILL.md` through `memoir_read_skill`, and
-calls `memoir_execute_skill`. The background catalog covers timeline extraction,
-private-draft composition and enabled historical-news
-research; bounded extraction/profile/composition turns also read their actual
-skill instructions. The host retains ownership, consent, dependency, evidence
+worker. Codex reviews each bounded original window and selects
+`memoir-author-timeline`, `memoir-place-journey`, `memoir-memory-context`, or none.
+It reads the selected versioned `SKILL.md` through `memoir_read_skill`, then calls
+`memoir_process_source` with those choices. Profile extraction is available on any
+narration, subject to manual field protection and automatic-profile settings.
+Lane A produces its reply without a skill-selection handoff. The host records
+the source choice in the durable lane snapshot; a new window needs a new choice,
+and selected timeline/place work can share one extraction request.
+The agent also uses `memoir_execute_skill` for due private-draft composition and
+enabled historical-news research. The host retains ownership, consent, dependency, evidence
 and publication checks. Explicit book/game actions and independent photo/group
 services retain their existing application contracts.
 

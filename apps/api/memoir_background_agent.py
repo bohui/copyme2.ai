@@ -17,6 +17,7 @@ from .lifetime_memory_publication import PublicationUnavailable
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
 LANE_SKILLS = {'timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}
+SOURCE_SKILLS = ('memoir-author-timeline', 'memoir-place-journey', 'memoir-memory-context')
 
 
 class BackgroundAgentInput(Contract):
@@ -82,9 +83,21 @@ class AgentBroker:
             raise ValueError('Invalid background operation')
         values = [Jsonb(value) if isinstance(value, (dict, list)) else value for value in arguments.values()]
         parameters = ','.join(key + '=>%s' for key in arguments)
+        revision = None
         async with self.publication.connection() as connection:
             result = await connection.execute('select public.' + name + '(' + parameters + ')', values)
-            return (await result.fetchone())[0]
+            value = (await result.fetchone())[0]
+            if name == 'commit_lifetime_profile_page' and value.get('status') == 'page_saved':
+                # Advance only this transaction's receipted profile write; other changes still fence the run.
+                advanced = await connection.execute('select public.advance_memoir_background_profile(%s,%s,%s)',
+                    (Jsonb(self.publication.fence),arguments['p_lane_id'],arguments['p_page_digest']))
+                row = await advanced.fetchone()
+                if row is None:
+                    raise PublicationUnavailable('Profile write did not retain its background scope')
+                revision = row[0]
+        if revision is not None:
+            self.publication.fence['preference_revision'] = revision
+        return value
 
 
 class LocalSkillTransport(httpx.AsyncBaseTransport):
@@ -112,6 +125,7 @@ class BackgroundSkills:
         self.fence, self.broker, self.event_worker = fence, broker, event_worker
         self.news_attempted = False
         self.news_engine = news_engine
+        self.source_view = None
 
     async def news_basis(self):
         if self.news_attempted or os.getenv('MEMORY_SPARK_HISTORICAL_NEWS', '').lower() not in {'1','true','yes'}:
@@ -141,13 +155,37 @@ class BackgroundSkills:
         if news:
             work.append({'skill': 'memoir-historical-news-research', 'required': False,
                 'public_context': {key: news[1][key] for key in ('place','start','end')}})
-        return {'work': work}
+        source_work = current.get('source_work')
+        self.source_view = source_work['source'] if source_work else None
+        if source_work:
+            work = [item for item in work if item['skill'] != 'memoir-author-timeline']
+            work.extend({'skill':name,'required':False,'source_review':True}
+                for name in source_work['available_skills'])
+        return {'work': work, 'source_work':source_work}
+
+    async def process_source(self, names):
+        current = await self.broker.rpc('read_memoir_background_work', p_fence=self.fence)
+        source = current.get('source_work')
+        if not source or not set(names) <= set(source['available_skills']):
+            return {'status':'unavailable'}
+        if source['source'] != self.source_view:
+            return {'status':'stale'}
+        lane = next((row for row in current['lanes'] if row['skill'] == 'timeline'), None)
+        if not lane:
+            return {'status':'unavailable'}
+        self.source_view = None
+        result = await self.event_worker.execute_lane(lane['id'], source_work={
+            'source':source['source'], 'skills':list(names)})
+        return {'status':result['status']}
 
     async def execute(self, name):
         current = await self.broker.rpc('read_memoir_background_work', p_fence=self.fence)
         lane = next((row for row in current['lanes'] if LANE_SKILLS.get(row['skill']) == name), None)
+        if name in SOURCE_SKILLS and current.get('source_work'):
+            return {'status':'source_selection_required'}
         if lane:
-            result = await self.event_worker.execute_lane(lane['id'])
+            result = await self.event_worker.execute_lane(lane['id'], **(
+                {'source_work':{'source':None,'skills':[]}} if lane['skill']=='timeline' else {}))
             return {'status': result['status']}
         if name != 'memoir-historical-news-research':
             return {'status': 'unavailable'}
@@ -188,6 +226,8 @@ async def run_background_agent(worker, payload, *, publisher=None, broker=None, 
     from .model_configuration import background_model, background_effort
     fence = payload.background_agent.model_dump(mode='json')
     publisher = publisher or BackgroundAgentPublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'), fence)
+    if isinstance(publisher, BackgroundAgentPublication):
+        fence = publisher.fence
     broker = broker or AgentBroker(publisher)
     executor = MemoryEventWorker(broker, worker_url='http://memoir-local-worker', worker_secret='local-capability',
         worker_transport=LocalSkillTransport(worker, fence))
@@ -196,7 +236,7 @@ async def run_background_agent(worker, payload, *, publisher=None, broker=None, 
         from .historical_news_provider import GatewayHistoricalProvider
         worker._news_engine = HistoricalResearch(GatewayHistoricalProvider())
     skills = BackgroundSkills(fence, broker, executor, news_engine=getattr(worker,'_news_engine',None))
-    names = list(LANE_SKILLS.values())
+    names = list(dict.fromkeys([*SOURCE_SKILLS, *LANE_SKILLS.values()]))
     if os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() in {'1','true','yes'}:
         names.append('memoir-historical-news-research')
     work = await skills.work()
@@ -210,7 +250,8 @@ async def run_background_agent(worker, payload, *, publisher=None, broker=None, 
         model=background_model(), effort=background_effort(), instructions=instructions,
         packet={'lane': 'B', **work, 'locale': fence['locale'],
             'budget': {'max_tool_calls':32, 'seconds':timeout}}, skills=names,
-        execute=skills.execute, work=skills.work, publisher=publisher, fence=fence,
+        execute=skills.execute, work=skills.work, process_source=skills.process_source,
+        source_skills=SOURCE_SKILLS, publisher=publisher, fence=fence,
         schema={'type':'object','additionalProperties':False,'properties':{'status':{'type':'string','const':'finished'}},'required':['status']},
         timeout=timeout, connection_factory=connection_factory,
         trace_name='memoir-background-agent',
@@ -218,5 +259,5 @@ async def run_background_agent(worker, payload, *, publisher=None, broker=None, 
         apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1')
     # A model's final message never marks pending domain obligations complete.
     remaining = await skills.work()
-    result['pending'] = any(item['required'] for item in remaining['work'])
+    result['pending'] = bool(remaining.get('source_work')) or any(item['required'] for item in remaining['work'])
     return result

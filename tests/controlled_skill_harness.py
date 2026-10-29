@@ -8,6 +8,7 @@ class ControlledSkillConnection:
     selected = []
     execute_optional = False
     only_optional = False
+    source_choices = ('memoir-author-timeline', 'memoir-place-journey', 'memoir-memory-context')
 
     def __init__(self, command, home, **options):
         self.options = options
@@ -42,8 +43,21 @@ class ControlledSkillConnection:
             work = task['work']
             tried = set()
             for _ in range(10):
+                source = task.get('source_work')
+                if source and not self.only_optional:
+                    choices = [name for name in self.source_choices if name in source['available_skills']]
+                    for selected in choices:
+                        self.selected.append(selected)
+                        await self.tool('memoir_read_skill',skill=selected)
+                    result = await self.tool('memoir_process_source',skills=choices)
+                    task = await self.tool('memoir_pending_work')
+                    work = task['work']
+                    if result['status'] in {'deferred','unavailable','stale','retry_required'}:
+                        break
+                    continue
                 available = [item for item in work if (item['required'] or self.execute_optional)
-                    and (not self.only_optional or not item['required']) and item['skill'] not in tried]
+                    and (not self.only_optional or not item['required'] and not item.get('source_review'))
+                    and item['skill'] not in tried]
                 if not available:
                     break
                 selected = next((item for item in available if not item.get('depends_on')), available[0])['skill']
@@ -52,7 +66,8 @@ class ControlledSkillConnection:
                 result = await self.tool('memoir_execute_skill', skill=selected)
                 if result['status'] in {'deferred','unavailable','stale','retry_required'}:
                     tried.add(selected)
-                work = (await self.tool('memoir_pending_work'))['work']
+                task = await self.tool('memoir_pending_work')
+                work = task['work']
             return json.dumps({'status':'finished'})
         selected = value['available_skills'][0]['name']
         self.selected.append(selected)

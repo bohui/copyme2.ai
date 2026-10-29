@@ -37,13 +37,16 @@ def skill_document(name, file, path):
 
 
 class SkillTools:
-    def __init__(self, names, *, execute=None, work=None, max_calls=32, max_bytes=65536):
+    def __init__(self, names, *, execute=None, work=None, process_source=None,
+            source_skills=(), max_calls=32, max_bytes=65536):
         self.catalog = {}
         self.paths = {}
         for name in names:
             metadata, path = skill_metadata(name)
             self.catalog[name], self.paths[name] = metadata, path
         self.execute, self.work = execute, work
+        self.process_source, self.source_skills = process_source, tuple(source_skills)
+        self.sources_processed = 0
         self.reads = []
         self.calls = 0
         self.bytes = 0
@@ -66,6 +69,12 @@ class SkillTools:
                 'description': 'Refresh eligible background work and its dependencies after a skill finishes.',
                 'inputSchema': {'type': 'object', 'additionalProperties': False,
                     'properties': {}, 'required': []}})
+        if self.process_source is not None:
+            tools.append({'type':'function', 'name':'memoir_process_source',
+                'description':'Choose the skills needed for the current original window and process it. An empty list records that no skill is needed. Read each chosen SKILL.md first.',
+                'inputSchema':{'type':'object','additionalProperties':False,
+                    'properties':{'skills':{'type':'array','items':{'type':'string','enum':list(self.source_skills)},
+                        'maxItems':len(self.source_skills),'uniqueItems':True}},'required':['skills']}})
         return tools
 
     async def call(self, params):
@@ -77,7 +86,18 @@ class SkillTools:
             raise ValueError('Invalid Memoir tool arguments')
         tool = params.get('tool')
         name = args.get('skill')
-        if tool == 'memoir_pending_work' and self.work is not None and not args:
+        if tool == 'memoir_process_source' and self.process_source is not None and set(args) == {'skills'}:
+            names = args['skills']
+            if (not isinstance(names, list) or any(not isinstance(item, str) or item not in self.source_skills for item in names)
+                    or len(names) != len(set(names))):
+                value = {'error':'invalid_source_skills'}
+            elif any(self.paths[item] not in self.reads for item in names):
+                value = {'error':'read_skill_first'}
+            else:
+                value = await self.process_source(names)
+                self.sources_processed += 1
+                self.executions.append({'skills':list(names),'result':value})
+        elif tool == 'memoir_pending_work' and self.work is not None and not args:
             value = await self.work()
         elif name not in self.catalog:
             value = {'error': 'skill_unavailable'}
@@ -112,6 +132,7 @@ class SkillTools:
 
 async def run_skill_agent(*, command, home_root, base_url, api_key, model,
         instructions, packet, skills, schema=None, execute=None, work=None,
+        process_source=None, source_skills=(),
         publisher=None, fence=None, timeout=240, effort=None, connection_factory=None,
         issue14_admission=None, uid=None, apply_owner=False, max_tool_bytes=65536,
         trace_name='memoir-skill-agent'):
@@ -120,7 +141,8 @@ async def run_skill_agent(*, command, home_root, base_url, api_key, model,
     if (not api_key or endpoint.scheme not in {'http','https'} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         raise ValueError('Memoir agent provider is not configured')
-    tools = SkillTools(skills, execute=execute, work=work, max_bytes=max_tool_bytes)
+    tools = SkillTools(skills, execute=execute, work=work, process_source=process_source,
+        source_skills=source_skills, max_bytes=max_tool_bytes)
     instructions = load_prompt_artifact(prompt_path('memoir/shared/skill-agent')) + '\n\n' + instructions
     catalog = list(tools.catalog.values())
     prompt = json.dumps({'task': packet, 'available_skills': catalog}, ensure_ascii=False)
@@ -150,7 +172,7 @@ async def run_skill_agent(*, command, home_root, base_url, api_key, model,
                 thread_id = opened['thread']['id']
                 reply = await connection.turn(thread_id, prompt, output_schema=schema, effort=effort,
                     responsesapi_client_metadata={'generation_name':trace_name,'trace_name':trace_name})
-            if not any(path in tools.reads for path in tools.paths.values()):
+            if not tools.sources_processed and not any(path in tools.reads for path in tools.paths.values()):
                 raise ValueError('Memoir agent did not read a skill')
             # The trace records what the agent actually read, including references.
             sources = '\n\n'.join(render_prompt_artifact(path) for path in dict.fromkeys(tools.reads))

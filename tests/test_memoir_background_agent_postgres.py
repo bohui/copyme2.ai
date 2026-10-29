@@ -67,6 +67,10 @@ def test_background_operations_are_private_and_deletion_removes_claims(sql):
     claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
     assert sql(as_user('select * from public.user_memoir_background_agent;',OTHER),check=False).returncode != 0
     assert sql(as_user('select public.pending_memoir_background_agents();'),check=False).returncode != 0
+    assert sql(as_user("select public.select_lifetime_source_skills('00000000-0000-4000-8000-000000000000',"
+        "'00000000-0000-4000-8000-000000000000','{}','[]');"),check=False).returncode != 0
+    assert sql(as_user("select public.advance_memoir_background_profile('{}',"
+        "'00000000-0000-4000-8000-000000000000','untrusted');"),check=False).returncode != 0
     sql('delete from public.user_lifetime_conversation where user_id=' + literal(OWNER) + ' and project_id=' + literal(identity['project_id']) + ';')
     assert sql('set role service_role;select public.read_memoir_background_work(' + literal(claim) + ');',check=False).returncode!=0
     sql('delete from public.user_memoir_project where user_id=' + literal(OWNER) + ' and project_id=' + literal(identity['project_id']) + ';')

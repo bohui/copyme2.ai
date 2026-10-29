@@ -24,7 +24,7 @@ SKILLS = {item.name: item for item in (
     Skill('memoir-interview-guidance', 'guidance', 'model', 'accepted_context_change', status='legacy',
         gates=('canonical_activation','source_policy_fence','delivered_dialogue','current_public_news'),recovery='durable_lane'),
     Skill('memoir-author-timeline', 'timeline', 'model', 'accepted_source',
-        gates=('canonical_activation','source_policy_fence','A_work_decision'),recovery='durable_lane'),
+        gates=('canonical_activation','source_policy_fence','B_skill_selection'),recovery='durable_lane'),
     Skill('memoir-family-tree', None, 'model', 'relationship_evidence', 'unwired',
         gates=('family_entitlement','relationship_evidence','integration_required')),
     Skill('memoir-place-groups', 'grouping', 'deterministic', 'place_change',
@@ -37,10 +37,10 @@ SKILLS = {item.name: item for item in (
         gates=('rollout_flag','user_settings','public_time_place','reply_delivered','A_lease_released','persisted_claim','source_verification'),recovery='research_claim'),
     Skill('memoir-composer', 'composer', 'model', 'periodic', cadence_owner='private_draft_cadence',
         gates=('SQL_due_milestone','extraction_complete_snapshot','composition_opt_in','canonical_publication'),recovery='durable_lane'),
-    Skill('memoir-memory-context', 'timeline', 'model', 'periodic', cadence_owner='lifetime_profile_due_round',
-        gates=('SQL_due_interval','manual_field_exclusions','automatic_profile_enabled','remaining_targets','source_policy_fence'),recovery='durable_lane'),
-    Skill('memoir-place-journey', 'timeline', 'embedded', 'place_evidence',
-        gates=('same_timeline_pass','source_grounded_geography','canonical_publication'),recovery='durable_lane'),
+    Skill('memoir-memory-context', 'timeline', 'model', 'accepted_source',
+        gates=('B_skill_selection','manual_field_exclusions','automatic_profile_enabled','remaining_targets','source_policy_fence'),recovery='durable_lane'),
+    Skill('memoir-place-journey', 'timeline', 'model', 'place_evidence',
+        gates=('B_skill_selection','source_grounded_geography','canonical_publication'),recovery='durable_lane'),
     Skill('memoir-place-photo-research', 'photos', 'provider', 'place_selection',
         gates=('owned_project','public_query','cursor_scope','cache','bounded_photo_capacity','optional_model_flag'),recovery='process_local_job_public_cache'),
 )}
@@ -50,8 +50,7 @@ def execution_map():
     from .recall import private_draft_cadence
     return [{**asdict(item), 'lane':'B' if item.runner or item.status in {'unwired','unavailable'} else None,
         'mode_independent':item.name != 'memoir-story-game',
-        'cadence':{'every_completed_rounds':private_draft_cadence()} if item.name=='memoir-composer' else
-            {'default_rounds':'1, 5, 10, 20, 30, ...; SQL-owned'} if item.name=='memoir-memory-context' else None,
+        'cadence':{'every_completed_rounds':private_draft_cadence()} if item.name=='memoir-composer' else None,
         'compatibility':'flag_off_place_in_A' if item.name == 'memoir-place-journey' else None}
         for item in SKILLS.values() if item.status!='legacy']
 
@@ -99,6 +98,9 @@ def admit_lane(fence, phase):
         if phase not in {'extract','summarize','profile'}:
             raise SkillUnavailable('phase_required')
         name = 'memoir-memory-context' if phase == 'profile' else 'memoir-author-timeline'
+        if (phase == 'extract' and fence.two_lane is not None and fence.two_lane.selected_skills is not None
+                and 'memoir-author-timeline' not in fence.two_lane.selected_skills):
+            name = 'memoir-place-journey'
         if phase == 'extract' and fence.two_lane is not None and fence.two_lane.work_mode != 'extract':
             raise SkillUnavailable('reply_only')
         if phase == 'profile' and (not fence.profile_context or fence.profile_context.get('work_mode') != 'extract'
