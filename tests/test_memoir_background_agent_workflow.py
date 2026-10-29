@@ -16,6 +16,43 @@ from test_lifetime_memory_postgres import sql, event_database, private_database,
 from test_memoir_background_agent_postgres import service
 
 
+@pytest.mark.parametrize('retry_choices',[[],['memoir-place-journey']])
+def test_failed_extraction_retry_preserves_the_saved_source_skills(sql,tmp_path,monkeypatch,retry_choices):
+    from test_conversation_attribution import episode
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
+    attempts = []
+    fail = True
+    def extract(packet):
+        attempts.append(packet)
+        if fail:
+            raise RuntimeError('Controlled extraction transport failure')
+        return {**empty(packet),'events':[episode(packet,packet['sources'][0]['text'])]}
+    conversation = Conversation(sql,tmp_path,monkeypatch,extract)
+    with conversation.client:
+        conversation.say('I repaired bicycles in our garden.')
+        conversation.deliver_receipts()
+        lane = sql("select id from public.user_memoir_lane where skill='timeline';").stdout.strip()
+        page = service(sql,'claim_memoir_lane',p_lane_id=lane,p_run_seconds=300)
+        service(sql,'yield_lifetime_memoir_lane',p_lane_id=lane,p_token=page['token'])
+        sql('update public.user_memoir_lane set available_at=clock_timestamp();')
+        async def execute(choices):
+            return await conversation.worker.execute_lane(lane,source_work={'source':page['source'],'skills':choices})
+        first = asyncio.run(execute(['memoir-author-timeline']))
+        assert first['status']=='retry'
+        assert len(attempts)==1
+        assert sql('select processing_status from public.user_narrator_source;').stdout.strip()!='succeeded'
+        fail = False
+        conversation.retry()
+        sql('update public.user_memoir_lane set available_at=clock_timestamp();')
+        second = asyncio.run(execute(retry_choices))
+        saved = json.loads(sql('select source_decision from public.user_lifetime_lane_snapshot order by created_at desc limit 1;').stdout)
+        assert saved['skills']==['memoir-author-timeline']
+        assert second['status']=='saved'
+        assert len(attempts)==2, 'Retry must execute the previously selected extraction.'
+        assert sql('select count(*) from public.user_memory_event;').stdout.strip()=='1'
+        assert sql('select processing_status from public.user_narrator_source;').stdout.strip()=='succeeded'
+
+
 @pytest.mark.parametrize('choices,text,phases',[
     ((), 'Hello.', []),
     (('memoir-author-timeline',), 'I repaired bicycles in our garden.', ['events']),

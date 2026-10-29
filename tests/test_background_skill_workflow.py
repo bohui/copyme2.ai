@@ -139,12 +139,11 @@ def test_thinking_off_hides_queued_background_work_without_selecting_skills(sql,
 
 @pytest.mark.parametrize('mode',['comfort','explore','shape'])
 def test_game_uses_delivered_A_not_B_plan_and_stays_unavailable(sql,tmp_path,monkeypatch,mode):
-    conversation=Conversation(sql,tmp_path,monkeypatch,empty,strategy=mode)
+    from test_conversation_reply import proposal
+    conversation=Conversation(sql,tmp_path,monkeypatch,empty,strategy=mode,
+        reply=lambda context:dict(proposal(),strategy=mode))
     with conversation.client:
         conversation.say('In Chengde I repaired a bicycle.')
-        # Exercise each delivered decision independently of model tone choices.
-        from test_shared_memory_events_postgres import literal
-        sql('update public.user_lifetime_strategy_outcome set used_strategy='+literal(mode)+';')
         assert progress(conversation)['current_mode']['mode']==mode
         conversation.drain()
         assert [phase for phase,_ in conversation.admissions]==['profile','extract']
@@ -164,6 +163,27 @@ def test_game_uses_delivered_A_not_B_plan_and_stays_unavailable(sql,tmp_path,mon
         assert progress(conversation)['current_mode']['mode']==mode
         sql('update public.user_lifetime_conversation set preference_revision=preference_revision+1;')
         assert progress(conversation)['current_mode'] is None
+
+
+def test_normal_conversation_reaches_shape_for_games_without_seeding_the_mode(sql,tmp_path,monkeypatch):
+    from test_conversation_reply import proposal
+    turns = [
+        ('Please take this slowly.','comfort'),
+        ('I repaired bicycles in Chengde with my father.','explore'),
+        ('Help me put these memories in order.','shape'),
+    ]
+    replies = {text:dict(proposal(),strategy=mode) for text,mode in turns}
+    conversation = Conversation(sql,tmp_path,monkeypatch,empty,strategy='explore',
+        reply=lambda context:replies[context['source']['text']])
+    with conversation.client:
+        for text,mode in turns:
+            saved = conversation.say(text)
+            current = progress(conversation)['current_mode']
+            assert saved['conversation_saved'] and current['mode']==mode
+            game = conversation.client.post('/v1/story/game',json={'project_id':conversation.project})
+            assert game.status_code==200,game.text
+            assert game.json()['reason']==('authenticated_game_workflow_required' if mode=='shape' else 'shape_required')
+        assert sql("select count(*) from public.user_memoir_lane where skill='guidance';").stdout.strip()=='0'
 
 
 def test_blocked_B_progress_is_late_correlated_and_does_not_block_A(sql,tmp_path,monkeypatch):

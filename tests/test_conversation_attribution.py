@@ -95,6 +95,8 @@ class Conversation:
                 if context.get('reply_contract') == 'reply-v2':
                     from test_conversation_reply import proposal as reply_proposal
                     output = {**reply_proposal(), 'work': {'mode':work, 'name':name}}
+                    if strategy:
+                        output['strategy'] = strategy
                     if context['source']['text'].startswith('Please stop.'):
                         output.update(question=None, reason='pause', work={'mode':'reply_only', 'name':None})
                     elif selected:

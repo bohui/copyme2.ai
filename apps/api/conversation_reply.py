@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from .interview_plan import PhotoAssociation, authorized_photos
 from .interview_questions import (QuestionResolution, hint_evidence, question_candidates,
                                  resolution_schema, validate_question_evidence, recall_question, recall_hint, question_span)
-from .interview_strategy import SelectionReason, selection_candidates, prioritized_candidates
+from .interview_strategy import SelectionReason, Strategy, selection_candidates, prioritized_candidates
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
 REPLY_VERSION = 'reply-v2'
@@ -18,6 +18,8 @@ class ReplyProposal(BaseModel):
     recall_limit_quote: str | None = Field(default=None, min_length=1, max_length=500,
         description='Exact unique CURRENT narrator wording that they cannot recall a requested detail, even when other details follow; otherwise null. Not another speaker, ordinary uncertainty or a short answer.')
     reason: SelectionReason = Field(description='pause and direct_answer require question=null. Use latest_story for an optional next question, including public context; recall_limit for recall difficulty. With a hint: prepared_candidate for copy, adapted_candidate for rewording. Mere continuation is return_context.')
+    strategy: Strategy = Field(default='explore',
+        description='Your current interviewing approach: comfort for gentle support, explore for memory details, shape for arranging or connecting established memories. This does not authorize game or book actions.')
     quote: str | None = Field(min_length=1, max_length=500,
         description='Null with a hint or historical_clue_id. Otherwise, for recall_limit cite exact unique CURRENT wording about unavailable detail; for other reasons use an exact unique CURRENT-source passage or null.')
     hint: int | None = Field(ge=0,
@@ -173,7 +175,7 @@ def adapt_reply(raw, context):
     outcome = dict(schema_version=1,
         plan_revision_seen=plan.get('plan_revision', state.get('invalid_plan_revision')),
         selected_candidate_id=hint['id'] if hint else None, selection_reason=item.reason,
-        used_strategy=context.get('active_strategy') or plan.get('strategy') or 'explore',
+        used_strategy=item.strategy,
         question_delivered=item.question, work_hint='extract') if context.get('strategy_selector') else None
     return legacy, item.reason, outcome, item.question is None and item.reason != 'direct_answer', name
 

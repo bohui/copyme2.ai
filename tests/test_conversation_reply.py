@@ -17,7 +17,7 @@ def reply_context(text='My brother Ming moved to Perth.'):
 
 def proposal():
     return dict(acknowledgement='We can follow that memory.', recall_limit_quote=None, question='What do you remember about the move?',
-        reason='latest_story', hint=None, quote=None)
+        reason='latest_story', hint=None, quote=None, strategy='explore')
 
 
 def test_small_wire_keeps_compatibility_and_rejects_host_metadata():
@@ -35,6 +35,21 @@ def test_small_wire_keeps_compatibility_and_rejects_host_metadata():
     for key in ('source_id', 'source_version', 'continuity_updates', 'char_start', 'associations'):
         with pytest.raises(ValueError):
             validate_governed_collector_result({**raw, key: []}, ctx)
+
+
+@pytest.mark.parametrize('strategy',['comfort','explore','shape'])
+def test_reply_selects_its_own_interviewing_strategy(strategy):
+    ctx = reply_context()
+    ctx.update(strategy_selector=True, active_strategy='comfort',
+        strategy_context={'plan':{'strategy':'comfort'}})
+    raw = dict(proposal(),strategy=strategy)
+    schema = governed_collector_schema(ctx)
+    assert 'strategy' in schema['required']
+    assert next(iter(schema['properties']))=='acknowledgement'
+    assert schema['properties']['strategy']['enum']==['comfort','explore','shape']
+    validate(raw,schema)
+    result = validate_governed_collector_result(raw,ctx)
+    assert result['strategy_outcome']['used_strategy']==strategy
 
 
 def test_unique_current_quote_gets_exact_server_owned_source_and_offsets():

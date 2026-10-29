@@ -16199,7 +16199,7 @@ end $$;
 
 CREATE FUNCTION public.select_lifetime_source_skills(p_lane_id uuid,p_token uuid,p_source jsonb,p_skills jsonb) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
-declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb;
+declare snap public.user_lifetime_lane_snapshot%rowtype; page jsonb; source_key jsonb;
 begin
  snap:=public.lock_lifetime_memoir_lane(p_lane_id,p_token);
  page:=public.read_lifetime_memoir_lane_page(p_lane_id,p_token);
@@ -16215,9 +16215,12 @@ begin
      or s#>>'{}' not in ('memoir-author-timeline','memoir-place-journey','memoir-memory-context'))
    or (select count(*)<>count(distinct s) from jsonb_array_elements(p_skills) s) then
    raise exception 'valid source skill selection required' using errcode='22023';end if;
- update public.user_lifetime_lane_snapshot set source_decision=jsonb_build_object('source',
-   jsonb_build_object('id',p_source->'id','version',p_source->'version',
-     'char_start',p_source->'char_start','char_end',p_source->'char_end'),'skills',p_skills) where id=snap.id;
+ source_key:=jsonb_build_object('id',p_source->'id','version',p_source->'version',
+   'char_start',p_source->'char_start','char_end',p_source->'char_end');
+ -- A retry resumes the saved choice for this exact source window.
+ if snap.source_decision->'source'=source_key then return true;end if;
+ update public.user_lifetime_lane_snapshot set source_decision=jsonb_build_object(
+   'source',source_key,'skills',p_skills) where id=snap.id;
  if not(p_skills ? 'memoir-memory-context') then
    update public.user_lifetime_profile_progress set skipped_round=greatest(skipped_round,requested_round),active_round=0
      where user_id=snap.user_id and project_id=snap.project_id;
