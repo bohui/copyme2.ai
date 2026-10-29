@@ -535,6 +535,12 @@ narration, without constructing model instructions. Each managed file has a `.la
 receipt with its exact numeric version and SHA-256. An unpublished draft does not
 pass runtime receipt validation; synchronize merged `main` before running it.
 
+`make up` validates all runtime prompt receipts before building or replacing
+application services. Missing, stale, malformed or wrongly owned receipts stop
+startup and list the prompt names needing publication. Run
+`python3 -B -m apps.api.prompt_artifact` to perform this local check independently;
+it reads no credentials and makes no network requests.
+
 Run `make prompt-sync-install` once per clone. The tracked Git `post-merge` hook
 then synchronizes prompts automatically after a successful merge/fast-forward
 pull on `main`. It quietly skips feature branches and refuses publication unless

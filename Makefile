@@ -450,6 +450,7 @@ container-up: ## Start local services and build changed images; CONTAINER_REBUIL
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _container-up
 
 _container-up: runtime-start _validate-skills
+	@python3 -B -m apps.api.prompt_artifact
 	@mkdir -p var/memory-spark
 	@mkdir -p var/memory-spark/objects/story-game-scenes
 	@set -e; \

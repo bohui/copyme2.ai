@@ -1,4 +1,5 @@
 """Exercise the real Make startup path without starting containers."""
+import hashlib
 import json
 import shlex
 import shutil
@@ -33,6 +34,19 @@ def stack(tmp_path):
         file = tmp_path / name
         file.parent.mkdir(parents=True, exist_ok=True)
         file.write_text(name)
+    # Run the production receipt validator in the startup subprocess, outside
+    # conftest's draft-source loader used for offline conversation tests.
+    for name in ('apps/__init__.py', 'apps/api/__init__.py'):
+        (tmp_path / name).touch()
+    shutil.copy(ROOT / 'apps/api/prompt_artifact.py', tmp_path / 'apps/api/prompt_artifact.py')
+    (tmp_path / 'apps/api/prompt_catalog.py').write_text(
+        "PROMPT_PATHS = {'memoir/agents/mira/policy-review': 'apps/api/prompts/mira/policy-review.md'}\n")
+    prompt = tmp_path / 'apps/api/prompts/mira/policy-review.md'
+    prompt.parent.mkdir(parents=True)
+    prompt.write_text('Synthetic privacy review instructions.\n')
+    prompt.with_name(prompt.name + '.langfuse.json').write_text(json.dumps({
+        'schema_version':1, 'name':'memoir/agents/mira/policy-review', 'type':'text',
+        'version':1, 'sha256':hashlib.sha256(prompt.read_bytes()).hexdigest()}))
     (tmp_path / '.dockerignore').write_text('__pycache__\n*.py[cod]\nnode_modules\n**/node_modules\n**/.next\n')
     (tmp_path / 'apps/web/.dockerignore').write_text('node_modules\n.next\n')
     (tmp_path / 'compose.yml').write_text(f'''name: memory-spark
@@ -157,6 +171,35 @@ def test_missing_external_image_is_pulled_once_before_building_or_recreating(sta
     assert 'synthetic-do-not-print' not in result.stdout + result.stderr
     up()
     assert not any(c[:2] == ['image', 'pull'] for c in calls())
+
+
+@pytest.mark.parametrize('failure', ['missing', 'stale', 'invalid-json', 'wrong-owner'])
+def test_unpublished_runtime_prompt_preserves_running_services_and_cache(stack, failure):
+    root, up, calls = stack
+    up()
+    calls()
+    containers = (root / 'containers.json').read_bytes()
+    cache = (root / 'var/container-startup.json').read_bytes()
+    prompt = root / 'apps/api/prompts/mira/policy-review.md'
+    receipt = prompt.with_name(prompt.name + '.langfuse.json')
+    if failure == 'missing':
+        receipt.unlink()
+    elif failure == 'stale':
+        prompt.write_text('Changed unpublished privacy review instructions.\n')
+    elif failure == 'invalid-json':
+        receipt.write_text('{')
+    else:
+        value = json.loads(receipt.read_text())
+        value['name'] = 'memoir/skills/memoir-interviewer/policy-review'
+        receipt.write_text(json.dumps(value))
+
+    result = up(success=False)
+
+    assert calls() == []
+    assert (root / 'containers.json').read_bytes() == containers
+    assert (root / 'var/container-startup.json').read_bytes() == cache
+    assert 'memoir/agents/mira/policy-review' in result.stdout + result.stderr
+    assert 'make prompt-sync' in result.stdout + result.stderr
 
 
 def test_failed_external_pull_preserves_running_containers_and_startup_cache(stack):
