@@ -620,8 +620,10 @@ def lane_skill_names(bounded_lane):
 
 
 def lane_skill_text(bounded_lane):
+    from .memoir_skill_agent import skill_document
     from .prompt_artifact import ROOT
-    return '\n'.join((ROOT / 'skills' / name / 'SKILL.md').read_text()
+    return ''.join(json.dumps(skill_document(name, 'SKILL.md', ROOT / 'skills' / name / 'SKILL.md'),
+        ensure_ascii=False, allow_nan=False)
         for name in lane_skill_names(bounded_lane))
 
 

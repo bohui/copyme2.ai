@@ -32,6 +32,10 @@ def skill_metadata(name):
     return {'name': name, 'description': description[1].strip()}, path
 
 
+def skill_document(name, file, path):
+    return {'skill': name, 'file': file, 'instructions': render_prompt_artifact(path)}
+
+
 class SkillTools:
     def __init__(self, names, *, execute=None, work=None, max_calls=32, max_bytes=65536):
         self.catalog = {}
@@ -89,9 +93,8 @@ class SkillTools:
                     or path not in {ROOT / p for p in PROMPT_PATHS.values()}):
                 value = {'error': 'reference_unavailable'}
             else:
-                instructions = render_prompt_artifact(path)
+                value = skill_document(name, path.relative_to(root.resolve()).as_posix(), path)
                 self.reads.append(path)
-                value = {'skill': name, 'file': file, 'instructions': instructions}
         elif tool == 'memoir_execute_skill' and self.execute is not None and set(args) == {'skill'}:
             if self.paths[name] not in self.reads:
                 value = {'error': 'read_skill_first'}

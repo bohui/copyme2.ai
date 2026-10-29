@@ -273,6 +273,41 @@ def test_extraction_harness_keeps_exact_packet_schema_manifest_and_fence(tmp_pat
     assert not list(tmp_path.iterdir())
 
 
+@pytest.mark.parametrize('phase,two_lane',[('extract',False),('extract',True),('draft',False)])
+@pytest.mark.parametrize('read_file',[None,'./SKILL.md'])
+def test_admitted_page_can_read_its_skills_at_the_exact_input_budget(tmp_path,monkeypatch,phase,two_lane,read_file):
+    from apps.api.lifetime_memory_lane_engine import lane_contract
+    from apps.api.prompt_artifact import load_prompt_artifact,prompt_path
+    current=page('timeline' if phase=='extract' else 'composer')
+    if two_lane:
+        current['two_lane']=dict(schema_version=1,task_version='two-lane-v1',execution_generation=1,
+            phase_revision=0,work_mode='extract',reply_contract='reply-v2')
+    bounded=transport(phase,current)
+    limit=lane_request_tokens(bounded)
+    budget=bounded.budget.model_copy(update={'input_budget':limit})
+    bounded=BoundedLaneInput.model_validate(bounded.model_copy(update={'budget':budget}).model_dump(mode='json'))
+    responses=[]
+    async def read_all(connection,thread,prompt,**options):
+        for skill in json.loads(prompt)['available_skills']:
+            arguments={'skill':skill['name']}
+            if read_file is not None:
+                arguments['file']=read_file
+            result=await connection.options['tool_handler']({'tool':'memoir_read_skill',
+                'arguments':arguments})
+            assert result['success']
+            responses.append(result['contentItems'][0]['text'])
+        return '{"events":[]}'
+    monkeypatch.setattr(SkillConnection,'turn',read_all)
+    run(tmp_path,bounded)
+    instructions,schema=lane_contract(phase,bounded.fence.locale,two_lane=two_lane,fence=bounded.fence)
+    static=sum(budget.count(value) for value in (instructions,bounded.packet,serialize_packet(schema),
+        load_prompt_artifact(prompt_path('memoir/shared/skill-agent'))))+budget.framing_headroom
+    assert static+sum(budget.count(value) for value in responses)==limit
+    with pytest.raises(ValueError,match='exceed budget'):
+        BoundedLaneInput.model_validate(bounded.model_copy(update={
+            'budget':budget.model_copy(update={'input_budget':limit-1})}).model_dump(mode='json'))
+
+
 def test_lane_attempts_cannot_resume_a_prior_native_session(tmp_path):
     run(tmp_path);run(tmp_path)
     assert len(Provider.bodies)==2
