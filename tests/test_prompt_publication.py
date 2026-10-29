@@ -107,6 +107,57 @@ def test_main_sync_reuses_identical_content_without_creating_versions(repo):
     assert load_prompt_artifact(root / TARGET) == 'Original prompt\n'
 
 
+def test_mira_sync_saves_agent_names_and_receipts_and_preserves_old_history(repo, monkeypatch):
+    from scripts.prompt_registry import prompt_registry
+
+    root, _, _ = repo
+    registry = {name: target for name, target in prompt_registry(include_unpublished=True).items()
+                if name.startswith(('memoir/agents/mira/', 'memoir/evaluation/agents/mira/'))}
+    assert len(registry) == 7
+    for target in registry.values():
+        path = root / target
+        path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / target, path)
+    commit(root, 'Merged Mira agent prompts')
+    git(root, 'push', 'origin', 'main')
+
+    legacy_name = 'memoir/skills/memoir-interviewer/reply'
+    historical = SimpleNamespace(name=legacy_name, version=9, prompt='Historical instructions',
+                                 is_fallback=False, config={})
+    saved, creates = {legacy_name: historical}, []
+
+    def list_prompts(**kwargs):
+        return SimpleNamespace(data=[SimpleNamespace(name=name, versions=[prompt.version])
+            for name, prompt in saved.items() if kwargs['name'] in name])
+
+    def get_prompt(name, **kwargs):
+        assert kwargs['version'] == saved[name].version
+        return saved[name]
+
+    def create_prompt(**kwargs):
+        creates.append(kwargs)
+        saved[kwargs['name']] = SimpleNamespace(name=kwargs['name'], version=1,
+            prompt=kwargs['prompt'], config=kwargs['config'], is_fallback=False)
+        return saved[kwargs['name']]
+
+    client = SimpleNamespace(api=SimpleNamespace(prompts=SimpleNamespace(list=list_prompts)),
+        get_prompt=get_prompt, create_prompt=create_prompt, flush=lambda: None)
+    monkeypatch.setattr(publication, 'prompt_registry', lambda root, **kwargs: registry)
+    monkeypatch.setattr(publication, 'prompt_client', lambda *args: client)
+    assert publication.main([], root=root) == 0
+    assert publication.main([], root=root) == 0
+    assert {row['name'] for row in creates} == set(registry)
+    assert len(creates) == 7
+    assert saved[legacy_name] is historical
+    for name, target in registry.items():
+        path = root / target
+        receipt = json.loads(path.with_name(path.name + '.langfuse.json').read_text())
+        assert receipt['name'] == name
+        assert receipt['version'] == 1
+        assert receipt['sha256'] == hashlib.sha256((ROOT / target).read_bytes()).hexdigest()
+        assert load_prompt_artifact(path) == (ROOT / target).read_text()
+
+
 def test_merged_change_is_published_once_and_its_stale_receipt_is_refreshed(repo):
     root, _, client = repo
     merged_edit(root)

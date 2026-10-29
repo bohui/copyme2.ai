@@ -85,7 +85,9 @@ def inventory():
 
 
 def judge_definition(skill):
-    paths = [JUDGES / 'policy.md', JUDGES / (skill + '.md')]
+    rubric = (ROOT / 'tests/evaluation/prompts/mira-rubric.md'
+              if skill == 'memoir-interviewer' else JUDGES / (skill + '.md'))
+    paths = [JUDGES / 'policy.md', rubric]
     components, texts = [], []
     for path in paths:
         from scripts.prompt_registry import EVALUATION_PROMPT_PATHS

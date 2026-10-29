@@ -479,6 +479,8 @@ instructions under `memoir/skills/<skill>/...`, including composer phases and
 shared editorial policy. Repository sources live under that skill's directory.
 Common bounded-worker instructions use `memoir/shared/...`; judge/probe and
 synthesis instructions use `memoir/evaluation/...` and `memoir/speech/...`.
+Mira's comparison and rubric save under `memoir/evaluation/agents/mira/...`;
+historical evaluation dataset IDs remain stable.
 Issue numbers and release dates stay in metadata and numeric version history.
 The [structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md) explains
 the execution paths, and the [individual inventory](docs/Langfuse_Prompt_Usage.md)

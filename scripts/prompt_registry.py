@@ -9,10 +9,11 @@ ROOT = Path(__file__).resolve().parents[1]
 # Runtime/export consumers still require an actual publication receipt.
 EVALUATION_PROMPT_PATHS = {
     'memoir/evaluation/agents/mira/comparison': 'tests/evaluation/prompts/mira-comparison.md',
+    'memoir/evaluation/agents/mira/rubric': 'tests/evaluation/prompts/mira-rubric.md',
     'memoir/evaluation/skills/shared-policy': 'tests/evaluation/prompts/skill-judges/policy.md',
     **{'memoir/evaluation/skills/' + name + '/rubric':
        'tests/evaluation/prompts/skill-judges/' + name + '.md' for name in (
-           'memoir-interviewer', 'memoir-author-timeline', 'memoir-composer', 'memoir-family-tree',
+           'memoir-author-timeline', 'memoir-composer', 'memoir-family-tree',
            'memoir-memory-context', 'memoir-place-journey', 'memoir-place-groups',
            'memoir-place-photo-research', 'memoir-historical-news-research', 'memoir-story-game')},
 }

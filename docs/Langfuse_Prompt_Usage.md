@@ -27,6 +27,9 @@ Privacy is enforced by Memoir's current-source policy review and database policy
 fences, not by the generic Codex harness. Its review prompt remains separate from
 Mira's conversational role. Existing `memoir-interviewer` evaluation case IDs are
 stable historical identifiers; evaluation inventory classifies Mira as an agent.
+Its quality rubric and paired comparison prompt save under
+`memoir/evaluation/agents/mira/{rubric,comparison}`. The older skill rubric name
+is no longer managed, and its receipt is not reused for the new agent identity.
 
 Earlier character counts below describe the recorded optimization, not the new
 draft. See the [paired draft evaluation](test-evidence/mira-role-prompt-20261029.json).

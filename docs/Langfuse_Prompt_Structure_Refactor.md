@@ -1,10 +1,11 @@
-# Skill-owned prompt structure
+# Agent and skill prompt structure
 
 ## One owner per instruction
 
-Langfuse owns versions; the repository contains exported, pinned deployment
-artifacts. The name identifies the skill and task. Issue numbers, dates and
-release versions belong in metadata and version history.
+Merged Git main owns prompt content; Langfuse owns published versions and the
+repository stores their pinned receipts. The name identifies the owning agent
+or skill and its task. Issue numbers, dates and release versions belong in
+metadata and version history.
 
 ```text
 memoir/
@@ -38,6 +39,7 @@ memoir/
     bounded-context/{policy,en-AU,zh-CN}
     place-conflicts
   evaluation/
+    agents/mira/{comparison,rubric}
     five-case-judge
     five-case-judge/guard
     trajectory-judge/{system,rubric}
@@ -50,6 +52,15 @@ Mira is the conversational agent. Its five prompt sources live in
 installed or invoked. The system prompt is included on every reply. Optional
 repair guidance, source-only privacy review and Lane B strategy proposals enter
 only their relevant calls. Greeting text is application-owned.
+
+Mira's comparison judge and quality rubric save under
+`memoir/evaluation/agents/mira/{comparison,rubric}`, from
+`tests/evaluation/prompts/mira-{comparison,rubric}.md`. The publisher creates
+these names and the five runtime names, then writes matching receipts beside
+their source files. Recovery export uses the full managed names; the single
+artifact exporter's `mira` target resolves to the agent's `system.md`.
+Old skill prompt versions remain historical records, outside the managed
+registry. Existing dataset and case IDs remain stable for experiment continuity.
 
 New namespace pins require normal merged-main publication. Until then, source-only
 offline tests and explicitly labelled draft evaluations can inspect these drafts;

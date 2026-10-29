@@ -43,6 +43,15 @@ def test_unmapped_prompt_owner_and_runtime_skill_fail_preflight(monkeypatch):
         suite.plan()
 
 
+def test_mira_judge_uses_agent_prompt_and_keeps_historical_dataset_ids():
+    planned = selected('memoir-interviewer')
+    judge = suite.judge_definition('memoir-interviewer')
+    assert judge['components'][-1]['name'] == 'memoir/evaluation/agents/mira/rubric'
+    assert judge['components'][-1]['path'] == 'tests/evaluation/prompts/mira-rubric.md'
+    assert {item['dataset'] for item in planned['items']} == {
+        'memoir/evaluation/skills/memoir-interviewer'}
+
+
 def test_cli_planning_never_allocates_services_or_reads_env(monkeypatch, capsys, tmp_path):
     from scripts import run_memoir_skill_evaluation as cli
     monkeypatch.setattr(suite, 'run', lambda *a, **k: pytest.fail('execution during plan'))

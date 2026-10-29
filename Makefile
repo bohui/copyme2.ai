@@ -98,7 +98,7 @@ prompt-sync: ## Publish changed prompts from committed origin/main and refresh r
 prompt-sync-check: ## Check merged main prompt changes without publishing.
 	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
-prompt-export: ## Recovery: export current Langfuse versions into repo artifacts; optional PROMPT_NAME=reply.
+prompt-export: ## Recovery: export published prompts; optional PROMPT_NAME=memoir/agents/mira/system.
 	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
 prompt-check: ## Verify repo prompt artifacts against their pinned Langfuse versions.

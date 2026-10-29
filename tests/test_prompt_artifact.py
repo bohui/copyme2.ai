@@ -29,17 +29,17 @@ def test_exact_langfuse_version_is_exported_and_verified(tmp_path):
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
 
-    receipt = sync_prompt(client, target="reply", name="memoir/reply",
+    receipt = sync_prompt(client, target="mira", name="memoir/agents/mira/system",
                           version=7, root=tmp_path)
 
-    assert client.calls == [("memoir/reply", {
+    assert client.calls == [("memoir/agents/mira/system", {
         "version": 7, "type": "text", "cache_ttl_seconds": 0, "max_retries": 0})]
     assert load_prompt_artifact(path) == "New prompt"
     assert receipt["sha256"] == hashlib.sha256(b"New prompt").hexdigest()
     assert json.loads(path.with_name(path.name + ".langfuse.json").read_text()) == {
-        "schema_version": 1, "name": "memoir/reply", "version": 7,
+        "schema_version": 1, "name": "memoir/agents/mira/system", "version": 7,
         "type": "text", "sha256": receipt["sha256"]}
-    sync_prompt(client, target="reply", name="memoir/reply",
+    sync_prompt(client, target="mira", name="memoir/agents/mira/system",
                 version=7, root=tmp_path, check=True)
 
 
@@ -48,16 +48,16 @@ def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
-    sync_prompt(client, target="reply", name="memoir/reply",
+    sync_prompt(client, target="mira", name="memoir/agents/mira/system",
                 version=7, root=tmp_path)
     path.write_text("Local edit", encoding="utf-8")
     with pytest.raises(ValueError, match="Invalid Langfuse prompt artifact"):
-        sync_prompt(client, target="reply", name="memoir/reply",
+        sync_prompt(client, target="mira", name="memoir/agents/mira/system",
                     version=8, root=tmp_path)
     assert path.read_text(encoding="utf-8") == "Local edit"
 
     with pytest.raises(ValueError, match="repository prompt Markdown"):
-        sync_prompt(client, target="../outside.md", name="memoir/reply",
+        sync_prompt(client, target="../outside.md", name="memoir/agents/mira/system",
                     version=8, root=tmp_path)
 
     receipt_path = path.with_name(path.name + ".langfuse.json")
@@ -68,7 +68,7 @@ def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
     bad_client.get_prompt = lambda name, **kwargs: SimpleNamespace(
         name=name, version=99, prompt="Wrong version", is_fallback=False)
     with pytest.raises(ValueError, match="different"):
-        sync_prompt(bad_client, target="reply", name="memoir/reply",
+        sync_prompt(bad_client, target="mira", name="memoir/agents/mira/system",
                     version=8, root=tmp_path)
     assert path.read_text(encoding="utf-8") == "Local edit"
 
@@ -124,6 +124,10 @@ def test_mira_prompts_are_agent_owned_and_redundant_fragments_are_retired():
     assert all(path.startswith('apps/api/prompts/mira/')
                for name, path in registry.items() if name.startswith(prefix))
     assert not any(name.startswith('memoir/skills/memoir-interviewer/') for name in registry)
+    evaluation_prefix = 'memoir/evaluation/agents/mira/'
+    assert {name.removeprefix(evaluation_prefix) for name in registry
+            if name.startswith(evaluation_prefix)} == {'comparison', 'rubric'}
+    assert not any(name.startswith('memoir/evaluation/skills/memoir-interviewer/') for name in registry)
 
 
 def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():
@@ -172,7 +176,7 @@ def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
             calls.append(kwargs)
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Reply"))])
     client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
-    prompt = SimpleNamespace(prompt="Pinned instructions", name="memoir/reply", version=7)
+    prompt = SimpleNamespace(prompt="Pinned instructions", name="memoir/agents/mira/system", version=7)
     task = experiment_task(prompt, "model-a", client)
 
     assert task(item=SimpleNamespace(input={"text": "A memory"})) == "Reply"
