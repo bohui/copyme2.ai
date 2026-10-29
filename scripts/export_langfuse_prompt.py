@@ -20,7 +20,7 @@ from scripts.langfuse_prompt_client import prompt_client
 
 
 TARGETS = {
-    "reply": Path("skills/memoir-interviewer/prompts/reply.md"),
+    "reply": Path("apps/api/prompts/mira/system.md"),
 }
 
 

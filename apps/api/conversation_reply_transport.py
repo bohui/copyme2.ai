@@ -24,9 +24,11 @@ def reply_messages(view, prompt):
     context = dict(view)
     instructions = context.pop('instructions')
     current = context.pop('current')
+    content = [dict(type='input_text', text=instructions)]
+    if prompt:
+        content.append(dict(type='input_text', text=prompt))
     return [
-        dict(role='developer', content=[dict(type='input_text', text=instructions),
-                                      dict(type='input_text', text=prompt)]),
+        dict(role='developer', content=content),
         dict(role='user', content=serialize_packet(context)),
         dict(role='user', content=serialize_packet(dict(current=current))),
     ]

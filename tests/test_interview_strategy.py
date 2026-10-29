@@ -26,8 +26,8 @@ def test_reply_keeps_strategy_in_context_instead_of_prompt_variants():
     assert 'Active internal strategy:' not in prompt
     assert 'Current questions, corrections, redirects' in prompt
     assert [name for name in PROMPT_PATHS if name.startswith(
-        'memoir/skills/memoir-interviewer/strategy-')] == [
-            'memoir/skills/memoir-interviewer/strategy-proposal']
+        'memoir/agents/mira/strategy-')] == [
+            'memoir/agents/mira/strategy-proposal']
 
 
 def test_compact_selector_has_no_fresh_future_pool():

@@ -28,13 +28,14 @@ TEXT = 'I carried a blue umbrella in Sydney.'
 
 
 def fixture():
+    from apps.api.conversation_reply import reply_instructions
     source = ContextSource(identity=IDENTITY, policy_epoch=1, source_id=UUID(int=4),
         version=1, sequence=1, original=TEXT, language='en-AU')
     context = {'source': {'id': str(source.source_id), 'version': 1, 'text': TEXT, 'status': 'active'},
         'sources': [], 'events': [], 'photo_context': [], 'interview_language': 'en-AU'}
     packet = build_context(identity=IDENTITY, policy_epoch=1,
         pinned=PinnedContinuity(preference_revision=0, language='en-AU'),
-        instructions='Use only authorized narrator evidence.', current=source,
+        instructions=reply_instructions(), current=source,
         tail=[], retrieved=[], budget=BUDGET, tail_coverage=TailCoverage(identity=IDENTITY,
             policy_epoch=1, after_sequence=0, through_sequence=0, complete=True))
     packet.update(fence=FENCE.model_dump(mode='json'), model=BUDGET.model, prompt_version='lifetime-v1',
@@ -80,8 +81,8 @@ def test_dedicated_same_model_collector_alias_retains_the_declared_byte_bound(mo
     connection = FakeConnection.instances[-1]
     assert connection.requests[0][1]['model'] == model
     assert connection.turns[0][2]['effort'] == effort
-    assert connection.turns[0][2]['responsesapi_client_metadata']['generation_name'] == 'memoir-interviewer'
-    assert connection.turns[0][2]['responsesapi_client_metadata']['trace_name'] == 'memoir-interviewer'
+    assert connection.turns[0][2]['responsesapi_client_metadata']['generation_name'] == 'mira'
+    assert connection.turns[0][2]['responsesapi_client_metadata']['trace_name'] == 'mira'
     assert result['reply'] == valid_reply()
 
 

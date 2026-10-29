@@ -53,16 +53,22 @@ def inventory():
     from apps.api.background_skills import SKILLS
     from apps.api.prompt_catalog import PROMPT_PATHS
     owners = {name.split('/')[2] for name in PROMPT_PATHS if name.startswith('memoir/skills/')}
-    actual = set(SKILLS) | owners
+    # Retain stable case IDs while evaluating Mira as an agent. Guidance is an
+    # embedded background dependency, without a standalone scenario catalog.
+    actual = (set(SKILLS) | owners) - {'memoir-interview-guidance'}
+    if any(name.startswith('memoir/agents/mira/') for name in PROMPT_PATHS):
+        actual.add('memoir-interviewer')
     if actual != KNOWN:
         raise ValueError('unmapped_skill_inventory: ' + ', '.join(sorted(actual ^ KNOWN)))
     result = {}
     for skill in sorted(actual):
         definition = asdict(SKILLS[skill]) if skill in SKILLS else dict(
             name=skill, execution='model', runner='foreground_collector', status='implemented', trigger='foreground_turn')
+        definition['kind'] = 'agent' if skill == 'memoir-interviewer' else 'skill'
         definition['prompt_sources'] = []
+        prefix = 'memoir/agents/mira/' if skill == 'memoir-interviewer' else 'memoir/skills/' + skill + '/'
         for name, relative in sorted(PROMPT_PATHS.items()):
-            if not name.startswith('memoir/skills/' + skill + '/'):
+            if not name.startswith(prefix):
                 continue
             from apps.api.prompt_artifact import load_prompt_artifact
             from apps.api.prompt_composition import render_prompt_artifact

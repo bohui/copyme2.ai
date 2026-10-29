@@ -69,7 +69,7 @@ def test_structured_background_requests_use_environment_model_and_effort(monkeyp
         assert body['reasoning']['effort'] == ('high' if overrides else 'medium')
         return httpx.Response(200, json={'id': 'controlled-response', 'status': 'completed',
             'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': '{}'}]}]})
-    result, _ = asyncio.run(complete_json('memoir/skills/memoir-interviewer/policy-review', {}, {},
+    result, _ = asyncio.run(complete_json('memoir/agents/mira/policy-review', {}, {},
         base_url='https://controlled.invalid/v1', api_key='controlled-key',
         transport=httpx.MockTransport(provider)))
     assert result == {}

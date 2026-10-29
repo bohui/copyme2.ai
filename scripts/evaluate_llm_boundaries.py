@@ -26,7 +26,7 @@ def contract(case):
                    two_lane_memory=True, reply_contract='reply-v2', prepared_questions=[],
                    reply_language=case['locale'], brief={'hints': []})
     if case['contract'] == 'policy':
-        return load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/policy-review')), PolicyReview.model_json_schema(), {'source': source}
+        return load_prompt_artifact(prompt_path('memoir/agents/mira/policy-review')), PolicyReview.model_json_schema(), {'source': source}
     if case['contract'] == 'collector':
         return (reply_instructions(),
                 governed_collector_schema(context), context)

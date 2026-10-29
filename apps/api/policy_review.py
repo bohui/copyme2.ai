@@ -101,7 +101,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     payload = {'source': source}
     if opening:
         payload.update(acknowledgement_requested=True, interview_language=selected_language)
-    prompt = 'memoir/skills/memoir-interviewer/policy-review' + ('-opening' if opening else '')
+    prompt = 'memoir/agents/mira/policy-review'
     request_id = new_request_id(source.get('client_turn_id'))
     attempts = []
     for attempt in range(2):
@@ -110,7 +110,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
             model=model or configured_model('MEMORY_SPARK_COLLECTOR_MODEL', 'MEMORY_SPARK_LLM_MODEL'),
             effort=configured_effort('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT', 'MEMORY_SPARK_LLM_REASONING_EFFORT'),
             base_url=base_url, api_key=api_key,
-            trace_name='memoir-interviewer', diagnostic_request_id=request_id,
+            trace_name='mira', diagnostic_request_id=request_id,
             body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))
         parsed = (PolicyReviewOpening if opening else PolicyReview).model_validate(output)
         reason = parsed.reason.model_dump() if parsed.reason else None

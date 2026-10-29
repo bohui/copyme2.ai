@@ -436,5 +436,5 @@ def test_repair_sends_only_relevant_rule_and_retains_catalog_provenance(monkeypa
     assert 'clear question evidence/candidate anchors' in prompt
     assert 'infer no unstated time/place links' in prompt
     assert len(prompt) < 1000
-    assert any(item['name'] == 'memoir/skills/memoir-interviewer/repair-codes'
+    assert any(item['name'] == 'memoir/agents/mira/repair-codes'
                for item in manifests[0]['artifacts'])

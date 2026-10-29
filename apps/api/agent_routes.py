@@ -82,12 +82,6 @@ class GreetingInput(BaseModel):
     first_reply_localization: bool = False
 
 
-GREETING_PROMPTS = {
-    action: load_prompt_artifact(prompt_path(f'memoir/skills/memoir-interviewer/greeting-{action}'))
-    for action in ('begin', 'continue')
-}
-
-
 ProfileField = Literal['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']
 PROFILE_SETTINGS_FIELDS = ('preferred_language', 'name', 'birth_year', 'birth_date_expression',
                            'birth_place', 'childhood_place', 'avatar_style')
@@ -416,7 +410,7 @@ async def greeting(payload: GreetingInput, authorization: str | None = Header(de
         raise HTTPException(422, 'Invalid Family project id')
     storage = await asyncio.to_thread(authenticated_storage, authorization)
     from .lifetime_memory_runtime import lifetime_http_turn
-    return await lifetime_http_turn(runtime, storage, GREETING_PROMPTS[payload.action], accept=accept, options={
+    return await lifetime_http_turn(runtime, storage, '', accept=accept, options={
         'project_id': payload.project_id, 'language': payload.language, 'user_response': False,
         'client_turn_id': str(payload.client_turn_id) if payload.client_turn_id else None})
 

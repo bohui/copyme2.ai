@@ -68,16 +68,13 @@ def test_unknown_or_nested_prompt_components_fail_closed(monkeypatch, tmp_path):
         composition.render_prompt_artifact(path)
 
 
-def test_acknowledgement_guidance_is_conditional_and_reuses_policy_rules():
-    normal = prompt_path('memoir/skills/memoir-interviewer/policy-review')
-    opening = prompt_path('memoir/skills/memoir-interviewer/policy-review-opening')
-    review = composition.render_prompt_artifact(normal)
-    with_acknowledgement = composition.render_prompt_artifact(opening)
-    assert 'acknowledgement_requested' not in review
-    assert 'acknowledgement_requested=true' in with_acknowledgement
-    assert with_acknowledgement.count(review) == 1
-    assert composition.component_paths(opening.read_text()) == (normal,)
-    assert len(review) < 1100 and len(with_acknowledgement) < 2000
+def test_policy_review_uses_one_agent_prompt_for_both_output_schemas():
+    from apps.api.policy_review import PolicyReview, PolicyReviewOpening
+    review = composition.render_prompt_artifact(prompt_path('memoir/agents/mira/policy-review'))
+    assert 'acknowledgement_requested=true' in review
+    assert 'acknowledgement' not in PolicyReview.model_json_schema()['properties']
+    assert 'acknowledgement' in PolicyReviewOpening.model_json_schema()['properties']
+    assert not composition.component_paths(review)
 
 
 def test_shared_sources_have_one_registry_name_and_no_embedded_policy_copies():

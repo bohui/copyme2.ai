@@ -24,7 +24,7 @@ class PromptClient:
 
 
 def test_exact_langfuse_version_is_exported_and_verified(tmp_path):
-    path = tmp_path / "skills/memoir-interviewer/prompts/reply.md"
+    path = tmp_path / "apps/api/prompts/mira/system.md"
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
@@ -44,7 +44,7 @@ def test_exact_langfuse_version_is_exported_and_verified(tmp_path):
 
 
 def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
-    path = tmp_path / "skills/memoir-interviewer/prompts/reply.md"
+    path = tmp_path / "apps/api/prompts/mira/system.md"
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
@@ -76,15 +76,15 @@ def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
 def test_checked_in_reply_prompt_is_the_runtime_source():
     from apps.api.conversation_reply import reply_instructions
 
-    assert reply_instructions() == render_prompt_artifact(ROOT / "skills/memoir-interviewer/prompts/reply.md")
+    assert reply_instructions() == render_prompt_artifact(ROOT / "apps/api/prompts/mira/system.md")
 
 
 def test_current_export_uses_highest_numeric_version_without_production_label(tmp_path, monkeypatch):
-    path = tmp_path / "skills/memoir-interviewer/prompts/reply.md"
+    path = tmp_path / "apps/api/prompts/mira/system.md"
     path.parent.mkdir(parents=True)
     path.write_text("Old", encoding="utf-8")
     monkeypatch.setattr("scripts.export_langfuse_prompts.prompt_registry",
-                        lambda root: {"memoir/skills/memoir-interviewer/reply": str(path.relative_to(root))})
+                        lambda root: {"memoir/agents/mira/system": str(path.relative_to(root))})
 
     class CurrentClient:
         def __init__(self):
@@ -92,7 +92,7 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
             self.api = SimpleNamespace(prompts=SimpleNamespace(list=self.list))
 
         def list(self, **kwargs):
-            return SimpleNamespace(data=[SimpleNamespace(name="memoir/skills/memoir-interviewer/reply",
+            return SimpleNamespace(data=[SimpleNamespace(name="memoir/agents/mira/system",
                                                           versions=[1, 3, 2])])
 
         def get_prompt(self, name, **kwargs):
@@ -113,15 +113,17 @@ def test_unused_browser_instructions_are_not_managed_prompts():
     assert not any(name.startswith('memoir/interview/browser/') for name in prompt_registry())
 
 
-def test_all_supported_interviewer_prompts_stay_at_root():
-    prefix = 'memoir/skills/memoir-interviewer/'
-    names = {name.removeprefix(prefix) for name in prompt_registry() if name.startswith(prefix)}
+def test_mira_prompts_are_agent_owned_and_redundant_fragments_are_retired():
+    prefix = 'memoir/agents/mira/'
+    registry = prompt_registry(include_unpublished=True)
+    names = {name.removeprefix(prefix) for name in registry if name.startswith(prefix)}
     assert names == {
-        'reply', 'policy-review', 'governed-turn', 'greeting-begin', 'greeting-continue',
-        'policy-review-opening',
-        'repair-codes', 'repair-prefix', 'repair-suffix', 'repair-acknowledgement', 'strategy-proposal',
+        'system', 'policy-review', 'repair', 'repair-codes', 'strategy-proposal',
     }
     assert all('/' not in name for name in names)
+    assert all(path.startswith('apps/api/prompts/mira/')
+               for name, path in registry.items() if name.startswith(prefix))
+    assert not any(name.startswith('memoir/skills/memoir-interviewer/') for name in registry)
 
 
 def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():

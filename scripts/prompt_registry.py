@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # New evaluation sources enter the merged-main publisher before receipts exist.
 # Runtime/export consumers still require an actual publication receipt.
 EVALUATION_PROMPT_PATHS = {
+    'memoir/evaluation/agents/mira/comparison': 'tests/evaluation/prompts/mira-comparison.md',
     'memoir/evaluation/skills/shared-policy': 'tests/evaluation/prompts/skill-judges/policy.md',
     **{'memoir/evaluation/skills/' + name + '/rubric':
        'tests/evaluation/prompts/skill-judges/' + name + '.md' for name in (
@@ -18,7 +19,8 @@ EVALUATION_PROMPT_PATHS = {
 
 # New runtime sources are published only after their reviewed Markdown reaches main.
 NEW_RUNTIME_PROMPTS = {'memoir/shared/background-agent', 'memoir/shared/skill-agent',
-    'memoir/skills/memoir-composer/instructions'}
+    'memoir/skills/memoir-composer/instructions',
+    *[name for name in PROMPT_PATHS if name.startswith('memoir/agents/mira/')]}
 
 
 def prompt_registry(root: Path = ROOT, *, include_unpublished: bool = False) -> dict[str, str]:
