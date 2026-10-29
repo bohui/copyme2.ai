@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildMapMemoryJourney, cityEventCards, eventAge, eventAgeLabel, layoutMemoryCards, memoryEventCardMarkup} from '../../apps/web/client/memoir/map-memory-journey.mjs';
+import {buildMapMemoryJourney, cityEventCards, eventAge, eventAgeLabel, layoutMemoryCards, memoryEventCardMarkup, suggestChildhoodCity} from '../../apps/web/client/memoir/map-memory-journey.mjs';
 import {groupPlaces} from '../../apps/web/client/memoir/places.mjs';
 import {translateWith} from '../../apps/web/client/i18n.js';
 
@@ -80,6 +80,42 @@ test('missing and conflicted locations never acquire an invented pin', () => {
   const {nodes,unmapped} = buildMapMemoryJourney([noLink,conflict,{...event('private',9,school),status:'withdrawn'}],groups);
   assert.equal(nodes.length,0);
   assert.equal(unmapped,2);
+});
+
+test('an undated childhood period can suggest one early-life city with a visible assumption label', () => {
+  const birth={...event('birth',0,city,'baby'),kind:'event'};
+  const childhood={id:'compound',kind:'period',title:'Playing in the school staff compound',life_stage:'childhood',
+    status:'active',canonical:true,temporal:null,map_places:[],map_location_unrecorded:true};
+  const input=[birth,childhood,event('current-home',40,melbourne,'midlife')];
+  const before=JSON.stringify(input);
+  const proposed=suggestChildhoodCity(input,groups);
+  const journey=buildMapMemoryJourney(proposed,groups);
+  const node=journey.nodes.find(node=>node.event.id==='compound');
+  assert.equal(node.city,'Sydney');
+  assert.equal(node.locationInferred,true);
+  assert.equal(node.cityOnly,true);
+  assert.equal(node.age.start,null);
+  assert.match(memoryEventCardMarkup(node,{t,lifeStageText:()=>''}),/Assumed city · please confirm/);
+  const cityCard=cityEventCards(journey.nodes).find(card=>card.city==='Sydney');
+  assert.match(memoryEventCardMarkup(cityCard,{t,lifeStageText:()=>''}),/Locations to confirm: 1/);
+  assert.equal(journey.legs.length,0,'A tentative location must not establish a travel route');
+  assert.equal(JSON.stringify(input),before,'Suggestions must not rewrite saved event or place records');
+});
+
+test('ambiguous early cities, other childhood locations and incomplete reads prevent a city assumption', () => {
+  const birth={...event('birth',0,city,'baby'),kind:'event'};
+  const childhood={id:'compound',kind:'period',life_stage:'childhood',status:'active',canonical:true,
+    temporal:null,map_places:[],map_location_unrecorded:true};
+  for (const context of [[birth,event('other-early-city',0,melbourne,'baby')],
+    [birth,event('childhood-abroad',6,melbourne)],[],[{...birth,status:'withdrawn'}]]) {
+    const input=[...context,childhood];
+    assert.equal(suggestChildhoodCity(input,groups),input);
+  }
+  for (const changed of [{map_location_unrecorded:false},{life_stage:'unplaced'},
+    {kind:'event'},{map_places:[link(melbourne)]},{temporal:{precision:'age',expression:'Age 6'}}]) {
+    const input=[birth,{...childhood,...changed}];
+    assert.equal(suggestChildhoodCity(input,groups)[1],input[1]);
+  }
 });
 
 test('unresolved coordinates use an explicit city location label', () => {

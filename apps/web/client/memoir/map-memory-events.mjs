@@ -1,5 +1,5 @@
 import { escapeHtml } from "./dom.mjs";
-import { buildMapMemoryJourney, cityEventCards, eventAgeLabel, layoutMemoryCards, memoryEventCardMarkup } from "./map-memory-journey.mjs";
+import { buildMapMemoryJourney, cityEventCards, eventAgeLabel, layoutMemoryCards, memoryEventCardMarkup, suggestChildhoodCity } from "./map-memory-journey.mjs";
 
 export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScope, getIdentity = getScope, getStage,
   getPage = () => null, readPlaces, resolvePlaces = async places => places,
@@ -17,7 +17,8 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       if (places.has(key)) continue;
       const captured = scope;
       const supplied = Array.isArray(event.places);
-      const entry = {items:supplied ? event.places.filter(item => !item.status || item.status === "supported") : []};
+      const entry = {items:supplied ? event.places.filter(item => !item.status || item.status === "supported") : [],
+        hadLocations:supplied && event.places.length > 0};
       places.set(key, entry);
       // Event locations have their own bounded pages; never infer them from a
       // shared source passage that may describe several different memories.
@@ -28,6 +29,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
           if (!supplied) do {
               const page = await readPlaces(event.id, cursor);
               if (getScope() !== captured || places.get(key) !== entry) return;
+              if (page.items?.length) entry.hadLocations = true;
               entry.items.push(...(page.items || []).filter(item => item.status === "supported"));
               cursor = page.next_cursor;
               if (cursor && seen.has(cursor)) throw new Error("Repeated event location page");
@@ -50,12 +52,18 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const events = getEvents();
     loadPlaces(events);
     const stage = getStage();
-    const visible = events.filter(event => stage === "all" || event.life_stage === stage)
-      .map(event => ({...event, map_places:places.get(`${event.id}:${event.revision}`)?.items || event.places}));
-    const eventPlaces = visible.filter(event => !event.status || event.status === "active")
+    const located = events.map(event => {
+      const entry = places.get(`${event.id}:${event.revision}`);
+      return {...event, map_places:entry?.items || event.places,
+        map_location_unrecorded:Boolean(entry?.complete && !entry.hadLocations)};
+    });
+    const eventPlaces = located.filter(event => !event.status || event.status === "active")
       .flatMap(event => (event.map_places || []).filter(link => link.status !== "conflicted"
         && !event.place_conflicts?.includes(link.role)).map(link => link.place));
-    journey = buildMapMemoryJourney(visible, getGroups(eventPlaces), getProfile());
+    const groups = getGroups(eventPlaces);
+    const visible = suggestChildhoodCity(located, groups, getProfile())
+      .filter(event => stage === "all" || event.life_stage === stage);
+    journey = buildMapMemoryJourney(visible, groups, getProfile());
     if (!scene) return;
     layer = scene.querySelector(".map-memory-layer");
     if (!layer) {
@@ -144,7 +152,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const titleId = "map-memory-detail-title";
     const detail = node.event.summary || node.event.source_refs?.[0]?.quote || "";
     panel.setAttribute("aria-labelledby", titleId);
-    panel.innerHTML = `<header><span class="map-memory-age">${escapeHtml(eventAgeLabel(node.age,t))}</span><button type="button" data-memory-close aria-label="${escapeHtml(t("mapEventClose"))}">×</button></header><h3 id="${titleId}">${escapeHtml(node.event.title)}</h3>${detail && detail !== node.event.title ? `<p>${escapeHtml(detail)}</p>` : ""}<small>${escapeHtml(node.place)}${node.event.life_stage && node.event.life_stage !== "unplaced" ? ` · ${escapeHtml(lifeStageText(node.event.life_stage,"label"))}` : ""}</small>${node.cityOnly ? `<p class="map-memory-uncertainty">${escapeHtml(t("mapEventCityLocation"))}</p>` : ""}${node.uncertainty || node.event.timing_conflict ? `<p class="map-memory-uncertainty">${escapeHtml(node.uncertainty || t("mapEventTimeUncertain"))}</p>` : ""}<button type="button" class="text-button" data-memory-explore="${escapeHtml(node.event.id)}">${escapeHtml(t("exploreThisMemory"))}</button>`;
+    panel.innerHTML = `<header><span class="map-memory-age">${escapeHtml(eventAgeLabel(node.age,t))}</span><button type="button" data-memory-close aria-label="${escapeHtml(t("mapEventClose"))}">×</button></header><h3 id="${titleId}">${escapeHtml(node.event.title)}</h3>${detail && detail !== node.event.title ? `<p>${escapeHtml(detail)}</p>` : ""}<small>${escapeHtml(node.place)}${node.event.life_stage && node.event.life_stage !== "unplaced" ? ` · ${escapeHtml(lifeStageText(node.event.life_stage,"label"))}` : ""}</small>${node.locationInferred ? `<p class="map-memory-uncertainty">${escapeHtml(t("mapEventLocationAssumedNote", {city:node.city}))}</p>` : node.cityOnly ? `<p class="map-memory-uncertainty">${escapeHtml(t("mapEventCityLocation"))}</p>` : ""}${node.uncertainty || node.event.timing_conflict ? `<p class="map-memory-uncertainty">${escapeHtml(node.uncertainty || t("mapEventTimeUncertain"))}</p>` : ""}<button type="button" class="text-button" data-memory-explore="${escapeHtml(node.event.id)}">${escapeHtml(t("exploreThisMemory"))}</button>`;
     for (const button of layer.querySelectorAll("[data-map-memory]")) button.setAttribute("aria-expanded", String(button.dataset.mapMemory === selectedKey));
     if (!wasOpen) panel.querySelector("[data-memory-close]").focus({preventScroll:true});
   }
