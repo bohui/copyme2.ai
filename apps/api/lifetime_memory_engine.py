@@ -403,8 +403,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # Only the complete validated acknowledgement crosses this boundary.
             await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
     async with AsyncExitStack() as stack:
-        trace = stack.enter_context(trace_llm_call(
-            'memoir.' + ('collector-repair' if repair_reason else 'collector'), model, gateway=True))
+        trace = stack.enter_context(trace_llm_call('memoir-interviewer', model, gateway=True))
         direct_reply = interview_context.get('reply_contract') == 'reply-v2'
         if direct_reply:
             candidate = 'reply-' + uuid4().hex
@@ -440,7 +439,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'contract_version': interview_context.get('reply_contract', 'lifetime-v1'),
                 'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}
         metadata = {**manifest_metadata(manifest), **(responsesapi_client_metadata or {}),
-                    'generation_name': 'mira', 'trace_name': 'mira'}
+                    'generation_name': 'memoir-interviewer', 'trace_name': 'memoir-interviewer'}
         update_llm_trace(trace, metadata=trace_metadata)
         if direct_reply:
             from .conversation_reply_transport import stream_reply

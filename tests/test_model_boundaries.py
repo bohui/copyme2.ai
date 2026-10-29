@@ -118,12 +118,12 @@ def test_structured_request_forwards_skill_trace_identity(monkeypatch):
         'memoir/agents/mira/policy-review', {}, {},
         model='fixture-model', transport=httpx.MockTransport(provider),
         base_url='https://fixture.invalid/v1', api_key='fixture-key',
-        trace_name='mira', diagnostic_request_id='policy-fixture-turn'))
+        trace_name='memoir-interviewer', diagnostic_request_id='policy-fixture-turn'))
 
-    assert captured['metadata']['generation_name'] == 'mira'
-    assert captured['metadata']['trace_name'] == 'mira'
+    assert captured['metadata']['generation_name'] == 'memoir-interviewer'
+    assert captured['metadata']['trace_name'] == 'memoir-interviewer'
     assert captured['metadata']['request_id'] == 'policy-fixture-turn'
-    assert client.observations[0].fields['name'] == 'mira'
+    assert client.observations[0].fields['name'] == 'memoir-interviewer'
     assert client.observations[0].fields['metadata']['request_id'] == 'policy-fixture-turn'
 
 

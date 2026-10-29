@@ -16,6 +16,11 @@ Mira uses only `reply-v2`, with five agent-owned prompt drafts under
 and `strategy-proposal`. They publish under `memoir/agents/mira/...` after merge
 to main; new namespace receipts are not fabricated from the older skill pins.
 
+Mira keeps the stable Langfuse trace and generation name `memoir-interviewer`
+for replies, repairs, privacy review and draft comparisons, including their
+judges. This observability label is separate from her `memoir/agents/mira/...`
+prompt namespace and does not make her a callable skill.
+
 The greeting endpoint returns localized application text without a model call.
 Duplicate dispatch instructions, the separate early-ack template and three repair
 fragments have been removed or folded into the five retained sources. The system

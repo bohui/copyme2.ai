@@ -81,8 +81,8 @@ def test_dedicated_same_model_collector_alias_retains_the_declared_byte_bound(mo
     connection = FakeConnection.instances[-1]
     assert connection.requests[0][1]['model'] == model
     assert connection.turns[0][2]['effort'] == effort
-    assert connection.turns[0][2]['responsesapi_client_metadata']['generation_name'] == 'mira'
-    assert connection.turns[0][2]['responsesapi_client_metadata']['trace_name'] == 'mira'
+    assert connection.turns[0][2]['responsesapi_client_metadata']['generation_name'] == 'memoir-interviewer'
+    assert connection.turns[0][2]['responsesapi_client_metadata']['trace_name'] == 'memoir-interviewer'
     assert result['reply'] == valid_reply()
 
 

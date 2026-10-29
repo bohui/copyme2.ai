@@ -110,7 +110,7 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
             model=model or configured_model('MEMORY_SPARK_COLLECTOR_MODEL', 'MEMORY_SPARK_LLM_MODEL'),
             effort=configured_effort('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT', 'MEMORY_SPARK_LLM_REASONING_EFFORT'),
             base_url=base_url, api_key=api_key,
-            trace_name='mira', diagnostic_request_id=request_id,
+            trace_name='memoir-interviewer', diagnostic_request_id=request_id,
             body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))
         parsed = (PolicyReviewOpening if opening else PolicyReview).model_validate(output)
         reason = parsed.reason.model_dump() if parsed.reason else None

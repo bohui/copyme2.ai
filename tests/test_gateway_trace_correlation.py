@@ -47,13 +47,13 @@ def test_structured_gateway_call_joins_application_span(monkeypatch):
         body = json.loads(request.content)
         assert json.loads(body['input']) == payload
         assert int(request.headers['Content-Length']) == len(request.content)
-        assert body['metadata']['generation_name'] == 'mira'
+        assert body['metadata']['generation_name'] == 'memoir-interviewer'
         return httpx.Response(200, json={'id': 'response-same-request', 'status': 'completed',
             'output': [{'type': 'message', 'content': [{'type': 'output_text', 'text': '{}'}]}]})
 
     output, receipt = asyncio.run(complete_json(
         'memoir/agents/mira/policy-review', payload, {},
-        model='configured-model', effort='low', trace_name='mira',
+        model='configured-model', effort='low', trace_name='memoir-interviewer',
         diagnostic_request_id='same-request', base_url='https://gateway.invalid/v1',
         api_key='test-key', transport=httpx.MockTransport(gateway)))
 
