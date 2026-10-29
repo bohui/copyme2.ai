@@ -93,7 +93,6 @@ export function createPlaceWorkspace({
       state.placeJourney = savedPlaces.reduce((current, place) =>
         Number(place.source_sequence || place.revision || 0) > Number(current.source_sequence || current.revision || 0)
           ? place : current, savedPlaces.at(-1));
-      state.lifeStage = state.placeJourney.life_stage || "all";
       state.selectedPlace = placeHistoryKey(state.placeJourney);
       state.workspaceTab = "memoir";
       rememberPlaceJourneyProject(state.project?.id);
@@ -108,7 +107,6 @@ export function createPlaceWorkspace({
       state.placeJourney = body.place_journey || null;
       state.placeJourneyChange = null;
       if (state.placeJourney) {
-        state.lifeStage = state.placeJourney.life_stage || "all";
         state.selectedPlace = placeHistoryKey(state.placeJourney);
         resolvePlaceMap(state.placeJourney);
         void loadPlacePictures(state.placeJourney, state.project?.id);

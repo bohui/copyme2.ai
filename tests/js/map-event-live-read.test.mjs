@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createFamilyWorkspace} from '../../apps/web/client/memoir/family-workspace.mjs';
+import {createPlaceWorkspace} from '../../apps/web/client/memoir/place-workspace.mjs';
 import {buildMapMemoryJourney,cityEventCards} from '../../apps/web/client/memoir/map-memory-journey.mjs';
 import {groupPlaces} from '../../apps/web/client/memoir/places.mjs';
 import {readMemoirClientSource} from './helpers/memoir-source.mjs';
@@ -51,6 +52,27 @@ test('entitlement hydration starts the map read during ordinary recall', async (
   assert.equal(state.familyFeaturesEnabled,false);
 });
 
+test('restoring a stage-tagged place preserves the initial all-ages map', async t => {
+  t.mock.timers.enable({apis:['setTimeout']});
+  const previousWindow=globalThis.window;
+  globalThis.window={addEventListener(){},matchMedia:()=>({matches:true,addEventListener(){}})};
+  t.after(()=>{if (previousWindow === undefined) delete globalThis.window; else globalThis.window=previousWindow;});
+  const birth={place:'Chengde',hierarchy:['Earth','China','Hebei','Chengde'],granularity:'city',
+    latitude:40.9515,longitude:117.9634,life_stage:'baby',source_sequence:1};
+  const home={place:'Sydney',hierarchy:['Earth','Australia','New South Wales','Sydney'],granularity:'city',
+    latitude:-33.8688,longitude:151.2093,life_stage:'midlife',source_sequence:2};
+  const state={project:{id:'project',profile:{memory_places:[birth,home]}},supabase:{accessToken:'test'},
+    timeline:[],lifeStage:'all',chat:[]};
+  const workspace=createPlaceWorkspace({state,profile:()=>state.project.profile,render(){},
+    captureProjectScope:()=> 'project',isCurrentProjectScope:()=>true,
+    loadPlacePictures(){},recordWorkspaceSkillProgress(){},saveProfileUpdates:async()=>{},supabaseApi:async()=>({places:[]}),
+    photos:{}});
+  await workspace.hydratePlaceJourney();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(state.placeJourney.place,'Sydney');
+  assert.equal(state.lifeStage,'all','Restoring a midlife city must not hide baby or unplaced events');
+});
+
 test('a pending Lane B extraction refreshes map events after they are saved', async t => {
   t.mock.timers.enable({apis:['setTimeout']});
   const state={project:{id:'project'},supabase:{accessToken:'test'},familyFeaturesEnabled:false,timeline:[]};
@@ -76,6 +98,21 @@ test('ordinary map pagination loads later events without Family access', async (
   await workspace.loadMoreMemoryEvents();
   assert.deepEqual(requests,['/v1/story/map-events?project_id=project&cursor=next']);
   assert.deepEqual(state.timeline.map(event=>event.id),['earlier','later']);
+});
+
+test('a late older refresh cannot erase cards from a newer saved-event page', async () => {
+  const state={project:{id:'project'},supabase:{accessToken:'test'},familyFeaturesEnabled:false,timeline:[]};
+  const responses=[];
+  const workspace=createFamilyWorkspace({state,captureProjectScope:()=> 'project',isCurrentProjectScope:()=>true,
+    render(){},storyApi:()=>new Promise(resolve=>responses.push(resolve))});
+  const older=workspace.refreshFamilyContext();
+  const newer=workspace.refreshFamilyContext();
+  responses[1]({events:[{id:'saved',status:'active'}],event_revision:2,processing:{pending_inputs:0}});
+  await newer;
+  responses[0]({events:[],event_revision:0,processing:{pending_inputs:0}});
+  await older;
+  assert.deepEqual(state.timeline.map(event=>event.id),['saved']);
+  assert.equal(state.memoryEventPage.event_revision,2);
 });
 
 test('the all-ages map keeps the life-stage navigator reachable by keyboard', () => {
