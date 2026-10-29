@@ -1,0 +1,50 @@
+{
+  "schema_version": "memoir-lane-b-activation/1",
+  "date": "2026-10-29",
+  "scope": "Lane B activation for new local development projects",
+  "failures_reproduced": [
+    {
+      "boundary": "worker dispatcher to PostgREST",
+      "rpc": "pending_memoir_background_agents",
+      "http_status": 404,
+      "code": "PGRST202",
+      "cause": "The running database lacked the merged background-agent table and functions."
+    },
+    {
+      "boundary": "native Codex to configured Responses provider",
+      "code": "invalid_json_schema",
+      "cause": "The final status property declared a constant without a string type."
+    }
+  ],
+  "local_activation": {
+    "source": "supabase/migrations/202610180001_initial_schema.sql",
+    "new_tables": 1,
+    "new_functions": 7,
+    "method": "Applied the already-merged background-agent additions in one transaction; existing data retained.",
+    "services": "Reloaded codex-worker and refreshed Compose service aliases.",
+    "old_project_retries": "Excluded at the user's request."
+  },
+  "live_synthetic_smoke": {
+    "provider": "The configured model provider, with fictional narration only",
+    "project_id": "lifetime-e71c969a-612c-4403-be8f-e2394b2596f8",
+    "foreground_reply_saved_seconds": 12.13,
+    "timeline_and_guidance_saved_seconds": 192.79,
+    "sources": 1,
+    "sources_processed": 1,
+    "saved_memory_events": 2,
+    "finished_lanes": ["timeline", "guidance"],
+    "agent_finished": true,
+    "active_agent_lease": false,
+    "measurement": "HTTP events and fresh canonical database reads; browser paint was not measured."
+  },
+  "verification": {
+    "focused_background_native_database_temporal_and_tracing_tests": 44,
+    "test_place_research": {
+      "web_tests": 633,
+      "python_tests": 631,
+      "standalone_checks": 96
+    },
+    "container_health": "passed",
+    "runtime_prompt_receipts": "passed"
+  }
+}
