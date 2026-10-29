@@ -13,10 +13,7 @@ from .interview_questions import PreparedQuestion, hint_evidence, question_candi
 
 
 def two_lanes_enabled():
-    return os.getenv('MEMOIR_TWO_LANES', '').lower() in {'1', 'true', 'yes'}
-
-
-CONVERSATION_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/background-memory'))
+    return os.getenv('MEMOIR_TWO_LANES', '1').lower() in {'1', 'true', 'yes'}
 
 
 class DerivedHints(_Places):

@@ -24,40 +24,40 @@ class PromptClient:
 
 
 def test_exact_langfuse_version_is_exported_and_verified(tmp_path):
-    path = tmp_path / "skills/memoir-interviewer/prompts/collector.md"
+    path = tmp_path / "skills/memoir-interviewer/prompts/reply.md"
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
 
-    receipt = sync_prompt(client, target="collector", name="memoir/collector",
+    receipt = sync_prompt(client, target="reply", name="memoir/reply",
                           version=7, root=tmp_path)
 
-    assert client.calls == [("memoir/collector", {
+    assert client.calls == [("memoir/reply", {
         "version": 7, "type": "text", "cache_ttl_seconds": 0, "max_retries": 0})]
     assert load_prompt_artifact(path) == "New prompt"
     assert receipt["sha256"] == hashlib.sha256(b"New prompt").hexdigest()
     assert json.loads(path.with_name(path.name + ".langfuse.json").read_text()) == {
-        "schema_version": 1, "name": "memoir/collector", "version": 7,
+        "schema_version": 1, "name": "memoir/reply", "version": 7,
         "type": "text", "sha256": receipt["sha256"]}
-    sync_prompt(client, target="collector", name="memoir/collector",
+    sync_prompt(client, target="reply", name="memoir/reply",
                 version=7, root=tmp_path, check=True)
 
 
 def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
-    path = tmp_path / "skills/memoir-interviewer/prompts/collector.md"
+    path = tmp_path / "skills/memoir-interviewer/prompts/reply.md"
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
-    sync_prompt(client, target="collector", name="memoir/collector",
+    sync_prompt(client, target="reply", name="memoir/reply",
                 version=7, root=tmp_path)
     path.write_text("Local edit", encoding="utf-8")
     with pytest.raises(ValueError, match="Invalid Langfuse prompt artifact"):
-        sync_prompt(client, target="collector", name="memoir/collector",
+        sync_prompt(client, target="reply", name="memoir/reply",
                     version=8, root=tmp_path)
     assert path.read_text(encoding="utf-8") == "Local edit"
 
     with pytest.raises(ValueError, match="repository prompt Markdown"):
-        sync_prompt(client, target="../outside.md", name="memoir/collector",
+        sync_prompt(client, target="../outside.md", name="memoir/reply",
                     version=8, root=tmp_path)
 
     receipt_path = path.with_name(path.name + ".langfuse.json")
@@ -68,24 +68,23 @@ def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
     bad_client.get_prompt = lambda name, **kwargs: SimpleNamespace(
         name=name, version=99, prompt="Wrong version", is_fallback=False)
     with pytest.raises(ValueError, match="different"):
-        sync_prompt(bad_client, target="collector", name="memoir/collector",
+        sync_prompt(bad_client, target="reply", name="memoir/reply",
                     version=8, root=tmp_path)
     assert path.read_text(encoding="utf-8") == "Local edit"
 
 
-def test_checked_in_compact_prompt_keeps_previous_runtime_text():
-    from apps.api.collector_prompt import COMPACT_COLLECTOR_PROMPT
+def test_checked_in_reply_prompt_is_the_runtime_source():
+    from apps.api.conversation_reply import reply_instructions
 
-    assert COMPACT_COLLECTOR_PROMPT.startswith("Mira collector contract: compact-v1")
-    assert render_prompt_artifact(ROOT / "skills/memoir-interviewer/prompts/collector.md") == COMPACT_COLLECTOR_PROMPT
+    assert reply_instructions() == render_prompt_artifact(ROOT / "skills/memoir-interviewer/prompts/reply.md")
 
 
 def test_current_export_uses_highest_numeric_version_without_production_label(tmp_path, monkeypatch):
-    path = tmp_path / "skills/memoir-interviewer/prompts/collector.md"
+    path = tmp_path / "skills/memoir-interviewer/prompts/reply.md"
     path.parent.mkdir(parents=True)
     path.write_text("Old", encoding="utf-8")
     monkeypatch.setattr("scripts.export_langfuse_prompts.prompt_registry",
-                        lambda root: {"memoir/skills/memoir-interviewer/collector": str(path.relative_to(root))})
+                        lambda root: {"memoir/skills/memoir-interviewer/reply": str(path.relative_to(root))})
 
     class CurrentClient:
         def __init__(self):
@@ -93,7 +92,7 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
             self.api = SimpleNamespace(prompts=SimpleNamespace(list=self.list))
 
         def list(self, **kwargs):
-            return SimpleNamespace(data=[SimpleNamespace(name="memoir/skills/memoir-interviewer/collector",
+            return SimpleNamespace(data=[SimpleNamespace(name="memoir/skills/memoir-interviewer/reply",
                                                           versions=[1, 3, 2])])
 
         def get_prompt(self, name, **kwargs):
@@ -102,11 +101,11 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
                                    prompt="Current", is_fallback=False)
 
     client = CurrentClient()
-    receipts = export_prompts(client, name="collector", root=tmp_path)
+    receipts = export_prompts(client, name="reply", root=tmp_path)
     assert receipts[0]["version"] == 3
     assert path.read_text(encoding="utf-8") == "Current"
     assert [call["version"] for call in client.calls] == [3, 3]
-    export_prompts(client, name="collector", check=True, root=tmp_path)
+    export_prompts(client, name="reply", check=True, root=tmp_path)
     assert client.calls[-1]["version"] == 3
 
 
@@ -121,9 +120,6 @@ def test_all_supported_interviewer_prompts_stay_at_root():
         'reply', 'policy-review', 'governed-turn', 'greeting-begin', 'greeting-continue',
         'policy-review-opening',
         'repair-codes', 'repair-prefix', 'repair-suffix', 'repair-acknowledgement', 'strategy-proposal',
-        'background-memory', 'collector', 'collector-plan', 'governed-continuity', 'governed-places',
-        'guidance', 'privacy-guard', 'language-en-AU', 'language-zh-CN',
-        'strategy-comfort', 'strategy-explore', 'strategy-shape', 'strategy-selection',
     }
     assert all('/' not in name for name in names)
 
@@ -174,7 +170,7 @@ def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
             calls.append(kwargs)
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Reply"))])
     client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
-    prompt = SimpleNamespace(prompt="Pinned instructions", name="memoir/collector", version=7)
+    prompt = SimpleNamespace(prompt="Pinned instructions", name="memoir/reply", version=7)
     task = experiment_task(prompt, "model-a", client)
 
     assert task(item=SimpleNamespace(input={"text": "A memory"})) == "Reply"
@@ -205,7 +201,7 @@ def test_legacy_collector_setting_is_rejected(monkeypatch):
     from apps.api.collector_configuration import collector_configuration, CollectorConfigurationError
 
     monkeypatch.delenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', raising=False)
-    assert collector_configuration('model').prompt_version == 'compact-v1'
+    assert collector_configuration('model').prompt_version == 'reply-v2'
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'legacy')
     with pytest.raises(CollectorConfigurationError):
         collector_configuration('model')

@@ -19,6 +19,8 @@ def setup(sql,*,shadow=True,text='I cannot remember if the shop came before the 
 def commit(sql,lane_id,page,strategy='shape',question='Was the shop before or after the move?'):
     result={'events':[],'place_journeys':[],'prepared_questions':[{'question':question,'topic':'chronology','quote':page['source']['text']}],
         'strategy_proposal':{'strategy':strategy,'objective':'clarify_order' if strategy=='shape' else 'follow_story','focus_event_ids':[]}}
+    if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':
+        result['continuity_updates'] = []
     return service(sql,'commit_lifetime_memoir_lane_page',f"'{lane_id}','{page['token']}',{page['page_number']},{literal(result)}")
 
 

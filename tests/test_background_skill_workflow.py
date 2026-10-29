@@ -62,8 +62,7 @@ def test_lane_b_confirmation_preempts_the_next_question_and_is_consumed_once(sql
 def test_model_recognized_control_overrides_a_saved_lane_b_confirmation(sql,tmp_path,monkeypatch,text,reason,question,mode):
     import json
     from test_background_profile_workflow import worker_response
-    from test_interview_strategy import wire
-    from test_name_only_opening import proposal
+    from test_conversation_reply import proposal
     from apps.api.lifetime_memory_continuity import governed_collector_schema
     from test_shared_memory_events_postgres import rpc, literal
     original = 'I grew up in Hobart and walked by the river.'
@@ -74,9 +73,8 @@ def test_model_recognized_control_overrides_a_saved_lane_b_confirmation(sql,tmp_
     async def boundary(request, provider):
         body = json.loads(request.content)
         if not body.get('bounded_lane') and body['interview_context']['source']['text'] == text:
-            assert 'selection_reason' in governed_collector_schema(body['interview_context'])['required']
-            output = wire(question=question, selection_reason=reason) if mode == 'active' else {
-                **proposal(mode='extract', name=None, question=question), 'selection_reason': reason}
+            assert 'reason' in governed_collector_schema(body['interview_context'])['required']
+            output = {**proposal(), 'question': question, 'reason': reason}
             return worker_response(request, output)
         return await provider(request)
     conversation = Conversation(sql,tmp_path,monkeypatch,extract,
@@ -595,6 +593,8 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         assert any(url==place_photo_browser._search_url('google','承德市','1980s') for url,_ in browser_calls)
         assert any(q[0]=='photo' and 'Chengde' in q[1] and '1980' in q[1] and '1989' in q[1] for q in queries)
         assert any(q[0]=='photo' and 'Sydney' in q[1] for q in queries)
+        from controlled_skill_harness import run_optional_background
+        run_optional_background(sql,conversation.project,tmp_path,monkeypatch,agent_routes.runtime._news_engine)
         assert any(q[0]=='news' and q[1].startswith('承德, 中国 1980–1989') for q in queries)
         steps = progress(conversation)['skill_progress']['items']
         assert any(s['skill']=='memoir-historical-news-research' and s['status']=='saved' for s in steps)

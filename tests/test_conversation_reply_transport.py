@@ -281,13 +281,17 @@ def test_deny_only_admission_blocks_before_contacting_provider():
     assert calls == []
 
 
-def test_worker_uses_http_only_after_full_governed_validation(tmp_path, monkeypatch):
+@pytest.mark.parametrize('version', [None, 'reply-v2'])
+def test_worker_uses_http_only_after_full_governed_validation(tmp_path, monkeypatch, version):
     from apps.api import codex_worker_service, lifetime_memory_engine
     from apps.api.conversation_reply import reply_instructions
     from test_conversation_reply import proposal
     from test_lifetime_memory_engine import IDENTITY, encode
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP', '1')
-    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
+    if version is None:
+        monkeypatch.delenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', raising=False)
+    else:
+        monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', version)
     monkeypatch.setenv('MEMOIR_TWO_LANES', '1')
     monkeypatch.setattr(lifetime_memory_engine, 'ProviderPublication', lambda *args, **kwargs: FakePublisher())
     def forbidden(*args, **kwargs):

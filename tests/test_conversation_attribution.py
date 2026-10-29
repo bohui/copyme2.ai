@@ -36,7 +36,7 @@ class Conversation:
         monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
         if strategy:
             monkeypatch.setenv('MEMOIR_INTERVIEW_STRATEGY','1')
-            monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','two-lane-v1')
+            monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','reply-v2')
             sql('update public.lifetime_two_lane_rollout set strategy_enabled=true,strategy_shadow=false;')
         monkeypatch.setattr(agent_routes, 'authenticated_storage', lambda _: PostgresRest(worker_sql, OWNER).storage())
         async def provider(request):
@@ -95,7 +95,9 @@ class Conversation:
                 if context.get('reply_contract') == 'reply-v2':
                     from test_conversation_reply import proposal as reply_proposal
                     output = {**reply_proposal(), 'work': {'mode':work, 'name':name}}
-                    if selected:
+                    if context['source']['text'].startswith('Please stop.'):
+                        output.update(question=None, reason='pause', work={'mode':'reply_only', 'name':None})
+                    elif selected:
                         output.update(hint=0, reason='prepared_candidate', question=selected['question'])
                 elif selected and not (strategy and output.get('stopped')):
                     if strategy:

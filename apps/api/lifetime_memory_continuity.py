@@ -17,15 +17,11 @@ from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from .prompt_artifact import load_prompt_artifact, prompt_path
 from .interview_plan import collector_schema, constrain_acknowledgement, validate_collector_result
 from .place_journey import grounded_place_journeys, validate_place_journey, PlaceResearchWindow
 
 
 MAX_CONTINUITY_UPDATES = 8
-
-
-GOVERNED_CONTINUITY_INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-interviewer/governed-continuity'))
 
 
 class _ContinuityUpdate(BaseModel):

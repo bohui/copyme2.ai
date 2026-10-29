@@ -337,17 +337,13 @@ async def project_place_photos(project_id: str, request: Request, background_tas
 
 
 async def _selected_place_news(authorization, project_id, place, period):
-    """Reuse the news runner and durable claim after the selected photo response."""
+    """Wake the durable background agent after a selected-place photo response."""
     from .background_skills import admit, SkillUnavailable
-    from .historical_news import HistoricalResearch, enrich
-    from .historical_news_provider import GatewayHistoricalProvider
     storage = None
     try:
         admit('memoir-historical-news-research', 'place_selection')
         storage = await asyncio.to_thread(authenticated_storage, authorization)
-        if runtime._news_engine is None:
-            runtime._news_engine = HistoricalResearch(GatewayHistoricalProvider())
-        await enrich(storage, project_id, runtime._news_engine, selection={'place': place, 'period': period})
+        await asyncio.to_thread(storage.queue_background_agent, project_id, {'place': place, 'period': period})
     except SkillUnavailable:
         pass
     except Exception as error:

@@ -43,6 +43,7 @@ from .memoir_tasks import MemorySource
 from .memoir_preview import composer_timeout
 from .lifetime_memory_lane_engine import BoundedLaneInput, LaneGenerationPaused, run_bounded_lane
 from .lifetime_memory_job_engine import BoundedJobInput, JobOutputInvalid, run_bounded_job
+from .memoir_background_agent import BackgroundAgentInput, run_background_agent
 
 from .lifetime_memory_engine import (
     GovernedCollectorInput, run_governed_collector, validate_governed_context,
@@ -70,6 +71,7 @@ class WorkerTurnInput(BaseModel):
     governed: GovernedCollectorInput | None = None
     bounded_lane: BoundedLaneInput | None = None
     bounded_job: BoundedJobInput | None = None
+    background_agent: BackgroundAgentInput | None = None
     thread_id: str | None = Field(default=None, min_length=1, max_length=256)
     memories: list[str] = Field(default_factory=list, max_length=20)
     profile: dict[str, Any] = Field(default_factory=dict)
@@ -83,7 +85,7 @@ class WorkerTurnInput(BaseModel):
     model: str | None = Field(default=None, min_length=1, max_length=256)
     language: str | None = Field(default=None, pattern="^(en-AU|zh-CN)$")
     conversation_rounds_completed: int | None = Field(default=None, ge=0)
-    agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer', 'author_timeline', 'interview_guidance'] = 'collector'
+    agent_role: Literal['collector', 'organiser', 'memory_context', 'workspace', 'composer', 'author_timeline', 'interview_guidance', 'background_agent'] = 'collector'
     extraction_focus: Literal['family_tree', 'author_timeline', 'place_journey'] | None = None
     composer_phase: Literal['prepare', 'draft', 'review'] = 'draft'
     preparation_id: str | None = Field(default=None, pattern='^[a-f0-9]{64}$')
@@ -99,15 +101,24 @@ class WorkerTurnInput(BaseModel):
     @model_validator(mode='before')
     @classmethod
     def reject_unknown_governed_fields(cls, value):
-        if isinstance(value, dict) and any(value.get(key) is not None for key in ('governed','bounded_lane','bounded_job')):
+        if isinstance(value, dict) and any(value.get(key) is not None for key in ('governed','bounded_lane','bounded_job','background_agent')):
             if set(value) - set(cls.model_fields):
                 raise ValueError('Governed turns reject unknown legacy context fields')
         return value
 
     @model_validator(mode='after')
     def bound_conversation_input(self):
-        if sum(value is not None for value in (self.governed,self.bounded_lane,self.bounded_job))>1:
+        if sum(value is not None for value in (self.governed,self.bounded_lane,self.bounded_job,self.background_agent))>1:
             raise ValueError('Governed execution contracts cannot be combined')
+        if self.background_agent is not None:
+            if (self.agent_role != 'background_agent' or self.user_id != self.background_agent.user_id
+                    or self.project_id != self.background_agent.project_id
+                    or self.text or self.thread_id or self.memories or self.profile or self.place_journey
+                    or self.family_context or self.family_enabled or self.canonical_events or self.task_sources
+                    or self.extraction_focus or self.interview_context is not None
+                    or self.conversation_rounds_completed is not None or self.preparation_id is not None):
+                raise ValueError('Background agents require an isolated canonical scope')
+            return self
         if self.bounded_job is not None:
             if (self.text or self.thread_id or self.memories or self.profile or self.place_journey
                     or self.family_context or self.family_enabled or self.canonical_events
@@ -206,6 +217,8 @@ class CodexWorker:
         return self._locks.setdefault(key, asyncio.Lock())
 
     def _execution_timeout(self, agent_role: str, composer_phase: str = 'draft'):
+        if agent_role == 'background_agent':
+            return min(max(int(os.getenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS','900')),1),1800)
         if agent_role == 'composer':
             return composer_timeout(composer_phase)
         if agent_role == 'workspace':
@@ -213,6 +226,9 @@ class CodexWorker:
         return self.timeout
 
     def _model_for(self, payload):
+        if payload.agent_role == 'background_agent':
+            from .model_configuration import background_model
+            return background_model()
         if payload.agent_role == 'composer':
             selection = composer_configuration()
             if payload.model is not None and payload.model != selection.model:
@@ -314,7 +330,7 @@ class CodexWorker:
             from .two_lane_memory import two_lanes_enabled
             from contextlib import AsyncExitStack
             async with AsyncExitStack() as admission:
-                if two_lanes_enabled():
+                if two_lanes_enabled() or payload.background_agent is not None or payload.bounded_lane is not None:
                     await admission.enter_async_context(self._capacity.slot(interactive=payload.agent_role=='collector',
                         serial_lock=self._lock(user_id, execution_role)))
                 else:
@@ -378,6 +394,8 @@ class CodexWorker:
 
     @staticmethod
     def _execution_role(payload):
+        if payload.background_agent is not None:
+            return 'background-' + str(payload.background_agent.id)
         if payload.bounded_job is not None:
             return 'job-' + str(payload.bounded_job.fence.job_id)
         if payload.bounded_lane is not None:
@@ -389,7 +407,7 @@ class CodexWorker:
         return payload.agent_role
 
     async def _turn(self, payload: WorkerTurnInput, on_delta=None, on_event=None):
-        if payload.governed is not None or payload.bounded_lane is not None or payload.bounded_job is not None:
+        if payload.governed is not None or payload.bounded_lane is not None or payload.bounded_job is not None or payload.background_agent is not None:
             payload = WorkerTurnInput.model_validate(payload.model_dump(mode='json'))
         check_issue14_dispatch(self._issue14_admission, role=payload.agent_role,
             correlation=payload.evaluation)
@@ -399,6 +417,8 @@ class CodexWorker:
         collector = collector_configuration(model) if payload.agent_role == 'collector' else None
         if collector:
             model = collector.model
+        if payload.background_agent is not None:
+            return await run_background_agent(self, payload, connection_factory=CodexConnection)
         if payload.bounded_job is not None:
             return await run_bounded_job(command=self._run_command(uid),home_root=self.home_root,
                 base_url=self.base_url,api_key=self.api_key,model=model,

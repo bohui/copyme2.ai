@@ -11597,12 +11597,26 @@ CREATE FUNCTION public.retry_user_memoir_lane(p_project_id text, p_skill text) R
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
+declare queued boolean;
 begin
   if auth.uid() is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   update public.user_memoir_lane set attempts=0,error=null,available_at=clock_timestamp(),pending=true,token=null,lease_until=null,run_deadline=null
     where user_id=auth.uid() and project_id=p_project_id and skill=p_skill and
       (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp());
-  return pg_catalog.jsonb_build_object('queued',found);
+  queued:=found;
+  if queued then
+    -- A coordinator failure pauses the project's required work together.
+    update public.user_memoir_lane set attempts=0,error=null,available_at=clock_timestamp(),
+      pending=true,token=null,lease_until=null,run_deadline=null
+    where user_id=auth.uid() and project_id=p_project_id and pending and attempts>=3
+      and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp())
+      and exists(select 1 from public.user_memoir_background_agent a where a.user_id=auth.uid()
+        and a.project_id=p_project_id and a.pending and a.attempts>=3);
+    update public.user_memoir_background_agent set attempts=0,pending=true,available_at=clock_timestamp()
+      where user_id=auth.uid() and project_id=p_project_id and
+        (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp());
+  end if;
+  return pg_catalog.jsonb_build_object('queued',queued);
 end $$;
 
 CREATE FUNCTION public.revalidate_user_historical_news(p_project_id text, p_hypothesis jsonb, p_snapshot jsonb) RETURNS jsonb
@@ -15973,6 +15987,191 @@ REVOKE ALL ON FUNCTION public.enqueue_lifetime_interview_guidance(),public.read_
  public.read_lifetime_interview_guidance(uuid) FROM PUBLIC,anon,authenticated,service_role;
 GRANT EXECUTE ON FUNCTION public.read_lifetime_interview_guidance_page(uuid,uuid),public.commit_lifetime_interview_guidance(uuid,uuid,text,jsonb) TO service_role;
 GRANT EXECUTE ON FUNCTION public.read_lifetime_interview_guidance(uuid) TO authenticated,service_role;
+
+CREATE TABLE public.user_memoir_background_agent (
+ id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+ user_id uuid NOT NULL,
+ project_id text NOT NULL,
+ pending boolean NOT NULL DEFAULT true,
+ token uuid,
+ lease_until timestamptz,
+ run_deadline timestamptz,
+ source_high_water bigint NOT NULL DEFAULT 0,
+ policy_epoch bigint NOT NULL DEFAULT 0,
+ preference_revision bigint NOT NULL DEFAULT 0,
+ target_source bigint NOT NULL DEFAULT 0,
+ attempts integer NOT NULL DEFAULT 0,
+ available_at timestamptz NOT NULL DEFAULT clock_timestamp(),
+ selection jsonb,
+ UNIQUE(user_id,project_id),
+ FOREIGN KEY(user_id,project_id) REFERENCES public.user_memoir_project(user_id,project_id) ON DELETE CASCADE
+);
+ALTER TABLE public.user_memoir_background_agent ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.user_memoir_background_agent FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE FUNCTION public.queue_user_memoir_background_agent(p_project_id text,p_selection jsonb DEFAULT NULL) RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare project public.user_memoir_project%rowtype; result uuid;
+begin
+ select * into project from public.user_memoir_project where user_id=auth.uid() and project_id=p_project_id for share;
+ if not found then raise exception 'background project unavailable' using errcode='42501';end if;
+ if p_selection is not null and (jsonb_typeof(p_selection)<>'object' or
+   exists(select 1 from jsonb_object_keys(p_selection) k where k not in ('place','period')) or
+   jsonb_typeof(p_selection->'place') is distinct from 'string' or length(p_selection->>'place') not between 1 and 120 or
+   jsonb_typeof(p_selection->'period') is distinct from 'string' or length(p_selection->>'period') not between 1 and 160) then
+   raise exception 'invalid background place selection';end if;
+ insert into public.user_memoir_background_agent(user_id,project_id,target_source,selection)
+ values(project.user_id,project.project_id,project.source_sequence,p_selection)
+ on conflict(user_id,project_id) do update set pending=true,
+   attempts=case when excluded.target_source>public.user_memoir_background_agent.target_source or p_selection is not null then 0
+     else public.user_memoir_background_agent.attempts end,
+   target_source=greatest(excluded.target_source,public.user_memoir_background_agent.target_source),
+   selection=coalesce(p_selection,public.user_memoir_background_agent.selection),available_at=clock_timestamp()
+ returning id into result;
+ return result;
+end $$;
+
+CREATE FUNCTION public.pending_memoir_background_agents(p_limit integer DEFAULT 50) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+begin
+ insert into public.user_memoir_background_agent(user_id,project_id,target_source)
+ select distinct l.user_id,l.project_id,p.source_sequence from public.user_memoir_lane l
+ join public.user_memoir_project p on p.user_id=l.user_id and p.project_id=l.project_id
+ join public.user_lifetime_conversation c on c.user_id=l.user_id and c.project_id=l.project_id
+ where l.attempts<3 and l.available_at<=clock_timestamp() and (l.pending or
+   l.token is not null and (l.lease_until<=clock_timestamp() or l.run_deadline<=clock_timestamp()))
+ on conflict(user_id,project_id) do update set pending=public.user_memoir_background_agent.pending
+     or public.user_memoir_background_agent.token is null
+     or excluded.target_source>public.user_memoir_background_agent.target_source,
+   attempts=case when excluded.target_source>public.user_memoir_background_agent.target_source then 0
+     else public.user_memoir_background_agent.attempts end,
+   target_source=greatest(excluded.target_source,public.user_memoir_background_agent.target_source);
+ return (select coalesce(jsonb_agg(id),'[]') from (select a.id from public.user_memoir_background_agent a
+   where (a.pending or a.token is not null and (a.lease_until<=clock_timestamp() or a.run_deadline<=clock_timestamp()))
+   and a.attempts<3 and a.available_at<=clock_timestamp()
+   and exists(select 1 from public.user_lifetime_conversation c where c.user_id=a.user_id and c.project_id=a.project_id)
+   and (a.token is null or a.lease_until<=clock_timestamp() or a.run_deadline<=clock_timestamp())
+   and not exists(select 1 from public.user_lifetime_pending_policy p where p.user_id=a.user_id and p.project_id=a.project_id)
+   and not exists(select 1 from public.user_lifetime_policy_inventory_pending p where p.user_id=a.user_id and p.project_id=a.project_id)
+   order by a.available_at,a.id limit least(greatest(p_limit,1),100)) ready);
+end $$;
+
+CREATE FUNCTION public.claim_memoir_background_agent(p_id uuid,p_run_seconds integer DEFAULT 900) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare a public.user_memoir_background_agent%rowtype; p public.user_memoir_project%rowtype;
+ c public.user_lifetime_conversation%rowtype;
+begin
+ if p_run_seconds is null or p_run_seconds not between 1 and 1800 then raise exception 'invalid background run duration';end if;
+ select * into a from public.user_memoir_background_agent where id=p_id;
+ if not found then return null;end if;
+ select * into p from public.user_memoir_project where user_id=a.user_id and project_id=a.project_id for share;
+ select * into c from public.user_lifetime_conversation where user_id=a.user_id and project_id=a.project_id for share;
+ if not found then return null;end if;
+ select * into a from public.user_memoir_background_agent where id=p_id for update;
+ if (not a.pending and (a.token is null or a.lease_until>clock_timestamp() and a.run_deadline>clock_timestamp()))
+   or a.attempts>=3 or a.available_at>clock_timestamp() or
+   a.token is not null and a.lease_until>clock_timestamp() and a.run_deadline>clock_timestamp() or
+   exists(select 1 from public.user_lifetime_pending_policy q where q.user_id=a.user_id and q.project_id=a.project_id) or
+   exists(select 1 from public.user_lifetime_policy_inventory_pending q where q.user_id=a.user_id and q.project_id=a.project_id) then return null;end if;
+ update public.user_memoir_background_agent set token=gen_random_uuid(),pending=false,attempts=attempts+1,
+   source_high_water=p.source_sequence,policy_epoch=p.policy_epoch,preference_revision=c.preference_revision,
+   run_deadline=clock_timestamp()+make_interval(secs=>p_run_seconds),
+   lease_until=least(clock_timestamp()+interval '60 seconds',clock_timestamp()+make_interval(secs=>p_run_seconds))
+ where id=p_id returning * into a;
+ return jsonb_build_object('id',a.id,'token',a.token,'user_id',a.user_id,'project_id',a.project_id,
+   'source_high_water',a.source_high_water,'policy_epoch',a.policy_epoch,'preference_revision',a.preference_revision,
+   'locale',coalesce((select case when profile->>'preferred_language'='zh-CN' then 'zh-CN' else 'en-AU' end
+      from public.user_profile where user_id=a.user_id),'en-AU'),
+   'selection',a.selection);
+end $$;
+
+CREATE FUNCTION public.lock_memoir_background_agent(p_fence jsonb) RETURNS numeric
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare a public.user_memoir_background_agent%rowtype; p public.user_memoir_project%rowtype;
+ c public.user_lifetime_conversation%rowtype;
+begin
+ select * into a from public.user_memoir_background_agent where id=(p_fence->>'id')::uuid;
+ if not found then raise exception 'background agent unavailable' using errcode='42501';end if;
+ select * into p from public.user_memoir_project where user_id=a.user_id and project_id=a.project_id for share;
+ select * into c from public.user_lifetime_conversation where user_id=a.user_id and project_id=a.project_id for share;
+ if not found then raise exception 'background conversation unavailable' using errcode='42501';end if;
+ select * into a from public.user_memoir_background_agent where id=a.id for share;
+ if a.token is null or a.token is distinct from (p_fence->>'token')::uuid or a.lease_until<=clock_timestamp() or
+   a.run_deadline<=clock_timestamp() or a.user_id::text is distinct from p_fence->>'user_id' or
+   a.project_id is distinct from p_fence->>'project_id' or p.source_sequence<>a.source_high_water or
+   p.policy_epoch<>a.policy_epoch or c.preference_revision<>a.preference_revision or
+   a.source_high_water is distinct from (p_fence->>'source_high_water')::bigint or
+   a.policy_epoch is distinct from (p_fence->>'policy_epoch')::bigint or
+   a.preference_revision is distinct from (p_fence->>'preference_revision')::bigint or
+   coalesce(a.selection,'null'::jsonb) is distinct from coalesce(p_fence->'selection','null'::jsonb) or
+   exists(select 1 from public.user_lifetime_pending_policy q where q.user_id=a.user_id and q.project_id=a.project_id) or
+   exists(select 1 from public.user_lifetime_policy_inventory_pending q where q.user_id=a.user_id and q.project_id=a.project_id) then
+   raise exception 'stale background agent' using errcode='42501';end if;
+ return extract(epoch from least(a.lease_until,a.run_deadline)-clock_timestamp());
+end $$;
+
+CREATE FUNCTION public.read_memoir_background_work(p_fence jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare a public.user_memoir_background_agent%rowtype;
+begin
+ perform public.lock_memoir_background_agent(p_fence);
+ select * into a from public.user_memoir_background_agent where id=(p_fence->>'id')::uuid;
+ return jsonb_build_object('lanes',coalesce((select jsonb_agg(jsonb_build_object('id',id,'skill',skill))
+   from public.user_memoir_lane where user_id=a.user_id and project_id=a.project_id and attempts<3
+   and (pending or token is not null and (lease_until<=clock_timestamp() or run_deadline<=clock_timestamp()))
+   and available_at<=clock_timestamp() and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp())),'[]'),
+   'selection',a.selection);
+end $$;
+
+CREATE FUNCTION public.heartbeat_memoir_background_agent(p_id uuid,p_token uuid) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+begin
+ update public.user_memoir_background_agent set lease_until=least(clock_timestamp()+interval '60 seconds',run_deadline)
+ where id=p_id and token=p_token and lease_until>clock_timestamp() and run_deadline>clock_timestamp();
+ return found;
+end $$;
+
+CREATE FUNCTION public.finish_memoir_background_agent(p_id uuid,p_token uuid,p_success boolean) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare a public.user_memoir_background_agent%rowtype; remaining boolean; blocked boolean; changed boolean;
+begin
+ select * into a from public.user_memoir_background_agent where id=p_id;
+ if not found then return jsonb_build_object('status','stale','pending',true);end if;
+ perform 1 from public.user_memoir_project where user_id=a.user_id and project_id=a.project_id for share;
+ perform 1 from public.user_lifetime_conversation where user_id=a.user_id and project_id=a.project_id for share;
+ select * into a from public.user_memoir_background_agent where id=p_id for update;
+ if not found or a.token is null or a.token is distinct from p_token then return jsonb_build_object('status','stale','pending',true);end if;
+ changed:=a.pending or
+   exists(select 1 from public.user_memoir_project p where p.user_id=a.user_id and p.project_id=a.project_id
+     and (p.source_sequence<>a.source_high_water or p.policy_epoch<>a.policy_epoch)) or
+   exists(select 1 from public.user_lifetime_conversation c where c.user_id=a.user_id and c.project_id=a.project_id
+     and c.preference_revision<>a.preference_revision);
+ remaining:=p_success is not true or changed or exists(select 1 from public.user_memoir_lane l
+   where l.user_id=a.user_id and l.project_id=a.project_id and (l.pending or l.token is not null));
+ if not changed and p_success is not true and a.attempts>=3 then
+   update public.user_memoir_lane set attempts=3,error='MEMOIR_UNAVAILABLE',pending=true,
+     token=null,lease_until=null,run_deadline=null
+   where user_id=a.user_id and project_id=a.project_id and (pending or token is not null)
+     and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp());
+ end if;
+ blocked:=exists(select 1 from public.user_memoir_lane l where l.user_id=a.user_id and l.project_id=a.project_id
+   and (l.pending or l.token is not null) and l.attempts>=3);
+ update public.user_memoir_background_agent set token=null,lease_until=null,run_deadline=null,
+   attempts=case when blocked then 3 when changed or p_success then 0 else attempts end,
+   pending=remaining,available_at=clock_timestamp()+interval '5 seconds',selection=case when remaining then selection end
+ where id=p_id;
+ return jsonb_build_object('status',case when remaining and (blocked or not changed and p_success is not true and a.attempts>=3) then 'retry_required'
+   when remaining then 'pending' else 'finished' end,'pending',remaining);
+end $$;
+
+REVOKE ALL ON FUNCTION public.queue_user_memoir_background_agent(text,jsonb),public.pending_memoir_background_agents(integer),
+ public.claim_memoir_background_agent(uuid,integer),public.lock_memoir_background_agent(jsonb),
+ public.read_memoir_background_work(jsonb),public.heartbeat_memoir_background_agent(uuid,uuid),
+ public.finish_memoir_background_agent(uuid,uuid,boolean) FROM PUBLIC,anon,authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.queue_user_memoir_background_agent(text,jsonb) TO authenticated,service_role;
+GRANT EXECUTE ON FUNCTION public.pending_memoir_background_agents(integer),public.claim_memoir_background_agent(uuid,integer),
+ public.lock_memoir_background_agent(jsonb),public.read_memoir_background_work(jsonb),
+ public.heartbeat_memoir_background_agent(uuid,uuid),public.finish_memoir_background_agent(uuid,uuid,boolean) TO service_role;
 
 notify pgrst, 'reload schema';
 commit;

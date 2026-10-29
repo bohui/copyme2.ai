@@ -609,9 +609,28 @@ async def validate_lane_payload(bounded):
         if payload.get('review_errors') is not None and payload['review_errors'] != review_errors(payload.get('review'), requirements):
             raise ValueError('Review repair errors differ from the same-page review')
 
+def lane_skill_names(bounded_lane):
+    if bounded_lane.phase == 'extract':
+        return ('memoir-author-timeline', 'memoir-place-journey') if bounded_lane.fence.two_lane else ('memoir-author-timeline',)
+    if bounded_lane.phase == 'guidance':
+        return ('memoir-interview-guidance',)
+    if bounded_lane.phase in {'profile', 'summarize'}:
+        return ('memoir-memory-context',)
+    return ('memoir-composer',)
+
+
+def lane_skill_text(bounded_lane):
+    from .prompt_artifact import ROOT
+    return '\n'.join((ROOT / 'skills' / name / 'SKILL.md').read_text()
+        for name in lane_skill_names(bounded_lane))
+
+
 def lane_request_tokens(bounded_lane: BoundedLaneInput) -> int:
     instructions, schema = lane_contract(bounded_lane.phase, bounded_lane.fence.locale, batch=bounded_lane.fence.batch is not None, two_lane=bounded_lane.fence.two_lane is not None, fence=bounded_lane.fence, retry_reason=_object(bounded_lane.packet)['payload'].get('retry_reason'))
-    return (bounded_lane.budget.count(instructions) + bounded_lane.budget.count(bounded_lane.packet)
+    from .prompt_artifact import load_prompt_artifact, prompt_path
+    skills = lane_skill_text(bounded_lane)
+    dispatch = load_prompt_artifact(prompt_path('memoir/shared/skill-agent'))
+    return (bounded_lane.budget.count(dispatch) + bounded_lane.budget.count(instructions) + bounded_lane.budget.count(skills) + bounded_lane.budget.count(bounded_lane.packet)
         + bounded_lane.budget.count(serialize_packet(schema)) + bounded_lane.budget.framing_headroom)
 
 
@@ -811,27 +830,25 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     check_issue14_dispatch(issue14_admission,role=role)
     publisher = _publisher(bounded,publisher)
     instructions,schema = lane_contract(bounded.phase,bounded.fence.locale,batch=bounded.fence.batch is not None, two_lane=bounded.fence.two_lane is not None, fence=bounded.fence, retry_reason=_object(bounded.packet)['payload'].get('retry_reason'))
-    from .conversation_reply_transport import stream_document
+    from .memoir_skill_agent import run_skill_agent
     endpoint = urlsplit(base_url)
     if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         raise ValueError('Lane provider is not configured')
     manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
-    payload = dict(model=model, instructions=instructions, input=bounded.packet,
-        store=False, stream=True, tools=[], tool_choice='none', parallel_tool_calls=False,
-        reasoning={'effort': effort or (composer_configuration().effort if role == 'composer' else configured_effort(
-            'MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT',
-            'MEMORY_SPARK_LLM_REASONING_EFFORT')), 'summary': 'auto'},
-        max_output_tokens=bounded.budget.output_headroom,
-        metadata={**manifest_metadata(manifest), 'generation_name':skill_name, 'trace_name':skill_name},
-        text={'format':{'type':'json_schema', 'name':'codex_output_schema', 'strict':True, 'schema':schema}})
-    encoded = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-    request = LaneRequestBody(encoded, publisher=publisher, fence=bounded.fence,
-        before_send=lambda: check_issue14_dispatch(issue14_admission, role=role))
     with trace_llm_call('memoir.' + bounded.phase, model,
             metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}, gateway=True):
-        reply, receipt = await stream_document(request=request, content_length=len(encoded),
-            base_url=base_url, api_key=api_key, timeout=timeout, transport=provider_transport,
-            max_response_bytes=2_000_000)
-    _object(reply)
-    return {'thread_id':receipt['response_id'], 'reply':reply, 'artifacts':[]}
+        result = await run_skill_agent(command=command, home_root=home_root,
+            base_url=base_url, api_key=api_key, model=model, instructions=instructions,
+            packet=_object(bounded.packet), skills=lane_skill_names(bounded), schema=schema,
+            publisher=publisher, fence=bounded.fence, timeout=timeout,
+            connection_factory=connection_factory, issue14_admission=issue14_admission,
+            uid=uid, apply_owner=apply_owner,
+            trace_name=skill_name,
+            max_tool_bytes=min(32768, bounded.budget.input_budget - lane_request_tokens(bounded)
+                + bounded.budget.count(lane_skill_text(bounded))),
+            effort=effort or (composer_configuration().effort if role == 'composer' else configured_effort(
+                'MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT',
+                'MEMORY_SPARK_LLM_REASONING_EFFORT')))
+    _object(result['reply'])
+    return result

@@ -17,15 +17,6 @@ memoir/
       repair-{codes,prefix,suffix,acknowledgement}
       greeting-{begin,continue}
       strategy-proposal
-      collector
-      collector-plan
-      background-memory
-      governed-continuity
-      governed-places
-      guidance
-      privacy-guard
-      strategy-{comfort,explore,shape,selection}
-      language-{en-AU,zh-CN}
     memoir-author-timeline/
       instructions
       contract
@@ -66,14 +57,12 @@ it adds no runner or scheduler. The other skill sources remain inside their
 existing skill directories. Generic bounded-worker policy has one shared owner
 because both timeline and composer consume it.
 
-The interviewer catalog contains 24 prompts reachable through supported modes,
-including a new conditional policy-review opening template awaiting publication.
-Eleven serve `reply-v2`, its conditional repairs, begin/continue actions and Lane B
-strategy proposal. Thirteen also serve `compact-v1` or `two-lane-v1`, so they
-remain active prompts. No `legacy` folder is created: retirement requires removing
-the supported callers first. Language and strategy variants use flat root names.
-Repository source paths remain stable: the catalog maps Langfuse names to these
-existing files. The cleanup does not change the configured collector mode.
+The interviewer catalog contains 11 prompts for the sole `reply-v2` mode,
+including conditional privacy-review opening, repairs, begin/continue actions and
+background strategy proposals. The 13 prompt sources and receipts used only by
+the retired collector variants have been removed with their configuration and
+prompt assembly paths. Language and strategy now reach the reply as context data.
+The catalog maps the retained Langfuse names to their existing source files.
 
 The [privacy/repair optimization](issue53-policy-repair-20261022.md) composes
 optional acknowledgement guidance from the same privacy core and transmits only

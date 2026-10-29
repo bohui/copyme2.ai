@@ -25,12 +25,15 @@ class CodexTurnIncomplete(RuntimeError):
 
 class CodexConnection:
     def __init__(self, command, home, *, provider_env=None, timeout=120, trajectory=None,
-                 issue14_admission=None, progress=None, request_admission=None):
+                 issue14_admission=None, progress=None, request_admission=None, tool_handler=None):
         if progress is not None and type(progress) is not WorkerProgress:
             raise TypeError('Owned protocol progress required')
         if request_admission is not None and not callable(request_admission):
             raise TypeError('Request admission must be a context manager factory')
         self.request_admission = request_admission
+        self.tool_handler = tool_handler
+        self.active_thread = None
+        self.active_turn = None
         self.progress = progress
         self._issue14_admission = validate_optional_issue14_admission(issue14_admission)
         self.command = command
@@ -78,6 +81,7 @@ class CodexConnection:
         return self
 
     async def __aexit__(self, *args):
+        self.active_thread, self.active_turn = None, None
         # Include any children of app-server; the supervisor retains CAP_KILL
         # while the tenant process drops to an unprivileged UID.
         try:
@@ -140,8 +144,29 @@ class CodexConnection:
     async def handle_event(self, message):
         if self.trajectory:
             self.trajectory.record_protocol(message)
-        # Never grant tool execution or approvals implicitly from model output.
         if 'id' in message and 'method' in message:
+            if message['method'] == 'item/tool/call' and self.tool_handler is not None:
+                params = message.get('params', {})
+                if (params.get('threadId') != self.active_thread or not self.active_thread
+                        or not isinstance(params.get('turnId'), str)):
+                    await self.send({'id': message['id'], 'error': {'code': -32602,
+                        'message': 'Tool call is outside the active Memoir turn'}})
+                    return
+                if self.active_turn is None:
+                    self.events.append(message)
+                    return
+                if params['turnId'] != self.active_turn:
+                    await self.send({'id': message['id'], 'error': {'code': -32602,
+                        'message': 'Tool call is outside the active Memoir turn'}})
+                    return
+                result = await self.tool_handler(params)
+                if self.request_admission is not None:
+                    async with self.request_admission():
+                        await self.send({'id': message['id'], 'result': result})
+                else:
+                    await self.send({'id': message['id'], 'result': result})
+                return
+            # Approvals and tools outside the supplied capability set stay closed.
             await self.send({'id': message['id'], 'error': {'code': -32601,
                 'message': 'This application has not enabled this tool'}})
         else:
@@ -183,10 +208,12 @@ class CodexConnection:
             }
         if self.progress:
             self.progress.begin_turn()
+        self.active_thread, self.active_turn = thread_id, None
         result = await self.request('turn/start', params)
         log_diagnostic(diagnostic_logger, 'appserver_turn_admitted', request_id,
             component='memoir.appserver.client', elapsed_ms=elapsed_ms(started))
         turn_id = result['turn']['id']
+        self.active_turn = turn_id
         if self.progress:
             self.progress.bind_turn(thread_id, turn_id)
         messages = []
@@ -249,6 +276,7 @@ class CodexConnection:
                         if on_delta and item.get('id') not in streamed_items:
                             await on_delta(item['text'])
                 if event.get('method') == 'turn/completed' and params['turn']['id'] == turn_id:
+                    self.active_thread, self.active_turn = None, None
                     if params['turn']['status'] != 'completed':
                         log_diagnostic(
                             diagnostic_logger,
@@ -298,6 +326,7 @@ def provider_config(base_url, model, *, governed=False):
         'model_reasoning_effort = ' + json.dumps(configured_effort()),
         'approval_policy = "never"',
         'sandbox_mode = "read-only"',
+        *(['web_search = "disabled"'] if governed else []),
         *(['project_doc_max_bytes = 0'] if governed else []),
         '[model_providers.llm_provider]',
         'name = "Local llm_provider"',
@@ -311,6 +340,7 @@ def provider_config(base_url, model, *, governed=False):
         'shell_tool = false',
         *([
             'code_mode_host = false',
+            'view_image = false',
             'goals = false',
             'multi_agent = false',
             'apps = false',

@@ -168,13 +168,14 @@ def packet(item):
         instructions, schema = profile_contract(task['page'])
         payload = profile_packet(task['page'])
     elif skill == 'memoir-interviewer':
-        from apps.api.interview_strategy import strategy_instructions
-        from apps.api.lifetime_memory_continuity import GOVERNED_CONTINUITY_INSTRUCTIONS, governed_collector_schema
-        from apps.api.prompt_composition import render_prompt_artifact
-        instructions = '\n'.join((strategy_instructions(task['strategy']), render_prompt_artifact(
-            prompt_path('memoir/skills/memoir-interviewer/language-' + item['locale'])), GOVERNED_CONTINUITY_INSTRUCTIONS))
+        from apps.api.conversation_reply import reply_candidates, reply_instructions
+        from apps.api.lifetime_memory_continuity import governed_collector_schema
+        task['context'].update(reply_contract='reply-v2', two_lane_memory=True)
+        instructions = reply_instructions()
         schema = governed_collector_schema(task['context'])
-        payload = task['context']
+        payload = {**task['context'], 'reply_language': item['locale'],
+            'brief': {'hints': [dict(index=index, **hint)
+                for index, hint in enumerate(reply_candidates(task['context']))]}}
     elif skill in {'memoir-author-timeline', 'memoir-place-journey'}:
         from apps.api.lifetime_memory_lane_engine import lane_contract, EXTRACTION_WINDOW_CONTRACT
         instructions, schema = lane_contract('extract', item['locale'], two_lane=skill == 'memoir-place-journey')
@@ -224,7 +225,7 @@ def validate(item, output):
         from apps.api.lifetime_memory_continuity import validate_governed_collector_result
         from jsonschema import Draft202012Validator
         Draft202012Validator(packet(item)['schema']).validate(output)
-        result = validate_governed_collector_result(output, task['context'])
+        result = validate_governed_collector_result(output, packet(item)['input'])
         outcome = result['strategy_outcome']
         if result['stopped'] != facts['stopped'] or bool(outcome['question_delivered']) != facts['question']:
             raise ValueError('interviewer_control_mismatch')

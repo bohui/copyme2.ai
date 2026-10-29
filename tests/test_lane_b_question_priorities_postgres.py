@@ -58,6 +58,8 @@ def test_ready_news_changes_next_reply_v2_question_and_replays_its_citation(sql,
         assert first.status_code == 200, first.text
         project = first.json()['project_id']
         identity=rpc(sql,'resolve_lifetime_conversation',literal(project))
+        from controlled_skill_harness import run_optional_background
+        run_optional_background(sql,project,tmp_path,monkeypatch,agent_routes.runtime._news_engine)
         publish_ready_news(sql,identity,language)
         assert len(rpc(sql, 'read_user_historical_news', literal(project))['clues']) == 1
         selected=rpc(sql,'read_lifetime_prepared_questions',f"'{identity['conversation_id']}'")[0]
@@ -123,6 +125,8 @@ def test_ready_news_can_save_and_replay_an_explicit_stop_without_touching_the_pr
         assert first.status_code == 200, first.text
         prior = first.json()
         identity=rpc(sql,'resolve_lifetime_conversation',literal(prior['project_id']))
+        from controlled_skill_harness import run_optional_background
+        run_optional_background(sql,prior['project_id'],tmp_path,monkeypatch,agent_routes.runtime._news_engine)
         publish_ready_news(sql,identity,language)
         assert len(rpc(sql, 'read_user_historical_news', literal(prior['project_id']))['clues']) == 1
         payload = dict(project_id=prior['project_id'], text=text, language=language, client_turn_id=str(uuid4()))

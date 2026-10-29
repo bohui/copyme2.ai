@@ -110,8 +110,10 @@ class GatewayHistoricalProvider:
             raise ValueError('Historical search is not configured')
         from .model_request import prompt_manifest, manifest_metadata
         name = 'memoir/skills/memoir-historical-news-research/discovery'
-        instructions = load_prompt_artifact(prompt_path(name))
-        manifest = prompt_manifest([name],instructions,variant='historical-native-search')
+        names = ['memoir/skills/memoir-historical-news-research/instructions',
+            'memoir/skills/memoir-historical-news-research/contract', name]
+        instructions = '\n\n'.join(load_prompt_artifact(prompt_path(item)) for item in names)
+        manifest = prompt_manifest(names,instructions,variant='historical-native-search')
         prompt = instructions.replace('{{query}}', query)
         body={'model':model,'input':prompt,'tools':[{'type':'web_search'}],'tool_choice':'required',
             'include':['web_search_call.action.sources'],'reasoning':{'effort':self.effort},

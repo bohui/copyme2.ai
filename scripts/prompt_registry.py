@@ -16,9 +16,15 @@ EVALUATION_PROMPT_PATHS = {
            'memoir-place-photo-research', 'memoir-historical-news-research', 'memoir-story-game')},
 }
 
+# New runtime sources are published only after their reviewed Markdown reaches main.
+NEW_RUNTIME_PROMPTS = {'memoir/shared/background-agent', 'memoir/shared/skill-agent',
+    'memoir/skills/memoir-composer/instructions'}
+
 
 def prompt_registry(root: Path = ROOT, *, include_unpublished: bool = False) -> dict[str, str]:
-    result = dict(PROMPT_PATHS)
+    result = {name: path for name, path in PROMPT_PATHS.items()
+              if name not in NEW_RUNTIME_PROMPTS or include_unpublished
+              or (root / (path + '.langfuse.json')).is_file()}
     result.update({name: path for name, path in EVALUATION_PROMPT_PATHS.items()
                    if include_unpublished or (root / (path + '.langfuse.json')).is_file()})
     if len(result) != len(set(result.values())):
