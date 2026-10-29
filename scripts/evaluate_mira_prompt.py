@@ -89,6 +89,20 @@ async def evaluate(args, inputs):
         prompts={arm: dict(**value, sha256=digest(value), published_version=None,
             characters=len(value['prompt'] + value['dispatch'])) for arm, value in arms.items()},
         judge_sha256=digest(rubric), cases_sha256=digest(inputs), results=[], judgments=[])
+    if args.reuse_baseline:
+        prior = json.loads(args.reuse_baseline.read_text())
+        previous_inputs = deepcopy(inputs)
+        for case in previous_inputs:
+            case['view']['instructions'] = prior['prompts']['candidate']['prompt']
+        if (prior['model'] != model or prior['effort'] != effort
+                or prior['prompts']['baseline']['sha256'] != digest(arms['baseline'])
+                or prior['cases_sha256'] != digest(previous_inputs)):
+            raise ValueError('Baseline reuse requires identical model, prompt and fictional input cases')
+        baseline_rows = [row for row in prior['results'] if row['arm'] == 'baseline']
+        if len(baseline_rows) != len(inputs) or {row['id'] for row in baseline_rows} != {case['id'] for case in inputs}:
+            raise ValueError('Baseline readback is incomplete or has foreign cases')
+        report['results'] = baseline_rows
+        report['baseline_readback_sha256'] = digest(prior)
     semaphore = asyncio.Semaphore(4)
     calls = 0
     async with httpx.AsyncClient(timeout=75, trust_env=False, follow_redirects=False) as client:
@@ -125,7 +139,8 @@ async def evaluate(args, inputs):
                 row.update(contract='fail', error_type=type(error).__name__, error=str(error)[:500])
             report['results'].append(row)
             args.output.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n')
-        await asyncio.gather(*(generate(case, arm) for case in inputs for arm in arms))
+        await asyncio.gather(*(generate(case, arm) for case in inputs for arm in arms
+            if not (args.reuse_baseline and arm == 'baseline')))
         pairs = []
         for case in inputs:
             order = ['candidate', 'baseline'] if int(digest(case['id'])[0], 16) % 2 else ['baseline', 'candidate']
@@ -164,6 +179,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--baseline', type=Path, required=True)
     parser.add_argument('--baseline-dispatch', type=Path)
+    parser.add_argument('--reuse-baseline', type=Path,
+        help='Reuse captured baseline outputs only after exact prompt, model and input verification')
     parser.add_argument('--env-file', type=Path, default=ROOT / '.env')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--judge-model', default='gpt-5.6-luna-memoir-low')

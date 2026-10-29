@@ -9,6 +9,8 @@ listening without formulaic praise, recaps, an interview checklist or needless
 probing. Invented personal facts, ignored stops, unconfirmed action claims and
 exposure of excluded material are critical failures. A correction or direct answer
 can reasonably need no follow-up. A broader invitation can help with recall limits.
+A correction may acknowledge rejected wording as rejected; this does not assert
+that wording as true or make it a privacy exclusion.
 
 Choose A, B or tie, and give concise evidence-based reasons and any critical
 violations. Evaluate conversation quality only: these model proposals do not prove
