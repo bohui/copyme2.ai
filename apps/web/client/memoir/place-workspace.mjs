@@ -200,12 +200,11 @@ export function createPlaceWorkspace({
     const activeGroup = current && groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
     const photoGroup = current && (state.lifeStage === "all" ? activeGroup : workspacePlaceGroups(places)
       .find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current))));
-    const choices = current ? placeHistoryChoices(groupChoices(workspacePlaceGroups(places)), current) : "";
     const map = placeJourneyMarkup(current, "workspace", activeGroup);
     const pictureItems = current ? renderablePictureItems(workspacePictureItems(current, photoGroup)) : [];
     const pictures = favoritePhotoWall() + (pictureItems.length ? pictureWall(pictureItems, current) : "");
     const gallery = pictures ? `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${pictures}</div>` : "";
-    return `<section class="workspace-media-overview${gallery ? "" : " no-gallery"}" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${choices}${map}</div>${gallery}</section>`;
+    return `<section class="workspace-media-overview${gallery ? "" : " no-gallery"}" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${map}</div>${gallery}</section>`;
   }
 
   function mapPhotoAlbumsForScene(scene) {

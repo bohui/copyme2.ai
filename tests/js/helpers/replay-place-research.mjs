@@ -110,19 +110,15 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
   places.resolvePlaceMap(state.placeJourney);
   await settle();
   const html=places.workspaceMediaOverview();
-  const navigation=html.match(/<nav class="place-choices"[^]*?<\/nav>/)?.[0]||'';
-  const choices=[...navigation.matchAll(/data-place-choice="([^"]*)"[^>]*><span>([^<]+)<\/span>/g)];
-  assert.deepEqual(choices.map(choice=>choice[2]),language==='zh-CN'?['承德市','悉尼']:['Chengde','Sydney'],
-    'The birthplace must precede the current home even when Sydney is extracted first');
-  assert.match(navigation,language==='zh-CN'?/中国 · 河北省/:/China · Hebei/);
-  assert.match(navigation,language==='zh-CN'?/澳大利亚 · 新南威尔士州/:/Australia · New South Wales/,
-    `Both city and parent labels must survive returning to ${language}`);
-  assert.doesNotMatch(html,/place-journey-heading/,'Workspace cities need buttons without a duplicate title');
+  assert.doesNotMatch(html,/place-choices|data-place-choice=/,'Map navigation must not add a separate city button row');
+  const choices=state.project.profile.memory_places;
+  assert.deepEqual(choices.map(choice=>choice.place).sort(),['承德市','悉尼'].sort());
+  assert.doesNotMatch(html,/place-journey-heading/);
   for (const choice of choices) {
-    places.selectPlace(choice[1].replaceAll('&quot;','"').replaceAll('&amp;','&'));
+    places.selectPlace(placeHistoryKey(choice));
     await Promise.all(loads);
     const selected=places.placeWorkspaceSelection();
-    assert.equal(selected.place,['Chengde','承德市'].includes(choice[2])?'承德市':'悉尼');
+    assert.equal(selected.place,choice.place);
     const selectedHtml=places.workspaceMediaOverview();
     const pins=JSON.parse((selectedHtml.match(/data-cesium-pins="([^"]*)"/)?.[1] || '[]')
       .replaceAll('&quot;','"').replaceAll('&amp;','&'));
@@ -168,9 +164,8 @@ await places.hydratePlaceJourney();
 await Promise.all(loads);
 assert.deepEqual(plain(state.project.profile.memory_places),saved,'A refreshed snapshot must preserve photo cache metadata');
 assert.equal(photoCalls.length,2,'Restoring the interview must reuse both completed searches');
-assert.deepEqual([...places.workspaceMediaOverview()
-  .matchAll(/data-place-choice="[^"]*"[^>]*><span>([^<]+)<\/span>/g)].map(match=>match[1]), ['承德市','悉尼'],
-  'Restoring the interview must retain chronological button order');
+assert.doesNotMatch(places.workspaceMediaOverview(),/place-choices|data-place-choice=/,
+  'Restoring the interview must not restore the removed city button row');
 
 Object.assign(context,{escapeHtml,formatText,translateWith,freeRecallFinished:()=>false,
   workspaceIsVisible:()=>true,workspaceTabs:()=>[],composingWorkspaceActive:()=>false,
@@ -205,7 +200,7 @@ const chengde=state.project.profile.memory_places.find(place=>place.place==='承
 state.project.profile.memory_places=[chengde];state.placeJourney=chengde;
 state.selectedPlace=placeHistoryKey(chengde);state.lifeStage='all';
 const single=places.workspaceMediaOverview();
-assert.equal((single.match(/data-place-choice=/g)||[]).length,1,'One city must still have a location button');
+assert.doesNotMatch(single,/place-choices|data-place-choice=/,'A single city needs no location button');
 assert.doesNotMatch(single,/place-journey-heading/);
 assert.equal(memoryWrites.length,1,'The real favorite action must preserve the original creator credit');
 
@@ -218,10 +213,9 @@ const cityWorkspace=createPlaceWorkspace({...dependencies,photos,loadPlacePictur
 cityWorkspace.resolvePlaceMap(state.placeJourney);
 await settle();
 const cityHtml=cityWorkspace.workspaceMediaOverview();
-const cityChoices=[...cityHtml.matchAll(/data-place-choice="([^"]*)"[^>]*><span>([^<]+)<\/span>/g)];
-assert.deepEqual(cityChoices.map(choice=>choice[2]).sort(),['Parramatta','Sydney']);
-const parramatta=cityChoices.find(choice=>choice[2]==='Parramatta');
-cityWorkspace.selectPlace(parramatta[1].replaceAll('&quot;','"').replaceAll('&amp;','&'));
+assert.doesNotMatch(cityHtml,/place-choices|data-place-choice=/);
+const parramatta=packet.provider_places.find(place=>place.place==='Parramatta');
+cityWorkspace.selectPlace(placeHistoryKey(parramatta));
 assert.equal(cityWorkspace.placeWorkspaceSelection().place,'Parramatta');
 assert.equal(cityLoads.at(-1),'Parramatta');
 

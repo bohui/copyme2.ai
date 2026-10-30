@@ -99,7 +99,7 @@ test('chat wording cannot override saved normalized place dates', () => {
  assert.deepEqual(mergePlaces(places,{},[{role:'user',text:'Sydney in 2000'}]),places);
 });
 
-test('workspace buttons order the birthplace before the current home from the live conversation', t => {
+test('workspace map omits the separate location button row', t => {
  const previousWindow = globalThis.window;
  globalThis.window = {addEventListener() {}, matchMedia:() => ({addEventListener() {}})};
  t.after(() => {globalThis.window = previousWindow;});
@@ -111,9 +111,8 @@ test('workspace buttons order the birthplace before the current home from the li
  const workspace = createPlaceWorkspace({state, profile:() => state.project.profile, lifeStageText:() => '',
   photos:{favoritePhotoWall:() => '', workspacePictureItems:() => [], renderablePictureItems:items => items}});
  const html = workspace.workspaceMediaOverview();
- const navigation = html.match(/<nav class="place-choices"[^]*?<\/nav>/)?.[0] || '';
- assert.deepEqual([...navigation.matchAll(/data-place-choice="[^"]*"[^>]*><span>([^<]+)<\/span>/g)]
-  .map(match => match[1]), ['承德市','悉尼']);
+ assert.doesNotMatch(html, /place-choices|data-place-choice=/);
+ assert.match(html, /data-cesium-place=/);
 });
 
 test('renders the place history navigation in chronological order', async () => {
