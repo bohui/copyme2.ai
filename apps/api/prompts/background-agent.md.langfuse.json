@@ -1,7 +1,7 @@
 {
   "name": "memoir/shared/background-agent",
   "schema_version": 1,
-  "sha256": "79072e96356eb253f12067981f5d56fe0778e772ab016a2a722326f17b56e7b2",
+  "sha256": "a3791f4f523a88d61bac13a5923286542903973d205de6e9ab8ff13514bda686",
   "type": "text",
-  "version": 1
+  "version": 4
 }
