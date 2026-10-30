@@ -88,6 +88,14 @@ def test_budget_stops_with_saved_progress_keep_the_same_batch_and_do_not_exhaust
         assert sql('select attempts from public.user_memoir_background_agent;').stdout.strip()=='0'
 
 
+def test_legacy_childhood_profile_locks_do_not_leak_through_settings_or_agent_targets(sql):
+    identity,run=queued(sql)
+    sql(f"select public.ensure_lifetime_profile_authority('{OWNER}');")
+    sql(f"update public.user_lifetime_profile_authority set field_locks='{{\"childhood_place\":\"manual\"}}' where user_id='{OWNER}';")
+    automation=rpc(sql,'read_lifetime_profile_automation','')
+    assert 'childhood_place' not in automation['field_locks']
+
+
 @pytest.mark.parametrize('language,expected',[('zh-CN','zh-CN'),('en-US','en-AU')])
 def test_agent_claim_uses_a_supported_workspace_locale(sql,language,expected):
     _,run=queued(sql)

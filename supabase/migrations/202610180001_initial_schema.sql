@@ -7061,7 +7061,7 @@ CREATE FUNCTION public.lifetime_profile_automation(p_owner uuid) RETURNS jsonb
     SET search_path TO ''
     AS $$
  select jsonb_build_object('schema_version',1,'revision',a.revision,'auto_enabled',a.auto_enabled,
-   'stopped',not a.auto_enabled or a.manual_complete,'manual_complete',a.manual_complete,'field_locks',a.field_locks)
+   'stopped',not a.auto_enabled or a.manual_complete,'manual_complete',a.manual_complete,'field_locks',a.field_locks-'childhood_place')
  from public.user_lifetime_profile_authority a where a.user_id=p_owner
 $$;
 
