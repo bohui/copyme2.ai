@@ -1,6 +1,8 @@
 """Bounded, owner-scoped HTTP adapters for the canonical lifetime read model."""
 from __future__ import annotations
 
+import re
+
 import httpx
 from fastapi import HTTPException
 
@@ -75,14 +77,39 @@ def draft_page(storage, project_id, snapshot_id, cursor=None, limit=8):
 
 
 def collection_page(storage, project_id, *, kind, cursor=None, limit=8, event_id=None):
-    return storage.lifetime_rpc('read_lifetime_collection_page', p_project_id=project_id,
+    page = storage.lifetime_rpc('read_lifetime_collection_page', p_project_id=project_id,
         p_kind=kind, p_after=str(cursor) if cursor else None, p_limit=limit, p_event_id=event_id)
+    if kind == 'events':
+        page = {**page, 'events': [{**event, **({'temporal_anchor':'present'} if _present_residence(event) else {})}
+                                 for event in page.get('events', [])]}
+    return page
+
+
+_CURRENT_RESIDENCE = re.compile(
+    r"^(?:I(?:\s+am|'m)?\s+)?(?:currently|now|at present)\s+(?:I\s+)?(?:am\s+)?"
+    r"(?:live|living|reside|residing|stay|staying|based)\s+(?:in|at)\s+[^,.!?;，。！？；\n]+[.。!！]?|"
+    r"^(?:我(?:们)?)?(?:现在|目前|当前|如今)(?:正|仍然)?(?:生活在|居住在|住在|定居(?:在)?)"
+    r"[^,.!?;，。！？；\n]+[.。!！]?", re.I)
+_NON_CURRENT = re.compile(
+    r'\b(?:not|never|former|formerly|previously|no longer|used to|and|but|after|before|once|was|were)\b|不|没|曾经|以前|过去|住过|但', re.I)
+
+
+def _present_residence(event):
+    # Only a complete, single-clause residence statement establishes "now".
+    if event.get('timing_conflict') or not event.get('evidence_complete') or event.get('evidence_next_cursor'):
+        return False
+    refs = event.get('source_refs') or []
+    if not refs or _NON_CURRENT.search(event.get('title') or ''):
+        return False
+    return all(ref.get('attribution') in {None, 'self', 'narrator', 'storyteller', '我', '本人'}
+        and _CURRENT_RESIDENCE.fullmatch((ref.get('quote') or '').strip())
+        and not _NON_CURRENT.search(ref.get('quote') or '') for ref in refs)
 
 
 def map_event_page(storage, project_id, *, cursor=None, limit=8):
     page = collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit)
     fields = {'id', 'revision', 'kind', 'life_stage', 'status', 'change_sequence', 'title',
-              'temporal', 'uncertainty', 'assertion', 'timing_conflict', 'locationConfidenceScore', 'yearConfidenceScore'}
+              'temporal', 'temporal_anchor', 'uncertainty', 'assertion', 'timing_conflict', 'locationConfidenceScore', 'yearConfidenceScore'}
     return {**page, 'events': [{key: value for key, value in event.items() if key in fields}
                              for event in page.get('events', []) if event.get('status') == 'active']}
 

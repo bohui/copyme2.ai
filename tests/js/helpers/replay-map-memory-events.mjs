@@ -3,15 +3,32 @@ import {readFileSync} from 'node:fs';
 import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
 import {createFamilyWorkspace} from '../../../apps/web/client/memoir/family-workspace.mjs';
 import {buildMapMemoryJourney,cityEventCards} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
-import {groupPlaces} from '../../../apps/web/client/memoir/places.mjs';
+import {groupPlaces,mergePlaces} from '../../../apps/web/client/memoir/places.mjs';
 
-const {events,locations,places,grouping,snapshot} = JSON.parse(readFileSync(0,'utf8'));
+const {events,locations,places,grouping,snapshot,relative_current_home} = JSON.parse(readFileSync(0,'utf8'));
 const enriched = events.map(event => ({...event,canonical:true,map_places:locations[event.id].items.map(link => {
   const record=grouping[link.place.place].places[0];
   return {...link,place:{...link.place,map_city:record.city,map_city_key:record.city_key,map_pin:record.pin}};
 })}));
-const journey = buildMapMemoryJourney(enriched,groupPlaces([...places,...enriched.flatMap(event=>event.map_places.map(link=>link.place))]));
+const journey = buildMapMemoryJourney(enriched,groupPlaces(mergePlaces([...places,...enriched.flatMap(event=>event.map_places.map(link=>link.place))])));
 assert.equal(journey.nodes.length,2,'Both canonical API events need separate map cards');
+if (relative_current_home) {
+  const groups=groupPlaces(enriched.flatMap(event=>event.map_places.map(link=>link.place)));
+  for (const ordered of [enriched,[...enriched].reverse()]) {
+    const route=buildMapMemoryJourney(ordered,groups);
+    assert.deepEqual(route.legs.map(leg=>[leg.from.city,leg.to.city]),[['Chengde','Sydney']],
+      'Birth precedes the undated current home regardless of API event order');
+    const home=route.nodes.find(node=>node.city==='Sydney');
+    assert.equal(home.year,null);
+    assert.deepEqual(home.age,{start:null,end:null});
+    assert.equal(home.event.yearConfidenceScore,0);
+    assert.equal(home.event.temporal.year_start,null);
+    assert.equal(home.event.temporal.year_end,null);
+    assert.equal(home.event.temporal_anchor,'present');
+    assert.ok(!('source_refs' in home.event),'Relative order must not expose original testimony');
+  }
+  process.exit(0);
+}
 const cities = cityEventCards(journey.nodes);
 assert.equal(cities.length,1,'The initial map groups both events under Sydney');
 assert.equal(cities[0].city,'Sydney');

@@ -171,6 +171,50 @@ def test_map_cards_read_active_events_during_ordinary_recall_without_original_ev
     assert client.get('/v1/story/events?project_id=read-project').status_code == 403
 
 
+@pytest.mark.parametrize('quote,changes,present', [
+    ('I currently live in Sydney.', {}, True),
+    ("I'm currently living in Sydney.", {}, True),
+    ('现在生活在悉尼', {}, True),
+    ('我目前居住在悉尼。', {}, True),
+    ('I do not currently live in Sydney.', {}, False),
+    ('我现在不住在悉尼。', {}, False),
+    ('I lived in Sydney, but I currently live in Melbourne.', {}, False),
+    ('I currently live in Melbourne, and my home in Sydney was near the harbour.', {}, False),
+    ('I currently live in Melbourne. I once visited Sydney.', {}, False),
+    ('现在生活在墨尔本，以前住在悉尼。', {}, False),
+    ('现在生活在墨尔本.那时在悉尼的家靠近海边', {}, False),
+    ('I currently live in Melbourne。悉尼旧家靠近海边', {}, False),
+    ('I currently live in Sydney.', {'title':'Not currently living in Sydney'}, False),
+    ('I currently live in Sydney.', {'evidence_complete':False}, False),
+    ('I currently live in Sydney.', {'evidence_next_cursor':'more-evidence'}, False),
+    ('I currently live in Sydney.', {'timing_conflict':True}, False),
+    ('I currently live in Sydney.', {'source_refs':[{'quote':'I currently live in Sydney.', 'attribution':'father'}]}, False),
+])
+@pytest.mark.parametrize('endpoint', ['map-events', 'events'])
+def test_map_current_time_anchor_uses_complete_positive_evidence_without_exposing_it(mapped, quote, changes, present, endpoint):
+    client, storage, calls, result = mapped
+    if endpoint == 'map-events':
+        storage.story_entitlement = lambda: None
+    event = dict(id='home', revision=1, kind='period', status='active', title='Living in Sydney',
+        life_stage='unplaced', temporal={'expression':'unknown', 'precision':'unknown', 'year_start':None},
+        yearConfidenceScore=0, source_refs=[{'quote':quote}], evidence_complete=True,
+        evidence_next_cursor=None)
+    event.update(changes)
+    original = deepcopy(event)
+    result.clear()
+    result.update(events=[event], complete=True, next_cursor=None)
+    response = client.get(f'/v1/story/{endpoint}?project_id=read-project')
+    assert response.status_code == 200
+    saved, = response.json()['events']
+    assert saved.get('temporal_anchor') == ('present' if present else None)
+    assert saved['yearConfidenceScore'] == 0 and saved['temporal']['year_start'] is None
+    if endpoint == 'map-events':
+        assert 'source_refs' not in saved and 'evidence_complete' not in saved
+        assert quote not in response.text
+    assert event == original
+    assert calls[-1][0] == 'actual_send_guard'
+
+
 def test_map_locations_keep_event_and_cursor_scope_without_exposing_passage_fields(mapped):
     client, storage, calls, result = mapped
     storage.story_entitlement = lambda: None
