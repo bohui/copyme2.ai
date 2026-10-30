@@ -153,6 +153,20 @@ test('a completed photo request cannot inherit a stale running status from its t
   assert.ok(steps.at(-1).finished_at);
 });
 
+test('a browser cache hit copies only timestamps from saved photo progress',async()=>{
+  const steps=[];
+  const started_at='2026-10-30T00:01:02.000Z',finished_at='2026-10-30T00:01:04.000Z';
+  const h=harness({place:'Chengde',photo_search_period:'1980s',photo_search_place:'Chengde',
+    photo_search_complete:true,pictures:[picture('saved')],photo_search_progress:{id:'saved-job',
+      client_turn_id:'turn',status:'running',started_at,finished_at}},async()=>assert.fail('Cache hit dispatched a request'),
+    {persistChatHistory(){}});
+  h.state.chat=[{role:'assistant',clientTurnId:'turn'}];
+  await h.context.loadPlacePictures(h.entry(),'project',{onProgress:step=>steps.push(step)});
+  assert.equal(steps.at(-1).status,'cached');
+  assert.equal(steps.at(-1).started_at,started_at);
+  assert.equal(steps.at(-1).finished_at,finished_at);
+});
+
 test('a later browser-cache hit updates the original server photo step instead of duplicating it',async()=>{
   let calls=0;
   const h=harness({place:'Chengde'},async()=>{
