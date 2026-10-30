@@ -39,12 +39,17 @@ function harness(api, entries = [city, town, otherCity]) {
     'photoMemoryState', 'photoMemoryControls', 'favoritePhotoWall', 'pictureWall', 'workspaceMediaOverview']) {
     vm.runInContext(source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`))[0], context);
   }
+  context.selectedPictureWall = () => {
+    const entry = context.placeWorkspaceSelection();
+    const group = groupPlaces(saved.memory_places).find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(entry)));
+    return context.pictureWall(context.workspacePictureItems(entry, group), entry) + context.photoPaginationMarkup(entry);
+  };
   return {context, state, profile: () => saved,
     entry: () => saved.memory_places.find(place => place.place === town.place)};
 }
 
 function assertCityFallback(h) {
-  const html = h.context.workspaceMediaOverview();
+  const html = h.context.selectedPictureWall();
   assert.match(html, /city-photo\.jpg/);
   assert.match(html, /承德 · Original photographer/);
   assert.match(html, /1989/);
@@ -67,12 +72,12 @@ test('saved city photos stay visible during a child search and switch to arrivin
   });
   const search = h.context.loadPlacePictures(h.entry(), 'p');
   assertCityFallback(h);
-  assert.match(h.context.workspaceMediaOverview(), /role="status"/);
+  assert.match(h.context.selectedPictureWall(), /role="status"/);
   assert.equal(new URL(calls[0], 'http://localhost').searchParams.get('place'), '大石庙镇, 承德');
   assert.equal(new URL(calls[0], 'http://localhost').searchParams.get('period'), '1989年');
   finish();
   await search;
-  const html = h.context.workspaceMediaOverview();
+  const html = h.context.selectedPictureWall();
   assert.match(html, /town-photo\.jpg/);
   assert.doesNotMatch(html, /city-photo\.jpg/);
   assert.equal(h.profile().memory_places[0].pictures[0].asset_id, 'city-photo');
@@ -88,7 +93,7 @@ for (const status of ['NO_MATCH', 'UNAVAILABLE', 'throws']) {
     await h.context.loadPlacePictures(h.entry(), 'p');
     assertCityFallback(h);
     if (status !== 'NO_MATCH') {
-      assert.match(h.context.workspaceMediaOverview(), /data-photo-retry="[^>]*大石庙镇/);
+      assert.match(h.context.selectedPictureWall(), /data-photo-retry="[^>]*大石庙镇/);
     }
   });
 }
@@ -96,7 +101,7 @@ for (const status of ['NO_MATCH', 'UNAVAILABLE', 'throws']) {
 test('non-embeddable child results use the saved city photos', async () => {
   const h = harness(async () => ({status: 'PARTIAL', items: [{...photo('blocked'), allowed_actions: {embed: false}}]}));
   await h.context.loadPlacePictures(h.entry(), 'p');
-  const html = h.context.workspaceMediaOverview();
+  const html = h.context.selectedPictureWall();
   assert.match(html, /city-photo\.jpg/);
   assert.doesNotMatch(html, /blocked\.jpg/);
 });
@@ -106,10 +111,10 @@ test('same-period group photos are preferred and broader dated city photos remai
     photo_search_period: '1989年', pictures: [photo('sibling-photo')]};
   const olderCity = {...city, photo_search_period: '1983年', pictures: [{...photo('older-city-photo'), date_expression: '1983'}]};
   const h = harness(async () => ({}), [olderCity, town, sibling, otherCity]);
-  assert.match(h.context.workspaceMediaOverview(), /sibling-photo\.jpg/);
-  assert.doesNotMatch(h.context.workspaceMediaOverview(), /older-city-photo\.jpg/);
+  assert.match(h.context.selectedPictureWall(), /sibling-photo\.jpg/);
+  assert.doesNotMatch(h.context.selectedPictureWall(), /older-city-photo\.jpg/);
   h.profile().memory_places = h.profile().memory_places.filter(place => place.place !== '双桥区');
-  const html = h.context.workspaceMediaOverview();
+  const html = h.context.selectedPictureWall();
   assert.match(html, /older-city-photo\.jpg/);
   assert.match(html, /1983/);
   assert.match(html, /承德 · Original photographer/);
@@ -118,8 +123,8 @@ test('same-period group photos are preferred and broader dated city photos remai
 
 test('town photos for an older search period do not outrank matching city photos', () => {
   const h = harness(async () => ({}), [city, {...town, photo_search_period: '1983年', pictures: [photo('old-town-photo')]}, otherCity]);
-  assert.match(h.context.workspaceMediaOverview(), /city-photo\.jpg/);
-  assert.doesNotMatch(h.context.workspaceMediaOverview(), /old-town-photo\.jpg/);
+  assert.match(h.context.selectedPictureWall(), /city-photo\.jpg/);
+  assert.doesNotMatch(h.context.selectedPictureWall(), /old-town-photo\.jpg/);
 });
 
 test('a life-stage filter retains the city group fallback from earlier history', () => {

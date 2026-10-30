@@ -119,8 +119,9 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
     await Promise.all(loads);
     const selected=places.placeWorkspaceSelection();
     assert.equal(selected.place,choice.place);
-    const selectedHtml=places.workspaceMediaOverview();
-    const pins=JSON.parse((selectedHtml.match(/data-cesium-pins="([^"]*)"/)?.[1] || '[]')
+    const selectedMap=places.workspaceMediaOverview();
+    const selectedHtml=photos.pictureWall(places.mapPhotoAlbum(placeHistoryKey(selected)).pictures);
+    const pins=JSON.parse((selectedMap.match(/data-cesium-pins="([^"]*)"/)?.[1] || '[]')
       .replaceAll('&quot;','"').replaceAll('&amp;','&'));
     assert.deepEqual(pins.map(pin=>[pin.place,pin.latitude,pin.longitude,pin.isChild]),
       [[selected.place,selected.latitude,selected.longitude,false]],
@@ -171,12 +172,18 @@ Object.assign(context,{escapeHtml,formatText,translateWith,freeRecallFinished:()
   workspaceIsVisible:()=>true,workspaceTabs:()=>[],composingWorkspaceActive:()=>false,
   workspaceMediaOverview:places.workspaceMediaOverview,lifeStageNavigator:()=>'',
   currentSectionRework:()=>null,sectionReworkNotice:()=>'',currentUiLocale:()=>document.documentElement.lang});
-for (const name of ['privateDraftPreview','workspaceDetail']) {
+for (const name of ['privateDraftPreview','workspaceDetail','renderAgentTrace','recordWorkspaceSkillProgress']) {
   vm.runInContext(source.match(new RegExp(`function ${name}\\([^]*?\\n\\}`))[0],context);
 }
 state.showThinkingSteps=true;state.showDraftUpdates=true;state.privateDraft=packet.private_draft;
+Object.assign(context,{persistChatHistory() {},updateStreamingAssistantMessage() {}});
+for (const step of steps) context.recordWorkspaceSkillProgress(step);
+assert.ok(state.workspaceSkillProgress.items.some(step=>step.skill==='memoir-place-groups'),
+  'Replay real uncorrelated service progress through the production recorder');
 const workspace=context.workspaceDetail();
 assert.match(workspace,/workspace-media-overview/);
+assert.doesNotMatch(workspace,/agent-loop|data-step-id=/,
+  'Background research thinking steps must stay out of the place/photo workspace');
 assert.doesNotMatch(workspace,/private-draft-status|retry-private-draft|data-draft-locale/,
   'A real pending/failed draft response must not add draft controls to the place/photo workspace');
 

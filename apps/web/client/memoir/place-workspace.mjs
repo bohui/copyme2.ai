@@ -12,20 +12,31 @@ export function createPlaceWorkspace({
   profile, recordWorkspaceSkillProgress, render, saveProfileUpdates, state, supabaseApi, workspaceHasContent,
   photos, storyApi, onExploreMapMemory, onLoadMoreMapEvents
 }) {
-  const { bindPhotoMemoryActions, favoritePhotoWall, photoRequestKey, pictureWall, renderablePictureItems, workspacePictureItems } = photos;
+  const { bindPhotoMemoryActions, photoRequestKey, pictureWall, workspacePictureItems } = photos;
 
   const mapPhotoAlbums = createMapPhotoAlbums({
     getProjectId: () => state.project?.id,
     getAlbum: mapPhotoAlbum,
     getAlbums: mapPhotoAlbumsForScene,
-    renderAlbum: album => favoritePhotoWall() + (pictureWall(album.pictures, album.entry) || mapPhotoAlbumStatus(album.entry)),
+    renderAlbum: album => {
+      const pictures = pictureWall(album.pictures);
+      if (pictures) return pictures + album.entries.map(entry => photos.photoPaginationMarkup(entry)).join("");
+      return album.entries.map(mapPhotoAlbumStatus).join("") || (album.status === "error"
+        ? `<p role="status">${escapeHtml(translate("Memoir.workspace.picturesUnavailable"))}</p><button type="button" class="button button-secondary" data-map-photos-retry>${escapeHtml(translate("Memoir.workspace.picturesSearchRetry"))}</button>` : "");
+    },
     bindAlbum: (content, album) => {
       bindPhotoMemoryActions(content);
-      content.querySelector("[data-photo-more]")?.addEventListener("click", () => void loadPlacePictures(album.entry, state.project?.id, {more:true}));
-      content.querySelector("[data-photo-retry]")?.addEventListener("click", () => void loadPlacePictures(album.entry, state.project?.id, {force:true}));
+      photos.bindPrivatePhotos(content);
+      content.querySelector("[data-map-photos-retry]")?.addEventListener("click",() => void photos.refreshMapPhotos({force:true}));
+      for (const button of content.querySelectorAll("[data-photo-more], [data-photo-retry]")) button.addEventListener("click", () => {
+        const key = button.dataset.photoMore || button.dataset.photoRetry;
+        const entry = album.entries.find(entry => placeHistoryKey(entry) === key);
+        if (entry) void loadPlacePictures(entry, state.project?.id, {more:Boolean(button.dataset.photoMore),force:Boolean(button.dataset.photoRetry)});
+      });
     },
     closeLabel: () => translate("Memoir.workspace.closePhotoAlbum"),
-    onOpen: album => void loadPlacePictures(album.entry, state.project?.id),
+    bindImages: root => photos.bindPrivatePhotos(root),
+    onOpen: album => { for (const entry of album.entries || []) void loadPlacePictures(entry, state.project?.id); },
   });
 
   const mapMemoryEvents = createMapMemoryEvents({
@@ -44,6 +55,7 @@ export function createPlaceWorkspace({
     t: (key, values) => translateWith(`Memoir.workspace.${key}`, values),
     lifeStageText, onExplore: onExploreMapMemory, onLoadMore: onLoadMoreMapEvents,
     onOverview: () => { state.lifeStage = "all"; state.selectedPlace = null; render(); },
+    onChange: scene => mapPhotoAlbums.sync(scene),
   });
 
   const CESIUM_VERSION = "1.145";
@@ -198,36 +210,65 @@ export function createPlaceWorkspace({
     const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage));
     const groups = workspacePlaceGroups(matching);
     const activeGroup = current && groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
-    const photoGroup = current && (state.lifeStage === "all" ? activeGroup : workspacePlaceGroups(places)
-      .find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current))));
     const map = placeJourneyMarkup(current, "workspace", activeGroup);
-    const pictureItems = current ? renderablePictureItems(workspacePictureItems(current, photoGroup)) : [];
-    const pictures = favoritePhotoWall() + (pictureItems.length ? pictureWall(pictureItems, current) : "");
-    const gallery = pictures ? `<div class="workspace-media-gallery"><div class="workspace-media-header workspace-media-gallery-header"><h2>${t("pictures")}</h2></div>${pictures}</div>` : "";
-    return `<section class="workspace-media-overview${gallery ? "" : " no-gallery"}" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><div class="workspace-media-heading">${toggle}<div class="workspace-intro"><h2>${t("places")}</h2></div></div>${current && groups.length > 1 ? `<button class="text-button" data-all-places>${t("allPlaces")}</button>` : ""}</div>${map}</div>${gallery}</section>`;
+    return `<section class="workspace-media-overview no-gallery" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><button type="button" data-all-places>${t("mapMemoryOverview")}</button>${toggle}</div>${map}</div></section>`;
   }
 
-  function mapPhotoAlbumsForScene(scene) {
-    const container = scene.querySelector("[data-cesium-place]");
+  function mapPhotoAlbumsForScene(scene, {detailed = true, allPlaces = false} = {}) {
+    const container = scene?.querySelector("[data-cesium-place]");
     const pins = new Set(JSON.parse(container?.dataset.cesiumPins || "[]").map(pin => pin.key));
-    const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])], profile(), state.chat || []);
-    const group = workspacePlaceGroups(places).find(item => item.key === container?.dataset.placeKey);
-    const entries = group?.members || [placeWorkspaceSelection()].filter(Boolean);
-    return entries.map(entry => mapPhotoAlbum(placeHistoryKey(entry))).filter(Boolean)
-      .map(album => ({...album, pinned:pins.has(album.key)}));
+    const nodes = mapMemoryEvents.nodes();
+    const eventPlaces = nodes.map(node => node.location);
+    const places = mergePlaces([...(profile().memory_places || []), ...eventPlaces,
+      ...(state.placeJourney ? [state.placeJourney] : [])], profile(), state.chat || []);
+    const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage)
+      || nodes.some(node => placeHistoryKey(node.location) === placeHistoryKey(item)));
+    const groups = workspacePlaceGroups(matching);
+    const selected = groups.find(item => item.key === container?.dataset.placeKey);
+    const albums = (allPlaces ? groups : selected ? [selected] : workspacePlaceGroups([placeWorkspaceSelection()].filter(Boolean)))
+      .flatMap(group => group.members.map(entry => {
+        const key = placeHistoryKey(entry);
+        const target = Object.hasOwn(entry,"map_pin") ? entry.map_pin : placeMapTarget(entry);
+        const exact = Boolean(target && target.place === entry.place && Number.isFinite(target.latitude) && Number.isFinite(target.longitude));
+        return {key,place:entry.place,entry,entries:[entry],groupKey:group.key,city:group.city,
+          pictures:workspacePictureItems(entry).map(picture => ({...picture,place:picture.place || picture.reference_place || entry.place,
+            period:picture.period || photos.photoSearchPeriod(entry)})),
+          latitude:exact ? target.latitude : null,longitude:exact ? target.longitude : null,
+          pinned:exact && (allPlaces || pins.has(key))};
+      }));
+    const unlocated = [];
+    for (const photo of photos.mapPhotos()) {
+      const linked = nodes.filter(node => photo.event_ids?.includes(node.event.id));
+      const settings = linked.filter(node => node.role === "setting");
+      const keys = new Set((settings.length ? settings : linked).map(node => placeHistoryKey(node.location)));
+      const album = keys.size === 1 && albums.find(album => keys.has(album.key));
+      if (album) album.pictures.unshift(photo);
+      else if ((keys.size !== 1 || allPlaces) && (state.lifeStage === "all" || linked.length)) unlocated.push(photo);
+    }
+    const visible = detailed ? albums : [...new Set(albums.map(album => album.groupKey))].map(key => {
+      const members = albums.filter(album => album.groupKey === key), city = members[0].city;
+      return {key:`city-album:${key}`,place:city.place,entries:members.flatMap(album => album.entries),
+        pictures:photos.mergePlacePictures([],members.flatMap(album => album.pictures)),
+        latitude:city.latitude,longitude:city.longitude,pinned:Number.isFinite(city.latitude) && Number.isFinite(city.longitude)};
+    });
+    if (unlocated.length || photos.mapPhotosUnavailable()) visible.push({key:"personal:unlocated",place:translate("Memoir.story.privatePhoto"),
+      pictures:unlocated,entries:[],pinned:false,...(photos.mapPhotosUnavailable() ? {status:"error"} : {})});
+    const rendered = visible.map(album => {
+      const pictures = photos.mergePlacePictures([],album.pictures)
+        .sort((a,b) => Number(b.kind === "private_upload") - Number(a.kind === "private_upload"));
+      const requests = album.entries.map(entry => state.photoRequests?.get(photoRequestKey(entry)));
+      const status = album.status || (requests.some(request => request?.loading) ? "loading" : pictures.length ? "ready"
+        : requests.some(request => request?.error) ? "error" : "empty");
+      return {...album,pictures,count:pictures.length,status,
+        label:translateWith("Memoir.workspace.openPhotoAlbum",{place:album.place,count:pictures.length})};
+    });
+    return allPlaces ? rendered.sort((a,b) => (b.latitude ?? -Infinity) - (a.latitude ?? -Infinity)
+      || a.place.localeCompare(b.place,currentUiLocale())) : rendered;
   }
 
   function mapPhotoAlbum(key) {
-    const places = mergePlaces([...(profile().memory_places || []), ...(state.placeJourney ? [state.placeJourney] : [])], profile(), state.chat || []);
-    const entry = places.find(place => placeHistoryKey(place) === key);
-    if (!entry) return null;
-    const group = workspacePlaceGroups(places).find(item => item.members.some(member => placeHistoryKey(member) === key));
-    const pictures = workspacePictureItems(entry, group);
-    const request = state.photoRequests?.get(photoRequestKey(entry));
-    const status = request?.loading ? "loading" : request?.error ? "error" : pictures.length ? "ready" : "empty";
-    const detail = translate(`Memoir.workspace.${status === "loading" ? "picturesSearching" : status === "error" ? "picturesUnavailable" : "picturesNoMatch"}`);
-    return {key, place:entry.place, entry, pictures, count:pictures.length, status,
-      label: pictures.length ? translateWith("Memoir.workspace.openPhotoAlbum", {place:entry.place,count:pictures.length}) : `${entry.place} · ${detail}`};
+    return mapPhotoAlbumsForScene(null,{allPlaces:true}).find(album => album.key === key)
+      || mapPhotoAlbumsForScene(null,{allPlaces:true,detailed:false}).find(album => album.key === key);
   }
 
   function mapPhotoAlbumStatus(entry) {
@@ -674,6 +715,6 @@ export function createPlaceWorkspace({
   return {
     disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, mapPhotoAlbums, mapMemoryEvents,
     placeJourneySurface, placeMapTarget, placeWorkspaceSelection, rememberPlaceJourneyProject, resolvePlaceMap,
-    selectPlace, workspaceMediaOverview, resizeCesiumPlaceJourney
+    selectPlace, workspaceMediaOverview, resizeCesiumPlaceJourney, mapPhotoAlbum, mapPhotoAlbumsForScene
   };
 }

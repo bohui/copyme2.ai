@@ -559,6 +559,15 @@ def build_router(
         finally:
             await asyncio.to_thread(_close, storage)
 
+    @router.get('/map-photos')
+    async def memory_map_photos(project_id: str, authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: storage.lifetime_rpc('read_lifetime_map_photos', p_project_id=project_id), canonical_only)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
     @router.get('/map-events/{project_id}/{event_id}/places')
     async def memory_map_places(project_id: str, event_id: str, cursor: UUID | None = None,
                                 limit: int = Query(default=8, ge=1, le=8),

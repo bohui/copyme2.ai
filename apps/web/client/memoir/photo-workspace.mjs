@@ -4,15 +4,51 @@ import { formatDateExpression } from "./dates.mjs";
 import { placeHistoryKey } from "./places.mjs";
 
 export function createPhotoWorkspace({
-  api, captureProjectScope, isCurrentProjectScope, loadPlacePictures, placeMapTarget, profile, render, state, toast
+  api, captureProjectScope, isCurrentProjectScope, loadPlacePictures, placeMapTarget, profile, render, state, toast,
+  bindPrivatePhotos = () => {}
 }) {
   let photoPaginationObserver = null;
+  let mapPhotoScope, mapPhotoRevision, privateMapPhotos = [];
+  let mapPhotoError = false, mapPhotoLoading = false;
+  const mapPhotoReadRevision = () => JSON.stringify([state.project?.id,state.supabase?.user?.id,state.navigationGeneration,
+    state.memoryEventPage?.policy_epoch,state.memoryEventPage?.source_revision,state.memoryEventPage?.event_revision,state.chat?.length]);
+
+  function mapPhotos() {
+    return mapPhotoRevision === mapPhotoReadRevision() ? privateMapPhotos : [];
+  }
+
+  async function refreshMapPhotos({force = false} = {}) {
+    const owner = JSON.stringify([state.project?.id, state.supabase?.user?.id]);
+    if (owner !== mapPhotoScope) { mapPhotoScope = owner; mapPhotoRevision = null; privateMapPhotos = []; }
+    if (!state.project?.id || !state.supabase?.accessToken) return;
+    const revision = mapPhotoReadRevision();
+    if (revision === mapPhotoRevision && mapPhotoLoading) return;
+    if (!force && revision === mapPhotoRevision) return;
+    mapPhotoRevision = revision;
+    privateMapPhotos = [];
+    mapPhotoError = false; mapPhotoLoading = true;
+    const scope = captureProjectScope();
+    try {
+      const result = await api(`/v1/story/map-photos?project_id=${encodeURIComponent(state.project.id)}`);
+      if (!isCurrentProjectScope(scope) || mapPhotoRevision !== revision || mapPhotoReadRevision() !== revision) return;
+      const pictures = (result.photos || []).filter(photo => photo.kind === "private_upload"
+        && /^upload:[0-9a-f-]{36}$/i.test(photo.photo_id)).map(photo => ({...photo, allowed_actions:{embed:true}}));
+      privateMapPhotos = pictures;
+      render();
+    } catch {
+      if (isCurrentProjectScope(scope) && mapPhotoRevision === revision && mapPhotoReadRevision() === revision) {
+        mapPhotoError = true; render();
+      }
+    } finally {
+      if (mapPhotoRevision === revision) mapPhotoLoading = false;
+    }
+  }
 
   function mergePlacePictures(existing, incoming) {
     const seen = new Set();
     const unique = [];
     for (const picture of [...existing, ...incoming]) {
-      const keys = [picture.asset_id && `asset:${picture.asset_id}`, picture.content_hash && `hash:${picture.content_hash}`];
+      const keys = [picture.photo_id, picture.asset_id && `asset:${picture.asset_id}`, picture.content_hash && `hash:${picture.content_hash}`];
       for (const value of [picture.original_url, picture.image_url]) {
         if (!value) continue;
         try {
@@ -202,9 +238,11 @@ export function createPhotoWorkspace({
   function pictureWall(pictures = [], entry = null) {
     const t = key => escapeHtml(translate(`Memoir.workspace.${key}`));
     const renderablePictures = mergePlacePictures([], pictures).filter((picture) => picture.allowed_actions?.embed
-      && (!entry || photoMatchesScope(picture, entry, profile().story_focus)));
+      && (picture.kind === "private_upload" || !entry || photoMatchesScope(picture, entry, profile().story_focus)))
+      .sort((a,b) => Number(b.kind === "private_upload") - Number(a.kind === "private_upload"));
     if (!renderablePictures.length) return "";
     return `<section class="place-pictures" ${entry ? `data-photo-place="${escapeHtml(placeHistoryKey(entry))}"` : ""} aria-label="${t("publicReferenceCues")}">${renderablePictures.map((picture) => {
+      if (picture.kind === "private_upload") return responsePhotoMarkup([picture]);
       const src = referenceUrl(picture.image_url);
       const source = referenceUrl(picture.source_url);
       const sceneDate = formatDateExpression(picture.date_expression ||
@@ -367,8 +405,10 @@ export function createPhotoWorkspace({
   }
 
   return {
-    bindPhotoMemoryActions, bindPhotoPagination, favoritePhotoWall, mergePlacePictures, photoMatchesScope,
-    photoRequestKey, photoSearchPeriod, pictureWall, placePhotoCenter, renderablePictureItems,
+    bindPhotoMemoryActions, bindPhotoPagination, bindPrivatePhotos, favoritePhotoWall, mapPhotos, refreshMapPhotos,
+    mapPhotosUnavailable:() => mapPhotoRevision === mapPhotoReadRevision() && mapPhotoError,
+    mergePlacePictures, photoMatchesScope,
+    photoPaginationMarkup, photoRequestKey, photoSearchPeriod, pictureWall, placePhotoCenter, renderablePictureItems,
     responsePhotoMarkup, searchedPictures, selectedPhotoCue, workspacePictureItems
   };
 }

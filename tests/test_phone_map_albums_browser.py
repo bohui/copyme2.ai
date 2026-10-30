@@ -1,6 +1,7 @@
 """Synthetic mobile map albums; all API, photo and imagery responses are fixtures."""
 import json
 import os
+import base64
 from pathlib import Path
 
 import pytest
@@ -19,13 +20,15 @@ def album_page(request):
                 latitude=40.97, longitude=117.93, period='1980s', revision=1, status='active', schema_version=1)
     places = [city, dict(city, place='双桥区', hierarchy=city['hierarchy']+['双桥区'], granularity='suburb', latitude=40.94, longitude=117.96, revision=2),
               dict(city, place='大石庙镇', hierarchy=city['hierarchy']+['大石庙镇'], granularity='suburb', latitude=40.9401, longitude=117.9601, revision=3)]
+    if mode == 'events':
+        places.append(dict(city,place='悉尼',hierarchy=['Earth','澳大利亚','悉尼'],latitude=-33.86,longitude=151.2,revision=4))
     if mode == 'current':
         places = [dict(city, period='')]
     for i, place in enumerate(places):
         if mode.startswith('unresolved'):
             place['map_pin']=None
         date = '2026-08-01' if mode == 'current' else '1983'
-        place.update(photo_search_period=place['period'], photo_search_policy='place-source-rights-v11',
+        place.update(photo_search_period=place['period'], photo_search_policy='place-source-rights-v13',
                      photo_search_place=place['place']+', 承德' if place['granularity']=='suburb' else place['place'],
                      photo_search_complete=state_mode not in ('loading', 'error','current'), photo_search_at=1,
                      photo_search_latitude=place['latitude'], photo_search_longitude=place['longitude'],
@@ -55,7 +58,9 @@ def album_page(request):
             response = route.fetch()
             imagery = '''\nCesium.Google2DImageryProvider.fromUrl=async()=>new Cesium.GridImageryProvider();
               const OriginalViewer=Cesium.Viewer;window.Cesium={...Cesium,Viewer:new Proxy(OriginalViewer,{construct(target,args){
-                const viewer=Reflect.construct(target,args);window.__mapViewer=viewer;return viewer;}})};'''
+                const viewer=Reflect.construct(target,args);window.__mapViewer=viewer;
+                viewer.scene.renderError.addEventListener((scene,error)=>console.error('Map render failed: '+error));
+                return viewer;}})};'''
             if mode == 'tile-error':
                 imagery += '''Cesium.Google2DImageryProvider.fromUrl=async()=>{const provider=new Cesium.GridImageryProvider();
                   provider.requestImage=()=>Promise.reject(new Error('Synthetic tile rejection'));return provider;};'''
@@ -73,6 +78,21 @@ def album_page(request):
                 if route.request.method == 'PATCH': profile.update(route.request.post_data_json.get('profile',{}))
                 data = {'id':'album-project','revision':1,'profile':profile,'mode':'self','workspace_unlocked':False}
             elif path == '/story/state': data = {'family_features_enabled':False,'recall_status':{'payment_required':False}}
+            elif path == '/story/map-events' and mode == 'events':
+                events=[dict(id=id,revision=1,kind='event',status='active',life_stage=stage,title=title,
+                    temporal={'expression':f'Age {age}','precision':'age'},
+                    places=[{'role':'setting','status':'supported','place':place}])
+                    for id,age,place,stage,title in [('return',40,places[2],'midlife','Return home'),
+                        ('school',6,places[1],'childhood','First school'),('birth',0,places[0],'baby','Birth'),
+                        ('move',20,places[-1],'young_adulthood','Move to Sydney')]]
+                data={'project_id':'album-project','events':events,'policy_epoch':1,'source_revision':1,'event_revision':1,'complete':True}
+            elif path == '/story/map-photos':
+                data={'project_id':'album-project','photos':[dict(photo_id='upload:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+                    kind='private_upload',title='My school photo',event_ids=['school'])] if mode=='events' else []}
+            elif path == '/agent/projects/album-project/photos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content':
+                assert route.request.headers.get('authorization','').startswith('Bearer ')
+                return route.fulfill(content_type='image/png',body=base64.b64decode(
+                    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9l8AAAAASUVORK5CYII='))
             elif path == '/user/conversations': data = {'items':[]}
             elif path.endswith('/journey'): data = {'active_session':None}
             elif path.endswith('/place-photos') or (path.startswith('/agent/places/') and path.endswith('/photos')):
@@ -90,10 +110,13 @@ def album_page(request):
               : originalFetch(url,options);''')
         page = context.new_page()
         page.on('pageerror',lambda error:errors.append(str(error)))
+        page.on('console',lambda message:errors.append(message.text) if message.text.startswith('Map render failed:') else None)
         page.goto(base+'/memoir/interview/album-project',wait_until='networkidle')
         expect(page.locator('#chat-input')).to_be_enabled(timeout=30000)
-        if mode in ('unmapped', 'script-error', 'tile-error', 'missing-key'):
+        if mode == 'unmapped':
             expect(page.locator('.story-shell.conversation-only')).to_be_visible(timeout=30000)
+        elif mode in ('script-error', 'tile-error', 'missing-key'):
+            expect(page.locator('[data-map-retry]')).to_be_visible(timeout=30000)
         else:
             expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
         yield page, calls, errors
@@ -201,15 +224,22 @@ def test_album_search_states_and_current_default(album_page, request):
         expect(page.locator('[data-photo-album]:visible').last).to_be_focused()
 
 
-def test_desktop_gallery_and_phone_resize_preserve_map(album_page):
+def test_desktop_floating_albums_and_phone_resize_preserve_map(album_page):
     page,_,_=album_page
     page.set_viewport_size({'width':1440,'height':960})
-    expect(page.locator('.workspace-media-gallery')).to_be_visible()
-    expect(page.locator('.place-journey-heading')).to_be_visible()
-    expect(page.locator('[data-photo-album]:visible')).to_have_count(0)
-    assert page.locator('.workspace-media-gallery figure').count()==3
+    expect(page.locator('.workspace-media-gallery')).to_have_count(0)
+    expect(page.locator('.workspace-media-map-header h2')).to_have_count(0)
+    expect(page.locator('.map-photo-album-layer.is-desktop [data-photo-album]:visible')).to_have_count(1)
+    scene=page.locator('.place-journey-scene').bounding_box()
+    overview=page.locator('.workspace-media-overview').bounding_box()
+    assert abs(scene['width']-overview['width'])<2 and abs(scene['height']-overview['height'])<2
+    page.locator('[data-photo-album]:visible').first.click()
+    expect(page.get_by_role('dialog')).to_be_visible()
+    expect(page.get_by_role('dialog').locator('figure')).to_have_count(9)
+    page.keyboard.press('Escape')
+    expect(page.get_by_role('dialog')).not_to_be_visible()
     page.screenshot(path=str(OUTPUT/'after-desktop.png'))
-    page.evaluate('window.__previousMapViewer=window.__mapViewer')
+    page.evaluate('() => {window.__previousMapViewer=window.__mapViewer;}')
     for width,height in [(320,568),(430,932),(760,580),(390,500)]:
         page.set_viewport_size({'width':width,'height':height})
         expect(page.locator('[data-photo-album]:visible').first).to_be_visible()
@@ -240,20 +270,84 @@ def test_desktop_hides_photo_lane_until_photos_arrive(album_page, request):
         assert map_panel['width'] > overview['width'] * .9
     if loading:
         page.evaluate('finishPhotoSearch()')
-        expect(page.locator('.workspace-media-gallery')).to_be_visible()
-        expect(page.locator('.workspace-media-gallery figure')).to_have_count(1)
-        expect(page.locator('.workspace-media-overview.no-gallery')).to_have_count(0)
+        expect(page.locator('.workspace-media-gallery')).to_have_count(0)
+        expect(page.locator('.map-photo-album-layer.is-desktop img')).to_have_count(1)
+        expect(page.locator('.workspace-media-overview.no-gallery')).to_be_visible()
+
+
+@pytest.mark.parametrize('album_page',['events'],indirect=True)
+def test_desktop_event_chronology_photo_latitude_and_personal_photos_on_zoom(album_page):
+    page,_,_=album_page
+    page.set_viewport_size({'width':1440,'height':960})
+    cards=page.locator('.map-memory-layer.is-desktop .map-memory-cards [data-map-memory]')
+    expect(cards).to_have_count(4)
+    assert ['Birth','First school','Move to Sydney','Return home']==[
+        card.locator('.map-memory-summary').inner_text() for card in cards.all()]
+    albums=page.locator('.map-photo-album-layer.is-desktop .map-album-overflow [data-photo-album]')
+    expect(albums).to_have_count(2)
+    assert [album.locator('.map-album-place').inner_text() for album in albums.all()]==['承德','悉尼']
+    overview=page.locator('[data-memory-overview]').bounding_box()
+    collapse=page.locator('.workspace-media-map-header .workspace-toggle').bounding_box()
+    scene=page.locator('.place-journey-scene').bounding_box()
+    assert overview['x']<scene['x']+30 and collapse['x']>scene['x']+scene['width']-65
+    albums.first.click()
+    dialog=page.locator('.map-photo-album-viewer')
+    expect(dialog).to_be_visible()
+    figures=dialog.locator('figure')
+    assert figures.first.get_attribute('data-photo-kind')=='private_upload'
+    private=figures.first.locator('[data-private-response-photo]')
+    expect(private).to_be_visible()
+    assert private.get_attribute('src').startswith('blob:')
+    private.click()
+    expect(page.locator('.response-photo-viewer')).to_be_visible()
+    page.locator('.response-photo-viewer button').click()
+    dialog.locator('[data-close-photo-album]').click()
+    expect(dialog).not_to_be_visible()
+    # Click a chronological event to reach the detailed location scale.
+    cards.nth(1).click()
+    expect(albums).to_have_count(4)
+    assert [album.locator('.map-album-place').inner_text() for album in albums.all()]==['承德','大石庙镇','双桥区','悉尼']
+    expect(page.locator('.map-memory-detail')).to_contain_text('First school')
+    page.locator('[data-memory-close]').click()
+    expect(page.locator('.map-memory-detail')).not_to_be_visible()
+    school=albums.filter(has_text='双桥区')
+    expect(school.locator('.map-album-stack img').last).to_have_attribute('data-private-response-photo','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
+    school.click()
+    expect(dialog.locator('figure').first).to_have_attribute('data-photo-kind','private_upload')
+    dialog.locator('[data-close-photo-album]').click()
+    page.locator('[data-memory-overview]').click()
+    expect(albums).to_have_count(2)
+    OUTPUT.mkdir(parents=True,exist_ok=True)
+    page.screenshot(path=str(OUTPUT/'after-desktop-events.png'))
+    page.set_viewport_size({'width':1440,'height':640})
+    event_list=page.locator('.map-memory-cards')
+    event_list.evaluate('(element) => {element.scrollTop=100;}')
+    assert event_list.evaluate('(element) => element.scrollTop')==100
+    albums.last.click()
+    expect(dialog).to_be_visible()
+    dialog.locator('[data-close-photo-album]').click()
+    expect(dialog).not_to_be_visible()
+    assert event_list.evaluate('(element) => element.scrollTop')==100
+    page.locator('.workspace-media-map-header .workspace-toggle').click()
+    expect(page.locator('.workspace-detail.is-collapsed')).to_be_visible()
+    page.locator('.workspace-detail.is-collapsed .workspace-toggle').click()
+    expect(page.locator('.place-journey-scene')).to_be_visible()
+    expect(page.locator('.workspace-media-map-header h2')).to_have_count(0)
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
 
 
 @pytest.mark.parametrize('album_page',['unmapped','script-error','tile-error','missing-key'],indirect=True)
-def test_missing_or_failed_map_closes_the_context_workspace(album_page):
+def test_missing_map_stays_hidden_and_failed_map_keeps_retry(album_page,request):
     page,_,_=album_page
     page.set_viewport_size({'width':1440,'height':960})
-    expect(page.locator('.story-shell.conversation-only')).to_be_visible()
-    expect(page.locator('#workspace-detail')).to_have_count(0)
-    expect(page.locator('.workspace-media-overview')).to_have_count(0)
-    expect(page.locator('.place-journey-card')).to_have_count(0)
-    expect(page.locator('.life-stage-navigator')).to_have_count(0)
+    if request.node.callspec.params['album_page']=='unmapped':
+        expect(page.locator('.story-shell.conversation-only')).to_be_visible()
+        expect(page.locator('#workspace-detail')).to_have_count(0)
+        expect(page.locator('.life-stage-navigator')).to_have_count(0)
+    else:
+        expect(page.locator('.workspace-media-map')).to_be_visible()
+        expect(page.locator('[data-map-retry]')).to_be_visible()
+        expect(page.locator('.workspace-media-gallery')).to_have_count(0)
     expect(page.locator('#chat-input')).to_be_enabled()
 
 

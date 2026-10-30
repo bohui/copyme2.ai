@@ -115,6 +115,26 @@ def test_pending_association_binds_only_to_unique_matching_canonical_evidence(sq
     assert rpc(sql,'read_user_memory_events',"'project'")['events'][0]['photo_associations'][0]['quote']==source['text']
 
 
+def test_map_photo_list_keeps_uploads_private_and_only_uses_current_confirmed_event_links(sql):
+    photo=upload(sql); turn=accept(sql,photos=[photo['id']])
+    save(sql,turn,associations=[association(turn,photo)])
+    def photos(owner=OWNER):
+        return rpc(sql,'read_lifetime_map_photos',"'project'",owner=owner)['photos']
+    assert photos()[0]['event_ids']==[]
+    source=turn['source']; ref={'source_id':source['id'],'version':1,'quote':source['text']}
+    event=extract(sql,[source],[{'kind':'event','title':'Visit','source_refs':[ref]}])['events'][0]
+    listed=photos()
+    assert listed[0]['photo_id']=='upload:'+photo['id'] and listed[0]['event_ids']==[event['id']]
+    assert not any(key in listed[0] for key in ('object_path','user_id','quote','source_id'))
+    assert photos(OTHER)==[] and photos(THIRD)==[]
+    assert sql("set role anon; select public.read_lifetime_map_photos('project');",check=False).returncode!=0
+    link=rpc(sql,'read_user_interview_context',"'project'")['photo_associations'][0]
+    rpc(sql,'unlink_user_interview_photo',f"'project','{link['id']}'")
+    assert photos()[0]['event_ids']==[]
+    rpc(sql,'delete_user_interview_photo',f"'project','{photo['id']}'")
+    assert photos()==[]
+
+
 def test_newer_turn_and_source_edit_reject_stale_plan_and_photo_links(sql):
     photo=upload(sql); first=accept(sql,photos=[photo['id']])
     newer=accept(sql,'Another memory.',turn=str(uuid4()))

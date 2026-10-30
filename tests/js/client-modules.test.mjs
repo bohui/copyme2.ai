@@ -57,7 +57,8 @@ test('photo and map factories compose around the same saved place and favorite a
   const photo = {image_url:'https://photos.test/street.jpg', source_url:'https://photos.test/source',
     title:'Sydney street', date_expression:'1983', latitude:-33.86, longitude:151.2,
     allowed_actions:{embed:true}};
-  const place = {place:'Sydney', latitude:-33.86, longitude:151.2, period:'1983', pictures:[photo]};
+  const place = {place:'Sydney', hierarchy:['Earth','Australia','Sydney'], granularity:'city',
+    latitude:-33.86, longitude:151.2, period:'1983', pictures:[photo]};
   state.project.profile.memory_places = [place];
   state.placeJourney = place;
   let places;
@@ -66,7 +67,8 @@ test('photo and map factories compose around the same saved place and favorite a
   places = createPlaceWorkspace({...dependencies, photos, loadPlacePictures() {},
     saveProfileUpdates() {}, recordWorkspaceSkillProgress() {}, workspaceHasContent: () => true});
   assert.equal(places.placeWorkspaceSelection().place, 'Sydney');
-  assert.match(places.workspaceMediaOverview(), /Sydney street|street\.jpg/);
+  assert.doesNotMatch(places.workspaceMediaOverview(), /workspace-media-gallery|<h2>/);
+  assert.match(photos.pictureWall(places.mapPhotoAlbum(placeHistoryKey(place)).pictures), /Sydney street|street\.jpg/);
   const listeners = new Map();
   const button = {dataset:{photoMemory:'select',photoReference:JSON.stringify(photo)},
     addEventListener: (event, handler) => listeners.set(event, handler)};
@@ -74,7 +76,7 @@ test('photo and map factories compose around the same saved place and favorite a
   listeners.get('click')();
   await state.photoMemoryTask.done;
   assert.match(photos.selectedPhotoCue(), /Sydney street/);
-  assert.match(places.workspaceMediaOverview(), /photo-favorites/);
+  assert.match(photos.favoritePhotoWall(), /photo-favorites/);
   assert.equal(state.photoMemoryRevision, 1);
 });
 
@@ -202,7 +204,8 @@ test('place workspace refreshes its localized cache without location buttons', a
     await new Promise(resolve=>setImmediate(resolve));
     const html=places.workspaceMediaOverview();
     assert.doesNotMatch(html,/place-choices|data-place-choice=/);
-    assert.match(html,language==='zh-CN' ? /<h2>地点<\/h2>/ : /<h2>Places<\/h2>/);
+    assert.match(html,language==='zh-CN' ? /完整旅程/ : /Whole journey/);
+    assert.doesNotMatch(html,/<h2>/);
     assert.doesNotMatch(html,/place-journey-heading/);
   }
   assert.deepEqual(requests,['zh-CN','en-AU']);

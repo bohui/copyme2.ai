@@ -2,14 +2,19 @@ const escape = value => String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&
 
 export function albumStackMarkup(album, origin = 'https://memoir.invalid') {
   const images = (album.pictures || []).filter(photo => photo.allowed_actions?.embed).map(photo => {
+    if (photo.kind === 'private_upload') {
+      const id = photo.photo_id?.replace(/^upload:/, '');
+      return /^[0-9a-f-]{36}$/i.test(id || '') ? `<img data-private-response-photo="${escape(id)}" alt="" hidden draggable="false" />` : '';
+    }
     if (typeof photo.image_url !== 'string' || !photo.image_url.trim()) return '';
     try {
       const url = new URL(photo.image_url, origin);
-      return url.protocol === 'https:' || (url.origin === origin && url.pathname.startsWith('/static/')) ? url.href : '';
+      return url.protocol === 'https:' || (url.origin === origin && url.pathname.startsWith('/static/'))
+        ? `<img src="${escape(url.href)}" alt="" draggable="false" />` : '';
     } catch { return ''; }
-  }).filter(Boolean).slice(0, 3);
+  }).filter(Boolean).slice(0, 3).reverse();
   const count = album.status === 'loading' ? '…' : album.status === 'error' ? '!' : album.count ?? 0;
-  return `<button type="button" class="map-photo-album ${album.status === 'loading' ? 'is-loading' : ''}" data-photo-album="${escape(album.key)}" aria-label="${escape(album.label)}" aria-haspopup="dialog"><span class="map-album-stack" aria-hidden="true">${images.length ? images.map(src => `<img src="${escape(src)}" alt="" draggable="false" />`).join('') : '<span class="map-album-placeholder">▧</span>'}<span class="map-album-count">${count}</span></span><span class="map-album-place">${escape(album.place)}</span></button>`;
+  return `<button type="button" class="map-photo-album ${album.status === 'loading' ? 'is-loading' : ''}" data-photo-album="${escape(album.key)}" aria-label="${escape(album.label)}" aria-haspopup="dialog"><span class="map-album-stack" aria-hidden="true">${images.length ? images.join('') : '<span class="map-album-placeholder">▧</span>'}<span class="map-album-count">${count}</span></span><span class="map-album-place">${escape(album.place)}</span></button>`;
 }
 
 // Displace nearby albums while retaining a line to their actual geographic pin.
@@ -37,9 +42,11 @@ export function layoutMapAlbums(points, width, height, reserve = 50) {
   return reserve === 50 && boxes.some(box => box.overflow) ? layoutMapAlbums(points,width,height,122) : boxes;
 }
 
-export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderAlbum, bindAlbum, closeLabel, onOpen = () => {}}) {
+export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderAlbum, bindAlbum, closeLabel,
+  bindImages = () => {}, onOpen = () => {}}) {
   let dialog, currentKey, currentProject, trigger, layer, signature, lastMarkup;
   let removePostRender;
+  let sceneElement, albums = [], detailed = true, collectionMode;
   const mobile = () => window.matchMedia('(max-width: 760px)').matches;
   function hide() {
     const key = currentKey || trigger?.dataset.photoAlbum || trigger?.dataset.photoMarker;
@@ -79,7 +86,6 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
     dialog.querySelector('h2').textContent = album.place;
   }
   function open(key, source = null, restore = false) {
-    if (!mobile()) return false;
     const album = getAlbum(key);
     if (!album) return false;
     trigger = source || document.activeElement;
@@ -105,12 +111,12 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
   }
   window.addEventListener('popstate',() => {
     const saved = window.history.state?.memoirPhotoAlbum;
-    if (saved?.projectId === getProjectId() && mobile()) open(saved.key,null,true);
+    if (saved?.projectId === getProjectId()) open(saved.key,null,true);
     else hide();
   });
-  window.matchMedia('(max-width: 760px)').addEventListener('change',event => {if (!event.matches && dialog?.open) close();});
   function sync(scene, focusedKey = null) {
     updateDialog();
+    sceneElement = scene;
     if (!scene) { layer = null; signature = null; return; }
     layer = scene.querySelector('.map-photo-album-layer');
     if (!layer) {
@@ -122,13 +128,19 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
       });
       scene.append(layer);
     }
-    const albums = getAlbums(scene);
+    collectionMode = `${mobile()}:${detailed}`;
+    albums = getAlbums(scene,{detailed:mobile() || detailed,allPlaces:!mobile()});
+    if (!mobile()) albums = albums.filter(album => album.count || ['loading','error'].includes(album.status));
+    layer.classList.toggle('is-desktop',!mobile());
     const next = JSON.stringify(albums);
     if (signature !== next || layer.dataset.signature !== next) {
+      const scroll = layer.querySelector('.map-album-overflow')?.scrollTop || 0;
       signature = next;
       layer.dataset.signature = next;
-      layer.innerHTML = '<div class="map-album-overflow">' + albums.map(album => `<div class="map-album-anchor" data-album-key="${escape(album.key)}" data-album-pinned="${Boolean(album.pinned)}"><span class="map-album-stem" aria-hidden="true"></span>${albumStackMarkup(album,window.location.origin)}</div>`).join('') + '</div>'
+      layer.innerHTML = '<canvas class="map-album-links" aria-hidden="true"></canvas><div class="map-album-overflow">' + albums.map(album => `<div class="map-album-anchor" data-album-key="${escape(album.key)}" data-album-pinned="${Boolean(album.pinned)}"><span class="map-album-stem" aria-hidden="true"></span>${albumStackMarkup(album,window.location.origin)}</div>`).join('') + '</div>'
         + albums.filter(album => album.pinned).map(album => `<button type="button" class="map-photo-marker" data-photo-marker="${escape(album.key)}" aria-label="${escape(album.label)}" aria-haspopup="dialog"></button>`).join('');
+      bindImages(layer);
+      layer.querySelector('.map-album-overflow').scrollTop = scroll;
     }
     if (focusedKey && !dialog?.open) [...layer.querySelectorAll('[data-photo-album]')]
       .find(button => button.dataset.photoAlbum === focusedKey)?.focus({preventScroll:true});
@@ -136,32 +148,35 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
   function attach(viewer, cesium, pins) {
     removePostRender?.();
     const projectId = getProjectId();
-    const points = pins.map(pin => ({...pin,position:cesium.Cartesian3.fromDegrees(pin.longitude,pin.latitude)}));
     const position = () => {
       if (!layer?.isConnected || viewer.isDestroyed() || getProjectId() !== projectId) return;
       const isMobile = mobile();
+      const zoom = viewer.scene.mode === cesium.SceneMode.SCENE2D ? viewer.camera.frustum.right - viewer.camera.frustum.left
+        : viewer.camera.positionCartographic.height;
+      detailed = zoom < 18000;
+      if (collectionMode !== `${isMobile}:${detailed}`) sync(sceneElement);
+      layer.classList.toggle('is-desktop',!isMobile);
       for (const pin of pins) {
         const label = viewer.entities.getById(pin.key)?.label;
         if (label) label.show = !isMobile;
       }
-      if (!isMobile) return;
       layer.classList.remove('is-fallback');
-      const projected = points.map(pin => {
-        const point = cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,pin.position);
-        return {key:pin.key,x:point?.x,y:point?.y};
+      const projected = albums.filter(album => album.pinned).map(album => {
+        const point = cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,cesium.Cartesian3.fromDegrees(album.longitude,album.latitude));
+        return {key:album.key,x:point?.x,y:point?.y};
       });
       const hasUnpinnedAlbums = Boolean(layer.querySelector('[data-album-pinned="false"]'));
       const memoryCards = Boolean(layer.closest('.has-map-memories'));
-      const boxes = memoryCards ? projected.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y))
+      const boxes = !isMobile || memoryCards ? projected.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y))
         .map(point => ({...point,overflow:true})) : layoutMapAlbums(projected,layer.clientWidth,layer.clientHeight,hasUnpinnedAlbums ? 94 : 50);
       for (const marker of layer.querySelectorAll('[data-photo-marker]')) {
         const point = boxes.find(item => item.key === marker.dataset.photoMarker);
-        marker.hidden = !point || memoryCards;
+        marker.hidden = !point || (isMobile && memoryCards) || point.x < 0 || point.y < 0 || point.x > layer.clientWidth || point.y > layer.clientHeight;
         if (point) { marker.style.left = `${point.x-22}px`; marker.style.top = `${point.y-22}px`; }
       }
       const overflow = layer.querySelector('.map-album-overflow');
       for (const anchor of layer.querySelectorAll('.map-album-anchor')) {
-        if (anchor.dataset.albumPinned === 'false') {
+        if (!isMobile || anchor.dataset.albumPinned === 'false') {
           anchor.hidden = false;
           if (anchor.parentElement !== overflow) overflow.append(anchor);
           anchor.removeAttribute('style');
@@ -184,10 +199,27 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
         stem.style.transform = `rotate(${Math.atan2(-dx,dy)}rad)`;
       }
       overflow.hidden = !overflow.querySelector('.map-album-anchor:not([hidden])');
+      const canvas = layer.querySelector('.map-album-links');
+      const ratio = Math.min(window.devicePixelRatio || 1,2);
+      if (canvas.width !== layer.clientWidth*ratio || canvas.height !== layer.clientHeight*ratio) {
+        canvas.width=layer.clientWidth*ratio;canvas.height=layer.clientHeight*ratio;
+      }
+      const context = canvas.getContext('2d');
+      context.setTransform(ratio,0,0,ratio,0,0);context.clearRect(0,0,layer.clientWidth,layer.clientHeight);
+      if (!isMobile) {
+        const bounds = layer.getBoundingClientRect(), list = overflow.getBoundingClientRect();
+        for (const anchor of overflow.querySelectorAll('.map-album-anchor')) {
+          const point = projected.find(point => point.key === anchor.dataset.albumKey), card = anchor.getBoundingClientRect();
+          if (!point || point.x < 0 || point.x > layer.clientWidth || point.y < 0 || point.y > layer.clientHeight
+              || card.top < list.top || card.bottom > list.bottom) continue;
+          context.beginPath();context.moveTo(card.left-bounds.left,card.top+card.height/2-bounds.top);
+          context.lineTo(point.x,point.y);context.strokeStyle='#fff8e7bb';context.lineWidth=1.5;context.stroke();
+        }
+      }
     };
     removePostRender = viewer.scene.postRender.addEventListener(position);
     position();
   }
-  function dispose() { removePostRender?.(); removePostRender = null; layer = null; signature = null; }
+  function dispose() { removePostRender?.(); removePostRender = null; layer = null; sceneElement = null; signature = null; collectionMode = null; }
   return {open,sync,attach,dispose};
 }

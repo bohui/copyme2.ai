@@ -78,6 +78,8 @@ await family.refreshFamilyContext();
 assert.equal(state.timeline.length,2,'Ordinary recall must load saved events before the map can render them');
 const workspace=createPlaceWorkspace({...dependencies,photos:{bindPhotoMemoryActions(){},favoritePhotoWall:()=>'',pictureWall:()=>'',
     photoRequestKey:()=>'',renderablePictureItems:()=>[],workspacePictureItems:()=>[]}});
+// This replay supplies only the event layer DOM; photo albums have their own browser coverage.
+workspace.mapPhotoAlbums.sync=()=>{};
 workspace.mapMemoryEvents.sync(null);
 await new Promise(resolve=>setImmediate(resolve));
 assert.deepEqual(requests.sort(),['Newtown','Pyrmont']);

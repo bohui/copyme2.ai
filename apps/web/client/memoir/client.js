@@ -226,6 +226,7 @@ const {
 const photos = createPhotoWorkspace({
   state, api, profile, render, toast, captureProjectScope, isCurrentProjectScope, loadPlacePictures,
   placeMapTarget: journey => placeMapTarget(journey),
+  bindPrivatePhotos: root => state.photoTurns?.bindImages(root, {path:memoirApiPath, errorText:translate("Memoir.story.photoUnavailable")}),
 });
 
 const {
@@ -2269,6 +2270,9 @@ function renderStory() {
   const headerActions = !isFreshAnonymousSession()
     ? `<div class="chat-heading-actions"><span class="chapter-chip">${unlocked ? storyText("chapterLabel", { number: state.chapters.length || 1 }) : t("beforeChapter")}</span>${historyToggle}</div>`
     : "";
+  const serviceProgress = state.workspaceSkillProgress?.project_id === state.project?.id
+    && state.workspaceSkillProgress?.owner_id === state.supabase?.user?.id
+    ? renderAgentTrace(state.workspaceSkillProgress.items,"live") : "";
   activeWorkspaceTab();
   $("#app").innerHTML = `
     <div class="story-shell ${shellClass}">
@@ -2278,7 +2282,7 @@ function renderStory() {
       </header>
       <div class="conversation-layout">
         <main class="${chatClass}" aria-label="${t("mainLabel")}">
-          <div id="chat-scroll" class="chat-scroll" tabindex="0" role="region" aria-label="${t("historyRegion")}"><div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
+          <div id="chat-scroll" class="chat-scroll" tabindex="0" role="region" aria-label="${t("historyRegion")}"><div class="chat-heading"><div>${unlocked ? `<div class="eyebrow">${t("workspaceEyebrow")}</div>` : ""}<h1>${t(unlocked ? "workspaceTitle" : "conversationTitle")}</h1><p>${t(unlocked ? "workspaceDescription" : "conversationDescription")}</p></div>${headerActions}</div><div id="chat-history" class="chat-history"${state.chatHistoryCollapsed ? " hidden" : ""}>${state.chat.map(renderMessage).join("")}${serviceProgress ? `<div class="message-trace" aria-live="polite">${serviceProgress}</div>` : ""}</div>${state.loading && !state.chat.at(-1)?.streaming ? `<div class="thinking" role="status"><em>${state.supabase?.accessToken ? t("thinkingCodex") : t("thinkingSimulated")}</em></div>` : ""}${placeJourneySurface()}${recallPackagePrompt()}</div>
           ${chatComposer()}
         </main>
         ${workspaceAvailable ? workspaceDetail() : ""}
@@ -2305,6 +2309,7 @@ function renderStory() {
   }
   mapPhotoAlbums.sync($(".place-journey-scene"), albumFocus);
   mapMemoryEvents.sync($(".place-journey-scene"), mapMemoryFocus);
+  if ($(".place-journey-scene")) void photos.refreshMapPhotos();
   initFamilyVisualizations();
   const nextGallery = $(".place-pictures[data-photo-place]");
   if (nextGallery && nextGallery.dataset.photoPlace === galleryPlace) nextGallery.scrollTop = galleryTop;
@@ -2362,10 +2367,7 @@ function workspaceDetail() {
   const tabsMarkup = tabs.length
     ? `<nav class="workspace-detail-tabs" aria-label="${t("workspaceViews")}">${tabs.map(([key, label]) => `<button class="workspace-detail-tab ${active === key ? "active" : ""}" aria-current="${active === key ? "page" : "false"}" data-workspace-tab="${key}">${escapeHtml(label)}</button>`).join("")}</nav>`
     : "";
-  const serviceProgress = state.workspaceSkillProgress?.project_id === state.project?.id
-    && state.workspaceSkillProgress?.owner_id === state.supabase?.user?.id
-    ? renderAgentTrace(state.workspaceSkillProgress.items,"live") : "";
-  const contentMarkup = (content ? `${tabsMarkup}${content}` : tabsMarkup)+serviceProgress;
+  const contentMarkup = content ? `${tabsMarkup}${content}` : tabsMarkup;
   const composing = composingWorkspaceActive();
   const mediaOverview = composing || (tabs.length && !state.placeJourney) ? "" : workspaceMediaOverview(toggle);
   const workspaceHeader = mediaOverview ? "" : `<div class="workspace-detail-top">${toggle}</div>`;

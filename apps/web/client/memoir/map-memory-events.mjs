@@ -3,7 +3,7 @@ import { buildMapMemoryJourney, cityEventCards, eventAgeLabel, layoutMemoryCards
 
 export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScope, getIdentity = getScope, getStage,
   getPage = () => null, readPlaces, resolvePlaces = async places => places,
-  t, lifeStageText, onExplore, onLoadMore, onOverview = () => {}}) {
+  t, lifeStageText, onExplore, onLoadMore, onOverview = () => {}, onChange = () => {}}) {
   let layer, sceneElement, viewer, cesium, removePostRender, scope, journey, signature, selectedKey;
   let expandedCity = null, lastMode, initialIdentity, overviewRequested = false;
   const places = new Map();
@@ -84,6 +84,10 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
           position();
         } else {
           selectedKey = key;
+          if (!window.matchMedia("(max-width: 760px)").matches) {
+            const node = journey.nodes.find(node => node.key === key);
+            if (node) frame([node],2500);
+          }
           updateDetail();
         }
       });
@@ -106,6 +110,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     updateDetail();
     if (focusedKey) [...layer.querySelectorAll("[data-map-memory]")]
       .find(button => button.dataset.mapMemory === focusedKey)?.focus({preventScroll:true});
+    onChange(scene);
   }
 
   function overview() {
@@ -125,7 +130,8 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const longitude = ((Math.min(...longitudes) + Math.max(...longitudes)) / 2 + 540) % 360 - 180;
     const span = Math.max((Math.max(...latitudes) - Math.min(...latitudes)) * 111320,
       (Math.max(...longitudes) - Math.min(...longitudes)) * 111320 * Math.cos(latitude * Math.PI / 180));
-    const aspect = Math.max(1, layer.clientHeight / layer.clientWidth);
+    const aspect = Math.max(1, (sceneElement.clientHeight || layer.clientHeight)
+      / Math.max(1, sceneElement.clientWidth || layer.clientWidth));
     viewer.camera.flyTo({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, Math.max(minimum, span * 3.5 * aspect)),
       duration:window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1.1});
   }
@@ -155,29 +161,47 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     layer.classList.toggle("is-ready", ready);
     if (!ready) return;
     const identity = getIdentity();
-    if ((initialIdentity !== identity || overviewRequested) && journey.nodes.length) {
-      initialIdentity = identity;overviewRequested = false;frame(journey.nodes,40000);
+    if (initialIdentity !== identity || overviewRequested) {
+      const nodes = journey.nodes.length ? journey.nodes : !window.matchMedia("(max-width: 760px)").matches || overviewRequested
+        ? getGroups([]).flatMap(group => group.members.map(member => Object.hasOwn(member,"map_pin") ? member.map_pin : member))
+          .filter(place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude)) : [];
+      if (nodes.length) { initialIdentity = identity;overviewRequested = false;frame(nodes,40000); }
     }
     const width = layer.clientWidth, height = layer.clientHeight;
     layer.classList.toggle("is-compact",width < 500);
+    const desktop = !window.matchMedia("(max-width: 760px)").matches;
+    layer.classList.toggle("is-desktop",desktop);
     const zoom = viewer.scene.mode === cesium.SceneMode.SCENE2D ? viewer.camera.frustum.right - viewer.camera.frustum.left
       : viewer.camera.positionCartographic.height;
     const detailed = zoom < 18000;
     if ((lastMode === true && !detailed) || zoom > 80000) expandedCity = null;
     lastMode = detailed;
-    const cards = detailed ? journey.nodes : cityEventCards(journey.nodes).flatMap(city => city.groupKey === expandedCity ? city.nodes : [city]);
-    const next = JSON.stringify([cards, width < 500, selectedKey]);
+    const cards = desktop ? journey.nodes.map(node => ({...node,place:detailed ? node.place : node.city,overview:!detailed}))
+      : detailed ? journey.nodes : cityEventCards(journey.nodes).flatMap(city => city.groupKey === expandedCity ? city.nodes : [city]);
+    const next = JSON.stringify([cards, width < 500, selectedKey, desktop]);
     const container = layer.querySelector(".map-memory-cards");
     const overflow = layer.querySelector(".map-memory-overflow");
     if (signature !== next) {
       const focused = document.activeElement?.dataset?.mapMemory;
+      const scroll = container.scrollTop;
       signature = next;
       container.innerHTML = cards.map(card => `<div class="map-memory-anchor" data-memory-key="${escapeHtml(card.key)}"><span class="map-memory-stem" aria-hidden="true"></span>${memoryEventCardMarkup(card,{t,lifeStageText,active:card.key === selectedKey})}</div>`).join("");
       overflow.replaceChildren();
+      container.scrollTop = scroll;
       if (focused) [...container.querySelectorAll("[data-map-memory]")].find(button => button.dataset.mapMemory === focused)?.focus({preventScroll:true});
     }
     const project = point => cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,
       cesium.Cartesian3.fromDegrees(point.longitude,point.latitude));
+    if (desktop) {
+      for (const anchor of layer.querySelectorAll(".map-memory-anchor")) {
+        anchor.hidden = false;
+        anchor.removeAttribute("style");
+        if (anchor.parentElement !== container) container.append(anchor);
+      }
+      overflow.hidden = true;
+      drawTrail(project,width,height);
+      return;
+    }
     const points = cards.map(card => ({key:card.key,...project(card)}));
     const cardWidth = width < 500 ? 164 : 194;
     const boxes = layoutMemoryCards(points,width,height,cardWidth,126,88,
@@ -207,6 +231,19 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const context = canvas.getContext("2d");
     context.setTransform(ratio,0,0,ratio,0,0);
     context.clearRect(0,0,width,height);
+    if (!window.matchMedia("(max-width: 760px)").matches) {
+      const bounds = layer.getBoundingClientRect(), list = layer.querySelector(".map-memory-cards").getBoundingClientRect();
+      for (const anchor of layer.querySelectorAll(".map-memory-anchor")) {
+        const node = journey.nodes.find(node => node.key === anchor.dataset.memoryKey);
+        if (!node) continue;
+        const point = project(lastMode ? node : {latitude:node.cityLatitude,longitude:node.cityLongitude});
+        const card = anchor.getBoundingClientRect();
+        if (!point || point.x < 0 || point.x > width || point.y < 0 || point.y > height
+            || card.top < list.top || card.bottom > list.bottom) continue;
+        context.beginPath();context.moveTo(card.right-bounds.left,card.top+card.height/2-bounds.top);
+        context.lineTo(point.x,point.y);context.strokeStyle = "#45665266";context.lineWidth = 1;context.stroke();
+      }
+    }
     for (const leg of journey.legs) {
       const from = project(leg.from), to = project(leg.to);
       if (!from || !to) continue;
@@ -246,5 +283,5 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
   function dispose() {
     removePostRender?.();removePostRender = null;viewer = null;layer = null;sceneElement = null;signature = null;lastMode = null;selectedKey = null;
   }
-  return {sync, attach, dispose, overview};
+  return {sync, attach, dispose, overview, nodes:() => journey?.nodes || []};
 }

@@ -117,6 +117,9 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
       const stage = lifeStage < 0 && !event.timing_conflict && !calendar && age.start === null && event.temporal_anchor === "present"
         ? stages.length : lifeStage;
       nodes.push({key, event, age, year, calendar, index, stage, role:link.role, groupKey:group.key,
+        location:{place:member.place,hierarchy:member.hierarchy,granularity:member.granularity,
+          latitude:member.latitude,longitude:member.longitude,map_city:member.map_city,map_city_key:member.map_city_key,
+          ...(Object.hasOwn(member,"map_pin") ? {map_pin:member.map_pin} : {})},
         city:group.city.place, cityLatitude:city?.latitude ?? target.latitude, cityLongitude:city?.longitude ?? target.longitude,
         place:member.place, latitude:target.latitude, longitude:target.longitude, cityOnly,
         summary:event.summary || event.title, uncertainty:event.uncertainty || "",
@@ -166,7 +169,7 @@ export function memoryEventCardMarkup(card, {t, lifeStageText, active = false}) 
   const title = city ? card.city : card.place;
   const summary = city ? card.nodes[0].summary : card.summary;
   const count = city ? t(card.count === 1 ? "mapEventCountOne" : "mapEventCount", {count:card.count}) : "";
-  return `<button type="button" class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count,summary].filter(Boolean).join(" · "))}" aria-expanded="${active}"><span class="map-memory-meta"><span class="map-memory-age">${escapeHtml(age)}</span>${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span><strong>${escapeHtml(title)}</strong><span class="map-memory-summary">${escapeHtml(summary)}</span>${stage ? `<span class="map-memory-stage">${escapeHtml(stage)}</span>` : ""}<span class="map-memory-hint">${escapeHtml(t(city ? "mapEventZoomIn" : card.cityOnly ? "mapEventCityLocation" : "mapEventOpen"))}</span></button>`;
+  return `<button type="button" class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count,summary].filter(Boolean).join(" · "))}" aria-expanded="${active}"><span class="map-memory-meta"><span class="map-memory-age">${escapeHtml(age)}</span>${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span><strong>${escapeHtml(title)}</strong><span class="map-memory-summary">${escapeHtml(summary)}</span>${stage ? `<span class="map-memory-stage">${escapeHtml(stage)}</span>` : ""}<span class="map-memory-hint">${escapeHtml(t(city || card.overview ? "mapEventZoomIn" : card.cityOnly ? "mapEventCityLocation" : "mapEventOpen"))}</span></button>`;
 }
 
 // Move colliding cards while preserving a stem to the true map position.

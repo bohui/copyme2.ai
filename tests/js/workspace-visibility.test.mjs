@@ -1,6 +1,7 @@
 import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {applyDerivedWorkspace} from '../../apps/web/client/memoir/derived-workspace.mjs';
 
@@ -109,6 +110,48 @@ test('local draft debugging does not add a status card to the place/photo worksp
   });
   assert.doesNotMatch(html.match(/<main\b[^]*?<\/main>/)[0], /private-draft-status/);
   assert.doesNotMatch(html, /private-draft-status|Draft language and retry/);
+});
+
+for (const locale of ['en-AU', 'zh-CN']) {
+  test(`background service thinking steps stay in chat across workspace states (${locale})`, () => {
+    const messages = JSON.parse(readFileSync(new URL(`../../apps/web/messages/${locale}.json`, import.meta.url), 'utf8'));
+    for (const workspace of [{}, {workspaceCollapsed:true}, {placeJourney:null}, {compositionStage:3}]) {
+      const {state, context, app} = workspaceHarness({...workspace, showThinkingSteps:true,
+        supabase:{user:{id:'owner'}}}, {
+        currentUiLocale:() => locale,
+        translate:key => key.split('.').reduce((value, part) => value?.[part], messages),
+      });
+      for (const name of ['renderAgentTrace', 'recordWorkspaceSkillProgress', 'applyBackgroundSkillProgress']) {
+        vm.runInContext(extract(name), context);
+      }
+      const progress = {project_id:'project', items:[{id:'place-grouping', skill:'memoir-place-groups',
+        phase:'grouping', lane:'B', status:'completed', started_at:'2026-10-30T00:39:53Z', finished_at:'2026-10-30T00:39:54Z'}]};
+      context.applyBackgroundSkillProgress(progress);
+      context.applyBackgroundSkillProgress(progress);
+      context.renderStory();
+      const chat = app.innerHTML.match(/<main\b[^]*?<\/main>/)[0];
+      const detail = app.innerHTML.match(/<aside id="workspace-detail"[^]*?<\/aside>/)?.[0] || '';
+      assert.match(chat, /class="message-trace"/);
+      assert.match(chat, /data-step-id="place-grouping"/);
+      assert.ok(chat.includes(messages.Memoir.trace.title));
+      assert.doesNotMatch(chat, /class="agent-loop" open/);
+      assert.equal((app.innerHTML.match(/data-step-id="place-grouping"/g) || []).length, 1);
+      assert.doesNotMatch(detail, /agent-loop|place-grouping/);
+      assert.equal(state.workspaceSkillProgress.items.length, 1);
+      assert.ok(state.chat.every(message => !message.trace));
+    }
+  });
+}
+
+test('chat service thinking steps respect the flag, project and account', () => {
+  for (const overrides of [{showThinkingSteps:false}, {project:{id:'other'}}, {supabase:{user:{id:'other'}}}]) {
+    const {context, app} = workspaceHarness({showThinkingSteps:true, supabase:{user:{id:'owner'}},
+      workspaceSkillProgress:{project_id:'project', owner_id:'owner', items:[{id:'private-grouping', skill:'memoir-place-groups'}]},
+      ...overrides});
+    vm.runInContext(extract('renderAgentTrace'), context);
+    context.renderStory();
+    assert.doesNotMatch(app.innerHTML, /agent-loop|private-grouping/);
+  }
 });
 
 test('early family and timeline records do not open a workspace without a map', () => {

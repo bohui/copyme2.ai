@@ -11121,6 +11121,23 @@ CREATE FUNCTION public.read_user_interview_context_before_phase(p_project_id tex
  select public.read_user_interview_context_before_news(p_project_id) || jsonb_build_object('historical_news',public.read_user_historical_news(p_project_id))
 $$;
 
+CREATE FUNCTION public.read_lifetime_map_photos(p_project_id text) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+  select jsonb_build_object('project_id',p_project_id,'photos',coalesce((
+    select jsonb_agg(public.interview_photo_card(p) || jsonb_build_object('event_ids',(
+      select coalesce(jsonb_agg(distinct l.event_id),'[]') from public.user_interview_photo_link l
+      join public.user_narrator_source s on s.user_id=l.user_id and s.project_id=l.project_id
+        and s.id=l.source_id and s.version=l.source_version and s.status='active'
+      join public.user_memory_event e on e.user_id=l.user_id and e.project_id=l.project_id
+        and e.id=l.event_id and e.status='active'
+      where l.user_id=p.user_id and l.project_id=p.project_id and l.photo_id='upload:'||p.id::text
+        and l.status='confirmed')) order by p.created_at,p.id)
+    from (select * from public.user_interview_photo where user_id=auth.uid()
+      and project_id=p_project_id and status='ready' order by created_at,id limit 200) p),'[]'))
+$$;
+
 CREATE FUNCTION public.read_user_interview_photo(p_project_id text, p_photo_id uuid) RETURNS jsonb
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO ''
@@ -14288,6 +14305,7 @@ revoke all on function public.read_user_interview_context(text) from public,anon
 revoke all on function public.read_user_interview_context_before_news(text) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_interview_context_before_phase(text) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_interview_photo(text, uuid) from public,anon,authenticated,service_role;
+revoke all on function public.read_lifetime_map_photos(text) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_interview_turn(text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_interview_turn_before_phase(text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_interview_turn_before_recordings(text, uuid) from public,anon,authenticated,service_role;
@@ -14618,6 +14636,8 @@ grant EXECUTE on function public.read_user_interview_context_before_news(text) t
 grant EXECUTE on function public.read_user_interview_context_before_phase(text) to service_role;
 grant EXECUTE on function public.read_user_interview_photo(text, uuid) to authenticated;
 grant EXECUTE on function public.read_user_interview_photo(text, uuid) to service_role;
+grant EXECUTE on function public.read_lifetime_map_photos(text) to authenticated;
+grant EXECUTE on function public.read_lifetime_map_photos(text) to service_role;
 grant EXECUTE on function public.read_user_interview_turn(text, uuid) to authenticated;
 grant EXECUTE on function public.read_user_interview_turn_before_phase(text, uuid) to service_role;
 grant EXECUTE on function public.read_user_memory_event_changes(text, bigint) to authenticated;

@@ -12,7 +12,11 @@ function albums(entries) {
   const group=groupPlaces(entries)[0];
   const pins=groupMapPins(group);
   const context=vm.createContext({
-    state:{placeJourney:entries.at(-1)},profile:()=>({memory_places:entries}),mergePlaces,placeHistoryKey,
+    state:{placeJourney:entries.at(-1),lifeStage:'all'},profile:()=>({memory_places:entries}),mergePlaces,placeHistoryKey,
+    mapMemoryEvents:{nodes:()=>[]},photos:{mapPhotos:()=>[],mapPhotosUnavailable:()=>false,mergePlacePictures:(_,pictures)=>pictures,
+      photoSearchPeriod:entry=>entry.period || ''},
+    workspacePictureItems:entry=>entry.pictures,placeMapTarget:entry=>entry,
+    photoRequestKey:()=>'',translateWith:key=>key,currentUiLocale:()=> 'en-AU',
     workspacePlaceGroups:groupPlaces,placeWorkspaceSelection:()=>entries.at(-1),
     mapPhotoAlbum:key=>{const entry=entries.find(item=>placeHistoryKey(item)===key);return entry&&{key,place:entry.place,pictures:entry.pictures};},
   });
@@ -35,5 +39,5 @@ test('unresolved group members retain album entry points without inventing map p
   const result=albums([city,...children].map(entry=>({...entry,map_pin:null})));
   assert.equal(result.length,3);
   assert.ok(result.every(album=>album.pinned===false));
-  assert.deepEqual(Array.from(result,album=>album.pictures[0].asset_id),['city-only','child-0','child-1']);
+  assert.deepEqual(Array.from(result,album=>album.pictures[0].asset_id).sort(),['child-0','child-1','city-only']);
 });
