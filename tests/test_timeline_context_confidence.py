@@ -286,6 +286,32 @@ def test_a_supported_suburb_refines_its_containing_city_on_the_map(sql,tmp_path,
         assert [item['place']['place'] for item in places['items']]==['Shuangqiao']
 
 
+def test_existing_city_refinement_keeps_the_card_but_sibling_conflicts_need_confirmation(sql,tmp_path,monkeypatch):
+    def extract(packet):
+        text=packet['sources'][0]['text']
+        event=episode(packet,text,title='School')
+        event.update(location=CHENGDE,location_basis=[reference(packet,text)],locationConfidenceScore=1,yearConfidenceScore=0)
+        place=CHENGDE
+        if packet['last_event']:
+            saved=packet['last_event']
+            event.update(existing_id=saved['id'],expected_revision=saved['revision'])
+            label='Shuangluan' if 'Shuangluan' in text else 'Shuangqiao'
+            place=dict(place=label,hierarchy=[*CHENGDE['hierarchy'],label],granularity='suburb')
+        return {**empty(packet),'events':[event],'event_places':[dict(event_index=0,role='setting',place=place,
+            source_ref=reference(packet,text))]}
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
+    with conversation.client:
+        conversation.say('I went to school in Chengde.');drain(conversation)
+        saved=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()['events'][0]
+        path=f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places'
+        conversation.say('That school was in Shuangqiao, Chengde.');drain(conversation)
+        assert [item['place']['place'] for item in conversation.client.get(path).json()['items']]==['Shuangqiao']
+        conversation.say('It was in Shuangluan, Chengde.');drain(conversation)
+        assert json.loads(sql(f"select to_jsonb(public.lifetime_event_place_conflicts('{OWNER}',{literal(conversation.project)},{literal(saved['id'])}));").stdout)==['setting']
+        pending=json.loads(sql(f"select public.bounded_lifetime_event_record(e) from public.user_memory_event e where id={literal(saved['id'])};").stdout)
+        assert pending['needs_confirmation']['location'] is True
+
+
 def test_history_has_twenty_prior_rounds_and_a_last_event_outside_that_window(sql):
     identity=rpc(sql,'resolve_lifetime_conversation','null')
     project=identity['project_id']

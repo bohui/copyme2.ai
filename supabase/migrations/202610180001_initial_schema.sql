@@ -7030,6 +7030,7 @@ CREATE FUNCTION public.lifetime_event_place_rows(p_owner uuid, p_project text, p
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO ''
     AS $$
+ with supported as materialized (
  select p.* from public.user_memory_event_place p join public.user_narrator_source s
    on s.user_id=p.user_id and s.project_id=p.project_id and s.id=p.source_id and s.version=p.source_version and s.status='active'
  join public.user_memory_event e on e.user_id=p.user_id and e.project_id=p.project_id and e.id=p.event_id and e.status='active'
@@ -7045,6 +7046,12 @@ CREATE FUNCTION public.lifetime_event_place_rows(p_owner uuid, p_project text, p
      and (r.evidence->>'char_start')::integer<=p.char_start and (r.evidence->>'char_end')::integer>=p.char_end)
    and not exists(select 1 from public.user_memory_event_source_exclusion x where x.user_id=p.user_id
      and x.project_id=p.project_id and x.event_id=p.event_id and x.source_id=p.source_id)
+ ), paths as materialized (select distinct role,place from supported)
+ select current_place.* from supported current_place where not exists(
+   select 1 from paths finer where finer.role=current_place.role
+     and jsonb_array_length(finer.place->'hierarchy')>jsonb_array_length(current_place.place->'hierarchy')
+     and not exists(select 1 from jsonb_array_elements(current_place.place->'hierarchy') with ordinality parent(label,ordinal)
+       where finer.place->'hierarchy'->((parent.ordinal-1)::integer) is distinct from parent.label))
 $$;
 
 CREATE FUNCTION public.lifetime_narrator_birth_basis(p_owner uuid, p_project text, p_ref jsonb) RETURNS boolean
