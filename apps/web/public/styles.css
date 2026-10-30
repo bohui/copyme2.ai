@@ -706,11 +706,10 @@ h3 { line-height: 1.1; }
 .map-memory-layer[hidden] { display: none; }
 .map-memory-trail { position: absolute; inset: 0; width: 100%; height: 100%; }
 .map-memory-toolbar { position: absolute; top: 10px; left: 10px; right: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 4px 8px; }
-.map-memory-caption, .map-memory-toolbar > button { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 6px 10px; border: 1px solid #ded9ca; border-radius: 18px; background: #fffdf5f5; color: #354b3c; box-shadow: 0 2px 8px #233b2920; font-size: 10px; font-weight: 700; }
+.map-memory-caption, .map-memory-toolbar > button { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--white); color: var(--green-dark); box-shadow: 0 2px 8px #233b2920; font-size: 10px; font-weight: 700; }
 .map-memory-caption img { width: 16px; height: 16px; }
 .map-memory-toolbar button { pointer-events: auto; cursor: pointer; }
-.map-memory-toolbar > button { min-height: 44px; }
-.map-memory-toolbar button:focus-visible, .map-memory-card:focus-visible, .map-memory-detail button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
+.workspace-media-map-header .workspace-toggle:focus-visible, .map-memory-toolbar button:focus-visible, .map-memory-card:focus-visible, .map-memory-detail button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
 .map-memory-status { flex-basis: 100%; color: #354b3c; background: #fffdf5f5; border-radius: 6px; padding: 4px 8px; font-size: 10px; }
 .map-memory-status button { margin-left: 8px; min-height: 32px; border: 0; background: transparent; color: var(--green-dark); text-decoration: underline; }
 .map-memory-anchor { position: absolute; width: 194px; height: 126px; }
@@ -808,6 +807,7 @@ h3 { line-height: 1.1; }
   align-items: flex-start;
   min-height: 44px;
 }
+.workspace-media-map-header .workspace-toggle { width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 12px; background: var(--white); box-shadow: 0 2px 8px #233b2920; }
 .workspace-media-heading {
   display: flex;
   align-items: flex-start;
@@ -1221,7 +1221,8 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
   .story-shell:has(#chat-scroll) .workspace-media-map-header .workspace-intro,
   .story-shell:has(#chat-scroll) .workspace-media-map .place-journey-heading { display: none; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-map-pins { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; clip-path: inset(50%); overflow: hidden; }
-  .story-shell:has(#chat-scroll) .workspace-media-map-header .workspace-toggle { width: 44px; height: 44px; background: var(--white); box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+  .story-shell:has(#chat-scroll) .workspace-media-map:has(.map-memory-layer:not([hidden])) [data-all-places] { display: none; }
+  .story-shell:has(#chat-scroll) .map-memory-toolbar { top: 8px; left: max(8px, env(safe-area-inset-left)); right: calc(max(8px, env(safe-area-inset-right)) + 52px); }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-choices { position: absolute; top: 8px; left: max(8px, env(safe-area-inset-left)); right: 60px; z-index: 2; margin: 0; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-choices button { min-height: 44px; padding: 4px 10px; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-journey-card { position: relative; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; margin: 0; border: 0; }
