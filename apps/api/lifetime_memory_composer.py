@@ -21,11 +21,11 @@ PROTOCOL = 'lifetime_composer_pages'
 SOURCE_WINDOW = 2304
 
 
-def lane_model_budget(*, composer=False):
+def lane_model_budget(*, composer=False, timeline_context=False):
     model = composer_configuration().model if composer else background_model()
     return ContextBudget(model=model,
         context_window=int(os.getenv('MEMOIR_LANE_CONTEXT_WINDOW','131072')),
-        input_budget=int(os.getenv('MEMOIR_LANE_INPUT_BUDGET','98304' if composer else '65536')),
+        input_budget=int(os.getenv('MEMOIR_LANE_INPUT_BUDGET','98304' if composer or timeline_context else '65536')),
         output_headroom=int(os.getenv('MEMOIR_LANE_OUTPUT_HEADROOM','16384')),
         framing_headroom=2048)
 
@@ -62,7 +62,7 @@ def validate_page(page):
             raise ValueError('Invalid bounded original source window')
     if len(page.get('events',[]))>8:
         raise ValueError('Unbounded canonical event candidates')
-    if len(json.dumps(page,ensure_ascii=False).encode())>65536:
+    if len(json.dumps(page,ensure_ascii=False).encode())>(98304 if page.get('timeline_context') else 65536):
         raise ValueError('Invalid bounded canonical lane page')
     return page
 
@@ -70,35 +70,38 @@ def validate_page(page):
 def extraction_events(raw,page,original=None):
     """Validate in the transmitted window, then restore exact original offsets."""
     source=page['source']
+    from .timeline_context import context_sources
+    context = context_sources(page.get('timeline_context'))
     proposal=ExtractionResult.model_validate(raw)
     # This bounded page provides event identity metadata, but no authorized
     # family/person registry. Names and relationships in testimony remain prose;
     # the model cannot turn them into database identity references.
     if any(event.person_ids for event in proposal.events):
         raise ValueError('Person identities are unavailable in this bounded source page')
-    updates=(copy.deepcopy(raw).get('events',[]) if original is not None else
-        validate_extraction(copy.deepcopy(raw),[source],page.get('events',[])))
+    updates=copy.deepcopy(raw).get('events',[])
     def absolute(value):
         if isinstance(value,dict):
             if 'source_id' in value and 'quote' in value:
-                if value['source_id']!=source['id'] or type(value['version']) is not int or value['version']!=source['version']:
+                admitted = [item for item in [source,*context] if item['id'] == value['source_id']
+                    and type(value['version']) is int and item['version'] == value['version'] and value['quote'] in item['text']]
+                if not admitted:
                     raise ValueError('Evidence outside the claimed source page')
                 start=value.get('char_start');end=value.get('char_end')
                 if (start is None)!=(end is None):
                     raise ValueError('Evidence requires both exact offsets or neither')
-                occurrence=source['text'].find(value['quote'])
-                if occurrence<0:
-                    raise ValueError('Evidence quote outside claimed source page')
-                positioned=(type(start) is int and type(end) is int and 0<=start<end<=len(source['text'])
-                    and source['text'][start:end]==value['quote'])
-                if not positioned:
-                    if source['text'].find(value['quote'],occurrence+1)>=0:
-                        raise ValueError('An ambiguous occurrence requires exact offsets')
-                    # One verbatim occurrence has a database-owned exact span.
-                    # Model character arithmetic cannot alter those words.
-                    start=occurrence
-                    end=occurrence+len(value['quote'])
-                value.update(char_start=start+source['char_start'],char_end=end+source['char_start'])
+                positions = {(item['char_start']+start,item['char_start']+end)
+                    for item in admitted if type(start) is int and type(end) is int
+                    and 0<=start<end<=len(item['text']) and item['text'][start:end]==value['quote']}
+                if not positions:
+                    for item in admitted:
+                        occurrence=item['text'].find(value['quote'])
+                        while occurrence>=0:
+                            positions.add((item['char_start']+occurrence,item['char_start']+occurrence+len(value['quote'])))
+                            occurrence=item['text'].find(value['quote'],occurrence+1)
+                if len(positions)!=1:
+                    raise ValueError('An ambiguous occurrence requires exact offsets')
+                start,end=positions.pop()
+                value.update(char_start=start,char_end=end)
             for child in value.values(): absolute(child)
         elif isinstance(value,list):
             for child in value: absolute(child)
@@ -108,8 +111,11 @@ def extraction_events(raw,page,original=None):
             or len(original.get('text',''))>100000
             or original['text'][source['char_start']:source['char_end']]!=source['text']):
             raise ValueError('Whole-source policy authority changed')
-        updates=validate_extraction({'events':updates},[original],page.get('events',[]))
+    admitted = [{**original,'char_start':0} if original is not None else source,*context]
+    updates=validate_extraction({'events':updates},admitted,page.get('events',[]))
     core_start=page.get('core_start',source['char_start'])
+    if any(ref['source_id'] != source['id'] for event in updates for ref in event['source_refs']):
+        raise ValueError('Event testimony must belong to the current source')
     return [event for event in updates if any(ref['char_end']>core_start for ref in event['source_refs'])]
 
 
@@ -151,9 +157,11 @@ async def _extract(page,worker):
         'window_contract':EXTRACTION_WINDOW_CONTRACT}
     if page.get('attribution_context'):
         packet['interview_context'] = page['attribution_context']
+    if page.get('timeline_context') is not None:
+        packet.update(copy.deepcopy(page['timeline_context']))
     from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
     for attempt in range(3):
-        bounded=build_bounded_lane_input(page,phase='extract',packet=packet,budget=lane_model_budget())
+        bounded=build_bounded_lane_input(page,phase='extract',packet=packet,budget=lane_model_budget(timeline_context=bool(page.get('timeline_context'))))
         response=await send_bounded_lane_request(worker_url=worker.worker_url,worker_secret=worker.worker_secret,
             bounded_lane=bounded,worker_transport=worker.worker_transport,
             publisher=getattr(worker,'lane_publisher',None),timeout=240)
@@ -177,6 +185,12 @@ async def _extract(page,worker):
                 if page.get('attribution_context'):
                     from .conversation_attribution import validate_attribution, policy_dispositions
                     result.update(validate_attribution(raw, page, result['events']))
+                    from .timeline_context import placement_links
+                    for link in placement_links(result['events']):
+                        if not any(item['event_index'] == link['event_index'] and item['role'] == link['role']
+                                and item['place']['hierarchy'][:len(link['place']['hierarchy'])] == link['place']['hierarchy']
+                                for item in result['event_places']):
+                            result['event_places'].append(link)
                     result['passage_dispositions'].extend(policy_dispositions(page, original))
                 result.update(derived_hints(raw, page, attribution=result if page.get('attribution_context') else None))
                 if (page.get('two_lane') or {}).get('reply_contract') == 'reply-v2':

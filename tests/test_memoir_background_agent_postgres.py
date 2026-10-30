@@ -99,6 +99,8 @@ def test_forty_queued_windows_fit_the_real_tool_budget_without_dropping_sources(
         page=work['source_work']
         assert page['source']['id']==original['id']
         assert page['source']['text']==original['text']
+        assert [entry['sequence'] for entry in page['conversation_history']]==list(
+            range(max(1,original['sequence']-20),original['sequence']))
         assert page['remaining_sources']==remaining
         assert 1<=len(page['sources'])<=4
         assert len(json.dumps(page['sources'],ensure_ascii=False).encode('utf-8'))<=16384

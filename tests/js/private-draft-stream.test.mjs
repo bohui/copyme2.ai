@@ -17,7 +17,7 @@ function setup(overrides = {}) {
   const context = vm.createContext({state, AbortController, TextDecoder, setTimeout, clearTimeout,
     profile:()=>({preferred_language:'zh-CN'}), currentUiLocale:()=> 'zh-CN', currentSectionRework:()=>null,
     memoirApiPath:path=>path, freeRecallFinished:()=>false, render(){}, persistChatHistory(){},
-    updateBackgroundComposerProgress(){}, updateStreamingAssistantMessage(){}, translate:String,
+    updateBackgroundComposerProgress(){}, updateStreamingAssistantMessage(){}, refreshFamilyContext(){}, translate:String,
     storyApi:async()=>{reads++;return {updating:true};},
     fetch:async(_path, options)=>{requests++;assert.equal(options.headers.Accept,'application/x-ndjson');
       assert.equal(options.headers.Authorization,'Bearer token');return response([

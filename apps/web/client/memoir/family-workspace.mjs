@@ -34,17 +34,21 @@ export function createFamilyWorkspace({
   }
 
   let memoryEventTimer = null;
+  let memoryEventRequest = 0;
 
   async function refreshFamilyContext() {
     const scope = captureProjectScope();
-    if (!state.familyFeaturesEnabled || !state.project?.id || !state.supabase?.accessToken) return null;
+    if (!state.project?.id || !state.supabase?.accessToken) return null;
+    const request = ++memoryEventRequest;
     const projectId = state.project.id;
     try {
-      const body = await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(projectId)}`);
-      if (!isCurrentProjectScope(scope)) return null;
+      const body = state.familyFeaturesEnabled
+        ? await supabaseApi(`/v1/agent/family-context?project_id=${encodeURIComponent(projectId)}`) : null;
+      if (!isCurrentProjectScope(scope) || request !== memoryEventRequest) return null;
       if (body?.family_features_enabled === true && body.family_context) applyPersistedFamilyContext(body.family_context);
-      const snapshot = await storyApi(`/v1/story/events?project_id=${encodeURIComponent(projectId)}`);
-      if (!isCurrentProjectScope(scope)) return null;
+      const collection = state.familyFeaturesEnabled ? 'events' : 'map-events';
+      const snapshot = await storyApi(`/v1/story/${collection}?project_id=${encodeURIComponent(projectId)}`);
+      if (!isCurrentProjectScope(scope) || request !== memoryEventRequest) return null;
       if (Array.isArray(snapshot?.events)) {
         state.memoryEventProject = projectId;
         state.memoryEventPage = snapshot;
@@ -59,7 +63,7 @@ export function createFamilyWorkspace({
       }
       return body?.family_context || null;
     } catch (failure) {
-      if (failure.status === 403 && isCurrentProjectScope(scope)) {
+      if (failure.status === 403 && isCurrentProjectScope(scope) && request === memoryEventRequest) {
         state.familyFeaturesEnabled = false;
         state.timeline = [];
         state.memoryEventPage = null;
@@ -268,13 +272,14 @@ export function createFamilyWorkspace({
   async function loadMoreMemoryEvents() {
     const scope = captureProjectScope();
     const saved = state.memoryEventPage;
-    if (!state.familyFeaturesEnabled || !saved?.next_cursor || saved.loading_page) return;
+    if (!saved?.next_cursor || saved.loading_page) return;
     saved.loading_page = true;
     saved.page_error = false;
     render();
     try {
       const query = new URLSearchParams({project_id: state.project.id, cursor: saved.next_cursor});
-      const page = await storyApi(`/v1/story/events?${query}`);
+      const collection = state.familyFeaturesEnabled ? 'events' : 'map-events';
+      const page = await storyApi(`/v1/story/${collection}?${query}`);
       if (!isCurrentProjectScope(scope) || state.memoryEventPage !== saved) return;
       const known = new Set(state.timeline.map(event => event.id));
       state.timeline.push(...(page.events || []).filter(event => !known.has(event.id)).map(event => ({...event,

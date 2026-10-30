@@ -78,7 +78,7 @@ const state = {
   placeWorkspaceMap: null,
   compositionStage: 0,
   workspaceCollapsed: false,
-  lifeStage: "childhood",
+  lifeStage: "all",
   selectedPlace: null,
   chapterDecision: null,
   story: null,
@@ -1402,9 +1402,8 @@ async function refreshFamilyEntitlement() {
       && features.has("timeline");
     if (!state.familyFeaturesEnabled) {
       state.familyContext = null;
-    } else {
-      await refreshFamilyContext();
     }
+    await refreshFamilyContext();
   } catch {
     if (!isCurrentProjectScope(scope)) return false;
     state.familyEntitlement = null;
@@ -1801,7 +1800,7 @@ async function signOut() {
     state.placeWorkspaceMap = null;
     state.compositionStage = 0;
     state.workspaceCollapsed = false;
-    state.lifeStage = "childhood";
+    state.lifeStage = "all";
     state.chapterDecision = null;
     state.story = null;
     state.familyEntitlement = null;
@@ -2035,7 +2034,7 @@ async function startMemoirStory(mode = "self") {
     state.workspaceTab = "memoir";
     state.workspaceCollapsed = false;
     state.compositionStage = 0;
-    state.lifeStage = "childhood";
+    state.lifeStage = "all";
     state.story = null;
     try { localStorage.removeItem("memory-spark-story-started"); } catch { /* Browser storage is optional. */ }
     state.loading = false;
@@ -2119,7 +2118,7 @@ async function refreshProject() {
     state.people = people.items;
     state.relationships = relationships.items;
     state.timeline = timeline.items;
-    if (state.familyFeaturesEnabled) await refreshFamilyContext();
+    await refreshFamilyContext();
   }
   if (!isCurrentProjectScope(scope)) return;
   void refreshStageReadiness();
@@ -2476,7 +2475,7 @@ function lifeStageNavigator() {
     const color = ["red", "amber", "green"].includes(context.color) ? context.color : "red";
     const description = translateWith("Memoir.workspace.contextReadiness", { stage: label, percent,
       words: Number(context.word_equivalents) || 0 });
-    return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab${stage.id === activeId ? " active" : ""}${hasMemory ? " has-memory" : ""}" data-life-stage-tab="${stage.id}" aria-label="${escapeHtml(description)}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId ? "0" : "-1"}" title="${escapeHtml(description)}"><span class="life-stage-readiness readiness-${color}" style="--readiness:${percent}%"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span></span><span class="life-stage-label life-stage-mobile-label">${escapeHtml(label)}</span></button>`;
+    return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab${stage.id === activeId ? " active" : ""}${hasMemory ? " has-memory" : ""}" data-life-stage-tab="${stage.id}" aria-label="${escapeHtml(description)}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId || (activeId === "all" && stage === LIFE_STAGES[0]) ? "0" : "-1"}" title="${escapeHtml(description)}"><span class="life-stage-readiness readiness-${color}" style="--readiness:${percent}%"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span></span><span class="life-stage-label life-stage-mobile-label">${escapeHtml(label)}</span></button>`;
   }).join("");
   return `<section class="life-stage-navigator" aria-label="${t("lifeJourneyEyebrow")}"><div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div><button type="button" class="button button-secondary button-small workspace-add-memory" data-add-workspace-memory ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${activeId === "all" ? t("addMemory") : t("addMemoryToStage", {stage: lifeStageText(activeId, "label")})}</button></section>`;
 }
@@ -2576,7 +2575,7 @@ async function refreshStageReadiness() {
             }
             if (state.recording || state.storyRecording || state.voiceMode) refreshProfileMenu();
             else render();
-            if (!result.pending) return;
+            if (!result.pending) { void refreshFamilyContext(); return; }
           }
         } catch (error) {
           if (!current() || [400,401,403,404,422].includes(error?.status)) return;

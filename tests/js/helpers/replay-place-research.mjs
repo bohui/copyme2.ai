@@ -35,7 +35,7 @@ const context = vm.createContext({state,AbortController,URLSearchParams,TextDeco
     constructor(...args) { super(...(args.length ? args : [now])); }
     static now() { return now; }
   },setTimeout:schedule,clearTimeout:id=>timers.delete(id),
-  render() {},refreshProfileMenu() {},workspaceUpdateQueue:Promise.resolve(),applyDerivedWorkspace,
+  render() {},refreshProfileMenu() {},refreshFamilyContext() {},workspaceUpdateQueue:Promise.resolve(),applyDerivedWorkspace,
   applyBackgroundSkillProgress:result=>steps.push(...result.items),
   recordWorkspaceSkillProgress:step=>steps.push(step)});
 const source = readMemoirClientSource();

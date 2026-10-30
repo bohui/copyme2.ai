@@ -4,10 +4,13 @@ genuine non-story/controls, unresolved identity/meaning, or withheld passages,
 each with exact original evidence and a fixed reason. Unmentioned story ranges
 remain unresolved, never implicitly complete. A bare yes cannot confirm facts
 from an assistant question. Do not classify a mixed control and story as wholly
-non-story. Context is navigation, not testimony or a date/place basis.
+non-story. Assistant context is navigation, not testimony. Authorized original
+excerpts in conversation_history and last_event can supply placement evidence.
 Return event_places selectively: event_index indexes this response's events,
 role is setting, origin or destination, place is a coarse public named place,
 and source_ref is its exact passage within that event's direct source_refs.
+For a contextual location use location, location_basis and locationConfidenceScore
+on the event; the host creates a place link only above its confidence threshold.
 Never join every place to every event or use a relative's trip as the narrator's.
 Empty arrays are valid. Existing event context can justify identity reuse, not
 new facts: omit unchanged temporal/stage fields when enriching an established

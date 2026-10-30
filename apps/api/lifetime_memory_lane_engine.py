@@ -165,6 +165,7 @@ class LaneFence(Contract):
     memory_summary:MemorySummaryFence|None=Field(default=None,exclude_if=lambda value:value is None)
     profile_context:dict[str,Any]|None=Field(default=None,exclude_if=lambda value:value is None)
     attribution_context:AttributionContext|None=Field(default=None,exclude_if=lambda value:value is None)
+    timeline_context:dict[str,Any]|None=Field(default=None,exclude_if=lambda value:value is None)
     attribution_coverage:dict[str,Any]|None=Field(default=None,exclude_if=lambda value:value is None)
     guidance_context: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)
     prior_outputs: list[LaneArtifact] = Field(default_factory=list, max_length=16)
@@ -220,10 +221,12 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
     if phase == 'extract' and fence is not None:
         from .stage_readiness import LIFE_STAGES
         evidence=schema['$defs']['EvidenceRef']['properties']
-        evidence['source_id']['enum']=[fence.source['id']]
-        evidence['version']['enum']=[fence.source['version']]
+        from .timeline_context import context_sources
+        originals = [fence.source, *context_sources(fence.timeline_context)]
+        evidence['source_id']['enum']=sorted({source['id'] for source in originals})
+        evidence['version']['enum']=sorted({source['version'] for source in originals})
         if retry_reason == 'PAGE_AMBIGUOUS':
-            length = len(fence.source['text'])
+            length = max(len(source['text']) for source in originals)
             evidence['char_start'] = {'type': 'integer', 'minimum': 0, 'maximum': length - 1}
             evidence['char_end'] = {'type': 'integer', 'minimum': 1, 'maximum': length}
         if retry_reason == 'PLACE_HIERARCHY' and 'CoarsePlace' in schema['$defs']:
@@ -277,7 +280,7 @@ class BoundedLaneInput(Contract):
         if self.phase not in {'timeline': {'extract','summarize','profile'},
                                'composer': {'prepare','draft','review'}, 'guidance': {'guidance'}}[self.fence.skill]:
             raise ValueError('Bounded lane phase does not match skill')
-        maximum_input = 98304 if self.phase in {'prepare', 'draft', 'review'} else 65536
+        maximum_input = 98304 if self.phase in {'prepare', 'draft', 'review'} or self.phase == 'extract' and self.fence.timeline_context else 65536
         if (self.budget.context_window > 131072 or self.budget.input_budget > maximum_input
                 or self.budget.framing_headroom < 2048):
             raise ValueError('Bounded lane budget exceeds the reviewed transport limits')
@@ -395,8 +398,19 @@ def lane_extraction_packet(fence, *, retry_reason=None):
         'coverage':{'scope':'source_window','snapshot_id':str(fence.snapshot_id),
             'source_high_water':fence.source_high_water,'complete':False},
         'window_contract':EXTRACTION_WINDOW_CONTRACT}
+    if fence.timeline_context is not None:
+        packet.update(deepcopy(fence.timeline_context))
     if retry_reason == 'PAGE_AMBIGUOUS':
         packet['quote_occurrences'] = source_quote_occurrences(fence.source)
+        from .timeline_context import context_sources
+        catalogs = []
+        for source in reversed(context_sources(fence.timeline_context)):
+            item = {'source_id':source['id'], 'version':source['version'], 'char_start':source['char_start'],
+                    **source_quote_occurrences(source)}
+            if len(serialize_packet([*catalogs,item]).encode('utf-8')) <= 8192:
+                catalogs.append(item)
+        if catalogs:
+            packet['context_quote_occurrences'] = catalogs
     return packet
 
 
@@ -528,6 +542,18 @@ def _validate_phase_packet(fence,phase,payload):
             or source.get('char_end')!=source['char_start']+len(source['text'])):
         raise ValueError('Invalid canonical source window')
     if phase=='extract':
+        from .timeline_context import context_sources
+        context = fence.timeline_context
+        if context is not None:
+            if (set(context) != {'conversation_history','last_event'}
+                    or len(serialize_packet(context).encode('utf-8')) > 60000):
+                raise ValueError('Invalid bounded timeline conversation context')
+            for previous in context_sources(context):
+                if (previous.get('project_id') != fence.project_id or previous.get('status') != 'active'
+                        or type(previous.get('sequence')) is not int or previous['sequence'] >= source['sequence']
+                        or not isinstance(previous.get('text'),str) or len(previous['text']) > 2304
+                        or previous.get('char_end') != previous.get('char_start',0) + len(previous['text'])):
+                    raise ValueError('Invalid timeline history evidence scope')
         if 'retry_reason' in payload and (not isinstance(payload['retry_reason'],str)
                 or payload['retry_reason'] not in {*EXTRACTION_REJECTION_REASONS.values(),'OUTPUT_SCHEMA'}):
             raise ValueError('Unsupported extraction retry reason')
@@ -650,8 +676,11 @@ def build_bounded_lane_input(page, *, phase, packet, budget):
     payload = _object(packet) if isinstance(packet, str) else deepcopy(packet)
     if not isinstance(payload, dict):
         raise ValueError('A bounded lane payload must be an object')
-    if phase == 'extract' and payload.get('retry_reason') == 'PAGE_AMBIGUOUS' and 'quote_occurrences' not in payload:
-        payload['quote_occurrences'] = source_quote_occurrences(fence.source)
+    if phase == 'extract' and payload.get('retry_reason') == 'PAGE_AMBIGUOUS':
+        canonical = lane_extraction_packet(fence, retry_reason='PAGE_AMBIGUOUS')
+        for field in ('quote_occurrences','context_quote_occurrences'):
+            if field in canonical and field not in payload:
+                payload[field] = canonical[field]
     proofs = _required_artifacts(phase,payload)
     fence = fence.model_copy(update={'prior_outputs':proofs})
     return BoundedLaneInput(fence=fence, budget=budget, phase=phase,
