@@ -99,9 +99,7 @@ test('unstaged background places remain selectable during the default childhood 
     },
     saveProfileUpdates() {},recordWorkspaceSkillProgress() {},workspaceHasContent:()=>true});
   const html = places.workspaceMediaOverview();
-  assert.equal((html.match(/data-place-choice=/g) || []).length,2);
-  assert.match(html, /<span>承德市<\/span>/);
-  assert.match(html, /<span>悉尼<\/span>/);
+  assert.doesNotMatch(html, /place-choices|data-place-choice=/);
   assert.doesNotMatch(html, /place-journey-heading/);
   places.selectPlace(placeHistoryKey(chengde));
   await new Promise(resolve=>setImmediate(resolve));
@@ -135,10 +133,8 @@ test('provider-confirmed Parramatta remains a separate selectable city from its 
   places.resolvePlaceMap(parramatta);
   await new Promise(resolve=>setImmediate(resolve));
   const html = places.workspaceMediaOverview();
-  const buttons = [...html.matchAll(/data-place-choice="([^"]*)"[^>]*><span>([^<]+)<\/span>/g)];
-  assert.deepEqual(buttons.map(button=>button[2]), ['Sydney','Parramatta']);
-  const key = buttons.find(button=>button[2] === 'Parramatta')[1].replaceAll('&quot;','"');
-  places.selectPlace(key);
+  assert.doesNotMatch(html, /place-choices|data-place-choice=/);
+  places.selectPlace(placeHistoryKey(confirmed));
   assert.equal(places.placeWorkspaceSelection().place, 'Parramatta');
   assert.equal(loaded.at(-1), 'Parramatta');
 });
@@ -178,7 +174,7 @@ test('a failed map renderer preserves the place workspace and its coordinates', 
   assert.equal(places.placeWorkspaceSelection().latitude, 40.96, 'corrected coordinates can render a new map');
 });
 
-test('location buttons follow the UI language and refresh their localized cache', async t => {
+test('place workspace refreshes its localized cache without location buttons', async t => {
   t.mock.timers.enable({apis:['setTimeout']});
   const {state,dependencies}=setup(t);
   const chengde={place:'承德市',hierarchy:['Earth','中国','河北省','承德市'],granularity:'city',latitude:40.95,longitude:117.96};
@@ -205,9 +201,8 @@ test('location buttons follow the UI language and refresh their localized cache'
     places.resolvePlaceMap(sydney);
     await new Promise(resolve=>setImmediate(resolve));
     const html=places.workspaceMediaOverview();
-    assert.match(html,language==='zh-CN' ? /<span>承德市<\/span>/ : /<span>Chengde<\/span>/);
-    assert.match(html,language==='zh-CN' ? /<span>悉尼<\/span>/ : /<span>Sydney<\/span>/);
-    assert.match(html,language==='zh-CN' ? /新南威尔士州/ : /New South Wales/);
+    assert.doesNotMatch(html,/place-choices|data-place-choice=/);
+    assert.match(html,language==='zh-CN' ? /<h2>地点<\/h2>/ : /<h2>Places<\/h2>/);
     assert.doesNotMatch(html,/place-journey-heading/);
   }
   assert.deepEqual(requests,['zh-CN','en-AU']);
