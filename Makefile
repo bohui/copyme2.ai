@@ -220,6 +220,7 @@ test-place-research: test-web ## Replay the two-place interview through the API,
 		tests/test_place_groups.py tests/test_place_geocoding.py tests/test_place_photo_fallback.py \
 		tests/test_place_photo_pages.py tests/test_place_photo_persistence.py tests/test_photo_worker.py \
 		tests/test_lane_clarifications.py tests/test_timeline_reported_places.py \
+		tests/test_timeline_context_confidence.py tests/test_timeline_place_repair.py \
 		tests/test_lane_b_question_priorities.py tests/test_lane_b_question_priorities_postgres.py \
 		tests/test_interview_guidance.py tests/test_interview_guidance_workflow.py tests/test_mira_realtime_interviewing.py \
 		tests/test_recall_limit_questions.py tests/test_recall_limit_postgres.py \

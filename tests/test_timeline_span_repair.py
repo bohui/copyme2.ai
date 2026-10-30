@@ -1,6 +1,5 @@
 """Offline requests reproduce repeated-evidence failures; no live provider."""
 import asyncio
-import hashlib
 from copy import deepcopy
 import json
 from types import SimpleNamespace
@@ -11,9 +10,26 @@ import pytest
 
 from apps.api.lifetime_memory_composer import _extract
 from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, run_bounded_lane
-from test_conversation_reply_transport import events, sse
+from controlled_skill_harness import ControlledSkillConnection
 from test_lifetime_composer_capacity import page
 from test_memory_context_transport import Publisher
+
+
+class SpanConnection(ControlledSkillConnection):
+    def __init__(self, *args, respond, before_turn=None, **options):
+        super().__init__(*args, **options)
+        self.respond = respond
+        self.before_turn = before_turn
+
+    async def turn(self, thread_id, prompt, **options):
+        if self.before_turn:
+            self.before_turn()
+        async with self.options['request_admission']():
+            pass
+        value=json.loads(prompt)
+        for skill in value['available_skills']:
+            await self.tool('memoir_read_skill',skill=skill['name'])
+        return json.dumps(self.respond(value['task']['payload'],options['output_schema']))
 
 
 @pytest.mark.parametrize('offset', [0, 2048])
@@ -39,46 +55,33 @@ def test_ambiguous_span_repair_requires_coordinates_and_keeps_second_occurrence(
             assert name == 'read_lifetime_lane_policy_source'
             return original
 
-    class Provider(httpx.AsyncBaseTransport):
-        def __init__(self, bounded):
-            self.bounded = bounded
-
-        async def handle_async_request(self, request):
-            body = json.loads(b''.join([chunk async for chunk in request.stream]))
-            bodies.append(body)
-            payload = json.loads(body['input'])['payload']
-            assert payload['sources'] == [current['source']]
-            schema = body['text']['format']['schema']
-            from apps.api.lifetime_memory_lane_engine import lane_request_tokens
-            from apps.api.lifetime_memory_context import serialize_packet
-            budget = self.bounded.budget
-            assert lane_request_tokens(self.bounded) == (budget.count(body['instructions'])
-                + budget.count(body['input']) + budget.count(serialize_packet(schema)) + budget.framing_headroom)
-            assert body['metadata']['schema_sha256'] == hashlib.sha256(
-                json.dumps(schema, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
-            evidence = Draft202012Validator({'$defs': schema['$defs'], '$ref': '#/$defs/EvidenceRef'})
-            ref = dict(source_id=current['source']['id'], version=1, quote=quote,
-                char_start=None, char_end=None, attribution=None)
-            if len(bodies) == 1:
-                assert evidence.is_valid(ref), 'First attempt keeps the optional-offset contract'
-            else:
-                assert payload['retry_reason'] == 'PAGE_AMBIGUOUS'
-                assert not evidence.is_valid(ref), 'Ambiguous repair still permits the null offsets that caused the failure'
-                catalog = payload['quote_occurrences']
-                assert catalog['coordinate_system'] == 'window_unicode_codepoints'
-                item = next(row for row in catalog['quotes'] if row['quote'] == quote)
-                assert len(item['spans']) == 2
-                ref.update(item['spans'][1])
-                evidence.validate(ref)
-            result = dict(events=[], place_journeys=[], prepared_questions=[], continuity_updates=[],
-                event_places=[], passage_dispositions=[dict(disposition='non_story', reason='no_supported_event', source_ref=ref)])
-            return httpx.Response(200, content=sse(events(json.dumps(result))))
+    def respond(payload, schema):
+        bodies.append(payload)
+        assert payload['sources'] == [current['source']]
+        evidence = Draft202012Validator({'$defs': schema['$defs'], '$ref': '#/$defs/EvidenceRef'})
+        ref = dict(source_id=current['source']['id'], version=1, quote=quote,
+            char_start=None, char_end=None, attribution=None)
+        if len(bodies) == 1:
+            assert evidence.is_valid(ref), 'First attempt keeps the optional-offset contract'
+        else:
+            assert payload['retry_reason'] == 'PAGE_AMBIGUOUS'
+            assert not evidence.is_valid(ref), 'Ambiguous repair still permits the null offsets that caused the failure'
+            catalog = payload['quote_occurrences']
+            assert catalog['coordinate_system'] == 'window_unicode_codepoints'
+            item = next(row for row in catalog['quotes'] if row['quote'] == quote)
+            assert len(item['spans']) == 2
+            ref.update(item['spans'][1])
+            evidence.validate(ref)
+        result = dict(events=[], place_journeys=[], continuity_updates=[],
+            event_places=[], passage_dispositions=[dict(disposition='non_story', reason='no_supported_event', source_ref=ref)])
+        return result
 
     async def worker(request):
         bounded = BoundedLaneInput.model_validate(json.loads(request.content)['bounded_lane'])
         return httpx.Response(200, json=await run_bounded_lane(command=['must-not-start'], home_root=tmp_path,
             base_url='https://provider.invalid/v1', api_key='fixture-span-key', model=bounded.budget.model,
-            bounded_lane=bounded, publisher=publisher, provider_transport=Provider(bounded), timeout=5))
+            bounded_lane=bounded, publisher=publisher,
+            connection_factory=lambda *args,**options:SpanConnection(*args,respond=respond,**options), timeout=5))
 
     scope = SimpleNamespace(broker=Broker(), worker_url='https://worker.invalid', worker_secret='fixture',
         worker_transport=httpx.MockTransport(worker), lane_publisher=publisher)

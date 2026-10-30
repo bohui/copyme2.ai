@@ -9,6 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, model_validat
 from .place_identity import geographic_label, place_identity, place_path
 
 
+class CoarsePlace(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    place: str = Field(min_length=1, max_length=120)
+    hierarchy: list[str] = Field(min_length=2, max_length=6)
+    granularity: Literal['country', 'region', 'city', 'suburb']
+
+
 class PlaceResearchWindow(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     year_start: int = Field(ge=1800, le=2100)

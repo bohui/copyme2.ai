@@ -32,7 +32,7 @@ Object.assign(globalThis,{
 });
 const context = vm.createContext({state,AbortController,URLSearchParams,TextDecoder,document,translate,placeHistoryKey,
   Date:{now:()=>now},setTimeout:schedule,clearTimeout:id=>timers.delete(id),
-  render() {},refreshProfileMenu() {},workspaceUpdateQueue:Promise.resolve(),applyDerivedWorkspace,
+  render() {},refreshProfileMenu() {},refreshFamilyContext() {},workspaceUpdateQueue:Promise.resolve(),applyDerivedWorkspace,
   applyBackgroundSkillProgress:result=>steps.push(...result.items),
   recordWorkspaceSkillProgress:step=>steps.push(step)});
 const source = readMemoirClientSource();

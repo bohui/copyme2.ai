@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
+import {createFamilyWorkspace} from '../../../apps/web/client/memoir/family-workspace.mjs';
 import {buildMapMemoryJourney,cityEventCards} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 import {groupPlaces} from '../../../apps/web/client/memoir/places.mjs';
 
-const {events,locations,places,grouping} = JSON.parse(readFileSync(0,'utf8'));
+const {events,locations,places,grouping,snapshot} = JSON.parse(readFileSync(0,'utf8'));
 const enriched = events.map(event => ({...event,canonical:true,map_places:locations[event.id].items.map(link => {
   const record=grouping[link.place.place].places[0];
   return {...link,place:{...link.place,map_city:record.city,map_city_key:record.city_key,map_pin:record.pin}};
@@ -36,22 +37,29 @@ const scene={isConnected:true,child:null,append:value=>{scene.child=value;},quer
   classList:{contains:()=>true,toggle:(name,on)=>on?classes.add(name):classes.delete(name)}};
 Object.assign(globalThis,{document:{documentElement:{lang:'en-AU'},createElement:()=>layer},
   window:{addEventListener(){},matchMedia:()=>({matches:true,addEventListener(){}})}});
-const state={project:{id:'map-replay',profile:{memory_places:places}},supabase:{accessToken:'fixture',user:{id:'owner'}},
-  timeline:events.map(event=>({...event,canonical:true})),lifeStage:'all',chat:[],placeJourney:null};
+const projectId=snapshot.project_id;
+const state={project:{id:projectId,profile:{memory_places:places}},supabase:{accessToken:'fixture',user:{id:'owner'}},
+  timeline:[],familyFeaturesEnabled:false,lifeStage:'all',chat:[],placeJourney:null};
 const history=JSON.stringify(places), requests=[];
-const workspace=createPlaceWorkspace({state,profile:()=>state.project.profile,render(){},
+const dependencies={state,profile:()=>state.project.profile,render(){},
   captureProjectScope:()=>state.project.id,isCurrentProjectScope:id=>id===state.project.id,
   lifeStageText:stage=>stage,storyApi:async path=>{
+    if (path.startsWith('/v1/story/map-events?')) return snapshot;
+    assert.ok(path.startsWith('/v1/story/map-events/'),'The recall map must use its authorised read endpoint');
     const event=events.find(event=>path.includes(`/${event.id}/places`));
     assert.ok(event);return locations[event.id];
   },supabaseApi:async(path,options)=>{
-    assert.equal(path,'/v1/agent/places/map-replay/groups');
+    assert.equal(path,`/v1/agent/places/${projectId}/groups`);
     const body=JSON.parse(options.body);
     assert.equal(body.places.length,1);
     assert.equal(body.language,'en-AU');
     assert.ok(!('title' in body.places[0]) && !('source_refs' in body.places[0]));
     requests.push(body.places[0].place);return grouping[body.places[0].place];
-  },photos:{bindPhotoMemoryActions(){},favoritePhotoWall:()=>'',pictureWall:()=>'',
+  }};
+const family=createFamilyWorkspace(dependencies);
+await family.refreshFamilyContext();
+assert.equal(state.timeline.length,2,'Ordinary recall must load saved events before the map can render them');
+const workspace=createPlaceWorkspace({...dependencies,photos:{bindPhotoMemoryActions(){},favoritePhotoWall:()=>'',pictureWall:()=>'',
     photoRequestKey:()=>'',renderablePictureItems:()=>[],workspacePictureItems:()=>[]}});
 workspace.mapMemoryEvents.sync(null);
 await new Promise(resolve=>setImmediate(resolve));

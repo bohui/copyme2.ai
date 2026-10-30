@@ -3019,12 +3019,29 @@ begin
   for proposal in select value from pg_catalog.jsonb_array_elements(p_events) loop
     if pg_catalog.jsonb_typeof(proposal) is distinct from 'object' or
        exists(select 1 from pg_catalog.jsonb_object_keys(proposal) k where k not in
-         ('id','existing_id','expected_revision','kind','title','life_stage','temporal','stage_evidence','source_refs','uncertainty','person_ids','visibility','include_in_print','attribution','candidate_ids','relations','correction')) or
+         ('id','existing_id','expected_revision','kind','title','life_stage','temporal','stage_evidence','source_refs','uncertainty','person_ids','visibility','include_in_print','attribution','candidate_ids','relations','correction',
+          'location','location_basis','locationConfidenceScore','yearConfidenceScore')) or
        proposal->>'kind' not in ('event','period') or
        length(pg_catalog.btrim(coalesce(proposal->>'title',''))) not between 1 and 300 or
        pg_catalog.jsonb_typeof(proposal->'source_refs') is distinct from 'array' or
        pg_catalog.jsonb_array_length(proposal->'source_refs') not between 1 and 100 then
       raise exception 'invalid event proposal' using errcode='22023';
+    end if;
+    if exists(select 1 from unnest(array['locationConfidenceScore','yearConfidenceScore']) field
+      where proposal ? field and (jsonb_typeof(proposal->field)<>'number' or (proposal->>field)::numeric not between 0 and 1)) then
+      raise exception 'placement confidence must be between zero and one' using errcode='22023';end if;
+    if proposal ? 'location_basis' and (jsonb_typeof(proposal->'location_basis') is distinct from 'array'
+        or jsonb_array_length(proposal->'location_basis')>20) then
+      raise exception 'bounded location evidence required' using errcode='22023';end if;
+    if proposal ? 'location' and proposal->'location'<>'null'::jsonb then
+      if not(proposal ? 'locationConfidenceScore') then
+        raise exception 'location confidence required' using errcode='22023';end if;
+      perform public.validate_two_lane_places((select string_agg(value->>'quote',E'\n')
+        from jsonb_array_elements(coalesce(proposal->'location_basis','[]'))),
+        jsonb_build_array(jsonb_build_object('schema_version',1)||(proposal->'location')));
+      if not exists(select 1 from jsonb_array_elements(coalesce(proposal->'location_basis','[]')) basis_item
+          where strpos(basis_item->>'quote',proposal->'location'->>'place')>0) then
+        raise exception 'location requires original evidence' using errcode='22023';end if;
     end if;
     current_event:=null;
     if coalesce(pg_catalog.jsonb_array_length(proposal->'candidate_ids'),0)>0 and ((proposal ? 'existing_id') or exists(select 1 from pg_catalog.jsonb_array_elements_text(proposal->'candidate_ids') candidate
@@ -3068,7 +3085,11 @@ begin
       select coalesce(pg_catalog.jsonb_object_agg(key,value),'{}') into event_data from pg_catalog.jsonb_each(proposal)
         where key in ('life_stage','temporal');
       perform public.correct_user_memory_event(p_project_id,event_id,current_event.revision,event_data,evidence.text,'chat',evidence.id);
-      continue;
+      if not(proposal ?| array['location','locationConfidenceScore','yearConfidenceScore']) then continue;end if;
+      -- Save model placement metadata after the explicit stage/date override.
+      select * into current_event from public.user_memory_event
+        where user_id=owner_id and project_id=p_project_id and id=event_id;
+      proposal:=proposal-array['correction','life_stage','temporal'];
     end if;
     event_stage:=coalesce(proposal->>'life_stage',current_event.life_stage,'unplaced');
     if event_stage not in ('baby','childhood','adolescence','young_adulthood','midlife','later_life','unplaced') then
@@ -3122,6 +3143,7 @@ begin
     -- statement is separate from the event's principal narrator statement.
     select coalesce(pg_catalog.jsonb_agg(value),'[]') into event_refs from (
       select value from pg_catalog.jsonb_array_elements(proposal->'source_refs')
+      union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'location_basis','[]'))
       union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'temporal'->'basis','[]'))
       union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'stage_evidence','[]'))
       union select r.value from pg_catalog.jsonb_array_elements(coalesce(event_data->'relations','[]')) relation_ref,
@@ -3763,6 +3785,18 @@ begin
      'year_end',case when e.data->'temporal'->>'year_end'~'^[0-9]{1,4}$' then e.data->'temporal'->'year_end' else null end),
    'temporal_complete',length(coalesce(e.data->'temporal'->>'expression',''))<=500,
    'uncertainty',left(e.data->>'uncertainty',1000),'uncertainty_complete',length(coalesce(e.data->>'uncertainty',''))<=1000,
+   'location',e.data->'location',
+   'locationConfidenceScore',coalesce((e.data->>'locationConfidenceScore')::numeric,
+     case when exists(select 1 from public.lifetime_event_place_rows(e.user_id,e.project_id,e.id)) then 1 else 0 end),
+   'yearConfidenceScore',coalesce((e.data->>'yearConfidenceScore')::numeric,
+     case when e.data->'temporal'->>'year_start' is not null then 1 else 0 end),
+   'needs_confirmation',jsonb_build_object(
+     'location',coalesce((e.data->>'locationConfidenceScore')::numeric,
+       case when exists(select 1 from public.lifetime_event_place_rows(e.user_id,e.project_id,e.id)) then 1 else 0 end)<0.85
+       or cardinality(public.lifetime_event_place_conflicts(e.user_id,e.project_id,e.id))>0,
+     'year',not(coalesce(e.data->'user_overrides','{}') ? 'temporal') and
+       (coalesce((e.data->>'yearConfidenceScore')::numeric,case when e.data->'temporal'->>'year_start' is not null then 1 else 0 end)<0.85
+        or coalesce((e.data->>'timing_conflict')::boolean,false))),
    'assertion',case when e.data->>'assertion' in ('asserted','inferred') then e.data->>'assertion' else 'unspecified' end,
    'timing_conflict',e.data->'timing_conflict'='true'::jsonb,
    'source_refs',refs,'reference_identity_complete',not more,'evidence_complete',jsonb_array_length(refs)=0,
@@ -4656,15 +4690,23 @@ begin
    if jsonb_typeof(p_result->'events') is distinct from 'array' or jsonb_array_length(p_result->'events')>100 then
      raise exception 'bounded event proposals required';end if;
    for item in select value from jsonb_array_elements(p_result->'events') loop
+     if exists(select 1 from jsonb_array_elements(item->'source_refs') primary_ref
+         where primary_ref->>'source_id'<>source_id::text or primary_ref->>'version'<>current_source_version::text) then
+       raise exception 'primary testimony requires current source' using errcode='22023';end if;
      if item ? 'existing_id' and not exists(select 1 from jsonb_array_elements(page->'events') e
        where e->>'id'=item->>'existing_id' and e->>'revision'=item->>'expected_revision') then
        raise exception 'canonical event identity outside current page';end if;
    end loop;
    for ref in select value from jsonb_path_query(p_result->'events','$.** ? (exists(@.source_id) && exists(@.version))') value loop
-     if ref->>'source_id' is distinct from source_id::text or ref->>'version' is distinct from current_source_version::text
+     if not exists(select 1 from (
+         select page->'source' original
+         union all select value from jsonb_path_query(page->'timeline_context','$.conversation_history[*].source') value
+         union all select value from jsonb_path_query(page->'timeline_context','$.last_event.original_passages[*]') value
+       ) admitted where original->>'id'=ref->>'source_id' and original->>'version'=ref->>'version'
+         and (ref->>'char_start')::integer>=(original->>'char_start')::integer
+         and (ref->>'char_end')::integer<=(original->>'char_end')::integer)
        or jsonb_typeof(ref->'char_start') is distinct from 'number' or jsonb_typeof(ref->'char_end') is distinct from 'number'
-       or (ref->>'char_start')::integer<(page->'source'->>'char_start')::integer
-       or (ref->>'char_end')::integer>(page->'source'->>'char_end')::integer then
+       or (ref->>'char_end')::integer<=(ref->>'char_start')::integer then
        raise exception 'evidence outside claimed original window';end if;
    end loop;
    previous_setting:=current_setting('memoir.lifetime_lane',true);previous_owner:=current_setting('request.jwt.claim.sub',true);
@@ -4784,13 +4826,22 @@ begin
    and id=(page->'source'->>'id')::uuid and version=(page->'source'->>'version')::bigint and status='active';
  for item in select value from jsonb_array_elements(coalesce(p_result->'event_places','[]')||coalesce(p_result->'passage_dispositions','[]')) loop
    ref:=item->'source_ref';
-   if ref->>'source_id' is distinct from current_source.id::text or ref->>'version' is distinct from current_source.version::text
+   proposal:=case when item ? 'event_index' then p_result->'events'->((item->>'event_index')::integer) end;
+   if not exists(select 1 from (
+       select page->'source' original
+       union all select value from jsonb_path_query(page->'timeline_context','$.conversation_history[*].source') value where item ? 'event_index'
+       union all select value from jsonb_path_query(page->'timeline_context','$.last_event.original_passages[*]') value where item ? 'event_index'
+     ) admitted where original->>'id'=ref->>'source_id' and original->>'version'=ref->>'version'
+       and (ref->>'char_start')::integer>=(original->>'char_start')::integer
+       and (ref->>'char_end')::integer<=(original->>'char_end')::integer)
+     or (ref->>'source_id'<>current_source.id::text and not(coalesce((proposal->>'locationConfidenceScore')::numeric,0)>=0.85
+       and proposal->'location'=item->'place' and proposal->'location_basis' @> jsonb_build_array(ref)))
      or jsonb_typeof(ref->'char_start') is distinct from 'number' or jsonb_typeof(ref->'char_end') is distinct from 'number'
-     or (ref->>'char_start')::integer<(page->'source'->>'char_start')::integer
-     or (ref->>'char_end')::integer>(page->'source'->>'char_end')::integer
      or (ref->>'char_end')::integer<=(ref->>'char_start')::integer
-     or substring(current_source.text from (ref->>'char_start')::integer+1 for
-       (ref->>'char_end')::integer-(ref->>'char_start')::integer) is distinct from ref->>'quote' then
+     or not exists(select 1 from public.user_narrator_source s where s.user_id=snap.user_id and s.project_id=snap.project_id
+       and s.id::text=ref->>'source_id' and s.version::text=ref->>'version' and s.status='active'
+       and substring(s.text from (ref->>'char_start')::integer+1 for
+         (ref->>'char_end')::integer-(ref->>'char_start')::integer)=ref->>'quote') then
      raise exception 'exact current attribution evidence required' using errcode='22023';end if;
  end loop;
  result:=public.commit_lifetime_memoir_lane_page_before_attribution(p_lane_id,p_token,p_page_number,
@@ -4828,6 +4879,8 @@ begin
      if jsonb_typeof(item->'event_index') is distinct from 'number' or item->>'event_index' !~ '^[0-9]{1,2}$' then
        raise exception 'bounded event proposal index required' using errcode='22023';end if;
      ref:=item->'source_ref';proposal:=p_result->'events'->((item->>'event_index')::integer);
+     if coalesce((proposal->>'locationConfidenceScore')::numeric,1)<0.85 then
+       raise exception 'event location requires confirmation' using errcode='22023';end if;
      if exists(select 1 from jsonb_object_keys(item) k where k not in ('event_index','role','place','source_ref'))
        or proposal is null or coalesce(item->>'role','') not in ('setting','origin','destination')
        or exists(select 1 from jsonb_object_keys(item->'place') k where k not in ('place','hierarchy','granularity')) then
@@ -4842,12 +4895,14 @@ begin
          and e.change_sequence>snap.event_high_water and e.kind=proposal->>'kind' and e.data->>'title'=proposal->>'title'))
        and exists(select 1 from public.user_memory_event_source r where r.user_id=e.user_id and r.project_id=e.project_id
          and r.event_id=e.id and r.source_id=current_source.id and r.source_version=current_source.version and r.stage_progress_role='primary'
+         and proposal->'source_refs' @> jsonb_build_array(r.evidence))
+       and exists(select 1 from public.user_memory_event_source r where r.user_id=e.user_id and r.project_id=e.project_id
+         and r.event_id=e.id and r.source_id::text=ref->>'source_id' and r.source_version::text=ref->>'version'
          and (r.evidence->>'char_start')::integer<=(ref->>'char_start')::integer
-         and (r.evidence->>'char_end')::integer>=(ref->>'char_end')::integer
-         and proposal->'source_refs' @> jsonb_build_array(r.evidence));
+         and (r.evidence->>'char_end')::integer>=(ref->>'char_end')::integer);
      if matches<>1 then raise exception 'place requires one exact event passage' using errcode='22023';end if;
      insert into public.user_memory_event_place(user_id,project_id,event_id,source_id,source_version,char_start,char_end,role,place)
-     values(snap.user_id,snap.project_id,selected_event,current_source.id,current_source.version,
+     values(snap.user_id,snap.project_id,selected_event,(ref->>'source_id')::uuid,(ref->>'version')::bigint,
        (ref->>'char_start')::integer,(ref->>'char_end')::integer,item->>'role',item->'place')
      on conflict(user_id,project_id,event_id,source_id,source_version,char_start,char_end,role,place_key) do nothing;
      get diagnostics inserted=ROW_COUNT;
@@ -6975,15 +7030,28 @@ CREATE FUNCTION public.lifetime_event_place_rows(p_owner uuid, p_project text, p
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO ''
     AS $$
+ with supported as materialized (
  select p.* from public.user_memory_event_place p join public.user_narrator_source s
    on s.user_id=p.user_id and s.project_id=p.project_id and s.id=p.source_id and s.version=p.source_version and s.status='active'
  join public.user_memory_event e on e.user_id=p.user_id and e.project_id=p.project_id and e.id=p.event_id and e.status='active'
  where p.user_id=p_owner and p.project_id=p_project and p.event_id=p_event
+   and coalesce((e.data->>'locationConfidenceScore')::numeric,1)>=0.85
+   and (p.role<>'setting' or coalesce(e.data->'location','null')='null'::jsonb or not exists(
+     select 1 from jsonb_array_elements(e.data->'location'->'hierarchy') with ordinality candidate(label,ordinal)
+     where p.place->'hierarchy'->((candidate.ordinal-1)::integer) is distinct from candidate.label))
    and exists(select 1 from public.user_memory_event_source r where r.user_id=p.user_id and r.project_id=p.project_id
-     and r.event_id=p.event_id and r.source_id=p.source_id and r.source_version=p.source_version and r.stage_progress_role='primary'
+     and r.event_id=p.event_id and r.source_id=p.source_id and r.source_version=p.source_version
+     and (r.stage_progress_role='primary' or coalesce((e.data->>'locationConfidenceScore')::numeric,0)>=0.85
+       and coalesce(e.data->'location_basis','[]') @> jsonb_build_array(r.evidence))
      and (r.evidence->>'char_start')::integer<=p.char_start and (r.evidence->>'char_end')::integer>=p.char_end)
    and not exists(select 1 from public.user_memory_event_source_exclusion x where x.user_id=p.user_id
      and x.project_id=p.project_id and x.event_id=p.event_id and x.source_id=p.source_id)
+ ), paths as materialized (select distinct role,place from supported)
+ select current_place.* from supported current_place where not exists(
+   select 1 from paths finer where finer.role=current_place.role
+     and jsonb_array_length(finer.place->'hierarchy')>jsonb_array_length(current_place.place->'hierarchy')
+     and not exists(select 1 from jsonb_array_elements(current_place.place->'hierarchy') with ordinality parent(label,ordinal)
+       where finer.place->'hierarchy'->((parent.ordinal-1)::integer) is distinct from parent.label))
 $$;
 
 CREATE FUNCTION public.lifetime_narrator_birth_basis(p_owner uuid, p_project text, p_ref jsonb) RETURNS boolean
@@ -7618,6 +7686,8 @@ begin
  page:=public.read_lifetime_memoir_lane_page((p_fence->>'lane_id')::uuid,(p_fence->>'token')::uuid);
  if coalesce(p_fence->'guidance_context','null') is distinct from coalesce(page->'guidance_context','null') then
    raise exception 'guidance context changed' using errcode='40001';end if;
+ if coalesce(p_fence->'timeline_context','null') is distinct from coalesce(page->'timeline_context','null') then
+   raise exception 'timeline context changed' using errcode='40001';end if;
  if coalesce(p_fence->'attribution_context','null') is distinct from coalesce(page->'attribution_context','null')
    or coalesce(p_fence->'attribution_coverage','null') is distinct from coalesce(page->'attribution_coverage','null') then
    raise exception 'attribution context changed' using errcode='40001';end if;
@@ -7688,7 +7758,8 @@ CREATE FUNCTION public.lock_lifetime_memoir_lane_publication_before_rework(p_fen
     AS $$
 declare current_page jsonb; field text; proof jsonb; lane public.user_memoir_lane%rowtype;
 begin
- if octet_length(p_fence::text)>65536 then raise exception 'bounded lane fence required';end if;
+ if octet_length(p_fence::text)>(case when p_fence ? 'timeline_context' then 98304 else 65536 end) then
+   raise exception 'bounded lane fence required';end if;
  if auth.uid() is null or auth.uid()::text is distinct from p_fence->>'user_id' then raise exception 'canonical lane owner mismatch' using errcode='42501';end if;
  current_page:=public.read_lifetime_memoir_lane_page((p_fence->>'lane_id')::uuid,(p_fence->>'token')::uuid);
  if (current_page->'preferences'->>'privacy_complete')::boolean is distinct from true then raise exception 'current privacy requires maintenance';end if;
@@ -8966,6 +9037,7 @@ begin
          'precision',event_record.data->'temporal'->'precision','year_start',event_record.data->'temporal'->'year_start',
          'year_end',event_record.data->'temporal'->'year_end'),
        'uncertainty',event_record.data->'uncertainty','assertion',event_record.data->'assertion',
+       'locationConfidenceScore',event_record.data->'locationConfidenceScore','yearConfidenceScore',event_record.data->'yearConfidenceScore',
        'timing_conflict',coalesce(event_record.data->'timing_conflict','false'),
        'details_complete',not exists(select 1 from unnest(array['temporal_accounts','relations','candidate_ids','supersedes','contradicts']) k
          where jsonb_typeof(event_record.data->k)='array' and jsonb_array_length(event_record.data->k)>0),
@@ -9191,6 +9263,76 @@ begin
  return public.narrator_source_record(original);
 end $$;
 
+CREATE FUNCTION public.lifetime_timeline_context(p_owner uuid,p_project text,p_source uuid,p_compact boolean DEFAULT false) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+declare current_source public.user_narrator_source%rowtype; prior public.user_narrator_source%rowtype;
+ identity public.user_lifetime_conversation%rowtype; history jsonb:='[]'; original jsonb; reply text; last_event jsonb;
+ previous_owner text; entry jsonb; trimmed jsonb:='[]'; fragment jsonb;
+begin
+ select * into current_source from public.user_narrator_source where user_id=p_owner and project_id=p_project
+   and id=p_source and status='active';
+ if not found then raise exception 'timeline source unavailable' using errcode='42501';end if;
+ select * into identity from public.user_lifetime_conversation where user_id=p_owner and project_id=p_project;
+ previous_owner:=current_setting('request.jwt.claim.sub',true);
+ perform set_config('request.jwt.claim.sub',p_owner::text,true);
+ for prior in select * from public.user_narrator_source where user_id=p_owner and project_id=p_project
+   and status='active' and sequence<current_source.sequence order by sequence desc limit 20 loop
+   select w into original from public.lifetime_guidance_source_windows(p_owner,p_project,prior.id,prior.version,0,least(length(prior.text),320)) w limit 1;
+   reply:=case when original is not null then public.read_lifetime_history_reply(identity.conversation_id,prior.client_turn_id)->>'reply' end;
+   if exists(select 1 from public.user_memory_attribution_window w where w.user_id=p_owner and w.project_id=p_project
+       and w.source_id=prior.id and w.source_version=prior.version and w.disposition='withheld') then reply:=null;end if;
+   history:=jsonb_build_array(jsonb_build_object('sequence',prior.sequence,'source',original,
+     'source_complete',original->>'char_start'='0' and (original->>'char_end')::integer=length(prior.text),
+     'assistant',case when reply is null then null else jsonb_build_object('role','assistant','personal_testimony',false,
+       'text',left(reply,96),'complete',length(reply)<=96) end))||history;
+ end loop;
+ perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+ if p_compact or octet_length(history::text)>40000 then
+   for entry in select value from jsonb_array_elements(history) loop
+     if jsonb_typeof(entry->'source')='object' then
+       fragment:=entry->'source';
+       fragment:=fragment||jsonb_build_object('text',left(fragment->>'text',128),
+         'char_end',(fragment->>'char_start')::integer+length(left(fragment->>'text',128)));
+       entry:=entry||jsonb_build_object('source',fragment,'source_complete',false);
+     end if;
+     if jsonb_typeof(entry->'assistant')='object' then
+       entry:=jsonb_set(entry,'{assistant}',(entry->'assistant')||jsonb_build_object('text',left(entry->'assistant'->>'text',48),'complete',false));
+     end if;
+     trimmed:=trimmed||jsonb_build_array(entry);
+   end loop;
+   history:=trimmed;
+ end if;
+ select public.bounded_lifetime_event_record(e)||coalesce(public.lifetime_attribution_event_context(p_owner,p_project,e.id),'{}')||
+   jsonb_build_object('original_passages',coalesce((select jsonb_agg(w) from (
+     select w from public.user_memory_event_source r cross join lateral public.lifetime_guidance_source_windows(
+       r.user_id,r.project_id,r.source_id,r.source_version,coalesce((r.evidence->>'char_start')::integer,0),
+       least(coalesce((r.evidence->>'char_end')::integer,2147483647),coalesce((r.evidence->>'char_start')::integer,0)+500)) w
+     where r.user_id=p_owner and r.project_id=p_project and r.event_id=e.id
+     order by r.source_id,r.evidence_hash limit 2) originals),'[]')) into last_event
+ from public.user_memory_event e where e.user_id=p_owner and e.project_id=p_project and e.status='active'
+   and exists(select 1 from public.user_memory_event_source r join public.user_narrator_source s
+     on s.user_id=r.user_id and s.project_id=r.project_id and s.id=r.source_id and s.version=r.source_version and s.status='active'
+     where r.user_id=e.user_id and r.project_id=e.project_id and r.event_id=e.id and s.sequence<current_source.sequence)
+   and not exists(select 1 from public.user_memory_event_source r left join public.user_narrator_source s
+     on s.user_id=r.user_id and s.project_id=r.project_id and s.id=r.source_id
+     where r.user_id=e.user_id and r.project_id=e.project_id and r.event_id=e.id
+       and (s.id is null or s.status<>'active' or s.version<>r.source_version or s.sequence>=current_source.sequence))
+   and not exists(select 1 from public.user_memory_event_source r join public.user_memory_attribution_window w
+     on w.user_id=r.user_id and w.project_id=r.project_id and w.source_id=r.source_id and w.source_version=r.source_version
+     where r.user_id=e.user_id and r.project_id=e.project_id and r.event_id=e.id and w.disposition in ('withheld','non_story')
+       and w.char_start<coalesce((r.evidence->>'char_end')::integer,2147483647)
+       and w.char_end>coalesce((r.evidence->>'char_start')::integer,0))
+ order by e.change_sequence desc,e.id limit 1;
+ if last_event is not null then
+   last_event:=last_event||jsonb_build_object('title',left(last_event->>'title',120),
+     'title_complete',length(coalesce(last_event->>'title',''))<=120,
+     'uncertainty',left(last_event->>'uncertainty',256),
+     'uncertainty_complete',length(coalesce(last_event->>'uncertainty',''))<=256);
+ end if;
+ return jsonb_build_object('conversation_history',history,'last_event',last_event);
+end $$;
+REVOKE ALL ON FUNCTION public.lifetime_timeline_context(uuid,text,uuid,boolean) FROM PUBLIC,anon,authenticated,service_role;
+
 CREATE FUNCTION public.read_lifetime_memoir_lane_page(p_lane_id uuid, p_token uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
@@ -9208,9 +9350,29 @@ begin
      'recent_dialogue',public.lifetime_question_dialogue(source.user_id,source.project_id,source.id,
        (page->>'source_high_water')::bigint));
    page:=page||jsonb_build_object('attribution_context',context);
+   if not(page ? 'profile_context') and coalesce(page->'memory_summary','null')='null' then
+     inputs:=public.lifetime_timeline_context(source.user_id,source.project_id,source.id);
+     page:=page||jsonb_build_object('timeline_context',inputs);
+     if inputs->'last_event'<>'null'::jsonb and not exists(select 1 from jsonb_array_elements(page->'events') e
+         where e->>'id'=inputs->'last_event'->>'id') then
+       events:=jsonb_build_array(inputs->'last_event')||page->'events';
+       page:=jsonb_set(page,'{events}',case when jsonb_array_length(events)>8 then events-8 else events end);
+     end if;
+   end if;
    page:=jsonb_set(page,'{events}',coalesce((select jsonb_agg(candidate||coalesce(ctx,'{}'))
      from jsonb_array_elements(page->'events') candidate cross join lateral (select public.lifetime_attribution_event_context(
        source.user_id,source.project_id,candidate->>'id') ctx) bounded),'[]'));
+   if page ? 'timeline_context' then
+     page:=jsonb_set(page,'{events}',coalesce((select jsonb_agg((candidate-'original_passages')||
+       jsonb_build_object('title',left(candidate->>'title',120),
+         'title_complete',coalesce((candidate->>'title_complete')::boolean,true) and length(candidate->>'title')<=120,
+         'uncertainty',left(candidate->>'uncertainty',256),
+         'uncertainty_complete',length(coalesce(candidate->>'uncertainty',''))<=256))
+       from jsonb_array_elements(page->'events') candidate),'[]'));
+     if octet_length(page::text)>50000 then
+       page:=jsonb_set(page,'{timeline_context}',public.lifetime_timeline_context(source.user_id,source.project_id,source.id,true));
+     end if;
+   end if;
    if coalesce(page->'memory_summary','null')='null' then
      select source_decision into decision from public.user_lifetime_lane_snapshot where id=(page->>'snapshot_id')::uuid;
      if decision is not null then
@@ -16187,7 +16349,8 @@ begin
        'char_start',lo,'char_end',hi,'original_length',length(source.text),'kind',source.kind,
        'language',source.language,'status',source.status,'author_role','storyteller'),
        'available_skills',names,'profile_reference',reference,'profile_targets',targets,
-       'recent_dialogue',public.lifetime_question_dialogue(a.user_id,a.project_id,source.id,a.source_high_water));
+       'recent_dialogue',public.lifetime_question_dialogue(a.user_id,a.project_id,source.id,a.source_high_water))
+       ||public.lifetime_timeline_context(a.user_id,a.project_id,source.id);
    end if;
  end if;
  return jsonb_build_object('lanes',coalesce((select jsonb_agg(jsonb_build_object('id',id,'skill',skill))

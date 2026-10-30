@@ -10,11 +10,12 @@ import re
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from .stage_readiness import LIFE_STAGES
 from .prompt_composition import render_prompt_artifact
 from .prompt_artifact import prompt_path
+from .place_journey import CoarsePlace, validate_place_journey
 
 
 class EvidenceRef(BaseModel):
@@ -55,6 +56,10 @@ class EventProposal(BaseModel):
     stage_evidence: list[EvidenceRef] | None = Field(default=None, max_length=100)
     source_refs: list[EvidenceRef] = Field(min_length=1, max_length=100)
     uncertainty: str | None = Field(default=None, max_length=2000)
+    location: CoarsePlace | None = None
+    location_basis: list[EvidenceRef] | None = Field(default=None, max_length=20)
+    locationConfidenceScore: float | None = Field(default=None, ge=0, le=1, strict=True)
+    yearConfidenceScore: float | None = Field(default=None, ge=0, le=1, strict=True)
     person_ids: list[str] | None = Field(default=None, max_length=100)
     visibility: Literal['private', 'family', 'public'] | None = None
     include_in_print: bool | None = None
@@ -65,6 +70,14 @@ class EventProposal(BaseModel):
         'Only for a current explicit correction using correct, actually, year was, I meant, should be, '
         '更正, 纠正, 应该, 其实 or 不是. Quote the complete current original. '
         'New stage/date evidence for an existing event uses correction=null.'))
+
+    @model_validator(mode='before')
+    @classmethod
+    def confidence_values(cls, value):
+        if isinstance(value, dict) and any(field in value and value[field] is None
+                for field in ('locationConfidenceScore','yearConfidenceScore')):
+            raise ValueError('Confidence scores use zero for unknown placement')
+        return value
 
 
 class ExtractionResult(BaseModel):
@@ -199,7 +212,8 @@ def _source_ref_is_vetoed(ref: EvidenceRef, original: dict) -> bool:
     for index in blocked:
         _clause, start, end = spans[index]
         if ref.char_start is not None:
-            if ref.char_start < end and ref.char_end > start:
+            offset = original.get('char_start', 0)
+            if ref.char_start - offset < end and ref.char_end - offset > start:
                 return True
         else:
             # Search only potential overlapping occurrences. Avoid building a
@@ -212,7 +226,10 @@ def _source_ref_is_vetoed(ref: EvidenceRef, original: dict) -> bool:
 
 def validate_extraction(raw, sources, saved_events):
     result = ExtractionResult.model_validate(raw)
-    originals = {(s['id'], s['version']): s for s in sources if s.get('status', 'active') == 'active'}
+    originals = {}
+    for source in sources:
+        if source.get('status', 'active') == 'active':
+            originals.setdefault((source['id'], source['version']), []).append(source)
     events = {e['id']: e for e in saved_events}
     updates = []
     for event in result.events:
@@ -231,24 +248,41 @@ def validate_extraction(raw, sources, saved_events):
         for relation in event.relations or []:
             if relation.event_id not in events:
                 raise ValueError('Chronology requires a canonical scoped target')
-        refs = [*event.source_refs, *(event.stage_evidence or []), *(event.temporal.basis if event.temporal else []),
+        if event.location:
+            normalized = validate_place_journey(event.location.model_dump())
+            if (not normalized or event.location.hierarchy[-1] != event.location.place
+                    or not any(event.location.place in ref.quote for ref in event.location_basis or [])):
+                raise ValueError('Location requires a named coarse place in its evidence')
+            if event.locationConfidenceScore is None:
+                raise ValueError('Location requires its confidence score')
+        refs = [*event.source_refs, *(event.location_basis or []), *(event.stage_evidence or []), *(event.temporal.basis if event.temporal else []),
                 *(ref for relation in event.relations or [] for ref in relation.source_refs),
                 *([event.correction] if event.correction else [])]
-        if event.correction and (not event.existing_id or originals.get((event.correction.source_id, event.correction.version), {}).get('text') != event.correction.quote):
+        if event.correction and (not event.existing_id or event.correction.source_id != sources[0]['id']
+                or sources[0].get('text') != event.correction.quote):
             raise ValueError('Explicit correction must cite the current original statement')
         # Match the canonical SQL writer before returning a proposal, so the
         # bounded retry can repair intent instead of repeating a failed commit.
         if event.correction and not re.search(r'(correct|actually|year was|i meant|should be|更正|纠正|应该|其实|不是)', event.correction.quote, re.I):
             raise ValueError('Correction requires explicit correction wording')
-        if event.correction and event.life_stage is None and event.temporal is None:
+        location_correction = bool(event.correction and event.life_stage is None and event.temporal is None
+            and 'location' in event.model_fields_set and event.locationConfidenceScore is not None)
+        if event.correction and event.life_stage is None and event.temporal is None and not location_correction:
             raise ValueError('Correction requires timeline placement fields')
+        admitted = {}
         for ref in refs:
-            original = originals.get((ref.source_id, ref.version))
-            if not original or ref.quote not in original['text']:
+            candidates = originals.get((ref.source_id, ref.version), [])
+            candidates = [original for original in candidates if ref.quote in original['text']]
+            if not candidates:
                 raise ValueError('Evidence must match an authorised original source version')
             if ref.char_start is not None or ref.char_end is not None:
-                if ref.char_start is None or ref.char_end is None or original['text'][ref.char_start:ref.char_end] != ref.quote:
+                candidates = [original for original in candidates if ref.char_start is not None and ref.char_end is not None
+                    and ref.char_start >= original.get('char_start', 0)
+                    and ref.char_end <= original.get('char_start', 0) + len(original['text'])
+                    and original['text'][ref.char_start-original.get('char_start',0):ref.char_end-original.get('char_start',0)] == ref.quote]
+                if not candidates:
                     raise ValueError('Evidence span must match the original words')
+            admitted[id(ref)] = candidates[0]
         if event.life_stage not in {None, 'unplaced'} and not event.stage_evidence:
             raise ValueError('Stage placement requires evidence')
         if event.temporal:
@@ -264,10 +298,19 @@ def validate_extraction(raw, sources, saved_events):
                 raise ValueError('The original date expression must be retained in its evidence')
         # Withhold only the affected proposal. Independent allowed events in
         # the same input still advance the canonical lane successfully.
-        if any(_source_ref_is_vetoed(ref, originals[(ref.source_id, ref.version)])
+        if any(_source_ref_is_vetoed(ref, admitted[id(ref)])
                for ref in refs):
             continue
-        updates.append(event.model_dump(exclude_none=True))
+        normalized = event.model_dump(exclude_none=True)
+        if location_correction:
+            # The explicit correction writer owns stage/date overrides. Location
+            # clarification follows ordinary, current-source event enrichment.
+            normalized.pop('correction')
+        if 'location' in event.model_fields_set:
+            normalized['location'] = event.location.model_dump() if event.location else None
+        if 'location_basis' in event.model_fields_set:
+            normalized['location_basis'] = [ref.model_dump(exclude_none=True) for ref in event.location_basis or []]
+        updates.append(normalized)
     return updates
 
 
@@ -285,6 +328,8 @@ def extraction_schema():
             for child in value:
                 strict(child)
     strict(schema)
+    for field in ('locationConfidenceScore', 'yearConfidenceScore'):
+        schema['$defs']['EventProposal']['properties'][field] = {'type':'number','minimum':0,'maximum':1}
     return schema
 
 

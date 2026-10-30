@@ -331,18 +331,20 @@ def test_map_cards_replay_canonical_places_at_city_and_event_scale(sql, tmp_path
                 place=dict(place=label, hierarchy=['Earth', 'Australia', 'Sydney', label], granularity='suburb')))
         return {**empty(packet), 'events':events, 'event_places':links}
 
-    conversation = Conversation(sql, tmp_path, monkeypatch, extract)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract, family=False)
     with conversation.client:
         conversation.say(' '.join(quotes))
         conversation.drain()
-        response = conversation.client.get('/v1/story/events', params={'project_id':conversation.project})
+        assert conversation.client.get('/v1/story/events', params={'project_id':conversation.project}).status_code == 403
+        response = conversation.client.get('/v1/story/map-events', params={'project_id':conversation.project})
         assert response.status_code == 200, response.text
-        events = response.json()['events']
+        snapshot = response.json()
+        events = snapshot['events']
         assert len(events) == 2, 'The controlled Lane B extraction must persist both events'
         locations = {}
         grouping = {}
         for event in events:
-            response = conversation.client.get(f'/v1/story/events/{conversation.project}/{event["id"]}/places')
+            response = conversation.client.get(f'/v1/story/map-events/{conversation.project}/{event["id"]}/places')
             assert response.status_code == 200, response.text
             locations[event['id']] = response.json()
             linked = response.json()['items'][0]['place']
@@ -356,5 +358,5 @@ def test_map_cards_replay_canonical_places_at_city_and_event_scale(sql, tmp_path
         places = [city] if with_city_history else []
         replay = Path(__file__).parent/'js/helpers/replay-map-memory-events.mjs'
         result = subprocess.run(['node', str(replay)], input=json.dumps(dict(events=events,
-            locations=locations, places=places, grouping=grouping)), text=True, capture_output=True, timeout=10)
+            locations=locations, places=places, grouping=grouping, snapshot=snapshot)), text=True, capture_output=True, timeout=10)
         assert result.returncode == 0, result.stdout + result.stderr
