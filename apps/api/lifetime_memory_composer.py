@@ -84,24 +84,22 @@ def extraction_events(raw,page,original=None):
                     and type(value['version']) is int and item['version'] == value['version'] and value['quote'] in item['text']]
                 if not admitted:
                     raise ValueError('Evidence outside the claimed source page')
-                window = next((item for item in admitted if value.get('char_start') is not None
-                    and item['char_start'] <= value['char_start'] < value.get('char_end',0) <= item['char_end']),admitted[0])
                 start=value.get('char_start');end=value.get('char_end')
                 if (start is None)!=(end is None):
                     raise ValueError('Evidence requires both exact offsets or neither')
-                occurrence=window['text'].find(value['quote'])
-                if occurrence<0:
-                    raise ValueError('Evidence quote outside claimed source page')
-                positioned=(type(start) is int and type(end) is int and 0<=start<end<=len(window['text'])
-                    and window['text'][start:end]==value['quote'])
-                if not positioned:
-                    if window['text'].find(value['quote'],occurrence+1)>=0:
-                        raise ValueError('An ambiguous occurrence requires exact offsets')
-                    # One verbatim occurrence has a database-owned exact span.
-                    # Model character arithmetic cannot alter those words.
-                    start=occurrence
-                    end=occurrence+len(value['quote'])
-                value.update(char_start=start+window['char_start'],char_end=end+window['char_start'])
+                positions = {(item['char_start']+start,item['char_start']+end)
+                    for item in admitted if type(start) is int and type(end) is int
+                    and 0<=start<end<=len(item['text']) and item['text'][start:end]==value['quote']}
+                if not positions:
+                    for item in admitted:
+                        occurrence=item['text'].find(value['quote'])
+                        while occurrence>=0:
+                            positions.add((item['char_start']+occurrence,item['char_start']+occurrence+len(value['quote'])))
+                            occurrence=item['text'].find(value['quote'],occurrence+1)
+                if len(positions)!=1:
+                    raise ValueError('An ambiguous occurrence requires exact offsets')
+                start,end=positions.pop()
+                value.update(char_start=start,char_end=end)
             for child in value.values(): absolute(child)
         elif isinstance(value,list):
             for child in value: absolute(child)

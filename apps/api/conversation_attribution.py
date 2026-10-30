@@ -96,6 +96,7 @@ def policy_dispositions(page, original):
     from .codex_runtime import _timeline_source_spans, _timeline_veto_scope
     from .memory_events import _source_ref_is_vetoed
     source = page['source']
+    original = {**original,'char_start':0}  # This RPC supplies the whole original.
     dispositions = []
     for clause, lo, hi in _timeline_source_spans(original['text']):
         lo, hi = max(lo, source['char_start']), min(hi, source['char_end'])

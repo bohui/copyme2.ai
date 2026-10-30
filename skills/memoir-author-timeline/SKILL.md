@@ -68,6 +68,8 @@ family identities; unresolved names do not create or identify a person.
 An explicit current chat correction may include `correction` citing the whole
 original statement and the target's expected revision. The backend records actor,
 origin and authority. Saved user overrides take precedence over model estimates.
+A location-only clarification uses an ordinary existing_id update; correction
+is for stage or date changes.
 A stale revision requires a fresh snapshot. The model cannot grant privacy or
 print rights. Removed source links cannot be silently restored.
 

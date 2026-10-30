@@ -108,6 +108,29 @@ def test_ambiguous_historical_quote_repair_keeps_its_original_coordinates():
         extraction_events(dict(events=[event]),current)
 
 
+def test_multiple_excerpts_select_exact_relative_spans_and_reject_ambiguity():
+    from apps.api.lifetime_memory_composer import extraction_events
+    from test_lifetime_memory_lane_engine import page
+    current=page()
+    current['source']['sequence']=2
+    prior={**current['source'],'id':str(UUID(int=100)),'sequence':1,
+        'text':'Chengde.'+'x'*312,'char_start':0,'char_end':320,'original_length':1000}
+    later={**prior,'text':'x'*100+'Chengde.'+'x'*392,'char_start':500,'char_end':1000}
+    current['timeline_context']=dict(conversation_history=[dict(sequence=1,source=prior)],
+                                   last_event=dict(original_passages=[later]))
+    ref={**prior_ref(prior,'Chengde.'),'char_start':100,'char_end':108}
+    event=dict(kind='event',title='Work',source_refs=[prior_ref(current['source'],current['source']['text'])],
+        location=CHENGDE,locationConfidenceScore=0.95,yearConfidenceScore=0,location_basis=[ref])
+    assert extraction_events(dict(events=[event]),current)[0]['location_basis'][0]['char_start']==600
+    ref.update(char_start=None,char_end=None)
+    with pytest.raises(ValueError,match='ambiguous'):
+        extraction_events(dict(events=[event]),current)
+    ref.update(char_start=100,char_end=108)
+    prior['text']='x'*100+'Chengde.'+'x'*212
+    with pytest.raises(ValueError,match='ambiguous'):
+        extraction_events(dict(events=[event]),current)
+
+
 def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the_same_event(sql,tmp_path,monkeypatch):
     birth = 'I was born in Chengde in 1991.'
     childhood = 'When I was little, I played in the staff compound at my father\'s school.'
@@ -188,6 +211,29 @@ def test_an_explicit_previous_city_and_year_can_ground_the_current_event(sql,tmp
         assert [item['place']['place'] for item in places['items']]==['Chengde']
 
 
+def test_explicit_year_correction_also_saves_current_confidence_metadata(sql,tmp_path,monkeypatch):
+    first='I worked in Chengde in 1997.'
+    correction='Actually, I worked in Chengde in 1998.'
+    def extract(packet):
+        text=packet['sources'][0]['text']
+        event=episode(packet,text,title='Work')
+        year=1997 if text==first else 1998
+        event.update(location=CHENGDE,location_basis=[reference(packet,text)],
+            locationConfidenceScore=1 if text==first else 0.95,yearConfidenceScore=1,
+            temporal=dict(expression=str(year),precision='year',year_start=year,year_end=year,basis=[reference(packet,text)]))
+        if text!=first:
+            previous=packet['last_event']
+            event.update(existing_id=previous['id'],expected_revision=previous['revision'],correction=reference(packet,text))
+        return {**empty(packet),'events':[event]}
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
+    with conversation.client:
+        conversation.say(first);drain(conversation)
+        conversation.say(correction);drain(conversation)
+        saved=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()['events'][0]
+        assert saved['temporal']['year_start']==1998
+        assert saved['yearConfidenceScore']==1 and saved['locationConfidenceScore']==0.95
+
+
 def test_location_correction_clears_the_candidate_and_old_map_link(sql,tmp_path,monkeypatch):
     first='I played in Chengde.'
     correction='Actually, I cannot remember which city that was.'
@@ -197,11 +243,16 @@ def test_location_correction_clears_the_candidate_and_old_map_link(sql,tmp_path,
         if text==first:
             event.update(location=CHENGDE,location_basis=[reference(packet,text)],
                          locationConfidenceScore=1,yearConfidenceScore=0)
-        else:
+        elif text==correction:
             previous=packet['last_event']
             event.update(existing_id=previous['id'],expected_revision=previous['revision'],
                 location=None,location_basis=None,locationConfidenceScore=0,yearConfidenceScore=0,
                 correction=reference(packet,text),uncertainty='The narrator withdrew the city attribution.')
+        else:
+            previous=packet['last_event']
+            event.update(existing_id=previous['id'],expected_revision=previous['revision'],
+                location=dict(place='Hobart',hierarchy=['Earth','Australia','Tasmania','Hobart'],granularity='city'),
+                location_basis=[reference(packet,text)],locationConfidenceScore=1,yearConfidenceScore=0)
         return {**empty(packet),'events':[event]}
     conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
     with conversation.client:
@@ -213,6 +264,8 @@ def test_location_correction_clears_the_candidate_and_old_map_link(sql,tmp_path,
         assert conversation.client.get(path).json()['items']==[]
         stored=json.loads(sql(f"select data from public.user_memory_event where id={literal(saved['id'])};").stdout)
         assert stored['location'] is None and stored['locationConfidenceScore']==0
+        conversation.say('Now I remember: it was Hobart.');drain(conversation)
+        assert [item['place']['place'] for item in conversation.client.get(path).json()['items']]==['Hobart']
 
 
 def test_history_has_twenty_prior_rounds_and_a_last_event_outside_that_window(sql):
@@ -260,7 +313,7 @@ def test_publication_rejects_changed_history_with_copied_page_digests(sql,tmp_pa
     assert set(observed)=={'conversation_history','last_event'}
 
 
-def test_large_canonical_history_fence_is_admitted_without_the_old_64k_limit(sql):
+def test_twenty_rounds_eight_candidates_and_current_window_fit_every_boundary(sql):
     from apps.api.lifetime_memory_composer import lane_model_budget, validate_page
     from apps.api.lifetime_memory_lane_engine import LaneFence, build_bounded_lane_input, lane_extraction_packet, lane_request_tokens
     from test_lifetime_composer_capacity import create_lane, service
@@ -269,26 +322,30 @@ def test_large_canonical_history_fence_is_admitted_without_the_old_64k_limit(sql
     project=identity['project_id']
     sources=[]
     for index in range(21):
-        text='往'*320 if index<20 else 'I remembered another event.'
+        text='往'*320 if index<20 else '忆'*2304
         sources.append(rpc(sql,'accept_user_narrator_source',
             f"{literal(project)},'00000000-0000-4000-8000-{index+1:012d}',{literal(text)}"))
     sql(f"update public.user_narrator_source set processing_status='succeeded' where project_id={literal(project)} and sequence<21;")
-    for index in range(6):
-        event=dict(title='Earlier memory '+str(index),uncertainty='待'*2000)
+    for index in range(8):
+        event=dict(title='事'*299+str(index),uncertainty='待'*2000)
         sql(f"insert into public.user_memory_event(user_id,project_id,id,kind,life_stage,data,change_sequence) values('{OWNER}',{literal(project)},'event-{index}','event','unplaced',{literal(event)}::jsonb,{index+1});")
         ref=dict(source_id=sources[index]['id'],version=1,quote='往'*320,char_start=0,char_end=320)
         sql(f"insert into public.user_memory_event_source(user_id,project_id,event_id,source_id,source_version,evidence_hash,evidence) values('{OWNER}',{literal(project)},'event-{index}','{sources[index]['id']}',1,'one',{literal(ref)}::jsonb);")
-    sql(f"update public.user_memoir_project set event_sequence=6 where project_id={literal(project)};")
+    sql(f"update public.user_memoir_project set event_sequence=8 where project_id={literal(project)};")
     sql(f"insert into public.user_lifetime_two_lane_source(user_id,project_id,source_id) values('{OWNER}',{literal(project)},'{sources[-1]['id']}');")
     lane=create_lane(sql,identity)
     page=service(sql,'claim_memoir_lane',f"'{lane}',900")
     assert page.get('timeline_context') is not None, page.keys()
+    assert len(page['events'])==8
+    assert len(page['timeline_context']['conversation_history'])==20
+    assert page['timeline_context']['last_event']['id']=='event-7'
+    assert page['events'][0]['title_complete'] is False
     fence=LaneFence.model_validate({key:page[key] for key in LaneFence.model_fields if key in page}).model_dump(mode='json')
     validate_page(page)
     bounded=build_bounded_lane_input(page,phase='extract',packet=lane_extraction_packet(LaneFence.model_validate(fence)),
                                    budget=lane_model_budget(timeline_context=True))
     assert lane_request_tokens(bounded)<=bounded.budget.input_budget
     size=int(sql(f"select octet_length({literal(fence)}::jsonb::text);").stdout)
-    assert 65536<size<=98304, size
+    assert size<=98304, size
     result=sql(f"begin;set local role authenticated;select set_config('request.jwt.claim.sub','{OWNER}',true);select public.lock_lifetime_memoir_lane_publication({literal(fence)}::jsonb);rollback;",check=False)
     assert result.returncode==0,result.stderr

@@ -3085,7 +3085,11 @@ begin
       select coalesce(pg_catalog.jsonb_object_agg(key,value),'{}') into event_data from pg_catalog.jsonb_each(proposal)
         where key in ('life_stage','temporal');
       perform public.correct_user_memory_event(p_project_id,event_id,current_event.revision,event_data,evidence.text,'chat',evidence.id);
-      continue;
+      if not(proposal ?| array['location','locationConfidenceScore','yearConfidenceScore']) then continue;end if;
+      -- Save model placement metadata after the explicit stage/date override.
+      select * into current_event from public.user_memory_event
+        where user_id=owner_id and project_id=p_project_id and id=event_id;
+      proposal:=proposal-array['correction','life_stage','temporal'];
     end if;
     event_stage:=coalesce(proposal->>'life_stage',current_event.life_stage,'unplaced');
     if event_stage not in ('baby','childhood','adolescence','young_adulthood','midlife','later_life','unplaced') then
@@ -3788,9 +3792,11 @@ begin
      case when e.data->'temporal'->>'year_start' is not null then 1 else 0 end),
    'needs_confirmation',jsonb_build_object(
      'location',coalesce((e.data->>'locationConfidenceScore')::numeric,
-       case when exists(select 1 from public.lifetime_event_place_rows(e.user_id,e.project_id,e.id)) then 1 else 0 end)<0.85,
+       case when exists(select 1 from public.lifetime_event_place_rows(e.user_id,e.project_id,e.id)) then 1 else 0 end)<0.85
+       or cardinality(public.lifetime_event_place_conflicts(e.user_id,e.project_id,e.id))>0,
      'year',not(coalesce(e.data->'user_overrides','{}') ? 'temporal') and
-       coalesce((e.data->>'yearConfidenceScore')::numeric,case when e.data->'temporal'->>'year_start' is not null then 1 else 0 end)<0.85),
+       (coalesce((e.data->>'yearConfidenceScore')::numeric,case when e.data->'temporal'->>'year_start' is not null then 1 else 0 end)<0.85
+        or coalesce((e.data->>'timing_conflict')::boolean,false))),
    'assertion',case when e.data->>'assertion' in ('asserted','inferred') then e.data->>'assertion' else 'unspecified' end,
    'timing_conflict',e.data->'timing_conflict'='true'::jsonb,
    'source_refs',refs,'reference_identity_complete',not more,'evidence_complete',jsonb_array_length(refs)=0,
@@ -7029,6 +7035,7 @@ CREATE FUNCTION public.lifetime_event_place_rows(p_owner uuid, p_project text, p
  join public.user_memory_event e on e.user_id=p.user_id and e.project_id=p.project_id and e.id=p.event_id and e.status='active'
  where p.user_id=p_owner and p.project_id=p_project and p.event_id=p_event
    and coalesce((e.data->>'locationConfidenceScore')::numeric,1)>=0.85
+   and (p.role<>'setting' or coalesce(e.data->'location','null')='null'::jsonb or p.place=e.data->'location')
    and exists(select 1 from public.user_memory_event_source r where r.user_id=p.user_id and r.project_id=p.project_id
      and r.event_id=p.event_id and r.source_id=p.source_id and r.source_version=p.source_version
      and (r.stage_progress_role='primary' or coalesce((e.data->>'locationConfidenceScore')::numeric,0)>=0.85
@@ -9247,7 +9254,7 @@ begin
  return public.narrator_source_record(original);
 end $$;
 
-CREATE FUNCTION public.lifetime_timeline_context(p_owner uuid,p_project text,p_source uuid) RETURNS jsonb
+CREATE FUNCTION public.lifetime_timeline_context(p_owner uuid,p_project text,p_source uuid,p_compact boolean DEFAULT false) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 declare current_source public.user_narrator_source%rowtype; prior public.user_narrator_source%rowtype;
  identity public.user_lifetime_conversation%rowtype; history jsonb:='[]'; original jsonb; reply text; last_event jsonb;
@@ -9271,16 +9278,16 @@ begin
        'text',left(reply,96),'complete',length(reply)<=96) end))||history;
  end loop;
  perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
- if octet_length(history::text)>40000 then
+ if p_compact or octet_length(history::text)>40000 then
    for entry in select value from jsonb_array_elements(history) loop
      if jsonb_typeof(entry->'source')='object' then
        fragment:=entry->'source';
-       fragment:=fragment||jsonb_build_object('text',left(fragment->>'text',64),
-         'char_end',(fragment->>'char_start')::integer+length(left(fragment->>'text',64)));
+       fragment:=fragment||jsonb_build_object('text',left(fragment->>'text',128),
+         'char_end',(fragment->>'char_start')::integer+length(left(fragment->>'text',128)));
        entry:=entry||jsonb_build_object('source',fragment,'source_complete',false);
      end if;
      if jsonb_typeof(entry->'assistant')='object' then
-       entry:=jsonb_set(entry,'{assistant}',(entry->'assistant')||jsonb_build_object('text',left(entry->'assistant'->>'text',32),'complete',false));
+       entry:=jsonb_set(entry,'{assistant}',(entry->'assistant')||jsonb_build_object('text',left(entry->'assistant'->>'text',48),'complete',false));
      end if;
      trimmed:=trimmed||jsonb_build_array(entry);
    end loop;
@@ -9307,9 +9314,15 @@ begin
        and w.char_start<coalesce((r.evidence->>'char_end')::integer,2147483647)
        and w.char_end>coalesce((r.evidence->>'char_start')::integer,0))
  order by e.change_sequence desc,e.id limit 1;
+ if last_event is not null then
+   last_event:=last_event||jsonb_build_object('title',left(last_event->>'title',120),
+     'title_complete',length(coalesce(last_event->>'title',''))<=120,
+     'uncertainty',left(last_event->>'uncertainty',256),
+     'uncertainty_complete',length(coalesce(last_event->>'uncertainty',''))<=256);
+ end if;
  return jsonb_build_object('conversation_history',history,'last_event',last_event);
 end $$;
-REVOKE ALL ON FUNCTION public.lifetime_timeline_context(uuid,text,uuid) FROM PUBLIC,anon,authenticated,service_role;
+REVOKE ALL ON FUNCTION public.lifetime_timeline_context(uuid,text,uuid,boolean) FROM PUBLIC,anon,authenticated,service_role;
 
 CREATE FUNCTION public.read_lifetime_memoir_lane_page(p_lane_id uuid, p_token uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
@@ -9340,6 +9353,17 @@ begin
    page:=jsonb_set(page,'{events}',coalesce((select jsonb_agg(candidate||coalesce(ctx,'{}'))
      from jsonb_array_elements(page->'events') candidate cross join lateral (select public.lifetime_attribution_event_context(
        source.user_id,source.project_id,candidate->>'id') ctx) bounded),'[]'));
+   if page ? 'timeline_context' then
+     page:=jsonb_set(page,'{events}',coalesce((select jsonb_agg((candidate-'original_passages')||
+       jsonb_build_object('title',left(candidate->>'title',120),
+         'title_complete',coalesce((candidate->>'title_complete')::boolean,true) and length(candidate->>'title')<=120,
+         'uncertainty',left(candidate->>'uncertainty',256),
+         'uncertainty_complete',length(coalesce(candidate->>'uncertainty',''))<=256))
+       from jsonb_array_elements(page->'events') candidate),'[]'));
+     if octet_length(page::text)>50000 then
+       page:=jsonb_set(page,'{timeline_context}',public.lifetime_timeline_context(source.user_id,source.project_id,source.id,true));
+     end if;
+   end if;
    if coalesce(page->'memory_summary','null')='null' then
      select source_decision into decision from public.user_lifetime_lane_snapshot where id=(page->>'snapshot_id')::uuid;
      if decision is not null then

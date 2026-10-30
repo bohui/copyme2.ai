@@ -265,7 +265,9 @@ def validate_extraction(raw, sources, saved_events):
         # bounded retry can repair intent instead of repeating a failed commit.
         if event.correction and not re.search(r'(correct|actually|year was|i meant|should be|更正|纠正|应该|其实|不是)', event.correction.quote, re.I):
             raise ValueError('Correction requires explicit correction wording')
-        if event.correction and event.life_stage is None and event.temporal is None:
+        location_correction = bool(event.correction and event.life_stage is None and event.temporal is None
+            and 'location' in event.model_fields_set and event.locationConfidenceScore is not None)
+        if event.correction and event.life_stage is None and event.temporal is None and not location_correction:
             raise ValueError('Correction requires timeline placement fields')
         admitted = {}
         for ref in refs:
@@ -300,6 +302,10 @@ def validate_extraction(raw, sources, saved_events):
                for ref in refs):
             continue
         normalized = event.model_dump(exclude_none=True)
+        if location_correction:
+            # The explicit correction writer owns stage/date overrides. Location
+            # clarification follows ordinary, current-source event enrichment.
+            normalized.pop('correction')
         if 'location' in event.model_fields_set:
             normalized['location'] = event.location.model_dump() if event.location else None
         if 'location_basis' in event.model_fields_set:
