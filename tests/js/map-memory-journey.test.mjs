@@ -35,6 +35,40 @@ test('footsteps follow chronology across city moves and preserve return visits',
   assert.deepEqual(legs.map(leg=>[leg.from.city,leg.to.city]),[['Sydney','Melbourne'],['Melbourne','Sydney']]);
 });
 
+test('an undated current home follows birth without inventing its year or age', () => {
+  const chengde={place:'Chengde',granularity:'city',hierarchy:['Earth','China','Chengde'],latitude:40.95,longitude:117.96};
+  const birth={...event('birth',0,chengde,'baby'),title:'Born in Chengde',
+    temporal:{expression:'1991',precision:'year',year_start:1991}};
+  for (const current of [
+    {title:'Currently living in Sydney',temporal:null,temporal_anchor:'present'},
+    {title:'Living in Sydney',temporal:{expression:'unknown',precision:'unknown'},temporal_anchor:'present'},
+    {title:'在悉尼生活',temporal:null,temporal_anchor:'present'},
+  ]) for (const reversed of [false,true]) {
+    const home={...event('home',null,city,'unplaced'),kind:'period',temporal:null,
+      yearConfidenceScore:0,...current};
+    const events=reversed ? [home,birth] : [birth,home];
+    const saved=JSON.stringify(events);
+    const journey=buildMapMemoryJourney(events,groupPlaces([chengde,city]),{birth_year:1991});
+    assert.deepEqual(journey.nodes.map(node=>node.event.id),['birth','home']);
+    assert.deepEqual(journey.legs.map(leg=>[leg.from.city,leg.to.city]),[['Chengde','Sydney']]);
+    const node=journey.nodes.find(node=>node.event.id==='home');
+    assert.equal(node.year,null);
+    assert.equal(node.calendar,null);
+    assert.deepEqual(node.age,{start:null,end:null});
+    assert.equal(JSON.stringify(events),saved);
+  }
+});
+
+test('unrelated present-day testimony and timing conflicts do not order an undated event', () => {
+  const birth={...event('birth',0,melbourne,'baby'),temporal:{expression:'1991',precision:'year',year_start:1991}};
+  const past={...event('past',null,city,'unplaced'),title:'Living in Sydney',temporal:null,
+    source_refs:[{quote:'I lived in Sydney, but I currently live in Melbourne.'}]};
+  const conflicted={...past,title:'Currently living in Sydney',temporal_anchor:'present',timing_conflict:true};
+  for (const home of [past,conflicted]) {
+    assert.equal(buildMapMemoryJourney([birth,home],groups,{birth_year:1991}).legs.length,0);
+  }
+});
+
 test('calendar dates determine the route within a stage even without a birth year', () => {
   const dated = (id,year,place) => ({...event(id,6,place),temporal:{expression:String(year),precision:'year',year_start:year}});
   const {nodes,legs} = buildMapMemoryJourney([dated('later',1990,work),dated('earlier',1986,school)],groups);

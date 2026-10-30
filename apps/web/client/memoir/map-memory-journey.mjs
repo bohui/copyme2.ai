@@ -85,7 +85,7 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
   for (const [index, event] of events.entries()) {
     if (event.status && event.status !== "active") continue;
     const age = eventAge(event, profile);
-    const stage = stages.indexOf(event.life_stage);
+    const lifeStage = stages.indexOf(event.life_stage);
     const year = number(event.temporal?.year_start) ?? (age.start !== null && number(profile.birth_year)
       ? profile.birth_year + age.start : null);
     const calendar = eventCalendar(event);
@@ -113,6 +113,9 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
       seen.add(key);
       const cityOnly = !coordinates(own) || member.granularity === "city"
         || (member.granularity !== "city" && target.latitude === city?.latitude && target.longitude === city?.longitude);
+      // "Now" orders a current state after remembered life stages, without dating its start.
+      const stage = lifeStage < 0 && !event.timing_conflict && !calendar && age.start === null && event.temporal_anchor === "present"
+        ? stages.length : lifeStage;
       nodes.push({key, event, age, year, calendar, index, stage, role:link.role, groupKey:group.key,
         city:group.city.place, cityLatitude:city?.latitude ?? target.latitude, cityLongitude:city?.longitude ?? target.longitude,
         place:member.place, latitude:target.latitude, longitude:target.longitude, cityOnly,
