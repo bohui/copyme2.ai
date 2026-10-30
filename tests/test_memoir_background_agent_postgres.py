@@ -72,6 +72,43 @@ def test_new_narrations_wait_for_the_current_batch_then_arrive_together(sql):
     assert work['batch']['client_turn_id'] == third['client_turn_id']
 
 
+@pytest.mark.parametrize('character',['x','忆','😀','\x01'])
+def test_forty_queued_windows_fit_the_real_tool_budget_without_dropping_sources(sql,monkeypatch,character):
+    import asyncio
+    from apps.api.memoir_background_agent import BackgroundSkills, SOURCE_SKILLS
+    from apps.api.memoir_skill_agent import SkillTools
+    from test_background_profile_postgres import source
+    monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
+    identity,run=queued(sql)
+    sources=[source(sql,identity,character*2048,index) for index in range(1,41)]
+    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline',40);")
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    class Broker:
+        async def rpc(self,name,**arguments):return service(sql,name,**arguments)
+    skills=BackgroundSkills(claim,Broker(),None)
+    async def refresh():
+        tools=SkillTools(SOURCE_SKILLS,work=skills.work)
+        response=await tools.call({'tool':'memoir_pending_work','arguments':{}})
+        assert response['success']
+        payload=response['contentItems'][0]['text']
+        assert len(payload.encode('utf-8'))<=49152
+        return json.loads(payload)
+    for remaining,original in zip(range(40,0,-1),sources):
+        work=asyncio.run(refresh())
+        page=work['source_work']
+        assert page['source']['id']==original['id']
+        assert page['source']['text']==original['text']
+        assert page['remaining_sources']==remaining
+        assert 1<=len(page['sources'])<=4
+        assert len(json.dumps(page['sources'],ensure_ascii=False).encode('utf-8'))<=16384
+        assert page['has_more_sources']==(remaining>len(page['sources']))
+        assert work['batch']['id']==claim['batch_id']
+        assert work['batch']['coverage_end']==40
+        assert work['batch']['client_turn_id']==sources[-1]['client_turn_id']
+        sql(f"update public.user_narrator_source set processing_status='succeeded' where id='{original['id']}';")
+
+
 def test_budget_stops_with_saved_progress_keep_the_same_batch_and_do_not_exhaust_retries(sql):
     from test_background_profile_postgres import source
     identity,run=queued(sql)

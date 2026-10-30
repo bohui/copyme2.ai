@@ -1180,7 +1180,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
       progressIdentity=entry.photo_search_progress.id;
       if (entry.photo_search_progress.client_turn_id !== progressTurn) onProgress=null;
       progressTurn=entry.photo_search_progress.client_turn_id;
-      progressTiming=entry.photo_search_progress;
+      progressTiming={started_at:entry.photo_search_progress.started_at,finished_at:entry.photo_search_progress.finished_at};
     }
     reportProgress("cached", (entry.pictures || []).length ? "picturesCached" : "picturesNoMatch");
     return;
@@ -1209,7 +1209,9 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
       if (state.project?.id !== projectId) return;
       photoStatus = result.status || "PARTIAL";
       photoCached = Boolean(result.cached);
-      if (result.skill_progress) progressTiming = {...progressTiming, ...result.skill_progress};
+      if (result.skill_progress) progressTiming = {
+        started_at:result.skill_progress.started_at || progressTiming.started_at,
+        finished_at:result.skill_progress.finished_at || progressTiming.finished_at};
       if (result.skill_progress?.id && result.skill_progress.id !== progressIdentity) {
         progressIdentity=result.skill_progress.id;
         reportProgress(result.skill_progress.status,result.searching ? "picturesSearching" : photoCached ? "picturesCached" : "pictures",result.failures);

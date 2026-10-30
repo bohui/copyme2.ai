@@ -16219,23 +16219,28 @@ CREATE FUNCTION public.read_memoir_background_work(p_fence jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 declare a public.user_memoir_background_agent%rowtype; source public.user_narrator_source%rowtype;
  authority public.user_lifetime_profile_authority%rowtype; source_work jsonb; targets jsonb; reference jsonb;
- lanes jsonb; originals jsonb:='[]'; core integer; lo integer; hi integer;
+ lanes jsonb; originals jsonb:='[]'; original jsonb; dialogue jsonb; remaining_sources bigint;
+ core integer; lo integer; hi integer;
  names jsonb:='["memoir-author-timeline","memoir-place-journey"]';
 begin
  perform public.lock_memoir_background_agent(p_fence);
  select * into a from public.user_memoir_background_agent where id=(p_fence->>'id')::uuid;
  lanes:=public.memoir_background_lanes(a);
  if exists(select 1 from jsonb_array_elements(lanes) l where l->>'skill'='timeline') then
+   select count(*) into remaining_sources from public.user_narrator_source where user_id=a.user_id and project_id=a.project_id
+     and status='active' and processing_status<>'succeeded' and sequence<=a.source_high_water;
    for source in select * from public.user_narrator_source where user_id=a.user_id and project_id=a.project_id
-     and status='active' and processing_status<>'succeeded' and sequence<=a.source_high_water order by sequence loop
+     and status='active' and processing_status<>'succeeded' and sequence<=a.source_high_water order by sequence limit 4 loop
      select coalesce((select next_offset from public.user_lifetime_source_extraction where user_id=a.user_id
        and project_id=a.project_id and source_id=source.id and source_version=source.version),0) into core;
      if core>=length(source.text) then core:=0;end if;
      lo:=greatest(core-256,0);hi:=least(core+2048,length(source.text));
-     originals:=originals||jsonb_build_array(jsonb_build_object('id',source.id,'project_id',source.project_id,
+     original:=jsonb_build_object('id',source.id,'project_id',source.project_id,
        'version',source.version,'sequence',source.sequence,'text',substring(source.text from lo+1 for hi-lo),
        'char_start',lo,'char_end',hi,'original_length',length(source.text),'kind',source.kind,
-       'language',source.language,'status',source.status,'author_role','storyteller'));
+       'language',source.language,'status',source.status,'author_role','storyteller');
+     if octet_length((originals||jsonb_build_array(original))::text)>16384 then exit;end if;
+     originals:=originals||jsonb_build_array(original);
    end loop;
    if jsonb_array_length(originals)>0 then
      perform public.ensure_lifetime_profile_authority(a.user_id);
@@ -16248,9 +16253,12 @@ begin
      if authority.auto_enabled and not authority.manual_complete and jsonb_array_length(targets)>0 then
        names:=names||'"memoir-memory-context"'::jsonb;
      else targets:='[]';end if;
+     dialogue:=public.lifetime_question_dialogue(a.user_id,a.project_id,(originals->0->>'id')::uuid,a.source_high_water);
+     while octet_length(dialogue::text)>8192 loop dialogue:=dialogue-0;end loop;
      source_work:=jsonb_build_object('source',originals->0,'sources',originals,
+       'remaining_sources',remaining_sources,'has_more_sources',remaining_sources>jsonb_array_length(originals),
        'available_skills',names,'profile_reference',reference,'profile_targets',targets,
-       'recent_dialogue',public.lifetime_question_dialogue(a.user_id,a.project_id,(originals->0->>'id')::uuid,a.source_high_water));
+       'recent_dialogue',dialogue);
    end if;
  end if;
  return jsonb_build_object('lanes',lanes,'selection',a.batch_selection,'source_work',source_work,

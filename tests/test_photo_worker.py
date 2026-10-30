@@ -91,6 +91,27 @@ def test_progress_forwarder_handles_split_unicode_without_changing_worker_creden
     asyncio.run(run())
 
 
+def test_initial_api_photo_frame_cannot_overwrite_a_later_browser_transport_failure(monkeypatch):
+    from pathlib import Path
+    import subprocess
+    from apps.api.background_skills import photo_step
+    monkeypatch.delenv('MEMOIR_PUBLICATION_DATABASE_URL',raising=False)
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_URL','http://controlled.invalid')
+    monkeypatch.setenv('MEMORY_SPARK_PHOTO_WORKER_SECRET','synthetic-only')
+    first={'job_id':'opaque-job','items':[],'status':'SEARCHING','searching':True}
+    original=httpx.AsyncClient
+    monkeypatch.setattr(httpx,'AsyncClient',lambda **kwargs:original(
+        transport=httpx.MockTransport(lambda request:httpx.Response(200,content=json.dumps(first)+'\n')),**kwargs))
+    async def run():
+        response=await transport.photo_response(None,'owner:project','Chengde','1980s',None,stream=True,
+            progress=lambda item:photo_step('owner','project',item))
+        return json.loads(''.join([chunk async for chunk in response.body_iterator]))
+    frame=asyncio.run(run())
+    replay=Path(__file__).parent/'js/helpers/replay-photo-stream-failure.mjs'
+    result=subprocess.run(['node',str(replay)],input=json.dumps(frame),text=True,capture_output=True,timeout=20)
+    assert result.returncode==0,result.stderr
+
+
 @pytest.mark.parametrize('remote_worker', [False, True])
 @pytest.mark.parametrize('stream', [False, True])
 def test_public_retry_refreshes_photo_research_in_both_response_formats(

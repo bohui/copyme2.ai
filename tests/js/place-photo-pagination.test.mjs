@@ -125,6 +125,34 @@ test('photo response progress keeps the server job identity for later persisted 
   assert.equal(steps.at(-1).status,'completed');
 });
 
+for (const failure of ['transport','persistence']) test(`photo ${failure} failure wins over previous server progress`,async()=>{
+  const steps=[];
+  const started_at='2026-10-30T00:01:02.000Z';
+  const server={id:'server-photo-job',status:failure==='transport' ? 'running' : 'completed',started_at,finished_at:null};
+  const h=harness({place:'Chengde'},async(_url,options)=>{
+    if (failure==='transport') {
+      await options.onPhotoPage({items:[],status:'SEARCHING',searching:true,skill_progress:server});
+      throw Error('Synthetic transport failure');
+    }
+    return {items:[picture('found')],status:'READY',skill_progress:server};
+  },{persistChatHistory(){}});
+  if (failure==='persistence') h.context.saveProfileUpdates=async()=>{throw Error('Synthetic persistence failure');};
+  await h.context.loadPlacePictures(h.entry(),'project',{onProgress:step=>steps.push(step)});
+  assert.equal(steps.at(-1).id,'server-photo-job');
+  assert.equal(steps.at(-1).status,'failed');
+  assert.equal(steps.at(-1).started_at,started_at);
+  assert.ok(steps.at(-1).finished_at);
+});
+
+test('a completed photo request cannot inherit a stale running status from its timing metadata',async()=>{
+  const steps=[];
+  const h=harness({place:'Chengde'},async()=>({items:[picture('found')],status:'READY',
+    skill_progress:{id:'server-photo-job',status:'running',finished_at:null}}),{persistChatHistory(){}});
+  await h.context.loadPlacePictures(h.entry(),'project',{onProgress:step=>steps.push(step)});
+  assert.equal(steps.at(-1).status,'completed');
+  assert.ok(steps.at(-1).finished_at);
+});
+
 test('a later browser-cache hit updates the original server photo step instead of duplicating it',async()=>{
   let calls=0;
   const h=harness({place:'Chengde'},async()=>{

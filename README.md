@@ -357,8 +357,10 @@ services retain their existing application contracts.
 
 New narrator evidence and selected place/period cues wake one coalesced agent
 per owner/project. An active batch keeps its source boundary through retries;
-new arrivals wait until it finishes. The next batch receives all queued originals
-in order, with bounded windows and evidence identities retained for extraction.
+new arrivals wait until it finishes. The next batch covers all queued originals
+in order, delivering context pages of at most four windows and 16 KiB, with
+evidence identities retained for extraction. Further pages stay in the same
+batch; surrounding question context is capped at 8 KiB.
 Thinking steps for a combined batch appear on its last covered reply. Photo,
 grouping and news requests retain their latest-reply correlation, and progress
 shows actual start and finish times. Results are saved for later turns. Lane A has reserved worker
