@@ -7035,7 +7035,9 @@ CREATE FUNCTION public.lifetime_event_place_rows(p_owner uuid, p_project text, p
  join public.user_memory_event e on e.user_id=p.user_id and e.project_id=p.project_id and e.id=p.event_id and e.status='active'
  where p.user_id=p_owner and p.project_id=p_project and p.event_id=p_event
    and coalesce((e.data->>'locationConfidenceScore')::numeric,1)>=0.85
-   and (p.role<>'setting' or coalesce(e.data->'location','null')='null'::jsonb or p.place=e.data->'location')
+   and (p.role<>'setting' or coalesce(e.data->'location','null')='null'::jsonb or not exists(
+     select 1 from jsonb_array_elements(e.data->'location'->'hierarchy') with ordinality candidate(label,ordinal)
+     where p.place->'hierarchy'->((candidate.ordinal-1)::integer) is distinct from candidate.label))
    and exists(select 1 from public.user_memory_event_source r where r.user_id=p.user_id and r.project_id=p.project_id
      and r.event_id=p.event_id and r.source_id=p.source_id and r.source_version=p.source_version
      and (r.stage_progress_role='primary' or coalesce((e.data->>'locationConfidenceScore')::numeric,0)>=0.85

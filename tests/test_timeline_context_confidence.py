@@ -268,6 +268,24 @@ def test_location_correction_clears_the_candidate_and_old_map_link(sql,tmp_path,
         assert [item['place']['place'] for item in conversation.client.get(path).json()['items']]==['Hobart']
 
 
+@pytest.mark.parametrize('candidate_is_city',[True,False])
+def test_a_supported_suburb_refines_its_containing_city_on_the_map(sql,tmp_path,monkeypatch,candidate_is_city):
+    suburb=dict(place='Shuangqiao',hierarchy=[*CHENGDE['hierarchy'],'Shuangqiao'],granularity='suburb')
+    text='I went to school in Shuangqiao, Chengde.'
+    def extract(packet):
+        event=episode(packet,text,title='School')
+        event.update(location=CHENGDE if candidate_is_city else suburb,location_basis=[reference(packet,text)],
+                     locationConfidenceScore=1,yearConfidenceScore=0)
+        return {**empty(packet),'events':[event],'event_places':[dict(event_index=0,role='setting',
+            place=suburb if candidate_is_city else CHENGDE,source_ref=reference(packet,text))]}
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
+    with conversation.client:
+        conversation.say(text);drain(conversation)
+        saved=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()['events'][0]
+        places=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places').json()
+        assert [item['place']['place'] for item in places['items']]==['Shuangqiao']
+
+
 def test_history_has_twenty_prior_rounds_and_a_last_event_outside_that_window(sql):
     identity=rpc(sql,'resolve_lifetime_conversation','null')
     project=identity['project_id']

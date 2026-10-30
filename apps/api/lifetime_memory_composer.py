@@ -186,6 +186,7 @@ async def _extract(page,worker):
                     from .timeline_context import placement_links
                     for link in placement_links(result['events']):
                         if not any(item['event_index'] == link['event_index'] and item['role'] == link['role']
+                                and item['place']['hierarchy'][:len(link['place']['hierarchy'])] == link['place']['hierarchy']
                                 for item in result['event_places']):
                             result['event_places'].append(link)
                     result['passage_dispositions'].extend(policy_dispositions(page, original))
