@@ -434,7 +434,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
     from pathlib import Path
     import subprocess
     import httpx
-    from apps.api import agent_routes, place_geocoding, place_photos, place_photo_browser, supabase_routes
+    from apps.api import main, agent_routes, place_geocoding, place_photos, place_photo_browser, supabase_routes
     from apps.api.historical_news import HistoricalResearch
     from test_place_workspace import photo_page
     from test_place_photo_browser import cse_html, photo_html
@@ -602,6 +602,7 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
                 self.advanced = True
             return {'receipt':{'status':'completed','response_id':'r','tool_call_id':'w','urls':[]},'events':[]}
     conversation = Conversation(sql,tmp_path,monkeypatch,extract)
+    monkeypatch.setattr(main, 'authenticated_storage', agent_routes.authenticated_storage)
     monkeypatch.setattr(supabase_routes, 'storage', agent_routes.authenticated_storage)
     agent_routes.runtime._news_engine = HistoricalResearch(Provider())
     with conversation.client:
@@ -705,8 +706,18 @@ def test_restored_chengde_period_drives_both_photo_and_news_research(sql,tmp_pat
         private_draft=response.json()
         assert private_draft['error']
         assert not ready['pending'],(conversation.last_db_error,sql('select skill,pending,error from public.user_memoir_lane;').stdout)
+        photo={key:credited.get(key) or '' for key in (
+            'image_url','original_url','source_url','asset_id','title','attribution','date_expression')}
+        photo.update(place=credited.get('place') or credited.get('reference_place') or '承德市',
+            period=credited.get('period') or '1980s')
+        photo_command={'action':'select','photo':photo}
+        assert not conversation.client.app.state.store.projects
+        response=conversation.client.put(f'/api/v1/memoir/projects/{conversation.project}/photo-memories',
+            headers={'Authorization':'Bearer fixture'},json=photo_command)
+        assert response.status_code==200,response.text
+        photo_memory=response.json()
         packet={'pending':pending,'ready':ready,'history':history,'photos':photos,'groups':groups,
-                'private_draft':private_draft,
+                'private_draft':private_draft,'photo_command':photo_command,'photo_memory':photo_memory,
                 'provider_places':provider_places,'landmark':landmark,'containing_places':containing_places,
                 'containing_titles':containing_titles,'rejected_city_places':rejected_city_places}
         (tmp_path/'place-research-replay.json').write_text(json.dumps(packet,ensure_ascii=False))

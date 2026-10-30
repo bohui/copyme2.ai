@@ -54,10 +54,10 @@ const api=async(path,options)=>{
   const url=new URL(path,'https://memoir.test');
   if (url.pathname === `/v1/projects/${projectId}/photo-memories`) {
     const body=JSON.parse(options.body);
-    assert.equal(body.action,'favorite');
-    assert.equal(body.photo.attribution,'Alice Example');
+    assert.equal(options.method,'PUT');
+    assert.deepEqual(body,packet.photo_command);
     memoryWrites.push(body);
-    return {favorites:[{...body.photo,key:body.photo.original_url || body.photo.image_url}],selected:null};
+    return packet.photo_memory;
   }
   assert.equal(url.pathname,`/v1/agent/places/${projectId}/photos`);
   const place=url.searchParams.get('place'),period=url.searchParams.get('period');
@@ -149,12 +149,14 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
           .map(match=>JSON.parse(match[1].replaceAll('&quot;','"').replaceAll('&amp;','&')))
           .find(photo=>photo.title==='Willow trees');
         let click;
-        const button={dataset:{photoMemory:'favorite',photoReference:JSON.stringify(reference)},
+        const button={dataset:{photoMemory:'select',photoReference:JSON.stringify(reference)},
           addEventListener:(name,handler)=>{if(name==='click')click=handler;}};
         photos.bindPhotoMemoryActions({querySelectorAll:selector=>selector==='[data-photo-memory]'?[button]:[]});
         click();
         await state.photoMemoryTask.done;
         assert.equal(state.project.profile.photo_memories[projectId].favorites[0].attribution,'Alice Example');
+        assert.equal(state.project.profile.photo_memories[projectId].selected,reference.original_url || reference.image_url);
+        assert.match(photos.selectedPhotoCue(),/Willow trees/);
       }
     }
   }

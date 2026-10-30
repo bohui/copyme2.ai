@@ -125,7 +125,8 @@ def test_photo_selection_recovers_lifetime_project_without_local_adapter(sql, ho
     if anonymous:
         sql(f"update auth.users set is_anonymous=true where id='{OWNER}';")
     project = identity(sql)['project_id']
-    image = 'https://upload.wikimedia.org/wikipedia/commons/f/f2/Chengde_Mountain_Resort_1.jpg'
+    image = ('https://upload.wikimedia.org/wikipedia/commons/f/f2/Chengde_Mountain_Resort_1.jpg'
+        '?utm_source=zh.wikipedia.org&utm_campaign=index&utm_content=original')
     photo = {'image_url':image, 'original_url':image,
         'source_url':'https://zh.wikipedia.org/wiki/File:Chengde_Mountain_Resort_1.jpg',
         'asset_id':'crawl4ai-10d97de2415ba7b3002fd04c',
@@ -139,6 +140,50 @@ def test_photo_selection_recovers_lifetime_project_without_local_adapter(sql, ho
         assert response.status_code == 200, response.text
         assert response.json()['selected'] == image
         assert response.json()['favorites'] == [{**photo, 'key':image}]
+        selected = response.json()
+        assert 'photo_memories' not in store.projects[project]['profile']
+    # Each replica starts with an empty adapter; commands use the same durable profile.
+    for action in ('clear', 'select', 'unfavorite', 'favorite'):
+        with TestClient(main.create_app(MemoryStore())) as client:
+            if action == 'clear':
+                restored = client.get(f'/v1/user/profile', headers=headers()).json()
+                assert restored['photo_memories'][project] == selected
+            response = client.put(f'/api/v1/memoir/projects/{project}/photo-memories',
+                headers=headers('owner-new-device'),
+                json={'action':action, **({'photo':photo} if action != 'clear' else {})})
+            assert response.status_code == 200, response.text
+            saved = response.json()
+            assert saved['selected'] == (image if action == 'select' else None)
+            assert saved['favorites'] == ([] if action == 'unfavorite' else [{**photo, 'key':image}])
+    assert identity(sql)['project_id'] == project
+    assert sql('select count(*) from public.user_lifetime_conversation;').stdout.strip() == '1'
+
+
+@pytest.mark.parametrize('authorization,account,status', [
+    (None, OWNER, 404), ('other', None, 404), ('expired', None, 401), ('other', OWNER, 403),
+])
+def test_cold_photo_save_cannot_restore_another_owners_project(sql, home_auth, authorization, account, status):
+    project = identity(sql)['project_id']
+    store = MemoryStore()
+    supplied = headers(authorization) if authorization else {}
+    if account:
+        supplied['X-Account-Id'] = account
+    with TestClient(main.create_app(store)) as client:
+        response = client.put(f'/api/v1/memoir/projects/{project}/photo-memories',
+            headers=supplied, json={'action':'clear'})
+        assert response.status_code == status, response.text
+        assert not store.projects
+    assert sql('select count(*) from public.user_profile;').stdout.strip() == '0'
+
+
+def test_cold_photo_save_keeps_unknown_projects_missing(sql, home_auth):
+    identity(sql)
+    store = MemoryStore()
+    with TestClient(main.create_app(store)) as client:
+        response = client.put(f'/api/v1/memoir/projects/lifetime-{uuid4()}/photo-memories',
+            headers=headers(), json={'action':'clear'})
+        assert response.status_code == 404, response.text
+        assert not store.projects
 
 
 @pytest.mark.parametrize('projects', [('old',), ('old', 'new')])
