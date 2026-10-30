@@ -345,6 +345,8 @@ worker. Codex reviews each bounded original window and selects
 It reads the selected versioned `SKILL.md` through `memoir_read_skill`, then calls
 `memoir_process_source` with those choices. Profile extraction is available on any
 narration, subject to manual field protection and automatic-profile settings.
+Its fields are name, birth details and an explicit avatar artwork hint. Childhood
+settings remain timeline/place evidence rather than profile settings.
 Lane A produces its reply without a skill-selection handoff. The host records
 the source choice in the durable lane snapshot; a new window needs a new choice,
 and selected timeline/place work can share one extraction request.
@@ -354,7 +356,12 @@ and publication checks. Explicit book/game actions and independent photo/group
 services retain their existing application contracts.
 
 New narrator evidence and selected place/period cues wake one coalesced agent
-per owner/project. Results are saved for later turns. Lane A has reserved worker
+per owner/project. An active batch keeps its source boundary through retries;
+new arrivals wait until it finishes. The next batch receives all queued originals
+in order, with bounded windows and evidence identities retained for extraction.
+Thinking steps for a combined batch appear on its last covered reply. Photo,
+grouping and news requests retain their latest-reply correlation, and progress
+shows actual start and finish times. Results are saved for later turns. Lane A has reserved worker
 capacity and its own execution lock, so it does not wait for the background
 agent. Agent leases, revision checks and bounded retries survive restarts;
 required source work remains pending when a model stops early or a skill fails.

@@ -8,14 +8,12 @@ export default function Profile() {
   const [name, setName] = useScopedState("");
   const [place, setPlace] = useScopedState("");
   const [year, setYear] = useScopedState("");
-  const [childhood, setChildhood] = useScopedState("");
   const [notice, setNotice] = useScopedState("");
   useEffect(() => {
     if (r.value) {
       setName(r.value.name ?? "");
       setPlace(r.value.birth_place ?? "");
       setYear(String(r.value.birth_year ?? ""));
-      setChildhood(r.value.childhood_place ?? "");
     }
   }, [r.value]);
   async function save() {
@@ -34,7 +32,6 @@ export default function Profile() {
         name,
         birth_place: place,
         birth_year: birth,
-        childhood_place: childhood,
       });
       setNotice(t("saved"));
     } catch {
@@ -62,12 +59,6 @@ export default function Profile() {
         label={t("birthplace")}
         value={place}
         onChangeText={setPlace}
-        maxLength={160}
-      />
-      <Field
-        label={t("childhood")}
-        value={childhood}
-        onChangeText={setChildhood}
         maxLength={160}
       />
       {notice && <Notice text={notice} />}

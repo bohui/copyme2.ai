@@ -126,8 +126,9 @@ async def _record(function, arguments, *, owner=None):
                 if owner:
                     await connection.execute("select set_config('request.jwt.claim.sub',%s,true)",(str(owner),))
                 await connection.execute("set local lock_timeout='250ms'")
-                await connection.execute('select public.'+function+'('+','.join(['%s']*len(arguments))+')',
+                result = await connection.execute('select public.'+function+'('+','.join(['%s']*len(arguments))+')',
                     tuple(Jsonb(value) if isinstance(value,dict) else value for value in arguments))
+                return (await result.fetchone())[0]
     except Exception as error:
         from .memory_event_worker import _safe_rpc_failure
         code, kind = _safe_rpc_failure(error)
@@ -148,6 +149,7 @@ class ServiceWork:
         self.research_job_id = research_job_id
         self.id = hashlib.sha256(json.dumps([name,reference,self.client_turn_id],sort_keys=True).encode()).hexdigest()
         self.previous = None
+        self.timing = {}
 
     async def update(self,status,*,cached=False):
         step = {'id':self.id,'skill':self.skill.name,'lane':'B','phase':self.skill.runner,
@@ -156,9 +158,11 @@ class ServiceWork:
             'coverage_start':0,'coverage_end':0,'project_id':self.project_id,'client_turn_id':self.client_turn_id}
         if step != self.previous:
             metadata={**step,**({'research_job_id':self.research_job_id} if self.research_job_id else {})}
-            await _record('record_background_service_work',(str(self.owner),self.project_id,metadata))
+            timing = await _record('record_background_service_work',(str(self.owner),self.project_id,metadata))
+            if isinstance(timing,dict):
+                self.timing = {key:timing.get(key) for key in ('started_at','finished_at')}
             self.previous = step
-        return step
+        return {**step,**self.timing}
 
 
 async def group_places(owner,project_id,places,*,client_turn_id=None,language=None):

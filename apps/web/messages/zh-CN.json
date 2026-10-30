@@ -206,6 +206,9 @@
       "voiceAnswer": "语音回答"
     },
     "trace": {
+      "groupedConversations": "多轮对话合并处理",
+      "startedAt": "开始于",
+      "finishedAt": "完成于",
       "status": {
         "running": "进行中",
         "completed": "已完成",
@@ -801,7 +804,6 @@
     "birth_year": "出生年份",
     "birth_date_expression": "出生日期或大致时间",
     "birth_place": "出生地",
-    "childhood_place": "童年生活的地方",
     "avatar_style": "时间线插画样式",
     "unspecified": "未指定",
     "avatarMale": "男性插画",

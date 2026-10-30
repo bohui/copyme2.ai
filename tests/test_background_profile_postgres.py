@@ -155,7 +155,7 @@ def test_manual_blank_locks_stop_latch_release_and_honest_skip(sql):
     p = read(sql,lane,base)
     assert 'birth_year' not in p['profile_context']['targets']
     with pytest.raises(AssertionError):commit(sql,lane,p,result(p,'birth_year',1960))
-    for key in ['name','birth_date_expression','birth_place','childhood_place','avatar_style']:
+    for key in ['name','birth_date_expression','birth_place','avatar_style']:
         saved=manual(sql,{key:None})
     assert saved['profile_automation']['stopped'] and saved['profile_automation']['manual_complete']
     manual(sql,{'profile_release_fields':['birth_year']})
@@ -233,13 +233,13 @@ def test_database_rejects_malformed_or_ungrounded_patch_atomically(sql,bad):
 @pytest.mark.parametrize('change',['edit','withdraw','policy'])
 def test_immediate_invalidation_preserves_manual_fields_and_later_version_catchup(sql,change):
     identity,sources,lane,base=setup(sql)
-    manual(sql,{'childhood_place':'Sydney'})
+    manual(sql,{'birth_place':'Sydney'})
     base=reclaim(sql,lane);p=read(sql,lane,base)
     commit(sql,lane,p,result(p,'birth_year',1960))
     if change=='policy':sql('update public.user_memoir_project set policy_epoch=policy_epoch+1;')
     else:rpc(sql,'change_user_narrator_source',f"{literal(identity['project_id'])},'{sources[0]['id']}',1,'{change}',"
         +(literal('Correction: I was born in 1961.') if change=='edit' else 'null'))
-    assert 'birth_year' not in profile(sql) and profile(sql)['childhood_place']=='Sydney'
+    assert 'birth_year' not in profile(sql) and profile(sql)['birth_place']=='Sydney'
     assert sql('select count(*) from public.user_lifetime_profile_dependency;').stdout.strip()=='0'
     for n in range(2,6):source(sql,identity,f'Memory {n}.',n)
     base=reclaim(sql,lane);p=read(sql,lane,base)
@@ -415,7 +415,7 @@ def test_reply_only_coverage_is_success_and_not_manual_skip(sql):
 
 def test_empty_targets_skip_does_not_fabricate_manual_confirmation(sql):
     values={'name':'Joan','birth_year':1960,'birth_date_expression':'around 1960',
-        'birth_place':'Hobart','childhood_place':'Sydney','avatar_style':'female'}
+        'birth_place':'Hobart','avatar_style':'female'}
     sql(f"insert into public.user_profile(user_id,profile) values('{OWNER}',{literal(values)}) on conflict(user_id) do update set profile=excluded.profile;")
     identity,sources,lane,base=setup(sql);p=read(sql,lane,base)
     assert p['profile_context']['targets']==[] and p['profile_context']['work_mode']=='skip'
@@ -447,10 +447,10 @@ def test_authenticated_progress_is_read_only_and_reports_pending_versions(sql):
 def test_source_invalidation_preserves_independently_supported_fields(sql,action):
     identity,sources,lane,base=setup(sql,rounds=5)
     p=read(sql,lane,base);commit(sql,lane,p,result(p,'birth_year',1960))
-    p=read(sql,lane,base);commit(sql,lane,p,result(p,'childhood_place','Hobart'))
+    p=read(sql,lane,base);commit(sql,lane,p,result(p,'birth_place','Hobart'))
     rpc(sql,'change_user_narrator_source',f"{literal(identity['project_id'])},'{sources[0]['id']}',1,'{action}',"
         +(literal('My corrected memory.') if action=='edit' else 'null'))
-    assert 'birth_year' not in profile(sql) and profile(sql)['childhood_place']=='Hobart'
+    assert 'birth_year' not in profile(sql) and profile(sql)['birth_place']=='Hobart'
     sql(as_user("update public.user_profile set profile=profile||'{\"birth_year\":1960}';"))
     assert 'birth_year' not in profile(sql)
 

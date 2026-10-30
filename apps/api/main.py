@@ -46,7 +46,6 @@ class ProjectCreate(LooseModel):
     birth_year: int | None = None
     birth_date_expression: str | None = None
     birth_place: str | None = None
-    childhood_place: str | None = None
     region: str = "au"
     storyteller_account_id: str | None = None
     storyteller_name: str | None = None
@@ -561,6 +560,7 @@ def _project_response(project: dict[str, Any], *, authoritative_profile: dict[st
     else:
         profile = deepcopy(project['profile'])
     profile.pop('photo_memories', None)
+    profile.pop('childhood_place', None)
     if project['id'] in (photo_profile.get('photo_memories') or {}):
         profile['photo_memories'] = {project['id']: photo_memory_state(photo_profile, project['id'])}
     entitlements = _entitlement_response(project)
@@ -1472,7 +1472,7 @@ def create_app(
                 trial_units_total = 0
             project = {
                 "id": project_id, "owner_id": actor, "storyteller_id": storyteller, "mode": payload.mode, "entitlement_model": entitlement_model, "home_region": payload.region, "revision": 1, "policy_epoch": 1, "created_at": now_iso(),
-                "profile": {"name": payload.storyteller_name, "preferred_language": payload.language, "birth_year": payload.birth_year, "birth_date_expression": payload.birth_date_expression, "birth_place": payload.birth_place, "childhood_place": payload.childhood_place, "story_focus": {"who": None, "where": None, "when": None, "what": None}, "dialect_preference": None},
+                "profile": {"name": payload.storyteller_name, "preferred_language": payload.language, "birth_year": payload.birth_year, "birth_date_expression": payload.birth_date_expression, "birth_place": payload.birth_place, "story_focus": {"who": None, "where": None, "when": None, "what": None}, "dialect_preference": None},
                 "members": members, "consent": {}, "preferences": {"muted_topics": [], "excluded_topics": [], "default_visibility": "private", "sensitive_processing": False},
                 "trial_units_total": trial_units_total, "trial_units_consumed": 0, "trial_units_reserved": 0, "free_chapter_session_count": 0, "paid_units_total": 0, "paid_units_revoked": 0, "paid_units_consumed": 0, "paid_units_reserved": 0, "grants": [],
                 "sessions": {}, "session_ids": [], "memories": {}, "assets": {}, "people": {}, "relationships": [], "timeline": [], "chapters": {}, "chapter_ids": [], "outline_versions": [], "editions": {}, "edition_ids": [], "orders": [], "print_orders": [], "exports": {}, "payment_invitations": {}, "preview_jobs": {}, "idempotency": {}, "events": [], "event_cursor": 0, "composition_stage": 0, "deletion_state": "ACTIVE", "deleted_at": None,
@@ -1535,11 +1535,11 @@ def create_app(
                     pictures = place.get("pictures", [])
                     if not isinstance(pictures, list) or len(pictures) > 1000 or any(not isinstance(item, dict) for item in pictures):
                         raise HTTPException(status_code=422, detail="Invalid place pictures")
-        for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "story_focus", "dialect_preference", "memory_places", "avatar_style"):
+        for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "story_focus", "dialect_preference", "memory_places", "avatar_style"):
             if key in data:
                 project["profile"][key] = data[key]
         if isinstance(profile, dict):
-            for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "childhood_place", "story_focus", "dialect_preference", "memory_places", "avatar_style"):
+            for key in ("name", "preferred_language", "birth_year", "birth_date_expression", "birth_place", "story_focus", "dialect_preference", "memory_places", "avatar_style"):
                 if key in profile:
                     project["profile"][key] = profile[key]
         if isinstance(preferences, dict):
@@ -2526,8 +2526,11 @@ def create_app(
     async def save_photo_memory(project_id: str, payload: PhotoMemoryInput,
                                 authorization: str | None = Header(default=None),
                                 x_account_id: str | None = Header(default=None)) -> dict[str, Any]:
-        project = _project(memory, project_id, _account_id(x_account_id))
         actor = _account_id(x_account_id)
+        if project_id not in memory.projects and authorization:
+            await asyncio.to_thread(create_project, ProjectCreate(mode='self', restore_project_id=project_id),
+                                    x_account_id, authorization=authorization)
+        project = _project(memory, project_id, actor)
         if actor not in {project['owner_id'], project['storyteller_id']}:
             raise _unauthorised()
         if project.get('supabase_owner_id'):

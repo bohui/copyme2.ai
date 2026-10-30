@@ -6,7 +6,7 @@ import pytest
 
 playwright = pytest.importorskip('playwright.sync_api')
 WEB = Path(__file__).resolve().parents[1] / 'apps/web'
-FIELDS = ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']
+FIELDS = ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'avatar_style']
 
 
 @pytest.fixture(scope='module')
@@ -68,17 +68,26 @@ def open_settings(page):
     return page.locator('[data-profile-settings]')
 
 
+def test_childhood_place_is_absent_even_for_an_old_saved_profile(page):
+    page.evaluate("settings.childhood_place = 'School housing'")
+    dialog = open_settings(page)
+    playwright.expect(dialog.locator('[name=childhood_place]')).to_have_count(0)
+    playwright.expect(dialog.locator('[name=confirm_childhood_place]')).to_have_count(0)
+    dialog.locator('[data-confirm-all]').click()
+    assert 'childhood_place' not in page.evaluate('writes[0]')
+
+
 def test_settings_save_confirms_edited_fields_and_deliberate_blanks(page):
     dialog = open_settings(page)
     playwright.expect(dialog.locator('[name=avatar_style]')).to_have_value('female')
     dialog.locator('[name=name]').fill('')
     dialog.locator('[name=birth_date_expression]').fill(' about 1960 ')
     dialog.locator('[name=avatar_style]').select_option('male')
-    dialog.locator('[name=confirm_childhood_place]').check()
+    dialog.locator('[name=confirm_birth_place]').check()
     dialog.locator('[type=submit]').click()
     playwright.expect(dialog).to_have_count(0)
     assert page.evaluate('writes') == [{'preferred_language': 'en-AU', 'name': None,
-        'birth_date_expression': 'about 1960', 'childhood_place': None, 'avatar_style': 'male'}]
+        'birth_date_expression': 'about 1960', 'birth_place': None, 'avatar_style': 'male'}]
     assert len(page.evaluate('saved')) == 1
 
 

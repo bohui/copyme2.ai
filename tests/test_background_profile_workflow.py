@@ -169,7 +169,7 @@ def test_profile_checkpoints_include_intervening_sources_and_respect_manual_stop
                 source = payload['source']
                 changes = []
                 for cue, field, value in [('born in 1960', 'birth_year', 1960),
-                        ('grew up in Chengde', 'childhood_place', 'Chengde')]:
+                        ('around 1960', 'birth_date_expression', 'around 1960')]:
                     if cue in source['text'] and field in payload['profile_context']['targets']:
                         changes.append({'field': field, 'value': value, 'source_refs': [{
                             'source_id': source['id'], 'version': source['version'], 'quote': cue,
@@ -196,7 +196,7 @@ def test_profile_checkpoints_include_intervening_sources_and_respect_manual_stop
     with TestClient(create_app(MemoryStore(), story_storage_factory=lambda _: PostgresRest(sql, OWNER).storage())) as client:
         project = None
         for number in range(1, 21):
-            text = {2: 'I was born in 1960.', 7: 'I grew up in Chengde.'}.get(number,
+            text = {2: 'I was born in 1960.', 7: 'My birth date was around 1960.'}.get(number,
                 'I remember the workshop and its blue door, memory ' + str(number) + '.')
             payload = {'text': text, 'client_turn_id': str(uuid4())}
             if project:
@@ -222,7 +222,8 @@ def test_profile_checkpoints_include_intervening_sources_and_respect_manual_stop
             if number == 5:
                 assert profile.json()['birth_year'] == 1960
             if number == 10:
-                assert profile.json()['childhood_place'] == 'Chengde'
+                assert profile.json()['birth_date_expression'] == 'around 1960'
+                assert 'childhood_place' not in profile.json()
                 protected = client.patch('/v1/agent/profile', json={'profile_confirm_all': True})
                 assert protected.status_code == 200, protected.text
                 assert protected.json()['profile_automation']['stopped'] is True

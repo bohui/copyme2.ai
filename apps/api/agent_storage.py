@@ -124,6 +124,7 @@ class UserStorage:
         if not rows:
             return {}
         profile = dict(rows[0].get('profile') or {})
+        profile.pop('childhood_place', None)
         source_sequences = rows[0].get('agent_source_sequences')
         if isinstance(source_sequences, dict) and source_sequences:
             profile['_agent_source_sequences'] = source_sequences

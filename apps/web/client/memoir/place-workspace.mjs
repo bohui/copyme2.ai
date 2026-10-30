@@ -416,6 +416,7 @@ export function createPlaceWorkspace({
       recordWorkspaceSkillProgress({id:work?.id || `place-groups:${signature}`, replaces_id:work?.id ? `place-groups:${signature}` : null, kind:"skill", skill:"memoir-place-groups",
         project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:"deterministic", model_invoked:false,
         label:"memoir-place-groups", status,
+        ...(work ? {started_at:work.started_at,finished_at:work.finished_at} : {}),
         detail:`${translate(`Memoir.trace.placeGroups.${status}`)} · ${journey.place}`}, onProgress);
     };
     report("running");

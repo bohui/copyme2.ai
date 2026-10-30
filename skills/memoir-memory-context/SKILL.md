@@ -1,6 +1,6 @@
 ---
 name: memoir-memory-context
-description: Parse supported narrator profile facts or corrections when Lane B selects this skill from an original source window, saved profile reference, and writable target fields.
+description: Parse new or corrected narrator name, birth details, or explicit avatar artwork hints from an original source window and writable profile targets.
 ---
 
 # Narrator profile
@@ -40,8 +40,11 @@ Propose only fields present in the host's `profile_context.targets`, drawn from:
 | `birth_year` | Explicit, unambiguous calendar year as an integer. An approximate date alone does not establish an exact year. |
 | `birth_date_expression` | Narrator's stated date expression as text, preserving approximation, uncertainty, and calendar wording without invented precision. |
 | `birth_place` | Explicitly stated birthplace, preserving its stated wording. |
-| `childhood_place` | Explicitly stated place of growing up, distinguished from birthplace, later travel, and current residence. |
 | `avatar_style` | `male` or `female` artwork hint from clear narrator self-identification only. |
+
+Childhood settings, residences, travel and remembered places belong to timeline
+and place-journey work. They do not create profile fields or justify selecting
+this skill by themselves.
 
 For avatar style, direct self-description or an unambiguous self-identifying title
 can support a proposal. A name, spouse's identity, relative's gender, voice

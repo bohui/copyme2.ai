@@ -677,6 +677,10 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
   let previewJourney = null;
   const recordProgress = (step) => {
     if (!current() || !step?.id) return;
+    if (step.client_turn_id && step.client_turn_id !== requestTurn.id) {
+      recordWorkspaceSkillProgress(step);
+      return;
+    }
     if (step.replaces_id) {
       const previous=liveTrace.findIndex(item=>item.id===step.replaces_id);
       if (previous>=0) liveTrace.splice(previous,1);
@@ -1154,14 +1158,17 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
   const requestKey = photoRequestKey(entry, projectId);
   let progressTurn = (state.chat || []).findLast(item => item.role === "assistant")?.clientTurnId;
   let progressIdentity = `photos:${requestKey}`;
+  let progressTiming = {};
   const reportProgress = (status, label, failures = []) => {
+    if (status === "running" && !progressTiming.started_at) progressTiming.started_at = new Date().toISOString();
+    if (["completed", "failed", "cached"].includes(status) && !progressTiming.finished_at) progressTiming.finished_at = new Date().toISOString();
     const safeFailures = (Array.isArray(failures) ? failures : []).filter(item => item
       && ["flickr", "google", "loc", "commons", "llm"].includes(item.provider)
       && /^(?:robots_denied|verification_required|quota_exhausted|rate_limited|timeout|network_error|invalid_response|unavailable|http_\d{3})$/.test(item.reason))
       .map(({provider, reason}) => ({provider, reason}));
     recordWorkspaceSkillProgress({id: progressIdentity, replaces_id:progressIdentity===`photos:${requestKey}` ? null : `photos:${requestKey}`, kind: "skill", skill: "memoir-place-photo-research",
       project_id:projectId, client_turn_id:progressTurn, lane:"B", execution:status === "cached" ? "cache" : "provider", model_invoked:status === "cached" ? false : null,
-      label: "memoir-place-photo-research", status, place: entry.place, period, failures: safeFailures,
+      label: "memoir-place-photo-research", status, place: entry.place, period, failures: safeFailures, ...progressTiming,
       detail: `${translate(`Memoir.workspace.${label}`)} · ${entry.place}${period ? ` · ${period}` : ""}`
         + (safeFailures.length ? ` · ${safeFailures.map(item => `${item.provider}: ${item.reason}`).join("; ")}` : "")}, onProgress);
   };
@@ -1173,6 +1180,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
       progressIdentity=entry.photo_search_progress.id;
       if (entry.photo_search_progress.client_turn_id !== progressTurn) onProgress=null;
       progressTurn=entry.photo_search_progress.client_turn_id;
+      progressTiming=entry.photo_search_progress;
     }
     reportProgress("cached", (entry.pictures || []).length ? "picturesCached" : "picturesNoMatch");
     return;
@@ -1201,6 +1209,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
       if (state.project?.id !== projectId) return;
       photoStatus = result.status || "PARTIAL";
       photoCached = Boolean(result.cached);
+      if (result.skill_progress) progressTiming = {...progressTiming, ...result.skill_progress};
       if (result.skill_progress?.id && result.skill_progress.id !== progressIdentity) {
         progressIdentity=result.skill_progress.id;
         reportProgress(result.skill_progress.status,result.searching ? "picturesSearching" : photoCached ? "picturesCached" : "pictures",result.failures);
@@ -1246,6 +1255,7 @@ async function loadPlacePictures(entry, projectId, { more = false, force = false
           photo_search_status: result.status || ((result.items || []).length ? "PARTIAL" : "NO_MATCH"),
           photo_search_complete: !result.searching,
           photo_search_progress: result.skill_progress ? {id:result.skill_progress.id,
+            started_at:result.skill_progress.started_at,finished_at:result.skill_progress.finished_at,
             client_turn_id:result.skill_progress.client_turn_id ?? progressTurn} : null,
           photo_search_policy: "place-source-rights-v13" };
         if (index >= 0) places[index] = updatedEntry;
@@ -1478,7 +1488,6 @@ function profileHasContext(profileValue = profile()) {
     || profileValue?.birth_year
     || profileValue?.birth_date_expression
     || profileValue?.birth_place
-    || profileValue?.childhood_place
     || (focus && Object.values(focus).some(Boolean))
   );
 }
@@ -1489,7 +1498,7 @@ function mergeProfileUpdates(updates) {
   updates = preserveConversationLocale(updates, current);
   const next = { ...current };
   if (updates.profile_automation) next.profile_automation = updates.profile_automation;
-  ["name", "birth_date_expression", "birth_place", "childhood_place"].forEach((key) => {
+  ["name", "birth_date_expression", "birth_place"].forEach((key) => {
     if (typeof updates[key] === "string" && updates[key].trim()) next[key] = updates[key].trim();
   });
   const incomingLocale = updates.conversation_language;
@@ -1567,10 +1576,12 @@ async function applyCommittedConversationLocale(updates) {
 }
 
 function preserveConversationLocale(incoming = {}, current = {}) {
+  incoming = {...incoming};
+  delete incoming.childhood_place;
   const authority = current.profile_automation;
   if (Number(authority?.revision || 0) > Number(incoming.profile_automation?.revision || 0)) {
     incoming = { ...incoming, profile_automation: authority };
-    for (const key of ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']) {
+    for (const key of ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'avatar_style']) {
       if (Object.hasOwn(current, key)) incoming[key] = current[key];
       else delete incoming[key];
     }
@@ -1585,7 +1596,8 @@ function preserveConversationLocale(incoming = {}, current = {}) {
 
 function mergePrivateProfile(saved = {}, current = {}) {
   const incoming = {...current, ...saved};
-  for (const key of ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']) {
+  delete incoming.childhood_place;
+  for (const key of ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'avatar_style']) {
     if (!Object.hasOwn(saved, key)) delete incoming[key];
   }
   return preserveConversationLocale(incoming, current);
@@ -2892,7 +2904,15 @@ function renderAgentTrace(trace, mode = "simulated", expanded = false, clientTur
   const steps = visibleSteps.map((step) => {
     const execution = ["model","embedded","deterministic","provider","cache"].includes(step.execution)
       ? ` · ${escapeHtml(translate(`Memoir.trace.execution.${step.execution}`))}` : "";
-    return `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}" data-lane="${escapeHtml(step.lane || "A")}" data-execution="${escapeHtml(step.execution || "operation")}"><span class="agent-loop-detail">${escapeHtml(step.lane || "A")} · ${step.skill ? `${escapeHtml(step.skill)} · ${escapeHtml(translate(`Memoir.trace.status.${step.status || "triggered"}`))}${execution} — ` : ""}${escapeHtml(step.detail || step.label || "")}</span></li>`;
+    const grouped = step.batch_id && step.coverage_end > step.coverage_start
+      ? `<small>${escapeHtml(translate("Memoir.trace.groupedConversations"))}</small>` : "";
+    const times = [step.started_at, step.finished_at].map(value => value ? new Date(value) : null);
+    const timing = times.map((date, index) => {
+      if (!date || !Number.isFinite(date.getTime())) return "";
+      const text = new Intl.DateTimeFormat(currentUiLocale(), {dateStyle:"medium", timeStyle:"medium"}).format(date);
+      return `${escapeHtml(translate(`Memoir.trace.${index ? "finishedAt" : "startedAt"}`))} <time datetime="${date.toISOString()}">${escapeHtml(text)}</time>`;
+    }).filter(Boolean).join(" · ");
+    return `<li class="agent-loop-step agent-loop-${escapeHtml(step.kind || "analysis")}" data-step-id="${escapeHtml(step.id || "")}" data-step-status="${escapeHtml(step.status || "completed")}" data-lane="${escapeHtml(step.lane || "A")}" data-execution="${escapeHtml(step.execution || "operation")}"><span class="agent-loop-detail">${escapeHtml(step.lane || "A")} · ${step.skill ? `${escapeHtml(step.skill)} · ${escapeHtml(translate(`Memoir.trace.status.${step.status || "triggered"}`))}${execution} — ` : ""}${escapeHtml(step.detail || step.label || "")}</span>${grouped}${timing ? `<small class="agent-loop-timing">${timing}</small>` : ""}</li>`;
   }).join("");
   return `<details class="agent-loop" ${expanded ? "open" : ""}><summary><span>${title}</span></summary><ol class="agent-loop-list">${steps}${draft}</ol></details>`;
 }

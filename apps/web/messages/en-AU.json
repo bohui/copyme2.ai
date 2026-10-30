@@ -206,6 +206,9 @@
       "voiceAnswer": "Voice answer"
     },
     "trace": {
+      "groupedConversations": "Conversations processed together",
+      "startedAt": "Started",
+      "finishedAt": "Finished",
       "status": {
         "running": "In progress",
         "completed": "Completed",
@@ -801,7 +804,6 @@
     "birth_year": "Birth year",
     "birth_date_expression": "Birth date or approximate date",
     "birth_place": "Birthplace",
-    "childhood_place": "Childhood place",
     "avatar_style": "Timeline illustration style",
     "unspecified": "Unspecified",
     "avatarMale": "Male artwork",

@@ -181,9 +181,9 @@ def test_delayed_extraction_cannot_overwrite_new_preferred_name(monkeypatch, tmp
             finish.set()
             delayed = await workspace
             assert storage.data['name'] == '韩凤江'
-            assert storage.data['childhood_place'] == '开封'
+            assert 'childhood_place' not in storage.data
             assert storage.data['_agent_source_sequences']['name'] == 20
-            assert delayed['profile_updates'] == {'childhood_place': '开封'}
+            assert not delayed['profile_updates']
         finally:
             finish.set()
             await asyncio.gather(workspace, extraction, return_exceptions=True)

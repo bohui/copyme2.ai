@@ -199,6 +199,9 @@ CREATE TABLE public.user_lifetime_lane_snapshot (
     guidance_revision bigint DEFAULT 0 NOT NULL,
     guidance_news jsonb DEFAULT '{}'::jsonb NOT NULL,
     source_decision jsonb,
+    background_batch_id uuid,
+    background_turn_id uuid,
+    background_source_start bigint,
     CONSTRAINT user_lifetime_lane_snapshot_state_check CHECK ((state = ANY (ARRAY['pending'::text, 'completed'::text, 'proposed'::text, 'stale'::text])))
 );
 
@@ -437,6 +440,9 @@ CREATE TABLE public.user_background_skill_work (
     invocation_id uuid,
     lease_token uuid,
     reason text,
+    batch_id uuid,
+    started_at timestamp with time zone,
+    finished_at timestamp with time zone,
     updated_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
     CONSTRAINT user_background_skill_work_execution_check CHECK ((execution = ANY (ARRAY['model'::text, 'embedded'::text, 'deterministic'::text, 'provider'::text, 'cache'::text]))),
     CONSTRAINT user_background_skill_work_status_check CHECK ((status = ANY (ARRAY['queued'::text, 'running'::text, 'completed'::text, 'saved'::text, 'failed'::text, 'skipped'::text, 'cached'::text])))
@@ -966,7 +972,7 @@ CREATE TABLE public.user_lifetime_profile_dependency (
     source_version bigint NOT NULL,
     char_start integer NOT NULL,
     char_end integer NOT NULL,
-    CONSTRAINT user_lifetime_profile_dependency_field_check CHECK ((field = ANY (ARRAY['name'::text, 'birth_year'::text, 'birth_date_expression'::text, 'birth_place'::text, 'childhood_place'::text, 'avatar_style'::text])))
+    CONSTRAINT user_lifetime_profile_dependency_field_check CHECK ((field = ANY (ARRAY['name'::text, 'birth_year'::text, 'birth_date_expression'::text, 'birth_place'::text::text, 'avatar_style'::text])))
 );
 
 CREATE TABLE public.user_lifetime_profile_progress (
@@ -4066,7 +4072,7 @@ CREATE FUNCTION public.claim_memoir_lane(p_lane_id uuid, p_run_seconds integer D
     AS $$
 declare lane public.user_memoir_lane%rowtype; identity public.user_lifetime_conversation%rowtype;
  project public.user_memoir_project%rowtype; snap public.user_lifetime_lane_snapshot%rowtype;
- previous public.user_lifetime_lane_snapshot%rowtype; run_token uuid:=gen_random_uuid(); rounds bigint; seed text; pins jsonb; news jsonb; news_manifest jsonb; privacy_hash text; previous_owner text;
+ previous public.user_lifetime_lane_snapshot%rowtype; run_token uuid:=gen_random_uuid(); rounds bigint; seed text; pins jsonb; news jsonb; news_manifest jsonb; privacy_hash text; previous_owner text; background jsonb; frontier bigint;
 begin
  if p_run_seconds is null or p_run_seconds not between 1 and 1800 then raise exception 'invalid run duration';end if;
  select * into lane from public.user_memoir_lane where id=p_lane_id;
@@ -4092,9 +4098,15 @@ begin
  perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
  privacy_hash:=encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics',
    'paused_topics',pins->'paused_topics','privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex');
- select coalesce(max(ordinal),0) into rounds from public.user_completed_round where user_id=lane.user_id and project_id=lane.project_id;
+ select to_jsonb(a) into background from public.user_memoir_background_agent a
+   where a.user_id=lane.user_id and a.project_id=lane.project_id and a.token is not null
+     and a.lease_until>clock_timestamp() and a.run_deadline>clock_timestamp();
+ frontier:=coalesce((background->>'source_high_water')::bigint,project.source_sequence);
+ select coalesce(max(r.ordinal),0) into rounds from public.user_completed_round r
+   join public.user_narrator_source s on s.user_id=r.user_id and s.project_id=r.project_id and s.client_turn_id=r.turn_id
+   where r.user_id=lane.user_id and r.project_id=lane.project_id and s.sequence<=frontier;
  if lane.skill='composer' and (rounds<lane.target_milestone or lane.target_milestone=0 or exists(select 1 from public.user_narrator_source
-   where user_id=lane.user_id and project_id=lane.project_id and status='active' and processing_status<>'succeeded')) then return null;end if;
+   where user_id=lane.user_id and project_id=lane.project_id and status='active' and sequence<=frontier and processing_status<>'succeeded')) then return null;end if;
  if lane.skill='guidance' and (not exists(select 1 from public.lifetime_two_lane_rollout where singleton and enabled)
    or exists(select 1 from public.user_agent_turn_lease where user_id=lane.user_id and expires_at>clock_timestamp())
    or exists(select 1 from public.user_narrator_source where user_id=lane.user_id and project_id=lane.project_id
@@ -4107,16 +4119,17 @@ begin
  if not found then
    select * into previous from public.user_lifetime_lane_snapshot where lane_id=lane.id and locale=lane.locale and state='completed' order by created_at desc limit 1;
    seed:=jsonb_build_object('owner',lane.user_id,'project',lane.project_id,'conversation',identity.conversation_id,
-     'policy',project.policy_epoch,'preferences',identity.preference_revision,'privacy_digest',privacy_hash,'source',project.source_sequence,
+     'policy',project.policy_epoch,'preferences',identity.preference_revision,'privacy_digest',privacy_hash,'source',frontier,
      'events',project.event_sequence,'predecessor',previous.id,'predecessor_digest',previous.root_digest)::text;
    insert into public.user_lifetime_lane_snapshot(lane_id,user_id,project_id,conversation_id,policy_epoch,preference_revision,privacy_digest,locale,
-     source_high_water,event_high_water,round_high_water,milestone,base_revision,predecessor,base_event,last_event,root_digest,guidance_revision,guidance_news)
+     source_high_water,event_high_water,round_high_water,milestone,base_revision,predecessor,base_event,last_event,root_digest,guidance_revision,guidance_news,background_batch_id,background_turn_id,background_source_start)
    values(lane.id,lane.user_id,lane.project_id,identity.conversation_id,project.policy_epoch,identity.preference_revision,privacy_hash,lane.locale,
-     project.source_sequence,project.event_sequence,rounds,lane.target_milestone,
+     frontier,project.event_sequence,rounds,lane.target_milestone,
      coalesce((select revision from public.user_memoir_edition where user_id=lane.user_id and project_id=lane.project_id and locale=lane.locale),0),
      previous.id,case when previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch and previous.locale=lane.locale then previous.event_high_water else 0 end,
      case when previous.preference_revision=identity.preference_revision and previous.policy_epoch=project.policy_epoch and previous.locale=lane.locale then previous.event_high_water else 0 end,
-     encode(sha256(convert_to(seed,'UTF8')),'hex'),lane.guidance_revision,coalesce(news_manifest,'{}')) returning * into snap;
+     encode(sha256(convert_to(seed,'UTF8')),'hex'),lane.guidance_revision,coalesce(news_manifest,'{}'),(background->>'batch_id')::uuid,(background->>'batch_turn_id')::uuid,
+     (background->>'source_low_water')::bigint) returning * into snap;
  end if;
  update public.user_memoir_lane set token=run_token,lease_until=least(clock_timestamp()+interval '60 seconds',clock_timestamp()+make_interval(secs=>p_run_seconds)),
    run_deadline=clock_timestamp()+make_interval(secs=>p_run_seconds),pending=false,active_manifest='[]',active_events='[]',
@@ -5164,7 +5177,7 @@ begin
  if jsonb_typeof(p_result) is distinct from 'object' or octet_length(p_result::text)>16384
    or exists(select 1 from jsonb_object_keys(p_result) k where k not in ('profile_patch','skipped'))
    or jsonb_typeof(p_result->'profile_patch') is distinct from 'array'
-   or jsonb_array_length(p_result->'profile_patch')>6
+   or jsonb_array_length(p_result->'profile_patch')>5
    or (p_result ? 'skipped' and jsonb_typeof(p_result->'skipped') is distinct from 'boolean') then
    raise exception 'bounded profile patch required' using errcode='22023';end if;
  result_digest:=encode(sha256(convert_to(p_result::text,'UTF8')),'hex');
@@ -6155,7 +6168,7 @@ begin
  insert into public.user_lifetime_profile_authority(user_id,conversation_id,field_locks)
  select c.user_id,c.conversation_id,coalesce((select jsonb_object_agg(k,case when k='name' and exists(
      select 1 from public.user_lifetime_chosen_name n where n.user_id=p_owner and n.authority='explicit') then 'manual' else 'preserved' end)
-   from unnest(array['name','birth_year','birth_date_expression','birth_place','childhood_place','avatar_style']) k
+   from unnest(array['name','birth_year','birth_date_expression','birth_place','avatar_style']) k
    where ((p.profile->k is not null and p.profile->k<>'null'::jsonb and p.profile->>k<>'')
      or (k='name' and exists(select 1 from public.user_lifetime_chosen_name n where n.user_id=p_owner and n.authority='explicit')))
      and not(k='name' and exists(select 1 from public.user_lifetime_chosen_name n
@@ -8290,7 +8303,7 @@ begin
   -- Accept only product context, never client-supplied auth or payment claims.
   select coalesce(jsonb_object_agg(key, value), '{}'::jsonb) into browser_profile
     from jsonb_each(p_workspace_profile) where key in ('name', 'preferred_language', 'birth_year',
-      'birth_date_expression', 'birth_place', 'childhood_place', 'story_focus',
+      'birth_date_expression', 'birth_place', 'story_focus',
       'dialect_preference', 'memory_places', 'avatar_style');
   source_profile := public.merge_memoir_context(coalesce(source_profile, '{}'::jsonb), browser_profile, true);
   if exists(select 1 from public.user_place_journey where user_id = v_authenticated_user_id) then
@@ -8503,9 +8516,9 @@ begin
    end if;
  end if;
  select a.invalidated_fields into fields from public.user_lifetime_profile_authority a where a.user_id=new.user_id;
- new.profile:=new.profile-coalesce(fields,'{}');
+ new.profile:=new.profile-'childhood_place'-coalesce(fields,'{}');
  if tg_op='UPDATE' and exists(select 1 from unnest(array['name','birth_year','birth_date_expression',
-   'birth_place','childhood_place','avatar_style']) k where old.profile->k is distinct from new.profile->k) then
+   'birth_place','avatar_style']) k where old.profile->k is distinct from new.profile->k) then
    update public.user_lifetime_profile_authority set revision=revision+1 where user_id=new.user_id;
  end if;
  if exists(select 1 from public.user_lifetime_profile_authority where user_id=new.user_id) then
@@ -9224,7 +9237,7 @@ begin
                and c.next_offset>=(page->'source'->>'char_end')::integer)
              or exists(select 1 from public.user_lifetime_profile_authority a where a.user_id=source.user_id
                and (not a.auto_enabled or a.manual_complete or a.field_locks ?& array[
-                 'name','birth_year','birth_date_expression','birth_place','childhood_place','avatar_style']))));
+                 'name','birth_year','birth_date_expression','birth_place','avatar_style']))));
          end if;
          page:=jsonb_set(page,'{two_lane,work_mode}',to_jsonb(case when decision->'skills' ?| array[
            'memoir-author-timeline','memoir-place-journey'] then 'extract' else 'reply_only' end));
@@ -10278,13 +10291,13 @@ begin
  end if;
  select p.profile into profile from public.user_profile p where p.user_id=snap.user_id;
  select coalesce(jsonb_agg(f),'[]') into targets
- from unnest(array['name','birth_year','birth_date_expression','birth_place','childhood_place','avatar_style']) f
+ from unnest(array['name','birth_year','birth_date_expression','birth_place','avatar_style']) f
  where not(authority.field_locks ? f);
  -- Reference includes protected values, without leaking unrelated application state.
  select coalesce(jsonb_object_agg(f,jsonb_build_object('value',case when length(profile->>f)<=160
    and jsonb_typeof(profile->f) in ('string','number','null') then profile->f else null end,'authority',coalesce(authority.field_locks->>f,
    case when f='name' then (select n.authority from public.user_lifetime_chosen_name n where n.user_id=snap.user_id) end,'automatic'))),'{}')
- into facts from unnest(array['name','birth_year','birth_date_expression','birth_place','childhood_place','avatar_style']) f;
+ into facts from unnest(array['name','birth_year','birth_date_expression','birth_place','avatar_style']) f;
  mode:='extract';
  if not authority.auto_enabled or authority.manual_complete or jsonb_array_length(targets)=0 then mode:='skip';end if;
  select s.* into source from public.user_narrator_source s left join public.user_lifetime_profile_coverage c
@@ -11127,11 +11140,11 @@ begin
   return new;
 end $$;
 
-CREATE FUNCTION public.record_background_service_work(p_user_id uuid, p_project_id text, p_step jsonb) RETURNS void
+CREATE FUNCTION public.record_background_service_work(p_user_id uuid, p_project_id text, p_step jsonb) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $memoir$
-declare source public.user_narrator_source%rowtype;
+declare source public.user_narrator_source%rowtype; result jsonb;
 begin
  if p_step->>'skill' not in ('memoir-place-groups','memoir-place-photo-research','memoir-historical-news-research')
    or p_step->>'status' not in ('running','completed','saved','failed','cached')
@@ -11153,7 +11166,9 @@ begin
    source.client_turn_id,source.id,source.version,(p_step->>'model_invoked')::boolean,
    case when p_step->>'model_invoked'='false' then 0 else null end)
  on conflict(user_id,project_id,id) do update set status=excluded.status,execution=excluded.execution,
-   model_invoked=excluded.model_invoked,model_attempts=excluded.model_attempts,updated_at=clock_timestamp();
+   model_invoked=excluded.model_invoked,model_attempts=excluded.model_attempts,updated_at=clock_timestamp()
+ returning jsonb_build_object('started_at',started_at,'finished_at',finished_at) into result;
+ return result;
 end $memoir$;
 
 CREATE FUNCTION public.record_lifetime_lane_output(p_lane_id uuid, p_token uuid, p_page_number bigint, p_phase text, p_digest text, p_page_digest text) RETURNS boolean
@@ -12303,7 +12318,7 @@ CREATE FUNCTION public.set_lifetime_profile_settings(p_patch jsonb, p_lease_toke
     AS $$
 #variable_conflict use_column
 declare owner uuid:=auth.uid(); project text; result jsonb; k text; val jsonb; locks jsonb;
- fields text[]:=array['name','birth_year','birth_date_expression','birth_place','childhood_place','avatar_style'];
+ fields text[]:=array['name','birth_year','birth_date_expression','birth_place','avatar_style'];
 begin
  select project_id into project from public.user_lifetime_conversation where user_id=owner and product='memoir';
  if not found then raise exception 'mapped conversation required' using errcode='42501';end if;
@@ -12322,7 +12337,7 @@ begin
  end loop;
  if p_patch ? 'profile_release_fields' then
    if jsonb_typeof(p_patch->'profile_release_fields') is distinct from 'array'
-     or jsonb_array_length(p_patch->'profile_release_fields')>6
+     or jsonb_array_length(p_patch->'profile_release_fields')>5
      or exists(select 1 from jsonb_array_elements(p_patch->'profile_release_fields') f
        where jsonb_typeof(f)<>'string' or (f#>>'{}')<>all(fields)) then
      raise exception 'invalid profile release fields' using errcode='22023';end if;
@@ -12393,7 +12408,7 @@ begin
  select project_id into project from public.user_lifetime_conversation where user_id=owner and product='memoir';
  if not found then raise exception 'mapped conversation required' using errcode='42501'; end if;
  if pg_catalog.jsonb_typeof(p_patch) is distinct from 'object' or exists(select 1 from pg_catalog.jsonb_object_keys(p_patch) key
-   where key not in ('name','preferred_language','birth_year','birth_place','childhood_place')) then
+   where key not in ('name','preferred_language','birth_year','birth_place')) then
    raise exception 'invalid profile settings patch' using errcode='22023';
  end if;
  perform 1 from public.user_memoir_project where user_id=owner and project_id=project for update;
@@ -16040,6 +16055,13 @@ CREATE TABLE public.user_memoir_background_agent (
  lease_until timestamptz,
  run_deadline timestamptz,
  source_high_water bigint NOT NULL DEFAULT 0,
+ source_low_water bigint NOT NULL DEFAULT 0,
+ batch_id uuid,
+ batch_turn_id uuid,
+ batch_started_at timestamptz,
+ batch_selection jsonb,
+ round_high_water bigint NOT NULL DEFAULT 0,
+ progress_mark bigint NOT NULL DEFAULT 0,
  policy_epoch bigint NOT NULL DEFAULT 0,
  preference_revision bigint NOT NULL DEFAULT 0,
  target_source bigint NOT NULL DEFAULT 0,
@@ -16066,13 +16088,37 @@ begin
  insert into public.user_memoir_background_agent(user_id,project_id,target_source,selection)
  values(project.user_id,project.project_id,project.source_sequence,p_selection)
  on conflict(user_id,project_id) do update set pending=true,
-   attempts=case when excluded.target_source>public.user_memoir_background_agent.target_source or p_selection is not null then 0
+   attempts=case when public.user_memoir_background_agent.batch_id is null
+     and (excluded.target_source>public.user_memoir_background_agent.target_source or p_selection is not null) then 0
      else public.user_memoir_background_agent.attempts end,
    target_source=greatest(excluded.target_source,public.user_memoir_background_agent.target_source),
    selection=coalesce(p_selection,public.user_memoir_background_agent.selection),available_at=clock_timestamp()
  returning id into result;
  return result;
 end $$;
+
+CREATE FUNCTION public.memoir_background_lanes(p_agent public.user_memoir_background_agent) RETURNS jsonb
+LANGUAGE sql STABLE SET search_path TO '' AS $$
+ select coalesce(jsonb_agg(jsonb_build_object('id',l.id,'skill',l.skill) order by l.skill),'[]')
+ from public.user_memoir_lane l where l.user_id=p_agent.user_id and l.project_id=p_agent.project_id
+   and l.skill in ('timeline','composer') and l.attempts<3
+   and (l.pending or l.token is not null and (l.lease_until<=clock_timestamp() or l.run_deadline<=clock_timestamp()))
+   and l.available_at<=clock_timestamp() and (l.token is null or l.lease_until<=clock_timestamp() or l.run_deadline<=clock_timestamp())
+   and (l.skill='timeline' and (l.successful_source<p_agent.source_high_water or l.target_source<=p_agent.source_high_water)
+     or l.skill='composer' and l.target_milestone<=p_agent.round_high_water)
+$$;
+REVOKE ALL ON FUNCTION public.memoir_background_lanes(public.user_memoir_background_agent) FROM PUBLIC,anon,authenticated,service_role;
+
+CREATE FUNCTION public.memoir_background_progress(p_agent public.user_memoir_background_agent) RETURNS bigint
+LANGUAGE sql STABLE SET search_path TO '' AS $$
+ select coalesce((select sum(case when s.processing_status='succeeded' then length(s.text) else coalesce(x.next_offset,0) end)
+   from public.user_narrator_source s left join public.user_lifetime_source_extraction x
+     on x.user_id=s.user_id and x.project_id=s.project_id and x.source_id=s.id and x.source_version=s.version
+   where s.user_id=p_agent.user_id and s.project_id=p_agent.project_id and s.status='active' and s.sequence<=p_agent.source_high_water),0)
+   +coalesce((select sum(page_number) from public.user_lifetime_lane_snapshot
+     where user_id=p_agent.user_id and project_id=p_agent.project_id),0)
+$$;
+REVOKE ALL ON FUNCTION public.memoir_background_progress(public.user_memoir_background_agent) FROM PUBLIC,anon,authenticated,service_role;
 
 CREATE FUNCTION public.pending_memoir_background_agents(p_limit integer DEFAULT 50) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
@@ -16086,7 +16132,8 @@ begin
  on conflict(user_id,project_id) do update set pending=public.user_memoir_background_agent.pending
      or public.user_memoir_background_agent.token is null
      or excluded.target_source>public.user_memoir_background_agent.target_source,
-   attempts=case when excluded.target_source>public.user_memoir_background_agent.target_source then 0
+   attempts=case when public.user_memoir_background_agent.batch_id is null
+     and excluded.target_source>public.user_memoir_background_agent.target_source then 0
      else public.user_memoir_background_agent.attempts end,
    target_source=greatest(excluded.target_source,public.user_memoir_background_agent.target_source);
  return (select coalesce(jsonb_agg(id),'[]') from (select a.id from public.user_memoir_background_agent a
@@ -16117,15 +16164,29 @@ begin
    exists(select 1 from public.user_lifetime_pending_policy q where q.user_id=a.user_id and q.project_id=a.project_id) or
    exists(select 1 from public.user_lifetime_policy_inventory_pending q where q.user_id=a.user_id and q.project_id=a.project_id) then return null;end if;
  update public.user_memoir_background_agent set token=gen_random_uuid(),pending=false,attempts=attempts+1,
-   source_high_water=p.source_sequence,policy_epoch=p.policy_epoch,preference_revision=c.preference_revision,
+   source_high_water=case when batch_id is null then p.source_sequence else source_high_water end,
+   source_low_water=case when batch_id is null then coalesce((select min(s.sequence) from public.user_narrator_source s
+     where s.user_id=a.user_id and s.project_id=a.project_id and s.status='active' and s.processing_status<>'succeeded'),p.source_sequence)
+     else source_low_water end,
+   batch_id=coalesce(batch_id,gen_random_uuid()),
+   batch_turn_id=case when batch_id is null then (select s.client_turn_id from public.user_narrator_source s
+     where s.user_id=a.user_id and s.project_id=a.project_id and s.status='active' order by s.sequence desc limit 1) else batch_turn_id end,
+   batch_started_at=coalesce(batch_started_at,clock_timestamp()),
+   batch_selection=case when batch_id is null then selection else batch_selection end,
+   selection=case when batch_id is null then null else selection end,
+   round_high_water=case when batch_id is null then coalesce((select max(r.ordinal) from public.user_completed_round r
+     where r.user_id=a.user_id and r.project_id=a.project_id),0) else round_high_water end,
+   policy_epoch=p.policy_epoch,preference_revision=c.preference_revision,
    run_deadline=clock_timestamp()+make_interval(secs=>p_run_seconds),
    lease_until=least(clock_timestamp()+interval '60 seconds',clock_timestamp()+make_interval(secs=>p_run_seconds))
  where id=p_id returning * into a;
+ update public.user_memoir_background_agent set progress_mark=public.memoir_background_progress(a) where id=a.id;
  return jsonb_build_object('id',a.id,'token',a.token,'user_id',a.user_id,'project_id',a.project_id,
+   'batch_id',a.batch_id,
    'source_high_water',a.source_high_water,'policy_epoch',a.policy_epoch,'preference_revision',a.preference_revision,
    'locale',coalesce((select case when profile->>'preferred_language'='zh-CN' then 'zh-CN' else 'en-AU' end
       from public.user_profile where user_id=a.user_id),'en-AU'),
-   'selection',a.selection);
+   'selection',a.batch_selection);
 end $$;
 
 CREATE FUNCTION public.lock_memoir_background_agent(p_fence jsonb) RETURNS numeric
@@ -16141,12 +16202,13 @@ begin
  select * into a from public.user_memoir_background_agent where id=a.id for share;
  if a.token is null or a.token is distinct from (p_fence->>'token')::uuid or a.lease_until<=clock_timestamp() or
    a.run_deadline<=clock_timestamp() or a.user_id::text is distinct from p_fence->>'user_id' or
-   a.project_id is distinct from p_fence->>'project_id' or p.source_sequence<>a.source_high_water or
+   a.project_id is distinct from p_fence->>'project_id' or
    p.policy_epoch<>a.policy_epoch or c.preference_revision<>a.preference_revision or
    a.source_high_water is distinct from (p_fence->>'source_high_water')::bigint or
    a.policy_epoch is distinct from (p_fence->>'policy_epoch')::bigint or
    a.preference_revision is distinct from (p_fence->>'preference_revision')::bigint or
-   coalesce(a.selection,'null'::jsonb) is distinct from coalesce(p_fence->'selection','null'::jsonb) or
+   a.batch_id is distinct from (p_fence->>'batch_id')::uuid or
+   coalesce(a.batch_selection,'null'::jsonb) is distinct from coalesce(p_fence->'selection','null'::jsonb) or
    exists(select 1 from public.user_lifetime_pending_policy q where q.user_id=a.user_id and q.project_id=a.project_id) or
    exists(select 1 from public.user_lifetime_policy_inventory_pending q where q.user_id=a.user_id and q.project_id=a.project_id) then
    raise exception 'stale background agent' using errcode='42501';end if;
@@ -16157,44 +16219,43 @@ CREATE FUNCTION public.read_memoir_background_work(p_fence jsonb) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
 declare a public.user_memoir_background_agent%rowtype; source public.user_narrator_source%rowtype;
  authority public.user_lifetime_profile_authority%rowtype; source_work jsonb; targets jsonb; reference jsonb;
- core integer; lo integer; hi integer; names jsonb:='["memoir-author-timeline","memoir-place-journey"]';
+ lanes jsonb; originals jsonb:='[]'; core integer; lo integer; hi integer;
+ names jsonb:='["memoir-author-timeline","memoir-place-journey"]';
 begin
  perform public.lock_memoir_background_agent(p_fence);
  select * into a from public.user_memoir_background_agent where id=(p_fence->>'id')::uuid;
- if exists(select 1 from public.user_memoir_lane where user_id=a.user_id and project_id=a.project_id
-     and skill='timeline' and (pending or token is not null and (lease_until<=clock_timestamp() or run_deadline<=clock_timestamp()))
-     and attempts<3 and available_at<=clock_timestamp()
-     and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp())) then
-   select * into source from public.user_narrator_source where user_id=a.user_id and project_id=a.project_id
-     and status='active' and processing_status<>'succeeded' and sequence<=a.source_high_water order by sequence limit 1;
-   if found then
+ lanes:=public.memoir_background_lanes(a);
+ if exists(select 1 from jsonb_array_elements(lanes) l where l->>'skill'='timeline') then
+   for source in select * from public.user_narrator_source where user_id=a.user_id and project_id=a.project_id
+     and status='active' and processing_status<>'succeeded' and sequence<=a.source_high_water order by sequence loop
      select coalesce((select next_offset from public.user_lifetime_source_extraction where user_id=a.user_id
        and project_id=a.project_id and source_id=source.id and source_version=source.version),0) into core;
      if core>=length(source.text) then core:=0;end if;
      lo:=greatest(core-256,0);hi:=least(core+2048,length(source.text));
+     originals:=originals||jsonb_build_array(jsonb_build_object('id',source.id,'project_id',source.project_id,
+       'version',source.version,'sequence',source.sequence,'text',substring(source.text from lo+1 for hi-lo),
+       'char_start',lo,'char_end',hi,'original_length',length(source.text),'kind',source.kind,
+       'language',source.language,'status',source.status,'author_role','storyteller'));
+   end loop;
+   if jsonb_array_length(originals)>0 then
      perform public.ensure_lifetime_profile_authority(a.user_id);
      select * into authority from public.user_lifetime_profile_authority where user_id=a.user_id;
      select coalesce(jsonb_agg(f),'[]') into targets from unnest(array['name','birth_year','birth_date_expression',
-       'birth_place','childhood_place','avatar_style']) f where not(authority.field_locks ? f);
+       'birth_place','avatar_style']) f where not(authority.field_locks ? f);
      select coalesce(jsonb_object_agg(f,p.profile->f),'{}') into reference from public.user_profile p,
-       unnest(array['name','birth_year','birth_date_expression','birth_place','childhood_place','avatar_style']) f
+       unnest(array['name','birth_year','birth_date_expression','birth_place','avatar_style']) f
        where p.user_id=a.user_id and octet_length(coalesce((p.profile->f)::text,''))<=1024;
      if authority.auto_enabled and not authority.manual_complete and jsonb_array_length(targets)>0 then
        names:=names||'"memoir-memory-context"'::jsonb;
      else targets:='[]';end if;
-     source_work:=jsonb_build_object('source',jsonb_build_object('id',source.id,'project_id',source.project_id,
-       'version',source.version,'sequence',source.sequence,'text',substring(source.text from lo+1 for hi-lo),
-       'char_start',lo,'char_end',hi,'original_length',length(source.text),'kind',source.kind,
-       'language',source.language,'status',source.status,'author_role','storyteller'),
+     source_work:=jsonb_build_object('source',originals->0,'sources',originals,
        'available_skills',names,'profile_reference',reference,'profile_targets',targets,
-       'recent_dialogue',public.lifetime_question_dialogue(a.user_id,a.project_id,source.id,a.source_high_water));
+       'recent_dialogue',public.lifetime_question_dialogue(a.user_id,a.project_id,(originals->0->>'id')::uuid,a.source_high_water));
    end if;
  end if;
- return jsonb_build_object('lanes',coalesce((select jsonb_agg(jsonb_build_object('id',id,'skill',skill))
-   from public.user_memoir_lane where user_id=a.user_id and project_id=a.project_id and skill in ('timeline','composer') and attempts<3
-   and (pending or token is not null and (lease_until<=clock_timestamp() or run_deadline<=clock_timestamp()))
-   and available_at<=clock_timestamp() and (token is null or lease_until<=clock_timestamp() or run_deadline<=clock_timestamp())),'[]'),
-   'selection',a.selection,'source_work',source_work);
+ return jsonb_build_object('lanes',lanes,'selection',a.batch_selection,'source_work',source_work,
+   'batch',jsonb_build_object('id',a.batch_id,'client_turn_id',a.batch_turn_id,'started_at',a.batch_started_at,
+     'coverage_start',a.source_low_water,'coverage_end',a.source_high_water));
 end $$;
 
 CREATE FUNCTION public.select_lifetime_source_skills(p_lane_id uuid,p_token uuid,p_source jsonb,p_skills jsonb) RETURNS boolean
@@ -16242,7 +16303,7 @@ begin
    and a.lease_until>clock_timestamp() and a.run_deadline>clock_timestamp()
    and c.user_id=a.user_id and c.project_id=a.project_id
    and p.user_id=a.user_id and p.project_id=a.project_id
-   and p.source_sequence=a.source_high_water and p.policy_epoch=a.policy_epoch
+   and p.policy_epoch=a.policy_epoch
    and exists(select 1 from public.user_lifetime_profile_receipt r
      join public.user_lifetime_lane_snapshot s on s.id=r.snapshot_id
      where r.user_id=a.user_id and r.project_id=a.project_id and r.page_digest=p_page_digest
@@ -16262,9 +16323,36 @@ begin
  return found;
 end $$;
 
+CREATE FUNCTION public.attribute_background_skill_work() RETURNS trigger
+LANGUAGE plpgsql SET search_path TO '' AS $$
+declare snap public.user_lifetime_lane_snapshot%rowtype; stamp timestamptz:=clock_timestamp();
+begin
+ if new.snapshot_id is not null then
+   select * into snap from public.user_lifetime_lane_snapshot where id=new.snapshot_id;
+   if snap.background_batch_id is not null then
+     new.batch_id:=snap.background_batch_id;
+     new.client_turn_id:=snap.background_turn_id;
+     new.coverage_start:=snap.background_source_start;
+     new.coverage_end:=snap.source_high_water;
+   end if;
+ end if;
+ if tg_op='UPDATE' then new.started_at:=old.started_at;end if;
+ if new.status='running' then
+   new.started_at:=coalesce(new.started_at,stamp);
+   new.finished_at:=null;
+ elsif new.status in ('completed','saved','failed','skipped','cached') then
+   new.finished_at:=case when tg_op='UPDATE' and old.status=new.status then coalesce(old.finished_at,stamp) else stamp end;
+ end if;
+ return new;
+end $$;
+REVOKE ALL ON FUNCTION public.attribute_background_skill_work() FROM PUBLIC,anon,authenticated,service_role;
+CREATE TRIGGER background_skill_work_attribution BEFORE INSERT OR UPDATE ON public.user_background_skill_work
+ FOR EACH ROW EXECUTE FUNCTION public.attribute_background_skill_work();
+
 CREATE FUNCTION public.finish_memoir_background_agent(p_id uuid,p_token uuid,p_success boolean) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
-declare a public.user_memoir_background_agent%rowtype; remaining boolean; blocked boolean; changed boolean;
+declare a public.user_memoir_background_agent%rowtype; remaining boolean; blocked boolean; progressed boolean;
+ authority_changed boolean; batch_complete boolean;
 begin
  select * into a from public.user_memoir_background_agent where id=p_id;
  if not found then return jsonb_build_object('status','stale','pending',true);end if;
@@ -16272,14 +16360,21 @@ begin
  perform 1 from public.user_lifetime_conversation where user_id=a.user_id and project_id=a.project_id for share;
  select * into a from public.user_memoir_background_agent where id=p_id for update;
  if not found or a.token is null or a.token is distinct from p_token then return jsonb_build_object('status','stale','pending',true);end if;
- changed:=a.pending or
-   exists(select 1 from public.user_memoir_project p where p.user_id=a.user_id and p.project_id=a.project_id
-     and (p.source_sequence<>a.source_high_water or p.policy_epoch<>a.policy_epoch)) or
+ authority_changed:=exists(select 1 from public.user_memoir_project p where p.user_id=a.user_id and p.project_id=a.project_id
+     and p.policy_epoch<>a.policy_epoch) or
    exists(select 1 from public.user_lifetime_conversation c where c.user_id=a.user_id and c.project_id=a.project_id
      and c.preference_revision<>a.preference_revision);
- remaining:=p_success is not true or changed or exists(select 1 from public.user_memoir_lane l
-   where l.user_id=a.user_id and l.project_id=a.project_id and l.skill in ('timeline','composer') and (l.pending or l.token is not null));
- if not changed and p_success is not true and a.attempts>=3 then
+ progressed:=public.memoir_background_progress(a)>a.progress_mark;
+ batch_complete:=p_success is true and not authority_changed and not exists(select 1 from public.user_narrator_source s
+   where s.user_id=a.user_id and s.project_id=a.project_id and s.status='active' and s.processing_status<>'succeeded'
+     and s.sequence<=a.source_high_water) and not exists(select 1 from public.user_memoir_lane l
+   where l.user_id=a.user_id and l.project_id=a.project_id and l.skill in ('timeline','composer') and (l.pending or l.token is not null)
+     and (l.skill='timeline' and (l.successful_source<a.source_high_water or l.target_source<=a.source_high_water)
+       or l.skill='composer' and l.target_milestone<=a.round_high_water));
+ remaining:=not batch_complete or a.pending or a.target_source>a.source_high_water or
+   exists(select 1 from public.user_memoir_lane l where l.user_id=a.user_id and l.project_id=a.project_id
+     and l.skill in ('timeline','composer') and (l.pending or l.token is not null));
+ if not batch_complete and not authority_changed and not progressed and a.attempts>=3 then
    update public.user_memoir_lane set attempts=3,error='MEMOIR_UNAVAILABLE',pending=true,
      token=null,lease_until=null,run_deadline=null
    where user_id=a.user_id and project_id=a.project_id and skill in ('timeline','composer') and (pending or token is not null)
@@ -16288,10 +16383,12 @@ begin
  blocked:=exists(select 1 from public.user_memoir_lane l where l.user_id=a.user_id and l.project_id=a.project_id and l.skill in ('timeline','composer')
    and (l.pending or l.token is not null) and l.attempts>=3);
  update public.user_memoir_background_agent set token=null,lease_until=null,run_deadline=null,
-   attempts=case when blocked then 3 when changed or p_success then 0 else attempts end,
-   pending=remaining,available_at=clock_timestamp()+interval '5 seconds',selection=case when remaining then selection end
+   attempts=case when blocked then 3 when batch_complete or authority_changed or progressed then 0 else attempts end,
+   pending=remaining,available_at=clock_timestamp()+interval '5 seconds',
+   batch_id=case when not batch_complete and not authority_changed then batch_id end,
+   batch_started_at=case when not batch_complete and not authority_changed then batch_started_at end
  where id=p_id;
- return jsonb_build_object('status',case when remaining and (blocked or not changed and p_success is not true and a.attempts>=3) then 'retry_required'
+ return jsonb_build_object('status',case when remaining and (blocked or not authority_changed and not batch_complete and not progressed and a.attempts>=3) then 'retry_required'
    when remaining then 'pending' else 'finished' end,'pending',remaining);
 end $$;
 

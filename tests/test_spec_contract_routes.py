@@ -77,11 +77,11 @@ def test_challenge_project_patch_and_member_removal_contract(client: TestClient)
     current = client.get(f"/v1/projects/{project['id']}", headers={"X-Account-Id": "owner-1"}).json()
     patched = client.patch(
         f"/v1/projects/{project['id']}",
-        json={"expected_revision": current["revision"], "childhood_place": "A small town"},
+        json={"expected_revision": current["revision"], "birth_place": "A small town"},
         headers={"X-Account-Id": "owner-1"},
     )
     assert patched.status_code == 200
-    assert patched.json()["profile"]["childhood_place"] == "A small town"
+    assert patched.json()["profile"]["birth_place"] == "A small town"
 
     removed = client.delete(
         f"/v1/projects/{project['id']}/members/editor-1",

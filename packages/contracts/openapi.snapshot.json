@@ -613,7 +613,6 @@
                 "birth_date_expression",
                 "birth_place",
                 "birth_year",
-                "childhood_place",
                 "name"
               ]
             },
@@ -768,17 +767,6 @@
               }
             ]
           },
-          "childhood_place": {
-            "anyOf": [
-              {
-                "maxLength": 160,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "name": {
             "anyOf": [
               {
@@ -819,12 +807,11 @@
                 "birth_date_expression",
                 "birth_place",
                 "birth_year",
-                "childhood_place",
                 "name"
               ],
               "type": "string"
             },
-            "maxItems": 6,
+            "maxItems": 5,
             "type": "array"
           }
         },
@@ -874,17 +861,6 @@
                 "maximum": 2026.0,
                 "minimum": 1800.0,
                 "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "childhood_place": {
-            "anyOf": [
-              {
-                "maxLength": 160,
-                "type": "string"
               },
               {
                 "type": "null"
@@ -1146,16 +1122,6 @@
       },
       "StorySpeechInput": {
         "properties": {
-          "instructions": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "language": {
             "anyOf": [
               {
@@ -1167,8 +1133,29 @@
             ]
           },
           "output_format": {
-            "default": "mp3",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "prompt_name": {
+            "anyOf": [
+              {
+                "enum": [
+                  "memoir/speech/default",
+                  "memoir/speech/en-AU",
+                  "memoir/speech/zh-CN"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "text": {
             "maxLength": 4096,
@@ -2262,6 +2249,23 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "context_year",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 2099,
+                  "minimum": 1800,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           {

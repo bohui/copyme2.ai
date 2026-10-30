@@ -34,6 +34,60 @@ def test_agent_claim_is_separate_from_foreground_and_coalesces_by_project(sql):
         'status':'finished','pending':False}
 
 
+def test_new_narrations_wait_for_the_current_batch_then_arrive_together(sql):
+    from test_background_profile_postgres import source
+    identity, run = queued(sql)
+    first = source(sql, identity, 'I was born in Hobart.', 1)
+    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline',1);")
+    claim = service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    second = source(sql, identity, 'We played in the school housing.', 2)
+    third = source(sql, identity, 'Our favourite game was hide-and-seek.', 3)
+    rpc(sql,'queue_user_memoir_background_agent',literal(identity['project_id']))
+    assert service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300) is None
+    current = service(sql,'read_memoir_background_work',p_fence=claim)
+    assert [item['id'] for item in current['source_work']['sources']] == [first['id']]
+    assert current['batch']['client_turn_id'] == first['client_turn_id']
+    assert current['batch']['started_at']
+    assert 'childhood_place' not in current['source_work']['profile_targets']
+
+    # A retry keeps the old batch ahead of new arrivals, with a fresh lease.
+    service(sql,'finish_memoir_background_agent',p_id=run,p_token=claim['token'],p_success=False)
+    sql('update public.user_memoir_background_agent set available_at=clock_timestamp();')
+    retry = service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    assert retry['source_high_water'] == 1 and retry['batch_id'] == claim['batch_id']
+    assert retry['token'] != claim['token']
+    page = service(sql,'claim_memoir_lane',p_lane_id=current['lanes'][0]['id'],p_run_seconds=300)
+    assert page['source_high_water'] == 1, 'Domain execution must share the frozen coordinator batch.'
+    service(sql,'yield_lifetime_memoir_lane',p_lane_id=page['lane_id'],p_token=page['token'])
+    sql(f"update public.user_narrator_source set processing_status='succeeded' where id='{first['id']}';")
+    sql('update public.user_memoir_lane set successful_source=1,target_source=3,pending=true;')
+    assert service(sql,'finish_memoir_background_agent',p_id=run,p_token=retry['token'],p_success=True)['pending']
+    sql('update public.user_memoir_background_agent set available_at=clock_timestamp();')
+    following = service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    work = service(sql,'read_memoir_background_work',p_fence=following)
+    assert following['batch_id'] != claim['batch_id']
+    assert [item['id'] for item in work['source_work']['sources']] == [second['id'],third['id']]
+    assert work['batch']['coverage_start'] == 2 and work['batch']['coverage_end'] == 3
+    assert work['batch']['client_turn_id'] == third['client_turn_id']
+
+
+def test_budget_stops_with_saved_progress_keep_the_same_batch_and_do_not_exhaust_retries(sql):
+    from test_background_profile_postgres import source
+    identity,run=queued(sql)
+    sources=[source(sql,identity,f'Memory {index}.',index) for index in range(1,6)]
+    batch=None
+    for original in sources[:4]:
+        sql('update public.user_memoir_background_agent set available_at=clock_timestamp();')
+        claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+        batch=batch or claim['batch_id']
+        assert claim['batch_id']==batch
+        sql(f"update public.user_narrator_source set processing_status='succeeded' where id='{original['id']}';")
+        result=service(sql,'finish_memoir_background_agent',p_id=run,p_token=claim['token'],p_success=False)
+        assert result=={'status':'pending','pending':True}
+        assert sql('select attempts from public.user_memoir_background_agent;').stdout.strip()=='0'
+
+
 @pytest.mark.parametrize('language,expected',[('zh-CN','zh-CN'),('en-US','en-AU')])
 def test_agent_claim_uses_a_supported_workspace_locale(sql,language,expected):
     _,run=queued(sql)
@@ -88,7 +142,7 @@ def test_failed_domain_work_requires_retry_and_the_existing_retry_action_restart
     assert service(sql,'pending_memoir_background_agents')==[run]
 
 
-@pytest.mark.parametrize('table,column',[('user_memoir_project','source_sequence'),
+@pytest.mark.parametrize('table,column',[
     ('user_memoir_project','policy_epoch'),('user_lifetime_conversation','preference_revision')])
 def test_changed_authority_fences_the_agent_and_requeues_with_a_fresh_snapshot(sql,table,column):
     identity,run=queued(sql)

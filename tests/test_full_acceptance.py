@@ -185,7 +185,7 @@ def test_at_001_self_and_family_setup_allow_unknown_profile_without_debit(client
     assert self_project["entitlements"]["trial_units_remaining"] == 5
     assert family_project["entitlements"]["trial_units_remaining"] == 5
     assert family_project["profile"]["birth_year"] is None
-    assert family_project["profile"]["childhood_place"] is None
+    assert "childhood_place" not in family_project["profile"]
 
 
 def test_at_002_invitation_preview_acceptance_expiry_and_replay(client: TestClient) -> None:

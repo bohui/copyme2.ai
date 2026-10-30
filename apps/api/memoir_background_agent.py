@@ -24,6 +24,7 @@ SOURCE_SKILLS = ('memoir-author-timeline', 'memoir-place-journey', 'memoir-memor
 class BackgroundAgentInput(Contract):
     id: UUID
     token: UUID
+    batch_id: UUID | None = None
     user_id: UUID
     project_id: str = Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
     source_high_water: int = Field(ge=0, strict=True)
@@ -162,7 +163,7 @@ class BackgroundSkills:
             work = [item for item in work if item['skill'] != 'memoir-author-timeline']
             work.extend({'skill':name,'required':False,'source_review':True}
                 for name in source_work['available_skills'])
-        return {'work': work, 'source_work':source_work}
+        return {'work': work, 'source_work':source_work, 'batch':current.get('batch')}
 
     async def process_source(self, names):
         current = await self.broker.rpc('read_memoir_background_work', p_fence=self.fence)

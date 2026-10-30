@@ -1,6 +1,8 @@
 """Accepted conversation → background Codex tools → real canonical domain commits."""
 import asyncio
 import json
+from pathlib import Path
+import subprocess
 
 import pytest
 
@@ -14,6 +16,86 @@ from test_background_profile_workflow import database, Broker
 from test_conversation_attribution import Conversation, empty
 from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database
 from test_memoir_background_agent_postgres import service
+from test_agent_commit_postgres import OWNER
+
+
+def test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations(sql,tmp_path,monkeypatch):
+    monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
+    monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
+    monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
+    entered, release = asyncio.Event(), asyncio.Event()
+    batches, originals = [], []
+    class SlowConnection(ControlledSkillConnection):
+        source_choices = ('memoir-author-timeline',)
+        async def turn(self,thread_id,prompt,**options):
+            task = json.loads(prompt)['task']
+            if task.get('lane') == 'B':
+                batches.append(task['source_work']['sources'])
+            else:
+                source = task['payload']['sources'][0]
+                originals.append(source)
+                if len(originals)==1:
+                    entered.set()
+                    await release.wait()
+            return await super().turn(thread_id,prompt,**options)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',SlowConnection)
+    conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
+    native=CodexWorker(home_root=tmp_path / 'worker',command=['controlled'],
+        base_url='http://synthetic.invalid',api_key='synthetic')
+    app=FastAPI()
+    @app.post('/internal/codex/turn')
+    async def turn(payload:WorkerTurnInput):
+        return await native.turn(payload)
+    worker=MemoryEventWorker(Broker(sql),worker_url='http://controlled.invalid',worker_secret='synthetic',
+        worker_transport=httpx.ASGITransport(app=app))
+    with conversation.client:
+        first=conversation.say('I was born in Hobart.')
+        conversation.deliver_receipts()
+        run,=service(sql,'pending_memoir_background_agents')
+        async def scenario():
+            running=asyncio.create_task(worker.execute_background_agent(run))
+            try:
+                async with asyncio.timeout(20):
+                    await entered.wait()
+                later=[]
+                for text in ['We played in the school housing.','Our favourite game was hide-and-seek.']:
+                    async with asyncio.timeout(20):
+                        reply=await asyncio.to_thread(conversation.say,text)
+                    assert reply['conversation_saved'] and reply['reply']
+                    later.append(reply)
+                    await asyncio.to_thread(conversation.deliver_receipts)
+                assert not running.done(), 'Both foreground replies must finish while the first B model is held.'
+                assert service(sql,'pending_memoir_background_agents')==[]
+                assert len(batches)==len(originals)==1
+            finally:
+                release.set()
+                result=await running
+            assert result['pending']
+            assert sql("select count(*) from public.user_narrator_source where processing_status='succeeded';").stdout.strip()=='1'
+            sql('update public.user_memoir_background_agent set available_at=clock_timestamp();')
+            assert (await worker.execute_background_agent(run))['status']=='finished'
+            return later
+        later=asyncio.run(scenario())
+        assert [[s['text'] for s in group] for group in batches]==[
+            ['I was born in Hobart.'],['We played in the school housing.','Our favourite game was hide-and-seek.']]
+        assert [s['id'] for s in originals]==[first['accepted_source_id'],*[r['accepted_source_id'] for r in later]]
+        last_turn=sql('select client_turn_id from public.user_narrator_source where sequence=3;').stdout.strip()
+        from apps.api.background_skills import group_places
+        grouping=asyncio.run(group_places(OWNER,conversation.project,[],client_turn_id=last_turn))
+        assert grouping['skill_progress']['started_at'] and grouping['skill_progress']['finished_at']
+        response=conversation.client.get('/v1/story/readiness',params={'project_id':conversation.project})
+        progress=response.json()['skill_progress']['items']
+        steps=[s for s in progress if s['phase']=='extract' and s['status']=='saved']
+        grouped=[s for s in steps if s['coverage_start']==2 and s['coverage_end']==3]
+        assert len(grouped)==2 and len({s['batch_id'] for s in grouped})==1
+        assert all(s['client_turn_id']==last_turn and s['started_at']<=s['finished_at'] for s in grouped)
+        assert not any(s['skill']=='memoir-memory-context' and s.get('source_id') in {r['accepted_source_id'] for r in later} for s in progress)
+        turns=json.loads(sql('select jsonb_agg(client_turn_id order by sequence) from public.user_narrator_source;').stdout)
+        replay=subprocess.run(['node',str(Path(__file__).parent/'js/helpers/replay-background-batch.mjs')],
+            input=json.dumps({'progress':response.json()['skill_progress'],'turns':turns}),
+            text=True,capture_output=True,timeout=20)
+        assert replay.returncode==0,replay.stderr
 
 
 @pytest.mark.parametrize('retry_choices',[[],['memoir-place-journey']])

@@ -10,8 +10,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
-PROFILE_FIELDS = ('name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style')
-TEXT_LIMITS = {'name': 120, 'birth_date_expression': 120, 'birth_place': 160, 'childhood_place': 160}
+PROFILE_FIELDS = ('name', 'birth_year', 'birth_date_expression', 'birth_place', 'avatar_style')
+TEXT_LIMITS = {'name': 120, 'birth_date_expression': 120, 'birth_place': 160}
 RETRY_CODES = frozenset({'PROFILE_EVIDENCE', 'PROFILE_TARGET', 'OUTPUT_SCHEMA'})
 
 
@@ -26,14 +26,14 @@ class ProfileRef(BaseModel):
 
 class ProfileChange(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
-    field: Literal['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']
+    field: Literal['name', 'birth_year', 'birth_date_expression', 'birth_place', 'avatar_style']
     value: str | int
     source_refs: list[ProfileRef] = Field(min_length=1, max_length=4)
 
 
 class ProfileProposal(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
-    profile_patch: list[ProfileChange] = Field(max_length=6)
+    profile_patch: list[ProfileChange] = Field(max_length=5)
 
 
 def profile_packet(page):

@@ -116,7 +116,7 @@ def test_profile_contract_keeps_automation_read_only_and_controls_allowlisted():
     response = schema['ProfileSettingsResponse']
     assert request['additionalProperties'] is False
     assert set(request['properties']) == {'name', 'birth_year', 'birth_date_expression',
-        'birth_place', 'childhood_place', 'avatar_style', 'preferred_language',
+        'birth_place', 'avatar_style', 'preferred_language',
         'profile_confirm_all', 'profile_auto_enabled', 'profile_release_fields'}
     assert response['properties']['profile_automation']['readOnly'] is True
     assert not set(response['properties']) & {'profile_confirm_all', 'profile_auto_enabled', 'profile_release_fields'}

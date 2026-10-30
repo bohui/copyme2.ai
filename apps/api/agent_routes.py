@@ -81,9 +81,9 @@ class GreetingInput(BaseModel):
     first_reply_localization: bool = False
 
 
-ProfileField = Literal['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style']
+ProfileField = Literal['name', 'birth_year', 'birth_date_expression', 'birth_place', 'avatar_style']
 PROFILE_SETTINGS_FIELDS = ('preferred_language', 'name', 'birth_year', 'birth_date_expression',
-                           'birth_place', 'childhood_place', 'avatar_style')
+                           'birth_place', 'avatar_style')
 
 
 class ProfileSettingsValues(BaseModel):
@@ -92,7 +92,6 @@ class ProfileSettingsValues(BaseModel):
     birth_year: int | None = Field(default=None, ge=1800, le=date.today().year, strict=True)
     birth_date_expression: str | None = Field(default=None, max_length=120)
     birth_place: str | None = Field(default=None, max_length=160)
-    childhood_place: str | None = Field(default=None, max_length=160)
     avatar_style: Literal['male', 'female'] | None = None
 
 
@@ -101,7 +100,7 @@ class ProfileSettingsInput(ProfileSettingsValues):
 
     profile_confirm_all: bool = Field(default=False, strict=True)
     profile_auto_enabled: bool = Field(default=True, strict=True)
-    profile_release_fields: list[ProfileField] = Field(default_factory=list, max_length=6)
+    profile_release_fields: list[ProfileField] = Field(default_factory=list, max_length=5)
 
     @model_validator(mode='after')
     def validate_profile_actions(self):
