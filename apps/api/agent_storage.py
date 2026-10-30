@@ -124,6 +124,11 @@ class UserStorage:
         if not rows:
             return {}
         profile = dict(rows[0].get('profile') or {})
+        profile.pop('childhood_place', None)
+        automation = profile.get('profile_automation')
+        if isinstance(automation,dict) and 'childhood_place' in (automation.get('field_locks') or {}):
+            profile['profile_automation'] = {**automation,'field_locks':{
+                key:value for key,value in automation['field_locks'].items() if key!='childhood_place'}}
         source_sequences = rows[0].get('agent_source_sequences')
         if isinstance(source_sequences, dict) and source_sequences:
             profile['_agent_source_sequences'] = source_sequences

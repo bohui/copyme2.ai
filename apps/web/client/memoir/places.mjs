@@ -51,7 +51,6 @@ const placeMatchesProfileValue = (place, value) => {
 const profileChronologyStage = (place, profile) => {
   const parts = profilePlaceParts(profile);
   if (placeMatchesProfileValue(place, parts.birth)) return 0;
-  if (placeMatchesProfileValue(place, profile?.childhood_place)) return 1;
   if (placeMatchesProfileValue(place, parts.current)) return LIFE_STAGE_ORDER.size;
   return null;
 };

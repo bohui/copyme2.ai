@@ -2,6 +2,7 @@
 import asyncio
 import logging
 import os
+import httpx
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -104,14 +105,28 @@ async def _review_pending_policy(storage, lease, conversation_id, *, model=None,
     prompt = 'memoir/agents/mira/policy-review'
     request_id = new_request_id(source.get('client_turn_id'))
     attempts = []
-    for attempt in range(2):
-        output, receipt = await complete_json(prompt,
+    provider_retried = False
+    async def complete():
+        return await complete_json(prompt,
             payload, schema,
             model=model or configured_model('MEMORY_SPARK_COLLECTOR_MODEL', 'MEMORY_SPARK_LLM_MODEL'),
             effort=configured_effort('MEMORY_SPARK_COLLECTOR_REASONING_EFFORT', 'MEMORY_SPARK_LLM_REASONING_EFFORT'),
             base_url=base_url, api_key=api_key,
             trace_name='memoir-interviewer', diagnostic_request_id=request_id,
             body_factory=lambda content: GovernedRequestBody(content, publisher=publisher, fence=fence))
+    for attempt in range(2):
+        try:
+            output, receipt = await complete()
+        except httpx.HTTPStatusError as error:
+            status = error.response.status_code
+            if provider_retried or status not in {502,503,504}:
+                raise
+            provider_retried = True
+            log_diagnostic(diagnostic_logger,'policy_review_provider_retry',request_id,
+                component='memoir.policy_review',status='retrying',call_type='review',
+                failure_class=failure_class(error,status_code=status),http_status=status)
+            await asyncio.sleep(.25)
+            output, receipt = await complete()
         parsed = (PolicyReviewOpening if opening else PolicyReview).model_validate(output)
         reason = parsed.reason.model_dump() if parsed.reason else None
         attempts.append(dict(response_id=receipt['response_id'], complete=parsed.complete, reason=reason))

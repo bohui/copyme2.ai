@@ -44,6 +44,17 @@ def test_a_plain_conversation_evaluation_does_not_claim_a_scheduled_profile_skil
     assert normalise_case({'text': 'Hello'})['enabled_skills'] == []
 
 
+def test_childhood_places_are_memory_evidence_and_not_profile_targets():
+    from apps.api.background_profile import PROFILE_FIELDS, ProfileProposal
+    from apps.api.agent_routes import ProfileSettingsInput
+    from apps.api.profile_intake import validate_profile_updates
+    assert 'childhood_place' not in PROFILE_FIELDS
+    assert 'childhood_place' not in ProfileSettingsInput.model_fields
+    assert validate_profile_updates({'childhood_place': "My father's school housing"}) is None
+    with pytest.raises(ValueError):
+        ProfileProposal.model_validate(proposal(profile_page(), 'childhood_place', 'School housing'))
+
+
 @pytest.mark.parametrize('mutation', ['field', 'language', 'source', 'version', 'quote', 'bool', 'year', 'duplicate'])
 def test_invalid_or_protected_profile_changes_are_rejected(mutation):
     current = profile_page()

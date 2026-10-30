@@ -17,7 +17,6 @@ PROFILE_FIELDS = {
     "name": 120,
     "birth_date_expression": 120,
     "birth_place": 160,
-    "childhood_place": 160,
 }
 LIFE_STAGES = {"baby", "childhood", "adolescence", "young_adulthood", "midlife", "later_life"}
 STORY_FOCUS_FIELDS = {"who": 500, "where": 300, "when": 160, "what": 1000}

@@ -85,6 +85,68 @@ def transport(phase='extract',current=None):
     return build_bounded_lane_input(current,phase=phase,packet=packet_for(current,phase),budget=BUDGET)
 
 
+@pytest.mark.parametrize('failure,status', [(PublicationUnavailable,'blocked'), (RuntimeError,'failed')])
+def test_skill_attempt_is_named_even_when_extraction_is_blocked_or_fails(monkeypatch,failure,status):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from apps.api import llm_tracing, lifetime_memory_composer as composer
+    from test_llm_tracing import FakeLangfuse
+    client=FakeLangfuse()
+    monkeypatch.setattr(llm_tracing,'_client_cache',client)
+    monkeypatch.setattr(composer,'_extract',AsyncMock(side_effect=failure('PRIVATE_NARRATION_AND_KEY')))
+    with llm_tracing.trace_llm_call('memoir-background-agent','synthetic',gateway=True):
+        with pytest.raises(failure):
+            asyncio.run(composer.execute_lifetime_lane(page(),SimpleNamespace(broker=AsyncMock())))
+    attempts=[o for o in client.observations if o.fields['name']=='memoir-author-timeline']
+    assert len(attempts)==1
+    assert attempts[0].fields['as_type']=='span'
+    assert attempts[0].updates[-1]['metadata']['status']==status
+    assert attempts[0].closed
+    assert 'PRIVATE_NARRATION_AND_KEY' not in json.dumps(attempts[0].updates)
+
+
+def test_profile_attempt_is_visible_when_foreground_prevents_admission(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from apps.api import llm_tracing, lifetime_memory_composer as composer
+    from test_llm_tracing import FakeLangfuse
+    current=page()
+    current['two_lane']={'work_mode':'extract','selected_skills':['memoir-memory-context'],'profile_complete':False}
+    broker=SimpleNamespace(rpc=AsyncMock(side_effect=[None,{'status':'pending'}]))
+    client=FakeLangfuse()
+    monkeypatch.setattr(llm_tracing,'_client_cache',client)
+    assert asyncio.run(composer.execute_lifetime_lane(current,SimpleNamespace(broker=broker)))=={'status':'pending'}
+    attempts=[o for o in client.observations if o.fields['name']=='memoir-memory-context']
+    assert len(attempts)==1
+    assert attempts[0].updates[-1]['metadata']['status']=='blocked'
+
+
+@pytest.mark.parametrize('commit_fails',[False,True])
+def test_shared_timeline_and_place_attempts_are_named_without_duplicate_extraction(monkeypatch,commit_fails):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+    from apps.api import llm_tracing, lifetime_memory_composer as composer
+    from test_llm_tracing import FakeLangfuse
+    current=page()
+    names=['memoir-author-timeline','memoir-place-journey']
+    current['two_lane']={'work_mode':'extract','selected_skills':names,'profile_complete':True}
+    client=FakeLangfuse()
+    monkeypatch.setattr(llm_tracing,'_client_cache',client)
+    extraction=AsyncMock(return_value={'events':[],'place_journeys':[]})
+    monkeypatch.setattr(composer,'_extract',extraction)
+    broker=SimpleNamespace(rpc=AsyncMock(side_effect=RuntimeError('PRIVATE_COMMIT_ERROR') if commit_fails else
+        [{'status':'page_saved'},None]))
+    if commit_fails:
+        with pytest.raises(RuntimeError):
+            asyncio.run(composer.execute_lifetime_lane(current,SimpleNamespace(broker=broker)))
+    else:
+        asyncio.run(composer.execute_lifetime_lane(current,SimpleNamespace(broker=broker)))
+    assert extraction.await_count==1
+    assert [o.fields['name'] for o in client.observations]==names
+    assert all(o.updates[-1]['metadata']['status']==('failed' if commit_fails else 'completed') for o in client.observations)
+    assert client.observations[1].updates[-1]['metadata']['execution']=='embedded'
+
+
 @pytest.mark.parametrize('reason',['PAGE_QUOTE','CHRONOLOGY_SCOPE','DATE_EXPRESSION','OUTPUT_SCHEMA'])
 def test_extraction_retry_accepts_only_fixed_feedback_with_unchanged_evidence(reason):
     current=page();packet=packet_for(current,'extract')

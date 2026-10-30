@@ -15,6 +15,7 @@ from pydantic import Field
 from .lifetime_memory_contracts import Contract
 from .lifetime_memory_publication import PublicationUnavailable
 from .prompt_artifact import load_prompt_artifact, prompt_path
+from .llm_tracing import trace_skill_execution
 
 LANE_SKILLS = {'timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}
 SOURCE_SKILLS = ('memoir-author-timeline', 'memoir-place-journey', 'memoir-memory-context')
@@ -23,6 +24,7 @@ SOURCE_SKILLS = ('memoir-author-timeline', 'memoir-place-journey', 'memoir-memor
 class BackgroundAgentInput(Contract):
     id: UUID
     token: UUID
+    batch_id: UUID | None = None
     user_id: UUID
     project_id: str = Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
     source_high_water: int = Field(ge=0, strict=True)
@@ -161,7 +163,7 @@ class BackgroundSkills:
             work = [item for item in work if item['skill'] != 'memoir-author-timeline']
             work.extend({'skill':name,'required':False,'source_review':True}
                 for name in source_work['available_skills'])
-        return {'work': work, 'source_work':source_work}
+        return {'work': work, 'source_work':source_work, 'batch':current.get('batch')}
 
     async def process_source(self, names):
         current = await self.broker.rpc('read_memoir_background_work', p_fence=self.fence)
@@ -179,6 +181,13 @@ class BackgroundSkills:
         return {'status':result['status']}
 
     async def execute(self, name):
+        with trace_skill_execution(name,'dispatch') as attempt:
+            result = await self._execute(name)
+            if result.get('status') not in {'saved','finished','completed','cached'}:
+                attempt['status']='failed' if result.get('status')=='failed' else 'blocked'
+            return result
+
+    async def _execute(self, name):
         current = await self.broker.rpc('read_memoir_background_work', p_fence=self.fence)
         lane = next((row for row in current['lanes'] if LANE_SKILLS.get(row['skill']) == name), None)
         if name in SOURCE_SKILLS and current.get('source_work'):
@@ -207,7 +216,10 @@ class BackgroundSkills:
         if self.news_engine is None:
             self.news_engine = HistoricalResearch(GatewayHistoricalProvider())
         try:
-            result = await self.news_engine.run(hypothesis)
+            with trace_skill_execution(name,'research') as attempt:
+                result = await self.news_engine.run(hypothesis)
+                if result.get('status')=='unavailable':
+                    attempt['status']='failed'
         except asyncio.CancelledError:
             await work.update('failed')
             raise

@@ -7,6 +7,16 @@ import pytest
 from apps.api.agent_storage import UserStorage
 
 
+def test_legacy_childhood_profile_values_and_locks_are_not_loaded_as_context():
+    storage = UserStorage.__new__(UserStorage)
+    storage.user_id = '11111111-1111-4111-8111-111111111111'
+    raw = {'name':'Avery','childhood_place':'School housing',
+        'profile_automation':{'revision':2,'field_locks':{'name':'manual','childhood_place':'manual'}}}
+    storage.request = lambda *_args,**_kwargs: httpx.Response(200,json=[{'profile':raw}])
+    saved = storage.profile()
+    assert 'childhood_place' not in saved
+    assert saved['profile_automation']['field_locks']=={'name':'manual'}
+
 @pytest.mark.parametrize('status', [200, 204])
 def test_void_lifetime_place_rpc_accepts_empty_success(status):
     def server(request):

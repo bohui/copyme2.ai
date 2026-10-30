@@ -31,7 +31,10 @@ Object.assign(globalThis,{
   setTimeout:schedule,clearTimeout:id=>timers.delete(id),
 });
 const context = vm.createContext({state,AbortController,URLSearchParams,TextDecoder,document,translate,placeHistoryKey,
-  Date:{now:()=>now},setTimeout:schedule,clearTimeout:id=>timers.delete(id),
+  Date:class extends Date {
+    constructor(...args) { super(...(args.length ? args : [now])); }
+    static now() { return now; }
+  },setTimeout:schedule,clearTimeout:id=>timers.delete(id),
   render() {},refreshProfileMenu() {},refreshFamilyContext() {},workspaceUpdateQueue:Promise.resolve(),applyDerivedWorkspace,
   applyBackgroundSkillProgress:result=>steps.push(...result.items),
   recordWorkspaceSkillProgress:step=>steps.push(step)});

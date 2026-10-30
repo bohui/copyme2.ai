@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
+from contextlib import contextmanager, ExitStack
 from contextvars import ContextVar
 import logging
 import os
@@ -14,6 +14,30 @@ _LOGGER = logging.getLogger(__name__)
 _UNSET = object()
 _client_cache: object = _UNSET
 _gateway_span = ContextVar('memoir_gateway_span', default=False)
+_trace_name = ContextVar('memoir_trace_name', default=None)
+
+
+def gateway_metadata(name):
+    return {'generation_name': name, 'trace_name': _trace_name.get() or name}
+
+
+@contextmanager
+def trace_scope(name):
+    token = _trace_name.set(_trace_name.get() or name)
+    scope = ExitStack()
+    try:
+        from langfuse import propagate_attributes
+        scope.enter_context(propagate_attributes(trace_name=_trace_name.get()))
+    except Exception:
+        _LOGGER.debug('Langfuse trace attributes are unavailable', exc_info=True)
+    try:
+        yield
+    finally:
+        try:
+            scope.close()
+        except Exception:
+            _LOGGER.debug('Langfuse trace attributes could not be closed', exc_info=True)
+        _trace_name.reset(token)
 
 
 def gateway_trace_headers() -> dict[str, str]:
@@ -139,12 +163,43 @@ def _linked_prompt(metadata):
 @contextmanager
 def trace_llm_call(
     name: str,
-    model: str,
+    model: str | None = None,
     *,
     input_summary: Mapping[str, Any] | None = None,
     metadata: Mapping[str, Any] | None = None,
     gateway: bool = False,
 ) -> Iterator[Any | None]:
+    with trace_scope(name):
+        with _trace_observation(name, model, input_summary=input_summary, metadata=metadata, gateway=gateway) as observation:
+            yield observation
+
+
+@contextmanager
+def trace_skill_execution(name, phase, *, embedded=False):
+    """Observe the whole attempt, including admission and canonical commit."""
+    from .lifetime_memory_publication import PublicationUnavailable
+    import asyncio
+    metadata = {'skill': name, 'phase': phase, 'execution': 'embedded' if embedded else 'skill'}
+    outcome = {'status': 'completed'}
+    failure = None
+    with trace_llm_call(name, metadata={**metadata, 'status': 'running'}, gateway=True) as observation:
+        try:
+            yield outcome
+        except BaseException as error:
+            # Keep raw exception text out of SDK-generated exception events.
+            failure = sys.exc_info()
+            outcome.update(status='blocked' if isinstance(error, PublicationUnavailable) else
+                'cancelled' if isinstance(error, asyncio.CancelledError) else 'failed', error_type=type(error).__name__)
+        status = outcome['status']
+        update_llm_trace(observation, output=dict(outcome), metadata={**metadata, **outcome},
+            level='WARNING' if status in {'blocked','cancelled'} else 'ERROR' if status=='failed' else 'DEFAULT',
+            status_message=status)
+    if failure is not None:
+        raise failure[1].with_traceback(failure[2])
+
+
+@contextmanager
+def _trace_observation(name, model, *, input_summary=None, metadata=None, gateway=False):
     """Gateway calls get an app span; directly observed calls get a generation."""
     client = _get_client()
     if client is None:
@@ -154,7 +209,7 @@ def trace_llm_call(
     try:
         linked = _linked_prompt(metadata) if not gateway else None
         attributes = dict(metadata or {})
-        if gateway:
+        if gateway and model is not None:
             attributes['model'] = model
         context = client.start_as_current_observation(
             **({"prompt": linked} if linked is not None and not gateway else {}),

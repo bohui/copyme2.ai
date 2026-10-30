@@ -26,6 +26,17 @@ test('late persisted work creates a trace on its real turn and replay upserts',(
   assert.equal(h.state.chat[1].trace,undefined);
   assert.equal(h.saves(),2);
 });
+test('one combined background batch appears only on its final covered reply',()=>{
+  const h=harness();
+  const started_at='2026-10-30T00:01:02.000Z', finished_at='2026-10-30T00:01:04.000Z';
+  const items=['earlier-source','later-source'].map(id=>({id,batch_id:'combined',phase:'extract',
+    skill:'memoir-author-timeline',lane:'B',execution:'model',client_turn_id:'later',
+    coverage_start:1,coverage_end:2,status:'saved',started_at,finished_at}));
+  h.context.applyBackgroundSkillProgress({project_id:'p',items});
+  assert.equal(h.state.chat[0].trace,undefined);
+  assert.equal(h.state.chat[1].trace.length,2);
+  assert.ok(h.state.chat[1].trace.every(item=>item.started_at===started_at && item.finished_at===finished_at));
+});
 test('finished queues disappear without manufacturing phase completions',()=>{
   const h=harness();
   h.context.applyBackgroundSkillProgress({project_id:'p',items:[{id:'queue:lane',phase:'queue',client_turn_id:'first',status:'queued'}]});

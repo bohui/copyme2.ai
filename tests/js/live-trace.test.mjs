@@ -1,4 +1,5 @@
 import { readMemoirClientSource } from './helpers/memoir-source.mjs';
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import { escapeHtml } from '../../apps/web/client/memoir/dom.mjs';
 import assert from 'node:assert/strict';
@@ -299,6 +300,21 @@ test('completed skill progress survives saving and restoring the local chat', ()
  const restored=context.restoreChatHistory('p');
  assert.deepEqual(JSON.parse(JSON.stringify(restored[0].trace)),trace);
  assert.equal(restored[0].traceMode,'live');
+});
+
+for (const locale of ['en-AU','zh-CN']) test(`background batch execution dates use the UI locale (${locale})`,()=>{
+ const messages=JSON.parse(readFileSync(new URL(`../../apps/web/messages/${locale}.json`,import.meta.url),'utf8'));
+ const context=vm.createContext({state:{showThinkingSteps:true},escapeHtml:String,currentUiLocale:()=>locale,
+   translate:key=>key.split('.').reduce((value,part)=>value?.[part],messages)});
+ vm.runInContext(extract('renderAgentTrace'),context);
+ const started_at='2026-10-30T00:01:02.000Z',finished_at='2026-10-30T00:01:04.000Z';
+ const html=context.renderAgentTrace([{id:'batch',skill:'memoir-author-timeline',lane:'B',status:'saved',
+   batch_id:'combined',coverage_start:2,coverage_end:3,started_at,finished_at}],'live');
+ assert.ok(html.includes(messages.Memoir.trace.groupedConversations));
+ assert.ok(html.includes(messages.Memoir.trace.startedAt));
+ assert.ok(html.includes(messages.Memoir.trace.finishedAt));
+ assert.ok(html.includes(`datetime="${started_at}"`));
+ assert.ok(html.includes(new Intl.DateTimeFormat(locale,{dateStyle:'medium',timeStyle:'medium'}).format(new Date(started_at))));
 });
 
 test('skill calls are visible even when their IDs overlap routine progress', () => {

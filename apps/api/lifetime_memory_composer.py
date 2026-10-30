@@ -9,11 +9,13 @@ import copy
 import json
 import os
 import logging
+from contextlib import ExitStack
 from pydantic import ValidationError
 from .lifetime_memory_contracts import ContextBudget
 from .composer_configuration import composer_configuration
 from .model_configuration import background_model, configured_model
 from .memory_events import ExtractionResult, validate_extraction
+from .llm_tracing import trace_skill_execution
 
 PROTOCOL = 'lifetime_composer_pages'
 SOURCE_WINDOW = 2304
@@ -260,33 +262,41 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
         if (page['skill'] == 'timeline' and (page.get('two_lane') or page.get('two_lane_maintenance_required'))
                 and (selected is None or 'memoir-memory-context' in selected)
                 and (page.get('two_lane') or {}).get('profile_complete') is not True):
-            profile_page = await worker.broker.rpc('read_lifetime_profile_page',
-                p_lane_id=job['lane_id'], p_token=job['token'])
-            if profile_page is not None:
-                from .background_profile import extract_profile
-                try:
-                    profile_result = await extract_profile(profile_page, worker)
-                except (LaneGenerationPaused, CanonicalActivationUnavailable) as deferred:
-                    return await worker.broker.rpc('defer_lifetime_memoir_lane',
-                        p_lane_id=job['lane_id'], p_token=job['token'], p_reason=deferred.code)
-                except ValueError as error:
-                    if 'budget' not in str(error).lower():
-                        raise
-                    return await worker.broker.rpc('defer_lifetime_memoir_lane',
-                        p_lane_id=job['lane_id'], p_token=job['token'], p_reason='LIFETIME_MODEL_BUDGET_REQUIRED')
-                saved = await worker.broker.rpc('commit_lifetime_profile_page',
-                    p_lane_id=job['lane_id'], p_token=job['token'],
-                    p_page_digest=profile_page['page_digest'], p_result=profile_result)
-                if saved.get('status') != 'page_saved':
-                    return saved
-                page = await worker.broker.rpc('read_lifetime_memoir_lane_page',
+            with trace_skill_execution('memoir-memory-context','profile') as attempt:
+                profile_page = await worker.broker.rpc('read_lifetime_profile_page',
                     p_lane_id=job['lane_id'], p_token=job['token'])
-                if not page:
-                    return {'status': 'stale'}
-                continue
-            if selected is not None and 'memoir-memory-context' in selected:
-                return receipt(await worker.broker.rpc('yield_lifetime_memoir_lane',
-                    p_lane_id=job['lane_id'],p_token=job['token']))
+                if profile_page is not None:
+                    from .background_profile import extract_profile
+                    try:
+                        profile_result = await extract_profile(profile_page, worker)
+                    except (LaneGenerationPaused, CanonicalActivationUnavailable) as deferred:
+                        attempt['status']='blocked'
+                        return await worker.broker.rpc('defer_lifetime_memoir_lane',
+                            p_lane_id=job['lane_id'], p_token=job['token'], p_reason=deferred.code)
+                    except ValueError as error:
+                        if 'budget' not in str(error).lower():
+                            raise
+                        attempt['status']='blocked'
+                        return await worker.broker.rpc('defer_lifetime_memoir_lane',
+                            p_lane_id=job['lane_id'], p_token=job['token'], p_reason='LIFETIME_MODEL_BUDGET_REQUIRED')
+                    saved = await worker.broker.rpc('commit_lifetime_profile_page',
+                        p_lane_id=job['lane_id'], p_token=job['token'],
+                        p_page_digest=profile_page['page_digest'], p_result=profile_result)
+                    if saved.get('status') != 'page_saved':
+                        attempt['status']='blocked'
+                        return saved
+                    if profile_result.get('skipped'):
+                        attempt['status']='skipped'
+                    page = await worker.broker.rpc('read_lifetime_memoir_lane_page',
+                        p_lane_id=job['lane_id'], p_token=job['token'])
+                    if not page:
+                        return {'status': 'stale'}
+                    continue
+                if selected is not None and 'memoir-memory-context' in selected:
+                    attempt['status']='blocked'
+                    return receipt(await worker.broker.rpc('yield_lifetime_memoir_lane',
+                        p_lane_id=job['lane_id'],p_token=job['token']))
+                attempt['status']='skipped'
         if page['complete']:
             if page['skill']=='timeline' and page.get('two_lane_maintenance_required') is True:
                 from .collector_configuration import collector_configuration
@@ -300,29 +310,41 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
                         return await worker.broker.rpc('yield_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'])
                     continue
             return receipt(await worker.broker.rpc('complete_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token']))
-        try:
+        phase='summarize' if page.get('memory_summary') is not None else 'extract' if page['skill']=='timeline' else page['skill']
+        names=['memoir-'+('author-timeline' if page['skill']=='timeline' else
+            'interview-guidance' if page['skill']=='guidance' else 'composer')]
+        if phase=='extract' and selected is not None:
+            names=[name for name in ('memoir-author-timeline','memoir-place-journey') if name in selected]
+        with ExitStack() as spans:
+            attempts=[spans.enter_context(trace_skill_execution(name,phase,
+                embedded=name=='memoir-place-journey' and 'memoir-author-timeline' in names)) for name in names]
+            try:
+                if page['skill']=='guidance':
+                    from .interview_guidance import execute_guidance_lane
+                    result=await execute_guidance_lane(page,worker)
+                else:
+                    result=await (_summarize(page,worker) if page.get('memory_summary') is not None else
+                        _extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))
+            except (LaneGenerationPaused, CanonicalActivationUnavailable) as deferred:
+                for attempt in attempts:attempt['status']='blocked'
+                return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
+                    p_reason=deferred.code)
+            except ValueError as error:
+                if 'budget' not in str(error).lower():
+                    raise
+                for attempt in attempts:attempt['status']='blocked'
+                return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
+                    p_reason='LIFETIME_MODEL_BUDGET_REQUIRED')
             if page['skill']=='guidance':
-                from .interview_guidance import execute_guidance_lane
-                result=await execute_guidance_lane(page,worker)
+                return result
+            if page.get('memory_summary') is not None:
+                result=await worker.broker.rpc('commit_lifetime_memory_summary_page',p_lane_id=job['lane_id'],p_token=job['token'],
+                    p_revision=page['memory_summary']['revision'],p_result=result,p_page_digest=page['page_digest'])
             else:
-                result=await (_summarize(page,worker) if page.get('memory_summary') is not None else
-                    _extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))
-        except (LaneGenerationPaused, CanonicalActivationUnavailable) as deferred:
-            return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
-                p_reason=deferred.code)
-        except ValueError as error:
-            if 'budget' not in str(error).lower():
-                raise
-            return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
-                p_reason='LIFETIME_MODEL_BUDGET_REQUIRED')
-        if page['skill']=='guidance':
-            return result
-        if page.get('memory_summary') is not None:
-            result=await worker.broker.rpc('commit_lifetime_memory_summary_page',p_lane_id=job['lane_id'],p_token=job['token'],
-                p_revision=page['memory_summary']['revision'],p_result=result,p_page_digest=page['page_digest'])
-        else:
-            result=await worker.broker.rpc('commit_lifetime_memoir_lane_page',p_lane_id=job['lane_id'],p_token=job['token'],
-                p_page_number=page['page_number'],p_result=result,p_page_digest=page['page_digest'])
+                result=await worker.broker.rpc('commit_lifetime_memoir_lane_page',p_lane_id=job['lane_id'],p_token=job['token'],
+                    p_page_number=page['page_number'],p_result=result,p_page_digest=page['page_digest'])
+            if result.get('status')!='page_saved':
+                for attempt in attempts:attempt['status']='blocked'
         if result.get('attribution'):
             attribution_pages.append(result['attribution'])
         if result.get('policy_changed'):

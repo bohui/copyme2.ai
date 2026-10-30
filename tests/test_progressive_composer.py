@@ -358,7 +358,7 @@ def test_pg_new_root_retains_eligible_older_passages_across_profile_updates(sql,
     service(sql, 'complete_lifetime_memoir_lane', f"'{lane}','{first['token']}'")
     initial = rpc(sql, 'read_lifetime_private_draft_page', f"{literal(project)},'{first['snapshot_id']}'")['records'][0]
     patch = ({'memory_preferences': {'paused_topics': ['childhood']}} if privacy_changed
-             else {'childhood_place': 'Hobart'})
+             else {'birth_place': 'Hobart'})
     sql(f"update public.user_profile set profile=profile||{literal(patch)}::jsonb where user_id='{OWNER}';")
     later = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'{UUID(int=2)}','Later I moved to Sydney.'")
     event = dict(kind='event', title='Sydney', source_refs=[dict(source_id=later['id'], version=1,
@@ -510,7 +510,7 @@ def test_pg_five_round_batch_groups_quotes_and_persists_progressive_passages(sql
     if protected:
         sql(f"update public.user_lifetime_memoir_section set approved=true where source_id='{originals[0]['id']}';")
     if profile_updated:
-        sql(f"update public.user_profile set profile=profile||'{{\"childhood_place\":\"Hobart\"}}'::jsonb where user_id='{OWNER}';")
+        sql(f"update public.user_profile set profile=profile||'{{\"birth_place\":\"Hobart\"}}'::jsonb where user_id='{OWNER}';")
     for i in range(5):
         text = 'Later I taught a neighbour to repair bicycles.' if i == 0 else 'Thank you.'
         original = rpc(sql, 'accept_user_narrator_source', f"{literal(project)},'{UUID(int=200+i)}',{literal(text)}")

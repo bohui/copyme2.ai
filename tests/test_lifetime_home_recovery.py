@@ -120,6 +120,27 @@ def test_project_load_and_photo_save_keep_each_places_research_period(sql, home_
         assert {p['place']:p['research_period'] for p in saved.json()['profile']['memory_places']} == {'承德市':'1980s','悉尼':''}
 
 
+@pytest.mark.parametrize('anonymous', [False, True])
+def test_photo_selection_recovers_lifetime_project_without_local_adapter(sql, home_auth, anonymous):
+    if anonymous:
+        sql(f"update auth.users set is_anonymous=true where id='{OWNER}';")
+    project = identity(sql)['project_id']
+    image = 'https://upload.wikimedia.org/wikipedia/commons/f/f2/Chengde_Mountain_Resort_1.jpg'
+    photo = {'image_url':image, 'original_url':image,
+        'source_url':'https://zh.wikipedia.org/wiki/File:Chengde_Mountain_Resort_1.jpg',
+        'asset_id':'crawl4ai-10d97de2415ba7b3002fd04c',
+        'title':'File:Chengde Mountain Resort 1.jpg - 维基百科，自由的百科全书',
+        'attribution':'zh.wikipedia.org', 'date_expression':'2010-07-02', 'place':'承德市', 'period':'1983'}
+    store = MemoryStore()
+    with TestClient(main.create_app(store)) as client:
+        assert project not in store.projects
+        response = client.put(f'/api/v1/memoir/projects/{project}/photo-memories',
+            headers=headers(), json={'action':'select', 'photo':photo})
+        assert response.status_code == 200, response.text
+        assert response.json()['selected'] == image
+        assert response.json()['favorites'] == [{**photo, 'key':image}]
+
+
 @pytest.mark.parametrize('projects', [('old',), ('old', 'new')])
 def test_home_mapping_required_preserves_all_legacy_ids_and_explicit_restoration(sql, home_auth, projects):
     originals = [rpc(sql, 'accept_user_interview_turn', f"'{project}','{uuid4()}','Original testimony'") for project in projects]

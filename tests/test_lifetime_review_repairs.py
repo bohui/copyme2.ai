@@ -36,8 +36,9 @@ def test_warm_home_uses_current_profile_and_does_not_resurrect_removed_fields(mo
     authoritative = {**current, '_private_cache': 'Current internal bookkeeping'}
     monkeypatch.setattr(main, '_require_project_access', lambda project: None)
     result = main._project_response(project, authoritative_profile=authoritative)['profile']
-    for key in ('name', 'preferred_language', 'birth_year', 'birth_place', 'childhood_place'):
+    for key in ('name', 'preferred_language', 'birth_year', 'birth_place'):
         assert result.get(key) == current.get(key)
+    assert 'childhood_place' not in result
     assert '_private_cache' not in result
     assert project['profile'] == before
 

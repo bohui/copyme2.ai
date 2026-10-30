@@ -1,7 +1,7 @@
 import { translate } from '../i18n.js';
 
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[c]));
-const fields = ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'childhood_place', 'avatar_style'];
+const fields = ['name', 'birth_year', 'birth_date_expression', 'birth_place', 'avatar_style'];
 
 export async function openProfileSettings({ api, onSave, onLanguageChange, onClose, isCurrent = () => true }) {
   if (document.querySelector('[data-profile-settings]')) return;

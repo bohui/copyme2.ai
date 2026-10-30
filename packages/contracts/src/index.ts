@@ -74,7 +74,6 @@ export const ProfileFieldSchema = z.enum([
   "birth_year",
   "birth_date_expression",
   "birth_place",
-  "childhood_place",
   "avatar_style",
 ]);
 const ProfileSettingsValuesSchema = z.object({
@@ -91,13 +90,12 @@ const ProfileSettingsValuesSchema = z.object({
     .nullish(),
   birth_date_expression: z.string().max(120).nullish(),
   birth_place: z.string().max(160).nullish(),
-  childhood_place: z.string().max(160).nullish(),
   avatar_style: z.enum(["male", "female"]).nullish(),
 });
 export const ProfileSettingsInputSchema = ProfileSettingsValuesSchema.extend({
   profile_confirm_all: z.boolean().optional(),
   profile_auto_enabled: z.boolean().optional(),
-  profile_release_fields: z.array(ProfileFieldSchema).max(6).optional(),
+  profile_release_fields: z.array(ProfileFieldSchema).max(5).optional(),
 })
   .strict()
   .superRefine((value, context) => {

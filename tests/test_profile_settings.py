@@ -57,6 +57,7 @@ def test_profile_settings_require_authentication(monkeypatch):
 
 
 @pytest.mark.parametrize('patch', [
+    {'childhood_place': 'School housing'},
     {'profile_automation': {'stopped': False}}, {'profile': {'name': 'Unsafe'}},
     {'story_focus': {}}, {'avatar_style': 'other'}, {'birth_date_expression': 'x' * 121},
     {'birth_year': True}, {'birth_year': '1960'}, {'profile_confirm_all': 'true'},

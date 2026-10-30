@@ -21,7 +21,6 @@ def test_extracts_and_removes_explicit_profile_context():
     assert updates == {
         "name": "Mina",
         "birth_year": 1974,
-        "childhood_place": "Geelong",
         "story_focus": {
             "who": "my grandmother",
             "where": "the back garden",

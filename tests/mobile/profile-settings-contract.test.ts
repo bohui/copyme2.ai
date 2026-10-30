@@ -69,6 +69,7 @@ test("mobile settings preserve new fields, control actions and read-only automat
 });
 
 for (const patch of [
+  { childhood_place: "School housing" },
   { profile_automation: automation },
   { story_focus: {} },
   { avatar_style: "other" },
