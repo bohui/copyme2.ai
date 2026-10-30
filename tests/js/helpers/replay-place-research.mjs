@@ -111,7 +111,7 @@ for (const language of ['zh-CN','en-AU','zh-CN']) {
   await settle();
   const html=places.workspaceMediaOverview();
   assert.doesNotMatch(html,/place-choices|data-place-choice=/,'Map navigation must not add a separate city button row');
-  const choices=state.project.profile.memory_places;
+  const choices=plain(state.project.profile.memory_places);
   assert.deepEqual(choices.map(choice=>choice.place).sort(),['承德市','悉尼'].sort());
   assert.doesNotMatch(html,/place-journey-heading/);
   for (const choice of choices) {
