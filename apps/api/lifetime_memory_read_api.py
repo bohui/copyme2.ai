@@ -82,7 +82,7 @@ def collection_page(storage, project_id, *, kind, cursor=None, limit=8, event_id
 def map_event_page(storage, project_id, *, cursor=None, limit=8):
     page = collection_page(storage, project_id, kind='events', cursor=cursor, limit=limit)
     fields = {'id', 'revision', 'kind', 'life_stage', 'status', 'change_sequence', 'title',
-              'temporal', 'uncertainty', 'assertion', 'timing_conflict'}
+              'temporal', 'uncertainty', 'assertion', 'timing_conflict', 'locationConfidenceScore', 'yearConfidenceScore'}
     return {**page, 'events': [{key: value for key, value in event.items() if key in fields}
                              for event in page.get('events', []) if event.get('status') == 'active']}
 

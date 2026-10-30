@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from .memory_events import EvidenceRef
-from .place_journey import validate_place_journey
+from .place_journey import CoarsePlace, validate_place_journey
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
 # Mask quotes across line/sentence boundaries, preserving a completed sentence
@@ -18,13 +18,6 @@ QUOTED_PATTERN = r'"[^"]*(?:"|$)|“[^”]*(?:”|$)|‘(?:[^’]|’(?=\w)|(?<=
 QUOTED_SENTENCE_PATTERN += r"|(?<!\w)'(?:[^']|'(?=\w)|(?<=\w)'(?=[ \t]+\w))*[.!?。！？]\s*'"
 QUOTED_PATTERN += r"|(?<!\w)'(?:[^']|'(?=\w)|(?<=\w)'(?=[ \t]+\w))*(?:'(?!\w|[ \t]+\w)|$)"
 ATTRIBUTION_PATTERN = r'\b(?:said|says|told|asked)\b|(?:说|說|告诉|告訴)'
-
-
-class CoarsePlace(BaseModel):
-    model_config = ConfigDict(extra='forbid', strict=True)
-    place: str = Field(min_length=1, max_length=120)
-    hierarchy: list[str] = Field(min_length=2, max_length=6)
-    granularity: Literal['country', 'region', 'city', 'suburb']
 
 
 class EventPlace(BaseModel):
@@ -79,6 +72,9 @@ def validate_attribution(raw, page, events):
             if len(matches) != 1:
                 raise ValueError('Place association requires one unambiguous event proposal')
             item['event_index'] = matches[0]
+            score = events[matches[0]].get('locationConfidenceScore')
+            if score is not None and score < 0.85:
+                continue
             if events[matches[0]].get('candidate_ids'):
                 continue  # An unresolved identity cannot authorize an event place.
             normalized = validate_place_journey(item['place'])

@@ -26,6 +26,30 @@ conflicting accounts retain attribution and uncertainty rather than a winner.
 Propose new or changed events; use unchanged saved facts as context. An
 acknowledgement with no new personal evidence returns an empty event list.
 
+Read conversation_history (the preceding twenty conversation rounds, oldest
+first) AND last_event before resolving the current memory's identity, location
+and year. Each round contains an authorized original excerpt and, when available,
+an assistant reply labelled as context. Complete flags identify clipped excerpts;
+unlisted or clipped words remain unknown. last_event supplies the most recently
+saved earlier event and its original passages, including when it falls outside
+the twenty-round window. Use these antecedents to understand “there”, “that year”
+and continuation of an existing event. Cite original narrator evidence for each
+placement; assistant wording remains context only.
+
+Return locationConfidenceScore and yearConfidenceScore as numbers from 0 to 1
+for EVERY proposed event. Use 0 for unknown or unsupported placement, 1 for an
+explicit unambiguous original statement, and intermediate values for contextual
+resolution. location is the candidate coarse public place, with exact
+location_basis references from the current original and/or the supplied earlier
+originals. temporal.basis may also cite those authorized earlier originals.
+Explain ambiguity in uncertainty. Birth in a city alone gives weak support for
+a later childhood setting: “小时候在爸爸学校家属院玩” after a Chengde birth
+may suggest Chengde, but requires location confirmation; the year remains unknown.
+The host treats a score below 0.85 as needing confirmation and passes that context
+to Mira in Lane A. Preserve candidate placements for that clarification instead
+of promoting them to established map locations. Keep each event's primary
+source_refs on the CURRENT original; earlier placement evidence is a dependency.
+
 Stages are baby, childhood, adolescence, young_adulthood, midlife,
 later_life and unplaced. Stage placement requires original `stage_evidence`.
 Temporal placement retains its original expression, precision, optional supported

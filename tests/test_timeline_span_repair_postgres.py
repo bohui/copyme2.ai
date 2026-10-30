@@ -13,7 +13,7 @@ from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, LanePublicati
 from apps.api.lifetime_memory_publication import PublicationUnavailable
 from test_agent_commit_postgres import database as base_database, OWNER, OTHER
 from test_background_profile_workflow import Broker
-from test_conversation_reply_transport import events, sse
+from test_timeline_span_repair import SpanConnection
 from test_lifetime_composer_capacity import service, create_lane
 from test_lifetime_memory_postgres import sql, resolve, event_database, private_database, attachment_database  # noqa: F401
 from test_shared_memory_events_postgres import literal, rpc
@@ -53,40 +53,36 @@ def test_failed_second_window_resumes_without_losing_first_commit_or_weakening_f
         rpc(sql, 'change_user_narrator_source', f"{literal(identity['project_id'])},'{source['id']}',1,'withdraw',null")
         changed = True
 
-    class Provider(httpx.AsyncBaseTransport):
-        def __init__(self, bounded):
-            self.bounded = bounded
+    def before_turn():
+        if mode == 'repair' and fault == 'source_before_send' and not changed:
+            withdraw()
 
-        async def handle_async_request(self, request):
-            if mode == 'repair' and fault == 'source_before_send' and not changed:
-                withdraw()
-            body = json.loads(b''.join([chunk async for chunk in request.stream]))
-            payload = json.loads(body['input'])['payload']
-            window = payload['sources'][0]
-            sent.append((self.bounded.fence.page_number, payload.get('retry_reason')))
-            ref = dict(source_id=source['id'], version=1,
-                quote=first_quote if self.bounded.fence.page_number == 0 else quote,
-                char_start=None, char_end=None, attribution=None)
-            if mode == 'repair' and payload.get('retry_reason') == 'PAGE_AMBIGUOUS':
-                schema = body['text']['format']['schema']
-                validator = Draft202012Validator({'$defs': schema['$defs'], '$ref': '#/$defs/EvidenceRef'})
-                assert not validator.is_valid(ref)
-                row = next(row for row in payload['quote_occurrences']['quotes'] if row['quote'] == quote)
-                ref.update(row['spans'][1])
-                if fault == 'wrong_span':
-                    ref['char_start'] += 1
-                    assert validator.is_valid(ref), 'Schema alone cannot prove the quoted substring'
-                else:
-                    validator.validate(ref)
-                    assert window['text'][ref['char_start']:ref['char_end']] == quote
-            result = {'events': [dict(kind='event', title='First memory' if self.bounded.fence.page_number == 0 else 'Repeated memory', source_refs=[ref])]}
-            return httpx.Response(200, content=sse(events(json.dumps(result))))
+    def respond(payload, schema):
+        window = payload['sources'][0]
+        page_number=0 if window['char_start']==0 else 1
+        sent.append((page_number, payload.get('retry_reason')))
+        ref = dict(source_id=source['id'], version=1,
+            quote=first_quote if page_number == 0 else quote,
+            char_start=None, char_end=None, attribution=None)
+        if mode == 'repair' and payload.get('retry_reason') == 'PAGE_AMBIGUOUS':
+            validator = Draft202012Validator({'$defs': schema['$defs'], '$ref': '#/$defs/EvidenceRef'})
+            assert not validator.is_valid(ref)
+            row = next(row for row in payload['quote_occurrences']['quotes'] if row['quote'] == quote)
+            ref.update(row['spans'][1])
+            if fault == 'wrong_span':
+                ref['char_start'] += 1
+                assert validator.is_valid(ref), 'Schema alone cannot prove the quoted substring'
+            else:
+                validator.validate(ref)
+                assert window['text'][ref['char_start']:ref['char_end']] == quote
+        return {'events': [dict(kind='event', title='First memory' if page_number == 0 else 'Repeated memory', source_refs=[ref])]}
 
     async def worker(request):
         bounded = BoundedLaneInput.model_validate(json.loads(request.content)['bounded_lane'])
         return httpx.Response(200, json=await run_bounded_lane(command=['must-not-start'], home_root=tmp_path,
             base_url='https://provider.invalid/v1', api_key='fixture-span-key', model=bounded.budget.model,
-            bounded_lane=bounded, publisher=publisher, provider_transport=Provider(bounded), timeout=5))
+            bounded_lane=bounded, publisher=publisher,
+            connection_factory=lambda *args,**options:SpanConnection(*args,respond=respond,before_turn=before_turn,**options), timeout=5))
 
     scope = SimpleNamespace(broker=Broker(sql), worker_url='https://worker.invalid', worker_secret='fixture',
         worker_transport=httpx.MockTransport(worker), lane_publisher=publisher)
