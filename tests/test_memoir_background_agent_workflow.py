@@ -19,7 +19,8 @@ from test_memoir_background_agent_postgres import service
 from test_agent_commit_postgres import OWNER
 
 
-def test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations(sql,tmp_path,monkeypatch):
+@pytest.mark.parametrize('profile_first',[False,True])
+def test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations(sql,tmp_path,monkeypatch,profile_first):
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
@@ -32,12 +33,22 @@ def test_foreground_keeps_replying_while_background_finishes_then_batches_queued
             task = json.loads(prompt)['task']
             if task.get('lane') == 'B':
                 batches.append(task['source_work']['sources'])
+                if profile_first and len(batches)==1:
+                    self.source_choices=('memoir-memory-context','memoir-author-timeline')
             else:
-                source = task['payload']['sources'][0]
-                originals.append(source)
-                if len(originals)==1:
+                is_profile='profile_patch' in options['output_schema']['properties']
+                source=task['payload']['source'] if is_profile else task['payload']['sources'][0]
+                if not is_profile:
+                    originals.append(source)
+                if not entered.is_set():
                     entered.set()
                     await release.wait()
+                if is_profile:
+                    output=json.loads(await super().turn(thread_id,prompt,**options))
+                    output['profile_patch']=[{'field':'birth_place','value':'Hobart','source_refs':[{
+                        'source_id':source['id'],'version':source['version'],'quote':source['text'],
+                        'char_start':0,'char_end':len(source['text'])}]}]
+                    return json.dumps(output)
             return await super().turn(thread_id,prompt,**options)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',SlowConnection)
     conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
@@ -67,7 +78,7 @@ def test_foreground_keeps_replying_while_background_finishes_then_batches_queued
                     await asyncio.to_thread(conversation.deliver_receipts)
                 assert not running.done(), 'Both foreground replies must finish while the first B model is held.'
                 assert service(sql,'pending_memoir_background_agents')==[]
-                assert len(batches)==len(originals)==1
+                assert len(batches)==1 and len(originals)==(0 if profile_first else 1)
             finally:
                 release.set()
                 result=await running
