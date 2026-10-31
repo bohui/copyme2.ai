@@ -61,6 +61,10 @@ Stages are baby, childhood, adolescence, young_adulthood, midlife,
 later_life and unplaced. Stage placement requires original `stage_evidence`.
 Temporal placement retains its original expression, precision, optional supported
 year/range and exact evidence basis. Preserve “around 1970” and “十二岁” verbatim.
+Store only bounds expressed in the cited words in temporal.year_start/year_end.
+For “2012年7月开始在这里住”, the stated start is 2012 and the stated end is null.
+Any endpoint derived from created_at belongs only in temporal_estimate, even
+after one bound has been confirmed.
 For missing years or ages, return a separate temporal_estimate: bounded year and/or
 age ranges, confidence strictly between 0 and 1, a concise rationale, and exact
 basis references. Use contextual dates, elapsed durations and before/after links

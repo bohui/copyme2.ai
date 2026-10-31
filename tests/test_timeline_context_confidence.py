@@ -187,6 +187,8 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
 
 
 def test_later_replies_upgrade_estimates_and_then_confirm_the_same_saved_event(sql,tmp_path,monkeypatch):
+    from pathlib import Path
+    import subprocess
     first='I was born in 1983. I currently live in Sydney after moving here following university.'
     later='About Sydney: I have now lived there for fourteen years.'
     confirmed='That Sydney residence began in 2012.'
@@ -217,12 +219,13 @@ def test_later_replies_upgrade_estimates_and_then_confirm_the_same_saved_event(s
 
     conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
     with conversation.client:
-        snapshots=[]
+        snapshots,feeds=[],[]
         for text in (first,later,confirmed):
             conversation.say(text);drain(conversation)
             response=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project})
             assert response.status_code==200,(text,response.text)
             events=response.json()['events']
+            feeds.append(response.json())
             assert len(events)==1,'Later evidence updates the existing event instead of adding a duplicate'
             snapshots.append(events[0])
         before,improved,exact=snapshots
@@ -239,6 +242,10 @@ def test_later_replies_upgrade_estimates_and_then_confirm_the_same_saved_event(s
         scores=json.loads(history.stdout.strip())
         assert scores==sorted(scores)
         assert set(scores)=={.4,.9,1}
+        replay=Path(__file__).parent/'js/helpers/replay-event-confidence-updates.mjs'
+        result=subprocess.run(['node',str(replay)],input=json.dumps(dict(project_id=conversation.project,feeds=feeds)),
+            text=True,capture_output=True,timeout=10)
+        assert result.returncode==0,result.stdout+result.stderr
 
 
 def test_an_explicit_previous_city_and_year_can_ground_the_current_event(sql,tmp_path,monkeypatch):
