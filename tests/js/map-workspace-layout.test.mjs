@@ -73,6 +73,15 @@ test('unlocated personal photos remain accessible without borrowing a nearby eve
   assert.ok(albums.filter(album=>album.pinned).every(album=>!album.pictures.some(photo=>photo.photo_id===personalId)));
 });
 
+test('city zoom filters reference and personal photos to that city',async t=>{
+  const {places}=await setup(t);
+  const key=places.mapMemoryEvents.nodes().find(node=>node.place==='Newtown').groupKey;
+  const albums=places.mapPhotoAlbumsForScene(null,{allPlaces:true,detailed:true,cityKey:key});
+  assert.deepEqual(albums.map(album=>album.place),['Sydney','Newtown']);
+  assert.equal(albums.find(album=>album.place==='Newtown').pictures[0].photo_id,personalId);
+  assert.deepEqual(places.mapPhotoAlbumsForScene(null,{allPlaces:true,detailed:true,cityKey:null}),[]);
+});
+
 test('personal photo reads are bounded by the current owner and event revision',async t=>{
   const {photos,state,calls}=await setup(t);
   assert.equal(photos.mapPhotos().length,1);

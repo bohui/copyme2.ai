@@ -3025,7 +3025,7 @@ begin
   for proposal in select value from pg_catalog.jsonb_array_elements(p_events) loop
     if pg_catalog.jsonb_typeof(proposal) is distinct from 'object' or
        exists(select 1 from pg_catalog.jsonb_object_keys(proposal) k where k not in
-         ('id','existing_id','expected_revision','kind','title','life_stage','temporal','stage_evidence','source_refs','uncertainty','person_ids','visibility','include_in_print','attribution','candidate_ids','relations','correction',
+         ('id','existing_id','expected_revision','kind','title','life_stage','temporal','temporal_estimate','stage_evidence','source_refs','uncertainty','person_ids','visibility','include_in_print','attribution','candidate_ids','relations','correction',
           'location','location_basis','locationConfidenceScore','yearConfidenceScore')) or
        proposal->>'kind' not in ('event','period') or
        length(pg_catalog.btrim(coalesce(proposal->>'title',''))) not between 1 and 300 or
@@ -3126,6 +3126,8 @@ begin
     if current_event.data->'user_overrides' ? 'life_stage' then event_stage:=current_event.life_stage; end if;
     if current_event.data->'user_overrides' ? 'temporal' then
       event_data:=pg_catalog.jsonb_set(event_data,'{temporal}',current_event.data->'temporal');
+      event_data:=event_data-'temporal_estimate';
+      event_data:=jsonb_set(event_data,'{yearConfidenceScore}',coalesce(current_event.data->'yearConfidenceScore','1'::jsonb));
     end if;
     if coalesce(proposal->>'visibility','private')<>coalesce(current_event.data->>'visibility','private') or
        coalesce((proposal->>'include_in_print')::boolean,false)<>coalesce((current_event.data->>'include_in_print')::boolean,false) then
@@ -3134,6 +3136,7 @@ begin
     event_data:=event_data || pg_catalog.jsonb_build_object('visibility',coalesce(current_event.data->>'visibility','private'),
       'include_in_print',coalesce((current_event.data->>'include_in_print')::boolean,false));
     perform public.validate_memory_temporal(owner_id,p_project_id,event_data->'temporal');
+    perform public.validate_memory_temporal_estimate(owner_id,p_project_id,event_data->'temporal_estimate');
     for ref in select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'stage_evidence','[]')) loop
       perform public.validate_memory_evidence(owner_id,p_project_id,ref);
     end loop;
@@ -3151,6 +3154,7 @@ begin
       select value from pg_catalog.jsonb_array_elements(proposal->'source_refs')
       union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'location_basis','[]'))
       union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'temporal'->'basis','[]'))
+      union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'temporal_estimate'->'basis','[]'))
       union select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'stage_evidence','[]'))
       union select r.value from pg_catalog.jsonb_array_elements(coalesce(event_data->'relations','[]')) relation_ref,
         pg_catalog.jsonb_array_elements(relation_ref.value->'source_refs') r
@@ -5817,7 +5821,8 @@ begin
     life_stage=coalesce(p_patch->>'life_stage',life_stage),revision=revision+1,change_sequence=next_change
     where user_id=owner_id and project_id=p_project_id and id=p_event_id returning * into saved;
   if p_patch ? 'temporal' then
-    update public.user_memory_event set data=data || '{"timing_conflict":false}'::jsonb
+    update public.user_memory_event set data=(data-'temporal_estimate') || jsonb_build_object('timing_conflict',false,
+      'yearConfidenceScore',case when p_patch->'temporal'->>'precision'='unknown' then 0 else 1 end)
       where user_id=owner_id and project_id=p_project_id and id=p_event_id returning * into saved;
   end if;
   insert into public.user_memory_event_revision(user_id,project_id,event_id,revision,record,actor,origin)
@@ -9049,6 +9054,7 @@ begin
        'temporal',jsonb_build_object('expression',event_record.data->'temporal'->'expression',
          'precision',event_record.data->'temporal'->'precision','year_start',event_record.data->'temporal'->'year_start',
          'year_end',event_record.data->'temporal'->'year_end'),
+       'temporal_estimate',(event_record.data->'temporal_estimate')-'basis',
        'uncertainty',event_record.data->'uncertainty','assertion',event_record.data->'assertion',
        'locationConfidenceScore',event_record.data->'locationConfidenceScore','yearConfidenceScore',event_record.data->'yearConfidenceScore',
        'timing_conflict',coalesce(event_record.data->'timing_conflict','false'),
@@ -13204,6 +13210,43 @@ begin
     raise exception 'date expression requires its original evidence' using errcode='22023'; end if;
 end $memoir$;
 
+CREATE FUNCTION public.validate_memory_temporal_estimate(p_owner uuid,p_project_id text,p_estimate jsonb) RETURNS void
+ LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+declare field text; low_value integer; high_value integer; ref jsonb;
+begin
+ if p_estimate is null or p_estimate='null'::jsonb then return;end if;
+ if auth.uid() is distinct from p_owner then raise exception 'owned estimate evidence required' using errcode='42501';end if;
+ if jsonb_typeof(p_estimate) is distinct from 'object' or
+   exists(select 1 from jsonb_object_keys(p_estimate) k where k not in
+     ('year_start','year_end','age_start','age_end','confidence','reference_year','rationale','basis')) or
+   jsonb_typeof(p_estimate->'confidence') is distinct from 'number' or
+   (p_estimate->>'confidence')::numeric<=0 or (p_estimate->>'confidence')::numeric>=1 or
+   jsonb_typeof(p_estimate->'rationale') is distinct from 'string' or length(btrim(p_estimate->>'rationale')) not between 1 and 1000 or
+   jsonb_typeof(p_estimate->'basis') is distinct from 'array' or jsonb_array_length(p_estimate->'basis') not between 1 and 20 then
+   raise exception 'bounded cited timing estimate required' using errcode='22023';end if;
+ foreach field in array array['year_start','year_end','age_start','age_end','reference_year'] loop
+   if p_estimate->>field is not null and (jsonb_typeof(p_estimate->field)<>'number' or p_estimate->>field !~ '^[0-9]+$' or
+     (p_estimate->>field)::numeric not between case when field like 'age_%' then 0 else 1 end and case when field like 'age_%' then 130 else 9999 end) then
+     raise exception 'invalid estimated timing bounds' using errcode='22023';end if;
+ end loop;
+ foreach field in array array['year','age'] loop
+   low_value:=(p_estimate->>(field||'_start'))::integer;high_value:=(p_estimate->>(field||'_end'))::integer;
+   if (low_value is null)<>(high_value is null) or low_value>high_value then
+     raise exception 'estimated timing requires increasing complete ranges' using errcode='22023';end if;
+ end loop;
+ if p_estimate->>'year_start' is null and p_estimate->>'age_start' is null then
+   raise exception 'estimated year or age range required' using errcode='22023';end if;
+ for ref in select value from jsonb_array_elements(p_estimate->'basis') loop
+   perform public.validate_memory_evidence(p_owner,p_project_id,ref);
+ end loop;
+ if p_estimate->>'reference_year' is not null and not exists(
+   select 1 from jsonb_array_elements(p_estimate->'basis') r join public.user_narrator_source s
+     on s.user_id=p_owner and s.project_id=p_project_id and s.id::text=r->>'source_id' and s.version=(r->>'version')::bigint
+     where extract(year from s.created_at at time zone 'UTC')=(p_estimate->>'reference_year')::integer) then
+   raise exception 'estimate reference must match an original capture year' using errcode='22023';end if;
+end $$;
+REVOKE ALL ON FUNCTION public.validate_memory_temporal_estimate(uuid,text,jsonb) FROM PUBLIC,anon,authenticated,service_role;
+
 CREATE FUNCTION public.validate_place_research_window(p_text text, w jsonb, p_source_offset integer DEFAULT 0) RETURNS void
  LANGUAGE plpgsql SET search_path TO '' AS $$
 begin
@@ -15659,7 +15702,7 @@ CREATE FUNCTION public.lifetime_guidance_source_windows(p_owner uuid,p_project t
  select jsonb_build_object('id',s.id,'project_id',s.project_id,'version',s.version,'sequence',s.sequence,
    'text',substring(s.text from bounds.lo+1 for bounds.hi-bounds.lo),
    'char_start',bounds.lo,'char_end',bounds.hi,'original_length',length(s.text),
-   'kind',s.kind,'language',s.language,'status',s.status,'author_role','storyteller')
+   'kind',s.kind,'language',s.language,'status',s.status,'author_role','storyteller','created_at',s.created_at)
  from authorized s cross join lateral unnest(s.spans) span cross join lateral (
    select case when p_tail then greatest(lower(span),upper(span)-2304) else lower(span) end lo,
      case when p_tail then upper(span) else least(upper(span),lower(span)+2304) end hi

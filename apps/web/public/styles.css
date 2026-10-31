@@ -712,20 +712,37 @@ h3 { line-height: 1.1; }
 .workspace-media-map-header .workspace-toggle:focus-visible, .map-memory-toolbar button:focus-visible, .map-memory-card:focus-visible, .map-memory-detail button:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
 .map-memory-status { flex-basis: 100%; color: #354b3c; background: #fffdf5f5; border-radius: 6px; padding: 4px 8px; font-size: 10px; }
 .map-memory-status button { margin-left: 8px; min-height: 32px; border: 0; background: transparent; color: var(--green-dark); text-decoration: underline; }
-.map-memory-anchor { position: absolute; width: 194px; height: 126px; }
+.map-memory-anchor { position: absolute; width: 194px; height: auto; }
 .map-memory-anchor[hidden] { display: none; }
-.map-memory-card { position: relative; display: flex; flex-direction: column; width: 100%; height: 126px; gap: 4px; padding: 10px 12px; border: 1px solid #d6ccb4; border-left: 3px solid #668270; border-radius: 5px 12px 12px 5px; color: #333f34; background: #fffdf5; box-shadow: 0 4px 14px #293e3130; text-align: left; cursor: pointer; pointer-events: auto; touch-action: manipulation; }
+.map-memory-card { position: relative; display: flex; flex-direction: column; width: 100%; min-height: 170px; gap: 4px; padding: 10px 12px; border: 1px solid #d6ccb4; border-left: 3px solid #668270; border-radius: 5px 12px 12px 5px; color: #333f34; background: #fffdf5; box-shadow: 0 4px 14px #293e3130; text-align: left; cursor: pointer; pointer-events: auto; touch-action: manipulation; }
 .map-memory-card.is-city { border-left-color: #aa7852; background: #fff8e7; }
 .map-memory-card:hover, .map-memory-card.is-active { border-color: #647b61; box-shadow: 0 5px 18px #293e3145; }
 .map-memory-meta { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .map-memory-age { color: #6c4d32; font-size: 10px; font-weight: 800; }
+.map-memory-date { color: #6c4d32; font-size: 10px; font-weight: 800; line-height: 1.4; }
+.map-memory-confidence { color: #677063; font-size: 9px; }
+.map-memory-avatars { display: flex; flex-wrap: wrap; gap: 3px; }
+.map-memory-avatar { --readiness: 0%; position: relative; display: inline-flex; flex-shrink: 0; width: 33px; height: 33px; padding: 3px; border-radius: 50%; background: conic-gradient(var(--readiness-color, #54765a) var(--readiness), #e4e3dc 0); }
+.map-memory-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.map-memory-avatar small { position: absolute; bottom: -3px; left: 50%; transform: translateX(-50%); padding: 0 2px; border-radius: 3px; color: #354b3c; background: #fffdf5; font-size: 7px; line-height: 10px; }
+.map-memory-avatar.is-unknown { align-items: center; justify-content: center; color: #677063; }
+.map-memory-avatar.is-unknown svg { width: 100%; height: 100%; fill: #a2ad9f; background: #fffdf5; border-radius: 50%; }
+.map-memory-anchor.is-expanded { height: auto; max-height: calc(100% - 60px); overflow-y: auto; pointer-events: auto; }
+.map-memory-city-events { display: flex; flex-direction: column; gap: 6px; padding: 8px 0 0 8px; }
+.map-memory-city-events .map-memory-card { flex-shrink: 0; }
+.map-memory-city-events > button[data-memory-city] { min-height: 36px; border: 1px solid #d6ccb4; border-radius: 8px; color: #354b3c; background: #fffdf5; font-size: 10px; cursor: pointer; }
+.map-memory-city-events > button[data-memory-city]:focus-visible { outline: 3px solid var(--coral); outline-offset: 2px; }
 .map-memory-count { padding: 2px 5px; border-radius: 8px; color: #4d6455; background: #e7ecdf; font-size: 9px; white-space: nowrap; }
 .map-memory-card strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: Georgia, serif; font-size: 17px; line-height: 1.15; }
 .map-memory-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: 11px; line-height: 1.4; }
 .map-memory-stage { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #677063; font-size: 9px; }
 .map-memory-hint { margin-top: auto; color: #6f6a58; font-size: 9px; }
-.map-memory-stem { position: absolute; top: 126px; left: 50%; width: 1px; background: #6c775c; transform-origin: center top; }
+.map-memory-stem { position: absolute; top: 210px; left: 50%; width: 1px; background: #6c775c; transform-origin: center top; }
 .map-memory-cards, .map-memory-trail { visibility: hidden; }
+.map-memory-cards { position: absolute; top: 64px; bottom: 88px; left: 8px; display: flex; flex-direction: column; gap: 10px; width: min(45%, 194px); padding: 2px 4px 12px 2px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; pointer-events: auto; }
+.map-memory-cards .map-memory-anchor { position: relative; flex: 0 0 auto; width: 100%; }
+.map-memory-cards .map-memory-anchor.is-expanded { max-height: none; overflow: visible; }
+.map-memory-cards .map-memory-stem { display: none; }
 .map-memory-layer.is-ready .map-memory-cards, .map-memory-layer.is-ready .map-memory-trail { visibility: visible; }
 .map-memory-overflow { position: absolute; bottom: 88px; left: 8px; right: 8px; display: flex; gap: 8px; padding: 4px; overflow-x: auto; pointer-events: auto; }
 .map-memory-overflow[hidden], .map-memory-layer:not(.is-ready) .map-memory-overflow { display: none; }
@@ -740,7 +757,7 @@ h3 { line-height: 1.1; }
 .map-memory-detail small { color: #677063; font-size: 11px; }
 .map-memory-detail .map-memory-uncertainty { color: #805c3c; font-size: 11px; }
 .map-memory-detail .text-button { min-height: 44px; }
-.map-memory-layer.is-compact .map-memory-anchor { width: 164px; }
+.map-memory-layer.is-compact .map-memory-anchor { width: 100%; }
 .map-memory-layer.is-compact .map-memory-overflow .map-memory-anchor { flex-basis: 164px; }
 .map-memory-layer.is-compact .map-memory-card { padding: 9px 10px; }
 .map-memory-layer.is-compact .map-memory-card strong { font-size: 15px; }
@@ -768,6 +785,7 @@ h3 { line-height: 1.1; }
 .map-memory-layer.is-desktop .map-memory-cards { position: absolute; top: 64px; bottom: 32px; left: 8px; display: flex; flex-direction: column; gap: 10px; width: clamp(132px, 23%, 194px); padding: 2px 4px 12px 2px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; pointer-events: auto; }
 .map-memory-layer.is-desktop:has(.map-memory-status) .map-memory-cards { top: 100px; }
 .map-memory-layer.is-desktop .map-memory-anchor { position: relative; flex: 0 0 auto; width: 100%; }
+.map-memory-layer.is-desktop .map-memory-anchor.is-expanded { max-height: none; overflow: visible; }
 .map-memory-layer.is-desktop .map-memory-stem { display: none; }
 .map-memory-layer.is-desktop .map-memory-detail { left: 50%; right: auto; width: min(360px, calc(100% - 20px)); transform: translateX(-50%); }
 .place-pictures {
@@ -1116,6 +1134,11 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-map-pins { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; clip-path: inset(50%); overflow: hidden; }
   .story-shell:has(#chat-scroll) .workspace-media-map:has(.map-memory-layer:not([hidden])) [data-all-places] { display: none; }
   .story-shell:has(#chat-scroll) .map-memory-toolbar { top: 8px; left: max(8px, env(safe-area-inset-left)); right: calc(max(8px, env(safe-area-inset-right)) + 52px); }
+  .story-shell:has(#chat-scroll) .map-memory-caption { display: none; }
+  .story-shell:has(#chat-scroll) .map-memory-cards { top: 56px; bottom: 76px; }
+  .story-shell:has(#chat-scroll) .map-memory-card { min-height: 142px; padding: 7px 8px; gap: 3px; }
+  .story-shell:has(#chat-scroll) .map-memory-avatar { width: 25px; height: 25px; padding: 2px; }
+  .story-shell:has(#chat-scroll) .map-memory-stage { display: none; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-choices { position: absolute; top: 8px; left: max(8px, env(safe-area-inset-left)); right: 60px; z-index: 2; margin: 0; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-choices button { min-height: 44px; padding: 4px 10px; }
   .story-shell:has(#chat-scroll) .workspace-media-map .place-journey-card { position: relative; display: flex; flex-direction: column; flex: 1 1 0; min-height: 0; margin: 0; border: 0; }

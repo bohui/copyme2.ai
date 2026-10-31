@@ -32,7 +32,7 @@ from .preview_jobs import PreviewJobs
 from .stage_readiness import stage_readiness
 from .background_profile import PROFILE_FIELDS
 from .lifetime_memory_read_api import (read_mapped, draft_head, draft_page, retry_draft, collection_page,
-    canonical_only, mapped_identity, map_event_page, map_event_places)
+    canonical_only, mapped_identity, map_event_page, map_event_places, map_event_order)
 from .story_payments import (
     StripeAPIError,
     StripeCheckoutClient,
@@ -576,6 +576,17 @@ def build_router(
         try:
             return await asyncio.to_thread(read_mapped, storage, project_id,
                 lambda fence: map_event_places(storage, project_id, event_id, cursor=cursor, limit=limit), canonical_only)
+        finally:
+            await asyncio.to_thread(_close, storage)
+
+    @router.get('/map-events/{project_id}/{event_id}/order')
+    async def memory_map_order(project_id: str, event_id: str, cursor: UUID | None = None,
+                               limit: int = Query(default=8, ge=1, le=8),
+                               authorization: str | None = Header(default=None)):
+        storage = await asyncio.to_thread(storage_for, authorization)
+        try:
+            return await asyncio.to_thread(read_mapped, storage, project_id,
+                lambda fence: map_event_order(storage, project_id, event_id, cursor=cursor, limit=limit), canonical_only)
         finally:
             await asyncio.to_thread(_close, storage)
 

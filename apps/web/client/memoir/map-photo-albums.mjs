@@ -43,7 +43,7 @@ export function layoutMapAlbums(points, width, height, reserve = 50) {
 }
 
 export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderAlbum, bindAlbum, closeLabel,
-  bindImages = () => {}, onOpen = () => {}}) {
+  getViewCity = () => undefined, bindImages = () => {}, onOpen = () => {}}) {
   let dialog, currentKey, currentProject, trigger, layer, signature, lastMarkup;
   let removePostRender;
   let sceneElement, albums = [], detailed = true, collectionMode;
@@ -128,8 +128,8 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
       });
       scene.append(layer);
     }
-    collectionMode = `${mobile()}:${detailed}`;
-    albums = getAlbums(scene,{detailed:mobile() || detailed,allPlaces:!mobile()});
+    collectionMode = JSON.stringify([mobile(),detailed,getViewCity()]);
+    albums = getAlbums(scene,{detailed:mobile() || detailed,allPlaces:!mobile(),...(detailed ? {cityKey:getViewCity()} : {})});
     if (!mobile()) albums = albums.filter(album => album.count || ['loading','error'].includes(album.status));
     layer.classList.toggle('is-desktop',!mobile());
     const next = JSON.stringify(albums);
@@ -154,7 +154,7 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
       const zoom = viewer.scene.mode === cesium.SceneMode.SCENE2D ? viewer.camera.frustum.right - viewer.camera.frustum.left
         : viewer.camera.positionCartographic.height;
       detailed = zoom < 18000;
-      if (collectionMode !== `${isMobile}:${detailed}`) sync(sceneElement);
+      if (collectionMode !== JSON.stringify([isMobile,detailed,getViewCity()])) sync(sceneElement);
       layer.classList.toggle('is-desktop',!isMobile);
       for (const pin of pins) {
         const label = viewer.entities.getById(pin.key)?.label;

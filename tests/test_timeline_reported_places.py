@@ -285,6 +285,87 @@ def test_reported_places_replay_from_sql_api_to_client(sql, tmp_path, monkeypatc
         assert result.returncode == 0, result.stdout + result.stderr
 
 
+@pytest.mark.parametrize('with_estimates', [False, True])
+def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql, tmp_path, monkeypatch, with_estimates):
+    from pathlib import Path
+    import subprocess
+    from test_shared_memory_events_postgres import literal
+    home_quote = 'I currently live in Sydney. I have lived here for fourteen years.'
+    first = 'I was born in Chengde in 1983. ' + home_quote
+    later = 'I grew up in Chengde. Later I studied and worked in Shanghai for five years before moving to Sydney.'
+    home_id = None
+
+    def extract(packet):
+        text = packet['sources'][0]['text']
+        events, links = [], []
+        if text == first:
+            values = [('Birth','Chengde','I was born in Chengde in 1983.','baby'),
+                      ('Sydney residence','Sydney',home_quote,'unplaced')]
+        else:
+            values = [('Growing up','Chengde','I grew up in Chengde.','childhood'),
+                      ('Shanghai study and work','Shanghai','Later I studied and worked in Shanghai for five years before moving to Sydney.','unplaced')]
+        for title, city, quote, stage in values:
+            ref = reference(packet,quote)
+            item = dict(episode(packet,quote,title=title),kind='event' if title=='Birth' else 'period',
+                life_stage=stage,stage_evidence=[ref] if stage!='unplaced' else None,
+                yearConfidenceScore=1.0 if title=='Birth' else 0.0,
+                temporal=dict(expression='1983',precision='year',year_start=1983,basis=[ref]) if title=='Birth' else None)
+            if city=='Shanghai':
+                item['relations']=[dict(kind='before',event_id=home_id,source_refs=[ref])]
+            if with_estimates and title!='Birth':
+                source=packet['sources'][0]
+                anchor=source if text==first else packet['conversation_history'][-1]['source']
+                year=int(anchor['created_at'][:4])
+                start,end,confidence = (year-15,year,.8) if city=='Sydney' else (year-20,year-13,.65) if city=='Shanghai' else (1986,2000,.4)
+                dependency=dict(source_id=anchor['id'],version=anchor['version'],
+                    quote=home_quote if city=='Shanghai' else 'I was born in Chengde in 1983.')
+                item['temporal_estimate']=dict(year_start=start,year_end=end,age_start=start-1983,age_end=end-1983,
+                    confidence=confidence,reference_year=year if city!='Chengde' else None,
+                    rationale='Original duration and narrator birth anchors.',basis=[ref,dependency])
+                item['yearConfidenceScore']=confidence
+            links.append(dict(event_index=len(events),role='setting',source_ref=ref,
+                place=dict(place=city,hierarchy=['Earth','Australia' if city=='Sydney' else 'China',city],granularity='city')))
+            events.append(item)
+        return {**empty(packet),'events':events,'event_places':links}
+
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
+    with conversation.client:
+        conversation.say(first)
+        conversation.drain()
+        home_id=sql(f"select id from public.user_memory_event where project_id={literal(conversation.project)} and data->>'title'='Sydney residence';").stdout.strip()
+        assert home_id
+        conversation.say(later)
+        conversation.drain()
+        pages, orders, locations = {}, {}, {}
+        cursor = None
+        while True:
+            response=conversation.client.get('/v1/story/map-events',params=dict(project_id=conversation.project,limit=2,
+                **({'cursor':cursor} if cursor else {})))
+            assert response.status_code==200,response.text
+            page=response.json();pages[cursor or 'first']=page
+            for event in page['events']:
+                response=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{event["id"]}/places')
+                assert response.status_code==200,response.text
+                locations[event['id']]=response.json()
+                if event['relations_complete'] is False:
+                    response=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{event["id"]}/order')
+                    assert response.status_code==200,response.text
+                    orders[event['id']]={'first':response.json()}
+            cursor=page.get('next_cursor')
+            if not cursor:break
+        assert len(pages)==2
+        assert orders
+        assert conversation.client.get(f'/v1/story/map-events/{conversation.project}/{home_id}/order',
+            headers={'authorization':'Bearer another-owner'}).status_code in {403,404}
+        places=[dict(place=city,hierarchy=['Earth','Australia' if city=='Sydney' else 'China',city],
+            granularity='city',latitude=lat,longitude=lng) for city,lat,lng in
+            [('Chengde',40.95,117.96),('Shanghai',31.23,121.47),('Sydney',-33.87,151.21)]]
+        replay=Path(__file__).parent/'js/helpers/replay-map-city-chronology.mjs'
+        result=subprocess.run(['node',str(replay)],input=json.dumps(dict(project_id=conversation.project,
+            pages=pages,orders=orders,locations=locations,places=places,with_estimates=with_estimates)),text=True,capture_output=True,timeout=10)
+        assert result.returncode==0,result.stdout+result.stderr
+
+
 @pytest.mark.parametrize('event_subject,ref_subject', [('father','narrator'),('self','father')])
 def test_conflicting_attribution_cannot_promote_a_reported_place(monkeypatch, event_subject, ref_subject):
     text = 'My father repaired bicycles in Hobart.'

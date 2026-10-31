@@ -53,10 +53,26 @@ source_refs on the CURRENT original; earlier placement evidence is a dependency.
 Stages are baby, childhood, adolescence, young_adulthood, midlife,
 later_life and unplaced. Stage placement requires original `stage_evidence`.
 Temporal placement retains its original expression, precision, optional supported
-year/range and exact evidence basis. Preserve “around 1970”, “十二岁” and unknown
-or uncertain dates. Capture order, elapsed time and a stage label never establish
-a story date. Age estimates need explicit narrator birth evidence, not a relative's
-birth. Keep a long residence or occupation as one kind: period interval record.
+year/range and exact evidence basis. Preserve “around 1970” and “十二岁” verbatim.
+For missing years or ages, return a separate temporal_estimate: bounded year and/or
+age ranges, confidence strictly between 0 and 1, a concise rationale, and exact
+basis references. Use contextual dates, elapsed durations and before/after links
+across the authorized originals. Anchor “now” and “fourteen years here” to the
+cited original's created_at year, recorded as reference_year, so replay keeps the
+same estimate. Allow for rounded durations and gaps between life periods.
+For a period, estimate its whole span; an explicitly current residence may end
+at its original capture year. For a point event, the range expresses uncertainty.
+Use the narrator's own birth evidence to convert years and ages; a relative's
+birth year is not that anchor. A supported life stage may justify a broad age
+range with low confidence (typically 0.2–0.5); calendar estimates need an original
+birth/date/duration anchor. Explain those assumptions in rationale. Derive both
+year and age ranges when anchors permit. Set temporal_estimate=null only when
+the originals cannot support either estimate or stated timing already suffices.
+Keep inferred numbers out of stated temporal fields; capture order alone is not
+chronology. yearConfidenceScore describes the preferred stated or estimated year
+placement, with 0 when neither exists. Estimates remain revisable and never replace
+an explicit author correction. Keep a long residence or occupation as one kind:
+period interval record, even when it crosses several life stages.
 
 Every source reference cites an authorised original ID/version and exact quote,
 with optional Unicode code-point span and attribution. Assistant questions,

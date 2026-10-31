@@ -10,6 +10,8 @@ translate it, or replace an age with a calculated year. For a period with severa
 date anchors, choose one original expression and retain the other evidence in
 basis. If no date expression is supported, use temporal=null, or the literal
 expression="unknown" with precision="unknown", null years and an empty basis.
+Inferred years/ages belong in temporal_estimate with their own confidence,
+rationale and original basis; these stated-date restrictions do not discard them.
 Character offsets are optional; use null unless the exact quote offsets are
 known. Quotes, source IDs and versions must still match the original exactly.
 Respect explicit recording boundaries in each original source: a scoped "this

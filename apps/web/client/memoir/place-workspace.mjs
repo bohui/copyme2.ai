@@ -18,6 +18,7 @@ export function createPlaceWorkspace({
     getProjectId: () => state.project?.id,
     getAlbum: mapPhotoAlbum,
     getAlbums: mapPhotoAlbumsForScene,
+    getViewCity: () => mapMemoryEvents.viewCity(),
     renderAlbum: album => {
       const pictures = pictureWall(album.pictures);
       if (pictures) return pictures + album.entries.map(entry => photos.photoPaginationMarkup(entry)).join("");
@@ -50,6 +51,7 @@ export function createPlaceWorkspace({
       state.memoryEventPage?.policy_epoch, state.derivedWorkspace?.policy_epoch]),
     getStage: () => state.lifeStage || "all",
     getPage: () => state.memoryEventPage,
+    getReadiness: () => state.stageReadiness || {},
     readPlaces: (eventId, cursor) => storyApi(`/v1/story/map-events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/places${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
     resolvePlaces: resolveMapMemoryPlaces,
     t: (key, values) => translateWith(`Memoir.workspace.${key}`, values),
@@ -214,7 +216,7 @@ export function createPlaceWorkspace({
     return `<section class="workspace-media-overview no-gallery" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><button type="button" data-all-places>${t("mapMemoryOverview")}</button>${toggle}</div>${map}</div></section>`;
   }
 
-  function mapPhotoAlbumsForScene(scene, {detailed = true, allPlaces = false} = {}) {
+  function mapPhotoAlbumsForScene(scene, {detailed = true, allPlaces = false, cityKey} = {}) {
     const container = scene?.querySelector("[data-cesium-place]");
     const pins = new Set(JSON.parse(container?.dataset.cesiumPins || "[]").map(pin => pin.key));
     const nodes = mapMemoryEvents.nodes();
@@ -225,7 +227,8 @@ export function createPlaceWorkspace({
       || nodes.some(node => placeHistoryKey(node.location) === placeHistoryKey(item)));
     const groups = workspacePlaceGroups(matching);
     const selected = groups.find(item => item.key === container?.dataset.placeKey);
-    const albums = (allPlaces ? groups : selected ? [selected] : workspacePlaceGroups([placeWorkspaceSelection()].filter(Boolean)))
+    const focused = groups.find(item => item.key === cityKey);
+    const albums = (allPlaces || cityKey !== undefined ? groups : selected ? [selected] : workspacePlaceGroups([placeWorkspaceSelection()].filter(Boolean)))
       .flatMap(group => group.members.map(entry => {
         const key = placeHistoryKey(entry);
         const target = Object.hasOwn(entry,"map_pin") ? entry.map_pin : placeMapTarget(entry);
@@ -245,13 +248,14 @@ export function createPlaceWorkspace({
       if (album) album.pictures.unshift(photo);
       else if ((keys.size !== 1 || allPlaces) && (state.lifeStage === "all" || linked.length)) unlocated.push(photo);
     }
-    const visible = detailed ? albums : [...new Set(albums.map(album => album.groupKey))].map(key => {
+    const visible = detailed ? albums.filter(album => cityKey === undefined || album.groupKey === cityKey
+      || (focused && matchesEventPlace(album.city,focused.city))) : [...new Set(albums.map(album => album.groupKey))].map(key => {
       const members = albums.filter(album => album.groupKey === key), city = members[0].city;
       return {key:`city-album:${key}`,place:city.place,entries:members.flatMap(album => album.entries),
         pictures:photos.mergePlacePictures([],members.flatMap(album => album.pictures)),
         latitude:city.latitude,longitude:city.longitude,pinned:Number.isFinite(city.latitude) && Number.isFinite(city.longitude)};
     });
-    if (unlocated.length || photos.mapPhotosUnavailable()) visible.push({key:"personal:unlocated",place:translate("Memoir.story.privatePhoto"),
+    if (cityKey === undefined && (unlocated.length || photos.mapPhotosUnavailable())) visible.push({key:"personal:unlocated",place:translate("Memoir.story.privatePhoto"),
       pictures:unlocated,entries:[],pinned:false,...(photos.mapPhotosUnavailable() ? {status:"error"} : {})});
     const rendered = visible.map(album => {
       const pictures = photos.mergePlacePictures([],album.pictures)

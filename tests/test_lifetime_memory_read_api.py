@@ -77,6 +77,7 @@ def mapped(monkeypatch, tmp_path):
     ('/v1/story/map-events?project_id=read-project', 'read_lifetime_collection_page'),
     ('/v1/story/map-photos?project_id=read-project', 'read_lifetime_map_photos'),
     ('/v1/story/map-events/read-project/event/places', 'read_lifetime_event_places'),
+    ('/v1/story/map-events/read-project/event/order', 'read_lifetime_collection_page'),
     ('/v1/story/sources?project_id=read-project', 'read_lifetime_collection_page'),
     ('/v1/story/readiness?project_id=read-project', 'read_lifetime_stage_readiness'),
 ])
@@ -231,6 +232,36 @@ def test_map_locations_keep_event_and_cursor_scope_without_exposing_passage_fiel
     _, arguments = next(call for call in calls if call[0] == 'read_lifetime_event_places')
     assert arguments == dict(p_project_id='read-project', p_event_id='birth', p_after=cursor, p_limit=8)
     assert calls[-1][0] == 'actual_send_guard'
+
+
+def test_map_order_exposes_only_scoped_event_relations_without_original_evidence(mapped):
+    client, storage, calls, result = mapped
+    storage.story_entitlement = lambda: None
+    result.clear()
+    result.update(details=[dict(kind='relations', value=dict(kind='before', event_id='sydney',
+        source_refs=[dict(quote='Original private testimony')])),
+        dict(kind='candidate_ids', value=['private-candidate'])],complete=False,
+        next_cursor='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb')
+    response = client.get('/v1/story/map-events/read-project/shanghai/order')
+    assert response.status_code == 200, response.text
+    assert response.json()['relations'] == [dict(kind='before',event_id='sydney')]
+    assert 'Original private testimony' not in response.text and 'private-candidate' not in response.text
+    assert response.json()['next_cursor'] == result['next_cursor']
+    _, arguments = next(call for call in calls if call[0]=='read_lifetime_collection_page')
+    assert arguments == dict(p_project_id='read-project',p_kind='event_details',p_after=None,p_limit=8,p_event_id='shanghai')
+    assert calls[-1][0] == 'actual_send_guard'
+
+
+def test_map_estimates_retain_confidence_and_rationale_without_original_quotes(mapped):
+    client, storage, _, result = mapped
+    storage.story_entitlement = lambda: None
+    result.update(events=[dict(id='home',status='active',temporal_estimate=dict(year_start=2011,year_end=2026,
+        confidence=.8,rationale='Fourteen years before the capture year.',basis=[dict(quote='Original private testimony')]))])
+    response=client.get('/v1/story/map-events?project_id=read-project')
+    assert response.status_code==200
+    estimate=response.json()['events'][0]['temporal_estimate']
+    assert estimate['year_start']==2011 and estimate['confidence']==.8
+    assert 'basis' not in estimate and 'Original private testimony' not in response.text
 
 
 def test_page_parameter_bounds_reject_before_database(mapped):

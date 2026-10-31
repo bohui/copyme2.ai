@@ -71,6 +71,13 @@ test('failed location reads expose a retry and cannot become an automatic reques
   assert.doesNotMatch(h.toolbar.innerHTML,/private provider detail/);
 });
 
+test('failed event ordering remains visible with a reload action after the last event page', async t => {
+  const h=setup(t,async()=>({items:[supported]}),{getPage:()=>({page_error:true})});
+  h.overlay.sync(h.scene);await settle();
+  assert.match(h.toolbar.innerHTML,/savedPageChanged/);
+  assert.match(h.toolbar.innerHTML,/data-memory-more[^]*reloadSavedPages/);
+});
+
 test('canonical locations resolve before a map exists and join the map groups independently', async t => {
   const received=[];
   const h=setup(t,async()=>({items:[{...supported,place:{...city,latitude:null,longitude:null}}],next_cursor:null}),{

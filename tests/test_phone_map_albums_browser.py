@@ -279,10 +279,18 @@ def test_desktop_hides_photo_lane_until_photos_arrive(album_page, request):
 def test_desktop_event_chronology_photo_latitude_and_personal_photos_on_zoom(album_page):
     page,_,_=album_page
     page.set_viewport_size({'width':1440,'height':960})
-    cards=page.locator('.map-memory-layer.is-desktop .map-memory-cards [data-map-memory]')
-    expect(cards).to_have_count(4)
-    assert ['Birth','First school','Move to Sydney','Return home']==[
+    cards=page.locator('.map-memory-layer.is-desktop .map-memory-cards > .map-memory-anchor > [data-map-memory]')
+    expect(cards).to_have_count(2)
+    assert ['Birth','Move to Sydney']==[
         card.locator('.map-memory-summary').inner_text() for card in cards.all()]
+    expect(cards.first.locator('.map-memory-avatar img')).to_have_count(3)
+    expect(cards.first.locator('.map-memory-confidence')).to_contain_text('0%')
+    cards.first.click()
+    children=page.locator('.map-memory-city-events [data-map-memory]')
+    expect(children).to_have_count(3)
+    assert ['Birth','First school','Return home']==[card.locator('.map-memory-summary').inner_text() for card in children.all()]
+    expect(cards.first).to_have_attribute('aria-expanded','true')
+    expect(children.nth(1).locator('.map-memory-avatar img')).to_have_count(1)
     albums=page.locator('.map-photo-album-layer.is-desktop .map-album-overflow [data-photo-album]')
     expect(albums).to_have_count(2)
     assert [album.locator('.map-album-place').inner_text() for album in albums.all()]==['承德','悉尼']
@@ -303,10 +311,14 @@ def test_desktop_event_chronology_photo_latitude_and_personal_photos_on_zoom(alb
     page.locator('.response-photo-viewer button').click()
     dialog.locator('[data-close-photo-album]').click()
     expect(dialog).not_to_be_visible()
-    # Click a chronological event to reach the detailed location scale.
+    # Expanding a city leaves the overview in place; zooming filters both lanes.
+    expect(albums).to_have_count(2)
+    page.locator('[data-memory-city]').click()
+    expect(cards).to_have_count(3)
+    expect(albums).to_have_count(3)
+    assert [album.locator('.map-album-place').inner_text() for album in albums.all()]==['承德','大石庙镇','双桥区']
+    assert ['Birth','First school','Return home']==[card.locator('.map-memory-summary').inner_text() for card in cards.all()]
     cards.nth(1).click()
-    expect(albums).to_have_count(4)
-    assert [album.locator('.map-album-place').inner_text() for album in albums.all()]==['承德','大石庙镇','双桥区','悉尼']
     expect(page.locator('.map-memory-detail')).to_contain_text('First school')
     page.locator('[data-memory-close]').click()
     expect(page.locator('.map-memory-detail')).not_to_be_visible()
@@ -315,11 +327,19 @@ def test_desktop_event_chronology_photo_latitude_and_personal_photos_on_zoom(alb
     school.click()
     expect(dialog.locator('figure').first).to_have_attribute('data-photo-kind','private_upload')
     dialog.locator('[data-close-photo-album]').click()
+    page.evaluate('''() => {window.__mapViewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(151.2,-33.86,2500)});
+      window.__mapViewer.scene.requestRender();}''')
+    expect(cards).to_have_count(1)
+    expect(cards.first.locator('.map-memory-summary')).to_have_text('Move to Sydney')
+    expect(albums).to_have_count(1)
+    expect(albums.first.locator('.map-album-place')).to_have_text('悉尼')
     page.locator('[data-memory-overview]').click()
+    expect(cards).to_have_count(2)
     expect(albums).to_have_count(2)
     OUTPUT.mkdir(parents=True,exist_ok=True)
     page.screenshot(path=str(OUTPUT/'after-desktop-events.png'))
     page.set_viewport_size({'width':1440,'height':640})
+    cards.first.click()
     event_list=page.locator('.map-memory-cards')
     event_list.evaluate('(element) => {element.scrollTop=100;}')
     assert event_list.evaluate('(element) => element.scrollTop')==100
@@ -333,6 +353,25 @@ def test_desktop_event_chronology_photo_latitude_and_personal_photos_on_zoom(alb
     page.locator('.workspace-detail.is-collapsed .workspace-toggle').click()
     expect(page.locator('.place-journey-scene')).to_be_visible()
     expect(page.locator('.workspace-media-map-header h2')).to_have_count(0)
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+
+
+@pytest.mark.parametrize('album_page',['events'],indirect=True)
+def test_phone_city_expansion_and_zoom_keep_only_local_events_and_photos(album_page):
+    page,_,_=album_page
+    cities=page.locator('.map-memory-cards .map-memory-card.is-city')
+    expect(cities).to_have_count(2)
+    cities.first.tap()
+    expect(page.locator('.map-memory-city-events [data-map-memory]')).to_have_count(3)
+    expect(cities.first).to_have_attribute('aria-expanded','true')
+    page.locator('[data-memory-city]').tap()
+    expect(cities).to_have_count(0)
+    expect(page.locator('.map-memory-cards [data-map-memory]')).to_have_count(3)
+    expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
+    expect(page.locator('[data-photo-album]:visible')).to_have_count(3)
+    expect(page.locator('.map-photo-album-layer')).not_to_contain_text('悉尼')
+    OUTPUT.mkdir(parents=True,exist_ok=True)
+    page.screenshot(path=str(OUTPUT/'after-phone-events.png'))
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
 
 

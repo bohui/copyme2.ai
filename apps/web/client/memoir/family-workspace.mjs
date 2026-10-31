@@ -1,6 +1,7 @@
 import { $, escapeHtml, formatText } from "./dom.mjs";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
 import { formatDateExpression } from "./dates.mjs";
+import { chronologicalEvents, memoryEventTiming, memoryEventTimingMarkup } from "./map-memory-journey.mjs";
 
 export function createFamilyWorkspace({
   LIFE_STAGES, api, captureProjectScope, isCurrentProjectScope, lifeStageText, profile, referencesWorkspace,
@@ -52,14 +53,45 @@ export function createFamilyWorkspace({
       if (Array.isArray(snapshot?.events)) {
         state.memoryEventProject = projectId;
         state.memoryEventPage = snapshot;
-        state.timeline = snapshot.events.map(event => ({ ...event,
+        state.timeline = chronologicalEvents(snapshot.events.map(event => ({ ...event,
           date_expression: event.temporal?.expression || "unknown",
           start_expression: event.temporal?.legacy_start_expression || event.temporal?.expression || "unknown",
           end_expression: event.temporal?.legacy_end_expression || event.temporal?.year_end?.toString() || "unknown",
-          precision: event.temporal?.precision || "unknown", canonical: true }));
+          precision: event.temporal?.precision || "unknown", canonical: true })), state.project.profile);
         render();
         if (memoryEventTimer) clearTimeout(memoryEventTimer);
         if (snapshot.processing?.pending_inputs) memoryEventTimer = setTimeout(refreshFamilyContext, 15000);
+        const cursors = new Set();
+        while (snapshot.next_cursor && !snapshot.page_error && isCurrentProjectScope(scope)
+            && request === memoryEventRequest && state.memoryEventPage === snapshot) {
+          if (cursors.has(snapshot.next_cursor)) { snapshot.page_error = true;render();break; }
+          cursors.add(snapshot.next_cursor);
+          await loadMoreMemoryEvents();
+        }
+        for (const event of state.timeline) {
+          if (!isCurrentProjectScope(scope) || request !== memoryEventRequest || state.memoryEventPage !== snapshot) break;
+          if (event.relations_complete !== false && event.details_complete !== false) continue;
+          const seen = new Set();
+          try {
+            let cursor;
+            const relations = [];
+            do {
+              const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+              const page = await storyApi(`/v1/story/map-events/${encodeURIComponent(projectId)}/${encodeURIComponent(event.id)}/order${query}`);
+              if (!isCurrentProjectScope(scope) || request !== memoryEventRequest || state.memoryEventPage !== snapshot) return null;
+              relations.push(...(page.relations || []));
+              cursor = page.next_cursor;
+              if (cursor && seen.has(cursor)) throw new Error("Repeated event order page");
+              seen.add(cursor);
+            } while (cursor);
+            event.relations = relations;
+            event.relations_complete = true;
+          } catch { event.relations_complete = false;snapshot.page_error = true; }
+        }
+        if (isCurrentProjectScope(scope) && request === memoryEventRequest && state.memoryEventPage === snapshot) {
+          state.timeline = chronologicalEvents(state.timeline,state.project.profile);
+          render();
+        }
       }
       return body?.family_context || null;
     } catch (failure) {
@@ -282,11 +314,11 @@ export function createFamilyWorkspace({
       const page = await storyApi(`/v1/story/${collection}?${query}`);
       if (!isCurrentProjectScope(scope) || state.memoryEventPage !== saved) return;
       const known = new Set(state.timeline.map(event => event.id));
-      state.timeline.push(...(page.events || []).filter(event => !known.has(event.id)).map(event => ({...event,
+      state.timeline = chronologicalEvents([...state.timeline,...(page.events || []).filter(event => !known.has(event.id)).map(event => ({...event,
         date_expression: event.temporal?.expression || "unknown",
         start_expression: event.temporal?.legacy_start_expression || event.temporal?.expression || "unknown",
         end_expression: event.temporal?.legacy_end_expression || event.temporal?.year_end?.toString() || "unknown",
-        precision: event.temporal?.precision || "unknown", canonical: true})));
+        precision: event.temporal?.precision || "unknown", canonical: true}))],state.project.profile);
       saved.next_cursor = page.next_cursor || null;
       saved.complete = page.complete === true;
     } catch (_) {
@@ -502,6 +534,8 @@ export function createFamilyWorkspace({
         const place = item.place ? ` · ${item.place}` : "";
         details = `${escapeHtml(start)} · ${precision}${escapeHtml(place)}`;
       }
+      if (item.canonical) details = memoryEventTimingMarkup({event:item,...memoryEventTiming(item,state.project?.profile)},
+        (key,values) => translateWith(`Memoir.workspace.${key}`,values));
       const stage = item.life_stage ? (item.life_stage === "unplaced" ? t("unplacedStage") : escapeHtml(lifeStageText(item.life_stage,"label"))) : "";
       const edit = item.canonical && state.familyFeaturesEnabled ? `<button type="button" class="text-button" data-edit-memory-event="${escapeHtml(item.id)}">${t("editEventTags")}</button>` : "";
       const explore = item.canonical && item.status === "active" ? `<button type="button" class="text-button" data-explore-workspace-memory="${escapeHtml(item.id)}" ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${t("exploreThisMemory")}</button>` : "";

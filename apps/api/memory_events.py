@@ -37,6 +37,27 @@ class TemporalPlacement(BaseModel):
     basis: list[EvidenceRef] = Field(default_factory=list, max_length=100)
 
 
+class TemporalEstimate(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    year_start: int | None = Field(default=None, ge=1, le=9999, strict=True)
+    year_end: int | None = Field(default=None, ge=1, le=9999, strict=True)
+    age_start: int | None = Field(default=None, ge=0, le=130, strict=True)
+    age_end: int | None = Field(default=None, ge=0, le=130, strict=True)
+    confidence: float = Field(gt=0, lt=1, strict=True)
+    reference_year: int | None = Field(default=None, ge=1, le=9999, strict=True)
+    rationale: str = Field(min_length=1, max_length=1000)
+    basis: list[EvidenceRef] = Field(min_length=1, max_length=20)
+
+    @model_validator(mode='after')
+    def ordered_ranges(self):
+        for start, end in ((self.year_start,self.year_end),(self.age_start,self.age_end)):
+            if (start is None) != (end is None) or start is not None and end < start:
+                raise ValueError('Estimated timing requires increasing complete ranges')
+        if self.year_start is None and self.age_start is None:
+            raise ValueError('An estimate requires a year or age range')
+        return self
+
+
 class EventRelation(BaseModel):
     model_config = ConfigDict(extra='forbid')
     kind: Literal['before', 'after']
@@ -53,6 +74,7 @@ class EventProposal(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     life_stage: str | None = None
     temporal: TemporalPlacement | None = None
+    temporal_estimate: TemporalEstimate | None = None
     stage_evidence: list[EvidenceRef] | None = Field(default=None, max_length=100)
     source_refs: list[EvidenceRef] = Field(min_length=1, max_length=100)
     uncertainty: str | None = Field(default=None, max_length=2000)
@@ -256,6 +278,7 @@ def validate_extraction(raw, sources, saved_events):
             if event.locationConfidenceScore is None:
                 raise ValueError('Location requires its confidence score')
         refs = [*event.source_refs, *(event.location_basis or []), *(event.stage_evidence or []), *(event.temporal.basis if event.temporal else []),
+                *(event.temporal_estimate.basis if event.temporal_estimate else []),
                 *(ref for relation in event.relations or [] for ref in relation.source_refs),
                 *([event.correction] if event.correction else [])]
         if event.correction and (not event.existing_id or event.correction.source_id != sources[0]['id']
@@ -285,6 +308,11 @@ def validate_extraction(raw, sources, saved_events):
             admitted[id(ref)] = candidates[0]
         if event.life_stage not in {None, 'unplaced'} and not event.stage_evidence:
             raise ValueError('Stage placement requires evidence')
+        if event.temporal_estimate and event.temporal_estimate.reference_year is not None:
+            estimate = event.temporal_estimate
+            if not any(str(admitted[id(ref)].get('created_at',''))[:4] == str(estimate.reference_year)
+                       for ref in estimate.basis):
+                raise ValueError('Estimated timing anchor must match an original source capture year')
         if event.temporal:
             timing = event.temporal
             if timing.year_start is not None or timing.year_end is not None:
@@ -310,6 +338,8 @@ def validate_extraction(raw, sources, saved_events):
             normalized['location'] = event.location.model_dump() if event.location else None
         if 'location_basis' in event.model_fields_set:
             normalized['location_basis'] = [ref.model_dump(exclude_none=True) for ref in event.location_basis or []]
+        if 'temporal_estimate' in event.model_fields_set:
+            normalized['temporal_estimate'] = event.temporal_estimate.model_dump(exclude_none=True) if event.temporal_estimate else None
         updates.append(normalized)
     return updates
 

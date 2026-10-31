@@ -100,6 +100,23 @@ test('ordinary map pagination loads later events without Family access', async (
   assert.deepEqual(state.timeline.map(event=>event.id),['earlier','later']);
 });
 
+test('refresh reads every saved event page and orders late recollections by story date', async () => {
+  const state={project:{id:'project',profile:{birth_year:1983}},supabase:{accessToken:'test'},
+    familyFeaturesEnabled:false,timeline:[]};
+  const dated=(id,year)=>({id,status:'active',title:id,temporal:{expression:String(year),precision:'year',year_start:year}});
+  const requests=[];
+  const workspace=createFamilyWorkspace({state,captureProjectScope:()=> 'project',isCurrentProjectScope:()=>true,
+    render(){},storyApi:async path=>{
+      requests.push(path);
+      return path.includes('cursor=') ? {events:[dated('birth',1983)],complete:true}
+        : {events:[dated('later',2012)],next_cursor:'older-memory',complete:false};
+    }});
+  await workspace.refreshFamilyContext();
+  assert.equal(requests.length,2);
+  assert.deepEqual(state.timeline.map(event=>event.id),['birth','later']);
+  assert.equal(state.memoryEventPage.complete,true);
+});
+
 test('a late older refresh cannot erase cards from a newer saved-event page', async () => {
   const state={project:{id:'project'},supabase:{accessToken:'test'},familyFeaturesEnabled:false,timeline:[]};
   const responses=[];

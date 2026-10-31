@@ -242,7 +242,7 @@ const {
   api, captureProjectScope, isCurrentProjectScope, lifeStageText, loadPlacePictures, persistChatHistory,
   profile, recordWorkspaceSkillProgress, render, saveProfileUpdates, state, supabaseApi, workspaceHasContent,
   photos, storyApi, onExploreMapMemory: eventId => focusWorkspaceMemory(eventId),
-  onLoadMoreMapEvents: () => loadMoreMemoryEvents(),
+  onLoadMoreMapEvents: () => state.memoryEventPage?.page_error ? refreshFamilyContext() : loadMoreMemoryEvents(),
 });
 
 const {
