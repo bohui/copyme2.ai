@@ -2374,7 +2374,7 @@ function workspaceDetail() {
   const ariaLabel = tabs.length
     ? `${escapeHtml(title)} ${t("workspaceSuffix")}`
     : state.placeJourney ? `${t("places")} ${t("workspaceSuffix")}` : t("yourWorkspace");
-  return `<aside id="workspace-detail" class="workspace-detail${mediaOverview && tabs.length ? " has-recall-views" : ""}" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${tabs.length || mediaOverview ? lifeStageNavigator() : ""}</aside>`;
+  return `<aside id="workspace-detail" class="workspace-detail${mediaOverview && tabs.length ? " has-recall-views" : ""}" aria-label="${ariaLabel}">${workspaceHeader}${mediaOverview}${contentMarkup}${tabs.length || mediaOverview ? lifeStageNavigator(!mediaOverview) : ""}</aside>`;
 }
 
 function currentWorkspaceMemoryFocus() {
@@ -2464,11 +2464,11 @@ function lifeStageIllustration(stage) {
   return `<img src="/static/timeline_avatar_${asset}_${style}.png" alt="" aria-hidden="true" />`;
 }
 
-function lifeStageNavigator() {
+function lifeStageNavigator(showStages = true) {
   const t = (key, values = {}) => escapeHtml(translateWith(`Memoir.workspace.${key}`, values));
   const activeId = state.lifeStage;
   state.lifeStage = activeId;
-  const tabs = LIFE_STAGES.map((stage) => {
+  const tabs = showStages ? LIFE_STAGES.map((stage) => {
     const stageEvidence = lifeStageEvidence(stage.id);
     const label = lifeStageText(stage.id, "label");
     const hasMemory = stageEvidence.memoryCount > 0;
@@ -2478,8 +2478,8 @@ function lifeStageNavigator() {
     const description = translateWith("Memoir.workspace.contextReadiness", { stage: label, percent,
       words: Number(context.word_equivalents) || 0 });
     return `<button id="life-stage-${stage.id}" type="button" class="life-stage-tab${stage.id === activeId ? " active" : ""}${hasMemory ? " has-memory" : ""}" data-life-stage-tab="${stage.id}" aria-label="${escapeHtml(description)}" aria-pressed="${stage.id === activeId}" tabindex="${stage.id === activeId || (activeId === "all" && stage === LIFE_STAGES[0]) ? "0" : "-1"}" title="${escapeHtml(description)}"><span class="life-stage-readiness readiness-${color}" style="--readiness:${percent}%"><span class="life-stage-figure" data-stage="${stage.id}">${lifeStageIllustration(stage)}</span></span><span class="life-stage-label life-stage-mobile-label">${escapeHtml(label)}</span></button>`;
-  }).join("");
-  return `<section class="life-stage-navigator" aria-label="${t("lifeJourneyEyebrow")}"><div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div><button type="button" class="button button-secondary button-small workspace-add-memory" data-add-workspace-memory ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${activeId === "all" ? t("addMemory") : t("addMemoryToStage", {stage: lifeStageText(activeId, "label")})}</button></section>`;
+  }).join("") : "";
+  return `<section class="${showStages ? "life-stage-navigator" : "workspace-memory-actions"}" aria-label="${t("lifeJourneyEyebrow")}">${showStages ? `<div class="life-stage-tabs" role="group" aria-label="${t("lifeStageTabsLabel")}">${tabs}</div>` : ""}<button type="button" class="button button-secondary button-small workspace-add-memory" data-add-workspace-memory ${state.loading || state.recallStatus?.payment_required ? "disabled" : ""}>${activeId === "all" ? t("addMemory") : t("addMemoryToStage", {stage: lifeStageText(activeId, "label")})}</button></section>`;
 }
 
 async function refreshStageReadiness() {

@@ -1,5 +1,5 @@
 import { escapeHtml } from "./dom.mjs";
-import { buildMapMemoryJourney, cityEventCards, mapCityInView, matchesEventPlace, memoryEventAvatars, memoryEventCardMarkup, memoryEventTimingMarkup } from "./map-memory-journey.mjs";
+import { buildMapMemoryJourney, cityEventCards, mapCityInView, matchesEventPlace, memoryEventCardMarkup } from "./map-memory-journey.mjs";
 
 export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScope, getIdentity = getScope, getStage,
   getPage = () => null, getReadiness = () => ({}), readPlaces, resolvePlaces = async places => places,
@@ -63,12 +63,11 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     if (!layer) {
       layer = document.createElement("div");
       layer.className = "map-memory-layer";
-      layer.innerHTML = '<canvas class="map-memory-trail" aria-hidden="true"></canvas><div class="map-memory-toolbar"></div><div class="map-memory-cards"></div><div class="map-memory-overflow"></div><section class="map-memory-detail" hidden></section>';
+      layer.innerHTML = '<canvas class="map-memory-trail" aria-hidden="true"></canvas><div class="map-memory-toolbar"></div><div class="map-memory-cards"></div><div class="map-memory-overflow"></div>';
       layer.addEventListener("click", event => {
-        const target = event.target.closest("[data-map-memory], [data-memory-city], [data-memory-overview], [data-memory-close], [data-memory-explore], [data-memory-retry], [data-memory-more]");
+        const target = event.target.closest("[data-map-memory], [data-memory-city], [data-memory-overview], [data-memory-explore], [data-memory-retry], [data-memory-more]");
         if (!target) return;
         if (target.hasAttribute("data-memory-overview")) { overview(); return; }
-        if (target.hasAttribute("data-memory-close")) { selectedKey = null; updateDetail(); return; }
         if (target.hasAttribute("data-memory-explore")) { onExplore(target.dataset.memoryExplore); return; }
         if (target.hasAttribute("data-memory-more")) { onLoadMore(); return; }
         if (target.hasAttribute("data-memory-city")) {
@@ -83,23 +82,21 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         }
         const key = target.dataset.mapMemory;
         const city = cityEventCards(journey.nodes).find(city => city.key === key);
-        if (city) {
+        if (city && city.count > 1) {
           expandedCity = expandedCity === city.groupKey ? null : city.groupKey;
           selectedKey = null;
           signature = null;
           position();
-          updateDetail();
         } else {
-          selectedKey = key;
-          if (!window.matchMedia("(max-width: 760px)").matches) {
-            const node = journey.nodes.find(node => node.key === key);
-            if (node) frame([node],2500);
-          }
-          updateDetail();
+          const node = city?.nodes[0] || journey.nodes.find(node => node.key === key);
+          if (!node) return;
+          selectedKey = node.key;
+          frame([node],2500);
+          position();
         }
       });
       layer.addEventListener("keydown", event => {
-        if (event.key === "Escape") { selectedKey = null; updateDetail(); }
+        if (event.key === "Escape") { selectedKey = null; position(); }
       });
       scene.append(layer);
       signature = null;
@@ -114,7 +111,6 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     layer.querySelector(".map-memory-toolbar").innerHTML = `<span class="map-memory-caption"><img src="/static/map-footprints.svg" alt="" />${escapeHtml(t("mapMemoryJourney"))}</span><button type="button" data-memory-overview>${escapeHtml(t("mapMemoryOverview"))}</button>${note || page?.next_cursor ? `<span class="map-memory-status" role="status">${escapeHtml(note)}${failed ? `<button type="button" data-memory-retry>${escapeHtml(t("mapEventRetry"))}</button>` : ""}${page?.next_cursor || page?.page_error ? `${page?.next_cursor ? escapeHtml(t("mapEventsPartial")) : ""}<button type="button" data-memory-more ${page.loading_page ? "disabled" : ""}>${escapeHtml(t(page.page_error ? "reloadSavedPages" : page.loading_page ? "loadingSavedPage" : "loadMoreEvents"))}</button>` : ""}</span>` : ""}`;
     signature = null;
     if (viewer && !viewer.isDestroyed()) position();
-    updateDetail();
     if (focusedKey) [...layer.querySelectorAll("[data-map-memory]")]
       .find(button => button.dataset.mapMemory === focusedKey)?.focus({preventScroll:true});
     onChange(scene);
@@ -141,25 +137,6 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       / Math.max(1, sceneElement.clientWidth || layer.clientWidth));
     viewer.camera.flyTo({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, Math.max(minimum, span * 3.5 * aspect)),
       duration:window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1.1});
-  }
-
-  function updateDetail() {
-    if (!layer) return;
-    const panel = layer.querySelector(".map-memory-detail");
-    const node = journey?.nodes.find(node => node.key === selectedKey);
-    const wasOpen = !panel.hidden;
-    panel.hidden = !node;
-    if (!node) {
-      if (wasOpen) [...layer.querySelectorAll("[data-map-memory]")].find(button => button.getAttribute("aria-expanded") === "true")?.focus({preventScroll:true});
-      for (const button of layer.querySelectorAll("[data-map-memory]")) button.setAttribute("aria-expanded", String(button.dataset.mapMemory === `city:${expandedCity}`));
-      return;
-    }
-    const titleId = "map-memory-detail-title";
-    const detail = node.event.summary || node.event.source_refs?.[0]?.quote || "";
-    panel.setAttribute("aria-labelledby", titleId);
-    panel.innerHTML = `<header>${memoryEventAvatars(node,{t,lifeStageText,profile:getProfile(),readiness:getReadiness()})}<button type="button" data-memory-close aria-label="${escapeHtml(t("mapEventClose"))}">×</button></header>${memoryEventTimingMarkup(node,t)}<h3 id="${titleId}">${escapeHtml(node.event.title)}</h3>${detail && detail !== node.event.title ? `<p>${escapeHtml(detail)}</p>` : ""}<small>${escapeHtml(node.place)}${node.event.life_stage && node.event.life_stage !== "unplaced" ? ` · ${escapeHtml(lifeStageText(node.event.life_stage,"label"))}` : ""}</small>${node.cityOnly ? `<p class="map-memory-uncertainty">${escapeHtml(t("mapEventCityLocation"))}</p>` : ""}${node.uncertainty || node.event.timing_conflict ? `<p class="map-memory-uncertainty">${escapeHtml(node.uncertainty || t("mapEventTimeUncertain"))}</p>` : ""}<button type="button" class="text-button" data-memory-explore="${escapeHtml(node.event.id)}">${escapeHtml(t("exploreThisMemory"))}</button>`;
-    for (const button of layer.querySelectorAll("[data-map-memory]")) button.setAttribute("aria-expanded", String(button.dataset.mapMemory === selectedKey || button.dataset.mapMemory === `city:${expandedCity}`));
-    if (!wasOpen) panel.querySelector("[data-memory-close]").focus({preventScroll:true});
   }
 
   function position() {
@@ -197,10 +174,12 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
           ...group.members.map(member => Object.hasOwn(member,"map_pin") ? member.map_pin : member)
             .filter(place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude))]};
     });
-    viewCity = detailed ? mapCityInView(cityLocations,project,width,height) : null;
-    const cards = detailed ? (cities.find(city => city.groupKey === viewCity)?.nodes || []) : cities;
+    const visibleCities = new Set(cityLocations.filter(city => mapCityInView([city],project,width,height) !== null)
+      .map(city => city.groupKey));
+    viewCity = visibleCities.size === 1 ? [...visibleCities][0] : detailed ? mapCityInView(cityLocations,project,width,height) : null;
+    const cards = viewCity !== null || detailed ? (cities.find(city => city.groupKey === viewCity)?.nodes || []) : cities;
     if (selectedKey && !cards.some(card => card.key === selectedKey || card.nodes?.some(node => node.key === selectedKey))) {
-      selectedKey = null;updateDetail();
+      selectedKey = null;
     }
     const options = {t,lifeStageText,profile:getProfile(),readiness:getReadiness()};
     const next = JSON.stringify([cards, width < 500, selectedKey, expandedCity, desktop, options.profile?.avatar_style, options.readiness]);
@@ -208,7 +187,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const overflow = layer.querySelector(".map-memory-overflow");
     if (signature !== next) {
       const focused = document.activeElement?.dataset?.mapMemory;
-      const nextView = JSON.stringify([detailed,viewCity]);
+      const nextView = JSON.stringify([viewCity]);
       const scroll = listView === nextView ? container.scrollTop : 0;
       listView = nextView;
       signature = next;

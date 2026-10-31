@@ -285,8 +285,8 @@ def test_reported_places_replay_from_sql_api_to_client(sql, tmp_path, monkeypatc
         assert result.returncode == 0, result.stdout + result.stderr
 
 
-@pytest.mark.parametrize('with_estimates', [False, True])
-def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql, tmp_path, monkeypatch, with_estimates):
+@pytest.mark.parametrize('with_estimates,repair_estimate', [(False,False), (True,False), (True,True)])
+def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql, tmp_path, monkeypatch, with_estimates, repair_estimate):
     from pathlib import Path
     import subprocess
     from test_shared_memory_events_postgres import literal
@@ -297,6 +297,8 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
 
     def extract(packet):
         text = packet['sources'][0]['text']
+        if repair_estimate and text==first and packet.get('retry_reason'):
+            assert packet['retry_reason']=='TEMPORAL_ESTIMATE_RANGE'
         events, links = [], []
         if text == first:
             values = [('Birth','Chengde','I was born in Chengde in 1983.','baby'),
@@ -323,6 +325,8 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
                     confidence=confidence,reference_year=year if city!='Chengde' else None,
                     rationale='Original duration and narrator birth anchors.',basis=[ref,dependency])
                 item['yearConfidenceScore']=confidence
+                if repair_estimate and city=='Sydney' and not packet.get('retry_reason'):
+                    item['temporal_estimate'].update(year_start=None,age_start=None)
             links.append(dict(event_index=len(events),role='setting',source_ref=ref,
                 place=dict(place=city,hierarchy=['Earth','Australia' if city=='Sydney' else 'China',city],granularity='city')))
             events.append(item)
@@ -332,6 +336,7 @@ def test_map_city_chronology_preserves_skill_relations_across_paginated_api(sql,
     with conversation.client:
         conversation.say(first)
         conversation.drain()
+        assert len([phase for phase,_ in conversation.admissions if phase=='extract'])==(2 if repair_estimate else 1)
         home_id=sql(f"select id from public.user_memory_event where project_id={literal(conversation.project)} and data->>'title'='Sydney residence';").stdout.strip()
         assert home_id
         conversation.say(later)

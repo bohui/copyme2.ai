@@ -22,7 +22,9 @@ function workspaceHarness(overrides = {}, dependencies = {}) {
     placeWorkspaceSelection: () => state.placeJourney,
     placeMapTarget: place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude) ? place : null,
     workspaceMediaOverview: () => '<section class="workspace-media-overview">map and photo gallery</section>',
-    lifeStageNavigator: () => '<section class="life-stage-navigator">life stages</section>',
+    lifeStageNavigator: (showStages=true) => showStages
+      ? '<section class="life-stage-navigator">life stages</section>'
+      : '<section class="workspace-memory-actions">add memory</section>',
     privateDraftPreview: () => '', familyWorkspace: () => 'family', timelineWorkspace: () => 'timeline',
     memoirWorkspace: () => 'memoir', escapeHtml: String, translate: String, translateWith: String,
     isFreshAnonymousSession: () => true, profileMenu: () => '', renderMessage: () => '',
@@ -185,13 +187,14 @@ test('the fifth-round private draft keeps the place/photo view until composition
   assert.doesNotMatch(html, /data-workspace-tab/);
 });
 
-test('a ready map opens the place/photo workspace and its life-stage strip', () => {
+test('a ready map opens the place/photo workspace with an add-memory action and no life-stage strip', () => {
   const html = renderedWorkspace({placeJourney: {place: 'Chengde', latitude: 40.95, longitude: 117.96}}, {
     isFreshAnonymousSession: () => false,
   });
   assert.match(html, /story-shell context-visible/);
   assert.match(html, /workspace-media-overview/);
-  assert.match(html, /life-stage-navigator/);
+  assert.match(html, /workspace-memory-actions/);
+  assert.doesNotMatch(html, /life-stage-navigator/);
   assert.match(html, /data-action="toggle-chat-history"/);
   assert.doesNotMatch(html, /data-news-enable|data-news-disable/);
 });

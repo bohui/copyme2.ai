@@ -1,15 +1,19 @@
 #!/usr/bin/env python3
 """Refresh Compose service aliases using Apple Container's live addresses.
 
-Only running containers returned by this Compose project are inspected. Peers
-must share its project and network labels. Existing unrelated hosts are kept;
-no container is started, stopped, or recreated, including an existing frontend.
+Application peers must share this Compose project's labels. The known model
+and tracing containers also receive aliases when on the same network. Existing
+unrelated hosts are kept; only this project's containers are updated.
 """
 import argparse
 import ipaddress
 import json
 import re
 import subprocess
+
+
+PROVIDER_SERVICES = {'llm-provider-litellm-1': 'litellm',
+                     'llm-provider-langfuse-web-1': 'langfuse-web'}
 
 
 class RefreshError(RuntimeError):
@@ -64,7 +68,8 @@ def hosts_text(original, aliases):
             lines.append('#' + comment)
     while lines and not lines[-1].strip():
         lines.pop()
-    lines.extend(address + ' ' + name for name, address in sorted(aliases.items()))
+    lines.extend(address + ' ' + name for name, address in sorted(aliases.items())
+                 if address is not None)
     return '\n'.join(lines) + '\n'
 
 
@@ -79,11 +84,28 @@ def refresh(mocker, compose_file, apple_container='container'):
         records(values, [container_id])
         metadata.extend(values)
     peers = records(metadata, ids)
+    inventory = json.loads(command(apple_container, 'list', '--format', 'json'))
+    providers = []
+    for container_id, service in PROVIDER_SERVICES.items():
+        matches = [value for value in inventory if value.get('id') == container_id]
+        if not matches:
+            continue
+        provider = records(matches, [container_id])[0]
+        if provider['project'] != 'llm-provider' or provider['service'] != service:
+            raise RefreshError('External provider container labels did not match')
+        providers.append(provider)
     for target in peers:
         aliases = {peer['service']: peer['address'] for peer in peers
                    if peer['network'] == target['network']}
         if len(aliases) != sum(peer['network'] == target['network'] for peer in peers):
             raise RefreshError('Scaled services require DNS; static aliases must be unique')
+        if PROVIDER_SERVICES.keys() & aliases.keys():
+            raise RefreshError('External provider alias conflicts with a Compose service')
+        # Clear stale provider entries if a provider stopped or left the network.
+        aliases.update(dict.fromkeys(PROVIDER_SERVICES))
+        for provider in providers:
+            if provider['network'] == target['network']:
+                aliases[provider['id']] = provider['address']
         original = command(apple_container, 'exec', target['id'], '/bin/cat', '/etc/hosts')
         expected = hosts_text(original, aliases)
         if original.rstrip('\n') != expected.rstrip('\n'):

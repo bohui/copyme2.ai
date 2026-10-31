@@ -2,6 +2,7 @@
 import json
 import os
 import base64
+import re
 from pathlib import Path
 
 import pytest
@@ -79,6 +80,10 @@ def album_page(request):
                 if route.request.method == 'PATCH': profile.update(route.request.post_data_json.get('profile',{}))
                 data = {'id':'album-project','revision':1,'profile':profile,'mode':'self','workspace_unlocked':False}
             elif path == '/story/state': data = {'family_features_enabled':False,'recall_status':{'payment_required':False}}
+            elif path == '/story/readiness':
+                data = {'stages':{'baby':{'percent':30,'color':'amber','word_equivalents':300},
+                                  'childhood':{'percent':10,'color':'red','word_equivalents':100},
+                                  'midlife':{'percent':50,'color':'green','word_equivalents':1000}}}
             elif path == '/story/map-events' and mode in ('events','estimated-events'):
                 events=[dict(id=id,revision=1,kind='event',status='active',life_stage=stage,title=title,
                     temporal={'expression':f'Age {age}','precision':'age'},
@@ -89,7 +94,8 @@ def album_page(request):
                 if mode=='estimated-events':
                     for event in events:
                         if event['id']=='birth':
-                            event.update(temporal=dict(expression='1983年4月',precision='month',year_start=1983),yearConfidenceScore=1)
+                            event.update(title='Born in Chengde in April 1983',
+                                temporal=dict(expression='1983年4月',precision='month',year_start=1983),yearConfidenceScore=1)
                         else:
                             start,end,confidence={'school':(1988,1990,.6),'move':(2011,2026,.8),'return':(2023,2023,.7)}[event['id']]
                             event.update(temporal=None,yearConfidenceScore=confidence,temporal_estimate=dict(
@@ -145,7 +151,8 @@ def test_phone_map_and_album_navigation(album_page):
     expect(page.locator('.workspace-media-map-header h2')).not_to_be_visible()
     expect(page.locator('.place-journey-heading')).not_to_be_visible()
     expect(page.locator('.workspace-media-gallery')).not_to_be_visible()
-    expect(page.locator('.life-stage-mobile-label').first).to_be_visible()
+    expect(page.locator('.life-stage-navigator, .life-stage-tabs')).to_have_count(0)
+    expect(page.locator('[data-add-workspace-memory]')).to_be_visible()
     scene=page.locator('.place-journey-scene').bounding_box()
     panel=page.locator('.workspace-media-overview').bounding_box()
     assert scene['height'] >= panel['height']-48, (scene,panel)
@@ -285,17 +292,17 @@ def test_desktop_hides_photo_lane_until_photos_arrive(album_page, request):
 def test_desktop_event_chronology_photo_latitude_and_personal_photos_on_zoom(album_page):
     page,_,_=album_page
     page.set_viewport_size({'width':1440,'height':960})
-    cards=page.locator('.map-memory-layer.is-desktop .map-memory-cards > .map-memory-anchor > [data-map-memory]')
+    cards=page.locator('.map-memory-layer.is-desktop .map-memory-cards > .map-memory-anchor > .map-memory-card')
     expect(cards).to_have_count(2)
     assert ['Birth','Move to Sydney']==[
         card.locator('.map-memory-summary').inner_text() for card in cards.all()]
     expect(cards.first.locator('.map-memory-avatar img')).to_have_count(3)
-    expect(cards.first.locator('.map-memory-confidence')).to_contain_text('0%')
-    cards.first.click()
-    children=page.locator('.map-memory-city-events [data-map-memory]')
+    expect(page.locator('.map-memory-confidence, .map-memory-avatar small')).to_have_count(0)
+    cards.first.locator('[data-map-memory]').click()
+    children=page.locator('.map-memory-city-events .map-memory-card')
     expect(children).to_have_count(3)
     assert ['Birth','First school','Return home']==[card.locator('.map-memory-summary').inner_text() for card in children.all()]
-    expect(cards.first).to_have_attribute('aria-expanded','true')
+    expect(cards.first.locator('[data-map-memory]')).to_have_attribute('aria-expanded','true')
     expect(children.nth(1).locator('.map-memory-avatar img')).to_have_count(1)
     albums=page.locator('.map-photo-album-layer.is-desktop .map-album-overflow [data-photo-album]')
     expect(albums).to_have_count(2)
@@ -324,10 +331,9 @@ def test_desktop_event_chronology_photo_latitude_and_personal_photos_on_zoom(alb
     expect(albums).to_have_count(3)
     assert [album.locator('.map-album-place').inner_text() for album in albums.all()]==['承德','大石庙镇','双桥区']
     assert ['Birth','First school','Return home']==[card.locator('.map-memory-summary').inner_text() for card in cards.all()]
-    cards.nth(1).click()
-    expect(page.locator('.map-memory-detail')).to_contain_text('First school')
-    page.locator('[data-memory-close]').click()
-    expect(page.locator('.map-memory-detail')).not_to_be_visible()
+    cards.nth(1).locator('[data-map-memory]').click()
+    expect(page.locator('.map-memory-detail')).to_have_count(0)
+    expect(cards.nth(1).locator('[data-memory-explore="school"]')).to_be_visible()
     school=albums.filter(has_text='双桥区')
     expect(school.locator('.map-album-stack img').last).to_have_attribute('data-private-response-photo','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa')
     school.click()
@@ -345,7 +351,7 @@ def test_desktop_event_chronology_photo_latitude_and_personal_photos_on_zoom(alb
     OUTPUT.mkdir(parents=True,exist_ok=True)
     page.screenshot(path=str(OUTPUT/'after-desktop-events.png'))
     page.set_viewport_size({'width':1440,'height':640})
-    cards.first.click()
+    cards.first.locator('[data-map-memory]').click()
     event_list=page.locator('.map-memory-cards')
     event_list.evaluate('(element) => {element.scrollTop=100;}')
     assert event_list.evaluate('(element) => element.scrollTop')==100
@@ -367,9 +373,9 @@ def test_phone_city_expansion_and_zoom_keep_only_local_events_and_photos(album_p
     page,_,_=album_page
     cities=page.locator('.map-memory-cards .map-memory-card.is-city')
     expect(cities).to_have_count(2)
-    cities.first.tap()
+    cities.first.locator('[data-map-memory]').tap()
     expect(page.locator('.map-memory-city-events [data-map-memory]')).to_have_count(3)
-    expect(cities.first).to_have_attribute('aria-expanded','true')
+    expect(cities.first.locator('[data-map-memory]')).to_have_attribute('aria-expanded','true')
     page.locator('[data-memory-city]').tap()
     expect(cities).to_have_count(0)
     expect(page.locator('.map-memory-cards [data-map-memory]')).to_have_count(3)
@@ -382,21 +388,58 @@ def test_phone_city_expansion_and_zoom_keep_only_local_events_and_photos(album_p
 
 
 @pytest.mark.parametrize('album_page',['estimated-events'],indirect=True)
-def test_estimated_years_ages_and_confidence_are_visible_in_city_events(album_page):
+def test_estimated_years_and_ages_stay_visible_without_confidence_scores_in_city_events(album_page):
     page,_,_=album_page
     page.set_viewport_size({'width':1440,'height':960})
     cities=page.locator('.map-memory-cards .map-memory-card.is-city')
     expect(cities).to_have_count(2)
-    cities.first.click()
-    school=page.locator('.map-memory-city-events [data-map-memory]').filter(has_text='First school')
+    cities.first.locator('[data-map-memory]').click()
+    school=page.locator('.map-memory-city-events .map-memory-card').filter(has_text='First school')
     expect(school.locator('.map-memory-date')).to_have_text('约1988–1990年 · 约5–7岁')
-    expect(school.locator('.map-memory-confidence')).to_have_text('推测 · 置信度 60%')
+    expect(school.locator('.map-memory-confidence, .map-memory-avatar small')).to_have_count(0)
     expect(school.locator('.map-memory-avatar img')).to_have_count(1)
     OUTPUT.mkdir(parents=True,exist_ok=True)
     page.screenshot(path=str(OUTPUT/'after-desktop-estimated-events.png'))
     page.locator('[data-memory-city]').click()
     expect(page.locator('.map-memory-cards [data-map-memory]')).to_have_count(3)
     expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
+
+
+@pytest.mark.parametrize('album_page',['estimated-events'],indirect=True)
+@pytest.mark.parametrize('width',[390,1440],ids=['phone','desktop'])
+def test_one_visible_city_keeps_inline_event_cards_through_zoom_without_popups(album_page,width):
+    page,_,_=album_page
+    page.set_viewport_size({'width':width,'height':960})
+    cards=page.locator('.map-memory-cards .map-memory-card')
+    for height in [80000,8000,60000]:
+        page.evaluate('''height => {
+          window.__mapViewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(117.95,40.95,height)});
+          window.__mapViewer.scene.requestRender();
+        }''',height)
+        expect(cards).to_have_count(3)
+        expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
+        expect(page.locator('.map-memory-cards')).not_to_contain_text('承德')
+        expect(page.locator('.map-memory-cards')).not_to_contain_text('婴儿时期')
+    expect(page.locator('.life-stage-navigator, .life-stage-tabs, .map-memory-detail')).to_have_count(0)
+    birth=cards.filter(has_text='Born in Chengde in April 1983')
+    expect(birth).to_have_count(1)
+    assert birth.locator('.map-memory-summary').evaluate('(node) => parseFloat(getComputedStyle(node).fontSize)')>=18
+    expect(birth.locator('.map-memory-avatar')).to_have_attribute('style','--readiness:30%')
+    expect(birth.locator('.map-memory-avatar')).to_have_class('map-memory-avatar readiness-amber')
+    expect(birth.locator('.map-memory-avatar')).to_have_css('background-image',re.compile('conic-gradient'))
+    birth.locator('[data-map-memory]').click()
+    page.wait_for_function('''() => {const viewer=window.__mapViewer;
+      return (viewer.scene.mode===Cesium.SceneMode.SCENE2D
+        ? viewer.camera.frustum.right-viewer.camera.frustum.left : viewer.camera.positionCartographic.height)<18000;}''')
+    expect(page.locator('.map-memory-detail')).to_have_count(0)
+    expect(cards).to_have_count(3)
+    OUTPUT.mkdir(parents=True,exist_ok=True)
+    page.screenshot(path=str(OUTPUT/f'inline-event-card-{width}.png'))
+    birth.locator('[data-memory-explore="birth"]').click()
+    expect(page.locator('.workspace-memory-focus')).to_contain_text('Born in Chengde in April 1983')
+    expect(page.locator('#chat-input')).to_be_focused()
+    expect(page.locator('.map-memory-detail')).to_have_count(0)
+    assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
 
 
 @pytest.mark.parametrize('album_page',['unmapped','script-error','tile-error','missing-key'],indirect=True)

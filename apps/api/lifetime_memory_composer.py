@@ -200,7 +200,8 @@ async def _extract(page,worker):
             return result
         except (ValueError,TypeError,KeyError) as error:
             # Only fixed validator messages cross the logging boundary.
-            packet['retry_reason']=EXTRACTION_REJECTION_REASONS.get(str(error),'OUTPUT_SCHEMA')
+            reason=error.errors(include_input=False,include_context=False)[0]['type'] if isinstance(error,ValidationError) else str(error)
+            packet['retry_reason']=EXTRACTION_REJECTION_REASONS.get(reason,'OUTPUT_SCHEMA')
             logging.getLogger(__name__).warning(
                 'canonical_extraction rejected lane_id=%s page_number=%d attempt=%d reason=%s issue=%s',
                 page['lane_id'], page['page_number'], attempt + 1,

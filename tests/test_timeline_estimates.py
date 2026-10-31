@@ -1,10 +1,12 @@
 """Timeline estimates remain bounded, cited and distinct from stated dates."""
 from copy import deepcopy
 
+from jsonschema import Draft202012Validator
 import pytest
 from pydantic import ValidationError
 
-from apps.api.memory_events import EventProposal, validate_extraction
+from apps.api.memory_events import EventProposal, TemporalEstimate, extraction_schema, validate_extraction
+from apps.api.two_lane_memory import extraction_contract
 from test_agent_commit_postgres import database
 from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database  # noqa: F401
 from test_shared_memory_events_postgres import TURN, extract, literal, rpc
@@ -52,6 +54,80 @@ def test_estimates_require_authorized_original_evidence_and_increasing_bounds():
     event['temporal_estimate'].update(year_start=2015,year_end=2010)
     with pytest.raises(ValueError,match='range'):
         EventProposal.model_validate(event)
+
+
+@pytest.mark.parametrize('bounds', [
+    dict(year_start=None), dict(year_end=None),
+    dict(age_start=20), dict(age_end=40),
+    dict(year_start=None, age_end=40), dict(year_start=None, year_end=None),
+])
+def test_model_schema_cannot_admit_incomplete_or_empty_estimated_ranges(bounds):
+    estimate={**TemporalEstimate.model_validate(ESTIMATE).model_dump(mode='json'), **bounds}
+    with pytest.raises(ValidationError):
+        TemporalEstimate.model_validate(estimate)
+    schema=extraction_contract(attribution=True,continuity=True)[1]
+    validator=Draft202012Validator({'$defs':schema['$defs'],'$ref':'#/$defs/TemporalEstimate'})
+    assert not validator.is_valid(estimate), 'The model schema permits the range rejected by the host'
+
+
+@pytest.mark.parametrize('bounds', [
+    {}, dict(year_start=2012,year_end=2012),
+    dict(year_start=None,year_end=None,age_start=20,age_end=40),
+    dict(age_start=20,age_end=40), dict(age_start=0,age_end=0),
+])
+def test_model_schema_preserves_supported_year_age_and_combined_estimates(bounds):
+    estimate=TemporalEstimate.model_validate({**ESTIMATE,**bounds}).model_dump(mode='json')
+    schema=extraction_schema()
+    Draft202012Validator({'$defs':schema['$defs'],'$ref':'#/$defs/TemporalEstimate'}).validate(estimate)
+
+
+def test_model_can_leave_an_unsupported_estimate_null_without_losing_the_event():
+    schema=extraction_schema()
+    field=schema['$defs']['EventProposal']['properties']['temporal_estimate']
+    Draft202012Validator({'$defs':schema['$defs'],**field}).validate(None)
+    assert EventProposal.model_validate({**proposal(),'temporal_estimate':None}).temporal_estimate is None
+
+
+@pytest.mark.parametrize('bounds', [
+    dict(year_start=None,age_end=40), dict(year_start=2020,year_end=2010),
+    dict(age_start=40,age_end=20), dict(year_start=None,year_end=None),
+])
+def test_invalid_estimate_retries_with_specific_range_error_and_same_original(bounds,caplog):
+    import asyncio
+    import json
+    from types import SimpleNamespace
+    import httpx
+    from apps.api.lifetime_memory_composer import _extract
+    from test_lifetime_composer_capacity import page, Publisher
+
+    current=page(text=SOURCE['text'])
+    current['source']['created_at']=SOURCE['created_at']
+    requests=[]
+    class Broker:
+        async def rpc(self,name,**payload):
+            assert name=='read_lifetime_lane_policy_source'
+            return deepcopy(current['source'])
+    def model(request):
+        bounded=json.loads(request.content)['bounded_lane']
+        requests.append(bounded)
+        packet=json.loads(bounded['packet'])['payload']
+        if len(requests)>1:
+            assert packet['retry_reason']=='TEMPORAL_ESTIMATE_RANGE'
+        estimate={**ESTIMATE,'year_end':2026}
+        if len(requests)==1:estimate.update(bounds)
+        return httpx.Response(200,json={'reply':json.dumps({'events':[{**proposal(),'temporal_estimate':estimate}]})})
+    worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(model),lane_publisher=Publisher())
+    result=asyncio.run(_extract(current,worker))
+    assert len(requests)==2 and requests[0]['fence']==requests[1]['fence']
+    first=json.loads(requests[0]['packet']);second=json.loads(requests[1]['packet'])
+    assert second['payload'].pop('retry_reason')=='TEMPORAL_ESTIMATE_RANGE'
+    assert first==second
+    assert result['events'][0]['temporal_estimate']['year_end']==2026
+    assert result['events'][0]['source_refs'][0]['quote']==SOURCE['text']
+    assert 'temporal' not in result['events'][0]
+    assert 'reason=TEMPORAL_ESTIMATE_RANGE issue=events.0.temporal_estimate:temporal_estimate_range' in caplog.text
+    assert SOURCE['text'] not in caplog.text and ESTIMATE['rationale'] not in caplog.text
 
 
 def test_sql_estimates_keep_originals_and_author_corrections_take_precedence(sql):

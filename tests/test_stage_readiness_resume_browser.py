@@ -44,7 +44,7 @@ def test_saved_project_begin_keeps_pending_stage_recovery_alive(sql, monkeypatch
         f"host={command[command.index('-h')+1]}{port} user=postgres dbname=postgres")
     place = {'place':'Synthetic Garden', 'hierarchy':['Earth','Australia','Synthetic Garden'],
              'granularity':'city', 'life_stage':'childhood', 'latitude':-33.8, 'longitude':151.2}
-    project = {'id':project_id, 'revision':1, 'mode':'self', 'workspace_unlocked':False,
+    project = {'id':project_id, 'revision':1, 'mode':'self', 'workspace_unlocked':True,
                'profile':{'preferred_language':locale, 'memory_places':[place]}}
     history = StoryHistoryFixture(OWNER, project_id, 'fixture-only')
     reads = []
@@ -76,6 +76,8 @@ def test_saved_project_begin_keeps_pending_stage_recovery_alive(sql, monkeypatch
                 data = {'place_journey':place}
             elif path == '/user/conversations':
                 data = {'items':[], 'resume_project_id':project_id}
+            elif path.startswith('/projects/' + project_id + '/'):
+                data = {'items':[]}
             assert not (path == '/projects' and route.request.method == 'POST'), 'Resume must preserve the saved project'
             assert path != '/agent/turn', 'Navigation must not create another narrator turn'
             route.fulfill(content_type='application/json', body=json.dumps(data))

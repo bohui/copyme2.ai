@@ -1,6 +1,7 @@
 """Issue 70 source frontend: B readiness follows an independently saved reply."""
 import json
 import os
+import re
 import pytest
 from playwright.sync_api import expect,sync_playwright
 from browser_supabase_fixture import install_supabase_fixture
@@ -71,9 +72,9 @@ def test_saved_reply_precedes_background_workspace(locale,strategy):
             assert saved and not ready and len(history.rows)==1
             page.locator('#chat-input').fill('An unfinished draft')
             ready=True
-            expect(page.locator('.place-journey-heading')).to_contain_text('Hobart',timeout=30000)
+            expect(page.locator('.place-journey-card')).to_have_attribute('aria-label',re.compile(r'^Hobart ·'),timeout=30000)
             expect(page.locator('.profile-trigger-name')).to_have_text('After background')
-            expect(page.locator('.life-stage-figure img').first).to_have_attribute('src', '/static/timeline_avatar_baby_female.png')
+            expect(page.locator('.life-stage-navigator')).to_have_count(0)
             expect(page.locator('#chat-input')).to_have_value('An unfinished draft')
             assert any(reads)
             expect(page.locator('.assistant-message').last).to_contain_text(reply)
@@ -87,9 +88,9 @@ def test_saved_reply_precedes_background_workspace(locale,strategy):
             page.locator('.send-button').click()
             expect(page.locator('.assistant-message').last).to_contain_text('garden' if locale=='en-AU' else '花园',timeout=30000)
             expect(page.locator('.send-button')).to_be_enabled()
-            expect(page.locator('.place-journey-heading')).to_contain_text('Hobart')
+            expect(page.locator('.place-journey-card')).to_have_attribute('aria-label',re.compile(r'^Hobart ·'))
             expect(page.locator('.profile-trigger-name')).not_to_have_text('After background')
-            expect(page.locator('.life-stage-figure img').first).to_have_attribute('src', '/static/timeline_avatar_baby_male.png')
+            expect(page.locator('.life-stage-navigator')).to_have_count(0)
             assert len(history.rows)==2
         finally:
             context.close();browser.close()

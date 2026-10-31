@@ -227,9 +227,7 @@ export function memoryEventTimingMarkup(card, t) {
     : node.year !== null ? node.approximateYear ? t("mapEventYearApproximate",{year:years}) : years
     : temporal?.precision !== "unknown" && temporal?.expression && temporal.precision !== "age"
       ? temporal.expression : t("mapEventYearUnknown");
-  const score = node.inferred ? node.event.temporal_estimate?.confidence : node.event.yearConfidenceScore;
-  const confidence = node.event.timing_conflict ? 0 : Number.isFinite(score) ? Math.round(Math.max(0,Math.min(1,score))*100) : 0;
-  return `<span class="map-memory-date">${escapeHtml(year)} · ${escapeHtml(eventAgeLabel(node.age,t))}</span><span class="map-memory-confidence"${node.inferred ? ` title="${escapeHtml(node.event.temporal_estimate.rationale)}"` : ""}>${escapeHtml(t(node.inferred ? "mapEventEstimatedConfidence" : "mapEventDateConfidence",{percent:confidence}))}</span>`;
+  return `<span class="map-memory-date"${node.inferred ? ` title="${escapeHtml(node.event.temporal_estimate.rationale)}"` : ""}>${escapeHtml(year)} · ${escapeHtml(eventAgeLabel(node.age,t))}</span>`;
 }
 
 export function memoryEventAvatars(card, {t, lifeStageText, profile = {}, readiness = {}}) {
@@ -243,19 +241,20 @@ export function memoryEventAvatars(card, {t, lifeStageText, profile = {}, readin
     const percent = Math.max(0,Math.min(100,Number(context.percent) || 0));
     const color = ["red","amber","green"].includes(context.color) ? context.color : "red";
     const description = t("contextReadiness",{stage:lifeStageText(stage,"label"),percent,words:context.word_equivalents || 0});
-    return `<span class="map-memory-avatar readiness-${color}" role="img" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}" style="--readiness:${percent}%"><img src="/static/timeline_avatar_${avatars[stages.indexOf(stage)]}_${artwork}.png" alt="" /><small>${percent}%</small></span>`;
+    return `<span class="map-memory-avatar readiness-${color}" role="img" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}" style="--readiness:${percent}%"><img src="/static/timeline_avatar_${avatars[stages.indexOf(stage)]}_${artwork}.png" alt="" /></span>`;
   }).join("")}</span>`;
 }
 
 export function memoryEventCardMarkup(card, {t, lifeStageText, active = false, profile, readiness}) {
   const city = Boolean(card.nodes);
-  const stages = [...new Set((city ? card.nodes : [card]).map(node => node.event.life_stage).filter(stage => stage && stage !== "unplaced"))];
-  const stage = stages.map(stage => lifeStageText(stage, "label")).join(" · ");
+  const node = city ? card.nodes[0] : card;
+  const grouped = city && card.count > 1;
   const age = eventAgeLabel(card.age, t);
-  const title = city ? card.city : card.place;
-  const summary = city ? card.nodes[0].summary : card.summary;
+  const title = node.event.title || node.summary;
+  const detail = node.event.summary || node.event.source_refs?.[0]?.quote || "";
+  const uncertainty = node.uncertainty || (node.event.timing_conflict ? t("mapEventTimeUncertain") : "");
   const count = city ? t(card.count === 1 ? "mapEventCountOne" : "mapEventCount", {count:card.count}) : "";
-  return `<button type="button" class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count,summary].filter(Boolean).join(" · "))}" aria-expanded="${active}"><span class="map-memory-meta">${memoryEventAvatars(card,{t,lifeStageText,profile,readiness})}${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span><strong>${escapeHtml(title)}</strong>${memoryEventTimingMarkup(card,t)}<span class="map-memory-summary">${escapeHtml(summary)}</span>${stage ? `<span class="map-memory-stage">${escapeHtml(stage)}</span>` : ""}<span class="map-memory-hint">${escapeHtml(t(city ? active ? "mapEventCollapse" : "mapEventExpand" : card.cityOnly ? "mapEventCityLocation" : "mapEventOpen"))}</span></button>`;
+  return `<article class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}"><button type="button" class="map-memory-focus" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count].filter(Boolean).join(" · "))}" ${grouped ? "aria-expanded" : "aria-pressed"}="${active}"><span class="map-memory-meta">${memoryEventAvatars(card,{t,lifeStageText,profile,readiness})}${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span>${memoryEventTimingMarkup(card,t)}<strong class="map-memory-summary">${escapeHtml(title)}</strong>${detail && detail !== title ? `<span class="map-memory-description">${escapeHtml(detail)}</span>` : ""}${uncertainty ? `<span class="map-memory-uncertainty">${escapeHtml(uncertainty)}</span>` : ""}${grouped ? `<span class="map-memory-hint">${escapeHtml(t(active ? "mapEventCollapse" : "mapEventExpand"))}</span>` : ""}</button>${grouped ? "" : `<button type="button" class="text-button map-memory-explore" data-memory-explore="${escapeHtml(node.event.id)}">${escapeHtml(t("exploreThisMemory"))}</button>`}</article>`;
 }
 
 // Move colliding cards while preserving a stem to the true map position.

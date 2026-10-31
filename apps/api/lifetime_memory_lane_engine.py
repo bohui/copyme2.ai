@@ -39,6 +39,7 @@ SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
     'memoir-luna-low', 'gpt-5.6-sol', 'gpt-6.1-sol', 'synthetic-byte-bpe'})
 EXTRACTION_WINDOW_CONTRACT = load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/window'))
 EXTRACTION_REJECTION_REASONS = {
+    'temporal_estimate_range': 'TEMPORAL_ESTIMATE_RANGE',
     'Unsupported life stage': 'LIFE_STAGE',
     'Canonical event revision conflict': 'EVENT_REVISION',
     'Ambiguous identity must remain unresolved': 'AMBIGUOUS_IDENTITY',

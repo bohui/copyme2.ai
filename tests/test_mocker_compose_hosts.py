@@ -6,17 +6,23 @@ from scripts import refresh_mocker_compose_hosts as module
 
 
 def peer(service, address, *, network='llm-network', project='memory-spark'):
-    return {'id': 'memory-spark-' + service + '-1', 'configuration': {'labels': {
+    return {'id': project + '-' + service + '-1', 'configuration': {'labels': {
         'com.mocker.compose.service': service, 'com.mocker.compose.project': project,
         'com.mocker.compose.network': network}},
         'status': {'state': 'running', 'networks': [{'network': network, 'ipv4Address': address + '/24'}]}}
 
 
-def test_refresh_repairs_missing_api_aliases_and_stale_worker_frontend_aliases(monkeypatch):
+@pytest.mark.parametrize('provider_network', [None, 'llm-network', 'other-network'])
+def test_refresh_repairs_missing_api_aliases_and_stale_worker_frontend_aliases(monkeypatch, provider_network):
     metadata = [peer('api', '192.168.66.168'), peer('codex-worker', '192.168.66.149'),
                 peer('worker', '192.168.66.174'), peer('web', '192.168.66.170')]
+    providers = [peer('litellm', '192.168.66.17', project='llm-provider', network=provider_network),
+                 peer('langfuse-web', '192.168.66.15', project='llm-provider', network=provider_network)] if provider_network else []
+    with_provider = provider_network == 'llm-network'
     contents = {v['id']: '127.0.0.1 localhost\n192.168.66.150 api\n' for v in metadata}
     contents[metadata[0]['id']] = '127.0.0.1 localhost\n192.168.66.168 memory-spark-api-1\n'
+    for container_id in contents:
+        contents[container_id] += '192.168.65.17 llm-provider-litellm-1\n192.168.65.15 llm-provider-langfuse-web-1\n'
     calls = []
 
     def command(executable, *args):
@@ -24,6 +30,8 @@ def test_refresh_repairs_missing_api_aliases_and_stale_worker_frontend_aliases(m
         assert executable == ('mocker' if args[0] == 'compose' else 'container')
         if args[:2] == ('compose', 'ps'):
             return '\n'.join(contents)
+        if args == ('list', '--format', 'json'):
+            return json.dumps(metadata + providers)
         if args[0] == 'inspect':
             assert len(args) == 2
             return json.dumps([v for v in metadata if v['id'] == args[1]])
@@ -38,15 +46,52 @@ def test_refresh_repairs_missing_api_aliases_and_stale_worker_frontend_aliases(m
     for text in contents.values():
         assert '192.168.66.168 api\n' in text and '192.168.66.149 codex-worker\n' in text
         assert '192.168.66.150 api' not in text
+        if with_provider:
+            assert '192.168.66.17 llm-provider-litellm-1\n' in text
+            assert '192.168.66.15 llm-provider-langfuse-web-1\n' in text
+        else:
+            assert 'llm-provider-litellm-1' not in text
+            assert 'llm-provider-langfuse-web-1' not in text
     assert '192.168.66.168 memory-spark-api-1' in contents[metadata[0]['id']]
     previous = len(calls)
     module.refresh('mocker', 'compose.yml')
     assert not any(c[:5] == ('exec', '--uid', '0', '--gid', '0') for c in calls[previous:])
     metadata[0]['status']['networks'][0]['ipv4Address'] = '192.168.66.169/24'
+    for provider in providers:
+        provider['status']['networks'][0]['ipv4Address'] = provider['status']['networks'][0]['ipv4Address'].replace('.66.', '.67.')
     module.refresh('mocker', 'compose.yml')
     for text in contents.values():
         assert '192.168.66.169 api\n' in text and '192.168.66.168 api\n' not in text
+        if with_provider:
+            assert '192.168.67.17 llm-provider-litellm-1\n' in text
+            assert '192.168.67.15 llm-provider-langfuse-web-1\n' in text
+            assert '192.168.66.17 llm-provider-litellm-1\n' not in text
+    assert not any(c[0] == 'exec' and any(v.startswith('llm-provider-') for v in c) for c in calls)
     assert not any(c[0] in {'start', 'stop', 'rm', 'restart'} for c in calls)
+
+
+@pytest.mark.parametrize('mutation', [
+    lambda v: v['configuration']['labels'].update({'com.mocker.compose.project': 'other-project'}),
+    lambda v: v['configuration']['labels'].update({'com.mocker.compose.service': 'other-service'}),
+    lambda v: v['status']['networks'][0].update(ipv4Address='invalid-address'),
+    lambda v: v['status'].update(state='stopped'),
+])
+def test_external_provider_identity_is_validated_before_host_writes(monkeypatch, mutation):
+    local = peer('api', '192.168.66.168')
+    provider = peer('litellm', '192.168.66.17', project='llm-provider')
+    mutation(provider)
+
+    def command(executable, *args):
+        if args[:2] == ('compose', 'ps'):
+            return local['id']
+        if args[0] == 'inspect':
+            return json.dumps([local])
+        if args == ('list', '--format', 'json'):
+            return json.dumps([local, provider])
+        raise AssertionError('Unexpected container mutation')
+    monkeypatch.setattr(module, 'command', command)
+    with pytest.raises((module.RefreshError, ValueError)):
+        module.refresh('mocker', 'compose.yml')
 
 
 def test_hosts_preserve_unrelated_names_comments_and_ipv6():

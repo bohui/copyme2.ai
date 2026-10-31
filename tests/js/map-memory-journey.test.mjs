@@ -144,12 +144,14 @@ test('city scope uses a visible neighborhood when its center is offscreen and sk
   assert.equal(scope,'sydney');
 });
 
-test('unresolved coordinates use an explicit city location label', () => {
+test('unresolved coordinates retain their city fallback without a redundant location label in the card', () => {
   const unresolved = {...school,latitude:null,longitude:null,map_pin:null};
   const {nodes} = buildMapMemoryJourney([event('school',6,unresolved)],groupPlaces([city,unresolved]));
   assert.equal(nodes[0].latitude,city.latitude);
   assert.equal(nodes[0].cityOnly,true);
-  assert.match(memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=>''}),/exact place not yet known/);
+  const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=>''});
+  assert.match(html,/data-memory-explore="school"/);
+  assert.doesNotMatch(html,/exact place not yet known/);
 });
 
 test('time conflicts and undated same-stage memories do not invent a route order', () => {
@@ -170,7 +172,7 @@ test('ages remain unknown without an anchor and year-derived ages stay approxima
   assert.equal(eventAgeLabel(eventAge({temporal:{expression:'二十五岁',precision:'age'}}),t),'Age 25');
 });
 
-test('cards escape model content and include age, short summary and keyboard controls', () => {
+test('cards escape model content and show the memory and action without city or life-stage text', () => {
   const {nodes} = buildMapMemoryJourney([{...event('unsafe',6,school),title:'A <script>memory</script>',uncertainty:'Maybe 1988'}],groups);
   const html = memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=> 'Childhood'});
   assert.match(html,/Age 6/);
@@ -178,19 +180,26 @@ test('cards escape model content and include age, short summary and keyboard con
   assert.doesNotMatch(html,/<script>/);
   assert.match(html,/type="button"/);
   assert.match(html,/Childhood/);
+  assert.match(html,/<strong class="map-memory-summary">A &lt;script&gt;memory&lt;\/script&gt;<\/strong>/);
+  assert.match(html,/<\/button><button[^>]+data-memory-explore="unsafe"/);
+  assert.match(html,/Maybe 1988/);
+  assert.doesNotMatch(html.replace(/<[^>]+>/g,''),/Newtown|Childhood/);
 });
 
-test('date confidence and avatar readiness retain their separate model and context values', () => {
+test('cards show readiness with colored rings and keep confidence scores out of the display', () => {
   const original={...event('school',6,school),yearConfidenceScore:.73};
   const saved=JSON.stringify(original);
   const {nodes}=buildMapMemoryJourney([original],groups,{birth_year:1980});
-  const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=> 'Childhood',profile:{avatar_style:'female'},
-    readiness:{childhood:{percent:23,color:'amber',word_equivalents:1200}}});
-  assert.match(html,/1986 · Age 6/);
-  assert.match(html,/Date confidence 73%/);
-  assert.match(html,/--readiness:23%/);
-  assert.match(html,/readiness-amber/);
-  assert.match(html,/timeline_avatar_child_female\.png/);
+  for (const [percent,color] of [[0,'red'],[23,'amber'],[100,'green']]) {
+    const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=> 'Childhood',profile:{avatar_style:'female'},
+      readiness:{childhood:{percent,color,word_equivalents:1200}}});
+    assert.match(html,/1986 · Age 6/);
+    assert.match(html,new RegExp(`--readiness:${percent}%`));
+    assert.match(html,new RegExp(`readiness-${color}`));
+    assert.match(html,new RegExp(`aria-label="Childhood: ${percent}% context readiness`));
+    assert.match(html,/timeline_avatar_child_female\.png/);
+    assert.doesNotMatch(html,/confidence|<small>|>\d+%</);
+  }
   assert.equal(JSON.stringify(original),saved);
 });
 
@@ -198,12 +207,12 @@ test('unplaced events keep a neutral avatar and unknown dates rather than an inv
   const {nodes}=buildMapMemoryJourney([{...event('unknown',6,school,'unplaced'),temporal:null,yearConfidenceScore:0}],groups);
   const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=>''});
   assert.match(html,/Year not yet known · Age not yet known/);
-  assert.match(html,/Date confidence 0%/);
+  assert.doesNotMatch(html,/confidence|>\d+%</);
   assert.match(html,/is-unknown[^]*Stage not yet known[^]*<svg/);
   assert.doesNotMatch(html,/timeline_avatar_/);
 });
 
-test('model estimates order city cards and show approximate years, ages and confidence', () => {
+test('model estimates order city cards and show approximate years and ages without confidence scores', () => {
   const estimate=(start,end,confidence)=>({year_start:start,year_end:end,confidence,rationale:'Original duration and birth anchors.'});
   const birth={...event('birth',0,school,'baby'),temporal:{expression:'1983年4月',precision:'month',year_start:1983},yearConfidenceScore:1};
   const study={...event('study',null,melbourne,'unplaced'),temporal:null,temporal_estimate:estimate(2006,2008,.65)};
@@ -214,7 +223,7 @@ test('model estimates order city cards and show approximate years, ages and conf
   assert.deepEqual(journey.nodes.map(node=>node.event.id),['birth','growing up','study','home']);
   const html=memoryEventCardMarkup(journey.nodes.at(-1),{t,lifeStageText:()=>''});
   assert.match(html,/About 2011–2013 · About age 28–30/);
-  assert.match(html,/Estimated · confidence 80%/);
+  assert.doesNotMatch(html,/confidence|>\d+%</);
   assert.match(html,/title="Original duration and birth anchors\."/);
   assert.equal(JSON.stringify(input),saved);
 });
@@ -226,7 +235,7 @@ test('stated dates and timing conflicts take precedence over estimated years', (
   const {nodes}=buildMapMemoryJourney([input],groups,{birth_year:1983});
   assert.equal(nodes[0].year,1989);
   assert.equal(nodes[0].yearEnd,1989);
-  assert.match(memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=>''}),/Date confidence 100%/);
+  assert.match(memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=>''}),/1989 · About age 6/);
   const conflict=buildMapMemoryJourney([{...input,timing_conflict:true}],groups,{birth_year:1983}).nodes[0];
   assert.equal(conflict.year,null);
   assert.deepEqual(conflict.age,{start:null,end:null});

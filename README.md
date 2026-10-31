@@ -227,9 +227,12 @@ check failure can retry without rebuilding the dependency-heavy runtimes.
 Unchanged containers are reused; only services affected by an image, Compose
 configuration, or checkout-mount change are recreated.
 Named volumes, including Temporal history, are preserved. Startup refreshes
-service aliases from Apple Container's live addresses before waiting for health;
-Mocker's cached inspection addresses are not used. Running conversations and
-background tasks may be interrupted during startup. Worktrees share the `memory-spark` Compose project;
+service aliases from Apple Container's live addresses before waiting for health,
+including `llm-provider-litellm-1` and `llm-provider-langfuse-web-1` when those
+provider containers share the network. This keeps the model and tracing URLs
+stable when a reboot changes the virtual subnet; start the provider stack before
+`make up`. Mocker's cached inspection addresses are not used. Running conversations
+and background tasks may be interrupted during startup. Worktrees share the `memory-spark` Compose project;
 running startup from a worktree changes the backend used by the main checkout.
 The first run establishes a
 startup cache in `var/container-startup.json` after all health checks pass and
@@ -256,6 +259,10 @@ API) for Lane A and model-backed Lane B skills. Application code and Compose do
 not select a fallback model or effort. The existing LiteLLM Memoir consumer must
 authorize the configured route. Keep the gateway and `codex-lb` running and configure
 `MEMORY_SPARK_LLM_BASE_URL` and the server-only `MEMORY_SPARK_LLM_API_KEY`.
+The local default is `http://llm-provider-litellm-1:4000/v1`; tracing uses
+`http://llm-provider-langfuse-web-1:3000`. The browser still opens Langfuse at
+`http://localhost:3001`. Existing `.env` files should replace numeric container
+gateway URLs with these names. Explicit hosted endpoint overrides remain supported.
 
 `MEMORY_SPARK_LLM_MODEL` and `MEMORY_SPARK_LLM_REASONING_EFFORT` select the shared
 route; both are required for model calls. Blank overrides inherit these settings.

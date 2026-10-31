@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import json
 import re
+from copy import deepcopy
 from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic_core import PydanticCustomError
 
 from .stage_readiness import LIFE_STAGES
 from .prompt_composition import render_prompt_artifact
@@ -52,9 +54,9 @@ class TemporalEstimate(BaseModel):
     def ordered_ranges(self):
         for start, end in ((self.year_start,self.year_end),(self.age_start,self.age_end)):
             if (start is None) != (end is None) or start is not None and end < start:
-                raise ValueError('Estimated timing requires increasing complete ranges')
+                raise PydanticCustomError('temporal_estimate_range', 'Estimated timing requires increasing complete ranges')
         if self.year_start is None and self.age_start is None:
-            raise ValueError('An estimate requires a year or age range')
+            raise PydanticCustomError('temporal_estimate_range', 'An estimate requires a year or age range')
         return self
 
 
@@ -74,7 +76,12 @@ class EventProposal(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     life_stage: str | None = None
     temporal: TemporalPlacement | None = None
-    temporal_estimate: TemporalEstimate | None = None
+    temporal_estimate: TemporalEstimate | None = Field(default=None, description=(
+        'Complete, nondecreasing year and/or age ranges grounded in the originals. '
+        'For periods estimate the whole span. Each range has both endpoints or both null; '
+        'keep stated bounds in temporal as well. If no complete range is supported, return null '
+        'instead of inventing a missing bound. TEMPORAL_ESTIMATE_RANGE requests repair of '
+        'incomplete, empty or reversed estimated ranges.'))
     stage_evidence: list[EvidenceRef] | None = Field(default=None, max_length=100)
     source_refs: list[EvidenceRef] = Field(min_length=1, max_length=100)
     uncertainty: str | None = Field(default=None, max_length=2000)
@@ -358,6 +365,17 @@ def extraction_schema():
             for child in value:
                 strict(child)
     strict(schema)
+    # Structured output must enforce the same paired ranges as the host validator.
+    estimates=[]
+    for ranges in (('year',),('age',),('year','age')):
+        variant=deepcopy(schema['$defs']['TemporalEstimate'])
+        for unit in ('year','age'):
+            for bound in ('start','end'):
+                field=f'{unit}_{bound}'
+                variant['properties'][field]=next(option for option in variant['properties'][field]['anyOf']
+                    if option['type']==('integer' if unit in ranges else 'null'))
+        estimates.append(variant)
+    schema['$defs']['TemporalEstimate']={'anyOf':estimates}
     for field in ('locationConfidenceScore', 'yearConfidenceScore'):
         schema['$defs']['EventProposal']['properties'][field] = {'type':'number','minimum':0,'maximum':1}
     return schema

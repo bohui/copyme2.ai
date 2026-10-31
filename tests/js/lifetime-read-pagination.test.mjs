@@ -89,7 +89,7 @@ test('timeline partial paging is explicit and uncertainty remains visible', () =
   const html=context.timelineWorkspace();
   for(const marker of ['Name and year uncertain','eventInferred','eventUnresolved','eventConflictingDates','timelinePagesPartial','load-more-memory-events','data-more-event-evidence','data-more-event-details']) assert.match(html,new RegExp(marker));
 });
-test('canonical timeline rows show the same estimated years, ages and confidence as map cards', () => {
+test('canonical timeline rows show the same estimated years and ages as map cards without confidence scores', () => {
   const context=setup({project:{id:'project',profile:{birth_year:1983}},timeline:[{id:'school',canonical:true,
     status:'active',title:'School',temporal_estimate:{year_start:1988,year_end:1990,confidence:.6,rationale:'Birth and school-age anchors.'}}]});
   Object.assign(context,{translate:key=>key,translateWith:(key,values={})=>`${key}:${Object.values(values).join(',')}`,
@@ -98,7 +98,7 @@ test('canonical timeline rows show the same estimated years, ages and confidence
   const html=context.timelineWorkspace();
   assert.match(html,/mapEventYearApproximate:1988–1990/);
   assert.match(html,/mapEventAgeApproximate:5–7/);
-  assert.match(html,/mapEventEstimatedConfidence:60/);
+  assert.doesNotMatch(html,/mapEventEstimatedConfidence|mapEventDateConfidence|map-memory-confidence/);
 });
 test('protected draft proposals remain explicitly review-only and missing originals are disclosed', () => {
   const context=setup({privateDraft:{snapshot_id:'root',snapshot_state:'proposed',approval_required:true,original_withheld:true,

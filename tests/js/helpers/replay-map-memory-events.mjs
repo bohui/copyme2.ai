@@ -3,6 +3,7 @@ import {readFileSync} from 'node:fs';
 import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
 import {createFamilyWorkspace} from '../../../apps/web/client/memoir/family-workspace.mjs';
 import {buildMapMemoryJourney,cityEventCards} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
+import {createMapMemoryEvents} from '../../../apps/web/client/memoir/map-memory-events.mjs';
 import {groupPlaces,mergePlaces} from '../../../apps/web/client/memoir/places.mjs';
 
 const {events,locations,places,grouping,snapshot,relative_current_home} = JSON.parse(readFileSync(0,'utf8'));
@@ -27,6 +28,37 @@ if (relative_current_home) {
     assert.equal(home.event.temporal_anchor,'present');
     assert.ok(!('source_refs' in home.event),'Relative order must not expose original testimony');
   }
+  const cards={innerHTML:'',scrollTop:0,getBoundingClientRect:()=>({top:0,bottom:700})};
+  const toolbar={innerHTML:''},overflow={replaceChildren(){}};
+  const canvas={getContext:()=>new Proxy({},{get:()=>()=>{}})};
+  const layer={isConnected:true,classList:{toggle(){}},addEventListener(){},querySelectorAll:()=>[],
+    getBoundingClientRect:()=>({left:0,top:0}),
+    querySelector:selector=>({'.map-memory-cards':cards,'.map-memory-toolbar':toolbar,
+      '.map-memory-overflow':overflow,canvas}[selector])};
+  const scene={isConnected:true,clientWidth:600,clientHeight:700,classList:{toggle(){},contains:()=>true},
+    append:value=>{scene.child=value;},querySelector:()=>scene.child};
+  Object.assign(globalThis,{document:{createElement:()=>layer},window:{devicePixelRatio:1,matchMedia:()=>({matches:false})}});
+  const mapGroups=groupPlaces(mergePlaces([...places,...enriched.flatMap(event=>event.map_places.map(link=>link.place))]));
+  const overlay=createMapMemoryEvents({getEvents:()=>enriched.map(event=>({...event,places:event.map_places})),
+    getGroups:()=>mapGroups,getProfile:()=>({}),getScope:()=>snapshot.project_id,getStage:()=> 'all',
+    t:key=>key,lifeStageText:stage=>stage});
+  let redraw,center=null;
+  const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:callback=>{redraw=callback;}}},
+    camera:{frustum:{left:-100000,right:100000},flyTo(){}}};
+  overlay.sync(scene);
+  overlay.attach(viewer,{SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
+    SceneTransforms:{worldToWindowCoordinates:(_,point)=>center
+      ? {x:300+(point.longitude-center.longitude)*500,y:350+(point.latitude-center.latitude)*500} : {x:300,y:350}}});
+  for (const node of journey.nodes) for (const span of [8000,80000,12000]) {
+    center=node;
+    viewer.camera.frustum={left:-span/2,right:span/2};
+    redraw();
+    assert.equal((cards.innerHTML.match(/data-memory-explore=/g)||[]).length,1,
+      'The API-backed list must keep only the visible city’s event when zooming in or out');
+    assert.ok(cards.innerHTML.includes(`data-memory-explore="${node.event.id}"`));
+    assert.doesNotMatch(layer.innerHTML,/map-memory-detail/);
+  }
+  overlay.dispose();
   process.exit(0);
 }
 const cities = cityEventCards(journey.nodes);
@@ -91,9 +123,11 @@ const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:c
   camera:{frustum:{left:-50000,right:50000},flyTo(){}}};
 workspace.mapMemoryEvents.attach(viewer,{SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
   SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:150+(point.longitude-151.18)*1000,y:240+(point.latitude+33.88)*1000})}});
-assert.match(cards.innerHTML,/Sydney/);
-assert.match(cards.innerHTML,/2 events/);
+assert.doesNotMatch(cards.innerHTML,/map-memory-detail/);
+assert.equal((cards.innerHTML.match(/data-memory-explore=/g)||[]).length,2,
+  'Only the visible city’s event list is shown even before the detail zoom threshold');
 assert.ok(classes.has('is-compact'),'Narrow desktop panels use the compact card layout');
 viewer.camera.frustum={left:-4000,right:4000};afterRender();
-for(const text of ['Newtown','Pyrmont','Age 6','Age 25']) assert.ok(cards.innerHTML.includes(text),text);
+for(const text of ['Age 6','Age 25']) assert.ok(cards.innerHTML.includes(text),text);
+for(const node of journey.nodes) assert.ok(cards.innerHTML.includes(`data-memory-explore="${node.event.id}"`));
 workspace.mapMemoryEvents.dispose();

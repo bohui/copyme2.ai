@@ -34,14 +34,13 @@ assert.ok(journey.legs.some(leg=>leg.from.city==='Shanghai' && leg.to.city==='Sy
 for (const node of journey.nodes) {
   const html=memoryEventCardMarkup(node,{t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),
     lifeStageText:stage=>stage});
+  assert.doesNotMatch(html,/confidence|>\d+%</);
   if (node.event.title==='Birth') assert.match(html,/1983 · About age 0/);
   else if (with_estimates) {
     assert.match(html,/About \d{4}–\d{4} · About age \d+–\d+/);
-    assert.match(html,/Estimated · confidence (40|65|80)%/);
     assert.ok(!('basis' in node.event.temporal_estimate));
   } else {
     assert.match(html,/Year not yet known · Age not yet known/);
-    assert.match(html,/Date confidence 0%/);
   }
   assert.ok(!('source_refs' in node.event));
 }

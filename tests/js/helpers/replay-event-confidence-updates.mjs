@@ -21,7 +21,7 @@ for (const confidence of [.4,.9,1]) {
   assert.equal(event.yearConfidenceScore,confidence);
   const html=memoryEventTimingMarkup({event,...memoryEventTiming(event,state.project.profile)},
     (key,values)=>translateWith(`Memoir.workspace.${key}`,values));
-  assert.match(html,new RegExp(`${current===2 ? 'Date confidence' : 'Estimated · confidence'} ${confidence*100}%`));
+  assert.doesNotMatch(html,/confidence|\d+%/);
   if (current===2) assert.match(html,/2012/);
   current++;
 }

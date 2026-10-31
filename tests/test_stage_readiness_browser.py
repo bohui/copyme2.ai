@@ -18,7 +18,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def test_stage_rings_and_saved_private_draft(locale,mapped):
     copy=json.loads((ROOT/f'apps/web/messages/{locale}.json').read_text())
     workspace=copy['Memoir']['workspace']
-    project={'id':'stage-project','revision':1,'profile':{'preferred_language':locale},'workspace_unlocked':False,'mode':'self'}
+    project={'id':'stage-project','revision':1,'profile':{'preferred_language':locale},'workspace_unlocked':mapped,'mode':'self'}
     # Round-five opt-in draft access remains a documented product gap. This
     # compatibility case checks a genuinely eligible, paid round-20 draft.
     rounds = 20 if mapped else 5
@@ -103,8 +103,9 @@ def test_stage_rings_and_saved_private_draft(locale,mapped):
             page.reload()
             expect(page.locator('.story-shell.context-visible')).to_be_visible(timeout=30000)
             expect(page.locator('#workspace-detail')).to_be_visible()
-            expect(page.locator('.workspace-media-map, .workspace-media-gallery')).to_have_count(2)
-            expect(page.locator('.life-stage-navigator')).to_be_visible()
+            expect(page.locator('.workspace-media-map')).to_have_count(1)
+            expect(page.locator('.life-stage-navigator')).to_have_count(0)
+            expect(page.locator('[data-add-workspace-memory]')).to_be_visible()
             expect(page.locator('.place-journey-card')).to_have_count(1)
             expect(page.locator('[data-workspace-tab]')).to_have_count(0)
             # Debug-off draft policy remains unchanged at round five.
@@ -160,7 +161,7 @@ def test_canonical_stage_rings_render_saved_words_and_reload(sql, monkeypatch, l
     place = {'place':'Synthetic Garden','hierarchy':['Earth','Australia','Synthetic Garden'],
              'granularity':'city','life_stage':'childhood','latitude':-33.8,'longitude':151.2}
     project = {'id':project_id,'revision':1,'mode':'self','profile':{
-        'preferred_language':locale,'memory_places':[place]},'workspace_unlocked':False}
+        'preferred_language':locale,'memory_places':[place]},'workspace_unlocked':True}
     history = StoryHistoryFixture(OWNER, project_id, 'fixture-only')
     reads = []
     delayed = {'source':None, 'pending_seen':False, 'faults':[], 'sent':[]}

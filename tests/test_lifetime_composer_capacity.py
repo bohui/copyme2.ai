@@ -131,7 +131,7 @@ def test_extraction_retry_reports_rejected_quote_without_replacing_original():
         bounded=json.loads(request.content)['bounded_lane']
         payload=json.loads(bounded['packet'])['payload'];requests.append(payload)
         assert payload['sources']==[current['source']]
-        quote=current['source']['text'] if payload.get('retry_reason')=='PAGE_QUOTE' else 'invented testimony'
+        quote=current['source']['text'] if payload.get('retry_reason')=='PAGE_SOURCE' else 'invented testimony'
         return httpx.Response(200,json={'reply':json.dumps({'events':[{
             'kind':'event','title':'Childhood','source_refs':[{'source_id':'source','version':1,'quote':quote}]}]})})
     worker=SimpleNamespace(broker=Broker(),worker_url='https://synthetic.invalid',worker_secret='synthetic',
@@ -983,7 +983,7 @@ def test_rejected_extraction_logs_only_fixed_reason_codes(caplog):
         worker_transport=httpx.MockTransport(lambda request: httpx.Response(200,json={'reply':reply})),lane_publisher=Publisher())
     with pytest.raises(ValueError):
         asyncio.run(_extract(current, worker))
-    assert caplog.text.count('reason=PAGE_QUOTE') == 3
+    assert caplog.text.count('reason=PAGE_SOURCE') == 3
     for private in ('private original','private title','private invented quote','private secret'):
         assert private not in caplog.text
 
