@@ -11,7 +11,7 @@ const event=(id,place,year,stage)=>({id,status:'active',kind:'event',title:id,li
   yearConfidenceScore:.9,temporal:year ? {expression:String(year),precision:'year',year_start:year} : null,
   places:[{role:'setting',status:'supported',place}]});
 
-function mapFixture(t, mobile=false) {
+function mapFixture(t, mobile=false, extraPlaces=[]) {
   const globals={window:globalThis.window,document:globalThis.document};
   t.after(()=>Object.assign(globalThis,globals));
   const listeners={},cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
@@ -35,7 +35,7 @@ function mapFixture(t, mobile=false) {
       : {x:300,y:350}}};
   const events=[event('Sydney arrival',sydney,2012,'young_adulthood'),event('University',shanghai,2007,'young_adulthood'),
     event('Birth',chengde,1983,'baby'),event('Growing up',chengde,null,'childhood')];
-  const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([chengde,shanghai,sydney]),
+  const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([chengde,shanghai,sydney,...extraPlaces]),
     getProfile:()=>({birth_year:1983}),getScope:()=> 'fixture',getStage:()=> 'all',
     t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage,onExplore(){}});
   map.sync(scene);map.attach(viewer,cesium);
@@ -72,4 +72,21 @@ test('clicking a city expands its chronological events inside the city list', t=
   assert.match(cards.innerHTML,/Shanghai/);
   click(key);
   assert.doesNotMatch(cards.innerHTML,/Growing up/);
+});
+
+test('zooming to a photo-only city does not select a neighbouring city with events', t=>{
+  const nearby={...chengde,place:'Nearby city',hierarchy:['Earth','China','Nearby city'],longitude:118.36};
+  const {map,cards,zoom}=mapFixture(t,false,[nearby]);
+  zoom(nearby);
+  assert.equal(map.viewCity(),groupPlaces([nearby])[0].key);
+  assert.equal(cards.innerHTML,'');
+});
+
+test('saved city aliases select the same city’s events when their pin is nearer', t=>{
+  const saved={...chengde,hierarchy:['Earth','China','Hebei','Chengde'],latitude:40.96,longitude:117.98};
+  const {map,cards,zoom}=mapFixture(t,false,[saved]);
+  zoom(saved);
+  assert.equal(map.viewCity(),groupPlaces([chengde])[0].key);
+  assert.match(cards.innerHTML,/Birth/);
+  assert.match(cards.innerHTML,/Growing up/);
 });

@@ -2,6 +2,7 @@ import { readMemoirClientSource } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import { memoryEventTiming, memoryEventTimingMarkup } from '../../apps/web/client/memoir/map-memory-journey.mjs';
 const source = readMemoirClientSource();
 function load(context, name) {
   const match = source.match(new RegExp(`(?:async )?function ${name}\\([^]*?\\n\\}`));
@@ -15,7 +16,7 @@ function setup(extra = {}) {
   const context = vm.createContext({state, encodeURIComponent, URLSearchParams,
     captureProjectScope:()=>({id:'project'}),isCurrentProjectScope:scope=>scope.id===state.project.id,
     render(){},escapeHtml:String,formatText:String,translateWith:key=>key,freeRecallFinished:()=>true,
-    profile:()=>state.project.profile || {}, currentUiLocale:()=> 'en-AU',
+    profile:()=>state.project.profile || {}, currentUiLocale:()=> 'en-AU', memoryEventTiming, memoryEventTimingMarkup,
     currentSectionRework:()=>null, sectionReworkNotice:()=>'', sectionReworkMarkup:()=>'',
     storyApi:async()=>({snapshot_id:'root',complete:true,next_cursor:null,records:[{id:'two',preview:{title:'Two',text:'Second'}}]})});
   return context;
@@ -87,6 +88,17 @@ test('timeline partial paging is explicit and uncertainty remains visible', () =
   load(context,'timelineWorkspace');
   const html=context.timelineWorkspace();
   for(const marker of ['Name and year uncertain','eventInferred','eventUnresolved','eventConflictingDates','timelinePagesPartial','load-more-memory-events','data-more-event-evidence','data-more-event-details']) assert.match(html,new RegExp(marker));
+});
+test('canonical timeline rows show the same estimated years, ages and confidence as map cards', () => {
+  const context=setup({project:{id:'project',profile:{birth_year:1983}},timeline:[{id:'school',canonical:true,
+    status:'active',title:'School',temporal_estimate:{year_start:1988,year_end:1990,confidence:.6,rationale:'Birth and school-age anchors.'}}]});
+  Object.assign(context,{translate:key=>key,translateWith:(key,values={})=>`${key}:${Object.values(values).join(',')}`,
+    formatDateExpression:value=>value,referencesWorkspace:()=>'',lifeStageText:()=>''});
+  load(context,'timelineWorkspace');
+  const html=context.timelineWorkspace();
+  assert.match(html,/mapEventYearApproximate:1988–1990/);
+  assert.match(html,/mapEventAgeApproximate:5–7/);
+  assert.match(html,/mapEventEstimatedConfidence:60/);
 });
 test('protected draft proposals remain explicitly review-only and missing originals are disclosed', () => {
   const context=setup({privateDraft:{snapshot_id:'root',snapshot_state:'proposed',approval_required:true,original_withheld:true,

@@ -8945,7 +8945,7 @@ begin
  lo:=(job.next_page-selected.first_page)*2048;hi:=least(lo+2048,selected.original_length);
  source_items:=jsonb_build_array(jsonb_build_object('id',source.id,'project_id',source.project_id,'version',source.version,'sequence',source.sequence,
    'text',substring(source.text from lo+1 for hi-lo),'char_start',lo,'char_end',hi,'original_length',selected.original_length,
-   'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller'));
+   'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller','created_at',source.created_at));
  else
   phase:='merge';
   for child in select metadata from public.user_lifetime_collection_job_node where job_id=job.id and parent_id is null order by level,ordinal limit 2 loop
@@ -9948,7 +9948,7 @@ begin
      order by c.priority,e.change_sequence desc,e.id limit 8) bounded;
    source_data:=jsonb_build_object('id',source.id,'project_id',source.project_id,'version',source.version,'sequence',source.sequence,
      'text',substring(source.text from lo+1 for hi-lo),'char_start',lo,'char_end',hi,'original_length',length(source.text),
-     'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller');
+     'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller','created_at',source.created_at);
    return payload||jsonb_build_object('source',source_data,'events',candidates,'partition',null,'core_start',core,'core_end',hi);
  end if;
  -- Keyset over event revisions and exact evidence rows, including unsupported
@@ -9989,7 +9989,7 @@ begin
      ref:=ref||jsonb_build_object('char_start',lo,'char_end',hi);
      source_data:=jsonb_build_object('id',source.id,'project_id',source.project_id,'version',source.version,'sequence',source.sequence,
        'text',substring(source.text from lo+1 for hi-lo),'char_start',lo,'char_end',hi,'original_length',length(source.text),
-       'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller');
+       'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller','created_at',source.created_at);
      event_data:=event_data||jsonb_build_object('source_refs',jsonb_build_array(ref),
        'photo_associations',case when link.photo_link_id is null then '[]'::jsonb else jsonb_build_array(jsonb_build_object(
          'id',link.photo_link_id,'photo_id',link.photo_id,'event_id',link.id,'source_id',source.id,'source_version',source.version,
@@ -10488,7 +10488,7 @@ begin
    'events','[]'::jsonb,'partition',null,'source',case when source.id is null or mode='skip' then null else
      jsonb_build_object('id',source.id,'project_id',source.project_id,'version',source.version,'sequence',source.sequence,
        'text',substring(source.text from lo+1 for hi-lo),'char_start',lo,'char_end',hi,'original_length',length(source.text),
-       'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller') end,
+       'kind',source.kind,'language',source.language,'status',source.status,'author_role','storyteller','created_at',source.created_at) end,
    'profile_context',jsonb_build_object('schema_version',1,'revision',authority.revision,'target_round',job.active_round,
      'covered_round',job.covered_round,'source_frontier',job.source_frontier,'targets',targets,'reference',facts,'work_mode',mode,
      'execution_generation',(select execution_generation from public.user_lifetime_conversation where user_id=snap.user_id
@@ -16463,7 +16463,7 @@ begin
      original:=jsonb_build_object('id',source.id,'project_id',source.project_id,
        'version',source.version,'sequence',source.sequence,'text',substring(source.text from lo+1 for hi-lo),
        'char_start',lo,'char_end',hi,'original_length',length(source.text),'kind',source.kind,
-       'language',source.language,'status',source.status,'author_role','storyteller');
+       'language',source.language,'status',source.status,'author_role','storyteller','created_at',source.created_at);
      if octet_length((originals||jsonb_build_array(original))::text)>16384 then exit;end if;
      originals:=originals||jsonb_build_array(original);
    end loop;

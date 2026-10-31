@@ -1,5 +1,5 @@
 import { escapeHtml } from "./dom.mjs";
-import { buildMapMemoryJourney, cityEventCards, mapCityInView, memoryEventAvatars, memoryEventCardMarkup, memoryEventTimingMarkup } from "./map-memory-journey.mjs";
+import { buildMapMemoryJourney, cityEventCards, mapCityInView, matchesEventPlace, memoryEventAvatars, memoryEventCardMarkup, memoryEventTimingMarkup } from "./map-memory-journey.mjs";
 
 export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScope, getIdentity = getScope, getStage,
   getPage = () => null, getReadiness = () => ({}), readPlaces, resolvePlaces = async places => places,
@@ -188,12 +188,16 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       cesium.Cartesian3.fromDegrees(point.longitude,point.latitude));
     const cities = cityEventCards(journey.nodes);
     const previousCity = viewCity;
-    const cityLocations = placeGroups.map(group => ({...group.city,groupKey:group.key,
-      nodes:[...journey.nodes.filter(node => node.groupKey === group.key),
-        ...group.members.map(member => Object.hasOwn(member,"map_pin") ? member.map_pin : member)
-          .filter(place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude))]}));
-    viewCity = detailed ? mapCityInView(cities,project,width,height)
-      ?? mapCityInView(cityLocations,project,width,height) : null;
+    const eventCities = placeGroups.filter(group => cities.some(city => city.groupKey === group.key));
+    const cityLocations = placeGroups.map(group => {
+      const matches = eventCities.filter(candidate => candidate.key === group.key || matchesEventPlace(group.city,candidate.city));
+      const groupKey = matches.length === 1 ? matches[0].key : group.key;
+      return {...group.city,groupKey,
+        nodes:[...journey.nodes.filter(node => node.groupKey === groupKey),
+          ...group.members.map(member => Object.hasOwn(member,"map_pin") ? member.map_pin : member)
+            .filter(place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude))]};
+    });
+    viewCity = detailed ? mapCityInView(cityLocations,project,width,height) : null;
     const cards = detailed ? (cities.find(city => city.groupKey === viewCity)?.nodes || []) : cities;
     if (selectedKey && !cards.some(card => card.key === selectedKey || card.nodes?.some(node => node.key === selectedKey))) {
       selectedKey = null;updateDetail();

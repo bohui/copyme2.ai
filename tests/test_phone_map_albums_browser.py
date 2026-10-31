@@ -20,7 +20,7 @@ def album_page(request):
                 latitude=40.97, longitude=117.93, period='1980s', revision=1, status='active', schema_version=1)
     places = [city, dict(city, place='双桥区', hierarchy=city['hierarchy']+['双桥区'], granularity='suburb', latitude=40.94, longitude=117.96, revision=2),
               dict(city, place='大石庙镇', hierarchy=city['hierarchy']+['大石庙镇'], granularity='suburb', latitude=40.9401, longitude=117.9601, revision=3)]
-    if mode == 'events':
+    if mode in ('events','estimated-events'):
         places.append(dict(city,place='悉尼',hierarchy=['Earth','澳大利亚','悉尼'],latitude=-33.86,longitude=151.2,revision=4))
     if mode == 'current':
         places = [dict(city, period='')]
@@ -41,6 +41,7 @@ def album_page(request):
             place.pop('latitude')
             place.pop('longitude')
     profile = {'name':'Fixture', 'preferred_language':'zh-CN', 'memory_places':places}
+    if mode=='estimated-events':profile['birth_year']=1983
     calls, errors = [], []
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
@@ -78,17 +79,26 @@ def album_page(request):
                 if route.request.method == 'PATCH': profile.update(route.request.post_data_json.get('profile',{}))
                 data = {'id':'album-project','revision':1,'profile':profile,'mode':'self','workspace_unlocked':False}
             elif path == '/story/state': data = {'family_features_enabled':False,'recall_status':{'payment_required':False}}
-            elif path == '/story/map-events' and mode == 'events':
+            elif path == '/story/map-events' and mode in ('events','estimated-events'):
                 events=[dict(id=id,revision=1,kind='event',status='active',life_stage=stage,title=title,
                     temporal={'expression':f'Age {age}','precision':'age'},
                     places=[{'role':'setting','status':'supported','place':place}])
                     for id,age,place,stage,title in [('return',40,places[2],'midlife','Return home'),
                         ('school',6,places[1],'childhood','First school'),('birth',0,places[0],'baby','Birth'),
                         ('move',20,places[-1],'young_adulthood','Move to Sydney')]]
+                if mode=='estimated-events':
+                    for event in events:
+                        if event['id']=='birth':
+                            event.update(temporal=dict(expression='1983年4月',precision='month',year_start=1983),yearConfidenceScore=1)
+                        else:
+                            start,end,confidence={'school':(1988,1990,.6),'move':(2011,2026,.8),'return':(2023,2023,.7)}[event['id']]
+                            event.update(temporal=None,yearConfidenceScore=confidence,temporal_estimate=dict(
+                                year_start=start,year_end=end,age_start=start-1983,age_end=end-1983,confidence=confidence,
+                                rationale='Original duration and narrator birth anchors.'))
                 data={'project_id':'album-project','events':events,'policy_epoch':1,'source_revision':1,'event_revision':1,'complete':True}
             elif path == '/story/map-photos':
                 data={'project_id':'album-project','photos':[dict(photo_id='upload:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-                    kind='private_upload',title='My school photo',event_ids=['school'])] if mode=='events' else []}
+                    kind='private_upload',title='My school photo',event_ids=['school'])] if mode in ('events','estimated-events') else []}
             elif path == '/agent/projects/album-project/photos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content':
                 assert route.request.headers.get('authorization','').startswith('Bearer ')
                 return route.fulfill(content_type='image/png',body=base64.b64decode(
@@ -373,6 +383,24 @@ def test_phone_city_expansion_and_zoom_keep_only_local_events_and_photos(album_p
     OUTPUT.mkdir(parents=True,exist_ok=True)
     page.screenshot(path=str(OUTPUT/'after-phone-events.png'))
     assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+
+
+@pytest.mark.parametrize('album_page',['estimated-events'],indirect=True)
+def test_estimated_years_ages_and_confidence_are_visible_in_city_events(album_page):
+    page,_,_=album_page
+    page.set_viewport_size({'width':1440,'height':960})
+    cities=page.locator('.map-memory-cards .map-memory-card.is-city')
+    expect(cities).to_have_count(2)
+    cities.first.click()
+    school=page.locator('.map-memory-city-events [data-map-memory]').filter(has_text='First school')
+    expect(school.locator('.map-memory-date')).to_have_text('约1988–1990年 · 约5–7岁')
+    expect(school.locator('.map-memory-confidence')).to_have_text('推测 · 置信度 60%')
+    expect(school.locator('.map-memory-avatar img')).to_have_count(1)
+    OUTPUT.mkdir(parents=True,exist_ok=True)
+    page.screenshot(path=str(OUTPUT/'after-desktop-estimated-events.png'))
+    page.locator('[data-memory-city]').click()
+    expect(page.locator('.map-memory-cards [data-map-memory]')).to_have_count(3)
+    expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
 
 
 @pytest.mark.parametrize('album_page',['unmapped','script-error','tile-error','missing-key'],indirect=True)
