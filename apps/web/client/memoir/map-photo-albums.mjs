@@ -13,8 +13,9 @@ export function albumStackMarkup(album, origin = 'https://memoir.invalid') {
         ? `<img src="${escape(url.href)}" alt="" draggable="false" />` : '';
     } catch { return ''; }
   }).filter(Boolean).slice(0, 3).reverse();
+  if (!images.length) return '';
   const count = album.status === 'loading' ? '…' : album.status === 'error' ? '!' : album.count ?? 0;
-  return `<button type="button" class="map-photo-album ${album.status === 'loading' ? 'is-loading' : ''}" data-photo-album="${escape(album.key)}" aria-label="${escape(album.label)}" aria-haspopup="dialog"><span class="map-album-stack" aria-hidden="true">${images.length ? images.join('') : '<span class="map-album-placeholder">▧</span>'}<span class="map-album-count">${count}</span></span><span class="map-album-place">${escape(album.place)}</span></button>`;
+  return `<button type="button" class="map-photo-album ${album.status === 'loading' ? 'is-loading' : ''}" data-photo-album="${escape(album.key)}" aria-label="${escape(album.label)}" aria-haspopup="dialog"><span class="map-album-stack" aria-hidden="true">${images.join('')}<span class="map-album-count">${count}</span></span><span class="map-album-place">${escape(album.place)}</span></button>`;
 }
 
 // Displace nearby albums while retaining a line to their actual geographic pin.
@@ -130,7 +131,8 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
     }
     collectionMode = JSON.stringify([mobile(),detailed,getViewCity()]);
     albums = getAlbums(scene,{detailed:mobile() || detailed,allPlaces:!mobile(),...(detailed ? {cityKey:getViewCity()} : {})});
-    if (!mobile()) albums = albums.filter(album => album.count || ['loading','error'].includes(album.status));
+    albums = albums.filter(album => albumStackMarkup(album,window.location.origin));
+    layer.style.display = albums.length ? '' : 'none';
     layer.classList.toggle('is-desktop',!mobile());
     const next = JSON.stringify(albums);
     if (signature !== next || layer.dataset.signature !== next) {

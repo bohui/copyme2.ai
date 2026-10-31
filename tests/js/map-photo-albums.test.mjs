@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {albumStackMarkup, layoutMapAlbums} from '../../apps/web/client/memoir/map-photo-albums.mjs';
+import {albumStackMarkup, createMapPhotoAlbums, layoutMapAlbums} from '../../apps/web/client/memoir/map-photo-albums.mjs';
 
 test('photo stacks show only safe embeddable images and escape place names', () => {
   const html = albumStackMarkup({key:'city', place:'承德 <script>', label:'Open photos', count:4,
@@ -15,13 +15,42 @@ test('photo stacks show only safe embeddable images and escape place names', () 
   assert.match(html, /aria-label="Open photos"/);
 });
 
-test('loading and empty albums use a labelled placeholder, never a fabricated photo', () => {
-  for (const status of ['loading','empty','error']) {
+test('albums without usable photos produce no placeholder, including loading and failed searches', () => {
+  for (const status of ['loading','empty','error','ready']) {
     const html = albumStackMarkup({key:'city', place:'承德', label:status, status, pictures:[],count:0});
-    assert.doesNotMatch(html, /<img/);
-    assert.match(html, /data-photo-album="city"/);
-    assert.match(html, new RegExp(`aria-label="${status}"`));
+    assert.equal(html,'');
   }
+  assert.equal(albumStackMarkup({count:2,pictures:[{image_url:'javascript:alert(1)',allowed_actions:{embed:true}},
+    {image_url:'https://photos.example/private.jpg',allowed_actions:{embed:false}}]}),'');
+});
+
+for (const mobile of [false,true]) test(`the ${mobile ? 'phone' : 'desktop'} photo list appears only after photos arrive`,t=>{
+  const previous=globalThis.window;
+  globalThis.window={location:{origin:'https://memoir.test'},addEventListener(){},matchMedia:()=>({matches:mobile})};
+  t.after(()=>{if(previous===undefined) delete globalThis.window;else globalThis.window=previous;});
+  const overflow={scrollTop:0};
+  const layer={dataset:{},style:{},classList:{toggle(){}},querySelector:()=>overflow};
+  const scene={querySelector:()=>layer};
+  const empty=['loading','error','empty'].map(status=>({key:status,place:status,status,count:0,pictures:[],pinned:true}));
+  let albums=empty;
+  const controller=createMapPhotoAlbums({getProjectId:()=> 'project',getAlbums:()=>albums});
+  controller.sync(scene);
+  assert.equal(layer.style.display,'none');
+  assert.doesNotMatch(layer.innerHTML,/data-photo-album=|data-photo-marker=|map-album-placeholder/);
+  albums=[...empty,{key:'found',place:'Found',count:1,pinned:true,
+    pictures:[{image_url:'https://photos.example/found.jpg',allowed_actions:{embed:true}}]},
+    {key:'personal',place:'Personal',count:1,pictures:[{kind:'private_upload',
+      photo_id:'upload:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',allowed_actions:{embed:true}}]}];
+  controller.sync(scene);
+  assert.equal(layer.style.display,'');
+  assert.match(layer.innerHTML,/data-photo-album="found"/);
+  assert.match(layer.innerHTML,/data-photo-album="personal"/);
+  assert.match(layer.innerHTML,/data-photo-marker="found"/);
+  assert.doesNotMatch(layer.innerHTML,/data-photo-album="(?:loading|error|empty)"|map-album-placeholder/);
+  albums=empty;
+  controller.sync(scene);
+  assert.equal(layer.style.display,'none');
+  assert.doesNotMatch(layer.innerHTML,/data-photo-album=|data-photo-marker=/);
 });
 
 test('nearby marker albums stay distinct, inside the map and above their pins when possible', () => {

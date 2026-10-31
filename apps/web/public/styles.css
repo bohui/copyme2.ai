@@ -1162,12 +1162,10 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 .map-photo-marker[hidden], .is-fallback .map-photo-marker { display: none; }
 .map-photo-marker:focus-visible { outline: 3px solid var(--coral); outline-offset: -3px; }
 .map-album-stack { position: relative; width: 56px; height: 48px; border-radius: 5px; background: #fffdf8; box-shadow: -4px -3px 0 #e8dfcf, 4px -6px 0 #fffdf8, 0 3px 7px rgba(0,0,0,.3); transform: rotate(-5deg); }
-.map-album-stack img, .map-album-placeholder { position: absolute; inset: 0; width: 100%; height: 100%; border: 2px solid white; border-radius: 4px; object-fit: cover; }
+.map-album-stack img { position: absolute; inset: 0; width: 100%; height: 100%; border: 2px solid white; border-radius: 4px; object-fit: cover; }
 .map-album-stack img:nth-child(1) { transform: rotate(-8deg) translate(-3px,-2px); }
 .map-album-stack img:nth-child(2) { transform: rotate(8deg) translate(3px,-3px); }
 .map-album-stack img:last-of-type { transform: none; }
-.map-album-placeholder { display: grid; place-items: center; font-size: 26px; background: #eee8da; }
-.map-photo-album.is-loading .map-album-placeholder { animation: voicepulse 1.5s ease-in-out infinite; }
 .map-album-count { position: absolute; right: -7px; bottom: -4px; padding: 2px 5px; border-radius: 12px; background: #173f45; color: white; font-size: 10px; transform: rotate(5deg); }
 .map-album-place { max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; border-radius: 4px; background: rgba(255,253,248,.94); padding: 1px 3px; font-size: 10px; }
 .map-album-stem { position: absolute; top: 74px; left: 36px; width: 2px; background: #fff8e7; transform-origin: center top; box-shadow: 0 0 2px #173f45; }
@@ -1195,7 +1193,6 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 .place-pictures .response-photo-card > button { min-height: 180px; }
 .place-pictures .response-photo-card > button img { max-height: 60dvh; object-fit: contain; }
 
-@media (prefers-reduced-motion: reduce) { .map-photo-album.is-loading .map-album-placeholder { animation: none; } }
 
 .response-photo-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); gap: 8px; margin-top: 14px; }
 .response-photo-card { position: relative; margin: 0; min-width: 0; aspect-ratio: 5 / 4; border-radius: 16px; overflow: hidden; background: var(--paper); }

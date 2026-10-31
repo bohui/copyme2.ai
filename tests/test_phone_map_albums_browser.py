@@ -208,30 +208,29 @@ def test_phone_map_and_album_navigation(album_page):
 
 
 @pytest.mark.parametrize('album_page',['empty','error','loading','unresolved-loading','current'],indirect=True)
-def test_album_search_states_and_current_default(album_page, request):
+def test_empty_search_states_stay_hidden_until_photos_arrive(album_page, request):
     page,calls,_=album_page
     mode=request.node.callspec.params['album_page'].removeprefix('unresolved-')
-    page.locator('[data-photo-album]:visible').last.tap()
-    dialog=page.get_by_role('dialog')
-    expect(dialog).to_be_visible()
-    expect(dialog.locator('figure')).to_have_count(0)
+    expect(page.locator('.map-photo-album-layer')).not_to_be_visible()
+    expect(page.locator('[data-photo-album], [data-photo-marker], .map-album-placeholder')).to_have_count(0)
     if mode=='error':
-        expect(dialog.locator('[data-photo-retry]')).to_be_visible()
-        dialog.locator('[data-photo-retry]').click()
         assert calls
     elif mode=='loading':
-        expect(dialog.locator('[role="status"]')).to_be_visible()
+        page.wait_for_function("typeof finishPhotoSearch === 'function'")
         page.evaluate('finishPhotoSearch()')
-        expect(dialog.locator('.is-loading')).to_have_count(0)
+        album=page.locator('[data-photo-album]:visible')
+        expect(album).to_have_count(1)
+        expect(album.locator('img')).to_have_count(1)
+        album.tap()
+        dialog=page.get_by_role('dialog')
+        expect(dialog).to_be_visible()
         expect(dialog.locator('figure')).to_have_count(1)
         assert '1986' in dialog.inner_text()
+        dialog.locator('[data-close-photo-album]').click()
+        expect(dialog).not_to_be_visible()
+        expect(album).to_be_focused()
     elif mode=='current':
         assert calls and all('period=&' in url or url.endswith('period=') for url in calls), calls
-    dialog.locator('[data-close-photo-album]').click()
-    expect(dialog).not_to_be_visible()
-    if mode=='loading':
-        expect(page.locator('[data-photo-album]:visible').last.locator('img')).to_have_count(1)
-        expect(page.locator('[data-photo-album]:visible').last).to_be_focused()
 
 
 def test_desktop_floating_albums_and_phone_resize_preserve_map(album_page):
@@ -265,15 +264,12 @@ def test_desktop_hides_photo_lane_until_photos_arrive(album_page, request):
     page,_,_=album_page
     loading = request.node.callspec.params['album_page'] == 'loading'
     if loading:
-        page.locator('[data-photo-album]:visible').last.tap()
-        dialog = page.get_by_role('dialog')
-        expect(dialog).to_be_visible()
         page.wait_for_function("typeof finishPhotoSearch === 'function'")
-        dialog.locator('[data-close-photo-album]').click()
-        page.wait_for_function('!history.state?.memoirPhotoAlbum')
     for width in (1440, 823):
         page.set_viewport_size({'width':width,'height':960})
         expect(page.locator('.workspace-media-gallery')).to_have_count(0)
+        expect(page.locator('.map-photo-album-layer')).not_to_be_visible()
+        expect(page.locator('[data-photo-album], [data-photo-marker], .map-album-placeholder')).to_have_count(0)
         expect(page.locator('.workspace-media-overview.no-gallery')).to_be_visible()
         overview = page.locator('.workspace-media-overview').bounding_box()
         map_panel = page.locator('.workspace-media-map').bounding_box()
@@ -443,26 +439,13 @@ def test_every_city_group_album_keeps_its_own_photos(album_page,request):
 
 
 @pytest.mark.parametrize('album_page',['unresolved-empty','unresolved-error'],indirect=True)
-def test_no_pin_groups_keep_photo_status_and_retry_reachable(album_page,request):
+def test_no_pin_groups_hide_empty_albums(album_page,request):
     page,calls,_=album_page
-    expect(page.locator('[data-photo-album]:visible')).to_have_count(3)
+    expect(page.locator('.map-photo-album-layer')).not_to_be_visible()
+    expect(page.locator('[data-photo-album], [data-photo-marker], .map-album-placeholder')).to_have_count(0)
     assert page.evaluate('window.__mapViewer.entities.values.length')==0
-    for place in ['承德','双桥区','大石庙镇']:
-        page.locator('[data-photo-album]:visible').filter(has_text=place).tap()
-        dialog=page.get_by_role('dialog')
-        expect(dialog).to_be_visible()
-        expect(dialog.locator('figure')).to_have_count(0)
-        expect(dialog.locator('[role="status"]')).to_be_visible()
-        if request.node.callspec.params['album_page']=='unresolved-error':
-            retry=dialog.locator('[data-photo-retry]')
-            expect(retry).to_be_visible()
-            before=len(calls)
-            retry.click()
-            expect(retry).to_be_visible()
-            assert len(calls)>before
-        dialog.locator('[data-close-photo-album]').click()
-        expect(dialog).not_to_be_visible()
-        page.wait_for_function('!history.state?.memoirPhotoAlbum')
+    if request.node.callspec.params['album_page']=='unresolved-error':
+        assert calls
 
 
 def test_pinned_overflow_album_keeps_keyboard_focus_across_cesium_frames(album_page):
