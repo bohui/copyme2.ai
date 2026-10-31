@@ -1182,7 +1182,7 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 .map-photo-album-layer.is-fallback > .map-album-anchor { position: relative; flex: 0 0 74px; }
 .map-photo-album-layer.is-fallback .map-album-stem { display: none; }
 .map-photo-album-layer.is-desktop .map-album-overflow { top: 64px; right: 8px; bottom: 32px; left: auto; display: flex; flex-direction: column; align-items: stretch; gap: 12px; width: clamp(124px, 21%, 178px); max-width: none; padding: 8px 5px; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; background: transparent; border-radius: 0; }
-.map-photo-album-layer.is-desktop .map-album-anchor { flex: 0 0 auto; width: 100%; height: auto; min-width: 0; border: 1px solid #ffffffaa; border-radius: 12px; background: #fffdf8ed; box-shadow: 0 4px 14px #293e3130; }
+.map-photo-album-layer.is-desktop .map-album-anchor { flex: 0 0 auto; width: 100%; height: auto; min-width: 0; }
 .map-photo-album-layer.is-desktop .map-photo-album { flex-direction: column; width: 100%; min-width: 0; height: auto; min-height: 100px; padding: 12px 8px 8px; gap: 10px; }
 .map-photo-album-layer.is-desktop .map-album-stack { width: 76px; height: 56px; }
 .map-photo-album-layer.is-desktop .map-album-place { max-width: 100%; font-size: 12px; background: transparent; }
