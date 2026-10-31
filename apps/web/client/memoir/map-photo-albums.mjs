@@ -74,7 +74,7 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
     if (!dialog?.open || !currentKey) return;
     if (currentProject !== getProjectId()) { hide(); return; }
     const album = getAlbum(currentKey);
-    if (!album) { hide(); return; }
+    if (!album || !albumStackMarkup(album,window.location.origin)) { hide(); return; }
     const content = dialog.querySelector('.map-photo-album-content');
     const scroll = content.scrollTop;
     const markup = renderAlbum(album);
@@ -88,7 +88,7 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
   }
   function open(key, source = null, restore = false) {
     const album = getAlbum(key);
-    if (!album) return false;
+    if (!album || !albumStackMarkup(album,window.location.origin)) return false;
     trigger = source || document.activeElement;
     currentKey = key;
     currentProject = getProjectId();

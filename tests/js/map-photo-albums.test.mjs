@@ -33,10 +33,12 @@ for (const mobile of [false,true]) test(`the ${mobile ? 'phone' : 'desktop'} pho
   const scene={querySelector:()=>layer};
   const empty=['loading','error','empty'].map(status=>({key:status,place:status,status,count:0,pictures:[],pinned:true}));
   let albums=empty;
-  const controller=createMapPhotoAlbums({getProjectId:()=> 'project',getAlbums:()=>albums});
+  const controller=createMapPhotoAlbums({getProjectId:()=> 'project',getAlbums:()=>albums,
+    getAlbum:key=>albums.find(album=>album.key===key)});
   controller.sync(scene);
   assert.equal(layer.style.display,'none');
   assert.doesNotMatch(layer.innerHTML,/data-photo-album=|data-photo-marker=|map-album-placeholder/);
+  assert.equal(controller.open('loading'),false);
   albums=[...empty,{key:'found',place:'Found',count:1,pinned:true,
     pictures:[{image_url:'https://photos.example/found.jpg',allowed_actions:{embed:true}}]},
     {key:'personal',place:'Personal',count:1,pictures:[{kind:'private_upload',
