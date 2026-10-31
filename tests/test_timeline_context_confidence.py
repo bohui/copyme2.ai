@@ -186,6 +186,61 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
         assert [item['place']['place'] for item in places['items']]==['Chengde']
 
 
+def test_later_replies_upgrade_estimates_and_then_confirm_the_same_saved_event(sql,tmp_path,monkeypatch):
+    first='I was born in 1983. I currently live in Sydney after moving here following university.'
+    later='About Sydney: I have now lived there for fourteen years.'
+    confirmed='That Sydney residence began in 2012.'
+    sydney=dict(place='Sydney',hierarchy=['Earth','Australia','Sydney'],granularity='city')
+
+    def extract(packet):
+        source=packet['sources'][0];text=source['text'];ref=reference(packet,text)
+        year=int(source['created_at'][:4])
+        item=dict(episode(packet,text,title='Sydney residence'),kind='period',location=sydney,
+            location_basis=[ref],locationConfidenceScore=.55 if text==first else 1.0,yearConfidenceScore=.4)
+        if text!=first:
+            saved=packet['last_event']
+            expected=.4 if text==later else .9
+            assert saved['temporal_estimate']['confidence']==expected
+            assert saved['yearConfidenceScore']==expected
+            assert 'basis' not in saved['temporal_estimate'] and 'rationale' not in saved['temporal_estimate']
+            item.update(existing_id=saved['id'],expected_revision=saved['revision'])
+        if text==confirmed:
+            item.update(yearConfidenceScore=1.0,temporal_estimate=None,
+                temporal=dict(expression='2012',precision='year',year_start=2012,year_end=2012,basis=[ref]))
+        else:
+            start=2001 if text==first else year-15
+            basis=[ref] if text==first else [ref,prior_ref(packet['conversation_history'][0]['source'],first)]
+            item['temporal_estimate']=dict(year_start=start,year_end=year,age_start=start-1983,age_end=year-1983,
+                confidence=.4 if text==first else .9,reference_year=year,basis=basis,
+                rationale='Birth and university context.' if text==first else 'Original residence duration and birth anchor.')
+        return {**empty(packet),'events':[item]}
+
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False)
+    with conversation.client:
+        snapshots=[]
+        for text in (first,later,confirmed):
+            conversation.say(text);drain(conversation)
+            response=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project})
+            assert response.status_code==200,(text,response.text)
+            events=response.json()['events']
+            assert len(events)==1,'Later evidence updates the existing event instead of adding a duplicate'
+            snapshots.append(events[0])
+        before,improved,exact=snapshots
+        assert before['id']==improved['id']==exact['id']
+        assert before['revision']<improved['revision']<exact['revision']
+        assert before['temporal_estimate']['confidence']==before['yearConfidenceScore']==.4
+        assert improved['temporal_estimate']['confidence']==improved['yearConfidenceScore']==.9
+        assert improved['temporal_estimate']['year_start']==improved['temporal_estimate']['reference_year']-15
+        assert before['locationConfidenceScore']==.55 and improved['locationConfidenceScore']==1
+        assert exact['temporal']['year_start']==2012 and exact['yearConfidenceScore']==1
+        assert not exact.get('temporal_estimate')
+        history=sql(f"select json_agg(record->'yearConfidenceScore' order by revision) from public.user_memory_event_revision "
+            f"where project_id={literal(conversation.project)} and event_id={literal(exact['id'])} and origin='author_timeline';")
+        scores=json.loads(history.stdout.strip())
+        assert scores==sorted(scores)
+        assert set(scores)=={.4,.9,1}
+
+
 def test_an_explicit_previous_city_and_year_can_ground_the_current_event(sql,tmp_path,monkeypatch):
     first='In 1997 I lived in Chengde.'
     second='That same year I started working there.'

@@ -3137,6 +3137,10 @@ begin
       'include_in_print',coalesce((current_event.data->>'include_in_print')::boolean,false));
     perform public.validate_memory_temporal(owner_id,p_project_id,event_data->'temporal');
     perform public.validate_memory_temporal_estimate(owner_id,p_project_id,event_data->'temporal_estimate');
+    if event_data->'temporal'->>'year_start' is null and jsonb_typeof(event_data->'temporal_estimate')='object'
+       and not coalesce((event_data->>'timing_conflict')::boolean,false) then
+      event_data:=jsonb_set(event_data,'{yearConfidenceScore}',event_data->'temporal_estimate'->'confidence');
+    end if;
     for ref in select value from pg_catalog.jsonb_array_elements(coalesce(event_data->'stage_evidence','[]')) loop
       perform public.validate_memory_evidence(owner_id,p_project_id,ref);
     end loop;
@@ -3794,6 +3798,8 @@ begin
      'year_start',case when e.data->'temporal'->>'year_start'~'^[0-9]{1,4}$' then e.data->'temporal'->'year_start' else null end,
      'year_end',case when e.data->'temporal'->>'year_end'~'^[0-9]{1,4}$' then e.data->'temporal'->'year_end' else null end),
    'temporal_complete',length(coalesce(e.data->'temporal'->>'expression',''))<=500,
+   'temporal_estimate',case when jsonb_typeof(e.data->'temporal_estimate')='object'
+     then (e.data->'temporal_estimate')-array['basis','rationale'] end,
    'uncertainty',left(e.data->>'uncertainty',1000),'uncertainty_complete',length(coalesce(e.data->>'uncertainty',''))<=1000,
    'location',e.data->'location',
    'locationConfidenceScore',coalesce((e.data->>'locationConfidenceScore')::numeric,
@@ -9054,7 +9060,8 @@ begin
        'temporal',jsonb_build_object('expression',event_record.data->'temporal'->'expression',
          'precision',event_record.data->'temporal'->'precision','year_start',event_record.data->'temporal'->'year_start',
          'year_end',event_record.data->'temporal'->'year_end'),
-       'temporal_estimate',(event_record.data->'temporal_estimate')-'basis',
+       'temporal_estimate',case when jsonb_typeof(event_record.data->'temporal_estimate')='object'
+         then (event_record.data->'temporal_estimate')-'basis' end,
        'uncertainty',event_record.data->'uncertainty','assertion',event_record.data->'assertion',
        'locationConfidenceScore',event_record.data->'locationConfidenceScore','yearConfidenceScore',event_record.data->'yearConfidenceScore',
        'timing_conflict',coalesce(event_record.data->'timing_conflict','false'),

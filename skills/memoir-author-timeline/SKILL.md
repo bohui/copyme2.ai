@@ -50,6 +50,13 @@ to Mira in Lane A. Preserve candidate placements for that clarification instead
 of promoting them to established map locations. Keep each event's primary
 source_refs on the CURRENT original; earlier placement evidence is a dependency.
 
+When later originals improve a saved event's placement confidence, update that
+event with existing_id and expected_revision, revised placement values and the
+new evidence. Compare its saved temporal_estimate and confidence; return the
+improved estimate on that identity. Keep yearConfidenceScore aligned with
+temporal_estimate.confidence while the preferred year remains inferred. New
+stated timing takes precedence over an earlier guess.
+
 Stages are baby, childhood, adolescence, young_adulthood, midlife,
 later_life and unplaced. Stage placement requires original `stage_evidence`.
 Temporal placement retains its original expression, precision, optional supported
