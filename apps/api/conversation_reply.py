@@ -11,6 +11,14 @@ from .prompt_artifact import load_prompt_artifact, prompt_path
 REPLY_VERSION = 'reply-v2'
 
 
+class WorkspaceFocus(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    place: str = Field(min_length=1, max_length=120, description='One coarse city/place, using its exact narrator wording. No hospital, address or invented location.')
+    quote: str = Field(min_length=1, max_length=500, description='Exact unique narrator passage containing this place and grounding the memory your question follows.')
+    source_id: str | None = Field(default=None, min_length=1, max_length=128,
+        description='Null for CURRENT narration; otherwise the supplied original narrator source ID for quote.')
+
+
 class ReplyProposal(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     acknowledgement: str = Field(min_length=1, max_length=2000,
@@ -28,6 +36,8 @@ class ReplyProposal(BaseModel):
         description='Unavailable detail indices in brief.hints. Only defer questions seeking the detail the narrator cannot recall; quote cites CURRENT recall-limit wording. Never include the chosen hint.')
     question: str | None = Field(min_length=1, max_length=800,
         description='One useful next question, including a connected broader direction after a recall limit; null for a stop or direct answer.')
+    workspace_focus: WorkspaceFocus | None = Field(default=None,
+        description='City of the memory your NEXT QUESTION explores, including an implicit continuation. Choose that city when acknowledgement mentions several. Example: living in Sydney but born in Chengde, followed by a childhood question -> Chengde. Null when no question or its place is unresolved. This selects the map, photos and event list; it asserts no new biography.')
     historical_clue_id: str | None = Field(default=None, max_length=128,
         description='Optional supplied public clue ID used in this question; null when irrelevant. When set, hint and quote must be null. Public history is separate from personal testimony.')
     resolved_questions: list[QuestionResolution] = Field(default_factory=list, max_length=5)
@@ -49,6 +59,8 @@ def reply_instructions():
 def reply_schema(context):
     schema = ReplyProposal.model_json_schema()
     schema['required'] = list(schema['properties'])
+    focus_schema = schema['$defs']['WorkspaceFocus']
+    focus_schema['required'] = list(focus_schema['properties'])
     schema['properties']['acknowledgement']['pattern'] = '^[^?？]*$'
     schema['properties']['hint']['enum'] = [None, *range(len(reply_candidates(context)))]
     deferred = [i for i, hint in enumerate(reply_candidates(context))
@@ -170,6 +182,21 @@ def adapt_reply(raw, context):
                   deferred_questions=deferrals),
         associations=[value.model_dump() for value in item.associations],
         response_photo_ids=item.response_photo_ids, stopped=item.question is None, continuity_updates=[])
+    focus = None
+    if item.workspace_focus is not None:
+        from .interview_questions import resolution_sources
+        from .place_journey import validate_place_journey
+        proposed = item.workspace_focus
+        sources = resolution_sources(context)
+        original = next((s for (source_id, _), s in sources.items()
+            if source_id == (proposed.source_id or source.get('id'))), None)
+        coarse = validate_place_journey(dict(place=proposed.place, hierarchy=['Earth', proposed.place], granularity='city'))
+        if item.question is None or not original or not coarse or proposed.place not in proposed.quote:
+            raise ValueError('Workspace focus requires a question and an original coarse place')
+        start, end = question_span(original, proposed.quote)
+        focus = dict(place=proposed.place, evidence=dict(source_id=original['id'], version=original['version'],
+            quote=proposed.quote, char_start=start, char_end=end))
+    legacy['workspace_focus'] = focus
     state = context.get('strategy_context') or {}
     plan = state.get('plan') or {}
     outcome = dict(schema_version=1,

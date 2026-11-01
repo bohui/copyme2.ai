@@ -83,6 +83,15 @@ test('desktop fills the map, with chronological events and north-to-south albums
     'The personal image must be painted on top of the web image in the stack');
 });
 
+test('the follow-up city wins over another city acknowledged in the same turn',async t=>{
+  const {places,state}=await setup(t,[]);
+  state.placeJourney=city;
+  state.project.profile.memory_places=[city,north];
+  state.workspaceFocus={place:'Chengde',source_sequence:1};
+  const markup=places.workspaceMediaOverview();
+  assert.match(markup,/data-cesium-latitude="40.95"/,'Fly to the childhood question’s city, not the current residence');
+});
+
 test('unlocated personal photos remain accessible without borrowing a nearby event location',async t=>{
   const {places}=await setup(t,[{photo_id:personalId,kind:'private_upload',title:'Unlocated',event_ids:[]}]);
   const albums=places.mapPhotoAlbumsForScene(null,{allPlaces:true,detailed:true});

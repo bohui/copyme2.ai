@@ -371,6 +371,9 @@ def public_interview_fields(turn):
     from .historical_news import public_clue
     key = turn.get('consumed_photo_key')
     revision = turn.get('consumed_photo_revision')
+    focus = (turn.get('plan') or {}).get('workspace_focus')
+    workspace_focus = dict(place=focus['place'], source_sequence=(turn.get('source') or {}).get('sequence')) if focus else None
     return {**({'recordings':turn['recordings']} if 'recordings' in turn else {}), 'photo_cue': {'consumed': bool(key or turn.get('photo_context')), 'key': key, 'revision': revision}, 'response_photos': safe,
+        **({'workspace_focus':workspace_focus} if 'workspace_focus' in (turn.get('plan') or {}) else {}),
         **({'historical_context': public_clue(turn['historical_context'])}
            if isinstance(turn.get('historical_context'), dict) else {})}

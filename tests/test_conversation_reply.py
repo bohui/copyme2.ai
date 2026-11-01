@@ -17,7 +17,46 @@ def reply_context(text='My brother Ming moved to Perth.'):
 
 def proposal():
     return dict(acknowledgement='We can follow that memory.', recall_limit_quote=None, question='What do you remember about the move?',
-        reason='latest_story', hint=None, quote=None, strategy='explore')
+        reason='latest_story', hint=None, quote=None, strategy='explore', workspace_focus=None)
+
+
+def test_next_question_selects_one_grounded_city_from_a_two_city_reply():
+    text='我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'
+    ctx=reply_context(text)
+    raw=dict(proposal(),acknowledgement='慧博，很高兴认识你。你现在生活在悉尼，人生的起点则是1983年4月的承德。',
+        question='说起小时候，你最先想起的是怎样的一个画面？',
+        workspace_focus=dict(place='承德',quote='我于1983年4月出生在河北省承德市附属医院',source_id=None))
+    validate(raw,governed_collector_schema(ctx))
+    focus=validate_governed_collector_result(raw,ctx)['plan']['workspace_focus']
+    assert focus['place']=='承德'
+    evidence=focus['evidence']
+    assert evidence['source_id']==ctx['source']['id']
+    assert text[evidence['char_start']:evidence['char_end']]==raw['workspace_focus']['quote']
+
+
+@pytest.mark.parametrize('focus', [dict(place='北京',quote='我在承德出生'),
+    dict(place='附属医院',quote='我在附属医院出生'),dict(place='承德',quote='不存在的原话')])
+def test_question_focus_cannot_invent_geography_or_use_an_institution(focus):
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(dict(proposal(),workspace_focus=focus),reply_context('我在承德出生。'))
+
+
+def test_question_focus_can_continue_a_supplied_earlier_narrator_place():
+    ctx=reply_context('I remember the trees outside.')
+    prior=dict(id='prior-source',version=1,role='user',kind='narrator_chat',complete=True,text='I grew up in Montreal.')
+    ctx['recent_dialogue']=[dict(response=prior)]
+    raw=dict(proposal(),workspace_focus=dict(place='Montreal',quote=prior['text'],source_id=prior['id']))
+    focus=validate_governed_collector_result(raw,ctx)['plan']['workspace_focus']
+    assert focus['evidence']['source_id']==prior['id']
+    prior['complete']=False
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(raw,ctx)
+
+
+def test_a_pause_cannot_publish_a_question_city():
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(dict(proposal(),question=None,reason='pause',
+            workspace_focus=dict(place='Montreal',quote='I grew up in Montreal.')),reply_context('I grew up in Montreal.'))
 
 
 def test_small_wire_keeps_compatibility_and_rejects_host_metadata():

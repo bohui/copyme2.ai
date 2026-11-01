@@ -73,3 +73,24 @@ test('repeated background snapshots preserve photo search scope and completion',
   assert.equal(applyDerivedWorkspace(s,snapshot),false);
   assert.equal(s.project.profile.memory_places[0].photo_search_complete,true);
 });
+
+test('a saved question city refreshes independently of the extracted place list',()=>{
+  const s=state();
+  const snapshot=update([place('Hobart'),place('Sydney',2)]);
+  applyDerivedWorkspace(s,snapshot);
+  assert.equal(applyDerivedWorkspace(s,{...snapshot,workspace_focus:{place:'Hobart',source_sequence:2}}),true);
+  assert.equal(s.workspaceFocus.place,'Hobart');
+  s.workspaceFocus={place:'Sydney',source_sequence:3};
+  applyDerivedWorkspace(s,{...update(snapshot.places,3),workspace_focus:{place:'Hobart',source_sequence:2}});
+  assert.equal(s.workspaceFocus.place,'Sydney','An older readiness read cannot replace the newly saved question focus');
+  applyDerivedWorkspace(s,{...update(snapshot.places,3),workspace_focus:null});
+  assert.equal(s.workspaceFocus.place,'Sydney','A snapshot captured before the same reply save cannot clear its focus');
+  applyDerivedWorkspace(s,{...update([],4),policy_epoch:2,workspace_focus:null});
+  assert.equal(s.workspaceFocus,null,'Revoked question geography cannot survive a policy change');
+});
+
+test('the first readiness read cannot overwrite a newer foreground question city',()=>{
+  const s=state();s.workspaceFocus={place:'Sydney',source_sequence:2};
+  applyDerivedWorkspace(s,{...update([place('Hobart')],1),workspace_focus:{place:'Hobart',source_sequence:1}});
+  assert.equal(s.workspaceFocus.place,'Sydney');
+});

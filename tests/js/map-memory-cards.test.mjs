@@ -34,10 +34,10 @@ function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=t
   globalThis.Image=class {complete=true;naturalWidth=16;};
   const values=settings.values || new Map();
   globalThis.localStorage=settings.storage || {getItem:key=>values.get(key) ?? null,setItem:(key,value)=>values.set(key,value)};
-  let redraw,moveEnd,center=null;
+  let redraw,moveEnd,finishFlight,center=settings.center || null;
   const flights=[],explored=[],added=[];
   const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:cb=>{redraw=cb;return ()=>{};}}},
-    camera:{frustum:{left:-100000,right:100000},flyTo:flight=>flights.push(flight),
+    camera:{frustum:{left:-100000,right:100000},flyTo:flight=>{flights.push(flight);finishFlight=flight.complete;},
       moveEnd:{addEventListener:callback=>{moveEnd=callback;return ()=>{moveEnd=null;};}}}};
   const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
     SceneTransforms:{worldToWindowCoordinates:(_,p)=>center
@@ -48,6 +48,7 @@ function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=t
   const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces(settings.places || [chengde,shanghai,sydney,...extraPlaces]),
     getProfile:()=>({birth_year:1983}),getScope:()=>settings.scope || 'fixture',getIdentity:()=>settings.identity || 'fixture',
     getInitialPlace:()=>settings.initialPlace || null,getStage:()=> 'all',
+    getQuestionFocus:()=>settings.questionFocus || null,
     t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage,
     getCanAddMemory:()=>canAddMemory,onAdd:()=>added.push('add_memory'),onExplore:id=>explored.push(id)});
   map.sync(scene);map.attach(viewer,cesium);
@@ -64,8 +65,29 @@ function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=t
       listeners.click({target:{closest:()=>target}});
     },
     explore(id){listeners.click({target:{closest:()=>({dataset:{memoryExplore:id},hasAttribute:name=>name==='data-memory-explore'})}});},
-    zoom(place,span=8000){center=place;viewer.camera.frustum={left:-span/2,right:span/2};footprints.length=0;redraw();moveEnd?.();}};
+    zoom(place,span=8000){center=place;viewer.camera.frustum={left:-span/2,right:span/2};footprints.length=0;finishFlight?.();finishFlight=null;redraw();moveEnd?.();}};
 }
+
+test('panning outside every linked city clears the event cards at every zoom and restores only visible cities',t=>{
+  const empty={longitude:0,latitude:0};
+  for(const mobile of [false,true]) {
+    const {map,cards,zoom}=mapFixture(t,mobile);
+    for(const span of [200000,8000,80000]) {
+      zoom(empty,span);
+      assert.equal(cards.innerHTML,'','An overview must not retain offscreen city cards');
+    }
+    zoom(chengde,80000);
+    assert.match(cards.innerHTML,/Chengde/);
+    assert.doesNotMatch(cards.innerHTML,/Sydney|Shanghai/);
+    zoom(chengde);
+    assert.match(cards.innerHTML,/Birth/);
+    zoom(empty);
+    assert.equal(cards.innerHTML,'','The selected city must disappear as soon as it leaves the viewport');
+    zoom(null,200000);
+    assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,3);
+    assert.equal(map.viewCity(),null);
+  }
+});
 
 test('each city card has its own add-memory action without expanding or continuing an event', t=>{
   for (const mobile of [false,true]) {
@@ -146,6 +168,19 @@ test('refresh restores the selected city from storage on desktop and phone', t=>
     assert.ok(refreshed.initialFlights[0].destination.height<=40000);
     assert.match(refreshed.cards.innerHTML,/Sydney arrival/);
     assert.doesNotMatch(refreshed.cards.innerHTML,/University|Birth|class="map-memory-card is-city/);
+  }
+});
+
+test('the question city controls the flight while its event list waits until the city is in view',t=>{
+  for (const mobile of [false,true]) {
+    const settings={initialPlace:sydney,questionFocus:{place:'Chengde',source_sequence:1},center:sydney};
+    const {map,cards,initialFlights,zoom}=mapFixture(t,mobile,[],undefined,true,settings);
+    assert.equal(initialFlights[0].destination.latitude,chengde.latitude);
+    assert.equal(map.viewCity(),groupPlaces([chengde])[0].key,'Photos share the question city while the camera is still elsewhere');
+    assert.equal(cards.innerHTML,'','Do not show the destination cards while that city is outside the view');
+    zoom(chengde);
+    assert.match(cards.innerHTML,/Birth|Growing up/);
+    assert.doesNotMatch(cards.innerHTML,/Sydney arrival|University/);
   }
 });
 
@@ -280,37 +315,27 @@ test('memories sharing only a city pin keep the intercity trail without inventin
   assert.ok(map.nodes().filter(node=>node.city==='Chengde').every(node=>node.longitude===chengde.longitude && node.latitude===chengde.latitude));
 });
 
-test('events with no candidate city stay grouped in the overview and expand without inventing a map pin', t=>{
+test('events with no candidate city do not create map cards without a linked location', t=>{
   for (const mobile of [false,true]) {
     const birth=event('Birth',chengde,1983,'baby');
     const compound={...event('School compound',chengde,null,'childhood'),places:[],locationConfidenceScore:.3};
     const snail={...compound,id:'Snail outing',title:'Snail outing'};
-    const {map,cards,flights,explored,click,explore,expand}=mapFixture(t,mobile,[],[birth,compound,snail]);
-    assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,2);
+    const {map,cards,flights,zoom}=mapFixture(t,mobile,[],[birth,compound,snail]);
+    assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,1);
     assert.doesNotMatch(cards.innerHTML,/School compound|Snail outing|Location to confirm|data-memory-explore/);
     assert.deepEqual(map.nodes().map(node=>node.event.id),['Birth'],'Unknown locations must not inherit the birth pin');
-    expand('unlocated');
-    assert.match(cards.innerHTML,/School compound/);
-    assert.match(cards.innerHTML,/Snail outing/);
-    for (const memory of [compound,snail]) {
-      assert.equal((cards.innerHTML.match(new RegExp(`data-memory-explore="${memory.id}"`,'g'))||[]).length,1);
-      click(`unlocated:${memory.id}`);
-      explore(memory.id);
-    }
-    assert.deepEqual(explored,['School compound','School compound','Snail outing','Snail outing']);
-    assert.equal(flights.length,0,'Opening an unlocated memory must not fly to the birth city');
+    zoom(sydney);
+    assert.equal(cards.innerHTML,'');
+    assert.equal(flights.length,0);
   }
 });
 
-test('an unlocated memory is visible alone and moves into its city once its location is confirmed', t=>{
+test('an unlocated memory appears on the map only once its location is confirmed', t=>{
   const memory={...event('School compound',chengde,null,'childhood'),places:[]};
-  const {map,cards,refresh,hidden,zoom,expand}=mapFixture(t,false,[],[memory]);
+  const {map,cards,refresh,hidden,zoom}=mapFixture(t,false,[],[memory]);
   assert.equal(hidden(),false);
-  assert.match(cards.innerHTML,/<strong class="map-memory-summary">\?<\/strong>/);
-  assert.doesNotMatch(cards.innerHTML,/School compound/);
+  assert.equal(cards.innerHTML,'');
   assert.equal(map.nodes().length,0);
-  expand('unlocated');
-  assert.match(cards.innerHTML,/School compound/);
   memory.revision++;
   memory.places=[{role:'setting',status:'supported',place:chengde}];
   refresh();

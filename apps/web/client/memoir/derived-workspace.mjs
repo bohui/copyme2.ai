@@ -11,6 +11,12 @@ export function applyDerivedWorkspace(state, update) {
   if (prior?.project_id === update.project_id
       && (update.policy_epoch < prior.policy_epoch
         || (update.policy_epoch === prior.policy_epoch && update.source_revision < prior.source_revision))) return false;
+  const focus = update.workspace_focus;
+  const focusCurrent = !state.workspaceFocus || (prior && prior.policy_epoch !== update.policy_epoch)
+    || (focus ? focus.source_sequence >= state.workspaceFocus.source_sequence : update.source_revision > state.workspaceFocus.source_sequence);
+  const focusChanged = Object.hasOwn(update,'workspace_focus') && focusCurrent
+    && JSON.stringify(state.workspaceFocus || null) !== JSON.stringify(focus);
+  if (focusChanged) state.workspaceFocus = update.workspace_focus;
   const previousPlaces = state.project.profile?.memory_places || [];
   const preserve = prior ? prior.policy_epoch === update.policy_epoch : update.policy_epoch === 1;
   const previous = new Map(previousPlaces.map(p => [placeHistoryKey(p),p]));
@@ -25,7 +31,7 @@ export function applyDerivedWorkspace(state, update) {
     state.placeWorkspaceMap = null;
   }
   if (JSON.stringify(previousPlaces) === JSON.stringify(places)
-      && (!state.placeJourney || places.some(p => placeHistoryKey(p) === placeHistoryKey(state.placeJourney)))) return false;
+      && (!state.placeJourney || places.some(p => placeHistoryKey(p) === placeHistoryKey(state.placeJourney)))) return focusChanged;
   state.project = {...state.project,profile:{...state.project.profile,memory_places:places}};
   const currentKey = state.placeJourney && placeHistoryKey(state.placeJourney);
   const retained = currentKey && places.find(p => placeHistoryKey(p) === currentKey);

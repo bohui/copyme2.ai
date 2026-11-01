@@ -44,7 +44,7 @@ export function layoutMapAlbums(points, width, height, reserve = 50) {
 }
 
 export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderAlbum, bindAlbum, closeLabel,
-  getViewCity = () => undefined, bindImages = () => {}, onOpen = () => {}}) {
+  getViewCity = () => undefined, getVisibleCities = () => undefined, bindImages = () => {}, onOpen = () => {}}) {
   let dialog, currentKey, currentProject, trigger, layer, signature, lastMarkup;
   let removePostRender;
   let sceneElement, albums = [], detailed = true, collectionMode;
@@ -129,9 +129,10 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
       });
       scene.append(layer);
     }
-    collectionMode = JSON.stringify([mobile(),detailed,getViewCity()]);
+    collectionMode = JSON.stringify([mobile(),detailed,getViewCity(),getVisibleCities()]);
     const cityKey = getViewCity();
-    albums = getAlbums(scene,{detailed:mobile() || detailed,allPlaces:!mobile(),...(detailed || cityKey != null ? {cityKey} : {})});
+    albums = getAlbums(scene,{detailed:mobile() || detailed,allPlaces:!mobile(),cityKeys:getVisibleCities(),
+      ...(detailed || cityKey != null ? {cityKey} : {})});
     albums = albums.filter(album => albumStackMarkup(album,window.location.origin));
     layer.style.display = albums.length ? '' : 'none';
     layer.classList.toggle('is-desktop',!mobile());
@@ -157,7 +158,7 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
       const zoom = viewer.scene.mode === cesium.SceneMode.SCENE2D ? viewer.camera.frustum.right - viewer.camera.frustum.left
         : viewer.camera.positionCartographic.height;
       detailed = zoom < 18000;
-      if (collectionMode !== JSON.stringify([isMobile,detailed,getViewCity()])) sync(sceneElement);
+      if (collectionMode !== JSON.stringify([isMobile,detailed,getViewCity(),getVisibleCities()])) sync(sceneElement);
       layer.classList.toggle('is-desktop',!isMobile);
       for (const pin of pins) {
         const label = viewer.entities.getById(pin.key)?.label;

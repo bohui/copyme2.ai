@@ -10092,6 +10092,21 @@ begin
     'paused_topics',paused,'excluded_topics',excluded);
 end $$;
 
+CREATE FUNCTION public.read_lifetime_workspace_focus(p_project_id text) RETURNS jsonb
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+ select jsonb_build_object('place',p.plan->'workspace_focus'->>'place','source_sequence',t.source_sequence)
+ from public.user_interview_plan p
+ join public.user_interview_turn t on t.user_id=p.user_id and t.project_id=p.project_id and t.client_turn_id=p.client_turn_id
+ join public.user_memoir_project m on m.user_id=p.user_id and m.project_id=p.project_id and m.policy_epoch=t.policy_epoch
+ join public.user_narrator_source s on s.user_id=p.user_id and s.project_id=p.project_id
+   and s.id::text=p.plan#>>'{workspace_focus,evidence,source_id}'
+   and s.version::text=p.plan#>>'{workspace_focus,evidence,version}' and s.status='active'
+ where p.user_id=auth.uid() and p.project_id=p_project_id and t.collector is not null
+   and p.plan->'workspace_focus'->>'place' is not null
+$$;
+
 CREATE FUNCTION public.read_lifetime_place_journeys(p_project_id text, p_source_id uuid DEFAULT NULL::uuid) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
@@ -12034,9 +12049,34 @@ begin
   end loop;
   if jsonb_typeof(p_plan) is distinct from 'object' or octet_length(p_plan::text)>32000 or
     jsonb_typeof(p_plan->'candidates') is distinct from 'array' or jsonb_array_length(p_plan->'candidates')>5 or
-    exists(select 1 from jsonb_object_keys(p_plan) k where k not in ('candidates','chosen_id','active_event_id','work','resolved_questions','deferred_questions')) or
+    exists(select 1 from jsonb_object_keys(p_plan) k where k not in ('candidates','chosen_id','active_event_id','work','resolved_questions','deferred_questions','workspace_focus')) or
     jsonb_typeof(p_associations) is distinct from 'array' or jsonb_array_length(p_associations)>20 or
     octet_length(p_associations::text)>32000 then raise exception 'invalid interview plan' using errcode='22023'; end if;
+  if coalesce(p_plan->'workspace_focus','null')<>'null'::jsonb then
+    proposal:=p_plan->'workspace_focus';evidence:=proposal->'evidence';
+    if jsonb_typeof(proposal) is distinct from 'object' or jsonb_array_length(p_plan->'candidates')<>1
+      or exists(select 1 from jsonb_object_keys(proposal) k where k not in ('place','evidence'))
+      or jsonb_typeof(proposal->'place') is distinct from 'string' or length(btrim(proposal->>'place')) not between 1 and 120
+      or jsonb_typeof(evidence) is distinct from 'object'
+      or not(evidence ?& array['source_id','version','quote','char_start','char_end'])
+      or exists(select 1 from jsonb_object_keys(evidence) k where k not in ('source_id','version','quote','char_start','char_end'))
+      or jsonb_typeof(evidence->'source_id') is distinct from 'string'
+      or jsonb_typeof(evidence->'version') is distinct from 'number'
+      or jsonb_typeof(evidence->'quote') is distinct from 'string'
+      or jsonb_typeof(evidence->'char_start') is distinct from 'number'
+      or jsonb_typeof(evidence->'char_end') is distinct from 'number'
+      or length(evidence->>'quote') not between 1 and 500
+      or position((proposal->>'place') in (evidence->>'quote'))=0 then
+      raise exception 'grounded question workspace focus required' using errcode='22023';end if;
+    perform public.validate_memory_evidence(v_owner,p_project_id,evidence);
+    select * into current_source from public.user_narrator_source where user_id=v_owner and project_id=p_project_id
+      and id=(evidence->>'source_id')::uuid;
+    if current_source.kind not in ('narrator_chat','narrator_transcript') or (current_source.id is distinct from turn.source_id and not exists(
+      select 1 from jsonb_array_elements(public.read_lifetime_interview_context(
+        (select conversation_id from public.user_lifetime_conversation where user_id=v_owner and project_id=p_project_id))->'recent_dialogue') pair
+      where pair->'response'->>'id'=current_source.id::text and pair->'response'->>'complete'='true')) then
+      raise exception 'workspace focus requires supplied narrator testimony' using errcode='22023';end if;
+  end if;
   for disposition_name in select unnest(array['resolved_questions','deferred_questions']) loop
   if p_plan ? disposition_name then
     if jsonb_typeof(p_plan->disposition_name) is distinct from 'array' or jsonb_array_length(p_plan->disposition_name)>5
@@ -14324,6 +14364,7 @@ revoke all on function public.read_lifetime_memoir_lane_page_body(uuid, uuid) fr
 revoke all on function public.read_lifetime_memory_obligations(uuid, uuid, integer) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_pinned(uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_place_journeys(text, uuid) from public,anon,authenticated,service_role;
+revoke all on function public.read_lifetime_workspace_focus(text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_policy_status(uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_prepared_questions(uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_private_draft_head(text) from public,anon,authenticated,service_role;
@@ -14639,6 +14680,8 @@ grant EXECUTE on function public.read_lifetime_pinned(uuid) to authenticated;
 grant EXECUTE on function public.read_lifetime_pinned(uuid) to service_role;
 grant EXECUTE on function public.read_lifetime_place_journeys(text, uuid) to authenticated;
 grant EXECUTE on function public.read_lifetime_place_journeys(text, uuid) to service_role;
+grant EXECUTE on function public.read_lifetime_workspace_focus(text) to authenticated;
+grant EXECUTE on function public.read_lifetime_workspace_focus(text) to service_role;
 grant EXECUTE on function public.read_lifetime_policy_status(uuid) to authenticated;
 grant EXECUTE on function public.read_lifetime_prepared_questions(uuid) to authenticated;
 grant EXECUTE on function public.read_lifetime_prepared_questions(uuid) to service_role;

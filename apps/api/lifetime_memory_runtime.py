@@ -207,8 +207,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     response.update(workspace)
                     if on_event:await on_event({'type':'workspace_update','data':workspace})
                 interview=await lease.io(storage.interview_turn_by_id,project_id,client_turn_id)
-                if isinstance((interview or {}).get('historical_context'),dict):
-                    response['historical_context']=public_interview_fields(interview)['historical_context']
+                response.update(public_interview_fields(interview))
                 if (interview or {}).get('plan'):
                     await progress.record_question_pool(interview['plan'])
                     if (interview['plan'].get('candidates')

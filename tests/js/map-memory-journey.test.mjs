@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildMapMemoryJourney, chronologicalEvents, cityEventCards, eventAge, eventAgeLabel, layoutMemoryCards, mapCityInView, mapTrailWindow, memoryEventCardMarkup} from '../../apps/web/client/memoir/map-memory-journey.mjs';
+import {buildMapMemoryJourney, chronologicalEvents, cityEventCards, eventAge, eventAgeLabel, layoutMemoryCards, mapCityInView, mapCityOverlapsView, mapTrailWindow, memoryEventCardMarkup} from '../../apps/web/client/memoir/map-memory-journey.mjs';
 import {groupPlaces} from '../../apps/web/client/memoir/places.mjs';
 import {translateWith} from '../../apps/web/client/i18n.js';
 
@@ -13,6 +13,40 @@ const link = (place, role='setting') => ({place,role,status:'supported'});
 const event = (id,age,place,stage='childhood') => ({id,title:`Memory ${id}`,status:'active',canonical:true,life_stage:stage,
   temporal:{expression:`Age ${age}`,precision:'age'},places:[link(place)]});
 const t = (key,values) => translateWith(`Memoir.workspace.${key}`,values);
+
+test('a city stays visible while its 100 km circle overlaps the map, including corners and the antimeridian',()=>{
+  const rectangle=(west,south,east,north)=>Object.fromEntries(Object.entries({west,south,east,north})
+    .map(([key,value])=>[key,value*Math.PI/180]));
+  const city={latitude:0,longitude:0};
+  assert.equal(mapCityOverlapsView(city,rectangle(.8,-.1,1,.1)),true);
+  assert.equal(mapCityOverlapsView(city,rectangle(1.1,-.1,1.3,.1)),false);
+  assert.equal(mapCityOverlapsView(city,rectangle(.6,.6,1,1)),true);
+  assert.equal(mapCityOverlapsView(city,rectangle(.7,.7,1,1)),false,'Both axes alone being within 100 km is insufficient');
+  assert.equal(mapCityOverlapsView({latitude:0,longitude:179.8},rectangle(-179.9,-.1,-179.5,.1)),true);
+  assert.equal(mapCityOverlapsView({latitude:80,longitude:0},rectangle(4,79.9,5,80.1)),true);
+  assert.equal(mapCityOverlapsView({latitude:null,longitude:0},rectangle(-1,-1,1,1)),false);
+});
+
+test('a known birth precedes a broad same-year residence estimate regardless of capture order',()=>{
+  const birth={...event('birth',0,melbourne,'baby'),
+    temporal:{expression:'1983年4月',precision:'month',year_start:1983},yearConfidenceScore:1};
+  const home={...event('home',null,city,'unplaced'),kind:'period',temporal:null,temporal_anchor:'present',
+    temporal_estimate:{year_start:1983,year_end:2026,age_start:0,age_end:43,confidence:.3}};
+  for(const input of [[home,birth],[birth,home]]) {
+    const journey=buildMapMemoryJourney(input,groups,{birth_year:1983});
+    assert.deepEqual(cityEventCards(journey.nodes).map(card=>card.city),['Melbourne','Sydney']);
+  }
+});
+
+test('city summaries use their earliest event time even when supplied after a later related event',()=>{
+  const early={...event('early',null,school),temporal:{expression:'1980',precision:'year',year_start:1980}};
+  const late={...event('late',null,work),temporal:{expression:'2000',precision:'year',year_start:2000}};
+  const middle={...event('middle',null,melbourne),temporal:{expression:'1990',precision:'year',year_start:1990}};
+  const journey=buildMapMemoryJourney([late,middle,early],groups);
+  const cards=cityEventCards([...journey.nodes].reverse());
+  assert.deepEqual(cards.map(card=>card.city),['Sydney','Melbourne']);
+  assert.deepEqual(cards[0].nodes.map(node=>node.event.id),['early','late']);
+});
 
 test('trail clipping samples only the visible portion of distant and crossing routes',()=>{
   assert.deepEqual(mapTrailWindow({x:50,y:50},{x:150,y:150},400,300),{start:0,end:1});
