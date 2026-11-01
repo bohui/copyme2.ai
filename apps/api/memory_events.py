@@ -279,8 +279,11 @@ def validate_extraction(raw, sources, saved_events):
                 raise ValueError('Chronology requires a canonical scoped target')
         if event.location:
             normalized = validate_place_journey(event.location.model_dump())
+            contextual_city = (event.location.granularity == 'city'
+                and 0 < (event.locationConfidenceScore or 0) < .2 and event.location_basis
+                and event.uncertainty and event.uncertainty.strip())
             if (not normalized or event.location.hierarchy[-1] != event.location.place
-                    or not any(event.location.place in ref.quote for ref in event.location_basis or [])):
+                    or not contextual_city and not any(event.location.place in ref.quote for ref in event.location_basis or [])):
                 raise ValueError('Location requires a named coarse place in its evidence')
             if event.locationConfidenceScore is None:
                 raise ValueError('Location requires its confidence score')

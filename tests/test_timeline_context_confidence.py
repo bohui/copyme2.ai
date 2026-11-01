@@ -55,6 +55,52 @@ def test_low_confidence_location_does_not_create_a_map_link():
     assert placement_links([{**event,'locationConfidenceScore':0.99,'candidate_ids':['first','second']}]) == []
 
 
+@pytest.mark.parametrize('text', ['As a child I played in the school compound in China.',
+    '小时候学校组织我们春游，还记得路上的田野。'])
+def test_a_very_uncertain_city_can_use_context_without_a_named_city(text):
+    from apps.api.memory_events import validate_extraction
+    ref=dict(source_id='source',version=1,quote=text)
+    event=dict(kind='event',title='Childhood outing',source_refs=[ref],location=CHENGDE,
+        location_basis=[ref],locationConfidenceScore=.15,yearConfidenceScore=0,
+        uncertainty='Chengde is a provisional city inferred from the broader setting; confirm the city.')
+    saved=validate_extraction(dict(events=[event]),[dict(id='source',version=1,text=text)],[])[0]
+    assert saved['location']==CHENGDE and saved['locationConfidenceScore']==.15
+    assert placement_links([saved])==[]
+    event['location_basis']=[{**ref,'quote':'Fabricated context for a city guess.'}]
+    with pytest.raises(ValueError,match='authorised original'):
+        validate_extraction(dict(events=[event]),[dict(id='source',version=1,text=text)],[])
+
+
+@pytest.mark.parametrize('change', [dict(locationConfidenceScore=0),dict(locationConfidenceScore=.2),
+    dict(locationConfidenceScore=.85),dict(uncertainty=''),dict(location_basis=[]),
+    dict(location={**CHENGDE,'granularity':'suburb'})])
+def test_an_unquoted_city_requires_very_low_confidence_context_and_rationale(change):
+    from apps.api.memory_events import validate_extraction
+    text='As a child I played in the school compound in China.'
+    ref=dict(source_id='source',version=1,quote=text)
+    event=dict(kind='event',title='Childhood play',source_refs=[ref],location=CHENGDE,
+        location_basis=[ref],locationConfidenceScore=.15,yearConfidenceScore=0,
+        uncertainty='Chengde is only a provisional city.')
+    event.update(change)
+    with pytest.raises(ValueError,match='Location requires'):
+        validate_extraction(dict(events=[event]),[dict(id='source',version=1,text=text)],[])
+
+
+@pytest.mark.parametrize('change,accepted', [({},True),(dict(locationConfidenceScore=.2),False),
+    (dict(uncertainty=''),False),(dict(location_basis=[]),False)])
+def test_database_keeps_the_same_boundary_for_contextual_city_guesses(sql,change,accepted):
+    text='As a child I played in the school compound in China.'
+    source=rpc(sql,'accept_user_narrator_source',f"'project','00000000-0000-4000-8000-000000000001',{literal(text)}")
+    ref=dict(source_id=source['id'],version=1,quote=text)
+    event=dict(kind='event',title='Childhood play',source_refs=[ref],location=CHENGDE,
+        location_basis=[ref],locationConfidenceScore=.19,yearConfidenceScore=0,
+        uncertainty='Chengde is a provisional city inferred from the broader setting.')
+    event.update(change)
+    result=rpc(sql,'apply_user_memory_events',f"'project',{literal([dict(id=source['id'],version=1)])}::jsonb,"+
+        f"{literal([event])}::jsonb",check=False)
+    assert (result.returncode==0)==accepted,result.stderr
+
+
 def test_twenty_multilingual_rounds_and_last_event_fit_the_model_budget():
     from apps.api.lifetime_memory_composer import lane_model_budget, validate_page
     from apps.api.lifetime_memory_context import serialize_packet
@@ -131,13 +177,13 @@ def test_multiple_excerpts_select_exact_relative_spans_and_reject_ambiguity():
         extraction_events(dict(events=[event]),current)
 
 
-@pytest.mark.parametrize('confidence', [.3, .5, .8])
+@pytest.mark.parametrize('confidence', [.15, .3, .5, .8])
 def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the_same_event(sql,tmp_path,monkeypatch,confidence):
     from pathlib import Path
     import subprocess
 
     birth = 'I was born in Chengde in 1991.'
-    childhood = 'When I was little, I played in the staff compound at my father\'s school.'
+    childhood = 'When I was little, I played in the staff compound at my father\'s school in China.'
     confirmation = 'The compound was in Sydney in 1997.'
     packets = []
     feeds = []
@@ -168,7 +214,8 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
                 temporal_estimate=dict(year_start=1994,year_end=2003,age_start=3,age_end=12,confidence=confidence,
                     rationale='A broad childhood window anchored to the original birth year.',
                     basis=[reference(packet,text),prior_ref(previous,birth)]),
-                location_basis=[prior_ref(previous,birth)],uncertainty='Childhood city is not stated; Chengde is only a candidate.')
+                location_basis=[reference(packet,text)] if confidence<.2 else [prior_ref(previous,birth)],
+                uncertainty='Childhood city is not stated; Chengde is only a candidate.')
         elif text==confirmation:
             saved=packet['last_event']
             event.update(existing_id=saved['id'],expected_revision=saved['revision'],kind='period',

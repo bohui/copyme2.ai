@@ -3002,6 +3002,7 @@ CREATE FUNCTION public.apply_user_memory_events_before_photos(p_project_id text,
 declare owner_id uuid:=auth.uid(); item jsonb; saved public.user_narrator_source%rowtype; updated integer;
   proposal jsonb; ref jsonb; relation jsonb; evidence public.user_narrator_source%rowtype;
   current_event public.user_memory_event%rowtype; event_id text; event_data jsonb; event_refs jsonb; event_stage text; next_change bigint;
+  contextual_city boolean;
 begin
   if owner_id is null then raise exception 'authenticated user required' using errcode='42501'; end if;
   if pg_catalog.jsonb_typeof(p_sources) is distinct from 'array' or pg_catalog.jsonb_array_length(p_sources) not between 1 and 1000 or
@@ -3042,10 +3043,14 @@ begin
     if proposal ? 'location' and proposal->'location'<>'null'::jsonb then
       if not(proposal ? 'locationConfidenceScore') then
         raise exception 'location confidence required' using errcode='22023';end if;
+      contextual_city:=coalesce(proposal->'location'->>'granularity'='city'
+        and (proposal->>'locationConfidenceScore')::numeric>0 and (proposal->>'locationConfidenceScore')::numeric<0.2
+        and jsonb_array_length(coalesce(proposal->'location_basis','[]'))>0
+        and jsonb_typeof(proposal->'uncertainty')='string' and length(btrim(proposal->>'uncertainty'))>0,false);
       perform public.validate_two_lane_places((select string_agg(value->>'quote',E'\n')
         from jsonb_array_elements(coalesce(proposal->'location_basis','[]'))),
-        jsonb_build_array(jsonb_build_object('schema_version',1)||(proposal->'location')));
-      if not exists(select 1 from jsonb_array_elements(coalesce(proposal->'location_basis','[]')) basis_item
+        jsonb_build_array(jsonb_build_object('schema_version',1)||(proposal->'location')),0,not contextual_city);
+      if not contextual_city and not exists(select 1 from jsonb_array_elements(coalesce(proposal->'location_basis','[]')) basis_item
           where strpos(basis_item->>'quote',proposal->'location'->>'place')>0) then
         raise exception 'location requires original evidence' using errcode='22023';end if;
     end if;
@@ -13280,7 +13285,7 @@ begin
 end $$;
 revoke all on function public.validate_place_research_window(text,jsonb,integer) from public,anon,authenticated,service_role;
 
-CREATE FUNCTION public.validate_two_lane_places(p_source_text text, p_journeys jsonb, p_source_offset integer DEFAULT 0) RETURNS void
+CREATE FUNCTION public.validate_two_lane_places(p_source_text text, p_journeys jsonb, p_source_offset integer DEFAULT 0, p_require_named boolean DEFAULT true) RETURNS void
     LANGUAGE plpgsql
     SET search_path TO ''
     AS $$
@@ -13294,7 +13299,7 @@ begin
      or journey->'schema_version' is distinct from '1'::jsonb
      or jsonb_typeof(journey->'place') is distinct from 'string'
      or length(journey->>'place') not between 1 and 120
-     or strpos(lower(p_source_text),lower(journey->>'place'))=0
+     or (p_require_named is distinct from false and strpos(lower(p_source_text),lower(journey->>'place'))=0)
      or jsonb_typeof(journey->'hierarchy') is distinct from 'array'
      or jsonb_array_length(journey->'hierarchy') not between 2 and 6
      or journey->'hierarchy'->>0 is distinct from 'Earth'
@@ -14427,7 +14432,7 @@ revoke all on function public.validate_lifetime_replay_input(uuid, uuid, text, t
 revoke all on function public.validate_memory_evidence(uuid, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.validate_memory_temporal(uuid, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.validate_memory_temporal_before_attribution(uuid, text, jsonb) from public,anon,authenticated,service_role;
-revoke all on function public.validate_two_lane_places(text, jsonb, integer) from public,anon,authenticated,service_role;
+revoke all on function public.validate_two_lane_places(text, jsonb, integer, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.verify_lifetime_chosen_name_write() from public,anon,authenticated,service_role;
 revoke all on function public.workspace_progressive_rework_section(public.user_workspace_section_rework) from public,anon,authenticated,service_role;
 revoke all on function public.workspace_progressive_section_current(public.user_lifetime_memoir_section) from public,anon,authenticated,service_role;
