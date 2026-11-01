@@ -40,7 +40,7 @@ for (const city of cities) {
   assert.doesNotMatch(html,/Birth|Growing up|Shanghai study and work|Sydney residence|data-memory-explore|confidence/);
   if (city.city==='Chengde') assert.ok(html.includes(with_estimates
     ? 'From 1983 · About age 0 to About 2000 · About age 17'
-    : 'From 1983 · About age 0 to Year not yet known · Age not yet known'));
+    : 'From 1983 · About age 0 to ?'));
 }
 assert.ok(journey.legs.some(leg=>leg.from.city==='Shanghai' && leg.to.city==='Sydney'),
   'The skill’s sourced before relation must survive the database/API/client boundary');
@@ -54,7 +54,7 @@ for (const node of journey.nodes) {
     assert.match(html,/About \d{4}–\d{4} · About age \d+–\d+/);
     assert.ok(!('basis' in node.event.temporal_estimate));
   } else {
-    assert.match(html,/Year not yet known · Age not yet known/);
+    assert.match(html,/<span class="map-memory-date">\?<\/span>/);
   }
   assert.ok(!('source_refs' in node.event));
 }

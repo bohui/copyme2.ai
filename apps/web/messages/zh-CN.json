@@ -479,6 +479,7 @@
       "mapEventClose": "关闭事件卡片",
       "mapEventTimeUncertain": "时间尚不确定，足迹在此暂停。",
       "mapEventLocationUnknown": "地点待确认",
+      "mapEventUncertain": "推测，尚不确定",
       "mapEventsUnmapped": "{count}个事件的地点待补充",
       "mapEventLocationsLoading": "正在读取已保存的事件地点…",
       "mapEventLocationsUnavailable": "部分事件地点暂时无法加载。",

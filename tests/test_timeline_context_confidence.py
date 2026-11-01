@@ -131,7 +131,8 @@ def test_multiple_excerpts_select_exact_relative_spans_and_reject_ambiguity():
         extraction_events(dict(events=[event]),current)
 
 
-def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the_same_event(sql,tmp_path,monkeypatch):
+@pytest.mark.parametrize('confidence', [.3, .5, .8])
+def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the_same_event(sql,tmp_path,monkeypatch,confidence):
     from pathlib import Path
     import subprocess
 
@@ -163,7 +164,10 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
             assert packet['last_event']['title']=='Birth'
             assert packet['last_event']['places'][0]['place']['place']=='Chengde'
             event.update(kind='period',life_stage='childhood',stage_evidence=[reference(packet,'When I was little')],
-                temporal=None,locationConfidenceScore=0.55,yearConfidenceScore=0.0,
+                temporal=None,locationConfidenceScore=confidence,yearConfidenceScore=confidence,
+                temporal_estimate=dict(year_start=1994,year_end=2003,age_start=3,age_end=12,confidence=confidence,
+                    rationale='A broad childhood window anchored to the original birth year.',
+                    basis=[reference(packet,text),prior_ref(previous,birth)]),
                 location_basis=[prior_ref(previous,birth)],uncertainty='Childhood city is not stated; Chengde is only a candidate.')
         elif text==confirmation:
             saved=packet['last_event']
@@ -186,7 +190,7 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
         conversation.say('I remember the playground clearly.')
         context=conversation.foreground[-1]
         pending=next(event for event in context['events'] if event['id']==saved['id'])
-        assert pending['locationConfidenceScore']==0.55 and pending['yearConfidenceScore']==0
+        assert pending['locationConfidenceScore']==confidence and pending['yearConfidenceScore']==confidence
         assert pending['location']['place']=='Chengde'
         assert pending['needs_confirmation']==dict(location=True,year=True)
         drain(conversation)

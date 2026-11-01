@@ -476,6 +476,7 @@
       "mapEventZoomIn": "Zoom in to explore events",
       "mapEventCityLocation": "City location · exact place not yet known",
       "mapEventLocationUnknown": "Location to confirm",
+      "mapEventUncertain": "Estimated; not yet certain",
       "mapEventOpen": "Open this memory",
       "mapEventClose": "Close event card",
       "mapEventTimeUncertain": "Timing is uncertain; the trail pauses here.",

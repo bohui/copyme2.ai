@@ -76,6 +76,29 @@ test('each city card has its own add-memory action without expanding or continui
   }
 });
 
+test('provisional locations join city summaries and low-confidence dates use a small question mark', t=>{
+  const birth={...event('Birth',chengde,1983,'baby'),locationConfidenceScore:1,yearConfidenceScore:1};
+  const childhood={...event('School compound',chengde,null,'childhood'),canonical:true,revision:1,places:[],
+    location:chengde,locationConfidenceScore:.3,yearConfidenceScore:.3,
+    temporal_estimate:{year_start:1986,year_end:1995,age_start:3,age_end:12,confidence:.3,rationale:'A broad childhood estimate.'}};
+  const {map,cards,refresh,zoom}=mapFixture(t,false,[],[birth,childhood,event('Sydney arrival',sydney,2012,'young_adulthood')]);
+  assert.deepEqual(map.nodes().map(node=>node.event.id),['Birth','School compound','Sydney arrival']);
+  assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,2);
+  assert.doesNotMatch(cards.innerHTML,/School compound|data-memory-explore|Location to confirm|Age not yet known|Year not yet known/);
+  assert.match(cards.innerHTML,/map-memory-question/);
+  zoom(chengde);
+  assert.match(cards.innerHTML,/School compound/);
+  assert.match(cards.innerHTML,/1986/);
+  assert.match(cards.innerHTML,/1995/);
+  assert.match(cards.innerHTML,/map-memory-question/);
+  childhood.locationConfidenceScore=.5;
+  childhood.yearConfidenceScore=.5;
+  childhood.temporal_estimate.confidence=.5;
+  childhood.revision++;
+  refresh();
+  assert.doesNotMatch(cards.innerHTML,/map-memory-question/,'Exactly 50% does not get the below-50% marker');
+});
+
 test('city add-memory actions respect loading and payment restrictions and update when they clear', t=>{
   const {cards,added,add,setCanAddMemory}=mapFixture(t,false,[],undefined,false);
   assert.equal((cards.innerHTML.match(/data-memory-add disabled/g)||[]).length,3);
@@ -134,16 +157,18 @@ test('memories sharing only a city pin keep the intercity trail without inventin
   assert.ok(map.nodes().filter(node=>node.city==='Chengde').every(node=>node.longitude===chengde.longitude && node.latitude===chengde.latitude));
 });
 
-test('saved school-compound and snail memories remain separate cards without confirmed locations', t=>{
+test('events with no candidate city stay grouped in the overview and expand without inventing a map pin', t=>{
   for (const mobile of [false,true]) {
     const birth=event('Birth',chengde,1983,'baby');
     const compound={...event('School compound',chengde,null,'childhood'),places:[],locationConfidenceScore:.3};
     const snail={...compound,id:'Snail outing',title:'Snail outing'};
-    const {map,cards,flights,explored,click,explore,zoom}=mapFixture(t,mobile,[],[birth,compound,snail]);
+    const {map,cards,flights,explored,click,explore,expand}=mapFixture(t,mobile,[],[birth,compound,snail]);
+    assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,2);
+    assert.doesNotMatch(cards.innerHTML,/School compound|Snail outing|Location to confirm|data-memory-explore/);
+    assert.deepEqual(map.nodes().map(node=>node.event.id),['Birth'],'Unknown locations must not inherit the birth pin');
+    expand('unlocated');
     assert.match(cards.innerHTML,/School compound/);
     assert.match(cards.innerHTML,/Snail outing/);
-    assert.match(cards.innerHTML,/Location to confirm/);
-    assert.deepEqual(map.nodes().map(node=>node.event.id),['Birth'],'Unknown locations must not inherit the birth pin');
     for (const memory of [compound,snail]) {
       assert.equal((cards.innerHTML.match(new RegExp(`data-memory-explore="${memory.id}"`,'g'))||[]).length,1);
       click(`unlocated:${memory.id}`);
@@ -151,18 +176,18 @@ test('saved school-compound and snail memories remain separate cards without con
     }
     assert.deepEqual(explored,['School compound','School compound','Snail outing','Snail outing']);
     assert.equal(flights.length,0,'Opening an unlocated memory must not fly to the birth city');
-    zoom(chengde);
-    assert.match(cards.innerHTML,/School compound/);
-    assert.match(cards.innerHTML,/Snail outing/);
   }
 });
 
 test('an unlocated memory is visible alone and moves into its city once its location is confirmed', t=>{
   const memory={...event('School compound',chengde,null,'childhood'),places:[]};
-  const {map,cards,refresh,hidden,zoom}=mapFixture(t,false,[],[memory]);
+  const {map,cards,refresh,hidden,zoom,expand}=mapFixture(t,false,[],[memory]);
   assert.equal(hidden(),false);
-  assert.match(cards.innerHTML,/School compound/);
+  assert.match(cards.innerHTML,/<strong class="map-memory-summary">\?<\/strong>/);
+  assert.doesNotMatch(cards.innerHTML,/School compound/);
   assert.equal(map.nodes().length,0);
+  expand('unlocated');
+  assert.match(cards.innerHTML,/School compound/);
   memory.revision++;
   memory.places=[{role:'setting',status:'supported',place:chengde}];
   refresh();

@@ -36,24 +36,27 @@ the twenty-round window. Use these antecedents to understand “there”, “tha
 and continuation of an existing event. Cite original narrator evidence for each
 placement; assistant wording remains context only.
 
-Return locationConfidenceScore and yearConfidenceScore as numbers from 0 to 1
-for EVERY proposed event. Use 0 for unknown or unsupported placement, 1 for an
-explicit unambiguous original statement, and intermediate values for contextual
-resolution. location is the candidate coarse public place, with exact
-location_basis references from the current original and/or the supplied earlier
-originals. temporal.basis may also cite those authorized earlier originals.
-Explain ambiguity in uncertainty. Birth in a city alone gives weak support for
-a later childhood setting: “小时候在爸爸学校家属院玩” after a Chengde birth
-may suggest Chengde, but requires location confirmation; the year remains unknown.
-The host treats a score below 0.85 as needing confirmation and passes that context
-to Mira in Lane A. Preserve candidate placements for that clarification instead
-of promoting them to established map locations. Keep each event's primary
-source_refs on the CURRENT original; earlier placement evidence is a dependency.
+Return locationConfidenceScore and yearConfidenceScore from 0 to 1 for EVERY
+proposed event. Select the most plausible coarse location from the authorized
+originals, including earlier conversation and saved event context, and cite its
+exact location_basis. Use 1 for an explicit unambiguous placement and a score
+below 0.5 for a weak guess. Retain the candidate even when its confidence is low;
+location=null and score=0 mean no candidate is supported anywhere in that context.
+Explain the inference in uncertainty. Birth in Chengde followed by
+“小时候在爸爸学校家属院玩” supports a tentative Chengde candidate with low confidence,
+plus a broad childhood age/year estimate anchored to the original birth evidence.
+The workspace groups provisional candidates with a small question mark below
+50%; only scores of at least 0.85 create established map links. Mira still receives
+lower-confidence placement for clarification. Keep primary source_refs on the
+CURRENT original; earlier placement evidence is a dependency, not new testimony.
 
 When later originals improve a saved event's placement confidence, update that
 event with existing_id and expected_revision, revised placement values and the
-new evidence. Compare its saved temporal_estimate and confidence; return the
-improved estimate on that identity. Keep yearConfidenceScore aligned with
+new evidence. When a follow-up adds activity details without new placement
+evidence, carry forward its candidate location and temporal_estimate with their
+authorized basis and confidence. Revise them when new evidence supports a
+different estimate or contradicts the earlier guess. Return those placements on
+the same identity. Keep yearConfidenceScore aligned with
 temporal_estimate.confidence while the preferred year remains inferred. New
 stated timing takes precedence over an earlier guess.
 
@@ -65,7 +68,7 @@ Store only bounds expressed in the cited words in temporal.year_start/year_end.
 For “2012年7月开始在这里住”, the stated start is 2012 and the stated end is null.
 Any endpoint derived from created_at belongs only in temporal_estimate, even
 after one bound has been confirmed.
-For missing years or ages, return a separate temporal_estimate: bounded year and/or
+For missing years or ages, return the best provisional temporal_estimate: bounded year and/or
 age ranges, confidence strictly between 0 and 1, a concise rationale, and exact
 basis references. Use contextual dates, elapsed durations and before/after links
 across the authorized originals. Anchor “now” and “fourteen years here” to the
@@ -79,7 +82,11 @@ range with low confidence (typically 0.2–0.5); calendar estimates need an orig
 birth/date/duration anchor. Explain those assumptions in rationale. Derive both
 year and age ranges when anchors permit. Set temporal_estimate=null only when
 the originals cannot support either estimate or stated timing already suffices.
-Keep inferred numbers out of stated temporal fields; capture order alone is not
+Uncertainty lowers confidence instead of deleting a supported estimate. For a
+current residence with an unknown start, use a broad plausible interval from the
+authorized birth/life-stage anchors to the original capture year, with low
+confidence and the assumed start explained in rationale. Keep inferred numbers
+out of stated temporal fields; capture order alone is not
 chronology. yearConfidenceScore describes the preferred stated or estimated year
 placement, with 0 when neither exists. Estimates remain revisable and never replace
 an explicit author correction. Keep a long residence or occupation as one kind:

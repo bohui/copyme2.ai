@@ -61,7 +61,7 @@ test('city summaries show the city and first-to-last timing, with event copy res
   const individual=memoryEventCardMarkup(journey.nodes[0],{t,lifeStageText:stage=>stage});
   assert.match(individual,/Birth event title/);
   assert.match(individual,/Birth event description/);
-  assert.match(individual,/Event uncertainty/);
+  assert.doesNotMatch(individual,/Event uncertainty/);
   assert.match(individual,/data-memory-explore="first"/);
 });
 
@@ -72,7 +72,7 @@ test('one-event city summaries still expand and retain unknown timing at the las
     const grouped=cityEventCards(buildMapMemoryJourney(events,groups,{birth_year:1983}).nodes)[0];
     const html=memoryEventCardMarkup(grouped,{t,lifeStageText:stage=>stage});
     assert.match(html,events.length===1 ? /From 1983 · About age 0 to 1983 · About age 0/
-      : /From 1983 · About age 0 to Year not yet known · Age not yet known/);
+      : /From 1983 · About age 0 to \?/);
     assert.match(html,/Expand memories/);
     assert.doesNotMatch(html,/data-memory-explore|Explore this memory/);
   }
@@ -256,7 +256,7 @@ test('cards escape model content and show the memory and action without city or 
   assert.match(html,/Childhood/);
   assert.match(html,/<strong class="map-memory-summary">A &lt;script&gt;memory&lt;\/script&gt;<\/strong>/);
   assert.match(html,/<\/button><button[^>]+data-memory-explore="unsafe"/);
-  assert.match(html,/Maybe 1988/);
+  assert.doesNotMatch(html,/Maybe 1988/);
   assert.doesNotMatch(html.replace(/<[^>]+>/g,''),/Newtown|Childhood/);
 });
 
@@ -280,7 +280,8 @@ test('cards show readiness with colored rings and keep confidence scores out of 
 test('unplaced events keep a neutral avatar and unknown dates rather than an invented life stage', () => {
   const {nodes}=buildMapMemoryJourney([{...event('unknown',6,school,'unplaced'),temporal:null,yearConfidenceScore:0}],groups);
   const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=>''});
-  assert.match(html,/Year not yet known · Age not yet known/);
+  assert.match(html,/<span class="map-memory-date">\?<\/span>/);
+  assert.doesNotMatch(html,/Year not yet known|Age not yet known/);
   assert.doesNotMatch(html,/confidence|>\d+%</);
   assert.match(html,/is-unknown[^]*Stage not yet known[^]*<svg/);
   assert.doesNotMatch(html,/timeline_avatar_/);

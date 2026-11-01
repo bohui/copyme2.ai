@@ -174,6 +174,21 @@ def test_map_cards_read_active_events_during_ordinary_recall_without_original_ev
     assert client.get('/v1/story/events?project_id=read-project').status_code == 403
 
 
+def test_map_feed_retains_a_provisional_city_and_confidence_without_original_evidence(mapped):
+    client, _, _, result = mapped
+    location = dict(place='Chengde', hierarchy=['Earth','China','Chengde'], granularity='city')
+    result.clear()
+    result.update(events=[dict(id='childhood', revision=1, status='active', title='School compound',
+        location=location, locationConfidenceScore=.3, yearConfidenceScore=.3,
+        location_basis=[dict(quote='Private birth evidence')], source_refs=[dict(quote='Private childhood memory')])])
+    response=client.get('/v1/story/map-events?project_id=read-project')
+    assert response.status_code==200
+    event=response.json()['events'][0]
+    assert event['location']==location
+    assert event['locationConfidenceScore']==.3
+    assert 'Private' not in response.text
+
+
 @pytest.mark.parametrize('quote,changes,present', [
     ('I currently live in Sydney.', {}, True),
     ("I'm currently living in Sydney.", {}, True),

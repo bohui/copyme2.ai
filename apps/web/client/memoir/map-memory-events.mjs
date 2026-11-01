@@ -5,7 +5,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
   getPage = () => null, getReadiness = () => ({}), getCanAddMemory = () => true, readPlaces, resolvePlaces = async places => places,
   t, lifeStageText, onExplore, onAdd, onLoadMore, onOverview = () => {}, onChange = () => {}}) {
   let layer, sceneElement, viewer, cesium, removePostRender, scope, journey, signature, selectedKey;
-  let focusedCity = null, viewCity = null, listView, lastMode, initialIdentity, overviewRequested = false;
+  let focusedCity = null, viewCity = null, listView, lastMode, initialIdentity, overviewRequested = false, overviewMode = true;
   let placeGroups = [];
   const places = new Map();
   const footprint = typeof Image === "undefined" ? null : new Image();
@@ -18,7 +18,8 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       if (places.has(key)) continue;
       const captured = scope;
       const supplied = Array.isArray(event.places);
-      const entry = {items:supplied ? event.places.filter(item => !item.status || item.status === "supported") : []};
+      const entry = {items:supplied ? event.places.filter(item => !item.status || item.status === "supported") : [],
+        conflicted:event.place_conflicts?.includes("setting") || event.places?.some(item => item.status === "conflicted")};
       places.set(key, entry);
       // Event locations have their own bounded pages; never infer them from a
       // shared source passage that may describe several different memories.
@@ -29,11 +30,15 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
           if (!supplied) do {
               const page = await readPlaces(event.id, cursor);
               if (getScope() !== captured || places.get(key) !== entry) return;
+              entry.conflicted ||= page.items?.some(item => item.status === "conflicted");
               entry.items.push(...(page.items || []).filter(item => item.status === "supported"));
               cursor = page.next_cursor;
               if (cursor && seen.has(cursor)) throw new Error("Repeated event location page");
               seen.add(cursor);
             } while (cursor);
+          if (!entry.items.length && !entry.conflicted && event.location && event.locationConfidenceScore > 0) {
+            entry.items.push({role:"setting",status:"candidate",place:event.location});
+          }
           const resolved = await resolvePlaces(entry.items.map(item => item.place));
           if (getScope() !== captured || places.get(key) !== entry) return;
           entry.items = entry.items.map((item,index) => ({...item,place:resolved[index] || item.place}));
@@ -46,7 +51,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
 
   function sync(scene, focusedKey = null) {
     const nextScope = getScope();
-    if (nextScope !== scope) { scope = nextScope; places.clear(); selectedKey = null; focusedCity = null; viewCity = null; listView = null; signature = null; }
+    if (nextScope !== scope) { scope = nextScope; places.clear(); selectedKey = null; focusedCity = null; viewCity = null; listView = null; signature = null; overviewMode = true; }
     sceneElement = scene;
     const events = getEvents();
     loadPlaces(events);
@@ -79,13 +84,14 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         const key = target.dataset.mapMemory;
         const unlocated = journey.unlocated.find(node => node.key === key);
         if (unlocated) { onExplore(unlocated.event.id); return; }
-        const city = cityEventCards(journey.nodes).find(city => target.hasAttribute("data-memory-city")
+        const city = cityEventCards([...journey.nodes,...journey.unlocated]).find(city => target.hasAttribute("data-memory-city")
           ? city.groupKey === target.dataset.memoryCity : city.key === key);
         if (city) {
           const focused = document.activeElement === target;
           focusedCity = city.groupKey;
+          overviewMode = false;
           selectedKey = null;
-          frame(city.nodes,2500);
+          if (city.groupKey !== "unlocated") frame(city.nodes,2500);
           position();
           if (focused) [...layer.querySelectorAll("[data-map-memory]")]
             .find(button => button.dataset.mapMemory === city.nodes[0].key)?.focus({preventScroll:true});
@@ -109,7 +115,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const failed = [...places.values()].some(entry => entry.failed);
     const pending = [...places.values()].some(entry => !entry.complete && !entry.failed);
     const note = failed ? t("mapEventLocationsUnavailable") : pending ? t("mapEventLocationsLoading") : page?.page_error ? t("savedPageChanged")
-      : journey.unmapped ? t("mapEventsUnmapped", {count:journey.unmapped}) : "";
+      : "";
     layer.querySelector(".map-memory-toolbar").innerHTML = `<span class="map-memory-caption"><img src="/static/map-footprints.svg" alt="" />${escapeHtml(t("mapMemoryJourney"))}</span><button type="button" data-memory-overview>${escapeHtml(t("mapMemoryOverview"))}</button>${note || page?.next_cursor ? `<span class="map-memory-status" role="status">${escapeHtml(note)}${failed ? `<button type="button" data-memory-retry>${escapeHtml(t("mapEventRetry"))}</button>` : ""}${page?.next_cursor || page?.page_error ? `${page?.next_cursor ? escapeHtml(t("mapEventsPartial")) : ""}<button type="button" data-memory-more ${page.loading_page ? "disabled" : ""}>${escapeHtml(t(page.page_error ? "reloadSavedPages" : page.loading_page ? "loadingSavedPage" : "loadMoreEvents"))}</button>` : ""}</span>` : ""}`;
     signature = null;
     position();
@@ -120,6 +126,8 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
 
   function overview() {
     focusedCity = null;
+    viewCity = null;
+    overviewMode = true;
     selectedKey = null;
     overviewRequested = true;
     onOverview();
@@ -162,11 +170,12 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const zoom = viewer.scene.mode === cesium.SceneMode.SCENE2D ? viewer.camera.frustum.right - viewer.camera.frustum.left
       : viewer.camera.positionCartographic.height;
     const detailed = zoom < 18000;
+    if (detailed && lastMode === false) overviewMode = false;
     if (lastMode === true && !detailed) focusedCity = null;
     lastMode = detailed;
     const project = point => cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,
       cesium.Cartesian3.fromDegrees(point.longitude,point.latitude));
-    const cities = cityEventCards(journey.nodes);
+    const cities = cityEventCards([...journey.nodes,...journey.unlocated]);
     const previousCity = viewCity;
     const eventCities = placeGroups.filter(group => cities.some(city => city.groupKey === group.key));
     const cityLocations = placeGroups.map(group => {
@@ -179,11 +188,15 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     });
     const visibleCities = new Set(cityLocations.filter(city => mapCityInView([city],project,width,height) !== null)
       .map(city => city.groupKey));
-    if (focusedCity && !visibleCities.has(focusedCity)) focusedCity = null;
-    viewCity = focusedCity ?? (visibleCities.size === 1 ? [...visibleCities][0]
+    if (focusedCity && !cities.some(city => city.groupKey === focusedCity)) {
+      focusedCity = null;overviewMode = true;
+    }
+    if (focusedCity && focusedCity !== "unlocated" && !visibleCities.has(focusedCity)) focusedCity = null;
+    if (!detailed && visibleCities.size > 1 && !focusedCity) overviewMode = true;
+    viewCity = overviewMode ? null : focusedCity ?? (visibleCities.size === 1 ? [...visibleCities][0]
       : detailed ? mapCityInView(cityLocations,project,width,height) : null);
     const locatedCards = viewCity !== null || detailed ? (cities.find(city => city.groupKey === viewCity)?.nodes || []) : cities;
-    const cards = [...locatedCards, ...journey.unlocated];
+    const cards = overviewMode ? cities : locatedCards;
     if (selectedKey && !cards.some(card => card.key === selectedKey || card.nodes?.some(node => node.key === selectedKey))) {
       selectedKey = null;
     }
@@ -280,6 +293,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
   function dispose() {
     removePostRender?.();removePostRender = null;viewer = null;layer = null;sceneElement = null;signature = null;lastMode = null;selectedKey = null;viewCity = null;
     initialIdentity = undefined;focusedCity = null;overviewRequested = false;
+    overviewMode = true;
   }
   return {sync, attach, dispose, overview, nodes:() => journey?.nodes || [], viewCity:() => viewCity};
 }

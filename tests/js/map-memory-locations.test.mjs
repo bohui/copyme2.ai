@@ -45,7 +45,15 @@ test('conflicted locations are excluded even when they have a matching city', as
   const h=setup(t,async()=>({items:[{...supported,status:'conflicted'}],next_cursor:null}));
   h.overlay.sync(h.scene);await settle();
   assert.equal(h.classes.has('has-map-memories'),false);
-  assert.match(h.toolbar.innerHTML,/mapEventsUnmapped/);
+  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventsUnmapped/);
+});
+
+test('a conflicting location read cannot restore a provisional city from the event metadata', async t => {
+  const h=setup(t,async()=>({items:[{...supported,status:'conflicted'}]}),{
+    getEvents:()=>[{...events[0],location:city,locationConfidenceScore:.3}],
+  });
+  h.overlay.sync(h.scene);await settle();
+  assert.equal(h.overlay.nodes().length,0);
 });
 
 test('a late location page cannot paint into a different project or policy scope', async t => {
