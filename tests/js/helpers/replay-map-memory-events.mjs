@@ -124,9 +124,9 @@ const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:c
 workspace.mapMemoryEvents.attach(viewer,{SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
   SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:150+(point.longitude-151.18)*1000,y:240+(point.latitude+33.88)*1000})}});
 assert.doesNotMatch(cards.innerHTML,/map-memory-detail/);
-assert.equal((cards.innerHTML.match(/data-memory-explore=/g)||[]).length,0,
-  'The initial overview contains a city summary instead of individual events');
-assert.equal((cards.innerHTML.match(/data-memory-city=/g)||[]).length,1);
+assert.equal((cards.innerHTML.match(/data-memory-explore=/g)||[]).length,2,
+  'The restored active city shows its own events instead of resetting to the whole journey');
+assert.equal((cards.innerHTML.match(/data-memory-city=/g)||[]).length,0);
 assert.ok(classes.has('is-compact'),'Narrow desktop panels use the compact card layout');
 viewer.camera.frustum={left:-4000,right:4000};afterRender();
 for(const text of ['Age 6','Age 25']) assert.ok(cards.innerHTML.includes(text),text);

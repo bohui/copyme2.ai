@@ -19,6 +19,64 @@ from test_memoir_background_agent_postgres import service
 from test_agent_commit_postgres import OWNER
 
 
+@pytest.mark.parametrize('text,preference,locale',[
+    ('我于1983年4月出生在承德。',None,'zh-CN'),
+    ('我于1983年4月出生在承德。','en-AU','en-AU'),
+    ('I was born in Chengde in April 1983.','zh-CN','zh-CN'),
+    ('I was born in Chengde in April 1983.',None,'en-AU'),
+])
+def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,monkeypatch,text,preference,locale):
+    from test_conversation_attribution import episode
+    monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
+    monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
+    phases=[]
+    title='1983年4月出生在承德' if locale=='zh-CN' else 'Born in Chengde in April 1983'
+    class LocalizedConnection(ControlledSkillConnection):
+        async def turn(self,thread_id,prompt,**options):
+            task=json.loads(prompt)['task']
+            if task.get('lane')=='B':
+                assert task['locale']==locale, 'Resolve context before selecting any source skills.'
+                return await super().turn(thread_id,prompt,**options)
+            fields=options['output_schema']['properties']
+            phase='profile' if 'profile_patch' in fields else 'extract'
+            phases.append(phase)
+            assert task['lane_context']['preferences']['language']==locale
+            language='Simplified Chinese' if locale=='zh-CN' else 'Australian English'
+            assert f'Write in {language}; preserve original quoted source language.' in self.start['baseInstructions']
+            output=json.loads(await super().turn(thread_id,prompt,**options))
+            if phase=='extract':
+                packet=task['payload']
+                output['events']=[episode(packet,packet['sources'][0]['text'],title=title)]
+            return json.dumps(output)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',LocalizedConnection)
+    conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
+    native=CodexWorker(home_root=tmp_path / 'worker',command=['controlled'],
+        base_url='http://synthetic.invalid',api_key='synthetic')
+    app=FastAPI()
+    @app.post('/internal/codex/turn')
+    async def turn(payload:WorkerTurnInput):
+        return await native.turn(payload)
+    worker=MemoryEventWorker(Broker(sql),worker_url='http://controlled.invalid',worker_secret='synthetic',
+        worker_transport=httpx.ASGITransport(app=app))
+    with conversation.client:
+        conversation.say(text,**({'language':preference} if preference else {}))
+        conversation.deliver_receipts()
+        run,=service(sql,'pending_memoir_background_agents')
+        result=asyncio.run(worker.execute_background_agent(run))
+        assert result['status']=='finished',result
+        assert phases==['profile','extract']
+        profile=conversation.client.get('/v1/agent/profile').json()
+        assert profile['preferred_language']==locale
+        response=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project})
+        assert response.status_code==200,response.text
+        assert [event['title'] for event in response.json()['events']]==[title]
+        replay=subprocess.run(['node',str(Path(__file__).parent/'js/helpers/replay-background-locale.mjs')],
+            input=json.dumps(dict(project_id=conversation.project,feed=response.json(),profile=profile,locale=locale,title=title)),
+            text=True,capture_output=True,timeout=10)
+        assert replay.returncode==0,replay.stdout+replay.stderr
+
+
 @pytest.mark.parametrize('profile_first',[False,True])
 def test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations(sql,tmp_path,monkeypatch,profile_first):
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')

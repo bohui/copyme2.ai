@@ -46,6 +46,19 @@ def fence_for(current):
     return LaneFence.model_validate({k:v for k,v in current.items() if k in LaneFence.model_fields})
 
 
+@pytest.mark.parametrize('locale,language',[('zh-CN','Simplified Chinese'),('en-AU','Australian English')])
+@pytest.mark.parametrize('phase',['extract','profile','summarize','guidance','prepare','draft','review'])
+def test_every_lane_phase_applies_the_resolved_output_language(phase,locale,language):
+    from apps.api.lifetime_memory_lane_engine import lane_contract
+    from test_background_profile import profile_page
+    current=profile_page()
+    current['locale']=locale
+    current['preferences']['language']=locale
+    current['guidance_context']={'source_windows':[current['source']]}
+    instructions,_=lane_contract(phase,locale,fence=fence_for(current))
+    assert f'Write in {language}; preserve original quoted source language.' in instructions
+
+
 def test_question_answer_context_is_bounded_and_bound_to_the_extraction_page():
     current = page()
     exchange = {'status': 'responded', 'question': {'text': 'Was that his mother?',

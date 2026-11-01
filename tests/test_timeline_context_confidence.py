@@ -138,7 +138,7 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
 
     birth = 'I was born in Chengde in 1991.'
     childhood = 'When I was little, I played in the staff compound at my father\'s school.'
-    confirmation = 'The compound was in Chengde in 1997.'
+    confirmation = 'The compound was in Sydney in 1997.'
     packets = []
     feeds = []
 
@@ -172,6 +172,7 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
         elif text==confirmation:
             saved=packet['last_event']
             event.update(existing_id=saved['id'],expected_revision=saved['revision'],kind='period',
+                location=dict(place='Sydney',hierarchy=['Earth','Australia','Sydney'],granularity='city'),
                 temporal=dict(expression='1997',precision='year',year_start=1997,year_end=1997,basis=[reference(packet,text)]),
                 uncertainty='')
         else:
@@ -184,6 +185,7 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
         conversation.say(childhood);drain(conversation)
         feed=capture_map_feed()
         saved=next(event for event in feed['events'] if event['kind']=='period')
+        assert saved['location']==CHENGDE
         assert len(feed['events'])==2 and saved['id']!=next(event['id'] for event in feed['events'] if event['kind']=='event')
         places=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places').json()
         assert places['items']==[], 'A low-confidence candidate must not become a map location'
@@ -199,7 +201,7 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
         updated=next(event for event in feed['events'] if event['id']==saved['id'])
         assert updated['temporal']['year_start']==1997
         places=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places').json()
-        assert [item['place']['place'] for item in places['items']]==['Chengde']
+        assert [item['place']['place'] for item in places['items']]==['Sydney']
         replay=Path(__file__).parent/'js/helpers/replay-unlocated-memory-cards.mjs'
         result=subprocess.run(['node',str(replay)],input=json.dumps(dict(
             project_id=conversation.project,childhood_id=saved['id'],feeds=feeds)),

@@ -4132,6 +4132,10 @@ begin
  previous_owner:=current_setting('request.jwt.claim.sub',true);
  perform set_config('request.jwt.claim.sub',lane.user_id::text,true);
  pins:=public.read_lifetime_pinned(identity.conversation_id);
+ -- Resolve conversation work before selecting or resuming a snapshot; composer keeps its explicit edition.
+ if lane.skill in ('timeline','guidance') and lane.locale is distinct from (pins->>'language') then
+   update public.user_memoir_lane set locale=pins->>'language' where id=lane.id returning * into lane;
+ end if;
  if lane.skill='guidance' then
    news:=public.read_user_historical_news(lane.project_id);
    news_manifest:=jsonb_build_object('context_revision',news->>'context_revision',
@@ -9063,6 +9067,7 @@ begin
        'temporal_estimate',case when jsonb_typeof(event_record.data->'temporal_estimate')='object'
          then (event_record.data->'temporal_estimate')-'basis' end,
        'uncertainty',event_record.data->'uncertainty','assertion',event_record.data->'assertion',
+       'location',event_record.data->'location',
        'locationConfidenceScore',event_record.data->'locationConfidenceScore','yearConfidenceScore',event_record.data->'yearConfidenceScore',
        'timing_conflict',coalesce(event_record.data->'timing_conflict','false'),
        'details_complete',not exists(select 1 from unnest(array['temporal_accounts','relations','candidate_ids','supersedes','contradicts']) k
