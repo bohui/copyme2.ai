@@ -31,6 +31,13 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const sourceCities = groups.filter(group => group.members.some(member => Number(member.source_sequence) === latestSource));
     if (latestSource > (focus?.source_sequence || 0) && sourceCities.length > 1
         || !focus?.place && initial?.preview && groups.length > 1) {
+      if (activeCityKey === undefined) try {
+        const saved = JSON.parse(localStorage.getItem(`memory-spark-map-city:${identity}`));
+        if (saved?.source_sequence === latestSource && saved.source_revision === (getPage()?.source_revision || 0)
+            && JSON.parse(saved.scope)?.[0] === identity && (saved.city === null || groups.some(group => group.key === saved.city))) {
+          activeCityKey = saved.city;cityScope = saved.scope;
+        }
+      } catch { /* An unconfirmed turn cannot infer a city from an older choice. */ }
       return activeCityKey !== undefined ? activeCityKey : focusedCity ?? undefined;
     }
     const matches = focus?.place ? groups.filter(group => matchesEventPlace({place:focus.place},group.city)
@@ -64,11 +71,19 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
 
   function rememberCity(city) {
     activeCity();
-    if (activeCityKey === city) return;
     activeCityKey = city;
+    cityScope ||= JSON.stringify([getIdentity(),null]);
     try {
-      localStorage.setItem(`memory-spark-map-city:${getIdentity()}`, JSON.stringify({scope:cityScope, city}));
+      localStorage.setItem(`memory-spark-map-city:${getIdentity()}`, JSON.stringify({scope:cityScope, city,
+        source_sequence:Math.max(Number(getInitialPlace()?.source_sequence) || 0,
+          ...placeGroups.flatMap(group => group.members.map(member => Number(member.source_sequence) || 0))),
+        source_revision:getPage()?.source_revision || 0}));
     } catch { /* The current viewer still retains its selection. */ }
+  }
+
+  function selectCity(city) {
+    rememberCity(city);
+    focusedCity = city;viewCity = city;overviewMode = false;selectedKey = null;
   }
 
   function loadPlaces(events) {
@@ -406,7 +421,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     visibleCityKeys = [];
     arrivalCity = undefined;
   }
-  return {sync, attach, dispose, overview, activeCity, hasAnimatedCity, rememberFlight,
+  return {sync, attach, dispose, overview, activeCity, selectCity, hasAnimatedCity, rememberFlight,
     visibleCities:() => getScope() === scope ? visibleCityKeys : [],
     nodes:() => getScope() === scope ? journey?.nodes || [] : [],
     viewCity:() => { const city = activeCity();return initialIdentity !== cityScope ? city : flyingToCity ?? viewCity; }};

@@ -388,6 +388,8 @@ export function createPlaceWorkspace({
       || workspacePlaceGroups(entries).find(group => placeHistoryKey(group.city) === key)?.members.at(-1);
     if (place) {
       state.placeJourney = place;
+      const group = workspacePlaceGroups(entries).find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(place)));
+      if (group) mapMemoryEvents.selectCity(group.key);
       resolvePlaceMap(place);
       void loadPlacePictures(place, state.project?.id);
     }

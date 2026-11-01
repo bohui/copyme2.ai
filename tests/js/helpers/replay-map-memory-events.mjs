@@ -118,6 +118,7 @@ assert.deepEqual(requests.sort(),['Newtown','Pyrmont']);
 assert.ok(workspace.placeWorkspaceSelection(),'Canonical event locations must activate a map without a separate journey hint');
 assert.equal(JSON.stringify(state.project.profile.memory_places),history,'Event map lookup must not rewrite place history');
 workspace.mapMemoryEvents.sync(scene);
+workspace.mapMemoryEvents.selectCity(journey.nodes[0].groupKey);
 let afterRender;
 const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:callback=>{afterRender=callback;return ()=>{};}}},
   camera:{frustum:{left:-50000,right:50000},flyTo(){}}};

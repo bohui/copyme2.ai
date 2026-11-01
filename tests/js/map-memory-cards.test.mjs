@@ -217,6 +217,17 @@ test('two cities from one source wait for the question to confirm the active cit
   assert.equal(fixture.flights[0].destination.latitude,chengde.latitude);
 });
 
+test('an explicit city choice can confirm an ambiguous turn and restore across refresh',t=>{
+  const places=[chengde,sydney].map(place=>({...place,source_sequence:1}));
+  const settings={places,initialPlace:places[1],values:new Map()};
+  const fixture=mapFixture(t,false,[],undefined,true,settings);
+  fixture.map.selectCity(groupPlaces([chengde])[0].key);fixture.refresh();
+  assert.equal(fixture.map.activeCity(),groupPlaces([chengde])[0].key);
+  fixture.map.dispose();
+  const refreshed=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(refreshed.initialFlights[0].destination.latitude,chengde.latitude);
+});
+
 test('continuing the conversation in the same city never reframes the camera',t=>{
   const settings={initialPlace:chengde,questionFocus:{place:'Chengde',source_sequence:1},center:chengde};
   const fixture=mapFixture(t,false,[],undefined,true,settings);

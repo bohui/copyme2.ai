@@ -61,7 +61,7 @@ for (const node of journey.nodes) {
   assert.ok(!('source_refs' in node.event));
 }
 
-const stamps=[],frames=[];
+const stamps=[],frames=[],views=[];
 const canvas={getContext:()=>new Proxy({clearRect:()=>{stamps.length=0;},drawImage:(_,x,y,width)=>stamps.push(width)},
   {get:(target,key)=>target[key] || (()=>{})})};
 const cards={innerHTML:'',scrollTop:0,getBoundingClientRect:()=>({top:0,bottom:700}),querySelectorAll:()=>[]};
@@ -79,7 +79,8 @@ Object.assign(globalThis,{window:{devicePixelRatio:1,matchMedia:()=>({matches:fa
 const destination=places.find(place=>place.place==='Sydney');
 let center=destination,redraw;
 const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:callback=>{redraw=callback;}}},
-  camera:{frustum:{left:-4000,right:4000},flyTo:frame=>{frames.push(frame);center=frame.destination;}}};
+  camera:{frustum:{left:-4000,right:4000},flyTo:frame=>{frames.push(frame);center=frame.destination;},
+    setView:view=>{views.push(view);center=view.destination;}}};
 const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
   SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:300+(point.longitude-center.longitude)*500,
     y:350+(point.latitude-center.latitude)*500})}};
@@ -93,6 +94,7 @@ const workspace=()=>{
   return result;
 };
 const first=workspace(),map=first.mapMemoryEvents;
+map.selectCity(groupPlaces([destination])[0].key);
 map.sync(scene);map.attach(viewer,cesium);
 assert.ok(stamps.length>0 && stamps.every(size=>size===16),'A sourced intercity trail stays visible in the one-event Sydney view');
 assert.equal(frames.length,1);
@@ -104,9 +106,11 @@ const active=places.find(place=>place.place==='Chengde');
 const groupKey=map.nodes().find(node=>node.city==='Chengde').groupKey;
 listeners.click({target:{closest:()=>({dataset:{memoryCity:groupKey},hasAttribute:name=>name==='data-memory-city'})}});
 assert.equal(frames.at(-1).destination.latitude,active.latitude);
+const beforeReopen=frames.length;
 map.dispose();scene.child=null;map.sync(scene);map.attach(viewer,cesium);
-assert.equal(frames.at(-1).destination.latitude,active.latitude,'Reopening must fly to the last active API city');
-assert.ok(frames.at(-1).destination.height<=40000);
+assert.equal(frames.length,beforeReopen,'Reopening must restore the API city without another animation');
+assert.equal(views.at(-1).destination.latitude,active.latitude);
+assert.ok(views.at(-1).destination.height<=40000);
 map.dispose();
 scene.child=null;
 const refreshed=workspace();

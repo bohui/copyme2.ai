@@ -104,10 +104,12 @@ test('selecting a restored place starts its own photo request', () => {
   const entry = {place: '承德市', granularity: 'city', period: '1983年4月'};
   const calls = [];
   const mapped = [];
+  const chosen = [];
   const state = {project: {id: 'project'}};
   const context = vm.createContext({state, profile: () => ({memory_places: [entry]}),
     placeHistoryKey: place => place.place, loadPlacePictures: (place, project) => calls.push([place, project]),
     render: () => {},resolvePlaceMap: place => mapped.push(place),
+    workspacePlaceGroups:()=>[{key:'chengde',members:[entry]}],mapMemoryEvents:{selectCity:key=>chosen.push(key)},
   });
   vm.runInContext(source.match(/function selectPlace\([^]*?\n\}/)[0], context);
   context.selectPlace('承德市');
@@ -115,4 +117,5 @@ test('selecting a restored place starts its own photo request', () => {
   assert.equal(calls[0][0], entry);
   assert.equal(calls[0][1], 'project');
   assert.equal(mapped[0], entry);
+  assert.deepEqual(chosen,['chengde']);
 });

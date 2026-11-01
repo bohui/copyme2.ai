@@ -296,6 +296,9 @@ def test_conversation_waits_for_city_focus_and_animates_each_city_once_per_page(
     page.locator('[data-action="toggle-workspace"]').click()
     expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=15000)
     assert page.evaluate('mapFlights.length') == 6
+    page.reload(wait_until='networkidle')
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+    assert page.evaluate('mapFlights.length') == 3, 'A page refresh may replay its opening flight'
 
 
 def test_phone_map_and_album_navigation(album_page):
