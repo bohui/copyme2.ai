@@ -35,6 +35,7 @@ function makeWorkspace() {
 }
 
 for (const restore of ['live','refresh','reopen']) {
+  state.workspaceFocus={...result.workspace_focus};
   const cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
   const toolbar={innerHTML:''},overflow={replaceChildren(){}};
   const canvas={getContext:()=>new Proxy({},{get:()=>()=>{}})};
@@ -48,15 +49,23 @@ for (const restore of ['live','refresh','reopen']) {
     querySelector:selector=>selector==='.map-memory-layer' ? layer : selector==='.map-photo-album-layer' ? photoLayer : null};
   globalThis.document={documentElement:{lang:'zh-CN'},querySelector:()=>null};
   const workspace=makeWorkspace(),map=workspace.mapMemoryEvents;
+  if (restore==='live') {
+    state.workspaceFocus=null;
+    map.sync(null);
+    await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(workspace.workspaceMediaOverview(),'','Two API cities must wait for the saved question focus');
+    state.workspaceFocus={...result.workspace_focus};
+  }
   map.sync(null);
   await new Promise(resolve=>setImmediate(resolve));
   assert.match(workspace.workspaceMediaOverview(),new RegExp(`data-cesium-latitude="${expected.latitude}"`),restore);
   map.sync(scene);
-  const flights=[];
+  const flights=[],views=[];
   let ready=false,center=other;
   scene.classList.contains=()=>ready;
   const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){}}},
-    camera:{frustum:{left:-100000,right:100000},flyTo:flight=>flights.push(flight)}};
+    camera:{frustum:{left:-100000,right:100000},flyTo:flight=>flights.push(flight),
+      setView:view=>{views.push(view);center=view.destination;}}};
   const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
     SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:300+(point.longitude-center.longitude)*500,
       y:350+(point.latitude-center.latitude)*500})}};
@@ -75,9 +84,14 @@ for (const restore of ['live','refresh','reopen']) {
   const albums=workspace.mapPhotoAlbumsForScene(scene,{allPlaces:true,detailed:true,cityKey:map.viewCity()});
   assert.deepEqual(albums.map(album=>album.place),[expected.place]);
   assert.equal(state.timeline.length,2,'City filtering preserves both saved memories');
+  const completedFlights=flights.length;
+  state.workspaceFocus={...result.workspace_focus,source_sequence:result.workspace_focus.source_sequence+1};
+  map.sync(scene);
+  assert.equal(flights.length,completedFlights,'A same-city follow-up from the API must preserve the camera');
   if (restore==='reopen') {
     map.dispose();map.sync(scene);map.attach(viewer,cesium);
-    assert.equal(flights.at(-1).destination.latitude,expected.latitude);
+    assert.equal(flights.length,completedFlights,'Reopening an already animated API city must not replay');
+    assert.equal(views.at(-1).destination.latitude,expected.latitude);
   }
   map.dispose();
 }

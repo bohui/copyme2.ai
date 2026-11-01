@@ -35,9 +35,10 @@ function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=t
   const values=settings.values || new Map();
   globalThis.localStorage=settings.storage || {getItem:key=>values.get(key) ?? null,setItem:(key,value)=>values.set(key,value)};
   let redraw,moveEnd,finishFlight,center=settings.center || null;
-  const flights=[],explored=[],added=[];
+  const flights=[],views=[],explored=[],added=[];
   const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:cb=>{redraw=cb;return ()=>{};}}},
-    camera:{frustum:{left:-100000,right:100000},flyTo:flight=>{flights.push(flight);finishFlight=flight.complete;},
+    camera:{frustum:{left:-100000,right:100000},setView:view=>{views.push(view);center=view.destination;},
+      flyTo:flight=>{flights.push(flight);finishFlight=flight.complete;},
       moveEnd:{addEventListener:callback=>{moveEnd=callback;return ()=>{moveEnd=null;};}}}};
   const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
     SceneTransforms:{worldToWindowCoordinates:(_,p)=>center
@@ -54,7 +55,7 @@ function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=t
   map.sync(scene);map.attach(viewer,cesium,settings.arrivalCity);
   const initialFlights=flights.slice();
   flights.length=0;
-  return {map,cards,flights,initialFlights,explored,added,focusCalls,footprints,markup:()=>layer.innerHTML,refresh:()=>map.sync(scene),hidden:()=>layer.hidden,
+  return {map,cards,flights,views,initialFlights,explored,added,focusCalls,footprints,markup:()=>layer.innerHTML,refresh:()=>map.sync(scene),hidden:()=>layer.hidden,
     add(){listeners.click({target:{closest:()=>({dataset:{},hasAttribute:name=>name==='data-memory-add'})}});},
     setCanAddMemory(value){canAddMemory=value;map.sync(scene);},
     remount(){map.dispose();scene.child=null;center=null;viewer.camera.frustum={left:-100000,right:100000};map.sync(scene);map.attach(viewer,cesium);},
@@ -145,17 +146,17 @@ test('city add-memory actions respect loading and payment restrictions and updat
   assert.deepEqual(added,['add_memory']);
 });
 
-test('reopening a collapsed map flies to the last active city', t=>{
+test('reopening a collapsed map restores the last active city without replaying its flight', t=>{
   const events=[event('Birth',chengde,1983,'baby'),event('Sydney arrival',sydney,2012,'young_adulthood')];
-  const {map,cards,flights,expand,zoom,remount}=mapFixture(t,false,[],events);
+  const {map,cards,flights,views,expand,zoom,remount}=mapFixture(t,false,[],events);
   zoom(sydney);
   expand(map.nodes().find(node=>node.city==='Sydney').groupKey);
   flights.length=0;
   remount();
-  assert.equal(flights.length,1,'A recreated viewer must receive a fresh city frame');
-  assert.ok(Math.abs(flights[0].destination.longitude-sydney.longitude)<1e-9,'Restore Sydney instead of framing all cities');
-  assert.equal(flights[0].destination.latitude,sydney.latitude);
-  assert.ok(flights[0].destination.height<=40000);
+  assert.equal(flights.length,0,'A recreated viewer must reuse the page animation cache');
+  assert.ok(Math.abs(views[0].destination.longitude-sydney.longitude)<1e-9,'Restore Sydney instead of framing all cities');
+  assert.equal(views[0].destination.latitude,sydney.latitude);
+  assert.ok(views[0].destination.height<=40000);
   zoom(sydney);
   assert.equal(map.viewCity(),map.nodes().find(node=>node.city==='Sydney').groupKey);
   assert.match(cards.innerHTML,/Sydney arrival/);
@@ -179,6 +180,18 @@ test('refresh restores the selected city from storage on desktop and phone', t=>
   }
 });
 
+test('existing saved city choices migrate to stable city scopes across same-city replies',t=>{
+  const questionFocus={place:'Chengde',source_sequence:1};
+  const savedCity=groupPlaces([sydney])[0].key;
+  const settings={initialPlace:chengde,questionFocus,values:new Map([['memory-spark-map-city:fixture',
+    JSON.stringify({scope:JSON.stringify(['fixture',questionFocus]),city:savedCity})]])};
+  const fixture=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(fixture.initialFlights[0].destination.latitude,sydney.latitude);
+  settings.questionFocus={...questionFocus,source_sequence:2};fixture.map.dispose();
+  const refreshed=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(refreshed.initialFlights[0].destination.latitude,sydney.latitude);
+});
+
 test('the question city controls the flight while its event list waits until the city is in view',t=>{
   for (const mobile of [false,true]) {
     const settings={initialPlace:sydney,questionFocus:{place:'Chengde',source_sequence:1},center:sydney};
@@ -190,6 +203,72 @@ test('the question city controls the flight while its event list waits until the
     assert.match(cards.innerHTML,/Birth|Growing up/);
     assert.doesNotMatch(cards.innerHTML,/Sydney arrival|University/);
   }
+});
+
+test('two cities from one source wait for the question to confirm the active city',t=>{
+  const places=[chengde,sydney].map(place=>({...place,source_sequence:1}));
+  const settings={places,initialPlace:places[1]};
+  const fixture=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(fixture.initialFlights.length,0,'Extraction order cannot choose between two cities');
+  assert.equal(fixture.cards.innerHTML,'');
+  settings.questionFocus={place:'Chengde',source_sequence:1};
+  fixture.refresh();
+  assert.equal(fixture.flights.length,1);
+  assert.equal(fixture.flights[0].destination.latitude,chengde.latitude);
+});
+
+test('continuing the conversation in the same city never reframes the camera',t=>{
+  const settings={initialPlace:chengde,questionFocus:{place:'Chengde',source_sequence:1},center:chengde};
+  const fixture=mapFixture(t,false,[],undefined,true,settings);
+  fixture.zoom(chengde);fixture.flights.length=0;
+  settings.questionFocus={place:'Chengde',source_sequence:2};
+  settings.scope='fixture:next-reply';
+  fixture.refresh();
+  assert.equal(fixture.flights.length,0,'A new reply sequence in the same city must not fly again');
+  assert.equal(fixture.views.length,0,'Same-city replies must also preserve the current zoom');
+});
+
+test('automatic returns to a city use the page cache while refresh can replay the flight',t=>{
+  const settings={initialPlace:chengde,questionFocus:{place:'Chengde',source_sequence:1},center:chengde};
+  const fixture=mapFixture(t,false,[],undefined,true,settings);
+  fixture.zoom(chengde);fixture.flights.length=0;
+  settings.questionFocus={place:'Sydney',source_sequence:2};
+  fixture.refresh();
+  assert.equal(fixture.flights.length,1,'A confirmed first visit to a new city should fly');
+  fixture.zoom(sydney);fixture.flights.length=0;
+  settings.questionFocus={place:'Chengde',source_sequence:3};
+  fixture.refresh();
+  assert.equal(fixture.flights.length,0,'An already animated city should return without another flight');
+  assert.equal(fixture.views.at(-1).destination.latitude,chengde.latitude);
+  const refreshed=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(refreshed.initialFlights.length,1,'A fresh page has a fresh animation cache');
+});
+
+test('a later two-city extraction keeps the current city until its question focus arrives',t=>{
+  const settings={places:[chengde,sydney],initialPlace:chengde,questionFocus:{place:'Chengde',source_sequence:1},center:chengde};
+  const fixture=mapFixture(t,false,[],undefined,true,settings);
+  fixture.zoom(chengde);fixture.flights.length=0;
+  settings.places=[chengde,sydney].map(place=>({...place,source_sequence:2}));
+  settings.initialPlace=settings.places[1];settings.scope='fixture:new-extraction';
+  fixture.refresh();
+  assert.equal(fixture.flights.length,0);
+  assert.match(fixture.cards.innerHTML,/Birth/);
+  assert.doesNotMatch(fixture.cards.innerHTML,/Sydney arrival/);
+  settings.questionFocus={place:'Sydney',source_sequence:2};fixture.refresh();
+  assert.equal(fixture.flights.length,1);
+  assert.equal(fixture.flights[0].destination.latitude,sydney.latitude);
+});
+
+test('event-only city previews wait for question focus without exposing another project’s city',t=>{
+  const settings={initialPlace:chengde,questionFocus:{place:'Chengde',source_sequence:1},center:chengde};
+  const fixture=mapFixture(t,false,[],undefined,true,settings);
+  fixture.zoom(chengde);fixture.flights.length=0;
+  settings.identity='other-project';settings.scope='other-project';settings.questionFocus=null;
+  settings.initialPlace={...chengde,preview:true};fixture.refresh();
+  assert.equal(fixture.map.activeCity(),undefined);
+  assert.equal(fixture.flights.length,0);
+  settings.questionFocus={place:'Chengde',source_sequence:2};fixture.refresh();
+  assert.equal(fixture.flights.length,1,'A different project has its own animation cache');
 });
 
 test('a city reached by panning or zooming becomes the saved fly-to target', t=>{
@@ -282,11 +361,12 @@ test('malformed storage and unavailable cities fall back to current geography', 
 
 test('restricted browser storage still retains the city across collapse in the current page', t=>{
   const storage={getItem(){throw new Error('Storage denied');},setItem(){throw new Error('Storage denied');}};
-  const {map,flights,expand,remount}=mapFixture(t,false,[],undefined,true,{storage});
+  const {map,flights,views,expand,remount}=mapFixture(t,false,[],undefined,true,{storage});
   expand(map.nodes().find(node=>node.city==='Sydney').groupKey);
   flights.length=0;
   remount();
-  assert.equal(flights[0].destination.latitude,sydney.latitude);
+  assert.equal(flights.length,0);
+  assert.equal(views[0].destination.latitude,sydney.latitude);
 });
 
 test('one-event city views retain large intercity footprints even when the other city is far offscreen', t=>{

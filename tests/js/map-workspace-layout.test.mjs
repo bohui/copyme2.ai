@@ -45,6 +45,7 @@ async function setup(t,privatePhotos=[{photo_id:personalId,kind:'private_upload'
   const entries=[city,school,north].map((place,index)=>({...place,pictures:[photo(place,String(index))]}));
   const state={project:{id:'project',profile:{memory_places:entries}},supabase:{user:{id:'owner'},accessToken:'fixture'},
     placeJourney:entries[1],lifeStage:'all',chat:[],timeline:[event('return',40,city),event('school',6,school),event('birth',0,north)],
+    workspaceFocus:{place:'Sydney',source_sequence:1},
     photoTurns:{cards:responsePhotoCards},memoryEventPage:{policy_epoch:1,event_revision:1,source_revision:1}};
   const calls=[];
   const dependencies={state,profile:()=>state.project.profile,render(){},lifeStageText:()=>'',

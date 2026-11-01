@@ -18,7 +18,7 @@ class Event {
   raiseEvent(value) { for (const listener of [...this.listeners]) listener(value); }
 }
 
-async function harness(provider = 'geoapify', {throttled = false, sessionFailure = false, sessionPending = false, libraryFailure = false, reducedMotion = true} = {}) {
+async function harness(provider = 'geoapify', {throttled = false, sessionFailure = false, sessionPending = false, libraryFailure = false, reducedMotion = true, animated = false} = {}) {
   let resolveImage, rejectImage;
   const image = new Promise((resolve, reject) => { resolveImage = resolve; rejectImage = reject; });
   const classes = new Set();
@@ -29,10 +29,10 @@ async function harness(provider = 'geoapify', {throttled = false, sessionFailure
     setAttribute: (key, value) => attributes.set(key, value), removeAttribute: key => attributes.delete(key)};
   const sceneElement = {classList: {add: name => classes.add(name), remove: (...names) => names.forEach(name => classes.delete(name))}};
   const journey = {place: '承德', granularity: 'city', latitude: 40.97, longitude: 117.93};
-  const container = {isConnected: true, dataset: {cesiumLatitude: '40.97', cesiumLongitude: '117.93', cesiumPlace: '承德'},
+  const container = {isConnected: true, dataset: {placeKey:'city:chengde',cesiumLatitude: '40.97', cesiumLongitude: '117.93', cesiumPlace: '承德'},
     closest: () => sceneElement, parentElement: {querySelector: selector => selector === '[data-map-retry]' ? retry : fallback}};
   let viewer, imagery, finishSession, loads = 0, renders = 0;
-  const flights=[], timers=new Map();
+  const flights=[], timers=new Map(),animatedCities=new Set(animated ? ['city:chengde'] : []);
   let timerId=0;
   class Provider {
     errorEvent = new Event();
@@ -83,7 +83,8 @@ async function harness(provider = 'geoapify', {throttled = false, sessionFailure
     }, state: {project:{id:'p'}, placeJourney:journey, workspaceCollapsed:false, supabase: {geo_provider: provider,
       geoapify_browser_api_key: 'synthetic-key', google_maps_browser_api_key: 'synthetic-key'}},
     window: {matchMedia: () => ({matches: reducedMotion})}, currentUiLocale: () => 'en-AU',
-    mapPhotoAlbums: {sync() {}, attach() {},dispose() {}}, mapMemoryEvents: {sync() {}, attach() {},dispose() {}},
+    mapPhotoAlbums: {sync() {}, attach() {},dispose() {}}, mapMemoryEvents: {sync() {}, attach() {},dispose() {},
+      hasAnimatedCity:city=>animatedCities.has(city),rememberFlight:city=>animatedCities.add(city)},
     cesiumPlaceJourneyViewer: null, cesiumLoadPromise:null,disposeOpeningFlight:null,console: {warn() {}},
     setTimeout:callback=>{timers.set(++timerId,callback);return timerId;},clearTimeout:id=>timers.delete(id),
     placeMapRenderKey: () => 'map', unavailablePlaceMaps: new Set(), render() {renders++;context.initCesiumPlaceJourney();},
@@ -143,6 +144,27 @@ test('the descent waits for each rendered zoom level and reaches the city withou
   assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);
   assert.equal(h.viewer.scene.postRender.listeners.size,0);
   assert.equal(h.timers.size,0);
+});
+
+test('recreating a viewer for an already animated city skips the Earth flight',async()=>{
+  const h=await harness('google',{reducedMotion:false,animated:true});
+  assert.equal(h.flights.length,0);
+  assert.equal(h.viewer.scene.mode,2);
+  const pending=h.imagery.requestImage(0,0,0);
+  h.resolveImage({width:256,height:256});await pending;
+  h.loadedTiles();
+  assert.equal(h.classes.has('is-cesium-map'),true);
+  assert.equal(h.flights.length,0,'An in-page city return should open directly at city scale');
+});
+
+test('a background repaint cannot restart an opening city flight already underway',async()=>{
+  const h=await harness('google',{reducedMotion:false});
+  const pending=h.imagery.requestImage(0,0,0);
+  h.resolveImage({width:256,height:256});await pending;h.loadedTiles();
+  assert.equal(h.flights.length,1);
+  h.context.disposeCesiumPlaceJourney();h.context.initCesiumPlaceJourney();await tick();
+  assert.equal(h.context.cesiumPlaceJourneyViewer.scene.mode,2);
+  assert.equal(h.flights.length,1,'The replacement viewer must open directly at city scale');
 });
 
 test('a stalled tile queue restores the explicit retry and clears the opening listeners',async()=>{

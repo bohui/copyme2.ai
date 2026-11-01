@@ -219,6 +219,7 @@ export function createPlaceWorkspace({
     const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage)
       || nodes.some(node => placeHistoryKey(node.location) === placeHistoryKey(item)));
     const groups = workspacePlaceGroups(matching);
+    if (mapMemoryEvents.activeCity(groups) === undefined) return "";
     const scope = JSON.stringify([state.project?.id, state.supabase?.user?.id, placeHistoryKey(current),
       current.source_sequence || current.revision || 0, state.memoryEventPage?.policy_epoch, state.derivedWorkspace?.policy_epoch,
       state.workspaceFocus]);
@@ -688,6 +689,7 @@ export function createPlaceWorkspace({
           viewer.scene.requestRender();
         };
         const finishOpening = () => {
+          mapMemoryEvents.rememberFlight(container.dataset.placeKey);
           container.closest(".place-journey-scene")?.classList.add("is-cesium-map");
           stopOpening();
           viewer.scene.requestRender();
@@ -707,16 +709,20 @@ export function createPlaceWorkspace({
           viewer.camera.setView({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, height), orientation});
           whenTilesLoaded(() => height === finalMapHeight ? finishOpening() : descend(height));
         };
-        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || mapMemoryEvents.hasAnimatedCity(container.dataset.placeKey)) {
           roadMap(finalMapHeight);
         } else {
           const regionalHeight = Math.max(finalMapHeight, Math.min(800000, finalMapHeight * 16));
-          whenTilesLoaded(() => viewer.camera.flyTo({
-            destination: cesium.Cartesian3.fromDegrees(longitude, latitude, regionalHeight), orientation,
-            duration: Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
-            easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
-            complete: () => whenTilesLoaded(() => roadMap(regionalHeight)),
-          }));
+          whenTilesLoaded(() => {
+            // A background repaint must not restart an opening flight already underway.
+            mapMemoryEvents.rememberFlight(container.dataset.placeKey);
+            viewer.camera.flyTo({
+              destination: cesium.Cartesian3.fromDegrees(longitude, latitude, regionalHeight), orientation,
+              duration: Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
+              easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
+              complete: () => whenTilesLoaded(() => roadMap(regionalHeight)),
+            });
+          });
         }
         let imagery;
         if (provider === "google") {

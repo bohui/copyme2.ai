@@ -78,8 +78,10 @@ def album_page(request):
                 latitude=40.97, longitude=117.93, period='1980s', revision=1, status='active', schema_version=1)
     places = [city, dict(city, place='双桥区', hierarchy=city['hierarchy']+['双桥区'], granularity='suburb', latitude=40.94, longitude=117.96, revision=2),
               dict(city, place='大石庙镇', hierarchy=city['hierarchy']+['大石庙镇'], granularity='suburb', latitude=40.9401, longitude=117.9601, revision=3)]
-    if mode in ('events','estimated-events','overlap-events'):
+    if mode in ('events','estimated-events','overlap-events','conversation-focus'):
         places.append(dict(city,place='悉尼',hierarchy=['Earth','澳大利亚','悉尼'],latitude=-33.86,longitude=151.2,revision=4))
+    if mode == 'conversation-focus':
+        for place in places: place['source_sequence']=1
     if mode == 'current':
         places = [dict(city, period='')]
     for i, place in enumerate(places):
@@ -104,7 +106,7 @@ def album_page(request):
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         context = browser.new_context(viewport={'width':390,'height':844},
-            reduced_motion='no-preference' if mode=='slow-flight' else 'reduce', is_mobile=True, has_touch=True)
+            reduced_motion='no-preference' if mode in ('slow-flight','conversation-focus') else 'reduce', is_mobile=True, has_touch=True)
         context.add_cookies([{'name':'copyme2_ui_locale','value':'zh-CN','url':base}, {'name':'copyme2_ui_locale_source','value':'fixed','url':base}])
         def boundary(route):
             if route.request.url.startswith(base) or any(host in route.request.url for host in ('cesium.com/', 'fonts.googleapis.com/', 'fonts.gstatic.com/')):
@@ -138,6 +140,12 @@ def album_page(request):
                       loaded:viewer.scene.globe.tilesLoaded,layers:viewer.imageryLayers.length});
                       window.holdMapTiles=true;return fly({...options,complete:()=>{window.finishedMapFlights++;options.complete?.();}});};
                     return viewer;}})};'''
+            if mode == 'conversation-focus':
+                imagery += '''window.mapFlights??=[];window.mapViewerCount??=0;
+                  const TracedViewer=Cesium.Viewer;
+                  window.Cesium={...Cesium,Viewer:new Proxy(TracedViewer,{construct(target,args){
+                    const viewer=Reflect.construct(target,args),fly=viewer.camera.flyTo.bind(viewer.camera);window.mapViewerCount++;
+                    viewer.camera.flyTo=options=>{window.mapFlights.push(options.duration);return fly(options);};return viewer;}})};'''
             route.fulfill(response=response, body=response.text()+imagery)
         context.route('**/Build/Cesium/Cesium.js', cesium)
         context.route('**/static/album-fixture-*.svg', lambda r:r.fulfill(content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220"><rect width="320" height="220" fill="#c4d8d2"/><path d="M0 180L110 70L230 180L320 100V220H0" fill="#397465"/><rect x="130" y="130" width="80" height="80" fill="#eee1bb"/><path d="M120 140L170 100L220 140" fill="#a65c43"/></svg>'))
@@ -156,7 +164,10 @@ def album_page(request):
                 data = {'stages':{'baby':{'percent':30,'color':'amber','word_equivalents':300},
                                   'childhood':{'percent':10,'color':'red','word_equivalents':100},
                                   'midlife':{'percent':50,'color':'green','word_equivalents':1000}}}
-            elif path == '/story/map-events' and mode in ('events','estimated-events','overlap-events'):
+                if mode in ('events','estimated-events','overlap-events'):
+                    data['derived_workspace']=dict(project_id='album-project',authoritative=True,policy_epoch=1,
+                        source_revision=1,places=profile['memory_places'],workspace_focus=dict(place='承德',source_sequence=1))
+            elif path == '/story/map-events' and mode in ('events','estimated-events','overlap-events','conversation-focus'):
                 events=[dict(id=id,revision=1,kind='event',status='active',life_stage=stage,title=title,
                     temporal={'expression':f'Age {age}','precision':'age'},
                     places=[{'role':'setting','status':'supported','place':place}])
@@ -208,6 +219,8 @@ def album_page(request):
         expect(page.locator('#chat-input')).to_be_enabled(timeout=30000)
         if mode == 'unmapped':
             expect(page.locator('.story-shell.conversation-only')).to_be_visible(timeout=30000)
+        elif mode == 'conversation-focus':
+            expect(page.locator('[data-cesium-place]')).to_have_count(0)
         elif mode in ('script-error', 'tile-error', 'missing-key'):
             expect(page.locator('[data-map-retry]')).to_be_visible(timeout=30000)
         elif mode == 'slow-flight':
@@ -244,6 +257,45 @@ def test_opening_flight_waits_for_imagery_at_each_zoom_without_an_extra_arrival_
     assert page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
     OUTPUT.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(OUTPUT/f'loaded-flight-{width}.png'))
+
+
+@pytest.mark.parametrize('album_page', ['conversation-focus'], indirect=True)
+@pytest.mark.parametrize('width', [390, 1440])
+def test_conversation_waits_for_city_focus_and_animates_each_city_once_per_page(album_page, width):
+    page, _, _ = album_page
+    page.set_viewport_size({'width':width,'height':960})
+    page.evaluate('''() => {const nativeFetch=window.fetch;
+      window.fetch=(url,options)=>{
+        if(String(url).endsWith('/memory-sessions')) return Promise.resolve(new Response('{}',{status:403}));
+        if(!String(url).endsWith('/agent/turn')) return nativeFetch(url,options);
+        return Promise.resolve(new Response(JSON.stringify({type:'result',data:{reply:'Synthetic next question '+nextMapFocus.place,
+          conversation_saved:true,workspace_focus:nextMapFocus}})+'\\n',{headers:{'Content-Type':'application/x-ndjson'}}));
+      };}''')
+
+    def reply(city, sequence):
+        page.evaluate('focus=>window.nextMapFocus=focus',dict(place=city,source_sequence=sequence))
+        page.locator('#chat-input').fill(f'Synthetic conversation {sequence}')
+        page.locator('#chat-form button[type="submit"]').click()
+        expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
+        expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+
+    reply('承德',1)
+    assert page.evaluate('mapFlights.length') == 3
+    expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
+    first_viewer=page.evaluate('mapViewerCount')
+    reply('承德市',2)
+    assert page.evaluate('mapFlights.length') == 3
+    assert page.evaluate('mapViewerCount') == first_viewer
+    reply('悉尼',3)
+    assert page.evaluate('mapFlights.length') == 6
+    expect(page.locator('.map-memory-cards')).to_contain_text('Move to Sydney')
+    reply('承德',4)
+    assert page.evaluate('mapFlights.length') == 6
+    expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
+    page.locator('[data-action="toggle-workspace"]').click()
+    page.locator('[data-action="toggle-workspace"]').click()
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=15000)
+    assert page.evaluate('mapFlights.length') == 6
 
 
 def test_phone_map_and_album_navigation(album_page):
