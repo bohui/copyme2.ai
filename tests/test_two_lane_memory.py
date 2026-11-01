@@ -836,6 +836,22 @@ def test_complete_checkpoint20_tail21_tombstone22_current23_keeps_cursor_domains
             tail_coverage=TailCoverage(identity=IDENTITY,policy_epoch=1,after_sequence=20,through_sequence=22,complete=True,tombstones=[22]))
 
 
+@pytest.mark.parametrize('later_source', [False, True])
+def test_deepseek_background_checkpoint_can_finish_and_cover_prior_originals(sql,later_source):
+    identity,accepted=accept(sql)
+    if later_source:
+        rpc(sql,'accept_user_narrator_source',f"{literal(identity['project_id'])},'{uuid4()}','We played in the school housing.'")
+    lane_id=lane(sql,identity)
+    page=service(sql,'claim_memoir_lane',f"'{lane_id}',300")
+    result=service(sql,'advance_two_lane_checkpoint',f"'{lane_id}','{page['token']}',1,'deepseek-v4.1-flash-1017'")
+    assert result['complete'] is True and result['coverage_end']==int(later_source)
+    if later_source:
+        checkpoint=rpc(sql,'read_lifetime_checkpoint',f"'{identity['conversation_id']}',1,'deepseek-v4.1-flash-1017','lifetime-v1'")
+        assert checkpoint['model']=='deepseek-v4.1-flash-1017'
+        assert checkpoint['evidence'][0]['original']==accepted['source']['text']
+    assert sql("select count(*) from public.user_narrator_source where processing_status='succeeded';").stdout.strip()=='0'
+
+
 def test_background_checkpoint_is_bounded_resumable_and_keeps_composer_fragment_cursor(sql):
     identity,accepted=accept(sql,text='A long memory '+('原文 '*3000))
     project=identity['project_id']
