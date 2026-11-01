@@ -177,11 +177,13 @@ def test_multiple_excerpts_select_exact_relative_spans_and_reject_ambiguity():
         extraction_events(dict(events=[event]),current)
 
 
-@pytest.mark.parametrize('confidence', [.15, .3, .5, .8])
-def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the_same_event(sql,tmp_path,monkeypatch,confidence):
+@pytest.mark.parametrize('confidence,model', [(.15,'gpt-6.1-sol'),(.3,'gpt-6.1-sol'),
+    (.5,'gpt-6.1-sol'),(.8,'gpt-6.1-sol'),(.3,'deepseek-v4.1-flash-1017')])
+def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the_same_event(sql,tmp_path,monkeypatch,confidence,model):
     from pathlib import Path
     import subprocess
 
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL',model)
     birth = 'I was born in Chengde in 1991.'
     childhood = 'When I was little, I played in the staff compound at my father\'s school in China.'
     confirmation = 'The compound was in Sydney in 1997.'
