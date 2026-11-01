@@ -11,6 +11,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
   let focusedCity = null, viewCity = null, listView, lastMode, initialIdentity, overviewRequested = false, overviewMode = true;
   let cityScope, activeCityKey, flyingToCity = null, flightRevision = 0;
   let visibleCityKeys = [];
+  let arrivalCity;
   let placeGroups = [];
   const places = new Map();
   const footprint = typeof Image === "undefined" ? null : new Image();
@@ -223,7 +224,8 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       if (nodes.length && (group || !city || !pending || overviewRequested)) {
         initialIdentity = cityScope;overviewRequested = false;
         if (group) { focusedCity = group.key;overviewMode = false; }
-        frame(nodes,group ? 12000 : 40000,group?.key);
+        if (!group || group.key !== arrivalCity) frame(nodes,group ? 12000 : 40000,group?.key);
+        arrivalCity = undefined;
       }
     }
     // Photo-only maps still need a city scope while the event layer is hidden.
@@ -351,10 +353,11 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     }
   }
 
-  function attach(nextViewer, library) {
+  function attach(nextViewer, library, framedCity) {
     removePostRender?.();
     removeMoveEnd?.();
     viewer = nextViewer;cesium = library;
+    arrivalCity = framedCity;
     removePostRender = viewer.scene.postRender.addEventListener(position);
     removeMoveEnd = viewer.camera.moveEnd?.addEventListener(() => {
       if (getScope() !== scope) return;
@@ -371,6 +374,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     flightRevision++;
     overviewMode = true;
     visibleCityKeys = [];
+    arrivalCity = undefined;
   }
   return {sync, attach, dispose, overview, activeCity,
     visibleCities:() => getScope() === scope ? visibleCityKeys : [],

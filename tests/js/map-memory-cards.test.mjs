@@ -51,7 +51,7 @@ function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=t
     getQuestionFocus:()=>settings.questionFocus || null,
     t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage,
     getCanAddMemory:()=>canAddMemory,onAdd:()=>added.push('add_memory'),onExplore:id=>explored.push(id)});
-  map.sync(scene);map.attach(viewer,cesium);
+  map.sync(scene);map.attach(viewer,cesium,settings.arrivalCity);
   const initialFlights=flights.slice();
   flights.length=0;
   return {map,cards,flights,initialFlights,explored,added,focusCalls,footprints,markup:()=>layer.innerHTML,refresh:()=>map.sync(scene),hidden:()=>layer.hidden,
@@ -101,6 +101,14 @@ test('each city card has its own add-memory action without expanding or continui
     zoom(chengde);
     assert.doesNotMatch(cards.innerHTML,/data-memory-add/,'Add memory belongs to the city card, not each individual event');
   }
+});
+
+test('an opening flight already framed on its city does not trigger another fast zoom',t=>{
+  const settings={initialPlace:chengde,arrivalCity:groupPlaces([chengde])[0].key,center:chengde};
+  const {map,cards,initialFlights}=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(initialFlights.length,0,'The event overlay must reuse the finished opening camera view');
+  assert.equal(map.viewCity(),settings.arrivalCity);
+  assert.match(cards.innerHTML,/Birth/);
 });
 
 test('provisional locations join city summaries and low-confidence dates use a small question mark', t=>{

@@ -77,6 +77,7 @@ export function createPlaceWorkspace({
   };
 
   let cesiumPlaceJourneyViewer = null;
+  let disposeOpeningFlight = null;
   let mapOpeningScope, mapOpeningCity;
 
   let cesiumLoadPromise = null;
@@ -328,6 +329,7 @@ export function createPlaceWorkspace({
   }
 
   function disposeCesiumPlaceJourney() {
+    disposeOpeningFlight?.();
     mapMemoryEvents.dispose();
     mapPhotoAlbums.dispose();
     if (!cesiumPlaceJourneyViewer) return;
@@ -553,12 +555,11 @@ export function createPlaceWorkspace({
     const finalMapHeight = Number(container.dataset.cesiumHeight) || placeMapViewHeight(journey, placeMapTarget(journey));
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return;
     loadCesium().then((cesium) => {
-      if (!container.isConnected) return;
+      if (!container.isConnected || state.project?.id !== projectId) return;
       let viewer = null;
-      let arrivalComplete = false;
       let mapLayerReady = false;
       let mapLayerFailed = false;
-      let finalViewStarted = false;
+      let stopOpening;
       try {
         viewer = new cesium.Viewer(container, {
           animation: false,
@@ -582,7 +583,6 @@ export function createPlaceWorkspace({
         viewer.scene.globe.maximumScreenSpaceError = 1;
         viewer.scene.skyAtmosphere.show = true;
         viewer.scene.globe.baseColor = cesium.Color.fromCssColorString("#2a756b");
-        const destination = cesium.Cartesian3.fromDegrees(longitude, latitude, finalMapHeight);
         const pins = container.dataset.cesiumPins ? JSON.parse(container.dataset.cesiumPins) : [
           {place: container.dataset.cesiumPlace, latitude, longitude}];
         for (const pin of pins) viewer.entities.add({
@@ -619,21 +619,7 @@ export function createPlaceWorkspace({
         mapPhotoAlbums.sync(container.closest(".place-journey-scene"));
         mapPhotoAlbums.attach(viewer, cesium, pins);
         mapMemoryEvents.sync(container.closest(".place-journey-scene"));
-        mapMemoryEvents.attach(viewer, cesium);
-
-        const showFinalRoadMap = () => {
-          if (!arrivalComplete || !mapLayerReady || mapLayerFailed || finalViewStarted || !container.isConnected || viewer.isDestroyed()) return;
-          finalViewStarted = true;
-          // The flight already arrives looking straight down. Switch projection
-          // without Cesium's world-scale unfolding animation pulling us away.
-          viewer.scene.morphTo2D(0);
-          viewer.camera.setView({
-            destination,
-            orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
-          });
-          container.closest(".place-journey-scene")?.classList.add("is-cesium-map");
-          viewer.scene.requestRender();
-        };
+        mapMemoryEvents.attach(viewer, cesium, container.dataset.placeKey);
 
         // Fit the whole Earth in the narrower dimension of this panel. Looking
         // off-nadir at orbital altitude pushes the globe below the viewport.
@@ -646,26 +632,17 @@ export function createPlaceWorkspace({
           destination: cesium.Cartesian3.fromDegrees(0, 18, startHeight),
           orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
         });
-        viewer.camera.flyTo({
-          destination,
-          orientation: { heading: 0, pitch: -Math.PI / 2, roll: 0 },
-          duration: window.matchMedia("(prefers-reduced-motion: reduce)").matches
-            ? 0 : Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
-          easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
-          complete: () => {
-            arrivalComplete = true;
-            showFinalRoadMap();
-          },
-        });
         container.closest(".place-journey-scene")?.classList.add("is-cesium-live");
         container.parentElement.querySelector(".place-journey-fallback")?.setAttribute("aria-hidden", "true");
 
         const provider = state.supabase?.geo_provider || "google";
         let mapLayer;
         const showImageryFallback = () => {
-          if (mapLayerFailed || !container.isConnected || viewer.isDestroyed()) return;
+          if (mapLayerFailed) return;
+          if (!container.isConnected || viewer.isDestroyed() || state.project?.id !== projectId) { stopOpening?.(); return; }
           mapLayerFailed = true;
           mapLayerReady = false;
+          stopOpening?.();
           if (mapLayer) viewer.imageryLayers.remove(mapLayer);
           viewer.camera.cancelFlight();
           viewer.scene.morphTo3D(0);
@@ -679,6 +656,68 @@ export function createPlaceWorkspace({
           hideUnavailableMap();
           console.warn("Place map imagery unavailable.");
         };
+        let nextStage, renderedFrames = 0, stallTimer, openingStopped = false;
+        const controller = viewer.scene.screenSpaceCameraController;
+        controller.enableInputs = false;
+        const currentMap = () => container.isConnected && !viewer.isDestroyed()
+          && state.project?.id === projectId && cesiumPlaceJourneyViewer === viewer;
+        const removeTileCheck = viewer.scene.postRender.addEventListener(() => {
+          if (!currentMap()) { stopOpening(); return; }
+          // A camera change needs a rendered frame to populate its new tile queue.
+          if (!nextStage || ++renderedFrames < 2 || !mapLayer || !mapLayerReady || !viewer.scene.globe.tilesLoaded) return;
+          const next = nextStage;
+          nextStage = null;
+          clearTimeout(stallTimer);
+          next();
+        });
+        stopOpening = () => {
+          openingStopped = true;
+          nextStage = null;
+          clearTimeout(stallTimer);
+          removeTileCheck();
+          controller.enableInputs = true;
+          if (disposeOpeningFlight === stopOpening) disposeOpeningFlight = null;
+        };
+        disposeOpeningFlight = stopOpening;
+        const whenTilesLoaded = next => {
+          if (openingStopped || !currentMap()) return;
+          nextStage = next;
+          renderedFrames = 0;
+          clearTimeout(stallTimer);
+          stallTimer = setTimeout(showImageryFallback, 20000);
+          viewer.scene.requestRender();
+        };
+        const finishOpening = () => {
+          container.closest(".place-journey-scene")?.classList.add("is-cesium-map");
+          stopOpening();
+          viewer.scene.requestRender();
+        };
+        const orientation = { heading: 0, pitch: -Math.PI / 2, roll: 0 };
+        const descend = height => {
+          const nextHeight = Math.max(finalMapHeight, height / 4);
+          viewer.camera.flyTo({
+            destination: cesium.Cartesian3.fromDegrees(longitude, latitude, nextHeight),
+            orientation, duration: 2.8, easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
+            complete: () => whenTilesLoaded(() => nextHeight === finalMapHeight ? finishOpening() : descend(nextHeight)),
+          });
+        };
+        const roadMap = height => {
+          // Change projection at the same scale, then load detail before descending again.
+          viewer.scene.morphTo2D(0);
+          viewer.camera.setView({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, height), orientation});
+          whenTilesLoaded(() => height === finalMapHeight ? finishOpening() : descend(height));
+        };
+        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          roadMap(finalMapHeight);
+        } else {
+          const regionalHeight = Math.max(finalMapHeight, Math.min(800000, finalMapHeight * 16));
+          whenTilesLoaded(() => viewer.camera.flyTo({
+            destination: cesium.Cartesian3.fromDegrees(longitude, latitude, regionalHeight), orientation,
+            duration: Math.max(2.8, Math.min(9, Number(container.dataset.cesiumDuration || 5200) / 1000)),
+            easingFunction: cesium.EasingFunction.QUADRATIC_IN_OUT,
+            complete: () => whenTilesLoaded(() => roadMap(regionalHeight)),
+          }));
+        }
         let imagery;
         if (provider === "google") {
           const key = state.supabase?.google_maps_browser_api_key;
@@ -707,7 +746,6 @@ export function createPlaceWorkspace({
             return Promise.resolve(request).then(image => {
               if (image && !mapLayerFailed && container.isConnected && !viewer.isDestroyed()) {
                 mapLayerReady = true;
-                showFinalRoadMap();
               }
               return image;
             }, error => {
@@ -718,6 +756,7 @@ export function createPlaceWorkspace({
           mapLayer = viewer.imageryLayers.addImageryProvider(layer);
         }).catch(showImageryFallback);
       } catch (error) {
+        stopOpening?.();
         if (viewer && !viewer.isDestroyed()) viewer.destroy();
         if (cesiumPlaceJourneyViewer === viewer) cesiumPlaceJourneyViewer = null;
         hideUnavailableMap();

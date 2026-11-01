@@ -111,7 +111,10 @@ scene.child=null;
 const refreshed=workspace();
 assert.match(refreshed.workspaceMediaOverview(),new RegExp(`data-cesium-latitude="${active.latitude}"`),
   'The opening globe flight must use the saved city before the event layer is attached');
-refreshed.mapMemoryEvents.sync(scene);refreshed.mapMemoryEvents.attach(viewer,cesium);
+const beforeArrival=frames.length;
+center=active;
+refreshed.mapMemoryEvents.sync(scene);refreshed.mapMemoryEvents.attach(viewer,cesium,groupKey);
+assert.equal(frames.length,beforeArrival,'An API city already framed by the opening flight must not get another fast zoom');
 assert.equal(frames.at(-1).destination.latitude,active.latitude,'A refreshed project must restore the same API city');
 assert.ok(Math.abs(frames.at(-1).destination.longitude-active.longitude)<1e-9);
 assert.match(cards.innerHTML,/Growing up/);
