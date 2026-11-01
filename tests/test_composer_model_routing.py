@@ -1,4 +1,4 @@
-"""Composer configuration is observed at canonical and provider HTTP seams."""
+"""Composer configuration is observed at canonical and Codex skill seams."""
 import asyncio
 from copy import deepcopy
 import json
@@ -12,9 +12,9 @@ from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
 from apps.api.lifetime_memory_composer import execute_lifetime_lane
 from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, LanePublication, run_bounded_lane
 from controlled_composer_review import controlled_review
+from controlled_skill_harness import ControlledSkillConnection
 from test_agent_commit_postgres import database as base_database
 from test_canonical_composer_provenance import controlled_draft
-from test_conversation_reply_transport import events, sse
 from test_lifetime_composer_capacity import (sql, event_database, private_database, attachment_database,  # noqa: F401
     seeded_composer, rpc, literal, service, OWNER, OTHER)
 
@@ -25,21 +25,21 @@ def database():
 
 
 @pytest.mark.parametrize('entry', ['direct', 'worker'])
-def test_canonical_composer_honours_dedicated_settings_without_changing_shared_routes(sql, monkeypatch, tmp_path, entry):
+@pytest.mark.parametrize('model', ['gpt-6.1-sol', 'deepseek-v4.1-flash-1017'])
+def test_canonical_composer_honours_dedicated_settings_without_changing_shared_routes(sql, monkeypatch, tmp_path, entry, model):
     monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY', 'true')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_MODEL', 'memoir-luna-low')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT', 'low')
     monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL', 'gpt-5.6-luna-pooled')
-    monkeypatch.setenv('MEMOIR_COMPOSER_MODEL', 'gpt-6.1-sol')
+    monkeypatch.setenv('MEMOIR_COMPOSER_MODEL', model)
     monkeypatch.setenv('MEMOIR_COMPOSER_REASONING_EFFORT', 'low')
     identity, source, _, claim = seeded_composer(sql, summary_messages=('Thanks. ' * 160,) * 4)
     publisher = LanePublication(sql.publication_dsn, authenticated_owner=OWNER)
     submissions = []
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL', sql.publication_dsn)
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP', '1')
-    real_worker = CodexWorker(home_root=tmp_path / 'worker', base_url='https://provider.invalid/v1',
+    real_worker = CodexWorker(command=['must-not-start'], home_root=tmp_path / 'worker', base_url='https://provider.invalid/v1',
         api_key='synthetic', reasoning_effort='low')
-    original_client = httpx.AsyncClient
 
     class Broker:
         async def rpc(self, name, **payload):
@@ -49,40 +49,41 @@ def test_canonical_composer_honours_dedicated_settings_without_changing_shared_r
     async def worker(request):
         wire = json.loads(request.content)
         bounded = BoundedLaneInput.model_validate(wire['bounded_lane'])
-        assert wire['model'] == bounded.budget.model == 'gpt-6.1-sol'
+        assert wire['model'] == bounded.budget.model == model
         assert bounded.budget.context_window == 131072
         assert bounded.budget.input_budget == 98304
         assert bounded.budget.output_headroom == 16384
 
-        async def provider(incoming):
-            body = json.loads(b''.join([chunk async for chunk in incoming.stream]))
-            assert body['model'] == 'gpt-6.1-sol'
-            assert body['reasoning']['effort'] == 'low'
-            assert body['max_output_tokens'] == 16384
-            submissions.append(bounded.phase)
-            payload = json.loads(body['input'])['payload']
-            if bounded.phase == 'prepare':
-                output = dict(event_id=payload['partition']['id'], context=source['text'],
-                    source_refs=payload['partition']['source_refs'])
-            elif bounded.phase == 'draft':
-                output = controlled_draft(payload, source['text'], 'Childhood')
-            else:
-                output = controlled_review(payload)
-            return httpx.Response(200, content=sse(events(json.dumps(output))))
+        class Connection(ControlledSkillConnection):
+            async def turn(self, thread_id, prompt, **options):
+                async with self.options['request_admission']():
+                    assert self.start['model'] == model
+                    assert options['effort'] == 'low'
+                    packet = json.loads(prompt)['task']
+                    assert packet == json.loads(bounded.packet)
+                    submissions.append(bounded.phase)
+                await self.tool('memoir_read_skill', skill='memoir-composer')
+                payload = packet['payload']
+                if bounded.phase == 'prepare':
+                    output = dict(event_id=payload['partition']['id'], context=source['text'],
+                        source_refs=payload['partition']['source_refs'])
+                elif bounded.phase == 'draft':
+                    output = controlled_draft(payload, source['text'], 'Childhood')
+                else:
+                    output = controlled_review(payload)
+                return json.dumps(output)
 
         if entry == 'worker':
-            class ControlledClient(original_client):
-                def __init__(self, *args, **kwargs):
-                    if kwargs.get('transport') is None:
-                        kwargs['transport'] = httpx.MockTransport(provider)
-                    super().__init__(*args, **kwargs)
-            monkeypatch.setattr(httpx, 'AsyncClient', ControlledClient)
+            monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
             wire.pop('model')  # The worker's default must agree with the API budget.
-            return httpx.Response(200, json=await real_worker.turn(WorkerTurnInput.model_validate(wire)))
-        return httpx.Response(200, json=await run_bounded_lane(command=['must-not-start'],
-            home_root=tmp_path / 'homes', base_url='https://provider.invalid/v1',
-            api_key='synthetic', model=wire['model'], bounded_lane=bounded,
-            publisher=publisher, provider_transport=httpx.MockTransport(provider), timeout=5))
+            result = await real_worker.turn(WorkerTurnInput.model_validate(wire))
+        else:
+            result = await run_bounded_lane(command=['must-not-start'],
+                home_root=tmp_path / 'homes', base_url='https://provider.invalid/v1',
+                api_key='synthetic', model=wire['model'], bounded_lane=bounded,
+                publisher=publisher, connection_factory=Connection, timeout=5)
+        assert result['skill_receipt']['skills_read'] == ['memoir-composer']
+        return httpx.Response(200, json=result)
 
     scope = SimpleNamespace(broker=Broker(), worker_url='https://worker.invalid',
         worker_secret='synthetic', worker_transport=httpx.MockTransport(worker), lane_publisher=publisher)
@@ -93,7 +94,7 @@ def test_canonical_composer_honours_dedicated_settings_without_changing_shared_r
     assert head['status'] == 'ready' and head['preview']['text'] == source['text']
     from apps.api.lifetime_memory_composer import lane_model_budget
     assert lane_model_budget().model == 'memoir-luna-low'
-    assert not (tmp_path / 'homes').exists()
+    assert not list(tmp_path.rglob('memoir-agent-*'))
 
 
 @pytest.mark.parametrize('setting,value,changed', [
@@ -171,6 +172,8 @@ def test_worker_rejects_invalid_or_stale_composer_configuration_before_dispatch(
     ('timeline','gpt-5.6-sol',{},True),
     ('timeline','gpt-6.1-sol',{},True),
     ('composer','gpt-6.1-sol',{},True),
+    ('timeline','deepseek-v4.1-flash-1017',{},True),
+    ('composer','deepseek-v4.1-flash-1017',{},True),
     ('composer','unreviewed-sol-alias',{},False),
     ('composer','gpt-5.6-sol',{'context_window':131073},False),
     ('composer','gpt-5.6-sol',{'input_budget':98305},False),

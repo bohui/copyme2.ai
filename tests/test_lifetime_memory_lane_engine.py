@@ -228,7 +228,7 @@ def test_extraction_schema_limits_evidence_and_relations_to_the_claimed_page(sav
         validate.validate([{'kind':'before','event_id':current['events'][0]['id'],'source_refs':[ref]}])
 
 
-@pytest.mark.parametrize('model',['memoir-luna-low','gpt-5.6-sol','gpt-6.1-sol'])
+@pytest.mark.parametrize('model',['memoir-luna-low','gpt-5.6-sol','gpt-6.1-sol','deepseek-v4.1-flash-1017'])
 @pytest.mark.parametrize('phase',['extract','prepare','draft','review'])
 def test_configured_model_alias_respects_bounded_lane_scope(phase,model):
     current=page('timeline' if phase=='extract' else 'composer')

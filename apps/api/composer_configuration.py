@@ -5,7 +5,8 @@ from collections.abc import Mapping
 from .model_configuration import configured_model, configured_effort
 
 REVIEWED_COMPOSER_MODELS = frozenset({'gpt-6.1-sol', 'gpt-5.6-sol', 'gpt-5.6-luna-pooled',
-    'legal2ai-luna-low', 'memoir-luna-low', 'synthetic-byte-bpe'})
+    'legal2ai-luna-low', 'memoir-luna-low', 'deepseek-v4.1-flash-1017',
+    'synthetic-byte-bpe'})
 
 
 class ComposerConfigurationError(ValueError):

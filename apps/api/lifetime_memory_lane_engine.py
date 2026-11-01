@@ -36,7 +36,8 @@ from .lifetime_memory_publication import PublicationUnavailable
 # Reviewed OpenAI byte-level models retain the conservative UTF-8 byte bound
 # and existing context/framing limits. Composer models are reviewed separately.
 SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
-    'memoir-luna-low', 'gpt-5.6-sol', 'gpt-6.1-sol', 'synthetic-byte-bpe'})
+    'memoir-luna-low', 'gpt-5.6-sol', 'gpt-6.1-sol', 'deepseek-v4.1-flash-1017',
+    'synthetic-byte-bpe'})
 EXTRACTION_WINDOW_CONTRACT = load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/window'))
 EXTRACTION_REJECTION_REASONS = {
     'temporal_estimate_range': 'TEMPORAL_ESTIMATE_RANGE',

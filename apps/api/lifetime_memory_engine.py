@@ -49,7 +49,8 @@ GOVERNED_TURN_PROMPT = ''
 # Reviewed models retain the conservative UTF-8 byte bound.
 # No wildcard or arbitrary operator-defined alias is admitted.
 SUPPORTED_BYTE_BOUND_MODELS = frozenset({'gpt-5.6-luna-pooled', 'gpt-5.6-luna-memoir-low',
-    'gpt-5.6-luna-memoir-high', 'gpt-6.1-sol', 'synthetic-byte-bpe'})
+    'gpt-5.6-luna-memoir-high', 'gpt-6.1-sol', 'deepseek-v4.1-flash-1017',
+    'synthetic-byte-bpe'})
 SUPPORTED_PROMPT_VERSIONS = frozenset({'lifetime-v1'})
 
 
