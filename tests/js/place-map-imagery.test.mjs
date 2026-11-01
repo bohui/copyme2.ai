@@ -18,7 +18,7 @@ class Event {
   raiseEvent(value) { for (const listener of [...this.listeners]) listener(value); }
 }
 
-async function harness(provider = 'geoapify', {throttled = false, sessionFailure = false, libraryFailure = false, reducedMotion = true} = {}) {
+async function harness(provider = 'geoapify', {throttled = false, sessionFailure = false, sessionPending = false, libraryFailure = false, reducedMotion = true} = {}) {
   let resolveImage, rejectImage;
   const image = new Promise((resolve, reject) => { resolveImage = resolve; rejectImage = reject; });
   const classes = new Set();
@@ -31,7 +31,7 @@ async function harness(provider = 'geoapify', {throttled = false, sessionFailure
   const journey = {place: '承德', granularity: 'city', latitude: 40.97, longitude: 117.93};
   const container = {isConnected: true, dataset: {cesiumLatitude: '40.97', cesiumLongitude: '117.93', cesiumPlace: '承德'},
     closest: () => sceneElement, parentElement: {querySelector: selector => selector === '[data-map-retry]' ? retry : fallback}};
-  let viewer, imagery, loads = 0, renders = 0;
+  let viewer, imagery, finishSession, loads = 0, renders = 0;
   const flights=[], timers=new Map();
   let timerId=0;
   class Provider {
@@ -43,6 +43,7 @@ async function harness(provider = 'geoapify', {throttled = false, sessionFailure
     UrlTemplateImageryProvider: Provider,
     Google2DImageryProvider: {fromUrl: async () => {
       if (sessionFailure) throw new Error('Captured Google createSession HTTP 403');
+      if (sessionPending) await new Promise(resolve=>{finishSession=resolve;});
       return new Provider();
     }},
     Credit: class {}, WebMercatorProjection: class {}, Cartesian2: class {},
@@ -99,6 +100,7 @@ async function harness(provider = 'geoapify', {throttled = false, sessionFailure
   const frame=()=>viewer.scene.postRender.raiseEvent();
   const loadedTiles=()=>{viewer.scene.globe.tilesLoaded=true;frame();frame();};
   return {viewer, imagery, container, classes, attributes, resolveImage, rejectImage, context, fallback,flights,frame,loadedTiles,timers,
+    finishSession,
     unavailable:context.unavailablePlaceMaps, retryHandlers, loads:()=>loads, renders:()=>renders,
     restoreProvider:()=>{sessionFailure=false;libraryFailure=false;}};
 }
@@ -150,6 +152,14 @@ test('a stalled tile queue restores the explicit retry and clears the opening li
   assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);
   assert.equal(h.viewer.scene.postRender.listeners.size,0);
   assert.equal(h.timers.size,0);
+});
+
+test('a provider resolving after the tile timeout cannot reattach its failed layer',async()=>{
+  const h=await harness('google',{sessionPending:true});
+  [...h.timers.values()][0]();
+  h.finishSession();await tick();
+  assert.equal(h.viewer.imageryLayers.layer,null);
+  assert.equal(h.classes.has('is-cesium-map'),false);
 });
 
 test('disposing a map cancels its pending descent and tile timeout',async()=>{

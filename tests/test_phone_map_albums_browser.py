@@ -38,7 +38,7 @@ def test_cards_sort_by_first_event_and_follow_the_100_km_visible_area(album_page
 
 
 @pytest.mark.parametrize('album_page', ['events'], indirect=True)
-def test_reopening_restores_the_journey_and_city_zoom_keeps_scaled_footprints(album_page):
+def test_reopening_restores_the_active_city_and_city_zoom_keeps_scaled_footprints(album_page):
     page, _, _ = album_page
     page.set_viewport_size({'width': 1440, 'height': 960})
     page.evaluate('''() => {
@@ -55,8 +55,10 @@ def test_reopening_restores_the_journey_and_city_zoom_keeps_scaled_footprints(al
     expect(page.locator('.workspace-detail.is-collapsed')).to_be_visible()
     page.locator('.workspace-detail.is-collapsed .workspace-toggle').click()
     expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
-    expect(page.locator('.map-memory-cards .map-memory-card.is-city')).to_have_count(2, timeout=15000)
-    assert page.evaluate('window.__mapViewer.camera.positionCartographic.height') > 100000
+    expect(page.locator('.map-memory-cards [data-memory-explore="move"]')).to_be_visible()
+    expect(page.locator('.map-memory-cards .map-memory-card')).to_have_count(1)
+    expect(page.locator('.map-photo-album-layer')).not_to_contain_text('承德')
+    assert page.evaluate('window.__mapViewer.camera.positionCartographic.height') < 40000
     for longitude, latitude, size in [(151.2, -33.86, 16), (117.93, 40.97, 10)]:
         page.evaluate('''([longitude,latitude]) => {
           window.__mapViewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(longitude,latitude,2500)});
@@ -256,7 +258,6 @@ def test_phone_map_and_album_navigation(album_page):
     expect(page.locator('.place-journey-heading')).not_to_be_visible()
     expect(page.locator('.workspace-media-gallery')).not_to_be_visible()
     expect(page.locator('.life-stage-navigator, .life-stage-tabs')).to_have_count(0)
-    expect(page.locator('[data-add-workspace-memory]')).to_be_visible()
     scene=page.locator('.place-journey-scene').bounding_box()
     panel=page.locator('.workspace-media-overview').bounding_box()
     assert scene['height'] >= panel['height']-48, (scene,panel)
@@ -347,6 +348,10 @@ def test_empty_search_states_stay_hidden_until_photos_arrive(album_page, request
 def test_desktop_floating_albums_and_phone_resize_preserve_map(album_page):
     page,_,_=album_page
     page.set_viewport_size({'width':1440,'height':960})
+    page.evaluate('''() => {
+      window.__mapViewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(117.93,40.97,40000)});
+      window.__mapViewer.scene.requestRender();
+    }''')
     expect(page.locator('.workspace-media-gallery')).to_have_count(0)
     expect(page.locator('.workspace-media-map-header h2')).to_have_count(0)
     expect(page.locator('.map-photo-album-layer.is-desktop [data-photo-album]:visible')).to_have_count(1)

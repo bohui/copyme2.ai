@@ -736,7 +736,7 @@ export function createPlaceWorkspace({
           });
         } else { showImageryFallback(); return; }
         Promise.resolve(imagery).then((layer) => {
-          if (!container.isConnected || viewer.isDestroyed()) return;
+          if (mapLayerFailed || !currentMap()) return;
           layer.errorEvent.addEventListener(showImageryFallback);
           const requestImage = layer.requestImage.bind(layer);
           layer.requestImage = (...args) => {

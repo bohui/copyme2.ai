@@ -21,6 +21,23 @@ def test_interview_guidance_is_not_an_active_background_skill():
         admit('memoir-interview-guidance','accepted_context_change')
 
 
+def test_a_very_uncertain_city_reaches_mira_without_a_background_question_pool():
+    import json
+    from apps.api.conversation_reply import reply_packet
+    from apps.api.lifetime_memory_engine import validate_governed_context
+    from test_lifetime_memory_engine import fixture,encode
+    governed,context=fixture()
+    event=dict(id='childhood',revision=1,location=dict(place='Chengde',granularity='city',
+        hierarchy=['Earth','China','Chengde']),locationConfidenceScore=.15,yearConfidenceScore=0,
+        needs_confirmation=dict(location=True,year=True))
+    context['events']=[event]
+    raw=json.loads(governed.packet)
+    raw['interview_context']['events']=[event]
+    packet=reply_packet(validate_governed_context(encode(raw),context))
+    assert packet['brief']['hints']==[]
+    assert packet['background_deliveries']==[dict(skill='memoir-author-timeline',events=[event])]
+
+
 def test_mira_can_ignore_ready_news_and_keep_her_current_grounded_reply():
     context = news_context()
     raw = {**proposal(), 'acknowledgement': 'You remember painting the kitchen with your father.',

@@ -37,12 +37,22 @@ and continuation of an existing event. Cite original narrator evidence for each
 placement; assistant wording remains context only.
 
 Return locationConfidenceScore and yearConfidenceScore from 0 to 1 for EVERY
-proposed event. Select the most plausible coarse location from the authorized
-originals, including earlier conversation and saved event context, and cite its
-exact location_basis. Use 1 for an explicit unambiguous placement and a score
-below 0.5 for a weak guess. Retain the candidate even when its confidence is low;
-location=null and score=0 mean no candidate is supported anywhere in that context.
-Explain the inference in uncertainty. Birth in Chengde followed by
+proposed event. Select the most plausible city using the authorized originals,
+including earlier conversation and saved event context, and cite the exact
+context clues in location_basis. The location object has place, granularity and hierarchy;
+hierarchy begins with the literal "Earth" and ends with the identical place
+label, for example ["Earth", "Australia", "Tasmania", "Hobart"]. Use 1 for an
+explicit unambiguous placement and a score below 0.5 for a weak guess.
+For scores of at least 0.2, the city label must appear verbatim in location_basis.
+When only a country or broader setting is plausible, still choose a provisional
+real city within that setting, preferring the narrator's known places. Give this
+city a confidence strictly between 0 and 0.2, typically 0.05–0.15. Its name need
+not appear in the original: location_basis quotes the actual country/context
+clues, and uncertainty explains the assumed country/city and why that city was
+chosen. Keep it distinct from the narrator's stated facts. Mira will prioritize
+a neutral city clarification in Lane A. Retain the candidate even when confidence
+is very low; location=null and score=0 mean no plausible setting can be inferred
+from any available context. Explain every inference in uncertainty. Birth in Chengde followed by
 “小时候在爸爸学校家属院玩” supports a tentative Chengde candidate with low confidence,
 plus a broad childhood age/year estimate anchored to the original birth evidence.
 The workspace groups provisional candidates with a small question mark below

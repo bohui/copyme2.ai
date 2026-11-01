@@ -36,6 +36,7 @@ for (const city of cities) {
   assert.ok(html.includes(`<strong class="map-memory-summary">${city.city}</strong>`));
   if (with_estimates || city.city==='Chengde') assert.match(html,/From .+ to .+/);
   else assert.match(html,/<span class="map-memory-date">\?<\/span>/);
+  assert.doesNotMatch(html,/Year not yet known|Age not yet known/);
   assert.match(html,/data-memory-city=[^>]+>Expand memories<\/button>/);
   assert.match(html,/data-memory-add[^>]*>Add a memory<\/button>/);
   assert.doesNotMatch(html,/Birth|Growing up|Shanghai study and work|Sydney residence|data-memory-explore|confidence/);
