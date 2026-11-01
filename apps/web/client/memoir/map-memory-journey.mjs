@@ -160,6 +160,15 @@ export function mapCityOverlapsView(city, rectangle) {
   return Math.acos(Math.max(-1,Math.min(1,cosine)))*6371.0088 <= 100;
 }
 
+export function map2DViewRectangle(camera, unproject) {
+  const {position,frustum,right,up} = camera;
+  const corners = [frustum.left,frustum.right].flatMap(x => [frustum.bottom,frustum.top].map(y =>
+    unproject({x:position.x+x*right.x+y*up.x,y:position.y+x*right.y+y*up.y,z:0})));
+  // Keep longitudes unwrapped: a wide view may span more than half the world.
+  return {west:Math.min(...corners.map(point=>point.longitude)),east:Math.max(...corners.map(point=>point.longitude)),
+    south:Math.min(...corners.map(point=>point.latitude)),north:Math.max(...corners.map(point=>point.latitude))};
+}
+
 // Only explicit event/place links supply locations. Shared testimony, a nearby
 // city or a matching life stage does not establish an event's setting.
 export function buildMapMemoryJourney(events, groups, profile = {}) {

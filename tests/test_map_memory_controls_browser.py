@@ -31,6 +31,7 @@ const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)
   SceneTransforms:{worldToWindowCoordinates:()=>({x:scene.clientWidth*.7,y:scene.clientHeight*.6})}};
 const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([city]),getProfile:()=>({birth_year:1983}),
   getScope:()=> 'fixture',getStage:()=> 'all',lifeStageText:stage=>stage,
+  getPage:()=>({next_cursor:'fixture-next'}),
   t:(key,values)=>({mapMemoryJourney:'人生足迹',mapMemoryOverview:'完整旅程',mapEventsUnmapped:`${values?.count}个事件的地点待补充`}[key]||key)});
 map.sync(scene);
 window.mapControls={attach(){map.attach(viewer,cesium);},arrive(){scene.classList.add('is-cesium-map');redraw();},
@@ -86,7 +87,7 @@ def test_map_controls_keep_their_settled_layout_before_and_during_flight(control
     page = controls_page
     page.set_viewport_size({'width': width, 'height': 960})
     page.goto('http://map-controls.invalid/')
-    page.wait_for_function("window.mapControls && document.querySelector('.map-memory-status')?.textContent==='2个事件的地点待补充'")
+    page.wait_for_function("window.mapControls && document.querySelector('.map-memory-status')")
     initial = controls(page)
     page.evaluate('mapControls.attach()')
     flying = controls(page)

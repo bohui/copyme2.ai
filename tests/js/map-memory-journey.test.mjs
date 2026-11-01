@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildMapMemoryJourney, chronologicalEvents, cityEventCards, eventAge, eventAgeLabel, layoutMemoryCards, mapCityInView, mapCityOverlapsView, mapTrailWindow, memoryEventCardMarkup} from '../../apps/web/client/memoir/map-memory-journey.mjs';
+import {buildMapMemoryJourney, chronologicalEvents, cityEventCards, eventAge, eventAgeLabel, layoutMemoryCards, map2DViewRectangle, mapCityInView, mapCityOverlapsView, mapTrailWindow, memoryEventCardMarkup} from '../../apps/web/client/memoir/map-memory-journey.mjs';
 import {groupPlaces} from '../../apps/web/client/memoir/places.mjs';
 import {translateWith} from '../../apps/web/client/i18n.js';
 
@@ -13,6 +13,19 @@ const link = (place, role='setting') => ({place,role,status:'supported'});
 const event = (id,age,place,stage='childhood') => ({id,title:`Memory ${id}`,status:'active',canonical:true,life_stage:stage,
   temporal:{expression:`Age ${age}`,precision:'age'},places:[link(place)]});
 const t = (key,values) => translateWith(`Memoir.workspace.${key}`,values);
+
+test('wide 2D views retain the displayed longitude span across the date line',()=>{
+  const camera={position:{x:2.35,y:0},right:{x:1,y:0},up:{x:0,y:1},
+    frustum:{left:-2.3,right:2.3,bottom:-1,top:1}};
+  const rectangle=map2DViewRectangle(camera,point=>({longitude:point.x,latitude:point.y}));
+  assert.ok(rectangle.east-rectangle.west>Math.PI);
+  assert.equal(mapCityOverlapsView({longitude:117.93,latitude:40.97},rectangle),true);
+  assert.equal(mapCityOverlapsView({longitude:151.2,latitude:-33.86},rectangle),true);
+  assert.equal(mapCityOverlapsView({longitude:-45,latitude:0},rectangle),false);
+  camera.right={x:0,y:1};camera.up={x:-1,y:0};
+  const rotated=map2DViewRectangle(camera,point=>({longitude:point.x,latitude:point.y}));
+  assert.equal(rotated.west,1.35);assert.equal(rotated.east,3.35);
+});
 
 test('a city stays visible while its 100 km circle overlaps the map, including corners and the antimeridian',()=>{
   const rectangle=(west,south,east,north)=>Object.fromEntries(Object.entries({west,south,east,north})

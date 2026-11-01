@@ -76,8 +76,8 @@ Object.assign(globalThis,{window:{devicePixelRatio:1,matchMedia:()=>({matches:fa
   document:{documentElement:{lang:'en-AU'},createElement:()=>layer},Image:class {complete=true;naturalWidth=16;},
   localStorage:{getItem:key=>storage.get(key) ?? null,setItem:(key,value)=>storage.set(key,value)}});
 const destination=places.find(place=>place.place==='Sydney');
-let center=destination;
-const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){}}},
+let center=destination,redraw;
+const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:callback=>{redraw=callback;}}},
   camera:{frustum:{left:-4000,right:4000},flyTo:frame=>{frames.push(frame);center=frame.destination;}}};
 const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
   SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:300+(point.longitude-center.longitude)*500,
@@ -95,6 +95,10 @@ const first=workspace(),map=first.mapMemoryEvents;
 map.sync(scene);map.attach(viewer,cesium);
 assert.ok(stamps.length>0 && stamps.every(size=>size===16),'A sourced intercity trail stays visible in the one-event Sydney view');
 assert.equal(frames.length,1);
+center={longitude:0,latitude:0};redraw();
+assert.equal(cards.innerHTML,'','A view outside every API city must not retain event cards');
+center=destination;redraw();
+assert.match(cards.innerHTML,/Sydney residence/);
 const active=places.find(place=>place.place==='Chengde');
 const groupKey=map.nodes().find(node=>node.city==='Chengde').groupKey;
 listeners.click({target:{closest:()=>({dataset:{memoryCity:groupKey},hasAttribute:name=>name==='data-memory-city'})}});

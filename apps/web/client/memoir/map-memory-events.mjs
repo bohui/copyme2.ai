@@ -1,5 +1,5 @@
 import { escapeHtml } from "./dom.mjs";
-import { buildMapMemoryJourney, cityEventCards, mapCityInView, mapCityOverlapsView, mapTrailWindow, matchesEventPlace, memoryEventCardMarkup, memoryTrailLegs } from "./map-memory-journey.mjs";
+import { buildMapMemoryJourney, cityEventCards, map2DViewRectangle, mapCityInView, mapCityOverlapsView, mapTrailWindow, matchesEventPlace, memoryEventCardMarkup, memoryTrailLegs } from "./map-memory-journey.mjs";
 import { placeHistoryKey } from "./places.mjs";
 
 export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScope, getIdentity = getScope, getStage,
@@ -246,7 +246,9 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
           ...group.members.map(member => Object.hasOwn(member,"map_pin") ? member.map_pin : member)
             .filter(place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude))]};
     });
-    const rectangle = viewer.camera.computeViewRectangle?.(viewer.scene.globe?.ellipsoid);
+    const rectangle = viewer.scene.mode === cesium.SceneMode.SCENE2D && viewer.scene.mapProjection
+      ? map2DViewRectangle(viewer.camera,point=>viewer.scene.mapProjection.unproject(point))
+      : viewer.camera.computeViewRectangle?.(viewer.scene.globe?.ellipsoid);
     const visibleCities = new Set(cityLocations.filter(city => rectangle ? mapCityOverlapsView(city,rectangle)
       : !viewer.camera.computeViewRectangle && mapCityInView([city],project,width,height) !== null)
       .map(city => city.groupKey));

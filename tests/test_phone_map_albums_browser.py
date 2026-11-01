@@ -12,6 +12,31 @@ pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Req
 OUTPUT = Path(__file__).resolve().parents[1] / 'output/phone-map-albums'
 
 
+@pytest.mark.parametrize('album_page', ['overlap-events'], indirect=True)
+def test_cards_sort_by_first_event_and_follow_the_100_km_visible_area(album_page):
+    page, _, _ = album_page
+    page.set_viewport_size({'width': 1440, 'height': 960})
+    page.locator('[data-memory-overview]').click()
+    cards = page.locator('.map-memory-cards .map-memory-card.is-city')
+    expect(cards).to_have_count(2, timeout=15000)
+    assert cards.locator('.map-memory-summary').all_text_contents() == ['承德', '悉尼']
+    for width in (1440, 390):
+        page.set_viewport_size({'width': width, 'height': 960})
+        for latitude, show in ((0, False), (41.69, True), (42.14, False), (40.97, True)):
+            page.evaluate('''latitude=>{
+              const viewer=window.__mapViewer;viewer.camera.cancelFlight();
+              viewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(117.93,latitude,6000)});
+              viewer.scene.requestRender();
+            }''', latitude)
+            if show:
+                expect(page.locator('.map-memory-card:visible')).to_have_count(3, timeout=5000)
+                expect(page.locator('[data-photo-album]:visible')).to_have_count(3)
+                expect(page.locator('.map-photo-album-layer')).not_to_contain_text('悉尼')
+            else:
+                expect(page.locator('.map-memory-card:visible')).to_have_count(0, timeout=5000)
+                expect(page.locator('[data-photo-album]:visible')).to_have_count(0)
+
+
 @pytest.mark.parametrize('album_page', ['events'], indirect=True)
 def test_reopening_restores_the_journey_and_city_zoom_keeps_scaled_footprints(album_page):
     page, _, _ = album_page
@@ -51,7 +76,7 @@ def album_page(request):
                 latitude=40.97, longitude=117.93, period='1980s', revision=1, status='active', schema_version=1)
     places = [city, dict(city, place='双桥区', hierarchy=city['hierarchy']+['双桥区'], granularity='suburb', latitude=40.94, longitude=117.96, revision=2),
               dict(city, place='大石庙镇', hierarchy=city['hierarchy']+['大石庙镇'], granularity='suburb', latitude=40.9401, longitude=117.9601, revision=3)]
-    if mode in ('events','estimated-events'):
+    if mode in ('events','estimated-events','overlap-events'):
         places.append(dict(city,place='悉尼',hierarchy=['Earth','澳大利亚','悉尼'],latitude=-33.86,longitude=151.2,revision=4))
     if mode == 'current':
         places = [dict(city, period='')]
@@ -72,7 +97,7 @@ def album_page(request):
             place.pop('latitude')
             place.pop('longitude')
     profile = {'name':'Fixture', 'preferred_language':'zh-CN', 'memory_places':places}
-    if mode=='estimated-events':profile['birth_year']=1983
+    if mode in ('estimated-events','overlap-events'):profile['birth_year']=1983
     calls, errors = [], []
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
@@ -114,14 +139,14 @@ def album_page(request):
                 data = {'stages':{'baby':{'percent':30,'color':'amber','word_equivalents':300},
                                   'childhood':{'percent':10,'color':'red','word_equivalents':100},
                                   'midlife':{'percent':50,'color':'green','word_equivalents':1000}}}
-            elif path == '/story/map-events' and mode in ('events','estimated-events'):
+            elif path == '/story/map-events' and mode in ('events','estimated-events','overlap-events'):
                 events=[dict(id=id,revision=1,kind='event',status='active',life_stage=stage,title=title,
                     temporal={'expression':f'Age {age}','precision':'age'},
                     places=[{'role':'setting','status':'supported','place':place}])
                     for id,age,place,stage,title in [('return',40,places[2],'midlife','Return home'),
                         ('school',6,places[1],'childhood','First school'),('birth',0,places[0],'baby','Birth'),
                         ('move',20,places[-1],'young_adulthood','Move to Sydney')]]
-                if mode=='estimated-events':
+                if mode in ('estimated-events','overlap-events'):
                     for event in events:
                         if event['id']=='birth':
                             event.update(title='Born in Chengde in April 1983',
@@ -131,10 +156,15 @@ def album_page(request):
                             event.update(temporal=None,yearConfidenceScore=confidence,temporal_estimate=dict(
                                 year_start=start,year_end=end,age_start=start-1983,age_end=end-1983,confidence=confidence,
                                 rationale='Original duration and narrator birth anchors.'))
+                if mode=='overlap-events':
+                    residence=next(event for event in events if event['id']=='move')
+                    residence.update(life_stage='unplaced',temporal_anchor='present',yearConfidenceScore=.3,
+                        temporal_estimate=dict(year_start=1983,year_end=2026,age_start=0,age_end=43,confidence=.3,
+                            rationale='The residence start is unknown within this broad interval.'))
                 data={'project_id':'album-project','events':events,'policy_epoch':1,'source_revision':1,'event_revision':1,'complete':True}
             elif path == '/story/map-photos':
                 data={'project_id':'album-project','photos':[dict(photo_id='upload:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
-                    kind='private_upload',title='My school photo',event_ids=['school'])] if mode in ('events','estimated-events') else []}
+                    kind='private_upload',title='My school photo',event_ids=['school'])] if mode in ('events','estimated-events','overlap-events') else []}
             elif path == '/agent/projects/album-project/photos/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/content':
                 assert route.request.headers.get('authorization','').startswith('Bearer ')
                 return route.fulfill(content_type='image/png',body=base64.b64decode(
