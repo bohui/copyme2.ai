@@ -199,14 +199,14 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
     """Use server code, never client-supplied instructions or output schemas."""
     if phase == 'guidance':
         from .interview_guidance import guidance_contract
-        return guidance_contract(fence)
-    if phase == 'profile':
+        instructions, schema = guidance_contract(fence)
+    elif phase == 'profile':
         from .background_profile import profile_contract
-        return profile_contract(fence)
-    if phase == 'summarize':
+        instructions, schema = profile_contract(fence)
+    elif phase == 'summarize':
         from .lifetime_memory_summary import summary_contract
-        return summary_contract(fence,retry_reason=retry_reason)
-    if phase == 'extract':
+        instructions, schema = summary_contract(fence,retry_reason=retry_reason)
+    elif phase == 'extract':
         if two_lane:
             from .two_lane_memory import extraction_contract
             instructions,schema=extraction_contract(attribution=bool(fence and fence.attribution_context),
@@ -264,7 +264,7 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
             instructions += load_prompt_artifact(prompt_path('memoir/skills/memoir-composer/batch/compose'))
     locale_name = 'zh-CN' if locale == 'zh-CN' else 'en-AU'
     instructions += render_prompt_artifact(prompt_path(f'memoir/shared/bounded-context/{locale_name}'))
-    if fence and fence.attribution_coverage:
+    if getattr(fence, 'attribution_coverage', None):
         instructions += load_prompt_artifact(prompt_path('memoir/shared/place-conflicts'))
     return instructions, schema
 

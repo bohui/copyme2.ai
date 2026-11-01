@@ -44,6 +44,7 @@ export function createPlaceWorkspace({
     getEvents: () => state.timeline || [],
     getGroups: mapMemoryPlaceGroups,
     getProfile: profile,
+    getInitialPlace: () => state.placeJourney,
     getScope: () => JSON.stringify([state.project?.id, state.supabase?.user?.id,
       state.memoryEventPage?.policy_epoch, state.memoryEventPage?.source_revision, state.memoryEventPage?.event_revision,
       state.derivedWorkspace?.policy_epoch, state.derivedWorkspace?.source_revision]),
@@ -74,6 +75,7 @@ export function createPlaceWorkspace({
   };
 
   let cesiumPlaceJourneyViewer = null;
+  let mapOpeningScope, mapOpeningCity;
 
   let cesiumLoadPromise = null;
 
@@ -209,10 +211,18 @@ export function createPlaceWorkspace({
     const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
     const current = placeWorkspaceSelection();
     if (!current || !placeMapTarget(current)) return "";
-    const places = mergePlaces(profile().memory_places || [], profile(), state.chat || []);
-    const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage));
+    const nodes = mapMemoryEvents.nodes();
+    const places = mergePlaces([...(profile().memory_places || []), ...nodes.map(node => node.location)], profile(), state.chat || []);
+    const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage)
+      || nodes.some(node => placeHistoryKey(node.location) === placeHistoryKey(item)));
     const groups = workspacePlaceGroups(matching);
-    const activeGroup = current && groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
+    const scope = JSON.stringify([state.project?.id, state.supabase?.user?.id, placeHistoryKey(current),
+      current.source_sequence || current.revision || 0, state.memoryEventPage?.policy_epoch, state.derivedWorkspace?.policy_epoch]);
+    if (!cesiumPlaceJourneyViewer || mapOpeningScope !== scope) {
+      mapOpeningScope = scope;mapOpeningCity = mapMemoryEvents.activeCity(groups);
+    }
+    const activeGroup = groups.find(group => group.key === mapOpeningCity)
+      || current && groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
     const map = placeJourneyMarkup(current, "workspace", activeGroup);
     return `<section class="workspace-media-overview no-gallery" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><button type="button" data-all-places>${t("mapMemoryOverview")}</button>${toggle}</div>${map}</div></section>`;
   }

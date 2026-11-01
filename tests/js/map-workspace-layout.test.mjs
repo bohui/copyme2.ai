@@ -5,6 +5,9 @@ import {createPlaceWorkspace} from '../../apps/web/client/memoir/place-workspace
 import {albumStackMarkup} from '../../apps/web/client/memoir/map-photo-albums.mjs';
 import {placeHistoryKey} from '../../apps/web/client/memoir/places.mjs';
 import {responsePhotoCards} from '../../apps/web/client/memoir/interview-photo-turns.mjs';
+import vm from 'node:vm';
+import {readMemoirClientSource} from './helpers/memoir-source.mjs';
+import {groupPlaces,mergePlaces} from '../../apps/web/client/memoir/places.mjs';
 
 const personalId='upload:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const city={place:'Sydney',granularity:'city',hierarchy:['Earth','Australia','Sydney'],latitude:-33.86,longitude:151.2,period:'1983'};
@@ -14,6 +17,23 @@ const photo=(place,id)=>({asset_id:id,image_url:`https://photos.example/${id}.jp
   latitude:place.latitude,longitude:place.longitude,allowed_actions:{embed:true}});
 const event=(id,age,place)=>({id,revision:1,canonical:true,status:'active',life_stage:'childhood',title:`Memory ${id}`,
   temporal:{expression:`Age ${age}`,precision:'age'},places:[{role:'setting',status:'supported',place}]});
+
+test('saving a city preserves a live viewer until the workspace is reopened',()=>{
+  let active=groupPlaces([city])[0].key;
+  const context=vm.createContext({state:{project:{id:'project'},lifeStage:'all'},
+    profile:()=>({memory_places:[city,north]}),placeWorkspaceSelection:()=>city,placeMapTarget:place=>place,
+    mergePlaces,placeHistoryKey,workspacePlaceGroups:groupPlaces,
+    mapMemoryEvents:{nodes:()=>[],activeCity:()=>active},
+    cesiumPlaceJourneyViewer:{},mapOpeningScope:null,mapOpeningCity:null,
+    translate:key=>key,escapeHtml:String,placeJourneyMarkup:(_,variant,group)=>group.city.place});
+  const source=readMemoirClientSource().match(/function workspaceMediaOverview\([^]*?\n\}/)[0];
+  vm.runInContext(source,context);
+  const initial=context.workspaceMediaOverview();
+  active=groupPlaces([north])[0].key;
+  assert.equal(context.workspaceMediaOverview(),initial,'A background repaint must preserve the live map metadata');
+  context.cesiumPlaceJourneyViewer=null;
+  assert.match(context.workspaceMediaOverview(),/Chengde/,'A recreated map uses the newly saved city');
+});
 
 async function setup(t,privatePhotos=[{photo_id:personalId,kind:'private_upload',title:'My school photo',event_ids:['school']}]) {
   for (const [name,value] of Object.entries({document:{documentElement:{lang:'en-AU'}},

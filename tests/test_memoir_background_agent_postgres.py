@@ -142,6 +142,42 @@ def test_agent_claim_uses_a_supported_workspace_locale(sql,language,expected):
     assert service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)['locale']==expected
 
 
+@pytest.mark.parametrize('language,queued_language',[('zh-CN','en-AU'),('en-AU','zh-CN')])
+def test_timeline_claim_resolves_current_language_before_source_skills(sql,language,queued_language):
+    from test_background_profile_postgres import source
+    identity,run=queued(sql)
+    source(sql,identity,'我于1983年4月出生在承德。',1)
+    sql(f"insert into public.user_profile(user_id,profile) values('{OWNER}',"
+        f"jsonb_build_object('preferred_language',{literal(language)})) "
+        "on conflict(user_id) do update set profile=excluded.profile;")
+    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source,locale) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline',1,{literal(queued_language)});")
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    work=service(sql,'read_memoir_background_work',p_fence=claim)
+    page=service(sql,'claim_memoir_lane',p_lane_id=work['lanes'][0]['id'],p_run_seconds=300)
+    assert claim['locale']==page['preferences']['language']==language
+    assert page['locale']==language, 'Nested skills must use the resolved profile language, not the queued default.'
+
+
+def test_composer_claim_keeps_explicit_edition_after_resolving_conversation_language(sql):
+    from test_background_profile_postgres import source
+    identity,run=queued(sql)
+    project=identity['project_id']
+    original=source(sql,identity,'I grew up in Chengde.',1)
+    event={'kind':'event','title':'Childhood','source_refs':[{'source_id':original['id'],
+        'version':1,'quote':original['text'],'char_start':0,'char_end':len(original['text'])}]}
+    rpc(sql,'apply_user_memory_events',f"{literal(project)},"
+        f"{literal([{'id':original['id'],'version':1}])},{literal([event])}")
+    sql(f"update public.user_profile set profile=jsonb_build_object('preferred_language','zh-CN') where user_id='{OWNER}';")
+    sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source,target_milestone,locale) "
+        f"values('{OWNER}',{literal(project)},'composer',1,1,'en-AU');")
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    work=service(sql,'read_memoir_background_work',p_fence=claim)
+    page=service(sql,'claim_memoir_lane',p_lane_id=work['lanes'][0]['id'],p_run_seconds=300)
+    assert page['preferences']['language']==claim['locale']=='zh-CN'
+    assert page['locale']=='en-AU' and page['partition']
+
+
 def test_background_scope_rejects_other_owner_new_source_and_expired_tokens(sql):
     identity, run = queued(sql)
     claim = service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createFamilyWorkspace} from '../../../apps/web/client/memoir/family-workspace.mjs';
-import {createMapMemoryEvents} from '../../../apps/web/client/memoir/map-memory-events.mjs';
+import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
 import {buildMapMemoryJourney,cityEventCards,memoryEventCardMarkup} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 import {groupPlaces} from '../../../apps/web/client/memoir/places.mjs';
 import {translateWith} from '../../../apps/web/client/i18n.js';
@@ -66,23 +66,57 @@ const canvas={getContext:()=>new Proxy({clearRect:()=>{stamps.length=0;},drawIma
   {get:(target,key)=>target[key] || (()=>{})})};
 const cards={innerHTML:'',scrollTop:0,getBoundingClientRect:()=>({top:0,bottom:700}),querySelectorAll:()=>[]};
 const toolbar={innerHTML:''},overflow={replaceChildren(){}};
-const layer={isConnected:true,classList:{toggle(){}},querySelectorAll:()=>[],addEventListener(){},
+const listeners={};
+const layer={isConnected:true,classList:{toggle(){}},querySelectorAll:()=>[],addEventListener:(name,callback)=>{listeners[name]=callback;},
   getBoundingClientRect:()=>({left:0,top:0}),querySelector:selector=>({canvas,'.map-memory-cards':cards,
     '.map-memory-toolbar':toolbar,'.map-memory-overflow':overflow}[selector])};
-const scene={clientWidth:600,clientHeight:700,classList:{toggle(){},contains:()=>true},querySelector:()=>layer};
-Object.assign(globalThis,{window:{devicePixelRatio:1,matchMedia:()=>({matches:false})},
-  document:{documentElement:{lang:'en-AU'}},Image:class {complete=true;naturalWidth=16;}});
+const scene={isConnected:true,clientWidth:600,clientHeight:700,classList:{toggle(){},contains:()=>true},
+  querySelector(){return this.child;},append(value){this.child=value;}};
+const storage=new Map();
+Object.assign(globalThis,{window:{devicePixelRatio:1,matchMedia:()=>({matches:false}),addEventListener(){}},
+  document:{documentElement:{lang:'en-AU'},createElement:()=>layer},Image:class {complete=true;naturalWidth=16;},
+  localStorage:{getItem:key=>storage.get(key) ?? null,setItem:(key,value)=>storage.set(key,value)}});
 const destination=places.find(place=>place.place==='Sydney');
+let center=destination;
 const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){}}},
-  camera:{frustum:{left:-4000,right:4000},flyTo:frame=>frames.push(frame)}};
+  camera:{frustum:{left:-4000,right:4000},flyTo:frame=>{frames.push(frame);center=frame.destination;}}};
 const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
-  SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:300+(point.longitude-destination.longitude)*500,
-    y:350+(point.latitude-destination.latitude)*500})}};
-const map=createMapMemoryEvents({getEvents:()=>enriched,getGroups:()=>groupPlaces(places),getProfile:()=>state.project.profile,
-  getScope:()=>project_id,getStage:()=> 'all',t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage});
+  SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:300+(point.longitude-center.longitude)*500,
+    y:350+(point.latitude-center.latitude)*500})}};
+Object.assign(state,{timeline:enriched,placeJourney:destination,lifeStage:'all'});
+state.project.profile.memory_places=places;
+const workspace=()=>{
+  const result=createPlaceWorkspace({state,profile:()=>state.project.profile,captureProjectScope:()=>project_id,
+    isCurrentProjectScope:()=>true,render(){},lifeStageText:stage=>stage,
+    photos:{bindPhotoMemoryActions(){},photoRequestKey:()=>'',pictureWall:()=>'',workspacePictureItems:()=>[]}});
+  result.mapPhotoAlbums.sync=()=>{};
+  return result;
+};
+const first=workspace(),map=first.mapMemoryEvents;
 map.sync(scene);map.attach(viewer,cesium);
 assert.ok(stamps.length>0 && stamps.every(size=>size===16),'A sourced intercity trail stays visible in the one-event Sydney view');
 assert.equal(frames.length,1);
-map.dispose();map.sync(scene);map.attach(viewer,cesium);
-assert.equal(frames.length,2,'Reopening the viewer must frame all cities returned by the API');
+const active=places.find(place=>place.place==='Chengde');
+const groupKey=map.nodes().find(node=>node.city==='Chengde').groupKey;
+listeners.click({target:{closest:()=>({dataset:{memoryCity:groupKey},hasAttribute:name=>name==='data-memory-city'})}});
+assert.equal(frames.at(-1).destination.latitude,active.latitude);
+map.dispose();scene.child=null;map.sync(scene);map.attach(viewer,cesium);
+assert.equal(frames.at(-1).destination.latitude,active.latitude,'Reopening must fly to the last active API city');
+assert.ok(frames.at(-1).destination.height<=40000);
 map.dispose();
+scene.child=null;
+const refreshed=workspace();
+assert.match(refreshed.workspaceMediaOverview(),new RegExp(`data-cesium-latitude="${active.latitude}"`),
+  'The opening globe flight must use the saved city before the event layer is attached');
+refreshed.mapMemoryEvents.sync(scene);refreshed.mapMemoryEvents.attach(viewer,cesium);
+assert.equal(frames.at(-1).destination.latitude,active.latitude,'A refreshed project must restore the same API city');
+assert.ok(Math.abs(frames.at(-1).destination.longitude-active.longitude)<1e-9);
+assert.match(cards.innerHTML,/Growing up/);
+assert.doesNotMatch(cards.innerHTML,/Sydney residence|Shanghai study and work/);
+refreshed.mapMemoryEvents.dispose();
+state.project.profile.memory_places=[];
+const eventOnly=workspace();
+eventOnly.mapMemoryEvents.sync(null);
+assert.match(eventOnly.workspaceMediaOverview(),new RegExp(`data-cesium-latitude="${active.latitude}"`),
+  'Event-only cities must also supply the restored opening flight');
+eventOnly.mapMemoryEvents.dispose();

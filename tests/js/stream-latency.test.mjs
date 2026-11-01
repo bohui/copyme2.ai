@@ -317,6 +317,8 @@ test('photo discovery does not reserve a gallery before any eligible result', ()
     placeMapTarget: () => ({}), profile: () => ({memory_places: [entry]}), mergePlaces: items => items,
     placeHistoryChoices: () => '', placeJourneyMarkup: () => '<div>map</div>',
     workspacePlaceGroups: () => [{city: entry, members: [entry]}], groupChoices: () => [entry],
+    mapMemoryEvents: {activeCity: () => null, nodes: () => []},
+    cesiumPlaceJourneyViewer:null, mapOpeningScope:null, mapOpeningCity:null,
     renderablePictureItems: items => items, workspacePictureItems: () => [], pictureWall: () => '', favoritePhotoWall: () => '',
     placeHistoryKey: item => item.place, photoSearchPeriod: () => '',
     photoRequestKey: () => JSON.stringify(['p', 'Chengde', '', null, null]),

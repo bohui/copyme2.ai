@@ -11,8 +11,8 @@ const event=(id,place,year,stage)=>({id,status:'active',kind:'event',title:id,li
   yearConfidenceScore:.9,temporal:year ? {expression:String(year),precision:'year',year_start:year} : null,
   places:[{role:'setting',status:'supported',place}]});
 
-function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=true) {
-  const globals={window:globalThis.window,document:globalThis.document,Image:globalThis.Image};
+function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=true, settings={}) {
+  const globals={window:globalThis.window,document:globalThis.document,Image:globalThis.Image,localStorage:globalThis.localStorage};
   t.after(()=>Object.assign(globalThis,globals));
   const listeners={},focusCalls=[],cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
   const toolbar={innerHTML:'',offsetHeight:40},overflow={replaceChildren(){},querySelector:()=>null};
@@ -32,23 +32,28 @@ function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=t
   globalThis.window={devicePixelRatio:1,matchMedia:q=>({matches:q.includes('max-width') && mobile})};
   globalThis.document={createElement:()=>layer};
   globalThis.Image=class {complete=true;naturalWidth=16;};
-  let redraw,center=null;
+  const values=settings.values || new Map();
+  globalThis.localStorage=settings.storage || {getItem:key=>values.get(key) ?? null,setItem:(key,value)=>values.set(key,value)};
+  let redraw,moveEnd,center=null;
   const flights=[],explored=[],added=[];
   const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:cb=>{redraw=cb;return ()=>{};}}},
-    camera:{frustum:{left:-100000,right:100000},flyTo:flight=>flights.push(flight)}};
+    camera:{frustum:{left:-100000,right:100000},flyTo:flight=>flights.push(flight),
+      moveEnd:{addEventListener:callback=>{moveEnd=callback;return ()=>{moveEnd=null;};}}}};
   const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
     SceneTransforms:{worldToWindowCoordinates:(_,p)=>center
       ? {x:300+(p.longitude-center.longitude)*500,y:350+(p.latitude-center.latitude)*500}
       : {x:300,y:350}}};
   const events=savedEvents || [event('Sydney arrival',sydney,2012,'young_adulthood'),event('University',shanghai,2007,'young_adulthood'),
     event('Birth',chengde,1983,'baby'),event('Growing up',chengde,null,'childhood')];
-  const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([chengde,shanghai,sydney,...extraPlaces]),
-    getProfile:()=>({birth_year:1983}),getScope:()=> 'fixture',getStage:()=> 'all',
+  const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces(settings.places || [chengde,shanghai,sydney,...extraPlaces]),
+    getProfile:()=>({birth_year:1983}),getScope:()=>settings.scope || 'fixture',getIdentity:()=>settings.identity || 'fixture',
+    getInitialPlace:()=>settings.initialPlace || null,getStage:()=> 'all',
     t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage,
     getCanAddMemory:()=>canAddMemory,onAdd:()=>added.push('add_memory'),onExplore:id=>explored.push(id)});
   map.sync(scene);map.attach(viewer,cesium);
+  const initialFlights=flights.slice();
   flights.length=0;
-  return {map,cards,flights,explored,added,focusCalls,footprints,markup:()=>layer.innerHTML,refresh:()=>map.sync(scene),hidden:()=>layer.hidden,
+  return {map,cards,flights,initialFlights,explored,added,focusCalls,footprints,markup:()=>layer.innerHTML,refresh:()=>map.sync(scene),hidden:()=>layer.hidden,
     add(){listeners.click({target:{closest:()=>({dataset:{},hasAttribute:name=>name==='data-memory-add'})}});},
     setCanAddMemory(value){canAddMemory=value;map.sync(scene);},
     remount(){map.dispose();scene.child=null;center=null;viewer.camera.frustum={left:-100000,right:100000};map.sync(scene);map.attach(viewer,cesium);},
@@ -59,7 +64,7 @@ function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=t
       listeners.click({target:{closest:()=>target}});
     },
     explore(id){listeners.click({target:{closest:()=>({dataset:{memoryExplore:id},hasAttribute:name=>name==='data-memory-explore'})}});},
-    zoom(place,span=8000){center=place;viewer.camera.frustum={left:-span/2,right:span/2};footprints.length=0;redraw();}};
+    zoom(place,span=8000){center=place;viewer.camera.frustum={left:-span/2,right:span/2};footprints.length=0;redraw();moveEnd?.();}};
 }
 
 test('each city card has its own add-memory action without expanding or continuing an event', t=>{
@@ -110,17 +115,135 @@ test('city add-memory actions respect loading and payment restrictions and updat
   assert.deepEqual(added,['add_memory']);
 });
 
-test('reopening a collapsed map frames the whole journey and clears the previous city focus', t=>{
+test('reopening a collapsed map flies to the last active city', t=>{
   const events=[event('Birth',chengde,1983,'baby'),event('Sydney arrival',sydney,2012,'young_adulthood')];
   const {map,cards,flights,expand,zoom,remount}=mapFixture(t,false,[],events);
   zoom(sydney);
   expand(map.nodes().find(node=>node.city==='Sydney').groupKey);
   flights.length=0;
   remount();
-  assert.equal(flights.length,1,'A recreated viewer must receive a fresh journey frame');
-  assert.ok(flights[0].destination.height>40000,'Fit both distant cities instead of the last selected city');
-  assert.equal(map.viewCity(),null);
-  assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,2);
+  assert.equal(flights.length,1,'A recreated viewer must receive a fresh city frame');
+  assert.ok(Math.abs(flights[0].destination.longitude-sydney.longitude)<1e-9,'Restore Sydney instead of framing all cities');
+  assert.equal(flights[0].destination.latitude,sydney.latitude);
+  assert.ok(flights[0].destination.height<=40000);
+  zoom(sydney);
+  assert.equal(map.viewCity(),map.nodes().find(node=>node.city==='Sydney').groupKey);
+  assert.match(cards.innerHTML,/Sydney arrival/);
+  assert.doesNotMatch(cards.innerHTML,/Birth|class="map-memory-card is-city/);
+});
+
+test('refresh restores the selected city from storage on desktop and phone', t=>{
+  for (const mobile of [false,true]) {
+    const settings={values:new Map(),initialPlace:shanghai};
+    const first=mapFixture(t,mobile,[],undefined,true,settings);
+    assert.equal(first.initialFlights[0].destination.latitude,shanghai.latitude);
+    first.expand(first.map.nodes().find(node=>node.city==='Sydney').groupKey);
+    first.map.dispose();
+    const refreshed=mapFixture(t,mobile,[],undefined,true,settings);
+    assert.equal(refreshed.initialFlights.length,1);
+    assert.equal(refreshed.initialFlights[0].destination.latitude,sydney.latitude);
+    assert.ok(Math.abs(refreshed.initialFlights[0].destination.longitude-sydney.longitude)<1e-9);
+    assert.ok(refreshed.initialFlights[0].destination.height<=40000);
+    assert.match(refreshed.cards.innerHTML,/Sydney arrival/);
+    assert.doesNotMatch(refreshed.cards.innerHTML,/University|Birth|class="map-memory-card is-city/);
+  }
+});
+
+test('a city reached by panning or zooming becomes the saved fly-to target', t=>{
+  const settings={values:new Map()};
+  const first=mapFixture(t,false,[],undefined,true,settings);
+  first.zoom(chengde);
+  first.map.dispose();
+  const refreshed=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(refreshed.initialFlights[0].destination.latitude,chengde.latitude);
+  assert.match(refreshed.cards.innerHTML,/Growing up/);
+  assert.doesNotMatch(refreshed.cards.innerHTML,/Sydney arrival|University/);
+});
+
+test('background event revisions preserve the active city without another flight', t=>{
+  const settings={values:new Map(),initialPlace:chengde};
+  const first=mapFixture(t,false,[],undefined,true,settings);
+  first.expand(first.map.nodes().find(node=>node.city==='Sydney').groupKey);
+  first.zoom(sydney);
+  first.flights.length=0;
+  settings.scope='fixture:updated-events';
+  first.refresh();
+  assert.equal(first.map.viewCity(),first.map.nodes().find(node=>node.city==='Sydney').groupKey);
+  assert.match(first.cards.innerHTML,/Sydney arrival/);
+  assert.doesNotMatch(first.cards.innerHTML,/Birth|University|class="map-memory-card is-city/);
+  assert.equal(first.flights.length,0,'An event update must not interrupt the current map view');
+});
+
+test('Whole journey remains an explicit saved choice after collapse and refresh', t=>{
+  const settings={values:new Map(),initialPlace:shanghai};
+  const first=mapFixture(t,false,[],undefined,true,settings);
+  first.expand(first.map.nodes().find(node=>node.city==='Sydney').groupKey);
+  first.map.overview();
+  first.flights.length=0;
+  first.remount();
+  assert.ok(first.flights[0].destination.height>40000);
+  first.map.dispose();
+  const refreshed=mapFixture(t,false,[],undefined,true,settings);
+  assert.ok(refreshed.initialFlights[0].destination.height>40000);
+  assert.equal(refreshed.map.viewCity(),null);
+  assert.equal((refreshed.cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,3);
+});
+
+test('a newly mentioned place supersedes the older saved city', t=>{
+  const settings={values:new Map(),initialPlace:{...chengde,source_sequence:1}};
+  const first=mapFixture(t,false,[],undefined,true,settings);
+  first.expand(first.map.nodes().find(node=>node.city==='Sydney').groupKey);
+  settings.initialPlace={...shanghai,source_sequence:2};
+  first.refresh();
+  assert.equal(first.flights.at(-1).destination.latitude,shanghai.latitude);
+  first.map.dispose();
+  const refreshed=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(refreshed.initialFlights[0].destination.latitude,shanghai.latitude);
+});
+
+test('saved city preferences stay within the project, owner and policy identity', t=>{
+  const values=new Map();
+  const settings={values,identity:'project:owner:1',initialPlace:chengde};
+  const first=mapFixture(t,false,[],undefined,true,settings);
+  first.expand(first.map.nodes().find(node=>node.city==='Sydney').groupKey);
+  first.map.dispose();
+  for (const identity of ['other-project:owner:1','project:other-owner:1','project:owner:2']) {
+    const refreshed=mapFixture(t,false,[],undefined,true,{...settings,identity});
+    assert.equal(refreshed.initialFlights[0].destination.latitude,chengde.latitude);
+    refreshed.map.dispose();
+  }
+});
+
+test('switching project or policy scope hides old locations before the next map sync', t=>{
+  const settings={};
+  const {map}=mapFixture(t,false,[],undefined,true,settings);
+  assert.ok(map.nodes().length>0);
+  settings.scope='another-project:policy-2';
+  assert.deepEqual(map.nodes(),[]);
+});
+
+test('malformed storage and unavailable cities fall back to current geography', t=>{
+  const values=new Map();
+  const settings={values,initialPlace:shanghai};
+  const first=mapFixture(t,false,[],undefined,true,settings);
+  first.expand(first.map.nodes().find(node=>node.city==='Sydney').groupKey);
+  first.map.dispose();
+  const missing=mapFixture(t,false,[],[event('University',shanghai,2007,'young_adulthood')],true,
+    {...settings,places:[shanghai]});
+  assert.equal(missing.initialFlights[0].destination.latitude,shanghai.latitude);
+  missing.map.dispose();
+  for (const key of values.keys()) values.set(key,'{invalid');
+  const refreshed=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(refreshed.initialFlights[0].destination.latitude,shanghai.latitude);
+});
+
+test('restricted browser storage still retains the city across collapse in the current page', t=>{
+  const storage={getItem(){throw new Error('Storage denied');},setItem(){throw new Error('Storage denied');}};
+  const {map,flights,expand,remount}=mapFixture(t,false,[],undefined,true,{storage});
+  expand(map.nodes().find(node=>node.city==='Sydney').groupKey);
+  flights.length=0;
+  remount();
+  assert.equal(flights[0].destination.latitude,sydney.latitude);
 });
 
 test('one-event city views retain large intercity footprints even when the other city is far offscreen', t=>{

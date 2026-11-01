@@ -27,6 +27,8 @@ function harness(api, entries = [city, town, otherCity]) {
     saveProfileUpdates: async updates => { saved = {...saved, ...updates}; },
     mergePlaces, placeHistoryKey, matchesPlaceStage,
     workspacePlaceGroups: groupPlaces, groupChoices: () => [], placeHistoryChoices: () => '',
+    mapMemoryEvents: {activeCity: () => null, nodes: () => []},
+    cesiumPlaceJourneyViewer:null, mapOpeningScope:null, mapOpeningCity:null,
     placeWorkspaceSelection: () => saved.memory_places.find(place => place.place === town.place),
     placeMapTarget: place => place, placeJourneyMarkup: () => '<div>map</div>',
     searchedPictures: () => [],
