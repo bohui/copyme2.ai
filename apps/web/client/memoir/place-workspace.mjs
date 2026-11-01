@@ -10,7 +10,7 @@ export const PLACE_JOURNEY_PROJECT_STORAGE_KEY = "memory-spark-place-journey-pro
 export function createPlaceWorkspace({
   api, captureProjectScope, isCurrentProjectScope, lifeStageText, loadPlacePictures, persistChatHistory,
   profile, recordWorkspaceSkillProgress, render, saveProfileUpdates, state, supabaseApi, workspaceHasContent,
-  photos, storyApi, onExploreMapMemory, onLoadMoreMapEvents
+  photos, storyApi, onExploreMapMemory, onAddMapMemory, onLoadMoreMapEvents
 }) {
   const { bindPhotoMemoryActions, photoRequestKey, pictureWall, workspacePictureItems } = photos;
 
@@ -52,10 +52,11 @@ export function createPlaceWorkspace({
     getStage: () => state.lifeStage || "all",
     getPage: () => state.memoryEventPage,
     getReadiness: () => state.stageReadiness || {},
+    getCanAddMemory: () => !state.loading && !state.recallStatus?.payment_required,
     readPlaces: (eventId, cursor) => storyApi(`/v1/story/map-events/${encodeURIComponent(state.project.id)}/${encodeURIComponent(eventId)}/places${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`),
     resolvePlaces: resolveMapMemoryPlaces,
     t: (key, values) => translateWith(`Memoir.workspace.${key}`, values),
-    lifeStageText, onExplore: onExploreMapMemory, onLoadMore: onLoadMoreMapEvents,
+    lifeStageText, onExplore: onExploreMapMemory, onAdd: onAddMapMemory, onLoadMore: onLoadMoreMapEvents,
     onOverview: () => { state.lifeStage = "all"; state.selectedPlace = null; render(); },
     onChange: scene => mapPhotoAlbums.sync(scene),
   });
@@ -248,9 +249,10 @@ export function createPlaceWorkspace({
       if (album) album.pictures.unshift(photo);
       else if ((keys.size !== 1 || allPlaces) && (state.lifeStage === "all" || linked.length)) unlocated.push(photo);
     }
-    const visible = detailed ? albums.filter(album => cityKey === undefined || album.groupKey === cityKey
-      || (focused && matchesEventPlace(album.city,focused.city))) : [...new Set(albums.map(album => album.groupKey))].map(key => {
-      const members = albums.filter(album => album.groupKey === key), city = members[0].city;
+    const scoped = albums.filter(album => cityKey === undefined || album.groupKey === cityKey
+      || (focused && matchesEventPlace(album.city,focused.city)));
+    const visible = detailed ? scoped : [...new Set(scoped.map(album => album.groupKey))].map(key => {
+      const members = scoped.filter(album => album.groupKey === key), city = members[0].city;
       return {key:`city-album:${key}`,place:city.place,entries:members.flatMap(album => album.entries),
         pictures:photos.mergePlacePictures([],members.flatMap(album => album.pictures)),
         latitude:city.latitude,longitude:city.longitude,pinned:Number.isFinite(city.latitude) && Number.isFinite(city.longitude)};

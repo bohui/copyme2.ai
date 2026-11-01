@@ -132,10 +132,21 @@ def test_multiple_excerpts_select_exact_relative_spans_and_reject_ambiguity():
 
 
 def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the_same_event(sql,tmp_path,monkeypatch):
+    from pathlib import Path
+    import subprocess
+
     birth = 'I was born in Chengde in 1991.'
     childhood = 'When I was little, I played in the staff compound at my father\'s school.'
     confirmation = 'The compound was in Chengde in 1997.'
     packets = []
+    feeds = []
+
+    def capture_map_feed():
+        feed=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()
+        locations={event['id']:conversation.client.get(
+            f'/v1/story/map-events/{conversation.project}/{event["id"]}/places').json() for event in feed['events']}
+        feeds.append(dict(feed=feed,locations=locations))
+        return feed
 
     def extract(packet):
         text = packet['sources'][0]['text']
@@ -167,8 +178,9 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
     with conversation.client:
         conversation.say(birth);drain(conversation)
         conversation.say(childhood);drain(conversation)
-        feed=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()
+        feed=capture_map_feed()
         saved=next(event for event in feed['events'] if event['kind']=='period')
+        assert len(feed['events'])==2 and saved['id']!=next(event['id'] for event in feed['events'] if event['kind']=='event')
         places=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places').json()
         assert places['items']==[], 'A low-confidence candidate must not become a map location'
         conversation.say('I remember the playground clearly.')
@@ -179,11 +191,16 @@ def test_childhood_location_candidates_reach_lane_a_and_confirmation_updates_the
         assert pending['needs_confirmation']==dict(location=True,year=True)
         drain(conversation)
         conversation.say(confirmation);drain(conversation)
-        feed=conversation.client.get('/v1/story/map-events',params={'project_id':conversation.project}).json()
+        feed=capture_map_feed()
         updated=next(event for event in feed['events'] if event['id']==saved['id'])
         assert updated['temporal']['year_start']==1997
         places=conversation.client.get(f'/v1/story/map-events/{conversation.project}/{saved["id"]}/places').json()
         assert [item['place']['place'] for item in places['items']]==['Chengde']
+        replay=Path(__file__).parent/'js/helpers/replay-unlocated-memory-cards.mjs'
+        result=subprocess.run(['node',str(replay)],input=json.dumps(dict(
+            project_id=conversation.project,childhood_id=saved['id'],feeds=feeds)),
+            text=True,capture_output=True,timeout=10)
+        assert result.returncode==0,result.stdout+result.stderr
 
 
 def test_later_replies_upgrade_estimates_and_then_confirm_the_same_saved_event(sql,tmp_path,monkeypatch):

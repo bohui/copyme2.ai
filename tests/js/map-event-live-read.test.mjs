@@ -140,8 +140,6 @@ test('the all-ages map keeps the life-stage navigator reachable by keyboard', ()
   const html=context.lifeStageNavigator();
   assert.match(html,/<button id="life-stage-baby"[^>]*tabindex="0"/);
   assert.match(html,/<button id="life-stage-childhood"[^>]*tabindex="-1"/);
-  const actions=context.lifeStageNavigator(false);
-  assert.match(actions,/workspace-memory-actions/);
-  assert.match(actions,/data-add-workspace-memory/);
-  assert.doesNotMatch(actions,/life-stage-(navigator|tabs|figure)|data-life-stage-tab/);
+  assert.match(html,/data-add-workspace-memory/,'The stage view retains its own add-memory action');
+  assert.equal(context.lifeStageNavigator(false),'','The map footer must not duplicate the city-card action');
 });

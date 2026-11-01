@@ -130,7 +130,8 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
       scene.append(layer);
     }
     collectionMode = JSON.stringify([mobile(),detailed,getViewCity()]);
-    albums = getAlbums(scene,{detailed:mobile() || detailed,allPlaces:!mobile(),...(detailed ? {cityKey:getViewCity()} : {})});
+    const cityKey = getViewCity();
+    albums = getAlbums(scene,{detailed:mobile() || detailed,allPlaces:!mobile(),...(detailed || cityKey != null ? {cityKey} : {})});
     albums = albums.filter(album => albumStackMarkup(album,window.location.origin));
     layer.style.display = albums.length ? '' : 'none';
     layer.classList.toggle('is-desktop',!mobile());
@@ -214,8 +215,10 @@ export function createMapPhotoAlbums({getAlbum, getAlbums, getProjectId, renderA
           const point = projected.find(point => point.key === anchor.dataset.albumKey), card = anchor.getBoundingClientRect();
           if (!point || point.x < 0 || point.x > layer.clientWidth || point.y < 0 || point.y > layer.clientHeight
               || card.top < list.top || card.bottom > list.bottom) continue;
-          context.beginPath();context.moveTo(card.left-bounds.left,card.top+card.height/2-bounds.top);
-          context.lineTo(point.x,point.y);context.strokeStyle='#fff8e7bb';context.lineWidth=1.5;context.stroke();
+          const stack = anchor.querySelector('.map-album-stack').getBoundingClientRect();
+          // Draw beneath the stack so its rotated edge meets the line without a gap.
+          context.beginPath();context.moveTo(stack.left+stack.width/2-bounds.left,stack.top+stack.height/2-bounds.top);
+          context.lineTo(point.x,point.y);context.strokeStyle='#45665266';context.lineWidth=1;context.stroke();
         }
       }
     };

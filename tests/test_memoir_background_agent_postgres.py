@@ -215,6 +215,201 @@ def test_crashed_agent_and_expired_domain_leases_are_reclaimed(sql):
     assert service(sql,'read_memoir_background_work',p_fence=fresh)['lanes']==[{'id':lane,'skill':'timeline'}]
 
 
+@pytest.mark.parametrize('cancelled',[False,True])
+def test_policy_arriving_after_a_background_lane_claim_releases_only_metadata(sql,monkeypatch,cancelled):
+    import asyncio
+    from apps.api.lifetime_memory_policy import PolicyUnavailable
+    from apps.api.memoir_background_agent import AgentBroker, BackgroundAgentPublication
+    from apps.api.memory_event_worker import MemoryEventWorker
+    from test_background_profile_postgres import source
+    monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
+    identity,run=queued(sql)
+    first=source(sql,identity,'I repaired bicycles in our garden.',1)
+    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline',1) returning id;").stdout.strip()
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    current=service(sql,'read_memoir_background_work',p_fence=claim)
+    class InterruptedBroker(AgentBroker):
+        async def rpc(self,name,**arguments):
+            if cancelled and name=='select_lifetime_source_skills':
+                raise asyncio.CancelledError()
+            result=await super().rpc(name,**arguments)
+            if name=='claim_memoir_lane':
+                # Raw acceptance leaves policy pending, as in the reported race.
+                sql(as_user('select public.accept_user_narrator_source('+
+                    literal(identity['project_id'])+','+literal(str(uuid4()))+",'My next memory.');"))
+            return result
+    async def scenario():
+        broker=InterruptedBroker(BackgroundAgentPublication(sql.publication_dsn,claim))
+        worker=MemoryEventWorker(broker,worker_url='http://synthetic.invalid',worker_secret='synthetic')
+        async def execute():
+            return await worker.execute_lane(lane,source_work={
+                'source':current['source_work']['source'],'skills':['memoir-author-timeline']})
+        if cancelled:
+            with pytest.raises(asyncio.CancelledError):await execute()
+        else:
+            result=await execute()
+            assert result['status']=='pending' and result['error']==PolicyUnavailable.code
+        with pytest.raises(PolicyUnavailable):
+            await broker.rpc('read_memoir_background_work',p_fence=claim)
+    asyncio.run(scenario())
+    assert sql("select (token is null)||':'||attempts||':'||coalesce(error,'') from public.user_memoir_lane;").stdout.strip()==\
+        ('true:0:' if cancelled else 'true:0:LIFETIME_POLICY_PENDING')
+    assert sql('select count(*) from public.user_memory_event;').stdout.strip()=='0'
+    assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='2'
+    assert sql(f"select processing_status from public.user_narrator_source where id='{first['id']}';").stdout.strip()=='pending'
+
+
+def test_waiting_for_a_claimed_lane_does_not_exhaust_background_retries(sql):
+    from test_background_profile_postgres import source
+    identity,run=queued(sql)
+    source(sql,identity,'An original memory.',1)
+    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline',1) returning id;").stdout.strip()
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    service(sql,'claim_memoir_lane',p_lane_id=lane,p_run_seconds=300)
+    for _ in range(4):
+        assert service(sql,'read_memoir_background_work',p_fence=claim)['lanes']==[]
+        result=service(sql,'finish_memoir_background_agent',p_id=run,p_token=claim['token'],p_success=True)
+        assert result=={'status':'pending','pending':True}
+        assert sql('select attempts from public.user_memoir_background_agent;').stdout.strip()=='0'
+        sql('update public.user_memoir_background_agent set available_at=clock_timestamp();')
+        claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+        assert claim is not None
+
+
+@pytest.mark.parametrize('operation',['heartbeat_memoir_lane','fail_memoir_lane'])
+def test_background_lifecycle_survives_policy_pending_without_releasing_story_content(sql,operation):
+    import asyncio
+    from apps.api.lifetime_memory_policy import PolicyUnavailable
+    from apps.api.memoir_background_agent import AgentBroker, BackgroundAgentPublication
+    from test_background_profile_postgres import source
+    identity,run=queued(sql)
+    first=source(sql,identity,'I repaired bicycles in our garden.',1)
+    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline',1) returning id;").stdout.strip()
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    async def scenario():
+        broker=AgentBroker(BackgroundAgentPublication(sql.publication_dsn,claim))
+        page=await broker.rpc('claim_memoir_lane',p_lane_id=lane,p_run_seconds=300)
+        sql("update public.user_memoir_lane set lease_until=clock_timestamp()+interval '10 seconds';")
+        sql(as_user('select public.accept_user_narrator_source('+literal(identity['project_id'])+','+
+            literal(str(uuid4()))+",'My next memory.');"))
+        arguments=dict(p_lane_id=lane,p_token=page['token'])
+        if operation=='fail_memoir_lane':arguments.update(p_error='MEMOIR_PROVIDER_UNAVAILABLE',p_retryable=True)
+        result=await broker.rpc(operation,**arguments)
+        if operation=='heartbeat_memoir_lane':
+            assert result is True
+            assert sql("select lease_until>clock_timestamp()+interval '30 seconds' from public.user_memoir_lane;").stdout.strip()=='t'
+        else:
+            assert result=={'status':'retry'}
+            assert sql("select (token is null)||':'||error from public.user_memoir_lane;").stdout.strip()==\
+                'true:MEMOIR_PROVIDER_UNAVAILABLE'
+        with pytest.raises(PolicyUnavailable):
+            await broker.rpc('read_memoir_background_work',p_fence=claim)
+    asyncio.run(scenario())
+    assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip()=='1'
+    assert sql('select count(*) from public.user_memory_event;').stdout.strip()=='0'
+    assert sql(f"select text from public.user_narrator_source where id='{first['id']}';").stdout.strip()==first['text']
+
+
+def test_provider_failure_during_a_new_narrations_review_cannot_strand_its_lane(sql,monkeypatch):
+    import asyncio
+    import httpx
+    from apps.api.memoir_background_agent import AgentBroker, BackgroundAgentPublication
+    from apps.api.memory_event_worker import MemoryEventWorker
+    from test_background_profile_postgres import source
+    monkeypatch.setenv('MEMOIR_LIFETIME_MEMORY','1')
+    monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
+    identity,run=queued(sql)
+    source(sql,identity,'I repaired bicycles in our garden.',1)
+    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline',1) returning id;").stdout.strip()
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    admitted=[]
+    def provider(request):
+        admitted.append(json.loads(request.content)['bounded_lane']['phase'])
+        sql(as_user('select public.accept_user_narrator_source('+literal(identity['project_id'])+','+
+            literal(str(uuid4()))+",'My next memory.');"))
+        return httpx.Response(502,json={'detail':'Controlled provider failure'})
+    async def scenario():
+        broker=AgentBroker(BackgroundAgentPublication(sql.publication_dsn,claim))
+        current=await broker.rpc('read_memoir_background_work',p_fence=claim)
+        worker=MemoryEventWorker(broker,worker_url='http://synthetic.invalid',worker_secret='synthetic',
+            worker_transport=httpx.MockTransport(provider))
+        return await worker.execute_lane(lane,source_work={
+            'source':current['source_work']['source'],'skills':['memoir-author-timeline']})
+    assert asyncio.run(scenario())=={'status':'retry'}
+    assert admitted==['extract']
+    assert sql("select (token is null)||':'||pending||':'||error from public.user_memoir_lane;").stdout.strip()==\
+        'true:true:MEMOIR_UNAVAILABLE'
+    assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip()=='1'
+    assert sql('select count(*) from public.user_memory_event;').stdout.strip()=='0'
+
+
+@pytest.mark.parametrize('operation',['yield_lifetime_memoir_lane_metadata','defer_lifetime_memoir_lane_policy'])
+@pytest.mark.parametrize('field',['p_user_id','p_project_id','p_conversation_id','p_token'])
+def test_background_metadata_release_rejects_foreign_scope_or_token(sql,operation,field):
+    import asyncio
+    from apps.api.lifetime_memory_publication import PublicationUnavailable
+    from apps.api.memoir_background_agent import AgentBroker, BackgroundAgentPublication
+    from test_background_profile_postgres import source
+    identity,run=queued(sql)
+    source(sql,identity,'An original memory.',1)
+    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline',1) returning id;").stdout.strip()
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    broker=AgentBroker(BackgroundAgentPublication(sql.publication_dsn,claim))
+    page=asyncio.run(broker.rpc('claim_memoir_lane',p_lane_id=lane,p_run_seconds=300))
+    before=sql('select to_jsonb(l) from public.user_memoir_lane l;').stdout
+    arguments=dict(p_lane_id=lane,p_token=page['token'],p_user_id=OWNER,
+        p_project_id=identity['project_id'],p_conversation_id=identity['conversation_id'])
+    arguments[field]='foreign' if field=='p_project_id' else OTHER
+    with pytest.raises(PublicationUnavailable):
+        asyncio.run(broker.rpc(operation,**arguments))
+    assert sql('select to_jsonb(l) from public.user_memoir_lane l;').stdout==before
+
+
+@pytest.mark.parametrize('operation',['heartbeat_memoir_lane','fail_memoir_lane',
+    'yield_lifetime_memoir_lane_metadata','defer_lifetime_memoir_lane_policy'])
+def test_background_lifecycle_requires_this_agents_claim_even_with_a_valid_lane_token(sql,operation):
+    import asyncio
+    from apps.api.lifetime_memory_publication import PublicationUnavailable
+    from apps.api.memoir_background_agent import AgentBroker, BackgroundAgentPublication
+    from test_background_profile_postgres import source
+    identity,run=queued(sql)
+    source(sql,identity,'An original memory.',1)
+    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill,target_source) "
+        f"values('{OWNER}',{literal(identity['project_id'])},'timeline',1) returning id;").stdout.strip()
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    page=service(sql,'claim_memoir_lane',p_lane_id=lane,p_run_seconds=300)
+    before=sql('select to_jsonb(l) from public.user_memoir_lane l;').stdout
+    arguments=dict(p_lane_id=lane,p_token=page['token'])
+    if operation=='fail_memoir_lane':arguments.update(p_error='MEMOIR_UNAVAILABLE',p_retryable=True)
+    if operation.endswith('_metadata') or operation.endswith('_policy'):
+        arguments.update(p_user_id=OWNER,p_project_id=identity['project_id'],p_conversation_id=identity['conversation_id'])
+    broker=AgentBroker(BackgroundAgentPublication(sql.publication_dsn,claim))
+    with pytest.raises(PublicationUnavailable,match='not claimed by this agent'):
+        asyncio.run(broker.rpc(operation,**arguments))
+    assert sql('select to_jsonb(l) from public.user_memoir_lane l;').stdout==before
+
+
+def test_background_foreign_lane_claim_is_rolled_back_before_recording_a_token(sql):
+    import asyncio
+    from apps.api.lifetime_memory_publication import PublicationUnavailable
+    from apps.api.memoir_background_agent import AgentBroker, BackgroundAgentPublication
+    _,run=queued(sql)
+    other=resolve(sql,owner=OTHER)
+    lane=sql(f"insert into public.user_memoir_lane(user_id,project_id,skill) "
+        f"values('{OTHER}',{literal(other['project_id'])},'timeline') returning id;").stdout.strip()
+    claim=service(sql,'claim_memoir_background_agent',p_id=run,p_run_seconds=300)
+    broker=AgentBroker(BackgroundAgentPublication(sql.publication_dsn,claim))
+    with pytest.raises(PublicationUnavailable,match='claim scope changed'):
+        asyncio.run(broker.rpc('claim_memoir_lane',p_lane_id=lane,p_run_seconds=300))
+    assert sql(f"select (token is null)||':'||attempts from public.user_memoir_lane where id='{lane}';").stdout.strip()=='true:0'
+    assert sql(f"select count(*) from public.user_lifetime_lane_snapshot where lane_id='{lane}';").stdout.strip()=='0'
+
+
 def test_repeated_agent_failure_exposes_required_work_through_existing_retry_state(sql):
     identity,run=queued(sql)
     sql(f"insert into public.user_memoir_lane(user_id,project_id,skill) values('{OWNER}',{literal(identity['project_id'])},'timeline');")

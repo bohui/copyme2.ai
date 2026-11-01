@@ -12,6 +12,36 @@ pytestmark = pytest.mark.skipif(not os.getenv('MEMOIR_BROWSER_URL'), reason='Req
 OUTPUT = Path(__file__).resolve().parents[1] / 'output/phone-map-albums'
 
 
+@pytest.mark.parametrize('album_page', ['events'], indirect=True)
+def test_reopening_restores_the_journey_and_city_zoom_keeps_scaled_footprints(album_page):
+    page, _, _ = album_page
+    page.set_viewport_size({'width': 1440, 'height': 960})
+    page.evaluate('''() => {
+      const proto=CanvasRenderingContext2D.prototype,draw=proto.drawImage,clear=proto.clearRect;
+      proto.clearRect=function(...args){if(this.canvas.matches('.map-memory-trail'))window.trailStamps=[];
+        return clear.apply(this,args);};
+      proto.drawImage=function(...args){if(this.canvas.matches('.map-memory-trail')&&args[0]?.src?.endsWith('/map-footprints.svg'))
+        (window.trailStamps??=[]).push(args[3]);return draw.apply(this,args);};
+      window.__mapViewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(151.2,-33.86,2500)});
+      window.__mapViewer.scene.requestRender();
+    }''')
+    expect(page.locator('.map-memory-cards [data-memory-explore="move"]')).to_be_visible()
+    page.locator('.workspace-media-map-header .workspace-toggle').click()
+    expect(page.locator('.workspace-detail.is-collapsed')).to_be_visible()
+    page.locator('.workspace-detail.is-collapsed .workspace-toggle').click()
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+    expect(page.locator('.map-memory-cards .map-memory-card.is-city')).to_have_count(2, timeout=15000)
+    assert page.evaluate('window.__mapViewer.camera.positionCartographic.height') > 100000
+    for longitude, latitude, size in [(151.2, -33.86, 16), (117.93, 40.97, 10)]:
+        page.evaluate('''([longitude,latitude]) => {
+          window.__mapViewer.camera.setView({destination:Cesium.Cartesian3.fromDegrees(longitude,latitude,2500)});
+          window.__mapViewer.scene.requestRender();
+        }''', [longitude, latitude])
+        page.wait_for_function('(size)=>window.trailStamps?.length>0&&trailStamps.every(value=>value===size)', arg=size, timeout=5000)
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(OUTPUT / 'reopened-city-footprints.png'))
+
+
 @pytest.fixture
 def album_page(request):
     mode = getattr(request, 'param', 'saved')

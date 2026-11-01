@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildMapMemoryJourney, chronologicalEvents, cityEventCards, eventAge, eventAgeLabel, layoutMemoryCards, mapCityInView, memoryEventCardMarkup} from '../../apps/web/client/memoir/map-memory-journey.mjs';
+import {buildMapMemoryJourney, chronologicalEvents, cityEventCards, eventAge, eventAgeLabel, layoutMemoryCards, mapCityInView, mapTrailWindow, memoryEventCardMarkup} from '../../apps/web/client/memoir/map-memory-journey.mjs';
 import {groupPlaces} from '../../apps/web/client/memoir/places.mjs';
 import {translateWith} from '../../apps/web/client/i18n.js';
 
@@ -14,6 +14,23 @@ const event = (id,age,place,stage='childhood') => ({id,title:`Memory ${id}`,stat
   temporal:{expression:`Age ${age}`,precision:'age'},places:[link(place)]});
 const t = (key,values) => translateWith(`Memoir.workspace.${key}`,values);
 
+test('trail clipping samples only the visible portion of distant and crossing routes',()=>{
+  assert.deepEqual(mapTrailWindow({x:50,y:50},{x:150,y:150},400,300),{start:0,end:1});
+  for(const [from,to] of [[{x:-100000,y:150},{x:200,y:150}],
+    [{x:200,y:100000},{x:200,y:150}],[{x:-100000,y:150},{x:100000,y:150}]]) {
+    const window=mapTrailWindow(from,to,400,300);
+    assert.ok(window && window.start>=0 && window.end<=1 && window.end>window.start);
+    assert.ok((window.end-window.start)*Math.hypot(to.x-from.x,to.y-from.y)<=500.001);
+  }
+});
+
+test('offscreen and invalid projected trails cannot generate footprint samples',()=>{
+  assert.equal(mapTrailWindow({x:-100,y:0},{x:-100,y:500},400,300),null);
+  assert.equal(mapTrailWindow(undefined,{x:10,y:20},400,300),null);
+  assert.equal(mapTrailWindow({x:NaN,y:10},{x:10,y:20},400,300),null);
+  assert.equal(mapTrailWindow({x:0,y:0},{x:10,y:20},0,300),null);
+});
+
 test('initial city grouping preserves separate event coordinates for zooming in', () => {
   const journey = buildMapMemoryJourney([event('school',6,school),event('work',20,work,'young_adulthood')],groups);
   const cities = cityEventCards(journey.nodes);
@@ -26,6 +43,63 @@ test('initial city grouping preserves separate event coordinates for zooming in'
   assert.ok(journey.nodes.every(node => !node.cityOnly));
   assert.equal(journey.legs.length,1);
   assert.equal(journey.legs[0].stageTransition,true);
+});
+
+test('city summaries show the city and first-to-last timing, with event copy reserved for event cards', () => {
+  const events=[{...event('last',null,work),title:'Last event title',summary:'Last event description',
+    temporal:{expression:'1991',precision:'year',year_start:1991}},
+  {...event('first',null,school,'baby'),title:'Birth event title',summary:'Birth event description',uncertainty:'Event uncertainty',
+    temporal:{expression:'1983',precision:'year',year_start:1983}}];
+  const journey=buildMapMemoryJourney(events,groups,{birth_year:1983});
+  const city=cityEventCards(journey.nodes)[0];
+  const html=memoryEventCardMarkup(city,{t,lifeStageText:stage=>stage});
+  assert.match(html,/<strong class="map-memory-summary">Sydney<\/strong>/);
+  assert.match(html,/From 1983 · About age 0 to 1991 · About age 8/);
+  assert.match(html,/2 events/);
+  assert.match(html,/data-memory-city=[^>]+>Expand memories<\/button>/);
+  assert.doesNotMatch(html,/Birth event title|Last event title|event description|Event uncertainty|data-memory-explore|Explore this memory/);
+  const individual=memoryEventCardMarkup(journey.nodes[0],{t,lifeStageText:stage=>stage});
+  assert.match(individual,/Birth event title/);
+  assert.match(individual,/Birth event description/);
+  assert.match(individual,/Event uncertainty/);
+  assert.match(individual,/data-memory-explore="first"/);
+});
+
+test('one-event city summaries still expand and retain unknown timing at the last event', () => {
+  const birth={...event('birth',0,city,'baby'),temporal:{expression:'1983',precision:'year',year_start:1983}};
+  const later={...event('later',null,school),temporal:null};
+  for (const events of [[birth],[birth,later]]) {
+    const grouped=cityEventCards(buildMapMemoryJourney(events,groups,{birth_year:1983}).nodes)[0];
+    const html=memoryEventCardMarkup(grouped,{t,lifeStageText:stage=>stage});
+    assert.match(html,events.length===1 ? /From 1983 · About age 0 to 1983 · About age 0/
+      : /From 1983 · About age 0 to Year not yet known · Age not yet known/);
+    assert.match(html,/Expand memories/);
+    assert.doesNotMatch(html,/data-memory-explore|Explore this memory/);
+  }
+});
+
+test('city timing uses the last event instead of the longest earlier interval', () => {
+  const early={...event('early',null,school),temporal:{expression:'1983–2000',precision:'range',year_start:1983,year_end:2000}};
+  const later={...event('later',null,work),temporal:{expression:'1991–1993',precision:'range',year_start:1991,year_end:1993}};
+  const grouped=cityEventCards(buildMapMemoryJourney([later,early],groups,{birth_year:1983}).nodes)[0];
+  const html=memoryEventCardMarkup(grouped,{t,lifeStageText:stage=>stage});
+  assert.match(html,/From 1983 · About age 0 to 1993 · About age 10/);
+  assert.doesNotMatch(html,/2000|age 17/);
+});
+
+test('Chinese city summaries use 展开记忆 and reserve 继续聊这段回忆 for events', context => {
+  const previous=globalThis.document;
+  globalThis.document={documentElement:{lang:'zh-CN'}};
+  context.after(()=>{globalThis.document=previous;});
+  const chengde={...city,place:'承德市',hierarchy:['Earth','中国','河北省','承德市']};
+  const events=[{...event('birth',0,chengde,'baby'),title:'出生'}, {...event('school',8,chengde),title:'上学'}];
+  const journey=buildMapMemoryJourney(events,groupPlaces([chengde]),{birth_year:1983});
+  const html=memoryEventCardMarkup(cityEventCards(journey.nodes)[0],{t,lifeStageText:stage=>stage});
+  assert.match(html,/<strong class="map-memory-summary">承德市<\/strong>/);
+  assert.match(html,/从 约1983年 · 0岁 至 约1991年 · 8岁/);
+  assert.match(html,/展开记忆/);
+  assert.doesNotMatch(html,/继续聊这段回忆|出生|上学/);
+  assert.match(memoryEventCardMarkup(journey.nodes[0],{t,lifeStageText:stage=>stage}),/继续聊这段回忆/);
 });
 
 test('footsteps follow chronology across city moves and preserve return visits', () => {

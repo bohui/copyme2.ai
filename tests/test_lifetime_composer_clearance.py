@@ -38,8 +38,10 @@ def test_cancelled_composer_releases_its_lease_and_preserves_saved_checkpoint():
             if name=='commit_lifetime_memoir_lane_page':return {'status':'page_saved'}
             if name=='read_lifetime_memoir_lane_page':return {**current,'complete':True,'source':None,'partition':None}
             if name=='complete_lifetime_memoir_lane':return {'status':'saved'}
-            if name=='yield_lifetime_memoir_lane':
-                assert payload=={'p_lane_id':current['lane_id'],'p_token':current['token']}
+            if name=='yield_lifetime_memoir_lane_metadata':
+                assert payload=={'p_lane_id':current['lane_id'],'p_token':current['token'],
+                    'p_user_id':current['user_id'],'p_project_id':current['project_id'],
+                    'p_conversation_id':current['conversation_id']}
                 return {'status':'pending'}
             raise AssertionError(name)
     async def scenario():
@@ -65,7 +67,7 @@ def test_cancelled_composer_releases_its_lease_and_preserves_saved_checkpoint():
         assert any(value.get('draft') for value in before.values())
         task.cancel()
         with pytest.raises(asyncio.CancelledError):await task
-        assert calls[-1]=='yield_lifetime_memoir_lane' and 'fail_memoir_lane' not in calls
+        assert calls[-1]=='yield_lifetime_memoir_lane_metadata' and 'fail_memoir_lane' not in calls
         assert checkpoints==before
         blocked=False
         current.update(token='00000000-0000-4000-8000-000000000017',page_digest='4'*64)

@@ -262,8 +262,13 @@ class MemoryEventWorker:
                 response.raise_for_status()
                 result = response.json()
                 success = not result.get('pending', True)
-        except (ValueError, RuntimeError, httpx.HTTPError, TimeoutError):
-            logging.getLogger(__name__).warning('Memoir background agent deferred run_id=%s', run_id)
+        except (ValueError, RuntimeError, httpx.HTTPError, TimeoutError) as error:
+            from .lifetime_memory_policy import PolicyUnavailable
+            # A policy pause yields successfully; durable obligations still decide completion.
+            success = (isinstance(error,httpx.HTTPStatusError) and error.response.status_code==503
+                and error.response.headers.get('X-Error-Code')==PolicyUnavailable.code)
+            if not success:
+                logging.getLogger(__name__).warning('Memoir background agent deferred run_id=%s', run_id)
         finally:
             renewal.cancel()
             await asyncio.gather(renewal, return_exceptions=True)
@@ -312,12 +317,22 @@ class MemoryEventWorker:
             if job.get('protocol') == 'lifetime_composer_pages':
                 from .lifetime_memory_lane_engine import _settle
                 try:
-                    await _settle(asyncio.create_task(self.broker.rpc('yield_lifetime_memoir_lane',
-                        p_lane_id=lane_id,p_token=job['token'])))
+                    await _settle(asyncio.create_task(self.broker.rpc('yield_lifetime_memoir_lane_metadata',
+                        p_lane_id=lane_id,p_token=job['token'],p_user_id=job['user_id'],
+                        p_project_id=job['project_id'],p_conversation_id=job['conversation_id'])))
                 except (ValueError,RuntimeError,httpx.HTTPError):
                     logging.getLogger(__name__).warning('memoir_lane cancellation_release_deferred lane_id=%s',lane_id)
             raise
         except (ValueError, TimeoutError, httpx.HTTPError, RuntimeError) as failure:
+            from .lifetime_memory_policy import is_policy_pending
+            from .lifetime_memory_publication import PublicationUnavailable
+            if is_policy_pending(failure) or isinstance(failure,PublicationUnavailable):
+                release = await self.broker.rpc('defer_lifetime_memoir_lane_policy' if is_policy_pending(failure)
+                    else 'yield_lifetime_memoir_lane_metadata',p_lane_id=lane_id,p_token=job['token'],
+                    p_user_id=job['user_id'],p_project_id=job['project_id'],p_conversation_id=job['conversation_id'])
+                if is_policy_pending(failure):
+                    return release
+                raise
             # Exception messages and response bodies can contain private story
             # text or credentials. Keep dispatch/provider failures diagnosable.
             rpc_code, rpc_kind = _safe_rpc_failure(failure)

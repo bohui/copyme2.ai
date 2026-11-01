@@ -165,6 +165,17 @@ await places.hydratePlaceJourney();
 await Promise.all(loads);
 assert.deepEqual(plain(state.project.profile.memory_places),saved,'A refreshed snapshot must preserve photo cache metadata');
 assert.equal(photoCalls.length,2,'Restoring the interview must reuse both completed searches');
+const previousStage=state.lifeStage;
+state.lifeStage='all';
+const overviewAlbums=places.mapPhotoAlbumsForScene(null,{allPlaces:true,detailed:false});
+assert.equal(overviewAlbums.length,2,'Both cities retain the photographs returned by the API');
+for (const album of overviewAlbums) {
+  const cityKey=album.key.slice('city-album:'.length);
+  const visible=places.mapPhotoAlbumsForScene(null,{allPlaces:true,detailed:false,cityKey});
+  assert.deepEqual(visible.map(item=>item.key),[album.key],'One visible city must show only its photo list at wider zoom');
+  assert.equal(visible[0].pictures.length,10,'City filtering must preserve every authorized photograph');
+}
+state.lifeStage=previousStage;
 assert.doesNotMatch(places.workspaceMediaOverview(),/place-choices|data-place-choice=/,
   'Restoring the interview must not restore the removed city button row');
 

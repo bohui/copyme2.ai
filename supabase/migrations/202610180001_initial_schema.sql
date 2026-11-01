@@ -16440,10 +16440,9 @@ begin
    a.policy_epoch is distinct from (p_fence->>'policy_epoch')::bigint or
    a.preference_revision is distinct from (p_fence->>'preference_revision')::bigint or
    a.batch_id is distinct from (p_fence->>'batch_id')::uuid or
-   coalesce(a.batch_selection,'null'::jsonb) is distinct from coalesce(p_fence->'selection','null'::jsonb) or
-   exists(select 1 from public.user_lifetime_pending_policy q where q.user_id=a.user_id and q.project_id=a.project_id) or
-   exists(select 1 from public.user_lifetime_policy_inventory_pending q where q.user_id=a.user_id and q.project_id=a.project_id) then
+   coalesce(a.batch_selection,'null'::jsonb) is distinct from coalesce(p_fence->'selection','null'::jsonb) then
    raise exception 'stale background agent' using errcode='42501';end if;
+ perform public.require_lifetime_policy_ready(a.user_id,a.project_id);
  return extract(epoch from least(a.lease_until,a.run_deadline)-clock_timestamp());
 end $$;
 
@@ -16618,7 +16617,7 @@ begin
  remaining:=not batch_complete or a.pending or a.target_source>a.source_high_water or
    exists(select 1 from public.user_memoir_lane l where l.user_id=a.user_id and l.project_id=a.project_id
      and l.skill in ('timeline','composer') and (l.pending or l.token is not null));
- if not batch_complete and not authority_changed and not progressed and a.attempts>=3 then
+ if p_success is not true and not batch_complete and not authority_changed and not progressed and a.attempts>=3 then
    update public.user_memoir_lane set attempts=3,error='MEMOIR_UNAVAILABLE',pending=true,
      token=null,lease_until=null,run_deadline=null
    where user_id=a.user_id and project_id=a.project_id and skill in ('timeline','composer') and (pending or token is not null)
@@ -16627,12 +16626,12 @@ begin
  blocked:=exists(select 1 from public.user_memoir_lane l where l.user_id=a.user_id and l.project_id=a.project_id and l.skill in ('timeline','composer')
    and (l.pending or l.token is not null) and l.attempts>=3);
  update public.user_memoir_background_agent set token=null,lease_until=null,run_deadline=null,
-   attempts=case when blocked then 3 when batch_complete or authority_changed or progressed then 0 else attempts end,
+   attempts=case when blocked then 3 when p_success is true or authority_changed or progressed then 0 else attempts end,
    pending=remaining,available_at=clock_timestamp()+interval '5 seconds',
    batch_id=case when not batch_complete and not authority_changed then batch_id end,
    batch_started_at=case when not batch_complete and not authority_changed then batch_started_at end
  where id=p_id;
- return jsonb_build_object('status',case when remaining and (blocked or not authority_changed and not batch_complete and not progressed and a.attempts>=3) then 'retry_required'
+ return jsonb_build_object('status',case when remaining and (blocked or p_success is not true and not authority_changed and not batch_complete and not progressed and a.attempts>=3) then 'retry_required'
    when remaining then 'pending' else 'finished' end,'pending',remaining);
 end $$;
 

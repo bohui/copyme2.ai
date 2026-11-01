@@ -11,14 +11,19 @@ const event=(id,place,year,stage)=>({id,status:'active',kind:'event',title:id,li
   yearConfidenceScore:.9,temporal:year ? {expression:String(year),precision:'year',year_start:year} : null,
   places:[{role:'setting',status:'supported',place}]});
 
-function mapFixture(t, mobile=false, extraPlaces=[]) {
-  const globals={window:globalThis.window,document:globalThis.document};
+function mapFixture(t, mobile=false, extraPlaces=[], savedEvents, canAddMemory=true) {
+  const globals={window:globalThis.window,document:globalThis.document,Image:globalThis.Image};
   t.after(()=>Object.assign(globalThis,globals));
-  const listeners={},cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
+  const listeners={},focusCalls=[],cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
   const toolbar={innerHTML:'',offsetHeight:40},overflow={replaceChildren(){},querySelector:()=>null};
-  const ctx=new Proxy({},{get:()=>()=>{}}),canvas={getContext:()=>ctx};
+  const footprints=[];
+  let stamp;
+  const ctx=new Proxy({translate:(x,y)=>{stamp={x,y};},drawImage:(_,x,y,width,height)=>footprints.push({...stamp,width,height})},
+    {get:(target,key)=>target[key] || (()=>{})}),canvas={getContext:()=>ctx};
   const layer={isConnected:true,clientWidth:600,clientHeight:700,
-    classList:{toggle(){}},addEventListener:(name,callback)=>{listeners[name]=callback;},querySelectorAll:()=>[],
+    classList:{toggle(){}},addEventListener:(name,callback)=>{listeners[name]=callback;},
+    querySelectorAll:selector=>selector==='[data-map-memory]' ? map.nodes().map(node=>({
+      dataset:{mapMemory:node.key},focus:()=>focusCalls.push(node.key)})) : [],
     getBoundingClientRect:()=>({left:0,top:0}),
     querySelector:s=>({'.map-memory-cards':cards,'.map-memory-toolbar':toolbar,
       '.map-memory-overflow':overflow,canvas}[s])};
@@ -26,32 +31,155 @@ function mapFixture(t, mobile=false, extraPlaces=[]) {
     append(value){this.child=value;},querySelector(){return this.child;}};
   globalThis.window={devicePixelRatio:1,matchMedia:q=>({matches:q.includes('max-width') && mobile})};
   globalThis.document={createElement:()=>layer};
+  globalThis.Image=class {complete=true;naturalWidth=16;};
   let redraw,center=null;
-  const flights=[],explored=[];
+  const flights=[],explored=[],added=[];
   const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:cb=>{redraw=cb;return ()=>{};}}},
     camera:{frustum:{left:-100000,right:100000},flyTo:flight=>flights.push(flight)}};
-  const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
+  const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
     SceneTransforms:{worldToWindowCoordinates:(_,p)=>center
       ? {x:300+(p.longitude-center.longitude)*500,y:350+(p.latitude-center.latitude)*500}
       : {x:300,y:350}}};
-  const events=[event('Sydney arrival',sydney,2012,'young_adulthood'),event('University',shanghai,2007,'young_adulthood'),
+  const events=savedEvents || [event('Sydney arrival',sydney,2012,'young_adulthood'),event('University',shanghai,2007,'young_adulthood'),
     event('Birth',chengde,1983,'baby'),event('Growing up',chengde,null,'childhood')];
   const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([chengde,shanghai,sydney,...extraPlaces]),
     getProfile:()=>({birth_year:1983}),getScope:()=> 'fixture',getStage:()=> 'all',
-    t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage,onExplore:id=>explored.push(id)});
+    t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage,
+    getCanAddMemory:()=>canAddMemory,onAdd:()=>added.push('add_memory'),onExplore:id=>explored.push(id)});
   map.sync(scene);map.attach(viewer,cesium);
   flights.length=0;
-  return {map,cards,flights,explored,markup:()=>layer.innerHTML,
+  return {map,cards,flights,explored,added,focusCalls,footprints,markup:()=>layer.innerHTML,refresh:()=>map.sync(scene),hidden:()=>layer.hidden,
+    add(){listeners.click({target:{closest:()=>({dataset:{},hasAttribute:name=>name==='data-memory-add'})}});},
+    setCanAddMemory(value){canAddMemory=value;map.sync(scene);},
+    remount(){map.dispose();scene.child=null;center=null;viewer.camera.frustum={left:-100000,right:100000};map.sync(scene);map.attach(viewer,cesium);},
     click(key){listeners.click({target:{closest:()=>({dataset:{mapMemory:key},hasAttribute:()=>false})}});},
+    expand(groupKey){
+      const target={dataset:{memoryCity:groupKey},hasAttribute:name=>name==='data-memory-city'};
+      document.activeElement=target;
+      listeners.click({target:{closest:()=>target}});
+    },
     explore(id){listeners.click({target:{closest:()=>({dataset:{memoryExplore:id},hasAttribute:name=>name==='data-memory-explore'})}});},
-    zoom(place,span=8000){center=place;viewer.camera.frustum={left:-span/2,right:span/2};redraw();}};
+    zoom(place,span=8000){center=place;viewer.camera.frustum={left:-span/2,right:span/2};footprints.length=0;redraw();}};
 }
+
+test('each city card has its own add-memory action without expanding or continuing an event', t=>{
+  for (const mobile of [false,true]) {
+    const {cards,flights,explored,added,add,zoom}=mapFixture(t,mobile);
+    assert.equal((cards.innerHTML.match(/data-memory-add/g)||[]).length,3);
+    assert.match(cards.innerHTML,/data-memory-add[^>]*>Add a memory<\/button>/);
+    add();
+    assert.deepEqual(added,['add_memory']);
+    assert.deepEqual(explored,[]);
+    assert.equal(flights.length,0);
+    zoom(chengde);
+    assert.doesNotMatch(cards.innerHTML,/data-memory-add/,'Add memory belongs to the city card, not each individual event');
+  }
+});
+
+test('city add-memory actions respect loading and payment restrictions and update when they clear', t=>{
+  const {cards,added,add,setCanAddMemory}=mapFixture(t,false,[],undefined,false);
+  assert.equal((cards.innerHTML.match(/data-memory-add disabled/g)||[]).length,3);
+  add();
+  assert.deepEqual(added,[]);
+  setCanAddMemory(true);
+  assert.doesNotMatch(cards.innerHTML,/data-memory-add disabled/);
+  add();
+  assert.deepEqual(added,['add_memory']);
+});
+
+test('reopening a collapsed map frames the whole journey and clears the previous city focus', t=>{
+  const events=[event('Birth',chengde,1983,'baby'),event('Sydney arrival',sydney,2012,'young_adulthood')];
+  const {map,cards,flights,expand,zoom,remount}=mapFixture(t,false,[],events);
+  zoom(sydney);
+  expand(map.nodes().find(node=>node.city==='Sydney').groupKey);
+  flights.length=0;
+  remount();
+  assert.equal(flights.length,1,'A recreated viewer must receive a fresh journey frame');
+  assert.ok(flights[0].destination.height>40000,'Fit both distant cities instead of the last selected city');
+  assert.equal(map.viewCity(),null);
+  assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,2);
+});
+
+test('one-event city views retain large intercity footprints even when the other city is far offscreen', t=>{
+  const events=[event('Birth',chengde,1983,'baby'),event('Sydney arrival',sydney,2012,'young_adulthood')];
+  const {footprints,zoom}=mapFixture(t,false,[],events);
+  for(const city of [sydney,chengde]) {
+    zoom(city);
+    assert.ok(footprints.length>0,'The visible part of the intercity trail must keep its footprints');
+    assert.ok(footprints.every(stamp=>stamp.width===16 && stamp.height===16));
+  }
+});
+
+test('local footprints connect chronological city events across an intervening visit to another city', t=>{
+  const school={...chengde,place:'School',granularity:'suburb',hierarchy:[...chengde.hierarchy,'School'],
+    longitude:chengde.longitude+.1,latitude:chengde.latitude+.1};
+  const home={...chengde,place:'Home',granularity:'suburb',hierarchy:[...chengde.hierarchy,'Home'],
+    longitude:chengde.longitude-.1,latitude:chengde.latitude-.1};
+  const events=[event('Return home',home,2010,'midlife'),event('Sydney visit',sydney,2000,'young_adulthood'),
+    event('School',school,1990,'childhood')];
+  const {footprints,zoom}=mapFixture(t,false,[school,home],events);
+  zoom(chengde);
+  assert.ok(footprints.length>0,'The city chronology must have its own trail');
+  assert.ok(footprints.every(stamp=>stamp.width===10 && stamp.height===10));
+  assert.ok(footprints[0].x>footprints.at(-1).x,'Follow school then home, independent of capture order');
+});
+
+test('memories sharing only a city pin keep the intercity trail without inventing local positions', t=>{
+  const events=[event('Birth',chengde,1983,'baby'),event('School',chengde,1990,'childhood'),
+    event('Sydney arrival',sydney,2012,'young_adulthood')];
+  const {map,footprints,zoom}=mapFixture(t,false,[],events);
+  zoom(chengde);
+  assert.ok(footprints.length>0);
+  assert.ok(footprints.every(stamp=>stamp.width===16));
+  assert.ok(map.nodes().filter(node=>node.city==='Chengde').every(node=>node.longitude===chengde.longitude && node.latitude===chengde.latitude));
+});
+
+test('saved school-compound and snail memories remain separate cards without confirmed locations', t=>{
+  for (const mobile of [false,true]) {
+    const birth=event('Birth',chengde,1983,'baby');
+    const compound={...event('School compound',chengde,null,'childhood'),places:[],locationConfidenceScore:.3};
+    const snail={...compound,id:'Snail outing',title:'Snail outing'};
+    const {map,cards,flights,explored,click,explore,zoom}=mapFixture(t,mobile,[],[birth,compound,snail]);
+    assert.match(cards.innerHTML,/School compound/);
+    assert.match(cards.innerHTML,/Snail outing/);
+    assert.match(cards.innerHTML,/Location to confirm/);
+    assert.deepEqual(map.nodes().map(node=>node.event.id),['Birth'],'Unknown locations must not inherit the birth pin');
+    for (const memory of [compound,snail]) {
+      assert.equal((cards.innerHTML.match(new RegExp(`data-memory-explore="${memory.id}"`,'g'))||[]).length,1);
+      click(`unlocated:${memory.id}`);
+      explore(memory.id);
+    }
+    assert.deepEqual(explored,['School compound','School compound','Snail outing','Snail outing']);
+    assert.equal(flights.length,0,'Opening an unlocated memory must not fly to the birth city');
+    zoom(chengde);
+    assert.match(cards.innerHTML,/School compound/);
+    assert.match(cards.innerHTML,/Snail outing/);
+  }
+});
+
+test('an unlocated memory is visible alone and moves into its city once its location is confirmed', t=>{
+  const memory={...event('School compound',chengde,null,'childhood'),places:[]};
+  const {map,cards,refresh,hidden,zoom}=mapFixture(t,false,[],[memory]);
+  assert.equal(hidden(),false);
+  assert.match(cards.innerHTML,/School compound/);
+  assert.equal(map.nodes().length,0);
+  memory.revision++;
+  memory.places=[{role:'setting',status:'supported',place:chengde}];
+  refresh();
+  assert.equal(map.nodes().length,1);
+  assert.match(cards.innerHTML,/<strong class="map-memory-summary">Chengde<\/strong>/);
+  assert.doesNotMatch(cards.innerHTML,/data-memory-explore/);
+  zoom(chengde);
+  assert.equal((cards.innerHTML.match(/data-memory-explore="School compound"/g)||[]).length,1);
+  assert.doesNotMatch(cards.innerHTML,/Location to confirm/);
+});
 
 test('desktop overview merges each city and sorts by its first event', t=>{
   const {cards}=mapFixture(t);
   assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,3);
-  assert.ok(cards.innerHTML.indexOf('Birth')<cards.innerHTML.indexOf('University'));
-  assert.ok(cards.innerHTML.indexOf('University')<cards.innerHTML.indexOf('Sydney arrival'));
+  assert.ok(cards.innerHTML.indexOf('Chengde')<cards.innerHTML.indexOf('Shanghai'));
+  assert.ok(cards.innerHTML.indexOf('Shanghai')<cards.innerHTML.indexOf('Sydney'));
+  assert.doesNotMatch(cards.innerHTML,/Birth|University|Sydney arrival|Growing up|data-memory-explore/);
   assert.match(cards.innerHTML,/2 events/);
 });
 
@@ -67,15 +195,27 @@ test('city zoom lists only that city’s events on desktop and mobile', t=>{
   }
 });
 
-test('clicking a city expands its chronological events inside the city list', t=>{
-  const {map,cards,click}=mapFixture(t);
-  const key=`city:${map.nodes().find(node=>node.city==='Chengde').groupKey}`;
-  click(key);
-  assert.match(cards.innerHTML,/Growing up/);
-  assert.match(cards.innerHTML,/aria-expanded="true"/);
-  assert.match(cards.innerHTML,/University/);
-  click(key);
-  assert.doesNotMatch(cards.innerHTML,/Growing up/);
+test('expanding either a one-event or multi-event city zooms and shows only that city’s events', t=>{
+  for (const mobile of [false,true]) for (const city of [chengde,shanghai]) {
+    const {map,cards,flights,explored,focusCalls,expand}=mapFixture(t,mobile);
+    const groupKey=map.nodes().find(node=>node.city===city.place).groupKey;
+    assert.match(cards.innerHTML,/Expand memories/);
+    expand(groupKey);
+    assert.equal(flights.length,1);
+    assert.ok(Math.abs(flights[0].destination.longitude-city.longitude)<1e-9);
+    assert.deepEqual(explored,[],'Expanding a city must not start a conversation about its first event');
+    assert.deepEqual(focusCalls,[map.nodes().find(node=>node.groupKey===groupKey).key],
+      'Focus moves from the city action to its first event card');
+    if (city===chengde) {
+      assert.ok(cards.innerHTML.indexOf('Birth')<cards.innerHTML.indexOf('Growing up'));
+      assert.doesNotMatch(cards.innerHTML,/University|Sydney arrival/);
+      assert.equal((cards.innerHTML.match(/data-memory-explore=/g)||[]).length,2);
+    } else {
+      assert.match(cards.innerHTML,/University/);
+      assert.doesNotMatch(cards.innerHTML,/Birth|Growing up|Sydney arrival/);
+      assert.equal((cards.innerHTML.match(/data-memory-explore=/g)||[]).length,1);
+    }
+  }
 });
 
 test('one visible city keeps the same event list across zoom levels and returns to the overview when zoomed out', t=>{

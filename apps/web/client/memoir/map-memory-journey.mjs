@@ -145,8 +145,7 @@ export function mapCityInView(cities, project, width, height) {
 // Only explicit event/place links supply locations. Shared testimony, a nearby
 // city or a matching life stage does not establish an event's setting.
 export function buildMapMemoryJourney(events, groups, profile = {}) {
-  const nodes = [];
-  let unmapped = 0;
+  const nodes = [], unlocated = [];
   for (const [index, event] of chronologicalEvents(events,profile).entries()) {
     if (event.status && event.status !== "active") continue;
     const timing = memoryEventTiming(event,profile,index);
@@ -185,8 +184,13 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
         dated:!event.timing_conflict && (age.start !== null || year !== null || Boolean(calendar))});
       located = true;
     }
-    if (!located) unmapped++;
+    if (!located) unlocated.push({key:`unlocated:${event.id}`, event, ...timing, unlocated:true,
+      summary:event.summary || event.title, uncertainty:event.uncertainty || ""});
   }
+  return {nodes, legs:memoryTrailLegs(nodes), unmapped:unlocated.length, unlocated};
+}
+
+export function memoryTrailLegs(nodes) {
   const legs = [];
   for (let i = 1; i < nodes.length; i++) {
     const from = nodes[i - 1], to = nodes[i];
@@ -200,7 +204,20 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
       || to.event.relations?.some(relation => relation.kind === "after" && relation.event_id === from.event.id);
     if (different && (ordered || (related && !from.event.timing_conflict && !to.event.timing_conflict))) legs.push({from, to, stageTransition:from.stage !== to.stage});
   }
-  return {nodes, legs, unmapped};
+  return legs;
+}
+
+export function mapTrailWindow(from, to, width, height) {
+  if (![from?.x,from?.y,to?.x,to?.y,width,height].every(Number.isFinite) || width <= 0 || height <= 0) return null;
+  let start = 0, end = 1;
+  // Include the curve's bend and the footprint edges beyond the canvas.
+  for (const [origin,delta,extent] of [[from.x,to.x-from.x,width],[from.y,to.y-from.y,height]]) {
+    if (delta === 0) { if (origin < -50 || origin > extent+50) return null;continue; }
+    const a = (-50-origin)/delta, b = (extent+50-origin)/delta;
+    start = Math.max(start,Math.min(a,b));end = Math.min(end,Math.max(a,b));
+    if (end <= start) return null;
+  }
+  return {start,end};
 }
 
 export function cityEventCards(nodes) {
@@ -219,15 +236,25 @@ export function cityEventCards(nodes) {
   });
 }
 
-export function memoryEventTimingMarkup(card, t) {
-  const node = card.nodes?.[0] || card;
+function memoryEventTimingText(node, t) {
+  if (node.nodes) {
+    const endpoint = (event, end = false) => {
+      const year = end ? event.yearEnd : event.year, age = end ? event.age.end : event.age.start;
+      return memoryEventTimingText({...event,year,yearEnd:year,age:{...event.age,start:age,end:age}},t);
+    };
+    return t("mapEventCityRange",{start:endpoint(node.nodes[0]),end:endpoint(node.nodes.at(-1),true)});
+  }
   const temporal = node.event.temporal;
   const years = `${node.year}${node.yearEnd > node.year ? `–${node.yearEnd}` : ""}`;
   const year = node.event.timing_conflict ? t("mapEventYearUnknown")
     : node.year !== null ? node.approximateYear ? t("mapEventYearApproximate",{year:years}) : years
     : temporal?.precision !== "unknown" && temporal?.expression && temporal.precision !== "age"
       ? temporal.expression : t("mapEventYearUnknown");
-  return `<span class="map-memory-date"${node.inferred ? ` title="${escapeHtml(node.event.temporal_estimate.rationale)}"` : ""}>${escapeHtml(year)} · ${escapeHtml(eventAgeLabel(node.age,t))}</span>`;
+  return `${year} · ${eventAgeLabel(node.age,t)}`;
+}
+
+export function memoryEventTimingMarkup(card, t) {
+  return `<span class="map-memory-date"${!card.nodes && card.inferred ? ` title="${escapeHtml(card.event.temporal_estimate.rationale)}"` : ""}>${escapeHtml(memoryEventTimingText(card,t))}</span>`;
 }
 
 export function memoryEventAvatars(card, {t, lifeStageText, profile = {}, readiness = {}}) {
@@ -245,16 +272,17 @@ export function memoryEventAvatars(card, {t, lifeStageText, profile = {}, readin
   }).join("")}</span>`;
 }
 
-export function memoryEventCardMarkup(card, {t, lifeStageText, active = false, profile, readiness}) {
+export function memoryEventCardMarkup(card, {t, lifeStageText, active = false, profile, readiness, canAddMemory = true}) {
   const city = Boolean(card.nodes);
   const node = city ? card.nodes[0] : card;
-  const grouped = city && card.count > 1;
-  const age = eventAgeLabel(card.age, t);
-  const title = node.event.title || node.summary;
-  const detail = node.event.summary || node.event.source_refs?.[0]?.quote || "";
-  const uncertainty = node.uncertainty || (node.event.timing_conflict ? t("mapEventTimeUncertain") : "");
+  const age = city ? memoryEventTimingText(card,t) : eventAgeLabel(card.age, t);
+  const title = city ? card.city : node.event.title || node.summary;
+  const detail = city ? "" : node.event.summary || node.event.source_refs?.[0]?.quote || "";
+  const uncertainty = city ? "" : node.uncertainty || (node.event.timing_conflict ? t("mapEventTimeUncertain") : "");
   const count = city ? t(card.count === 1 ? "mapEventCountOne" : "mapEventCount", {count:card.count}) : "";
-  return `<article class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}"><button type="button" class="map-memory-focus" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count].filter(Boolean).join(" · "))}" ${grouped ? "aria-expanded" : "aria-pressed"}="${active}"><span class="map-memory-meta">${memoryEventAvatars(card,{t,lifeStageText,profile,readiness})}${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span>${memoryEventTimingMarkup(card,t)}<strong class="map-memory-summary">${escapeHtml(title)}</strong>${detail && detail !== title ? `<span class="map-memory-description">${escapeHtml(detail)}</span>` : ""}${uncertainty ? `<span class="map-memory-uncertainty">${escapeHtml(uncertainty)}</span>` : ""}${grouped ? `<span class="map-memory-hint">${escapeHtml(t(active ? "mapEventCollapse" : "mapEventExpand"))}</span>` : ""}</button>${grouped ? "" : `<button type="button" class="text-button map-memory-explore" data-memory-explore="${escapeHtml(node.event.id)}">${escapeHtml(t("exploreThisMemory"))}</button>`}</article>`;
+  const location = node.unlocated ? `<span class="map-memory-uncertainty">${escapeHtml(t("mapEventLocationUnknown"))}</span>` : "";
+  const add = city ? `<button type="button" class="button button-secondary button-small workspace-add-memory" data-memory-add${canAddMemory ? "" : " disabled"}>${escapeHtml(t("addMemory"))}</button>` : "";
+  return `<article class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}"><button type="button" class="map-memory-focus" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count].filter(Boolean).join(" · "))}"${city ? "" : ` aria-pressed="${active}"`}><span class="map-memory-meta">${memoryEventAvatars(card,{t,lifeStageText,profile,readiness})}${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span>${memoryEventTimingMarkup(card,t)}<strong class="map-memory-summary">${escapeHtml(title)}</strong>${location}${detail && detail !== title ? `<span class="map-memory-description">${escapeHtml(detail)}</span>` : ""}${uncertainty ? `<span class="map-memory-uncertainty">${escapeHtml(uncertainty)}</span>` : ""}</button><button type="button" class="text-button map-memory-explore" ${city ? `data-memory-city="${escapeHtml(card.groupKey)}"` : `data-memory-explore="${escapeHtml(node.event.id)}"`}>${escapeHtml(t(city ? "mapEventExpand" : "exploreThisMemory"))}</button>${add}</article>`;
 }
 
 // Move colliding cards while preserving a stem to the true map position.

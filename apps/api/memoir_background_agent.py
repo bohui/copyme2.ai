@@ -42,7 +42,7 @@ class BackgroundAgentPublication:
         self.fence = BackgroundAgentInput.model_validate(fence).model_dump(mode='json')
 
     @asynccontextmanager
-    async def connection(self):
+    async def connection(self, *, metadata_only=False):
         from psycopg import AsyncConnection, Error
         from psycopg.types.json import Jsonb
         connection = None
@@ -53,13 +53,17 @@ class BackgroundAgentPublication:
                 await connection.execute("select set_config('request.jwt.claim.sub',%s,true),"
                     "set_config('request.jwt.claim.role','service_role',true),set_config('lock_timeout','2s',true)",
                     (self.fence['user_id'],))
-                remaining = await connection.execute('select public.lock_memoir_background_agent(%s)',
-                    (Jsonb(self.fence),))
-                if float((await remaining.fetchone())[0]) <= .1:
-                    raise PublicationUnavailable('Background agent lease expires too soon')
+                if not metadata_only:
+                    remaining = await connection.execute('select public.lock_memoir_background_agent(%s)',
+                        (Jsonb(self.fence),))
+                    if float((await remaining.fetchone())[0]) <= .1:
+                        raise PublicationUnavailable('Background agent lease expires too soon')
             yield connection
             await connection.commit()
         except Error as error:
+            from .lifetime_memory_policy import PolicyUnavailable, is_policy_pending
+            if is_policy_pending(error):
+                raise PolicyUnavailable() from None
             raise PublicationUnavailable('Background agent is unavailable or stale') from error
         finally:
             if connection is not None:
@@ -78,6 +82,7 @@ class AgentBroker:
     """Host code uses domain RPCs; the model never supplies SQL or RPC names."""
     def __init__(self, publication):
         self.publication = publication
+        self._lane_tokens = {}
 
     async def rpc(self, name, **arguments):
         from psycopg.types.json import Jsonb
@@ -86,9 +91,22 @@ class AgentBroker:
         values = [Jsonb(value) if isinstance(value, (dict, list)) else value for value in arguments.values()]
         parameters = ','.join(key + '=>%s' for key in arguments)
         revision = None
-        async with self.publication.connection() as connection:
+        # Lease maintenance must work while private content is fenced.
+        metadata_only = name in {'heartbeat_memoir_lane','fail_memoir_lane',
+            'defer_lifetime_memoir_lane_policy','yield_lifetime_memoir_lane_metadata'}
+        if name in {'defer_lifetime_memoir_lane_policy','yield_lifetime_memoir_lane_metadata'} and (
+                str(arguments.get('p_user_id')) != self.publication.fence['user_id']
+                or arguments.get('p_project_id') != self.publication.fence['project_id']):
+            raise PublicationUnavailable('Background lane release scope changed')
+        if metadata_only and self._lane_tokens.get(str(arguments.get('p_lane_id'))) != str(arguments.get('p_token')):
+            raise PublicationUnavailable('Background lane was not claimed by this agent')
+        async with self.publication.connection(metadata_only=metadata_only) as connection:
             result = await connection.execute('select public.' + name + '(' + parameters + ')', values)
             value = (await result.fetchone())[0]
+            if name == 'claim_memoir_lane' and value and (
+                    value['user_id'] != self.publication.fence['user_id']
+                    or value['project_id'] != self.publication.fence['project_id']):
+                raise PublicationUnavailable('Background lane claim scope changed')
             if name == 'commit_lifetime_profile_page' and value.get('status') == 'page_saved':
                 # Advance only this transaction's receipted profile write; other changes still fence the run.
                 advanced = await connection.execute('select public.advance_memoir_background_profile(%s,%s,%s)',
@@ -99,6 +117,8 @@ class AgentBroker:
                 revision = row[0]
         if revision is not None:
             self.publication.fence['preference_revision'] = revision
+        if name == 'claim_memoir_lane' and value:
+            self._lane_tokens[str(value['lane_id'])] = str(value['token'])
         return value
 
 

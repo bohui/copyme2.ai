@@ -145,3 +145,27 @@ def test_slow_background_agent_does_not_take_foreground_capacity(tmp_path,monkey
             release.set()
             await pending
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize('status,code,successful_yield',[
+    (503,'LIFETIME_POLICY_PENDING',True),
+    (503,'UNRELATED_UNAVAILABLE',False),
+    (502,'LIFETIME_POLICY_PENDING',False),
+])
+def test_only_the_typed_policy_pause_preserves_background_failure_budget(status,code,successful_yield):
+    import httpx
+    from apps.api.memory_event_worker import MemoryEventWorker
+    current=fence()
+    finished=[]
+    class Broker:
+        async def rpc(self,name,**arguments):
+            if name=='claim_memoir_background_agent':return current
+            assert name=='finish_memoir_background_agent'
+            finished.append(arguments)
+            return {'status':'pending','pending':True}
+    worker=MemoryEventWorker(Broker(),worker_url='http://synthetic.invalid',worker_secret='synthetic',
+        worker_transport=httpx.MockTransport(lambda request:httpx.Response(status,
+            headers={'X-Error-Code':code},json={'detail':'Unavailable'})))
+    result=asyncio.run(worker.execute_background_agent(current['id']))
+    assert result=={'status':'pending','pending':True}
+    assert finished==[{'p_id':current['id'],'p_token':current['token'],'p_success':successful_yield}]
