@@ -39,7 +39,11 @@ placement; assistant wording remains context only.
 Return locationConfidenceScore and yearConfidenceScore from 0 to 1 for EVERY
 proposed event. Select the most plausible coarse location from the authorized
 originals, including earlier conversation and saved event context, and cite its
-exact location_basis. Use 1 for an explicit unambiguous placement and a score
+exact location_basis. The location object has place, granularity and hierarchy;
+hierarchy begins with the literal "Earth" and ends with the identical place
+label, for example ["Earth", "Australia", "Tasmania", "Hobart"]. Its place label
+must appear verbatim in a cited location_basis quote. Use 1 for an explicit
+unambiguous placement and a score
 below 0.5 for a weak guess. Retain the candidate even when its confidence is low;
 location=null and score=0 mean no candidate is supported anywhere in that context.
 Explain the inference in uncertainty. Birth in Chengde followed by

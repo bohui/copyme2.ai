@@ -193,7 +193,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     }
     if (focusedCity && focusedCity !== "unlocated" && !visibleCities.has(focusedCity)) focusedCity = null;
     if (!detailed && visibleCities.size > 1 && !focusedCity) overviewMode = true;
-    viewCity = overviewMode ? null : focusedCity ?? (visibleCities.size === 1 ? [...visibleCities][0]
+    viewCity = focusedCity ?? (visibleCities.size === 1 ? [...visibleCities][0]
       : detailed ? mapCityInView(cityLocations,project,width,height) : null);
     const locatedCards = viewCity !== null || detailed ? (cities.find(city => city.groupKey === viewCity)?.nodes || []) : cities;
     const cards = overviewMode ? cities : locatedCards;
