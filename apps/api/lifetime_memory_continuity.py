@@ -191,6 +191,7 @@ def validate_governed_collector_result(raw, context):
     if context.get('reply_contract') == 'reply-v2':
         from .conversation_reply import adapt_reply
         value, selection_reason, outcome, stopped, immediate_name = adapt_reply(value, context)
+        workspace_focus = value.pop('workspace_focus')
     elif context.get('strategy_selector'):
         from .interview_strategy import adapt_selection
         value,outcome,stopped=adapt_selection(value,context)
@@ -238,6 +239,8 @@ def validate_governed_collector_result(raw, context):
                 outcome = {**outcome, 'selected_candidate_id': chosen['id'],
                            'selection_reason': 'prepared_candidate', 'question_delivered': chosen['question']}
     if outcome is not None:result.update(strategy_outcome=outcome,stopped=stopped)
+    if context.get('reply_contract') == 'reply-v2':
+        result['plan']['workspace_focus'] = workspace_focus
     source = _current_source(context)
     updates = validate_continuity_updates(value.get('continuity_updates', []), source)
 

@@ -65,6 +65,7 @@ const state = {
   privateDraftThinkingExpanded: false,
   profileIntakePending: true,
   placeJourney: null,
+  workspaceFocus: null,
   placeJourneyChange: null,
   workspaceTab: "memoir",
   selectedMemoirChapter: null,
@@ -829,6 +830,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
         markWorkspaceFocusStarted(requestTurn);
       } else if (event.type === "conversation_saved") {
         state.photoTurns?.accept(requestTurn, {...event.data, state:"conversation_saved"});
+        if (Object.hasOwn(event.data,"workspace_focus")) state.workspaceFocus = event.data.workspace_focus;
         void refreshStageReadiness();
         if (state.project?.id === streamProjectId && state.supabase?.user?.id === ownerId) {
           await applyCommittedConversationLocale(event.data?.profile_updates);
@@ -866,6 +868,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     if (body.conversation_saved) markWorkspaceFocusStarted(requestTurn);
     if (body.reply && state.pendingConversationTurn === requestTurn) state.pendingConversationTurn = null;
     if (body.conversation_saved) {
+      if (Object.hasOwn(body,"workspace_focus")) state.workspaceFocus = body.workspace_focus;
       state.backgroundDraftTurn = requestTurn.id;
       void refreshStageReadiness();
       void refreshPrivateDraft();
@@ -1795,6 +1798,7 @@ async function signOut() {
     state.codexReady = false;
     state.profileIntakePending = true;
     state.placeJourney = null;
+    state.workspaceFocus = null;
     state.placeJourneyChange = null;
     state.workspaceTab = "memoir";
     state.workspaceUnlocked = false;
@@ -2032,6 +2036,7 @@ async function startMemoirStory(mode = "self") {
     state.profileIntakePending = true;
     state.placeJourney = null;
     state.placeJourneyChange = null;
+    state.workspaceFocus = null;
     try { localStorage.removeItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY); } catch { /* private browsing */ }
     state.workspaceTab = "memoir";
     state.workspaceCollapsed = false;
@@ -3341,6 +3346,7 @@ async function boot() {
         state.codexReady = false;
         state.codexStarting = false;
         state.placeJourney = null;
+        state.workspaceFocus = null;
         state.workspaceUnlocked = false;
         state.compositionStage = 0;
         state.workspaceCollapsed = false;

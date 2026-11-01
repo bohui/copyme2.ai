@@ -1,14 +1,16 @@
 import { escapeHtml } from "./dom.mjs";
-import { buildMapMemoryJourney, cityEventCards, mapCityInView, mapTrailWindow, matchesEventPlace, memoryEventCardMarkup, memoryTrailLegs } from "./map-memory-journey.mjs";
+import { buildMapMemoryJourney, cityEventCards, mapCityInView, mapCityOverlapsView, mapTrailWindow, matchesEventPlace, memoryEventCardMarkup, memoryTrailLegs } from "./map-memory-journey.mjs";
 import { placeHistoryKey } from "./places.mjs";
 
 export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScope, getIdentity = getScope, getStage,
   getInitialPlace = () => null,
+  getQuestionFocus = () => null,
   getPage = () => null, getReadiness = () => ({}), getCanAddMemory = () => true, readPlaces, resolvePlaces = async places => places,
   t, lifeStageText, onExplore, onAdd, onLoadMore, onOverview = () => {}, onChange = () => {}}) {
   let layer, sceneElement, viewer, cesium, removePostRender, removeMoveEnd, scope, journey, signature, selectedKey;
   let focusedCity = null, viewCity = null, listView, lastMode, initialIdentity, overviewRequested = false, overviewMode = true;
-  let cityScope, activeCityKey;
+  let cityScope, activeCityKey, flyingToCity = null, flightRevision = 0;
+  let visibleCityKeys = [];
   let placeGroups = [];
   const places = new Map();
   const footprint = typeof Image === "undefined" ? null : new Image();
@@ -16,7 +18,8 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
 
   function activeCity(groups = placeGroups) {
     const initial = getInitialPlace();
-    const nextScope = JSON.stringify([getIdentity(), initial && [placeHistoryKey(initial), initial.source_sequence || initial.revision || 0]]);
+    const focus = getQuestionFocus();
+    const nextScope = JSON.stringify([getIdentity(), focus || (initial && [placeHistoryKey(initial), initial.source_sequence || initial.revision || 0])]);
     if (cityScope !== nextScope) {
       cityScope = nextScope;
       activeCityKey = undefined;
@@ -25,7 +28,13 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         if (saved?.scope === cityScope && (saved.city === null || typeof saved.city === "string")) activeCityKey = saved.city;
       } catch { /* Storage is optional; keep the city for this page. */ }
     }
-    if (activeCityKey !== undefined || !initial) return activeCityKey ?? null;
+    if (activeCityKey !== undefined) return activeCityKey;
+    if (focus?.place) {
+      const matches = groups.filter(group => matchesEventPlace({place:focus.place},group.city)
+        || group.members.some(member => matchesEventPlace({place:focus.place},member)));
+      if (matches.length === 1) return matches[0].key;
+    }
+    if (!initial) return null;
     const key = placeHistoryKey(initial);
     return groups.find(group => placeHistoryKey(group.city) === key
       || group.members.some(member => placeHistoryKey(member) === key))?.key || null;
@@ -82,6 +91,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const nextScope = getScope();
     if (nextScope !== scope) {
       scope = nextScope;places.clear();selectedKey = null;listView = null;signature = null;
+      visibleCityKeys = [];
       activeCity();
       if (initialIdentity !== cityScope) { focusedCity = null;viewCity = null;overviewMode = true; }
     }
@@ -125,7 +135,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
           overviewMode = false;
           selectedKey = null;
           if (city.groupKey !== "unlocated") rememberCity(city.groupKey);
-          if (city.groupKey !== "unlocated") frame(city.nodes,2500);
+          if (city.groupKey !== "unlocated") frame(city.nodes,2500,city.groupKey);
           position();
           if (focused) [...layer.querySelectorAll("[data-map-memory]")]
             .find(button => button.dataset.mapMemory === city.nodes[0].key)?.focus({preventScroll:true});
@@ -134,7 +144,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
           if (!node) return;
           selectedKey = node.key;
           rememberCity(node.groupKey);
-          frame([node],2500);
+          frame([node],2500,node.groupKey);
           position();
         }
       });
@@ -161,6 +171,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
 
   function overview() {
     rememberCity(null);
+    flyingToCity = null;
     focusedCity = null;
     viewCity = null;
     overviewMode = true;
@@ -170,7 +181,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     sync(sceneElement);
   }
 
-  function frame(nodes, minimum) {
+  function frame(nodes, minimum, city = null) {
     if (!viewer || viewer.isDestroyed() || !nodes.length) return;
     const origin = nodes[0].longitude;
     const longitudes = nodes.map(node => origin + ((node.longitude - origin + 540) % 360 - 180));
@@ -181,8 +192,12 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       (Math.max(...longitudes) - Math.min(...longitudes)) * 111320 * Math.cos(latitude * Math.PI / 180));
     const aspect = Math.max(1, (sceneElement.clientHeight || layer.clientHeight)
       / Math.max(1, sceneElement.clientWidth || layer.clientWidth));
+    flyingToCity = city;
+    const revision = ++flightRevision;
+    const finish = () => { if (revision === flightRevision) { flyingToCity = null;position(); } };
     viewer.camera.flyTo({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, Math.max(minimum, span * 3.5 * aspect)),
-      duration:window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1.1});
+      duration:window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 1.1,
+      complete:finish, cancel:finish});
   }
 
   function position() {
@@ -208,7 +223,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       if (nodes.length && (group || !city || !pending || overviewRequested)) {
         initialIdentity = cityScope;overviewRequested = false;
         if (group) { focusedCity = group.key;overviewMode = false; }
-        frame(nodes,group ? 12000 : 40000);
+        frame(nodes,group ? 12000 : 40000,group?.key);
       }
     }
     // Photo-only maps still need a city scope while the event layer is hidden.
@@ -220,7 +235,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     lastMode = detailed;
     const project = point => cesium.SceneTransforms.worldToWindowCoordinates(viewer.scene,
       cesium.Cartesian3.fromDegrees(point.longitude,point.latitude));
-    const cities = cityEventCards([...journey.nodes,...journey.unlocated]);
+    const cities = cityEventCards(journey.nodes);
     const previousCity = viewCity;
     const eventCities = placeGroups.filter(group => cities.some(city => city.groupKey === group.key));
     const cityLocations = placeGroups.map(group => {
@@ -231,17 +246,22 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
           ...group.members.map(member => Object.hasOwn(member,"map_pin") ? member.map_pin : member)
             .filter(place => Number.isFinite(place?.latitude) && Number.isFinite(place?.longitude))]};
     });
-    const visibleCities = new Set(cityLocations.filter(city => mapCityInView([city],project,width,height) !== null)
+    const rectangle = viewer.camera.computeViewRectangle?.(viewer.scene.globe?.ellipsoid);
+    const visibleCities = new Set(cityLocations.filter(city => rectangle ? mapCityOverlapsView(city,rectangle)
+      : !viewer.camera.computeViewRectangle && mapCityInView([city],project,width,height) !== null)
       .map(city => city.groupKey));
+    const nextVisibleCityKeys = [...visibleCities].sort();
+    const visibilityChanged = JSON.stringify(nextVisibleCityKeys) !== JSON.stringify(visibleCityKeys);
+    visibleCityKeys = nextVisibleCityKeys;
     if (focusedCity && !cities.some(city => city.groupKey === focusedCity) && !placeGroups.some(group => group.key === focusedCity)) {
       focusedCity = null;overviewMode = true;
     }
-    if (focusedCity && focusedCity !== "unlocated" && !visibleCities.has(focusedCity)) focusedCity = null;
+    if (focusedCity && focusedCity !== "unlocated" && !visibleCities.has(focusedCity) && !flyingToCity) focusedCity = null;
     if (!detailed && visibleCities.size > 1 && !focusedCity) overviewMode = true;
-    viewCity = focusedCity ?? (visibleCities.size === 1 ? [...visibleCities][0]
+    viewCity = flyingToCity ?? focusedCity ?? (visibleCities.size === 1 ? [...visibleCities][0]
       : detailed ? mapCityInView(cityLocations,project,width,height) : null);
     const locatedCards = viewCity !== null || detailed ? (cities.find(city => city.groupKey === viewCity)?.nodes || []) : cities;
-    const cards = overviewMode ? cities : locatedCards;
+    const cards = (overviewMode ? cities : locatedCards).filter(card => visibleCities.has(card.groupKey));
     if (selectedKey && !cards.some(card => card.key === selectedKey || card.nodes?.some(node => node.key === selectedKey))) {
       selectedKey = null;
     }
@@ -260,7 +280,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       container.scrollTop = scroll;
       if (focused) [...container.querySelectorAll("[data-map-memory]")].find(button => button.dataset.mapMemory === focused)?.focus({preventScroll:true});
     }
-    if (previousCity !== viewCity) onChange(sceneElement);
+    if (previousCity !== viewCity || visibilityChanged) onChange(sceneElement);
     for (const anchor of layer.querySelectorAll(".map-memory-anchor")) {
       anchor.hidden = false;
       anchor.removeAttribute("style");
@@ -345,8 +365,13 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     removeMoveEnd?.();removeMoveEnd = null;
     removePostRender?.();removePostRender = null;viewer = null;layer = null;sceneElement = null;signature = null;lastMode = null;selectedKey = null;viewCity = null;
     initialIdentity = undefined;focusedCity = null;overviewRequested = false;
+    flyingToCity = null;
+    flightRevision++;
     overviewMode = true;
+    visibleCityKeys = [];
   }
   return {sync, attach, dispose, overview, activeCity,
-    nodes:() => getScope() === scope ? journey?.nodes || [] : [], viewCity:() => viewCity};
+    visibleCities:() => getScope() === scope ? visibleCityKeys : [],
+    nodes:() => getScope() === scope ? journey?.nodes || [] : [],
+    viewCity:() => { const city = activeCity();return initialIdentity !== cityScope ? city : flyingToCity ?? viewCity; }};
 }

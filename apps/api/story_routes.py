@@ -356,7 +356,8 @@ def build_router(
                     if places and callable(getattr(storage, 'research_places', None)):
                         places = storage.research_places(project_id, places)
                     result['derived_workspace']={'project_id':project_id,'policy_epoch':fence.policy_epoch,
-                        'source_revision':fence.source_revision,'places':places,'authoritative':True}
+                        'source_revision':fence.source_revision,'places':places,'authoritative':True,
+                        'workspace_focus':storage.lifetime_rpc('read_lifetime_workspace_focus',p_project_id=project_id)}
                     profile = storage.profile()
                     automation = storage.lifetime_rpc('read_lifetime_profile_automation')
                     result['profile'] = {key: profile[key] for key in PROFILE_FIELDS if key in profile}

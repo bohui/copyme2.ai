@@ -96,7 +96,7 @@ def test_map_controls_keep_their_settled_layout_before_and_during_flight(control
     page.screenshot(path=str(OUTPUT / f'map-controls-{width}-flight.png'))
     page.evaluate('mapControls.arrive()')
     settled = controls(page)
-    assert page.locator('.map-memory-card.is-city').count() == 2
+    assert page.locator('.map-memory-card.is-city').count() == 1
     assert page.locator('[data-memory-explore]').count() == 0
     page.screenshot(path=str(OUTPUT / f'map-controls-{width}-settled.png'))
     for phase, layout in [('initial', initial), ('flight', flying)]:
@@ -149,10 +149,17 @@ let city='Chengde';
 const callbacks=[];
 const viewer={isDestroyed:()=>false,entities:{getById(){}},
   scene:{mode:2,postRender:{addEventListener(callback){callbacks.push(callback);return ()=>{};}}},
-  camera:{frustum:{left:-40000,right:40000},flyTo(){}}};
+  camera:{frustum:{left:-40000,right:40000},flyTo(flight){queueMicrotask(()=>flight.complete?.());},
+    computeViewRectangle(){
+      const target=city==='Sydney' ? sydney : city==='empty' ? {latitude:0,longitude:0} : chengde;
+      const offset=city==='near' ? .8 : city==='far' ? 1.1 : -.1;
+      const degrees=city===null ? {west:-180,south:-85,east:180,north:85}
+        : {west:target.longitude-.1,south:target.latitude+offset,east:target.longitude+.1,north:target.latitude+offset+.2};
+      return Object.fromEntries(Object.entries(degrees).map(([key,value])=>[key,value*Math.PI/180]));
+    }}};
 const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
   SceneTransforms:{worldToWindowCoordinates:(_,point)=>({
-    x:city===null ? scene.clientWidth*(point.longitude<130 ? .55 : .75)
+    x:city==='empty' ? -5000 : city===null ? scene.clientWidth*(point.longitude<130 ? .55 : .75)
       : (point.longitude<130 ? city==='Chengde' : city==='Sydney') ? scene.clientWidth*.6 : -5000,
     y:scene.clientHeight*.6})}};
 function redraw(){for(let i=0;i<2;i++)for(const callback of callbacks)callback();}
@@ -213,3 +220,38 @@ def test_photo_connector_matches_events_and_reaches_the_visible_stack(controls_p
     assert photo['end'] == event['end'], result
     assert stack['left'] < photo['start'][0] < stack['right'], result
     assert stack['top'] < photo['start'][1] < stack['bottom'], result
+
+
+@pytest.mark.parametrize('controls_page', [ALBUM_HTML], indirect=True, ids=['city-albums'])
+@pytest.mark.parametrize('width', [1440, 390])
+def test_panning_off_all_locations_clears_both_card_lists(controls_page, width):
+    page = controls_page
+    page.set_viewport_size({'width': width, 'height': 960})
+    page.goto('http://map-controls.invalid/')
+    page.wait_for_function('window.mapAlbums')
+    for span in (80000, 8000, 200000):
+        page.evaluate('span=>mapAlbums.view("empty",span)', span)
+        assert page.locator('.map-memory-card:visible').count() == 0
+        assert page.locator('[data-photo-album]:visible').count() == 0
+    page.evaluate('mapAlbums.view("Chengde",80000)')
+    assert page.locator('.map-memory-card:visible').count() == 1
+    assert page.locator('[data-photo-album] .map-album-place').all_text_contents() == ['Chengde']
+    page.evaluate('mapAlbums.view("Sydney",80000)')
+    assert page.locator('.map-memory-card:visible').count() == 0
+    assert page.locator('[data-photo-album] .map-album-place').all_text_contents() == ['Sydney']
+
+
+@pytest.mark.parametrize('controls_page', [ALBUM_HTML], indirect=True, ids=['city-albums'])
+@pytest.mark.parametrize('width', [1440, 390])
+def test_both_lists_stay_while_the_100_km_city_circle_touches_the_view(controls_page, width):
+    page = controls_page
+    page.set_viewport_size({'width': width, 'height': 960})
+    page.goto('http://map-controls.invalid/')
+    page.wait_for_function('window.mapAlbums')
+    for span in (80000, 8000):
+        page.evaluate('span=>mapAlbums.view("near",span)', span)
+        assert page.locator('.map-memory-card:visible').count() == 1
+        assert page.locator('[data-photo-album] .map-album-place').all_text_contents() == ['Chengde']
+        page.evaluate('span=>mapAlbums.view("far",span)', span)
+        assert page.locator('.map-memory-card:visible').count() == 0
+        assert page.locator('[data-photo-album]:visible').count() == 0

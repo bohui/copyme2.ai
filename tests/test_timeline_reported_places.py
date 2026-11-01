@@ -76,6 +76,51 @@ def ref(quote):
     return dict(source_id='source', version=1, quote=quote, char_start=None, char_end=None)
 
 
+@pytest.mark.parametrize('focus_city,question,quote', [
+    ('承德','说起小时候，你最先想起的是怎样的一个画面？','我于1983年4月出生在河北省承德市附属医院'),
+    ('悉尼','说起现在的生活，你最喜欢悉尼的什么地方？','现在生活在悉尼'),
+])
+def test_followup_city_replays_to_map_photos_and_events(sql,tmp_path,monkeypatch,focus_city,question,quote):
+    from pathlib import Path
+    import subprocess
+    from test_conversation_reply import proposal
+    monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION','reply-v2')
+    text='我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'
+    acknowledgement='慧博，很高兴认识你。你现在生活在悉尼，人生的起点则是1983年4月的承德。'
+    locations=[dict(place=label,hierarchy=hierarchy,granularity='city',latitude=lat,longitude=lon)
+        for label,hierarchy,lat,lon in [
+            ('悉尼',['Earth','澳大利亚','悉尼'],-33.87,151.21),
+            ('承德市',['Earth','中国','河北省','承德市'],40.95,117.96)]]
+    def extract(packet):
+        quotes=['现在生活在悉尼','我于1983年4月出生在河北省承德市附属医院']
+        events=[episode(packet,q,title=label) for q,label in zip(quotes,['悉尼生活','承德出生'])]
+        return {**empty(packet),'events':events,'place_journeys':[{k:v for k,v in p.items() if k not in {'latitude','longitude'}} for p in locations],
+            'event_places':[dict(event_index=i,role='setting',source_ref=reference(packet,q),
+                place={k:v for k,v in p.items() if k not in {'latitude','longitude'}}) for i,(q,p) in enumerate(zip(quotes,locations))]}
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False,
+        reply=lambda _:dict(proposal(),acknowledgement=acknowledgement,question=question,
+            workspace_focus=dict(place=focus_city,quote=quote,source_id=None)))
+    with conversation.client:
+        result=conversation.say(text,language='zh-CN')
+        assert result['workspace_focus']['place']==focus_city
+        assert 'evidence' not in result['workspace_focus']
+        conversation.drain()
+        response=conversation.client.get('/v1/story/readiness',params=dict(project_id=conversation.project))
+        assert response.status_code==200,response.text
+        snapshot=response.json()['derived_workspace']
+        assert snapshot['workspace_focus']==result['workspace_focus']
+        page=conversation.client.get('/v1/story/map-events',params=dict(project_id=conversation.project)).json()
+        assert len(page['events'])==2
+        links={event['id']:conversation.client.get(f'/v1/story/map-events/{conversation.project}/{event["id"]}/places').json()['items']
+            for event in page['events']}
+        replay=Path(__file__).parent/'js/helpers/replay-question-place-focus.mjs'
+        checked=subprocess.run(['node',str(replay)],input=json.dumps(dict(project_id=conversation.project,
+            result=result,snapshot=snapshot,events=page['events'],links=links,places=locations)),text=True,capture_output=True,timeout=10)
+        assert checked.returncode==0,checked.stdout+checked.stderr
+        foreign=conversation.client.get('/v1/story/readiness',params=dict(project_id=conversation.project),headers={'authorization':'Bearer another-owner'})
+        assert foreign.status_code != 200 and focus_city not in foreign.text
+
+
 @pytest.mark.parametrize('offset', [0, 1792])
 def test_research_quote_can_cross_masked_attribution(monkeypatch, offset):
     father = '父亲说他小时候在承德修自行车。'

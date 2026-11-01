@@ -103,9 +103,11 @@ export function memoryEventTiming(event, profile = {}, index = 0) {
     dated:!event.timing_conflict && (age.start !== null || year !== null || Boolean(calendar))};
 }
 
-const chronological = (a,b) => ((a.inferred || b.inferred) && a.calendar && b.calendar
-    && a.calendar.start <= b.calendar.end && b.calendar.start <= a.calendar.end && a.stage >= 0 && b.stage >= 0
-    ? a.stage - b.stage : a.calendar && b.calendar ? a.calendar.start - b.calendar.start
+const chronological = (a,b) => (a.calendar && b.calendar
+    ? (a.inferred || b.inferred) && a.year === b.year
+      ? (a.stage >= 0 && b.stage >= 0 ? a.stage - b.stage : 0)
+        || Number(a.inferred) - Number(b.inferred) || a.calendar.start - b.calendar.start
+      : a.calendar.start - b.calendar.start
   : a.year !== null && b.year !== null ? a.year - b.year
   : a.age.start !== null && b.age.start !== null ? a.age.start - b.age.start
   : a.stage >= 0 && b.stage >= 0 ? a.stage - b.stage
@@ -141,6 +143,21 @@ export function mapCityInView(cities, project, width, height) {
     if (next < distance) { closest = city.groupKey; distance = next; }
   }
   return closest;
+}
+
+export function mapCityOverlapsView(city, rectangle) {
+  if (!coordinates(city) || !rectangle) return false;
+  const {west,south,east,north} = rectangle;
+  const radians = value => value*Math.PI/180;
+  const turn = Math.PI*2, longitude = radians(city.longitude), latitude = radians(city.latitude);
+  const wrap = value => (value%turn+turn)%turn;
+  const span = Math.abs(east-west) >= turn-1e-10 ? turn : wrap(east-west);
+  const delta = wrap(longitude-west) <= span ? 0
+    : Math.min(Math.acos(Math.cos(longitude-west)),Math.acos(Math.cos(longitude-east)));
+  // Nearest point on the viewport's meridian, clamped to its latitude range.
+  const nearest = Math.max(south,Math.min(north,Math.atan2(Math.sin(latitude),Math.cos(latitude)*Math.cos(delta))));
+  const cosine = Math.sin(latitude)*Math.sin(nearest)+Math.cos(latitude)*Math.cos(nearest)*Math.cos(delta);
+  return Math.acos(Math.max(-1,Math.min(1,cosine)))*6371.0088 <= 100;
 }
 
 // Only explicit event/place links supply locations. Shared testimony, a nearby
@@ -231,11 +248,12 @@ export function cityEventCards(nodes) {
     if (!members.some(member => member.event.id === node.event.id)) members.push(node);
   }
   return [...cities.values()].map(city => {
+    city.nodes.sort(chronological);
     const ages = city.nodes.map(node => node.age).filter(age => age.start !== null);
     return {...city, age:{start:ages.length ? Math.min(...ages.map(age => age.start)) : null,
       end:ages.length ? Math.max(...ages.map(age => age.end)) : null, approximate:ages.some(age => age.approximate)},
       count:new Set(city.nodes.map(node => node.event.id)).size};
-  });
+  }).sort((a,b)=>chronological(a.nodes[0],b.nodes[0]));
 }
 
 function memoryEventTimingText(node, t) {

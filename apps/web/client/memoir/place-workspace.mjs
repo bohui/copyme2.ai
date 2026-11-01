@@ -19,6 +19,7 @@ export function createPlaceWorkspace({
     getAlbum: mapPhotoAlbum,
     getAlbums: mapPhotoAlbumsForScene,
     getViewCity: () => mapMemoryEvents.viewCity(),
+    getVisibleCities: () => mapMemoryEvents.visibleCities(),
     renderAlbum: album => {
       const pictures = pictureWall(album.pictures);
       if (pictures) return pictures + album.entries.map(entry => photos.photoPaginationMarkup(entry)).join("");
@@ -45,6 +46,7 @@ export function createPlaceWorkspace({
     getGroups: mapMemoryPlaceGroups,
     getProfile: profile,
     getInitialPlace: () => state.placeJourney,
+    getQuestionFocus: () => state.workspaceFocus,
     getScope: () => JSON.stringify([state.project?.id, state.supabase?.user?.id,
       state.memoryEventPage?.policy_epoch, state.memoryEventPage?.source_revision, state.memoryEventPage?.event_revision,
       state.derivedWorkspace?.policy_epoch, state.derivedWorkspace?.source_revision]),
@@ -217,7 +219,8 @@ export function createPlaceWorkspace({
       || nodes.some(node => placeHistoryKey(node.location) === placeHistoryKey(item)));
     const groups = workspacePlaceGroups(matching);
     const scope = JSON.stringify([state.project?.id, state.supabase?.user?.id, placeHistoryKey(current),
-      current.source_sequence || current.revision || 0, state.memoryEventPage?.policy_epoch, state.derivedWorkspace?.policy_epoch]);
+      current.source_sequence || current.revision || 0, state.memoryEventPage?.policy_epoch, state.derivedWorkspace?.policy_epoch,
+      state.workspaceFocus]);
     if (!cesiumPlaceJourneyViewer || mapOpeningScope !== scope) {
       mapOpeningScope = scope;mapOpeningCity = mapMemoryEvents.activeCity(groups);
     }
@@ -227,7 +230,7 @@ export function createPlaceWorkspace({
     return `<section class="workspace-media-overview no-gallery" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><button type="button" data-all-places>${t("mapMemoryOverview")}</button>${toggle}</div>${map}</div></section>`;
   }
 
-  function mapPhotoAlbumsForScene(scene, {detailed = true, allPlaces = false, cityKey} = {}) {
+  function mapPhotoAlbumsForScene(scene, {detailed = true, allPlaces = false, cityKey, cityKeys} = {}) {
     const container = scene?.querySelector("[data-cesium-place]");
     const pins = new Set(JSON.parse(container?.dataset.cesiumPins || "[]").map(pin => pin.key));
     const nodes = mapMemoryEvents.nodes();
@@ -259,15 +262,17 @@ export function createPlaceWorkspace({
       if (album) album.pictures.unshift(photo);
       else if ((keys.size !== 1 || allPlaces) && (state.lifeStage === "all" || linked.length)) unlocated.push(photo);
     }
-    const scoped = albums.filter(album => cityKey === undefined || album.groupKey === cityKey
-      || (focused && matchesEventPlace(album.city,focused.city)));
+    const visibleGroups = cityKeys === undefined ? null : groups.filter(group => cityKeys.includes(group.key));
+    const scoped = albums.filter(album => (cityKey === undefined || album.groupKey === cityKey
+      || (focused && matchesEventPlace(album.city,focused.city))) && (visibleGroups === null
+      || visibleGroups.some(group => group.key === album.groupKey || matchesEventPlace(album.city,group.city))));
     const visible = detailed ? scoped : [...new Set(scoped.map(album => album.groupKey))].map(key => {
       const members = scoped.filter(album => album.groupKey === key), city = members[0].city;
       return {key:`city-album:${key}`,place:city.place,entries:members.flatMap(album => album.entries),
         pictures:photos.mergePlacePictures([],members.flatMap(album => album.pictures)),
         latitude:city.latitude,longitude:city.longitude,pinned:Number.isFinite(city.latitude) && Number.isFinite(city.longitude)};
     });
-    if (cityKey === undefined && (unlocated.length || photos.mapPhotosUnavailable())) visible.push({key:"personal:unlocated",place:translate("Memoir.story.privatePhoto"),
+    if (cityKey === undefined && cityKeys === undefined && (unlocated.length || photos.mapPhotosUnavailable())) visible.push({key:"personal:unlocated",place:translate("Memoir.story.privatePhoto"),
       pictures:unlocated,entries:[],pinned:false,...(photos.mapPhotosUnavailable() ? {status:"error"} : {})});
     const rendered = visible.map(album => {
       const pictures = photos.mergePlacePictures([],album.pictures)
