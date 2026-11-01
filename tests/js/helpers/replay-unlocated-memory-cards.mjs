@@ -40,15 +40,16 @@ for (;current<feeds.length;current++) {
   assert.equal(state.timeline.length,2,'Birth and the school-compound memory retain separate identities');
   assert.ok(!JSON.stringify(feeds[current].feed).includes('source_refs'),'The map feed must not expose original passages');
   const childhood=state.timeline.find(event=>event.id===childhood_id);
-  assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,1);
+  assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,current===0 ? 1 : 2);
   assert.doesNotMatch(cards.innerHTML,/data-memory-explore|Playing in the school staff compound|Location to confirm|Age not yet known/);
-  assert.match(cards.innerHTML,/2 events/);
+  if (current===0) assert.match(cards.innerHTML,/2 events/);
   assert.equal(map.nodes().filter(node=>node.event.id===childhood_id).length,1);
   if (current===0) {
     assert.equal(cards.innerHTML.includes('map-memory-question'),childhood.locationConfidenceScore<.5);
     assert.match(cards.innerHTML,/1994|2003/);
   } else {
     assert.doesNotMatch(cards.innerHTML,/map-memory-question/);
+    assert.equal(map.nodes().find(node=>node.event.id===childhood_id).city,'Sydney');
   }
   const key=map.nodes().find(node=>node.event.id===childhood_id).groupKey;
   listeners.click({target:{closest:()=>({dataset:{memoryCity:key},hasAttribute:name=>name==='data-memory-city'})}});

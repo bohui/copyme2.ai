@@ -9063,6 +9063,7 @@ begin
        'temporal_estimate',case when jsonb_typeof(event_record.data->'temporal_estimate')='object'
          then (event_record.data->'temporal_estimate')-'basis' end,
        'uncertainty',event_record.data->'uncertainty','assertion',event_record.data->'assertion',
+       'location',event_record.data->'location',
        'locationConfidenceScore',event_record.data->'locationConfidenceScore','yearConfidenceScore',event_record.data->'yearConfidenceScore',
        'timing_conflict',coalesce(event_record.data->'timing_conflict','false'),
        'details_complete',not exists(select 1 from unnest(array['temporal_accounts','relations','candidate_ids','supersedes','contradicts']) k
