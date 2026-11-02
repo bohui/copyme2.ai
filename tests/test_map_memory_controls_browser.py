@@ -329,8 +329,10 @@ window.mapRefresh={calls,
 
 
 @pytest.mark.parametrize('controls_page',[LOCATION_REFRESH_HTML],indirect=True)
-def test_initial_location_failure_has_no_warning_above_an_empty_list(controls_page):
+@pytest.mark.parametrize('width',[1440,390])
+def test_initial_location_failure_has_no_warning_above_an_empty_list(controls_page,width):
     page=controls_page
+    page.set_viewport_size({'width':width,'height':960})
     page.goto('http://map-controls.invalid/')
     page.wait_for_function('window.mapRefresh')
     assert page.locator('.map-memory-toolbar .map-memory-status').count()==0
@@ -344,8 +346,10 @@ def test_initial_location_failure_has_no_warning_above_an_empty_list(controls_pa
 
 
 @pytest.mark.parametrize('controls_page',[LOCATION_REFRESH_HTML],indirect=True)
-def test_location_refresh_and_retry_stay_inside_the_existing_event_card(controls_page):
+@pytest.mark.parametrize('width',[1440,390])
+def test_location_refresh_and_retry_stay_inside_the_existing_event_card(controls_page,width):
     page=controls_page
+    page.set_viewport_size({'width':width,'height':960})
     page.goto('http://map-controls.invalid/')
     page.wait_for_function('window.mapRefresh')
     page.evaluate("mapRefresh.succeed('birth');mapRefresh.succeed('school')")
