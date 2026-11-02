@@ -180,7 +180,7 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
     const links = Array.isArray(event.map_places) ? event.map_places : Array.isArray(event.places) ? event.places
       : event.canonical ? [] : event.place ? [{role:"setting", place:typeof event.place === "string" ? {place:event.place} : event.place}] : [];
     let located = false;
-    const seen = new Set();
+    const seen = new Set(), roles = new Map();
     for (const link of [...links].sort((a,b) => ["origin", "setting", "destination"].indexOf(a.role) - ["origin", "setting", "destination"].indexOf(b.role))) {
       if (link.status === "conflicted" || event.place_conflicts?.includes(link.role)) continue;
       const place = link.place;
@@ -201,7 +201,9 @@ export function buildMapMemoryJourney(events, groups, profile = {}) {
       seen.add(key);
       const cityOnly = !coordinates(own) || member.granularity === "city"
         || (member.granularity !== "city" && target.latitude === city?.latitude && target.longitude === city?.longitude);
-      nodes.push({key, event, ...timing, role:link.role, groupKey:group.key,
+      const occurrence = roles.get(link.role) || 0;
+      roles.set(link.role,occurrence+1);
+      nodes.push({key:`${event.id}:${link.role}:${occurrence}`, event, ...timing, role:link.role, groupKey:group.key,
         location:{place:member.place,hierarchy:member.hierarchy,granularity:member.granularity,
           latitude:member.latitude,longitude:member.longitude,map_city:member.map_city,map_city_key:member.map_city_key,
           ...(Object.hasOwn(member,"map_pin") ? {map_pin:member.map_pin} : {})},
@@ -291,7 +293,7 @@ function memoryQuestionMark(t) {
 export function memoryEventTimingMarkup(card, t) {
   const text = memoryEventTimingText(card,t);
   const uncertain = (card.nodes || [card]).some(node => node.uncertain);
-  return `<span class="map-memory-date"${!card.nodes && card.inferred ? ` title="${escapeHtml(card.event.temporal_estimate.rationale)}"` : ""}>${escapeHtml(text)}${uncertain && text !== "?" ? memoryQuestionMark(t) : ""}</span>`;
+  return `<span class="map-memory-date"${!card.nodes && card.inferred ? ` title="${escapeHtml(card.event.temporal_estimate.rationale)}"` : ""}><span data-memory-text>${escapeHtml(text)}</span>${uncertain && text !== "?" ? memoryQuestionMark(t) : ""}</span>`;
 }
 
 export function memoryEventAvatars(card, {t, lifeStageText, profile = {}, readiness = {}}) {
@@ -318,9 +320,10 @@ export function memoryEventCardMarkup(card, {t, lifeStageText, active = false, p
   const count = city ? t(card.count === 1 ? "mapEventCountOne" : "mapEventCount", {count:card.count}) : "";
   const locationUncertain = (card.nodes || [card]).some(node => node.locationUncertain);
   const uncertaintyLabel = locationUncertain || (card.nodes || [card]).some(node => node.uncertain) ? t("mapEventUncertain") : "";
-  const location = !city && node.city ? `<span class="map-memory-location">${escapeHtml(node.city)}${locationUncertain && node.city !== "?" ? memoryQuestionMark(t) : ""}</span>` : "";
+  const place = city ? "" : node.place || node.city || "";
+  const location = `<span class="map-memory-location"><span data-memory-text>${escapeHtml(place)}</span>${locationUncertain && place && place !== "?" ? memoryQuestionMark(t) : ""}</span>`;
   const add = city ? `<button type="button" class="button button-secondary button-small workspace-add-memory" data-memory-add${canAddMemory ? "" : " disabled"}>${escapeHtml(t("addMemory"))}</button>` : "";
-  return `<article class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}"><button type="button" class="map-memory-focus" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count,uncertaintyLabel].filter(Boolean).join(" · "))}"${city ? "" : ` aria-pressed="${active}"`}><span class="map-memory-meta">${memoryEventAvatars(card,{t,lifeStageText,profile,readiness})}${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span>${memoryEventTimingMarkup(card,t)}<strong class="map-memory-summary">${escapeHtml(title)}${city && locationUncertain && title !== "?" ? memoryQuestionMark(t) : ""}</strong>${location}${detail && detail !== title ? `<span class="map-memory-description">${escapeHtml(detail)}</span>` : ""}</button><button type="button" class="text-button map-memory-explore" ${city ? `data-memory-city="${escapeHtml(card.groupKey)}"` : `data-memory-explore="${escapeHtml(node.event.id)}"`}>${escapeHtml(t(city ? "mapEventExpand" : "exploreThisMemory"))}</button>${add}</article>`;
+  return `<article class="map-memory-card${city ? " is-city" : ""}${active ? " is-active" : ""}"><button type="button" class="map-memory-focus" data-map-memory="${escapeHtml(card.key)}" aria-label="${escapeHtml([title,age,count,uncertaintyLabel].filter(Boolean).join(" · "))}"${city ? "" : ` aria-pressed="${active}"`}><span class="map-memory-meta">${memoryEventAvatars(card,{t,lifeStageText,profile,readiness})}${count ? `<span class="map-memory-count">${escapeHtml(count)}</span>` : ""}</span>${memoryEventTimingMarkup(card,t)}<strong class="map-memory-summary"><span data-memory-text>${escapeHtml(title)}</span>${city && locationUncertain && title !== "?" ? memoryQuestionMark(t) : ""}</strong>${location}<span class="map-memory-description"><span data-memory-text>${escapeHtml(detail !== title ? detail : "")}</span></span></button><button type="button" class="text-button map-memory-explore" ${city ? `data-memory-city="${escapeHtml(card.groupKey)}"` : `data-memory-explore="${escapeHtml(node.event.id)}"`}>${escapeHtml(t(city ? "mapEventExpand" : "exploreThisMemory"))}</button>${add}</article>`;
 }
 
 // Move colliding cards while preserving a stem to the true map position.

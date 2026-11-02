@@ -62,7 +62,7 @@ def test_place_hierarchy_guidance_is_scoped_to_that_repair():
     normal_instructions, normal = lane_contract('extract', fence.locale, two_lane=True, fence=fence)
     _, unrelated = lane_contract('extract', fence.locale, two_lane=True, fence=fence, retry_reason='DATE_NUMERIC')
     repair_instructions, repair = lane_contract('extract', fence.locale, two_lane=True, fence=fence, retry_reason='PLACE_HIERARCHY')
-    guidance = repair['$defs']['CoarsePlace']['properties']['hierarchy'].pop('description')
+    guidance = repair['$defs']['EventLocation']['properties']['hierarchy'].pop('description')
     assert 'must exactly equal' in guidance and 'place field' in guidance
     assert normal_instructions == repair_instructions
     assert normal == unrelated == repair

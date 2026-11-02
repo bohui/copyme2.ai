@@ -7,7 +7,8 @@ from an assistant question. Do not classify a mixed control and story as wholly
 non-story. Assistant context is navigation, not testimony. Authorized original
 excerpts in conversation_history and last_event can supply placement evidence.
 Return event_places selectively: event_index indexes this response's events,
-role is setting, origin or destination, place is a coarse public named place,
+role is setting, origin or destination, place is the most specific supported public named setting (administrative place
+or landmark), keeping its containing city in hierarchy,
 and source_ref is its exact passage within that event's direct source_refs.
 For a contextual location use location, location_basis and locationConfidenceScore
 on the event; the host creates a place link only above its confidence threshold.

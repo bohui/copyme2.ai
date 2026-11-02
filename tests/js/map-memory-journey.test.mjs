@@ -100,7 +100,7 @@ test('city summaries show the city and first-to-last timing, with event copy res
   const journey=buildMapMemoryJourney(events,groups,{birth_year:1983});
   const city=cityEventCards(journey.nodes)[0];
   const html=memoryEventCardMarkup(city,{t,lifeStageText:stage=>stage});
-  assert.match(html,/<strong class="map-memory-summary">Sydney<\/strong>/);
+  assert.match(html,/<strong class="map-memory-summary"><span data-memory-text>Sydney<\/span><\/strong>/);
   assert.match(html,/From 1983 · About age 0 to 1991 · About age 8/);
   assert.match(html,/2 events/);
   assert.match(html,/data-memory-city=[^>]+>Expand memories<\/button>/);
@@ -142,7 +142,7 @@ test('Chinese city summaries use 展开记忆 and reserve 继续聊这段回忆 
   const events=[{...event('birth',0,chengde,'baby'),title:'出生'}, {...event('school',8,chengde),title:'上学'}];
   const journey=buildMapMemoryJourney(events,groupPlaces([chengde]),{birth_year:1983});
   const html=memoryEventCardMarkup(cityEventCards(journey.nodes)[0],{t,lifeStageText:stage=>stage});
-  assert.match(html,/<strong class="map-memory-summary">承德市<\/strong>/);
+  assert.match(html,/<strong class="map-memory-summary"><span data-memory-text>承德市<\/span><\/strong>/);
   assert.match(html,/从 约1983年 · 0岁 至 约1991年 · 8岁/);
   assert.match(html,/展开记忆/);
   assert.doesNotMatch(html,/继续聊这段回忆|出生|上学/);
@@ -293,7 +293,7 @@ test('ages remain unknown without an anchor and year-derived ages stay approxima
   assert.equal(eventAgeLabel(eventAge({temporal:{expression:'二十五岁',precision:'age'}}),t),'Age 25');
 });
 
-test('cards escape model content and show the memory and action without city or life-stage text', () => {
+test('cards escape model content and show the detailed event location', () => {
   const {nodes} = buildMapMemoryJourney([{...event('unsafe',6,school),title:'A <script>memory</script>',uncertainty:'Maybe 1988'}],groups);
   const html = memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=> 'Childhood'});
   assert.match(html,/Age 6/);
@@ -301,7 +301,7 @@ test('cards escape model content and show the memory and action without city or 
   assert.doesNotMatch(html,/<script>/);
   assert.match(html,/type="button"/);
   assert.match(html,/Childhood/);
-  assert.match(html,/<strong class="map-memory-summary">A &lt;script&gt;memory&lt;\/script&gt;<\/strong>/);
+  assert.match(html,/<strong class="map-memory-summary"><span data-memory-text>A &lt;script&gt;memory&lt;\/script&gt;<\/span><\/strong>/);
   assert.match(html,/<\/button><button[^>]+data-memory-explore="unsafe"/);
   assert.doesNotMatch(html,/Maybe 1988/);
   assert.doesNotMatch(html.replace(/<[^>]+>/g,''),/Newtown|Childhood/);
@@ -327,7 +327,7 @@ test('cards show readiness with colored rings and keep confidence scores out of 
 test('unplaced events keep a neutral avatar and unknown dates rather than an invented life stage', () => {
   const {nodes}=buildMapMemoryJourney([{...event('unknown',6,school,'unplaced'),temporal:null,yearConfidenceScore:0}],groups);
   const html=memoryEventCardMarkup(nodes[0],{t,lifeStageText:()=>''});
-  assert.match(html,/<span class="map-memory-date">\?<\/span>/);
+  assert.match(html,/<span class="map-memory-date"><span data-memory-text>\?<\/span><\/span>/);
   assert.doesNotMatch(html,/Year not yet known|Age not yet known/);
   assert.doesNotMatch(html,/confidence|>\d+%</);
   assert.match(html,/is-unknown[^]*Stage not yet known[^]*<svg/);

@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from .memory_events import EvidenceRef
-from .place_journey import CoarsePlace, validate_place_journey
+from .place_journey import EventLocation, validate_event_location
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
 # Mask quotes across line/sentence boundaries, preserving a completed sentence
@@ -24,7 +24,7 @@ class EventPlace(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     event_index: int = Field(ge=0, le=99)
     role: Literal['setting', 'origin', 'destination']
-    place: CoarsePlace
+    place: EventLocation
     source_ref: EvidenceRef
 
 
@@ -77,11 +77,11 @@ def validate_attribution(raw, page, events):
                 continue
             if events[matches[0]].get('candidate_ids'):
                 continue  # An unresolved identity cannot authorize an event place.
-            normalized = validate_place_journey(item['place'])
+            normalized = validate_event_location(item['place'])
             if not normalized or item['place']['place'] not in quote:
-                raise ValueError('Event place requires a named coarse place in its own evidence')
+                raise ValueError('Event place requires a named place in its own evidence')
             if (item['place']['hierarchy'][-1] != item['place']['place']
-                    or any(item['place'][key] != normalized[key] for key in CoarsePlace.model_fields)):
+                    or any(item['place'][key] != normalized[key] for key in EventLocation.model_fields)):
                 raise ValueError('Event place hierarchy must retain its exact source label')
             if not any(r['source_id'] == ref['source_id'] and r['version'] == ref['version']
                     and r['char_start'] <= ref['char_start'] < ref['char_end'] <= r['char_end']

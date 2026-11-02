@@ -17,7 +17,7 @@ from pydantic_core import PydanticCustomError
 from .stage_readiness import LIFE_STAGES
 from .prompt_composition import render_prompt_artifact
 from .prompt_artifact import prompt_path
-from .place_journey import CoarsePlace, validate_place_journey
+from .place_journey import EventLocation, validate_event_location
 
 
 class EvidenceRef(BaseModel):
@@ -85,7 +85,7 @@ class EventProposal(BaseModel):
     stage_evidence: list[EvidenceRef] | None = Field(default=None, max_length=100)
     source_refs: list[EvidenceRef] = Field(min_length=1, max_length=100)
     uncertainty: str | None = Field(default=None, max_length=2000)
-    location: CoarsePlace | None = None
+    location: EventLocation | None = None
     location_basis: list[EvidenceRef] | None = Field(default=None, max_length=20)
     locationConfidenceScore: float | None = Field(default=None, ge=0, le=1, strict=True)
     yearConfidenceScore: float | None = Field(default=None, ge=0, le=1, strict=True)
@@ -278,13 +278,13 @@ def validate_extraction(raw, sources, saved_events):
             if relation.event_id not in events:
                 raise ValueError('Chronology requires a canonical scoped target')
         if event.location:
-            normalized = validate_place_journey(event.location.model_dump())
+            normalized = validate_event_location(event.location.model_dump())
             contextual_city = (event.location.granularity == 'city'
                 and 0 < (event.locationConfidenceScore or 0) < .2 and event.location_basis
                 and event.uncertainty and event.uncertainty.strip())
             if (not normalized or event.location.hierarchy[-1] != event.location.place
                     or not contextual_city and not any(event.location.place in ref.quote for ref in event.location_basis or [])):
-                raise ValueError('Location requires a named coarse place in its evidence')
+                raise ValueError('Location requires a named place in its evidence')
             if event.locationConfidenceScore is None:
                 raise ValueError('Location requires its confidence score')
         refs = [*event.source_refs, *(event.location_basis or []), *(event.stage_evidence or []), *(event.temporal.basis if event.temporal else []),

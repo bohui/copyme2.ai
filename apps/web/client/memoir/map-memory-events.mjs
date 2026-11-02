@@ -1,3 +1,4 @@
+import { updateMemoryCards } from "./map-memory-card-updates.mjs";
 import { escapeHtml } from "./dom.mjs";
 import { buildMapMemoryJourney, cityEventCards, map2DViewRectangle, mapCityInView, mapCityOverlapsView, mapTrailWindow, matchesEventPlace, memoryEventCardMarkup, memoryTrailLegs } from "./map-memory-journey.mjs";
 import { placeHistoryKey } from "./places.mjs";
@@ -11,7 +12,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
   let focusedCity = null, viewCity = null, listView, lastMode, initialIdentity, overviewRequested = false, overviewMode = true;
   let cityScope, cityIdentity, activeCityKey, flyingToCity = null, flightRevision = 0;
   let visibleCityKeys = [];
-  let arrivalCity;
+  let arrivalCity, renderedIdentity;
   const animatedCities = new Set();
   let placeGroups = [];
   const places = new Map();
@@ -126,6 +127,11 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
 
   function sync(scene, focusedKey = null) {
     const nextScope = getScope();
+    const identity = getIdentity();
+    if (identity !== renderedIdentity) {
+      if (layer) layer.querySelector(".map-memory-cards").innerHTML = "";
+      renderedIdentity = identity;signature = null;
+    }
     if (nextScope !== scope) {
       scope = nextScope;places.clear();selectedKey = null;listView = null;signature = null;
       visibleCityKeys = [];
@@ -254,6 +260,9 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const ready = sceneElement.classList.contains("is-cesium-map");
     layer.classList.toggle("is-ready", ready);
     if (!ready) return;
+    // A revision reloads authorized place pages; commit the new cards together.
+    if (layer.querySelector(".map-memory-cards").childElementCount
+        && [...places.values()].some(entry => !entry.complete && !entry.failed)) return;
     const city = activeCity();
     if (city === undefined) return;
     if (initialIdentity !== cityScope || overviewRequested) {
@@ -324,7 +333,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       const scroll = listView === nextView ? container.scrollTop : 0;
       listView = nextView;
       signature = next;
-      container.innerHTML = cards.map(card => `<div class="map-memory-anchor" data-memory-key="${escapeHtml(card.key)}"><span class="map-memory-stem" aria-hidden="true"></span>${memoryEventCardMarkup(card,{...options,active:card.key === selectedKey})}</div>`).join("");
+      updateMemoryCards(container,cards.map(card => `<div class="map-memory-anchor" data-memory-key="${escapeHtml(card.key)}"><span class="map-memory-stem" aria-hidden="true"></span>${memoryEventCardMarkup(card,{...options,active:card.key === selectedKey})}</div>`).join(""));
       overflow.replaceChildren();
       container.scrollTop = scroll;
       if (focused) [...container.querySelectorAll("[data-map-memory]")].find(button => button.dataset.mapMemory === focused)?.focus({preventScroll:true});
