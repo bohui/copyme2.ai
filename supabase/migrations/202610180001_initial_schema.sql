@@ -9207,10 +9207,23 @@ begin
  conflicts:=public.lifetime_event_place_conflicts(owner,p_project_id,p_event_id);
  select coalesce(jsonb_agg(item order by key),'[]') into records from (
    select source_id::text||':'||source_version||':'||lpad(char_start::text,8,'0')||':'||lpad(char_end::text,8,'0')||':'||role||':'||place_key key,
-     to_jsonb(p)-array['user_id','project_id']||jsonb_build_object('status',case when role=any(conflicts) then 'conflicted' else 'supported' end,
+     to_jsonb(p)-array['user_id','project_id']||jsonb_build_object(
+       'place',coalesce(saved.coordinates,'{}'::jsonb)||p.place,
+       'status',case when role=any(conflicts) then 'conflicted' else 'supported' end,
        'key',source_id::text||':'||source_version||':'||
        lpad(char_start::text,8,'0')||':'||lpad(char_end::text,8,'0')||':'||role||':'||place_key) item
    from public.lifetime_event_place_rows(owner,p_project_id,p_event_id) p
+   -- A current event authorizes its place; reuse only public coordinates from
+   -- that exact source/place, even when an unrelated pause fenced the journey.
+   left join lateral (
+     select jsonb_agg(distinct jsonb_build_object('latitude',j->'latitude','longitude',j->'longitude'))->0 coordinates
+     from public.user_lifetime_place_journey journey cross join lateral jsonb_array_elements(journey.journeys) j
+     where journey.user_id=p.user_id and journey.project_id=p.project_id and journey.source_id=p.source_id
+       and journey.source_version=p.source_version and j->>'place'=p.place->>'place'
+       and j->'hierarchy'=p.place->'hierarchy' and j->'granularity'=p.place->'granularity'
+       and jsonb_typeof(j->'latitude')='number' and jsonb_typeof(j->'longitude')='number'
+     having count(distinct (j->'latitude',j->'longitude'))=1
+   ) saved on true
    where source_id::text||':'||source_version||':'||lpad(char_start::text,8,'0')||':'||lpad(char_end::text,8,'0')||':'||role||':'||place_key>last_key
    order by key limit p_limit+1) bounded;
  more:=jsonb_array_length(records)>p_limit;
