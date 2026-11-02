@@ -80,7 +80,8 @@ def ref(quote):
     ('承德','说起小时候，你最先想起的是怎样的一个画面？','我于1983年4月出生在河北省承德市附属医院'),
     ('悉尼','说起现在的生活，你最喜欢悉尼的什么地方？','现在生活在悉尼'),
 ])
-def test_followup_city_replays_to_map_photos_and_events(sql,tmp_path,monkeypatch,focus_city,question,quote):
+@pytest.mark.parametrize('continuations', [False, True])
+def test_followup_city_replays_to_map_photos_and_events(sql,tmp_path,monkeypatch,focus_city,question,quote,continuations):
     from pathlib import Path
     import subprocess
     from test_conversation_reply import proposal
@@ -93,17 +94,28 @@ def test_followup_city_replays_to_map_photos_and_events(sql,tmp_path,monkeypatch
             ('承德市',['Earth','中国','河北省','承德市'],40.95,117.96)]]
     def extract(packet):
         quotes=['现在生活在悉尼','我于1983年4月出生在河北省承德市附属医院']
+        if not all(q in packet['sources'][0]['text'] for q in quotes):
+            return empty(packet)
         events=[episode(packet,q,title=label) for q,label in zip(quotes,['悉尼生活','承德出生'])]
         return {**empty(packet),'events':events,'place_journeys':[{k:v for k,v in p.items() if k not in {'latitude','longitude'}} for p in locations],
             'event_places':[dict(event_index=i,role='setting',source_ref=reference(packet,q),
                 place={k:v for k,v in p.items() if k not in {'latitude','longitude'}}) for i,(q,p) in enumerate(zip(quotes,locations))]}
-    conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False,
-        reply=lambda _:dict(proposal(),acknowledgement=acknowledgement,question=question,
-            workspace_focus=dict(place=focus_city,quote=quote,source_id=None)))
+    reply_count=0
+    def reply(_):
+        nonlocal reply_count
+        reply_count+=1
+        return dict(proposal(),acknowledgement=acknowledgement if reply_count==1 else '我们继续聊那段时光。',
+            question=question if reply_count==1 else '那时候，你们最常一起做什么？',
+            workspace_focus=dict(place=focus_city,quote=quote,source_id=None) if reply_count==1 else None)
+    conversation=Conversation(sql,tmp_path,monkeypatch,extract,family=False,reply=reply)
     with conversation.client:
         result=conversation.say(text,language='zh-CN')
         assert result['workspace_focus']['place']==focus_city
         assert 'evidence' not in result['workspace_focus']
+        if continuations:
+            for continuation in ['小时候和小朋友在家属院里玩。','最开心的是一起捉昆虫。']:
+                continued=conversation.say(continuation,language='zh-CN')
+                assert continued['workspace_focus']==result['workspace_focus'], 'An implicit continuation must retain the confirmed city'
         conversation.drain()
         response=conversation.client.get('/v1/story/readiness',params=dict(project_id=conversation.project))
         assert response.status_code==200,response.text
@@ -119,6 +131,35 @@ def test_followup_city_replays_to_map_photos_and_events(sql,tmp_path,monkeypatch
         assert checked.returncode==0,checked.stdout+checked.stderr
         foreign=conversation.client.get('/v1/story/readiness',params=dict(project_id=conversation.project),headers={'authorization':'Bearer another-owner'})
         assert foreign.status_code != 200 and focus_city not in foreign.text
+
+
+@pytest.mark.parametrize('invalidation', ['source', 'policy'])
+def test_retained_question_city_changes_only_with_new_focus_or_invalidated_authority(sql,tmp_path,monkeypatch,invalidation):
+    from test_conversation_reply import proposal
+    from test_agent_commit_postgres import OTHER
+    from test_shared_memory_events_postgres import literal,rpc
+    focuses=iter([dict(place='悉尼',quote='住在悉尼',source_id=None),
+        dict(place='承德',quote='童年也在承德',source_id=None),None])
+    conversation=Conversation(sql,tmp_path,monkeypatch,empty,family=False,
+        reply=lambda _:dict(proposal(),question='那时候，你最喜欢做什么？',workspace_focus=next(focuses)))
+    with conversation.client:
+        first=conversation.say('我现在住在悉尼，出生在承德。',language='zh-CN')
+        second=conversation.say('我的童年也在承德。',language='zh-CN')
+        third_text='我们经常和朋友一起玩。'
+        third=conversation.say(third_text,language='zh-CN')
+        expected=dict(place='承德',source_sequence=2)
+        assert first['workspace_focus']==dict(place='悉尼',source_sequence=1)
+        assert second['workspace_focus']==third['workspace_focus']==expected
+        replay=conversation.say(third_text,turn=third['client_turn_id'],language='zh-CN')
+        assert replay['cached'] is True and replay['workspace_focus']==expected
+        assert rpc(sql,'read_lifetime_workspace_focus',literal(conversation.project),owner=OTHER) is None
+        if invalidation=='source':
+            sql('update public.user_narrator_source set version=version+1 '
+                f"where project_id={literal(conversation.project)} and id='{second['accepted_source_id']}';")
+        else:
+            sql('update public.user_memoir_project set policy_epoch=policy_epoch+1 '
+                f'where project_id={literal(conversation.project)};')
+        assert rpc(sql,'read_lifetime_workspace_focus',literal(conversation.project)) is None, 'Revocation must not resurrect the older Sydney focus'
 
 
 @pytest.mark.parametrize('offset', [0, 1792])

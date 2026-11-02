@@ -10101,15 +10101,21 @@ CREATE FUNCTION public.read_lifetime_workspace_focus(p_project_id text) RETURNS 
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO ''
     AS $$
- select jsonb_build_object('place',p.plan->'workspace_focus'->>'place','source_sequence',t.source_sequence)
- from public.user_interview_plan p
- join public.user_interview_turn t on t.user_id=p.user_id and t.project_id=p.project_id and t.client_turn_id=p.client_turn_id
- join public.user_memoir_project m on m.user_id=p.user_id and m.project_id=p.project_id and m.policy_epoch=t.policy_epoch
- join public.user_narrator_source s on s.user_id=p.user_id and s.project_id=p.project_id
-   and s.id::text=p.plan#>>'{workspace_focus,evidence,source_id}'
-   and s.version::text=p.plan#>>'{workspace_focus,evidence,version}' and s.status='active'
- where p.user_id=auth.uid() and p.project_id=p_project_id and t.collector is not null
-   and p.plan->'workspace_focus'->>'place' is not null
+ -- A question may continue a memory without naming its city again. Select the
+ -- latest explicit focus first, then validate it; never fall back past revocation.
+ with selected as (
+   select t.user_id,t.project_id,t.source_sequence,t.collector#>'{plan,workspace_focus}' as focus
+   from public.user_interview_turn t
+   join public.user_memoir_project m on m.user_id=t.user_id and m.project_id=t.project_id and m.policy_epoch=t.policy_epoch
+   where t.user_id=auth.uid() and t.project_id=p_project_id
+     and t.collector#>>'{plan,workspace_focus,place}' is not null
+   order by t.sequence desc limit 1
+ )
+ select jsonb_build_object('place',t.focus->>'place','source_sequence',t.source_sequence)
+ from selected t
+ join public.user_narrator_source s on s.user_id=t.user_id and s.project_id=t.project_id
+   and s.id::text=t.focus#>>'{evidence,source_id}'
+   and s.version::text=t.focus#>>'{evidence,version}' and s.status='active'
 $$;
 
 CREATE FUNCTION public.read_lifetime_place_journeys(p_project_id text, p_source_id uuid DEFAULT NULL::uuid) RETURNS jsonb

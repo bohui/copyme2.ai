@@ -208,6 +208,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     if on_event:await on_event({'type':'workspace_update','data':workspace})
                 interview=await lease.io(storage.interview_turn_by_id,project_id,client_turn_id)
                 response.update(public_interview_fields(interview))
+                if two_lane:
+                    response['workspace_focus']=await call('read_lifetime_workspace_focus',p_project_id=project_id)
                 if (interview or {}).get('plan'):
                     await progress.record_question_pool(interview['plan'])
                     if (interview['plan'].get('candidates')
@@ -476,6 +478,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
             response={'project_id':project_id,'client_turn_id':client_turn_id,'accepted_source_id':source['id'],'recordings':accepted.get('recordings',[]),
                 'conversation_saved':True,'reply':validated['reply'],'recall_status':access,**public_interview_fields(committed['interview']),
                 'trace':list(progress.steps),'trace_mode':'live'}
+            if two_lane:
+                response['workspace_focus']=await call('read_lifetime_workspace_focus',p_project_id=project_id)
             if two_lane:
                 response['reply_id']=committed['memory'][0]['id']
             if on_event:
