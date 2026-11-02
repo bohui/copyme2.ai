@@ -69,13 +69,13 @@ test('a late location page cannot paint into a different project or policy scope
   assert.equal(h.classes.has('has-map-memories'),false);
 });
 
-test('failed location reads expose a retry and cannot become an automatic request loop', async t => {
+test('a first location failure stays quiet and cannot become an automatic request loop', async t => {
   let calls=0;
   const h=setup(t,async()=>{calls++;throw new Error('private provider detail');});
   h.overlay.sync(h.scene);await settle();
   h.overlay.sync(h.scene);await settle();
   assert.equal(calls,1);
-  assert.match(h.toolbar.innerHTML,/data-memory-retry/);
+  assert.doesNotMatch(h.toolbar.innerHTML,/data-memory-retry|mapEventLocationsUnavailable/);
   assert.doesNotMatch(h.toolbar.innerHTML,/private provider detail/);
 });
 
@@ -110,4 +110,64 @@ test('a late geocoding result cannot revive a previous policy scope', async t =>
   assert.equal(h.classes.has('has-map-memories'),false);
   pending[1]();await settle();
   assert.ok(h.classes.has('has-map-memories'));
+});
+
+
+test('location reads stay out of the map toolbar even if the first read fails',async t=>{
+  let reject;
+  const h=setup(t,()=>new Promise((_,fail)=>{reject=fail;}));
+  h.overlay.sync(h.scene);
+  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventLocationsLoading/);
+  reject(new Error('Unavailable'));await settle();
+  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventLocationsUnavailable|data-memory-retry/);
+  assert.equal(h.overlay.nodes().length,0);
+});
+
+test('a failed refresh retains the known event location and refreshes only that event',async t=>{
+  const current=[{...events[0]},{...events[0],id:'birth',title:'Birth'}];
+  const pending=[];
+  let calls=0;
+  const h=setup(t,()=>{
+    calls++;
+    return calls<=2 ? Promise.resolve({items:[supported]}) : new Promise((resolve,reject)=>pending.push({resolve,reject}));
+  },{getEvents:()=>current,getIdentity:()=> 'same-project-policy'});
+  h.overlay.sync(h.scene);await settle();
+  assert.equal(h.overlay.nodes().length,2);
+  current[0]={...current[0],revision:2,title:'Starting school with friends'};
+  h.setScope('project:2');h.overlay.sync(h.scene);
+  assert.equal(h.overlay.nodes().length,2,'Refreshing one location must retain both event cards');
+  assert.equal(calls,3,'An unchanged event revision needs no new location read');
+  assert.equal(h.overlay.nodes().find(node=>node.event.id==='school').event.map_location_status,'refreshing');
+  assert.equal(h.overlay.nodes().find(node=>node.event.id==='birth').event.map_location_status,null);
+  pending[0].reject(new Error('Unavailable'));await settle();
+  assert.equal(h.overlay.nodes().length,2,'A failed refresh must not empty the list');
+  assert.equal(h.overlay.nodes().find(node=>node.event.id==='school').event.map_location_status,'failed');
+  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventLocationsLoading|mapEventLocationsUnavailable|data-memory-retry/);
+});
+
+
+test('a new privacy identity discards retained locations before its read completes',async t=>{
+  let identity='owner:policy-1',reject;
+  let calls=0;
+  const h=setup(t,()=>++calls===1 ? Promise.resolve({items:[supported]}) : new Promise((_,fail)=>{reject=fail;}),
+    {getIdentity:()=>identity});
+  h.overlay.sync(h.scene);await settle();
+  assert.equal(h.overlay.nodes().length,1);
+  identity='owner:policy-2';h.setScope('project:2');h.overlay.sync(h.scene);
+  assert.equal(h.overlay.nodes().length,0,'A different privacy scope cannot retain old pins');
+  reject(new Error('Unavailable'));await settle();
+  assert.equal(h.overlay.nodes().length,0);
+  assert.doesNotMatch(h.toolbar.innerHTML,/mapEventLocationsUnavailable/);
+});
+
+test('a completed conflicting location read replaces the cached setting',async t=>{
+  let event={...events[0],location:city,locationConfidenceScore:1.},calls=0;
+  const h=setup(t,async()=>({items:[++calls===1 ? supported : {...supported,status:'conflicted'}]}),
+    {getEvents:()=>[event],getIdentity:()=> 'same-policy'});
+  h.overlay.sync(h.scene);await settle();
+  assert.equal(h.overlay.nodes().length,1);
+  event={...event,revision:2};h.setScope('project:2');h.overlay.sync(h.scene);
+  assert.equal(h.overlay.nodes().length,1);
+  await settle();
+  assert.equal(h.overlay.nodes().length,0,'Conflicting evidence must remove a formerly supported location');
 });

@@ -16,6 +16,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
   const animatedCities = new Set();
   let placeGroups = [];
   const places = new Map();
+  const retainedPlaces = new Map();
   const footprint = typeof Image === "undefined" ? null : new Image();
   if (footprint) footprint.src = "/static/map-footprints.svg";
 
@@ -89,38 +90,62 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
 
   function loadPlaces(events) {
     for (const event of events) {
-      if (!event.canonical || event.status !== "active") continue;
+      if (!event.canonical || event.status !== "active") {
+        retainedPlaces.delete(event.id);
+        continue;
+      }
       const key = `${event.id}:${event.revision}`;
       if (places.has(key)) continue;
-      const captured = scope;
+      const captured = scope, identity = getIdentity(), known = retainedPlaces.get(event.id);
+      const current = () => getScope() === captured && getIdentity() === identity && places.get(key) === entry;
       const supplied = Array.isArray(event.places);
-      const entry = {items:supplied ? event.places.filter(item => !item.status || item.status === "supported") : [],
-        conflicted:event.place_conflicts?.includes("setting") || event.places?.some(item => item.status === "conflicted")};
+      const cached = (known?.items || []).filter(link => !event.place_conflicts?.includes(link.role)
+        && !(link.role === "setting" && (event.locationConfidenceScore === 0
+          || event.location && placeHistoryKey(link.place) !== placeHistoryKey(event.location)
+          || Object.hasOwn(event,"location") && !event.location && known.locationKey)));
+      const entry = {eventId:event.id, items:supplied ? event.places.filter(item => !item.status || item.status === "supported") : cached,
+        conflicted:event.place_conflicts?.includes("setting") || event.places?.some(item => item.status === "conflicted")
+          || known?.revision === event.revision && known.conflicted};
       places.set(key, entry);
-      // Event locations have their own bounded pages; never infer them from a
-      // shared source passage that may describe several different memories.
+      if (!supplied && known?.complete && known.revision === event.revision) {
+        entry.complete = true;
+        continue;
+      }
+      const retain = () => retainedPlaces.set(event.id,{items:entry.items, revision:event.revision,
+        locationKey:event.location ? placeHistoryKey(event.location) : null, conflicted:entry.conflicted, complete:Boolean(entry.complete)});
+      // Read into a separate buffer so incomplete pages cannot replace a visible card.
       void (async () => {
-        let cursor;
-        const seen = new Set();
+        let cursor, readComplete = supplied;
+        const items = supplied ? [...entry.items] : [], seen = new Set();
         try {
           if (!supplied) do {
               const page = await readPlaces(event.id, cursor);
-              if (getScope() !== captured || places.get(key) !== entry) return;
+              if (!current()) return;
               entry.conflicted ||= page.items?.some(item => item.status === "conflicted");
-              entry.items.push(...(page.items || []).filter(item => item.status === "supported"));
+              items.push(...(page.items || []).filter(item => item.status === "supported"));
               cursor = page.next_cursor;
               if (cursor && seen.has(cursor)) throw new Error("Repeated event location page");
               seen.add(cursor);
             } while (cursor);
-          if (!entry.items.length && !entry.conflicted && event.location && event.locationConfidenceScore > 0) {
-            entry.items.push({role:"setting",status:"candidate",place:event.location});
+          readComplete = true;
+          if (!items.length && !entry.conflicted && event.location && event.locationConfidenceScore > 0) {
+            items.push({role:"setting",status:"candidate",place:event.location});
           }
+          entry.items = items.map(item => {
+            const previous = cached.find(link => link.role === item.role && placeHistoryKey(link.place) === placeHistoryKey(item.place));
+            return previous ? {...item,place:{...previous.place,...item.place}} : item;
+          });
           const resolved = await resolvePlaces(entry.items.map(item => item.place));
-          if (getScope() !== captured || places.get(key) !== entry) return;
+          if (!current()) return;
           entry.items = entry.items.map((item,index) => ({...item,place:resolved[index] || item.place}));
           entry.complete = true;
-        } catch { entry.items = []; entry.failed = true; }
-        if (getScope() === captured) sync(sceneElement?.isConnected ? sceneElement : null);
+          retain();
+        } catch {
+          if (!current()) return;
+          entry.failed = true;
+          if (readComplete) retain();
+        }
+        if (current()) sync(sceneElement?.isConnected ? sceneElement : null);
       })();
     }
   }
@@ -130,6 +155,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const identity = getIdentity();
     if (identity !== renderedIdentity) {
       if (layer) layer.querySelector(".map-memory-cards").innerHTML = "";
+      retainedPlaces.clear();
       renderedIdentity = identity;selectedKey = null;listView = null;signature = null;
     }
     if (nextScope !== scope) {
@@ -143,7 +169,11 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     loadPlaces(events);
     const stage = getStage();
     const visible = events.filter(event => stage === "all" || event.life_stage === stage)
-      .map(event => ({...event, map_places:places.get(`${event.id}:${event.revision}`)?.items || event.places}));
+      .map(event => {
+        const entry = places.get(`${event.id}:${event.revision}`);
+        return {...event,map_places:entry?.items || event.places,
+          map_location_status:entry?.failed ? "failed" : entry && !entry.complete ? "refreshing" : null};
+      });
     const eventPlaces = visible.filter(event => !event.status || event.status === "active")
       .flatMap(event => (event.map_places || []).filter(link => link.status !== "conflicted"
         && !event.place_conflicts?.includes(link.role)).map(link => link.place));
@@ -163,8 +193,12 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         if (target.hasAttribute("data-memory-explore")) { onExplore(target.dataset.memoryExplore); return; }
         if (target.hasAttribute("data-memory-more")) { onLoadMore(); return; }
         if (target.hasAttribute("data-memory-retry")) {
-          for (const [key, entry] of places) if (entry.failed) places.delete(key);
-          sync(sceneElement);
+          const key = target.dataset.memoryRetry;
+          const card = journey.nodes.find(node => node.key === key) || cityEventCards(journey.nodes).find(city => city.key === key);
+          if (!card) return;
+          const ids = new Set((card.nodes || [card]).map(node => node.event.id));
+          for (const [key, entry] of places) if (entry.failed && ids.has(entry.eventId)) places.delete(key);
+          sync(sceneElement,document.activeElement === target ? card.key : null);
           return;
         }
         const key = target.dataset.mapMemory;
@@ -200,11 +234,8 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const page = getPage();
     layer.hidden = !journey.nodes.length && !journey.unmapped && !places.size && !page?.next_cursor && !page?.page_error;
     scene.classList.toggle("has-map-memories", journey.nodes.length > 0);
-    const failed = [...places.values()].some(entry => entry.failed);
-    const pending = [...places.values()].some(entry => !entry.complete && !entry.failed);
-    const note = failed ? t("mapEventLocationsUnavailable") : pending ? t("mapEventLocationsLoading") : page?.page_error ? t("savedPageChanged")
-      : "";
-    layer.querySelector(".map-memory-toolbar").innerHTML = `<span class="map-memory-caption"><img src="/static/map-footprints.svg" alt="" />${escapeHtml(t("mapMemoryJourney"))}</span><button type="button" data-memory-overview>${escapeHtml(t("mapMemoryOverview"))}</button>${note || page?.next_cursor ? `<span class="map-memory-status" role="status">${escapeHtml(note)}${failed ? `<button type="button" data-memory-retry>${escapeHtml(t("mapEventRetry"))}</button>` : ""}${page?.next_cursor || page?.page_error ? `${page?.next_cursor ? escapeHtml(t("mapEventsPartial")) : ""}<button type="button" data-memory-more ${page.loading_page ? "disabled" : ""}>${escapeHtml(t(page.page_error ? "reloadSavedPages" : page.loading_page ? "loadingSavedPage" : "loadMoreEvents"))}</button>` : ""}</span>` : ""}`;
+    const note = page?.page_error ? t("savedPageChanged") : "";
+    layer.querySelector(".map-memory-toolbar").innerHTML = `<span class="map-memory-caption"><img src="/static/map-footprints.svg" alt="" />${escapeHtml(t("mapMemoryJourney"))}</span><button type="button" data-memory-overview>${escapeHtml(t("mapMemoryOverview"))}</button>${note || page?.next_cursor ? `<span class="map-memory-status" role="status">${escapeHtml(note)}${page?.next_cursor || page?.page_error ? `${page?.next_cursor ? escapeHtml(t("mapEventsPartial")) : ""}<button type="button" data-memory-more ${page.loading_page ? "disabled" : ""}>${escapeHtml(t(page.page_error ? "reloadSavedPages" : page.loading_page ? "loadingSavedPage" : "loadMoreEvents"))}</button>` : ""}</span>` : ""}`;
     signature = null;
     position();
     if (focusedKey) [...layer.querySelectorAll("[data-map-memory]")]
@@ -260,9 +291,6 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const ready = sceneElement.classList.contains("is-cesium-map");
     layer.classList.toggle("is-ready", ready);
     if (!ready) return;
-    // A revision reloads authorized place pages; commit the new cards together.
-    if (layer.querySelector(".map-memory-cards").childElementCount
-        && [...places.values()].some(entry => !entry.complete && !entry.failed)) return;
     const city = activeCity();
     if (city === undefined) return;
     if (initialIdentity !== cityScope || overviewRequested) {

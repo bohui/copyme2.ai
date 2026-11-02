@@ -483,6 +483,7 @@
       "mapEventsUnmapped": "{count}个事件的地点待补充",
       "mapEventLocationsLoading": "正在读取已保存的事件地点…",
       "mapEventLocationsUnavailable": "部分事件地点暂时无法加载。",
+      "mapEventLocationRefreshFailed": "地点暂时无法更新。",
       "mapEventRetry": "重试",
       "mapEventsPartial": "当前显示已读取的事件。",
       "picturesSubtitle": "搜索到的参考资料",

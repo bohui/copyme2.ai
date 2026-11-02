@@ -60,9 +60,9 @@ def test_detailed_places_and_later_town_clarification_replay_to_event_map(sql,tm
         location=HOSPITAL if text==birth else CITY if text==childhood else TOWN
         saved=next((event for event in packet['events'] if '家属院' in event['title']),None)
         event=episode(packet,text,title='在家属院和朋友玩' if text!=birth else '出生在承德市附属医院',
-                      existing=saved if text==clarification else None)
+                      existing=saved if text not in {birth,childhood} else None)
         event.update(location=deepcopy(location),location_basis=[reference(packet,text)],locationConfidenceScore=1.,yearConfidenceScore=1.)
-        if text!=clarification:
+        if text in {birth,childhood}:
             year=1983 if text==birth else 1988
             event['temporal']=dict(expression=str(year),precision='year',year_start=year,year_end=year,basis=[reference(packet,text)])
         events=[event]
@@ -96,7 +96,11 @@ def test_detailed_places_and_later_town_clarification_replay_to_event_map(sql,tm
             grouped=conversation.client.post(f'/v1/agent/places/{conversation.project}/groups',json=dict(places=[location],language='zh-CN'))
             assert grouped.status_code==200,grouped.text
             grouping[location['place']]=grouped.json()
+        conversation.say('后来我们还在大石庙镇的河边捉昆虫。',language='zh-CN');drain(conversation)
+        updated=conversation.client.get('/v1/story/map-events',params=dict(project_id=conversation.project)).json()
+        revised=next(event for event in updated['events'] if event['id']==child['id'])
+        assert revised['revision']>child['revision']
         replay=Path(__file__).parent/'js/helpers/replay-detailed-event-locations.mjs'
-        result=subprocess.run(['node',str(replay)],input=json.dumps(dict(page=page,locations=locations,grouping=grouping)),
+        result=subprocess.run(['node',str(replay)],input=json.dumps(dict(page=page,locations=locations,grouping=grouping,updated_page=updated,refresh_event_id=child['id'])),
                               text=True,capture_output=True,timeout=10)
         assert result.returncode==0,result.stdout+result.stderr
