@@ -93,6 +93,28 @@ def test_history_reply_rpc_rejects_another_owner(sql):
         f"'{identity['conversation_id']}','{turn}'", owner=OTHER, check=False).returncode != 0
 
 
+def test_native_context_retrieval_uses_the_current_owned_fence(sql):
+    import asyncio
+    from types import SimpleNamespace
+    from psycopg import Error
+    from apps.api.interview_context_tools import InterviewContextTools
+    from apps.api.lifetime_memory_contracts import ExecutionFence
+    _, _, _, fence = prepare(sql)
+    tools = InterviewContextTools(SimpleNamespace(_dsn=sql.publication_dsn), ExecutionFence.model_validate(fence))
+    async def read():
+        for collection, query in [('sources', 'Joan'), ('continuity', None), ('events', None)]:
+            result = await tools.call(dict(tool='memoir_read_context', arguments=dict(
+                collection=collection, query=query, after=None, event_id=None)))
+            assert result['success'] is True
+            if collection == 'sources':
+                assert 'My name is Joan' in result['contentItems'][0]['text']
+    asyncio.run(read())
+    sql(as_user("update public.user_profile set profile=profile||'{\"preferred_language\":\"zh-CN\"}'::jsonb;"))
+    with pytest.raises(Error):
+        asyncio.run(tools.call(dict(tool='memoir_read_context', arguments=dict(
+            collection='sources', query='Joan', after=None, event_id=None))))
+
+
 def test_refresh_replays_all_paginated_api_exchanges_into_the_web_client(sql, monkeypatch):
     identity, turn, _, fence = prepare(sql)
     commit(sql, turn, fence)

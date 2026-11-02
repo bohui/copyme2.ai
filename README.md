@@ -527,6 +527,17 @@ sandboxing does not classify memoir privacy restrictions. The
 matching API/worker code and published prompt receipts. Two lanes are enabled
 by default; the separate database rollout guard still applies. The [Mira prompt evaluation](docs/Langfuse_Prompt_Usage.md#mira-role-prompt-evaluation--29-october-2026) compares the concise role with the earlier instructions on 42 fictional bilingual cases.
 
+Mira continues a persistent Codex app-server thread with native user and assistant
+messages. New application context is appended as changes, with shared evidence
+supplied once; the current narrator message remains last. The schema and tool
+definitions stay stable across ordinary turns, and Codex owns history compaction.
+Resumption requires proof that the preceding reply was committed under compatible
+source and privacy authority. Pausing a topic preserves saved exchanges; exclusions
+and source changes require rebuilding authorized history. Missing local threads
+recover from canonical evidence, including lossless checkpoint originals, and
+bounded `memoir_read_context` retrieval. Workers require app-server support for
+`thread/inject_items`.
+
 `MEMORY_SPARK_PARALLEL_POLICY_REVIEW=1` additionally opts into
 [revisable current replies](docs/issue53-parallel-reply-streaming.md). The API and
 worker need matching code and the updated fresh-install schema. It streams a
