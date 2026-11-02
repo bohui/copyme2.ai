@@ -144,8 +144,9 @@ export function groupPlaces(places) {
       const ancestor = groupPath(city);
       return ancestor.length <= labels.length && ancestor.every((label, index) => labels[index] === label);
     }).sort((left, right) => groupPath(left).length - groupPath(right).length);
-    const city = place.map_city || ancestors[0] || place;
-    const key = place.map_city_key || cityGroupKey(city);
+    const resolvedCity = place.map_city?.granularity === 'city' ? place.map_city : null;
+    const city = resolvedCity || ancestors[0] || place.map_city || place;
+    const key = (resolvedCity || !ancestors.length ? place.map_city_key : null) || cityGroupKey(city);
     if (!groups.has(key)) groups.set(key, {key, city, members: []});
     const group = groups.get(key);
     // Retain saved coordinates while using the requested display language.

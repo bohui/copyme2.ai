@@ -304,7 +304,8 @@ test('cards escape model content and show the detailed event location', () => {
   assert.match(html,/<strong class="map-memory-summary"><span data-memory-text>A &lt;script&gt;memory&lt;\/script&gt;<\/span><\/strong>/);
   assert.match(html,/<\/button><button[^>]+data-memory-explore="unsafe"/);
   assert.doesNotMatch(html,/Maybe 1988/);
-  assert.doesNotMatch(html.replace(/<[^>]+>/g,''),/Newtown|Childhood/);
+  assert.match(html.replace(/<[^>]+>/g,''),/Newtown/);
+  assert.doesNotMatch(html.replace(/<[^>]+>/g,''),/Childhood/);
 });
 
 test('cards show readiness with colored rings and keep confidence scores out of the display', () => {

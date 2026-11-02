@@ -130,10 +130,10 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
     const identity = getIdentity();
     if (identity !== renderedIdentity) {
       if (layer) layer.querySelector(".map-memory-cards").innerHTML = "";
-      renderedIdentity = identity;signature = null;
+      renderedIdentity = identity;selectedKey = null;listView = null;signature = null;
     }
     if (nextScope !== scope) {
-      scope = nextScope;places.clear();selectedKey = null;listView = null;signature = null;
+      scope = nextScope;places.clear();signature = null;
       visibleCityKeys = [];
       activeCity();
       if (initialIdentity !== cityScope) { focusedCity = null;viewCity = null;overviewMode = true; }

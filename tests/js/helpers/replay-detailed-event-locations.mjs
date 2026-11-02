@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import {createPlaceWorkspace} from '../../../apps/web/client/memoir/place-workspace.mjs';
 import {cityEventCards,memoryEventCardMarkup,memoryTrailLegs} from '../../../apps/web/client/memoir/map-memory-journey.mjs';
 const {page,locations,grouping}=JSON.parse(readFileSync(0,'utf8'));
-Object.assign(globalThis,{document:{documentElement:{lang:'zh-CN'}},window:{matchMedia:()=>({matches:false})}});
+Object.assign(globalThis,{document:{documentElement:{lang:'zh-CN'}},window:{addEventListener(){},matchMedia:()=>({matches:false})}});
 const profile={memory_places:[],birth_year:1983};
 const state={project:{id:page.project_id,profile},timeline:page.events.map(event=>({...event,canonical:true})),
   memoryEventPage:page,lifeStage:'all',chat:[],supabase:{accessToken:'fixture',user:{id:'owner'}}};

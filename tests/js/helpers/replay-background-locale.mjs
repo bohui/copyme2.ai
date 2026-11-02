@@ -17,5 +17,5 @@ assert.deepEqual(state.timeline.map(event=>event.title),[title]);
 const journey=buildMapMemoryJourney(state.timeline,[],profile);
 const [card]=[...journey.nodes,...journey.unlocated];
 const html=memoryEventCardMarkup(card,{t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage});
-assert.ok(html.includes(`<strong class="map-memory-summary">${title}</strong>`));
+assert.ok(html.includes(`<strong class="map-memory-summary"><span data-memory-text>${title}</span></strong>`));
 assert.ok(html.includes(locale==='zh-CN' ? '继续聊这段回忆' : 'Explore this memory'));

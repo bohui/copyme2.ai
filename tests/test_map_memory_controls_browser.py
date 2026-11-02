@@ -137,7 +137,7 @@ const entries=[chengde,sydney].map((place,index)=>({...place,pictures:[{asset_id
   image_url:`/static/album-fixture-${index}.svg`,date_expression:'1983',latitude:place.latitude,longitude:place.longitude,
   allowed_actions:{embed:true}}]}));
 const state={project:{id:'fixture',profile:{memory_places:entries,birth_year:1983}},supabase:{user:{id:'owner'}},
-  lifeStage:'all',chat:[],timeline:[{id:'birth',canonical:true,revision:1,status:'active',kind:'event',life_stage:'baby',
+  lifeStage:'all',chat:[],workspaceFocus:{place:'Chengde',source_sequence:1},timeline:[{id:'birth',canonical:true,revision:1,status:'active',kind:'event',life_stage:'baby',
   title:'Born in Chengde',temporal:{expression:'1983',precision:'year',year_start:1983},
   places:[{role:'setting',status:'supported',place:chengde}]}]};
 const dependencies={state,profile:()=>state.project.profile,render(){},lifeStageText:stage=>stage,
@@ -269,6 +269,8 @@ def test_event_card_keeps_its_dom_while_only_changed_text_fades(controls_page):
     page.evaluate("""() => {
       window.originalCard=document.querySelector('.map-memory-card');
       window.originalTitle=document.querySelector('.map-memory-summary');
+      window.originalText=originalTitle.querySelector('[data-memory-text]').firstChild;
+      window.originalExplore=document.querySelector('[data-memory-explore="birth"]');originalExplore.focus();
       mapControls.update({revision:2,title:'Birth at hospital',summary:'A happy childhood by the river.',
         temporal:{expression:'1984',precision:'year',year_start:1984},
         places:[{role:'setting',status:'supported',place:{place:'Chengde Hospital',granularity:'landmark',
@@ -290,6 +292,8 @@ def test_event_card_keeps_its_dom_while_only_changed_text_fades(controls_page):
     assert page.locator('.map-memory-summary').inner_text()=='Birth near hospital'
     assert page.locator('.map-memory-description').inner_text()=='A happy childhood beside the school.'
     assert page.locator('.memory-text-change').count()==0
+    assert page.evaluate("originalText===originalTitle.querySelector('[data-memory-text]').firstChild")
+    assert page.evaluate("document.activeElement===originalExplore")
     page.emulate_media(reduced_motion='reduce')
     page.evaluate("mapControls.update({revision:5,title:'Born here'})")
     assert page.locator('.map-memory-summary').inner_text()=='Born here'
