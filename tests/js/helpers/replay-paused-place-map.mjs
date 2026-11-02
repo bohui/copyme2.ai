@@ -33,7 +33,7 @@ map.attach({isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){}
     west:80*Math.PI/180,east:170*Math.PI/180,south:-60*Math.PI/180,north:60*Math.PI/180})}},
   {SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
     SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:point.longitude*2,y:350-point.latitude*2})}});
-assert.match(cards.innerHTML,/map-memory-summary">悉尼</);
-assert.match(cards.innerHTML,/map-memory-summary">承德市</);
-assert.match(cards.innerHTML,/map-memory-summary">上海</);
+assert.match(cards.innerHTML,/map-memory-summary"><span data-memory-text>悉尼</);
+assert.match(cards.innerHTML,/map-memory-summary"><span data-memory-text>承德市</);
+assert.match(cards.innerHTML,/map-memory-summary"><span data-memory-text>上海</);
 map.dispose();
