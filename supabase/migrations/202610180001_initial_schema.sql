@@ -7287,7 +7287,7 @@ RETURNS TABLE(source_id uuid, source_version bigint, client_turn_id uuid, reply_
    and r.execution_generation=d.execution_generation and r.preference_revision=d.preference_revision
  cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'candidates','[]')) q
  where d.user_id=p_owner and d.project_id=p_project and q->>'id'=t.collector->'plan'->>'chosen_id'
-   and public.read_lifetime_history_reply(c.conversation_id,d.client_turn_id)->>'reply' is not null
+   and public.lifetime_history_reply(p_owner,c.conversation_id,d.client_turn_id)->>'reply' is not null
    and length(public.lifetime_question_text(coalesce(q->>'question','')))>0
    and strpos(t.collector->>'reply',public.lifetime_question_text(q->>'question'))>0
 $$;
@@ -7334,7 +7334,7 @@ CREATE FUNCTION public.lifetime_resolved_questions(p_owner uuid, p_project text)
  join public.user_lifetime_reply r on r.user_id=t.user_id and r.conversation_id=c.conversation_id
    and r.client_turn_id=t.client_turn_id and r.policy_epoch=p.policy_epoch
    and r.execution_generation=c.execution_generation
-   and public.read_lifetime_history_reply(c.conversation_id,t.client_turn_id)->>'reply' is not null
+   and public.lifetime_history_reply(p_owner,c.conversation_id,t.client_turn_id)->>'reply' is not null
  cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'resolved_questions','[]')) resolution
  join public.user_narrator_source answer on answer.user_id=t.user_id and answer.project_id=t.project_id
    and answer.id=(resolution->>'source_id')::uuid and answer.version=(resolution->>'source_version')::bigint
@@ -7353,7 +7353,7 @@ CREATE FUNCTION public.lifetime_deferred_questions(p_owner uuid, p_project text)
  join public.user_lifetime_reply r on r.user_id=t.user_id and r.conversation_id=c.conversation_id
    and r.client_turn_id=t.client_turn_id and r.policy_epoch=p.policy_epoch
    and r.execution_generation=c.execution_generation
-   and public.read_lifetime_history_reply(c.conversation_id,t.client_turn_id)->>'reply' is not null
+   and public.lifetime_history_reply(p_owner,c.conversation_id,t.client_turn_id)->>'reply' is not null
  cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'deferred_questions','[]')) deferral
  join public.user_narrator_source evidence on evidence.user_id=t.user_id and evidence.project_id=t.project_id
    and evidence.id=(deferral->>'source_id')::uuid and evidence.version=(deferral->>'source_version')::bigint
@@ -10567,6 +10567,23 @@ begin
   return (select jsonb_build_object('schema_version',1,'owner_id',user_id,
     'conversation_id',conversation_id,'product',product,'project_id',project_id)
     from public.user_lifetime_conversation where user_id=auth.uid() and (p_project_id is null or project_id=p_project_id) and product='memoir');
+end $$;
+
+CREATE FUNCTION public.lifetime_history_reply(p_owner uuid, p_conversation_id uuid, p_client_turn_id uuid) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+declare previous_owner text:=current_setting('request.jwt.claim.sub',true); result jsonb;
+begin
+ -- Internal background callers already establish the canonical owner explicitly.
+ -- Reuse the same history rules and always restore the caller's authentication.
+ perform set_config('request.jwt.claim.sub',p_owner::text,true);
+ result:=public.read_lifetime_history_reply(p_conversation_id,p_client_turn_id);
+ perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+ return result;
+exception when others then
+ perform set_config('request.jwt.claim.sub',coalesce(previous_owner,''),true);
+ raise;
 end $$;
 
 CREATE FUNCTION public.read_lifetime_history_reply(p_conversation_id uuid, p_client_turn_id uuid) RETURNS jsonb
@@ -14414,6 +14431,7 @@ revoke all on function public.read_lifetime_profile_automation() from public,ano
 revoke all on function public.read_lifetime_profile_page(uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_project_identity(text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_history_reply(uuid, uuid) from public,anon,authenticated,service_role;
+revoke all on function public.lifetime_history_reply(uuid, uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_reply(uuid, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_skill_progress(text, text) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_source_attribution(text, uuid, uuid, integer) from public,anon,authenticated,service_role;

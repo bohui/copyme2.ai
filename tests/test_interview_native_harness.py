@@ -4,17 +4,21 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import shutil
 import threading
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 
 from apps.api.codex_agent import CodexConnection
 from apps.api.conversation_reply import reply_packet
 from apps.api.conversation_reply_session import open_interview
+from apps.api.interview_context_tools import InterviewContextTools
 from test_interview_native_session import admission, packets
 
 
 @pytest.mark.skipif(not shutil.which('codex'), reason='Codex app-server is not installed')
-def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp_path):
+@pytest.mark.parametrize('retrieval', [False, True])
+def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp_path, retrieval):
     requests = []
     first, second, _, delivered = packets()
     class Provider(BaseHTTPRequestHandler):
@@ -36,6 +40,10 @@ def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp
             ordinal = len(requests)
             item = dict(type='message', id=f'message-{ordinal}', role='assistant', status='completed',
                 phase='final_answer', content=[dict(type='output_text', text=json.dumps({'reply': delivered}), annotations=[])])
+            if retrieval and ordinal == 1:
+                item = dict(type='function_call', id='read-context', call_id='read-context',
+                    name='memoir_read_context', status='completed', arguments=json.dumps(dict(
+                        collection='sources', after=None, query=None, event_id=None)))
             response = dict(id=f'resp-{ordinal}', object='response', status='completed',
                 model='gpt-6.1-sol', output=[item], usage=dict(input_tokens=100, output_tokens=20, total_tokens=120))
             events = [dict(type='response.created', response={**response, 'status': 'in_progress', 'output': []}),
@@ -52,15 +60,19 @@ def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     schema = dict(type='object', properties=dict(reply=dict(type='string')), required=['reply'], additionalProperties=False)
+    reads = []
     async def run():
         for index, packet in enumerate((first, second)):
+            tools = InterviewContextTools(SimpleNamespace(), packet.fence)
+            tools.read = AsyncMock(return_value={'records': [], 'complete': True})
+            reads.append(tools.read)
             async with open_interview(root=tmp_path, packet=packet, view=reply_packet(packet), schema=schema,
                 model='gpt-6.1-sol', effort='low', base_url=f'http://127.0.0.1:{server.server_port}/v1',
                 api_key='synthetic-loopback-key', command=[shutil.which('codex'), 'app-server'], timeout=20,
-                admission=admission, connection_factory=CodexConnection) as (session, connection):
+                admission=admission, connection_factory=CodexConnection, tools=tools) as (session, connection):
                 assert session.resumed == bool(index)
                 output = await connection.turn(session.thread_id, packet.current.narrator.original,
-                    output_schema=schema, effort='low')
+                    output_schema=schema, effort='low', max_response_bytes=4096)
                 assert json.loads(output)['reply'] == delivered
                 session.accept(delivered)
     try:
@@ -69,9 +81,36 @@ def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp
         server.shutdown()
         server.server_close()
         thread.join(timeout=2)
-    assert len(requests) == 2
-    assert requests[1]['input'][:len(requests[0]['input'])] == requests[0]['input']
-    assert requests[0]['text'] == requests[1]['text']
-    messages = [item for item in requests[1]['input'] if item.get('type') == 'message']
+    assert len(requests) == (3 if retrieval else 2)
+    assert requests[-1]['input'][:len(requests[0]['input'])] == requests[0]['input']
+    assert requests[0]['text'] == requests[-1]['text']
+    assert requests[0]['tools'] == requests[-1]['tools']
+    assert requests[0].get('prompt_cache_key') == requests[-1].get('prompt_cache_key')
+    assert sum(read.await_count for read in reads) == int(retrieval)
+    messages = [item for item in requests[-1]['input'] if item.get('type') == 'message']
     assert any(item.get('role') == 'assistant' and delivered in json.dumps(item) for item in messages)
     assert sum(first.current.narrator.original in json.dumps(item) for item in messages) == 1
+
+
+@pytest.mark.parametrize('streamed', [False, True])
+def test_native_response_limit_counts_utf8_bytes_before_publication(streamed):
+    class Protocol(CodexConnection):
+        def __init__(self):
+            self._issue14_admission = None
+            self.events = []
+            self.progress = self.trajectory = None
+            self.timeout = 1
+
+        async def request(self, method, params):
+            return {'turn': {'id': 'turn'}}
+
+        async def receive(self):
+            params = dict(threadId='thread', turnId='turn')
+            if streamed:
+                return dict(method='item/agentMessage/delta', params={**params, 'itemId': 'message', 'delta': '你好'})
+            return dict(method='item/completed', params={**params,
+                'item': dict(type='agentMessage', id='message', text='你好', phase='final_answer')})
+    delivered = AsyncMock()
+    with pytest.raises(RuntimeError, match='byte limit'):
+        asyncio.run(Protocol().turn('thread', 'A memory', on_delta=delivered, max_response_bytes=3))
+    delivered.assert_not_awaited()

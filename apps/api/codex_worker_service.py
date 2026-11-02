@@ -438,8 +438,8 @@ class CodexWorker:
                 uid=uid,apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1',
                 effort=effort)
         if payload.governed is not None:
-            # Do not visit or migrate any legacy home. Both transports use the
-            # identical packet and fresh-home execution/budget validation seam.
+            # Canonical input validation precedes native interview resumption;
+            # legacy homes never establish conversation or privacy authority.
             from .trajectory_evaluation import TrajectoryRecorder
             recorder = TrajectoryRecorder(payload.evaluation) if payload.evaluation else None
             if recorder is not None:

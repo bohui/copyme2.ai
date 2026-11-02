@@ -182,7 +182,7 @@ class CodexConnection:
             self.events.append(message)
 
     async def turn(self, thread_id, text, on_delta=None, responsesapi_client_metadata=None,
-                   output_schema=None, on_event=None, effort=None):
+                   output_schema=None, on_event=None, effort=None, max_response_bytes=None):
         check_issue14_dispatch(self._issue14_admission, role='native',
             correlation=responsesapi_client_metadata)
         self.events.clear()
@@ -227,6 +227,7 @@ class CodexConnection:
         if self.progress:
             self.progress.bind_turn(thread_id, turn_id)
         messages = []
+        response_bytes = 0
         streamed_items = set()
         first_delta = False
         async with asyncio.timeout(self.timeout):
@@ -266,6 +267,9 @@ class CodexConnection:
                         }})
                 if event.get('method') == 'item/agentMessage/delta':
                     delta = params.get('delta', '')
+                    response_bytes += len(delta.encode('utf-8'))
+                    if max_response_bytes is not None and response_bytes > max_response_bytes:
+                        raise RuntimeError('Codex response exceeds its byte limit')
                     streamed_items.add(params.get('itemId'))
                     if delta and not first_delta:
                         first_delta = True
@@ -276,6 +280,10 @@ class CodexConnection:
                 if event.get('method') == 'item/completed':
                     item = params.get('item', {})
                     if item.get('type') == 'agentMessage':
+                        if item.get('id') not in streamed_items:
+                            response_bytes += len(item['text'].encode('utf-8'))
+                            if max_response_bytes is not None and response_bytes > max_response_bytes:
+                                raise RuntimeError('Codex response exceeds its byte limit')
                         log_diagnostic(diagnostic_logger, 'appserver_message_complete', request_id,
                             component='memoir.appserver.client', elapsed_ms=elapsed_ms(started),
                             streaming=item.get('id') in streamed_items,

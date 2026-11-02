@@ -1,7 +1,7 @@
 import json
 from uuid import uuid4
 from test_lifetime_memory_postgres import sql,event_database,private_database,attachment_database,database
-from test_agent_commit_postgres import OLD,as_user
+from test_agent_commit_postgres import OLD,OWNER,OTHER,as_user
 from test_shared_memory_events_postgres import rpc,literal
 from test_interview_work_plan_postgres import plan
 
@@ -79,6 +79,14 @@ def test_pause_and_profile_enrichment_keep_questions_and_replies_but_exclusions_
     context=rpc(sql,'read_lifetime_interview_context',f"'{identity['conversation_id']}'")
     assert context['recent_dialogue'][0]['question']['text']==question
     assert context['execution']['thread_id']=='native-thread'
+    background=sql(f"select public.lifetime_question_dialogue('{OWNER}',{literal(identity['project_id'])});")
+    assert json.loads(background.stdout.splitlines()[-1])[0]['question']['text']==question
+    sql(f"""do $scope$ begin
+      perform set_config('request.jwt.claim.sub','{OTHER}',true);
+      perform public.lifetime_question_dialogue('{OWNER}',{literal(identity['project_id'])});
+      if auth.uid() is distinct from '{OTHER}'::uuid then raise exception 'background history leaked its owner scope';end if;
+    end $scope$;""")
+    assert rpc(sql,'lifetime_history_reply',f"'{OWNER}','{identity['conversation_id']}','{turn}'",check=False).returncode!=0
     sql(as_user("update public.user_profile set profile=profile||"
         "'{\"memory_preferences\":{\"excluded_topics\":[\"Joan\"]}}'::jsonb;"))
     tail=rpc(sql,'read_lifetime_tail',f"'{identity['conversation_id']}',1,0,1")

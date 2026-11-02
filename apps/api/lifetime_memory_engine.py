@@ -458,7 +458,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             reply = await connection.turn(candidate, packet.current.narrator.original,
                 output_schema=output_schema, effort=effort,
                 on_delta=model_delta if on_delta else None, on_event=on_event,
-                responsesapi_client_metadata=metadata)
+                responsesapi_client_metadata=metadata, max_response_bytes=512_000)
             update_llm_trace(trace, metadata={**trace_metadata, 'transport': 'codex',
                 'resumed':session.resumed, 'usage':getattr(connection, 'last_usage', None)})
         else:

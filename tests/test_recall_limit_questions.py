@@ -99,12 +99,15 @@ def test_deferral_cannot_consume_a_foreign_or_selected_question(fault):
         validate_governed_collector_result(output, context)
 
 
-def test_deferral_fields_are_offered_only_with_authorized_queued_questions():
-    context, _, _, _ = recall_case()
+def test_deferral_schema_is_stable_and_unavailable_indices_are_rejected_by_the_host():
+    context, output, _, _ = recall_case()
     schema = governed_collector_schema(context)
-    assert schema['properties']['deferred_hints']['items']['enum'] == [0]
+    assert 'deferred_hints' in schema['properties']
     context.update(prepared_questions=[], strategy_context={'mode': 'active', 'plan': None})
-    assert 'deferred_hints' not in governed_collector_schema(context)['properties']
+    assert governed_collector_schema(context) == schema
+    output.update(hint=None, deferred_hints=[0], quote=context['source']['text'])
+    with pytest.raises(ValueError):
+        validate_governed_collector_result(output, context)
 
 
 def test_current_intent_and_pool_selection_are_generated_before_question_wording():

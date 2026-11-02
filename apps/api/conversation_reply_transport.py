@@ -1,4 +1,4 @@
-"""Bounded reply-v2 requests without the general Codex agent context."""
+"""Bounded HTTP/SSE helpers for offline probes and structured background documents."""
 import asyncio
 import hashlib
 import json

@@ -49,26 +49,27 @@ discards the raw tail. The trace records the projected input's hash separately.
 
 ## Model request layout
 
-The `reply-v2` responder uses a bounded streaming Responses request through the
-same configured gateway, model and effort. Its first developer message contains
-the existing interviewer instructions and dispatch. Authorized dialogue, brief,
-preferences and retrieved evidence follow as user data. The final user message
-contains the complete current exchange, including the original narrator wording
-and source metadata. Current evidence is not duplicated in the earlier context.
+The `reply-v2` responder uses the native Codex app-server through the configured
+gateway, model and effort. Stable Mira instructions and output schema precede
+native user and assistant messages. Application context has its own labeled item,
+with shared original-source evidence referenced once. The current narrator's
+exact text is the final user input.
 
-This request advertises no tools and receives no Codex skill catalog, permission
-instructions or temporary workspace paths. It creates no agent home or resumable
-agent transcript. Other collector contracts and background lanes keep their
-existing transports. Provider response IDs are trace receipts; the saved reply's
-execution pointer remains separate from those potentially long IDs.
+Subsequent turns resume only when canonical storage proves that the prior
+candidate was committed and its source/privacy scope remains compatible. Context
+changes are appended with `thread/inject_items`; prior turns and model outputs
+are preserved for prefix caching. Codex manages transcript compaction. Missing,
+corrupt, uncommitted or incompatible sessions rebuild from authorized canonical
+history, retaining lossless checkpoint originals. Topic pauses preserve prior
+questions and replies; exclusions and source changes still fence history.
 
-Full governed validation still precedes projection. The HTTP body holds the
-existing publication guard through actual transport consumption and releases it
-before generation. Generation pause and evaluation admission are rechecked at
-that boundary. Existing acknowledgement streaming, strict result validation,
-bounded repair and durable-save fences remain in place. Requests respect the
-governed input and output budgets, responses have a byte limit, and a completed
-provider document must agree with any streamed text. Tools are never executed.
+Full governed validation precedes native execution. Publication guards cover
+thread opening, context injection, turn admission and tool-result delivery.
+The sole application tool, `memoir_read_context`, retrieves bounded owned pages;
+general file, shell, web and skill capabilities remain disabled. Stable schema
+availability is checked by host validators. Acknowledgement streaming, bounded
+repair, response byte limits and durable-save fences remain in place. Native
+usage notifications retain cached-input counters in trace metadata.
 
 The schema retains its reviewed field order so acknowledgement precedes private
 work. The cache key is stable within an owner and separate across owners. These
