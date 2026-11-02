@@ -219,16 +219,17 @@ export function createPlaceWorkspace({
     const matching = state.lifeStage === "all" ? places : places.filter(item => matchesPlaceStage(item, state.lifeStage)
       || nodes.some(node => placeHistoryKey(node.location) === placeHistoryKey(item)));
     const groups = workspacePlaceGroups(matching);
-    if (mapMemoryEvents.activeCity(groups) === undefined) return "";
+    const activeCity = mapMemoryEvents.activeCity(groups);
     const scope = JSON.stringify([state.project?.id, state.supabase?.user?.id, placeHistoryKey(current),
       current.source_sequence || current.revision || 0, state.memoryEventPage?.policy_epoch, state.derivedWorkspace?.policy_epoch,
       state.workspaceFocus]);
-    if (!cesiumPlaceJourneyViewer || mapOpeningScope !== scope) {
-      mapOpeningScope = scope;mapOpeningCity = mapMemoryEvents.activeCity(groups);
+    // An unresolved question pauses city selection without removing the live map.
+    if (!cesiumPlaceJourneyViewer || activeCity !== undefined && (mapOpeningScope !== scope || mapOpeningCity === undefined)) {
+      mapOpeningScope = scope;mapOpeningCity = activeCity;
     }
     const activeGroup = groups.find(group => group.key === mapOpeningCity)
       || current && groups.find(group => group.members.some(member => placeHistoryKey(member) === placeHistoryKey(current)));
-    const map = placeJourneyMarkup(current, "workspace", activeGroup);
+    const map = placeJourneyMarkup(current, "workspace", activeGroup, mapOpeningCity === undefined);
     return `<section class="workspace-media-overview no-gallery" aria-label="${t("placeJourney")}"><div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header"><button type="button" data-all-places>${t("mapMemoryOverview")}</button>${toggle}</div>${map}</div></section>`;
   }
 
@@ -308,7 +309,7 @@ export function createPlaceWorkspace({
     return PLACE_MAP_VIEW_HEIGHTS[granularity] || PLACE_MAP_VIEW_HEIGHTS.city;
   }
 
-  function placeJourneyMarkup(journey, variant = "surface", group = null) {
+  function placeJourneyMarkup(journey, variant = "surface", group = null, pending = false) {
     if (!journey) return "";
     const t = (key) => escapeHtml(translate(`Memoir.workspace.${key}`));
     const title = group?.city || journey;
@@ -319,7 +320,7 @@ export function createPlaceWorkspace({
     const longitude = Number.isFinite(target?.longitude) ? target.longitude : "";
     const duration = Number(journey.duration_ms) || 5200;
     const pins = target.pins || (parentFallback ? [] : [{key:placeHistoryKey(journey),place:journey.place,latitude,longitude}]);
-    const pinData = ` data-cesium-unavailable="${unavailablePlaceMaps.has(placeMapRenderKey(journey))}" data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
+    const pinData = `${pending ? ' data-cesium-pending="true"' : ""} data-cesium-unavailable="${unavailablePlaceMaps.has(placeMapRenderKey(journey))}" data-cesium-pins="${escapeHtml(JSON.stringify(pins))}" data-cesium-height="${target.height || ""}"`;
     const legend = group && group.members.length > 1 ? `<ul class="place-map-pins">${group.members.filter(member => placeHistoryKey(member) !== placeHistoryKey(group.city)).map(member => `<li><span class="place-pin-dot" aria-hidden="true">●</span>${escapeHtml(member.place)}${pins.some(pin => pin.key === placeHistoryKey(member)) ? "" : `<small>${t("pinUnresolved")}</small>`}</li>`).join("")}</ul>` : "";
     const heading = variant === "workspace" ? "" : `<div class="place-journey-heading"><h2>${escapeHtml(title.place)}</h2></div>`;
     return `<section class="place-journey-card place-journey-${variant}" aria-label="${escapeHtml(title.place)} · ${t("placeJourney")}">${heading}<div class="place-journey-scene" style="--journey-duration:${duration}ms"><div class="cesium-place-journey" data-place-key="${escapeHtml(group ? group.key : placeHistoryKey(journey))}" data-cesium-place="${escapeHtml(target.place || journey.place)}" data-cesium-latitude="${latitude}" data-cesium-longitude="${longitude}" data-cesium-duration="${duration}"${pinData}></div><div class="place-journey-fallback"><span class="journey-earth" aria-hidden="true">◒</span><span class="journey-fallback-line">${t("mapPreview")}<small>${t("placeContextShown")}</small></span></div></div>${legend}</section>`;
@@ -711,7 +712,12 @@ export function createPlaceWorkspace({
           viewer.camera.setView({destination:cesium.Cartesian3.fromDegrees(longitude, latitude, height), orientation});
           whenTilesLoaded(() => height === finalMapHeight ? finishOpening() : descend(height));
         };
-        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || mapMemoryEvents.hasAnimatedCity(container.dataset.placeKey)) {
+        if (container.dataset.cesiumPending) {
+          whenTilesLoaded(() => {
+            container.closest(".place-journey-scene")?.classList.add("is-cesium-map");
+            stopOpening();
+          });
+        } else if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || mapMemoryEvents.hasAnimatedCity(container.dataset.placeKey)) {
           roadMap(finalMapHeight);
         } else {
           const regionalHeight = Math.max(finalMapHeight, Math.min(800000, finalMapHeight * 16));

@@ -53,7 +53,8 @@ for (const restore of ['live','refresh','reopen']) {
     state.workspaceFocus=null;
     map.sync(null);
     await new Promise(resolve=>setImmediate(resolve));
-    assert.equal(workspace.workspaceMediaOverview(),'','Two API cities must wait for the saved question focus');
+    assert.match(workspace.workspaceMediaOverview(),/data-cesium-pending="true"/,
+      'Keep the globe visible while two API cities wait for the saved question focus');
     state.workspaceFocus={...result.workspace_focus};
   }
   map.sync(null);
@@ -85,6 +86,11 @@ for (const restore of ['live','refresh','reopen']) {
   assert.deepEqual(albums.map(album=>album.place),[expected.place]);
   assert.equal(state.timeline.length,2,'City filtering preserves both saved memories');
   const completedFlights=flights.length;
+  state.workspaceFocus={place:'学校家属院',source_sequence:result.workspace_focus.source_sequence+1};
+  map.sync(scene);
+  assert.match(workspace.workspaceMediaOverview(),/workspace-media-map/,
+    'An unresolved school-compound follow-up must not blank the saved map');
+  assert.equal(flights.length,completedFlights,'An unresolved follow-up must not guess a different city');
   state.workspaceFocus={...result.workspace_focus,source_sequence:result.workspace_focus.source_sequence+1};
   map.sync(scene);
   assert.equal(flights.length,completedFlights,'A same-city follow-up from the API must preserve the camera');

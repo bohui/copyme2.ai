@@ -29,10 +29,32 @@ test('saving a city preserves a live viewer until the workspace is reopened',()=
   const source=readMemoirClientSource().match(/function workspaceMediaOverview\([^]*?\n\}/)[0];
   vm.runInContext(source,context);
   const initial=context.workspaceMediaOverview();
+  active=undefined;
+  context.state.workspaceFocus={place:'School family compound',source_sequence:2};
+  assert.equal(context.workspaceMediaOverview(),initial,'An unresolved question location must preserve the live map');
+  delete context.state.workspaceFocus;
   active=groupPlaces([north])[0].key;
   assert.equal(context.workspaceMediaOverview(),initial,'A background repaint must preserve the live map metadata');
   context.cesiumPlaceJourneyViewer=null;
   assert.match(context.workspaceMediaOverview(),/Chengde/,'A recreated map uses the newly saved city');
+  active=undefined;
+  context.workspaceMediaOverview();
+  context.cesiumPlaceJourneyViewer={};
+  active=groupPlaces([north])[0].key;
+  assert.match(context.workspaceMediaOverview(),/Chengde/,'A pending globe must adopt a confirmed city even without a new reply');
+});
+
+test('an unresolved question location shows a globe until its city is known',async t=>{
+  const {places,state}=await setup(t,[]);
+  state.workspaceFocus={place:'School family compound',source_sequence:2};
+  assert.equal(places.mapMemoryEvents.activeCity(),undefined);
+  const pending=places.workspaceMediaOverview();
+  assert.match(pending,/workspace-media-map/);
+  assert.match(pending,/data-cesium-pending="true"/);
+  state.workspaceFocus={place:'Chengde',source_sequence:2};
+  const resolved=places.workspaceMediaOverview();
+  assert.doesNotMatch(resolved,/data-cesium-pending/);
+  assert.match(resolved,/data-cesium-latitude="40.95"/);
 });
 
 async function setup(t,privatePhotos=[{photo_id:personalId,kind:'private_upload',title:'My school photo',event_ids:['school']}]) {

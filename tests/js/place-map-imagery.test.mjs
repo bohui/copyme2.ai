@@ -18,7 +18,7 @@ class Event {
   raiseEvent(value) { for (const listener of [...this.listeners]) listener(value); }
 }
 
-async function harness(provider = 'geoapify', {throttled = false, sessionFailure = false, sessionPending = false, libraryFailure = false, reducedMotion = true, animated = false} = {}) {
+async function harness(provider = 'geoapify', {throttled = false, sessionFailure = false, sessionPending = false, libraryFailure = false, reducedMotion = true, animated = false, pendingFocus = false} = {}) {
   let resolveImage, rejectImage;
   const image = new Promise((resolve, reject) => { resolveImage = resolve; rejectImage = reject; });
   const classes = new Set();
@@ -31,6 +31,7 @@ async function harness(provider = 'geoapify', {throttled = false, sessionFailure
   const journey = {place: '承德', granularity: 'city', latitude: 40.97, longitude: 117.93};
   const container = {isConnected: true, dataset: {placeKey:'city:chengde',cesiumLatitude: '40.97', cesiumLongitude: '117.93', cesiumPlace: '承德'},
     closest: () => sceneElement, parentElement: {querySelector: selector => selector === '[data-map-retry]' ? retry : fallback}};
+  if (pendingFocus) container.dataset.cesiumPending='true';
   let viewer, imagery, finishSession, loads = 0, renders = 0;
   const flights=[], timers=new Map(),animatedCities=new Set(animated ? ['city:chengde'] : []);
   let timerId=0;
@@ -117,6 +118,18 @@ test('the imagery layer is attached before the opening flight starts',async()=>{
   h.loadedTiles();
   assert.equal(h.flights.length,1);
   assert.ok(h.flights[0].layer,'The descent must not outrun imagery initialization');
+});
+
+test('an unresolved question shows a usable globe without choosing or animating a city',async()=>{
+  const h=await harness('google',{pendingFocus:true,reducedMotion:false});
+  const pending=h.imagery.requestImage(0,0,0);
+  h.resolveImage({width:256,height:256});await pending;h.loadedTiles();
+  assert.equal(h.classes.has('is-cesium-map'),true);
+  assert.equal(h.flights.length,0);
+  assert.equal(h.viewer.view.destination.longitude,0);
+  assert.equal(h.viewer.scene.mode,3);
+  assert.equal(h.viewer.scene.screenSpaceCameraController.enableInputs,true);
+  assert.equal(h.context.mapMemoryEvents.hasAnimatedCity('city:chengde'),false);
 });
 
 test('the descent waits for each rendered zoom level and reaches the city without a final snap',async()=>{

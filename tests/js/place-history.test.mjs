@@ -110,7 +110,8 @@ test('workspace map omits the separate location button row', t => {
   chat:[{role:'user', text:'我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'}]};
  const workspace = createPlaceWorkspace({state, profile:() => state.project.profile, lifeStageText:() => '',
   photos:{favoritePhotoWall:() => '', workspacePictureItems:() => [], renderablePictureItems:items => items}});
- assert.equal(workspace.workspaceMediaOverview(),'','Wait for the next question instead of choosing an extraction-order city');
+ assert.match(workspace.workspaceMediaOverview(),/data-cesium-pending="true"/,
+  'Keep the globe visible without choosing an extraction-order city');
  state.workspaceFocus={place:'承德市',source_sequence:1};
  const html = workspace.workspaceMediaOverview();
  assert.doesNotMatch(html, /place-choices|data-place-choice=/);

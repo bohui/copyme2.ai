@@ -220,7 +220,9 @@ def album_page(request):
         if mode == 'unmapped':
             expect(page.locator('.story-shell.conversation-only')).to_be_visible(timeout=30000)
         elif mode == 'conversation-focus':
-            expect(page.locator('[data-cesium-place]')).to_have_count(0)
+            expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+            expect(page.locator('[data-cesium-pending="true"]')).to_be_visible()
+            assert page.evaluate('mapFlights.length') == 0
         elif mode in ('script-error', 'tile-error', 'missing-key'):
             expect(page.locator('[data-map-retry]')).to_be_visible(timeout=30000)
         elif mode == 'slow-flight':
@@ -264,6 +266,8 @@ def test_opening_flight_waits_for_imagery_at_each_zoom_without_an_extra_arrival_
 def test_conversation_waits_for_city_focus_and_animates_each_city_once_per_page(album_page, width):
     page, _, _ = album_page
     page.set_viewport_size({'width':width,'height':960})
+    assert page.evaluate('window.__mapViewer.scene.mode === Cesium.SceneMode.SCENE3D')
+    assert page.evaluate('window.__mapViewer.camera.positionCartographic.height > window.__mapViewer.scene.globe.ellipsoid.maximumRadius')
     page.evaluate('''() => {const nativeFetch=window.fetch;
       window.fetch=(url,options)=>{
         if(String(url).endsWith('/memory-sessions')) return Promise.resolve(new Response('{}',{status:403}));
@@ -286,10 +290,17 @@ def test_conversation_waits_for_city_focus_and_animates_each_city_once_per_page(
     reply('承德市',2)
     assert page.evaluate('mapFlights.length') == 3
     assert page.evaluate('mapViewerCount') == first_viewer
-    reply('悉尼',3)
+    camera=page.evaluate('window.__mapViewer.camera.position.toString()')
+    reply('学校家属院',3)
+    assert page.evaluate('mapFlights.length') == 3
+    assert page.evaluate('mapViewerCount') == first_viewer
+    assert page.evaluate('window.__mapViewer.camera.position.toString()') == camera
+    OUTPUT.mkdir(parents=True,exist_ok=True)
+    page.screenshot(path=str(OUTPUT/f'unresolved-question-{width}.png'))
+    reply('悉尼',4)
     assert page.evaluate('mapFlights.length') == 6
     expect(page.locator('.map-memory-cards')).to_contain_text('Move to Sydney')
-    reply('承德',4)
+    reply('承德',5)
     assert page.evaluate('mapFlights.length') == 6
     expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
     page.locator('[data-action="toggle-workspace"]').click()

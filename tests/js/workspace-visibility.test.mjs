@@ -276,6 +276,7 @@ for (const policyEpoch of [1, 2]) test(`an activated workspace stays rendered af
   context.renderStory();
   assert.match(app.innerHTML, /story-shell context-visible/);
   assert.match(app.innerHTML, /id="workspace-detail"/);
+  assert.match(app.innerHTML, /class="workspace-empty"[^]*role="status"/);
   assert.doesNotMatch(app.innerHTML, /conversation-only|workspace-collapsed/);
   assert.equal(state.placeJourney, null);
   assert.equal(state.placeWorkspaceMap, null);
