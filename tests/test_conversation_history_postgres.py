@@ -54,7 +54,7 @@ def test_history_keeps_reply_under_unchanged_privacy_preferences(sql):
     assert read_history(sql, identity).items[0].reply == 'Hello Joan.'
 
 
-@pytest.mark.parametrize('change', ['exclude', 'pause', 'withdraw', 'edit'])
+@pytest.mark.parametrize('change', ['exclude', 'withdraw', 'edit'])
 def test_history_still_hides_replies_after_privacy_or_source_changes(sql, change):
     identity, turn, accepted, fence = prepare(sql)
     commit(sql, turn, fence)
@@ -67,6 +67,14 @@ def test_history_still_hides_replies_after_privacy_or_source_changes(sql, change
             f"{literal(identity['project_id'])},'{accepted['source']['id']}',1,"
             f"'{change}',{literal('My name is Jane') if change == 'edit' else 'null'}")
     assert read_history(sql, identity).items[0].reply is None
+
+
+def test_pausing_a_topic_preserves_the_saved_conversational_exchange(sql):
+    identity, turn, _, fence = prepare(sql)
+    commit(sql, turn, fence)
+    sql(as_user("update public.user_profile set profile=profile||"
+        "'{\"memory_preferences\":{\"paused_topics\":[\"Shanghai\"]}}'::jsonb;"))
+    assert read_history(sql, identity).items[0].reply == 'Hello Joan.'
 
 
 def test_history_restores_preexisting_saved_replies_after_profile_updates(sql):

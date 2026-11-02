@@ -82,10 +82,7 @@ def governed_collector_schema(context=None):
     """
     if (context or {}).get('reply_contract') == 'reply-v2':
         from .conversation_reply import reply_schema
-        schema = reply_schema(context)
-        if context.get('reviewed_acknowledgement') is not None:
-            constrain_acknowledgement(schema, [context['reviewed_acknowledgement']])
-        return schema
+        return reply_schema(context)
     if (context or {}).get('strategy_selector'):
         from .interview_strategy import selector_schema
         schema=selector_schema(context)

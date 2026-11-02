@@ -53,10 +53,10 @@ def partial_answer(locale, *, reply_kind='partial'):
 def test_reply_packet_keeps_the_asked_question_and_its_partial_response(locale):
     context, view = partial_answer(locale)
     messages = reply_messages(view, GOVERNED_TURN_PROMPT)
-    sent = json.loads(messages[1]['content'])['context']['recent_dialogue']
-    assert sent == context['recent_dialogue']
-    assert sent[0]['question']['delivered'] is True
-    assert json.loads(messages[-1]['content'])['current']['narrator']['original'] == sent[0]['response']['text']
+    pair = context['recent_dialogue'][0]
+    assert dict(role='assistant', content=pair['question']['text']) in messages
+    assert messages[-1] == dict(role='user', content=pair['response']['text'])
+    assert sum(message.get('content') == pair['response']['text'] for message in messages) == 1
 
 
 def live_question(context, view, monkeypatch):
@@ -172,10 +172,11 @@ def question_goal_case(locale, scenario, contract):
 def test_question_goal_request_preserves_the_prior_exchange_and_current_narration(locale, scenario, contract):
     context, view = question_goal_case(locale, scenario, contract)
     messages = reply_messages(view, GOVERNED_TURN_PROMPT)
-    sent = json.loads(messages[1]['content'])['context']['recent_dialogue']
-    assert sent == context['recent_dialogue']
-    assert sent[0]['response']['id'] != context['source']['id']
-    assert json.loads(messages[-1]['content'])['current']['narrator']['original'] == context['source']['text']
+    pair = context['recent_dialogue'][0]
+    assert dict(role='assistant', content=pair['question']['text']) in messages
+    assert dict(role='user', content=pair['response']['text']) in messages
+    assert pair['response']['id'] != context['source']['id']
+    assert messages[-1] == dict(role='user', content=context['source']['text'])
 
 
 @pytest.mark.skipif(os.getenv('MEMOIR_LIVE_QUESTION_NOVELTY') != '1',

@@ -63,6 +63,29 @@ def test_tail_saved_exchange_keeps_valid_reply_and_drops_it_after_preference_cha
     assert rpc(sql,'read_lifetime_reply',f"'{identity['conversation_id']}','{turn}'")['reply'] is None
 
 
+def test_pause_and_profile_enrichment_keep_questions_and_replies_but_exclusions_hide_them(sql):
+    identity,turn,accepted,fence=prepare(sql)
+    value=plan(name='Joan')
+    question='Where did you live?'
+    value['candidates'][0]['question']=question
+    reply='Hello Joan. '+question
+    saved=rpc(sql,'commit_lifetime_turn',f"{literal(fence)}::jsonb,'{turn}',{literal(value)}::jsonb,'[]',"
+        f"{literal(reply)},'[]','native-thread','reply-v2','fixture-model'")
+    rpc(sql,'commit_lifetime_attribution_delivery',f"{literal(saved['fence'])}::jsonb,'{turn}','{saved['memory'][0]['id']}'")
+    sql(as_user("update public.user_profile set profile=profile||"
+        "'{\"birth_place\":\"Sydney\",\"memory_preferences\":{\"paused_topics\":[\"Shanghai\"]}}'::jsonb;"))
+    tail=rpc(sql,'read_lifetime_tail',f"'{identity['conversation_id']}',1,0,1")
+    assert tail['records'][0]['assistant_reply']==reply
+    context=rpc(sql,'read_lifetime_interview_context',f"'{identity['conversation_id']}'")
+    assert context['recent_dialogue'][0]['question']['text']==question
+    assert context['execution']['thread_id']=='native-thread'
+    sql(as_user("update public.user_profile set profile=profile||"
+        "'{\"memory_preferences\":{\"excluded_topics\":[\"Joan\"]}}'::jsonb;"))
+    tail=rpc(sql,'read_lifetime_tail',f"'{identity['conversation_id']}',1,0,1")
+    assert 'assistant_reply' not in tail['records'][0]
+    assert rpc(sql,'read_lifetime_interview_context',f"'{identity['conversation_id']}'")['recent_dialogue']==[]
+
+
 def test_replay_identity_and_atomic_language_preserve_other_preferences(sql):
     identity,turn,accepted,fence=prepare(sql)
     assert rpc(sql,'validate_lifetime_replay_input',f"'{identity['conversation_id']}','{turn}','My name is Joan','narrator_chat'")

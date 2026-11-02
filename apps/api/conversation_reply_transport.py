@@ -21,21 +21,8 @@ MAX_RESPONSE_BYTES = 512_000
 
 
 def reply_messages(view, prompt):
-    context = dict(view)
-    instructions = context.pop('instructions')
-    current = context.pop('current')
-    background = context.pop('background_deliveries', [])
-    content = [dict(type='input_text', text=instructions)]
-    if prompt:
-        content.append(dict(type='input_text', text=prompt))
-    messages = [
-        dict(role='developer', content=content),
-        dict(role='user', content=serialize_packet(context)),
-        dict(role='user', content=serialize_packet(dict(current=current))),
-    ]
-    if background:
-        messages.append(dict(role='user', content=serialize_packet(dict(background_deliveries=background))))
-    return messages
+    from .conversation_reply_context import native_messages
+    return native_messages(view, prompt)
 
 
 class ReplyRequestBody(GovernedRequestBody):

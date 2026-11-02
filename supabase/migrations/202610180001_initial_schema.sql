@@ -4994,7 +4994,10 @@ begin
    if jsonb_array_length(p_result->'place_journeys')>0 then
      insert into public.user_lifetime_place_journey(user_id,project_id,source_id,source_version,journeys,derived_fence) values(snap.user_id,snap.project_id,(page->'source'->>'id')::uuid,
        (page->'source'->>'version')::bigint,p_result->'place_journeys',jsonb_build_object('policy_epoch',snap.policy_epoch,
-         'preference_revision',snap.preference_revision,'execution_generation',(page->'two_lane'->>'execution_generation')::bigint,'privacy_digest',snap.privacy_digest))
+         'preference_revision',snap.preference_revision,'execution_generation',(page->'two_lane'->>'execution_generation')::bigint,
+         'privacy_digest',snap.privacy_digest,'display_privacy_digest',encode(sha256(convert_to(jsonb_build_object(
+           'excluded_topics',page->'preferences'->'excluded_topics',
+           'privacy_complete',page->'preferences'->'privacy_complete')::text,'UTF8')),'hex')))
      on conflict(user_id,project_id,source_id) do update set source_version=excluded.source_version,derived_fence=excluded.derived_fence,
        journeys=(select coalesce(jsonb_agg(distinct j),'[]') from jsonb_array_elements(
          case when user_lifetime_place_journey.source_version=excluded.source_version then user_lifetime_place_journey.journeys else '[]' end||excluded.journeys) j);
@@ -5519,7 +5522,7 @@ begin
  if next_fence-'phase_revision'-'preference_revision' is distinct from plan_fence-'phase_revision'-'preference_revision' then raise exception 'unexpected execution mutation'; end if;
  pins:=public.read_lifetime_pinned(conversation);
  update public.user_interview_turn set collector=collector||jsonb_build_object('history_privacy_digest',
-   encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics','paused_topics',pins->'paused_topics',
+   encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics',
      'privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex'))
    where user_id=owner and project_id=project and client_turn_id=p_client_turn_id;
  if p_prompt_version='reply-v2' then
@@ -7267,7 +7270,7 @@ $$;
 CREATE FUNCTION public.lifetime_delivered_questions(p_owner uuid, p_project text)
 RETURNS TABLE(source_id uuid, source_version bigint, client_turn_id uuid, reply_id uuid,
               turn_sequence bigint, question_id text, question text, evidence jsonb)
-    LANGUAGE sql STABLE SECURITY DEFINER
+    LANGUAGE sql SECURITY DEFINER
     SET search_path TO ''
     AS $$
  select d.source_id,d.source_version,d.client_turn_id,d.reply_id,t.sequence,q->>'id',q->>'question',q->'context'->'evidence'
@@ -7277,13 +7280,14 @@ RETURNS TABLE(source_id uuid, source_version bigint, client_turn_id uuid, reply_
  join public.user_narrator_source s on s.user_id=d.user_id and s.project_id=d.project_id
    and s.id=d.source_id and s.version=d.source_version and s.status='active'
  join public.user_lifetime_conversation c on c.user_id=d.user_id and c.project_id=d.project_id
-   and c.execution_generation=d.execution_generation and c.preference_revision=d.preference_revision
+   and c.execution_generation=d.execution_generation
  join public.user_memoir_project p on p.user_id=d.user_id and p.project_id=d.project_id and p.policy_epoch=d.policy_epoch
  join public.user_lifetime_reply r on r.user_id=d.user_id and r.conversation_id=c.conversation_id
    and r.client_turn_id=d.client_turn_id and r.memory_id=d.reply_id and r.policy_epoch=d.policy_epoch
    and r.execution_generation=d.execution_generation and r.preference_revision=d.preference_revision
  cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'candidates','[]')) q
  where d.user_id=p_owner and d.project_id=p_project and q->>'id'=t.collector->'plan'->>'chosen_id'
+   and public.read_lifetime_history_reply(c.conversation_id,d.client_turn_id)->>'reply' is not null
    and length(public.lifetime_question_text(coalesce(q->>'question','')))>0
    and strpos(t.collector->>'reply',public.lifetime_question_text(q->>'question'))>0
 $$;
@@ -7296,7 +7300,7 @@ CREATE FUNCTION public.lifetime_question_dialogue(p_owner uuid, p_project text, 
  select coalesce(jsonb_agg(item order by turn_sequence),'[]') from (
    select q.turn_sequence,jsonb_build_object('status',case when answer.id is null then 'asked' else 'responded' end,
      'question',jsonb_build_object('id',q.question_id,'text',q.question,'role','assistant','personal_testimony',false,
-       'client_turn_id',q.client_turn_id,'reply_id',q.reply_id,'sequence',q.turn_sequence,'delivered',true,
+       'client_turn_id',q.client_turn_id,'reply_id',q.reply_id,'sequence',question_source.sequence,'delivered',true,
        'source_id',q.source_id,'source_version',q.source_version,'evidence',q.evidence),
      'response',case when answer.id is null then null else jsonb_build_object('id',answer.id,'version',answer.version,
        'sequence',answer.sequence,'text',left(answer.text,512),'role','user','kind',answer.kind,
@@ -7329,7 +7333,8 @@ CREATE FUNCTION public.lifetime_resolved_questions(p_owner uuid, p_project text)
  join public.user_memoir_project p on p.user_id=t.user_id and p.project_id=t.project_id
  join public.user_lifetime_reply r on r.user_id=t.user_id and r.conversation_id=c.conversation_id
    and r.client_turn_id=t.client_turn_id and r.policy_epoch=p.policy_epoch
-   and r.execution_generation=c.execution_generation and r.preference_revision=c.preference_revision
+   and r.execution_generation=c.execution_generation
+   and public.read_lifetime_history_reply(c.conversation_id,t.client_turn_id)->>'reply' is not null
  cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'resolved_questions','[]')) resolution
  join public.user_narrator_source answer on answer.user_id=t.user_id and answer.project_id=t.project_id
    and answer.id=(resolution->>'source_id')::uuid and answer.version=(resolution->>'source_version')::bigint
@@ -7347,7 +7352,8 @@ CREATE FUNCTION public.lifetime_deferred_questions(p_owner uuid, p_project text)
  join public.user_memoir_project p on p.user_id=t.user_id and p.project_id=t.project_id
  join public.user_lifetime_reply r on r.user_id=t.user_id and r.conversation_id=c.conversation_id
    and r.client_turn_id=t.client_turn_id and r.policy_epoch=p.policy_epoch
-   and r.execution_generation=c.execution_generation and r.preference_revision=c.preference_revision
+   and r.execution_generation=c.execution_generation
+   and public.read_lifetime_history_reply(c.conversation_id,t.client_turn_id)->>'reply' is not null
  cross join lateral jsonb_array_elements(coalesce(t.collector->'plan'->'deferred_questions','[]')) deferral
  join public.user_narrator_source evidence on evidence.user_id=t.user_id and evidence.project_id=t.project_id
    and evidence.id=(deferral->>'source_id')::uuid and evidence.version=(deferral->>'source_version')::bigint
@@ -9207,23 +9213,10 @@ begin
  conflicts:=public.lifetime_event_place_conflicts(owner,p_project_id,p_event_id);
  select coalesce(jsonb_agg(item order by key),'[]') into records from (
    select source_id::text||':'||source_version||':'||lpad(char_start::text,8,'0')||':'||lpad(char_end::text,8,'0')||':'||role||':'||place_key key,
-     to_jsonb(p)-array['user_id','project_id']||jsonb_build_object(
-       'place',coalesce(saved.coordinates,'{}'::jsonb)||p.place,
-       'status',case when role=any(conflicts) then 'conflicted' else 'supported' end,
+     to_jsonb(p)-array['user_id','project_id']||jsonb_build_object('status',case when role=any(conflicts) then 'conflicted' else 'supported' end,
        'key',source_id::text||':'||source_version||':'||
        lpad(char_start::text,8,'0')||':'||lpad(char_end::text,8,'0')||':'||role||':'||place_key) item
    from public.lifetime_event_place_rows(owner,p_project_id,p_event_id) p
-   -- A current event authorizes its place; reuse only public coordinates from
-   -- that exact source/place, even when an unrelated pause fenced the journey.
-   left join lateral (
-     select jsonb_agg(distinct jsonb_build_object('latitude',j->'latitude','longitude',j->'longitude'))->0 coordinates
-     from public.user_lifetime_place_journey journey cross join lateral jsonb_array_elements(journey.journeys) j
-     where journey.user_id=p.user_id and journey.project_id=p.project_id and journey.source_id=p.source_id
-       and journey.source_version=p.source_version and j->>'place'=p.place->>'place'
-       and j->'hierarchy'=p.place->'hierarchy' and j->'granularity'=p.place->'granularity'
-       and jsonb_typeof(j->'latitude')='number' and jsonb_typeof(j->'longitude')='number'
-     having count(distinct (j->'latitude',j->'longitude'))=1
-   ) saved on true
    where source_id::text||':'||source_version||':'||lpad(char_start::text,8,'0')||':'||lpad(char_end::text,8,'0')||':'||role||':'||place_key>last_key
    order by key limit p_limit+1) bounded;
  more:=jsonb_array_length(records)>p_limit;
@@ -9293,6 +9286,14 @@ begin
  -- Mira reads current authorized conversation and saved results directly.
  dialogue:=public.lifetime_question_dialogue(owner,project);
  return jsonb_build_object('plan',plan,'events',events,'stage_coverage',coverage,'photos','[]'::jsonb,'photo_associations','[]'::jsonb,
+   'execution',(select jsonb_build_object('thread_id',l.thread_id,'model',l.thread_model,
+     'sequence',s.sequence,'source_id',s.id,'reply_sha256',encode(sha256(convert_to(t.collector->>'reply','UTF8')),'hex'))
+     from public.user_lifetime_conversation l join public.user_lifetime_reply r
+       on r.user_id=l.user_id and r.conversation_id=l.conversation_id
+     join public.user_interview_turn t on t.user_id=l.user_id and t.project_id=l.project_id and t.client_turn_id=r.client_turn_id
+     join public.user_narrator_source s on s.user_id=t.user_id and s.project_id=t.project_id and s.id=t.source_id
+     where l.user_id=owner and l.conversation_id=p_conversation_id and s.status='active' and s.version=t.source_version
+       and t.collector->>'thread_id'=l.thread_id order by s.sequence desc limit 1),
    'recent_dialogue',dialogue,
    'historical_context_complete',false,'historical_news',public.read_user_historical_news(project),
    'has_accepted_narration',public.conversation_has_narration(owner,project));
@@ -10135,7 +10136,7 @@ CREATE FUNCTION public.read_lifetime_place_journeys(p_project_id text, p_source_
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO ''
     AS $$
-declare owner uuid:=auth.uid(); result jsonb; pins jsonb; privacy_hash text;
+declare owner uuid:=auth.uid(); result jsonb; pins jsonb; privacy_hash text; display_privacy_hash text;
 begin
  if not exists(select 1 from public.user_lifetime_conversation where user_id=owner and project_id=p_project_id)
    then raise exception 'canonical conversation required'; end if;
@@ -10143,6 +10144,8 @@ begin
  pins:=public.read_lifetime_pinned((select conversation_id from public.user_lifetime_conversation where user_id=owner and project_id=p_project_id));
  privacy_hash:=encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics',
    'paused_topics',pins->'paused_topics','privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex');
+ display_privacy_hash:=encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics',
+   'privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex');
  select coalesce(jsonb_agg(journey||jsonb_build_object('source_sequence',sequence,
    'status','active','revision',version,'updated_at',created_at) order by sequence,ordinal),'[]') into result
  from (
@@ -10155,7 +10158,12 @@ begin
      and (p.derived_fence is null or exists(select 1 from public.user_lifetime_conversation c join public.user_memoir_project m
        on m.user_id=c.user_id and m.project_id=c.project_id where c.user_id=p.user_id and c.project_id=p.project_id
        and p.derived_fence->>'policy_epoch'=m.policy_epoch::text
-       and p.derived_fence->>'privacy_digest'=privacy_hash
+       -- Pausing collection leaves saved places visible. Exclusions still fence
+       -- their content; old receipts are safe to restore when none are active.
+       and pins->'privacy_complete'='true'::jsonb
+       and (pins->'excluded_topics'='[]'::jsonb
+         or p.derived_fence->>'display_privacy_digest'=display_privacy_hash
+         or p.derived_fence->>'privacy_digest'=privacy_hash)
        and p.derived_fence->>'execution_generation'=c.execution_generation::text)) and (p_source_id is null or p.source_id=p_source_id)
    order by journey->'hierarchy',journey->>'granularity',s.sequence desc,ordinal
    limit 1000
@@ -10567,7 +10575,7 @@ CREATE FUNCTION public.read_lifetime_history_reply(p_conversation_id uuid, p_cli
     AS $$
 declare owner uuid:=auth.uid(); identity public.user_lifetime_conversation%rowtype;
  saved public.user_lifetime_reply%rowtype; source public.user_narrator_source%rowtype;
- interview public.user_interview_turn%rowtype; epoch bigint; pins jsonb; privacy_hash text; valid boolean;
+ interview public.user_interview_turn%rowtype; epoch bigint; pins jsonb; privacy_hash text; legacy_hash text; valid boolean;
 begin
  select * into identity from public.user_lifetime_conversation where user_id=owner and conversation_id=p_conversation_id;
  if not found then raise exception 'conversation unavailable'; end if;
@@ -10578,14 +10586,16 @@ begin
  if not found then return null; end if;
  select * into interview from public.user_interview_turn where user_id=owner and project_id=identity.project_id and client_turn_id=p_client_turn_id;
  select * into source from public.user_narrator_source where user_id=owner and project_id=identity.project_id and id=interview.source_id;
- privacy_hash:=encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics','paused_topics',pins->'paused_topics',
+ privacy_hash:=encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics',
+   'privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex');
+ legacy_hash:=encode(sha256(convert_to(jsonb_build_object('excluded_topics',pins->'excluded_topics','paused_topics','[]'::jsonb,
    'privacy_complete',pins->'privacy_complete')::text,'UTF8')),'hex');
  -- Profile enrichment changes execution context, not the saved conversation.
  valid:=source.status='active' and source.version=interview.source_version
    and saved.policy_epoch=epoch and saved.execution_generation=identity.execution_generation
    and pins->'privacy_complete'='true'::jsonb
-   and (saved.preference_revision=identity.preference_revision or interview.collector->>'history_privacy_digest'=privacy_hash
-     or (not (interview.collector ? 'history_privacy_digest') and pins->'excluded_topics'='[]'::jsonb and pins->'paused_topics'='[]'::jsonb));
+   and (saved.preference_revision=identity.preference_revision or interview.collector->>'history_privacy_digest' in (privacy_hash,legacy_hash)
+     or (not (interview.collector ? 'history_privacy_digest') and pins->'excluded_topics'='[]'::jsonb));
  return jsonb_build_object('reply',case when valid then interview.collector->>'reply' else null end);
 end $$;
 
@@ -10899,12 +10909,8 @@ begin
      tombstones:=tombstones||to_jsonb(row.position_sequence);
    else
      item:=public.narrator_source_record(row.source);
-     select r.policy_epoch,r.preference_revision,r.execution_generation,t.collector->>'reply' as reply into reply_row
-       from public.user_lifetime_reply r join public.user_interview_turn t on t.user_id=r.user_id and t.project_id=project and t.client_turn_id=r.client_turn_id
-       join public.user_lifetime_conversation l on l.user_id=r.user_id and l.conversation_id=r.conversation_id
-       where r.user_id=owner and r.conversation_id=p_conversation_id and r.client_turn_id=(row.source).client_turn_id
-         and r.policy_epoch=epoch and r.preference_revision=l.preference_revision and r.execution_generation=l.execution_generation;
-     if found then item:=item||jsonb_build_object('conversation_saved',true,'assistant_reply',reply_row.reply,'reply_policy_epoch',epoch); end if;
+     select public.read_lifetime_history_reply(p_conversation_id,(row.source).client_turn_id)->>'reply' as reply into reply_row;
+     if reply_row.reply is not null then item:=item||jsonb_build_object('conversation_saved',true,'assistant_reply',reply_row.reply,'reply_policy_epoch',epoch); end if;
      bytes:=bytes+octet_length(item::text);
      if bytes>32768 then complete:=false;exit;end if;
      records:=records||jsonb_build_array(item);

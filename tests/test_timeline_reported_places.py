@@ -76,16 +76,25 @@ def ref(quote):
     return dict(source_id='source', version=1, quote=quote, char_start=None, char_end=None)
 
 
-def test_unrelated_topic_pause_keeps_supported_sydney_event_on_the_map(sql, tmp_path, monkeypatch, fixed_policy_controls):
+@pytest.mark.parametrize('legacy_receipt,existing_exclusion', [(False, False), (True, False), (False, True)])
+def test_topic_pause_keeps_saved_shanghai_and_sydney_on_the_map(sql, tmp_path, monkeypatch,
+        fixed_policy_controls, legacy_receipt, existing_exclusion):
     from pathlib import Path
     import subprocess
+    from test_agent_commit_postgres import as_user
+    from test_shared_memory_events_postgres import literal, rpc
 
-    text = '现在生活在悉尼，1983年4月出生在承德市。'
-    quotes = ['现在生活在悉尼', '1983年4月出生在承德市']
+    if existing_exclusion:
+        sql(as_user("update public.user_profile set profile=profile||"
+            "'{\"memory_preferences\":{\"excluded_topics\":[\"private work\"]}}'::jsonb;"))
+    text = '现在生活在悉尼，1983年4月出生在承德市，后来在上海生活过。'
+    quotes = ['现在生活在悉尼', '1983年4月出生在承德市', '后来在上海生活过']
     places = [dict(place='悉尼', hierarchy=['Earth', 'Australia', 'New South Wales', '悉尼'],
                    granularity='city', latitude=-33.8688, longitude=151.2093),
               dict(place='承德市', hierarchy=['Earth', '中国', '河北省', '承德市'],
-                   granularity='city', latitude=40.9515, longitude=117.9634)]
+                   granularity='city', latitude=40.9515, longitude=117.9634),
+              dict(place='上海', hierarchy=['Earth', '中国', '上海'],
+                   granularity='city', latitude=31.2304, longitude=121.4737)]
 
     def extract(packet):
         if packet['sources'][0]['text'] != text:
@@ -101,13 +110,17 @@ def test_unrelated_topic_pause_keeps_supported_sydney_event_on_the_map(sql, tmp_
         original = conversation.say(text, language='zh-CN')
         conversation.drain()
         initial = conversation.client.get('/v1/story/readiness', params=dict(project_id=conversation.project)).json()
-        assert len(initial['derived_workspace']['places']) == 2
+        assert len(initial['derived_workspace']['places']) == 3
+        if legacy_receipt:
+            sql("update public.user_lifetime_place_journey set derived_fence=derived_fence-'display_privacy_digest';")
         fixed_policy_controls.append(('paused_topic', '先不说上海'))
         conversation.say('先不说上海，还是继续聊承德。', language='zh-CN')
         conversation.drain()
         snapshot = conversation.client.get('/v1/story/readiness', params=dict(project_id=conversation.project)).json()['derived_workspace']
-        assert snapshot['places'] == [], 'Expired journey content must remain fenced'
+        assert snapshot['places'] == initial['derived_workspace']['places'], 'A pause must not hide saved places'
         page = conversation.client.get('/v1/story/map-events', params=dict(project_id=conversation.project)).json()
+        pins = rpc(sql, 'read_lifetime_pinned', f"'{page['conversation_id']}'")
+        assert pins['paused_topics'] == ['先不说上海'], 'The collection pause must stay active'
         links = {event['id']: conversation.client.get(
             f'/v1/story/map-events/{conversation.project}/{event["id"]}/places').json()['items']
             for event in page['events']}
@@ -118,7 +131,10 @@ def test_unrelated_topic_pause_keeps_supported_sydney_event_on_the_map(sql, tmp_
         foreign = conversation.client.get('/v1/story/map-events', params=dict(project_id=conversation.project),
             headers={'authorization': 'Bearer another-owner'})
         assert foreign.status_code != 200 and '悉尼' not in foreign.text
-        from test_shared_memory_events_postgres import literal, rpc
+        sql(as_user("update public.user_profile set profile=profile||"
+            "'{\"memory_preferences\":{\"excluded_topics\":[\"family\"]}}'::jsonb;"))
+        excluded = conversation.client.get('/v1/story/readiness', params=dict(project_id=conversation.project)).json()
+        assert excluded['derived_workspace']['places'] == [], 'A changed exclusion must still invalidate derived content'
         rpc(sql, 'change_user_narrator_source',
             f"{literal(conversation.project)},'{original['accepted_source_id']}',1,'withdraw',null")
         withdrawn = conversation.client.get('/v1/story/map-events', params=dict(project_id=conversation.project)).json()

@@ -17,7 +17,8 @@ def reply_context(text='My brother Ming moved to Perth.'):
 
 def proposal():
     return dict(acknowledgement='We can follow that memory.', recall_limit_quote=None, question='What do you remember about the move?',
-        reason='latest_story', hint=None, quote=None, strategy='explore', workspace_focus=None)
+        reason='latest_story', hint=None, quote=None, strategy='explore', workspace_focus=None,
+        deferred_hints=[], historical_clue_id=None, resolved_questions=[], associations=[], response_photo_ids=[])
 
 
 def test_next_question_selects_one_grounded_city_from_a_two_city_reply():
@@ -70,8 +71,8 @@ def test_small_wire_keeps_compatibility_and_rejects_host_metadata():
     assert result['plan']['candidates'][0]['question'] == raw['question']
     assert raw['question'] in result['reply']
     assert result['continuity_updates'] == result['place_journeys'] == []
-    assert not {'source_id', 'continuity_updates', 'associations', 'used_strategy'} & schema['properties'].keys()
-    for key in ('source_id', 'source_version', 'continuity_updates', 'char_start', 'associations'):
+    assert not {'source_id', 'continuity_updates', 'used_strategy'} & schema['properties'].keys()
+    for key in ('source_id', 'source_version', 'continuity_updates', 'char_start'):
         with pytest.raises(ValueError):
             validate_governed_collector_result({**raw, key: []}, ctx)
 
@@ -233,7 +234,7 @@ def test_background_continuity_never_manufactures_missing_offset_fields(field):
         validate_continuity_updates([raw], ctx['source'], background=True)
 
 
-def test_engine_sends_evidence_last_without_launching_a_general_agent(tmp_path, monkeypatch):
+def test_engine_uses_native_history_with_the_current_narrator_last(tmp_path, monkeypatch):
     import asyncio
     from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
     from test_conversation_reply_transport import install_reply_provider
@@ -245,20 +246,15 @@ def test_engine_sends_evidence_last_without_launching_a_general_agent(tmp_path, 
         key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
     governed = encode(packet)
     captured = install_reply_provider(monkeypatch, [proposal()])
-    def forbidden(*args, **kwargs):
-        raise AssertionError('reply-v2 launched a general agent')
     result = asyncio.run(run_governed_collector(command=['fake'], home_root=tmp_path,
         base_url='http://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
-        governed=governed, interview_context=ctx, connection_factory=forbidden, publisher=FakePublisher()))
-    current = json.loads(captured[0]['input'][-1]['content'])['current']
-    context = json.loads(captured[0]['input'][1]['content'])
-    assert current['narrator'] == packet['current']['narrator']
-    assert current['sequence'] == packet['current']['sequence']
-    assert context['dialogue'] == packet['tail']
+        governed=governed, interview_context=ctx, publisher=FakePublisher()))
+    assert captured[0]['input'][-1]['content'] == packet['current']['narrator']['original']
+    context = json.loads(captured[0]['input'][1]['content'])['memoir_context']['updates']
     assert 'fence' not in context and 'identity' not in context
-    assert context['brief']['covered_through_sequence'] == 0
+    assert context['brief']['current']['covered_through_sequence'] == 0
     assert json.loads(result['reply']) == proposal()
-    assert not list(tmp_path.iterdir())
+    assert any(tmp_path.iterdir())
 
 
 def test_retired_work_hint_does_not_repair_the_reply_or_publish_a_name(tmp_path, monkeypatch):
@@ -300,8 +296,8 @@ def test_hint_quote_mismatch_is_rejected_then_repaired_without_replacing_its_evi
         validate_governed_collector_result(invalid, ctx)
     assert invalid == before
     def repaired(body):
-        assert 'CONTRACT_31' in body['input'][0]['content'][1]['text']
-        assert 'set quote=null' in body['input'][0]['content'][1]['text']
+        assert 'CONTRACT_31' in body['input'][-2]['content']
+        assert 'set quote=null' in body['input'][-2]['content']
         return valid
     captured = install_reply_provider(monkeypatch, [invalid, repaired])
     result = asyncio.run(run_governed_collector(command=['forbidden'], home_root=tmp_path,
@@ -336,12 +332,12 @@ def test_question_reason_repair_keeps_current_narration_before_optional_news_del
     invalid = {**proposal(), 'acknowledgement': acknowledgement, 'reason': 'direct_answer'}
 
     def repaired(body):
-        feedback = body['input'][0]['content'][1]['text']
+        feedback = body['input'][-2]['content']
         assert 'CONTRACT_16' in feedback and 'No-question outcome requires an explicit reason' in feedback
-        delivery = json.loads(body['input'][-1]['content'])['background_deliveries'][-1]
+        delivery = json.loads(body['input'][1]['content'])['memoir_context']['updates']['deliveries']['memoir-historical-news-research']
         clue = delivery['clues'][0]
         assert clue['id'] == ctx['historical_news']['clues'][0]['id']
-        assert json.loads(body['input'][-2]['content'])['current']['narrator']['original'] == current
+        assert body['input'][-1]['content'] == current
         return {**invalid, 'reason': 'latest_story', 'historical_clue_id': clue['id'],
             'question': 'Does that public fair connect with any memory of your neighbourhood?' if language=='en-AU'
                 else '这场公开记载的集市，会让您想起当时街坊间的什么吗？'}

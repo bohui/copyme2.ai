@@ -23,6 +23,14 @@ class CodexTurnIncomplete(RuntimeError):
     """The provider stopped without a complete output document."""
 
 
+class CodexRequestError(RuntimeError):
+    def __init__(self, method, error):
+        super().__init__('Codex app-server rejected ' + method)
+        message = str(error.get('message', '')).lower() if isinstance(error, dict) else ''
+        self.missing_thread = method == 'thread/resume' and any(value in message for value in (
+            'thread not found', 'no rollout found', 'failed to load rollout', 'thread does not exist'))
+
+
 class CodexConnection:
     def __init__(self, command, home, *, provider_env=None, timeout=120, trajectory=None,
                  issue14_admission=None, progress=None, request_admission=None, tool_handler=None):
@@ -45,6 +53,7 @@ class CodexConnection:
         self.timeout = timeout
         self.sequence = 0
         self.events = []
+        self.last_usage = None
         self.trajectory = trajectory
 
     async def __aenter__(self):
@@ -104,7 +113,7 @@ class CodexConnection:
         # response receipt. A completed drain admits in-flight work; public
         # chunks and commit still require their separate publication fences.
         data = (json.dumps(message) + '\n').encode()
-        if self.request_admission is not None and message.get('method') in {'thread/start', 'thread/resume', 'turn/start'}:
+        if self.request_admission is not None and message.get('method') in {'thread/start', 'thread/resume', 'thread/inject_items', 'turn/start'}:
             async with self.request_admission():
                 self.process.stdin.write(data)
                 await self.process.stdin.drain()
@@ -135,7 +144,7 @@ class CodexConnection:
                     if 'error' in message:
                         if self.trajectory:
                             self.trajectory.record('codex', f'response.{method}', error=message.get('error'))
-                        raise RuntimeError('Codex app-server rejected ' + method)
+                        raise CodexRequestError(method, message['error'])
                     if self.trajectory:
                         self.trajectory.record('codex', f'response.{method}', output=message.get('result'))
                     return message['result']
@@ -177,6 +186,7 @@ class CodexConnection:
         check_issue14_dispatch(self._issue14_admission, role='native',
             correlation=responsesapi_client_metadata)
         self.events.clear()
+        self.last_usage = None
         started = time.perf_counter()
         params = {'threadId': thread_id, 'input': [{'type': 'text', 'text': text}],
                   'effort': effort or configured_effort()}
@@ -233,6 +243,8 @@ class CodexConnection:
                 params = event.get('params', {})
                 if params.get('threadId') != thread_id:
                     continue
+                if event.get('method') == 'thread/tokenUsage/updated':
+                    self.last_usage = params.get('tokenUsage', {}).get('last')
                 if self.progress:
                     self.progress.observe(event.get('method'), params)
                 if on_event and event.get('method') in ('item/started', 'item/completed') and params.get('turnId') == turn_id:

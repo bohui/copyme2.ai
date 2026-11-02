@@ -333,11 +333,11 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         acknowledgement=None,repair_reason=None):
     """Generate once from canonical evidence, returning an uncommitted pointer.
 
-    No resume is currently admitted because harness transcript size is not
-    independently measurable. A missing/corrupt/old home therefore needs no
-    backup restore. Provider/auth/timeouts propagate rather than becoming a
-    false missing-state recovery. The caller keeps the same product turn and
-    publishes this candidate only after its database fence revalidation.
+    Native reply threads resume only after canonical commitment and compatible
+    source/privacy authority. Codex owns transcript compaction; new application
+    inputs remain bounded. Missing homes rebuild from authorized canonical data.
+    Provider/auth/timeouts propagate. The caller publishes this candidate only
+    after database fence revalidation.
     The admission guard covers delivery into app-server, not opaque downstream
     provider HTTP timing. Admitted work is in flight; output stays separately fenced.
     """
@@ -359,7 +359,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     if repair is not None:
         prompt = load_prompt_artifact(prompt_path('memoir/agents/mira/repair')) + json.dumps(
             {'error_code': repair_reason, 'guidance': repair}, ensure_ascii=False)
-    if acknowledgement is not None:
+    if acknowledgement is not None and (repair_reason is not None or interview_context.get('reply_contract') != 'reply-v2'):
         # A fresh-home repair must preserve the acknowledgement already shown.
         constrain_acknowledgement(output_schema, [acknowledgement])
     if (governed.budget.count(governed.packet) + governed_request_overhead(
@@ -406,8 +406,20 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
     async with AsyncExitStack() as stack:
         trace = stack.enter_context(trace_llm_call('memoir-interviewer', model, gateway=True))
         direct_reply = interview_context.get('reply_contract') == 'reply-v2'
+        session = None
         if direct_reply:
-            candidate = 'reply-' + uuid4().hex
+            from .conversation_reply_session import open_interview
+            from .interview_context_tools import InterviewContextTools
+            session, connection = await stack.enter_async_context(open_interview(
+                root=home_root, packet=packet, view=json.loads(model_packet), schema=output_schema,
+                model=model, effort=effort, base_url=base_url, api_key=api_key, command=command,
+                timeout=timeout, admission=request_admission, connection_factory=connection_factory or CodexConnection,
+                uid=uid, apply_owner=apply_owner, trajectory=trajectory, progress=progress,
+                connection_options=issue14_connection_options(issue14_admission), repair=prompt or None,
+                tools=InterviewContextTools(publisher, packet.fence),
+                context_window=governed.budget.context_window,
+                compact_at=min(60000, governed.budget.input_budget)))
+            candidate = session.thread_id
         else:
             root = Path(home_root).expanduser().resolve()
             root.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -443,13 +455,12 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                     'generation_name': 'memoir-interviewer', 'trace_name': 'memoir-interviewer'}
         update_llm_trace(trace, metadata=trace_metadata)
         if direct_reply:
-            from .conversation_reply_transport import stream_reply
-            reply, receipt = await stream_reply(view=json.loads(model_packet), prompt=prompt,
-                schema=output_schema, model=model, effort=effort, budget=governed.budget,
-                base_url=base_url, api_key=api_key, publisher=publisher, fence=packet.fence,
-                metadata=metadata, timeout=timeout, on_delta=model_delta if on_delta else None,
-                issue14_admission=issue14_admission)
-            update_llm_trace(trace, metadata={**trace_metadata, 'transport': 'responses', **receipt})
+            reply = await connection.turn(candidate, packet.current.narrator.original,
+                output_schema=output_schema, effort=effort,
+                on_delta=model_delta if on_delta else None, on_event=on_event,
+                responsesapi_client_metadata=metadata)
+            update_llm_trace(trace, metadata={**trace_metadata, 'transport': 'codex',
+                'resumed':session.resumed, 'usage':getattr(connection, 'last_usage', None)})
         else:
             reply = await connection.turn(candidate, prompt,
                 output_schema=output_schema,
@@ -513,11 +524,14 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # A legacy repair appends the invalid answer and another prompt to
             # the same transcript. That would invalidate this request budget.
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn',reason=reason) from None
+        if session is not None:
+            session.accept(validated['reply'])
     if on_delta and streamed_acknowledgement is None and (not revisable or defer_acknowledgement):
         await on_delta(json.dumps({'acknowledgement': validated['acknowledgement']}, ensure_ascii=False)
                        if defer_acknowledgement else reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
-        'cold_resume_reason':'unvalidated_transcript' if thread_id else 'missing'}
+        'cold_resume_reason':(None if session.resumed else 'missing') if session is not None
+            else ('unvalidated_transcript' if thread_id else 'missing')}
     if trajectory is not None:
         trajectory.finish(result,status='completed',stop_reason='canonical.collector.completed')
         result['trajectory']=trajectory.payload()

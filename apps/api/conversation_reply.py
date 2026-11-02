@@ -57,38 +57,15 @@ def reply_instructions():
 
 
 def reply_schema(context):
+    # Availability belongs in host validation; per-turn enums rewrite the cached prefix.
     schema = ReplyProposal.model_json_schema()
-    schema['required'] = list(schema['properties'])
-    focus_schema = schema['$defs']['WorkspaceFocus']
-    focus_schema['required'] = list(focus_schema['properties'])
     schema['properties']['acknowledgement']['pattern'] = '^[^?？]*$'
-    schema['properties']['hint']['enum'] = [None, *range(len(reply_candidates(context)))]
-    deferred = [i for i, hint in enumerate(reply_candidates(context))
-                if hint.get('scope') != 'broader' and not hint.get('historical_clue_id')]
-    if deferred:
-        schema['properties']['deferred_hints']['items']['enum'] = deferred
-    else:
-        schema['properties'].pop('deferred_hints')
-        schema['required'].remove('deferred_hints')
-    photos = authorized_photos(context)
-    if photos:
-        schema['properties']['response_photo_ids']['items']['enum'] = list(photos)
-    else:
-        for field in ('associations', 'response_photo_ids'):
-            schema['properties'].pop(field)
-            schema['required'].remove(field)
-        schema['$defs'].pop('PhotoAssociation')
-    from .historical_news import ready_clues
-    clues = [clue['id'] for clue in ready_clues(context)]
-    if clues:
-        schema['properties']['historical_clue_id']['enum'] = [None, *clues]
-    else:
-        schema['properties'].pop('historical_clue_id')
-        schema['required'].remove('historical_clue_id')
-    schema = resolution_schema(schema, context)
     def compact(value):
         if isinstance(value, dict):
-            return {key: compact(child) for key, child in value.items() if key not in {'title', 'default'}}
+            result = {key: compact(child) for key, child in value.items() if key not in {'title', 'default'}}
+            if result.get('type') == 'object' and 'properties' in result:
+                result['required'] = list(result['properties'])
+            return result
         return [compact(child) for child in value] if isinstance(value, list) else value
     return compact(schema)
 
@@ -96,7 +73,7 @@ def reply_schema(context):
 def adapt_reply(raw, context):
     # Older workers can still send the retired handoff; it has no routing authority.
     item = ReplyProposal.model_validate({key: value for key, value in raw.items() if key != 'work'})
-    if not authorized_photos(context) and {'associations', 'response_photo_ids'} & raw.keys():
+    if not authorized_photos(context) and (item.associations or item.response_photo_ids):
         raise ValueError('Unavailable photo fields must be omitted')
     name = None
     source = context.get('source') or {}
@@ -231,7 +208,8 @@ def reply_packet(packet):
         current=packet.current.model_dump(mode='json'),
         dialogue=[entry.model_dump(mode='json') for entry in packet.tail],
         preferences=packet.pinned.model_dump(mode='json'),
-        original_evidence=[ref.model_dump(mode='json') for ref in packet.retrieved],
+        original_evidence=[ref.model_dump(mode='json') for ref in
+            [*(checkpoint.evidence if checkpoint else []), *packet.retrieved]],
         brief=dict(covered_through_sequence=packet.coverage_end,
                    hint_order='highest_priority_first',
                    objective=(state.get('plan') or {}).get('objective'),

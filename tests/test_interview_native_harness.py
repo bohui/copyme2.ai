@@ -1,0 +1,77 @@
+"""Actual Codex binary, scripted loopback provider, two persistent interview turns."""
+import asyncio
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import json
+import shutil
+import threading
+
+import pytest
+
+from apps.api.codex_agent import CodexConnection
+from apps.api.conversation_reply import reply_packet
+from apps.api.conversation_reply_session import open_interview
+from test_interview_native_session import admission, packets
+
+
+@pytest.mark.skipif(not shutil.which('codex'), reason='Codex app-server is not installed')
+def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp_path):
+    requests = []
+    first, second, _, delivered = packets()
+    class Provider(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            if self.headers.get('Transfer-Encoding') == 'chunked':
+                chunks = []
+                while size := int(self.rfile.readline().strip(), 16):
+                    chunks.append(self.rfile.read(size))
+                    self.rfile.read(2)
+                self.rfile.readline()
+                raw = b''.join(chunks)
+            else:
+                raw = self.rfile.read(int(self.headers['Content-Length']))
+            body = json.loads(raw)
+            requests.append(body)
+            ordinal = len(requests)
+            item = dict(type='message', id=f'message-{ordinal}', role='assistant', status='completed',
+                phase='final_answer', content=[dict(type='output_text', text=json.dumps({'reply': delivered}), annotations=[])])
+            response = dict(id=f'resp-{ordinal}', object='response', status='completed',
+                model='gpt-6.1-sol', output=[item], usage=dict(input_tokens=100, output_tokens=20, total_tokens=120))
+            events = [dict(type='response.created', response={**response, 'status': 'in_progress', 'output': []}),
+                dict(type='response.output_item.added', output_index=0, item=item),
+                dict(type='response.output_item.done', output_index=0, item=item),
+                dict(type='response.completed', response=response)]
+            wire = ''.join('data: ' + json.dumps(event) + '\n\n' for event in events).encode()
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Content-Length', str(len(wire)))
+            self.end_headers()
+            self.wfile.write(wire)
+    server = ThreadingHTTPServer(('127.0.0.1', 0), Provider)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    schema = dict(type='object', properties=dict(reply=dict(type='string')), required=['reply'], additionalProperties=False)
+    async def run():
+        for index, packet in enumerate((first, second)):
+            async with open_interview(root=tmp_path, packet=packet, view=reply_packet(packet), schema=schema,
+                model='gpt-6.1-sol', effort='low', base_url=f'http://127.0.0.1:{server.server_port}/v1',
+                api_key='synthetic-loopback-key', command=[shutil.which('codex'), 'app-server'], timeout=20,
+                admission=admission, connection_factory=CodexConnection) as (session, connection):
+                assert session.resumed == bool(index)
+                output = await connection.turn(session.thread_id, packet.current.narrator.original,
+                    output_schema=schema, effort='low')
+                assert json.loads(output)['reply'] == delivered
+                session.accept(delivered)
+    try:
+        asyncio.run(run())
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+    assert len(requests) == 2
+    assert requests[1]['input'][:len(requests[0]['input'])] == requests[0]['input']
+    assert requests[0]['text'] == requests[1]['text']
+    messages = [item for item in requests[1]['input'] if item.get('type') == 'message']
+    assert any(item.get('role') == 'assistant' and delivered in json.dumps(item) for item in messages)
+    assert sum(first.current.narrator.original in json.dumps(item) for item in messages) == 1
