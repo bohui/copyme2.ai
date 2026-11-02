@@ -397,8 +397,9 @@ export function createPlaceWorkspace({
     render();
   }
 
-  function workspacePlaceGroups(places) {
-    const entries = mergePlaces([...places, ...(state.placeJourney?.preview ? [state.placeJourney] : [])], profile(), state.chat || []);
+  function workspacePlaceGroups(places, eventPlaces = []) {
+    const entries = [...mergePlaces([...places,...eventPlaces, ...(state.placeJourney?.preview ? [state.placeJourney] : [])], profile(), state.chat || []),
+      ...new Map(eventPlaces.filter(place => place.granularity === "landmark").map(place => [placeHistoryKey(place),place])).values()];
     return groupPlaces(entries.map(place => {
       const record = placeGroupRecords.get(`${state.project?.id}:${currentUiLocale()}:${placeHistoryKey(place)}`);
       return record && record.language === currentUiLocale() && record.input === JSON.stringify(publicPlaceFields(place))
@@ -451,7 +452,7 @@ export function createPlaceWorkspace({
       }
     }
     if (changed) queueMicrotask(render);
-    return workspacePlaceGroups([...(profile().memory_places || []),...eventPlaces]);
+    return workspacePlaceGroups(profile().memory_places || [], eventPlaces);
   }
 
   function groupChoices(groups) {

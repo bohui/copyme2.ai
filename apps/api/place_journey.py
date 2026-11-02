@@ -16,6 +16,10 @@ class CoarsePlace(BaseModel):
     granularity: Literal['country', 'region', 'city', 'suburb']
 
 
+class EventLocation(CoarsePlace):
+    granularity: Literal['country', 'region', 'city', 'suburb', 'landmark']
+
+
 class PlaceResearchWindow(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     year_start: int = Field(ge=1800, le=2100)
@@ -62,6 +66,9 @@ DETAILED_PLACE = re.compile(
     r"|\b(?:hospital|school|university|college|station|street|road|lane|avenue|building|compound)\b(?:\s+\d+)?$",
     re.IGNORECASE,
 )
+PRIVATE_PLACE = re.compile(
+    r"(?:家属院|小区|大厦|大楼|街|路|巷)(?:\d+号)?$"
+    r"|\b(?:street|road|lane|avenue|building|compound)\b(?:\s+\d+)?$", re.IGNORECASE)
 SCHEMA_VERSION = 1
 PERSISTED_FIELDS = (
     "place",
@@ -122,7 +129,16 @@ def extract_place_journeys(text: str) -> tuple[str, list[dict[str, Any]]]:
 
 
 def validate_place_journey(raw: Any) -> dict[str, Any] | None:
-    """Validate and normalise the browser-facing place journey schema."""
+    """Validate and normalise a coarse workspace journey."""
+    return _validate_place(raw, allow_landmark=False)
+
+
+def validate_event_location(raw: Any) -> dict[str, Any] | None:
+    """Events can name public landmarks as well as administrative places."""
+    return _validate_place(raw, allow_landmark=True)
+
+
+def _validate_place(raw: Any, *, allow_landmark: bool) -> dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
 
@@ -133,20 +149,23 @@ def validate_place_journey(raw: Any) -> dict[str, Any] | None:
     place = _text(raw.get("place"), MAX_PLACE_CHARS)
     hierarchy = raw.get("hierarchy")
     granularity = raw.get("granularity")
+    landmark = allow_landmark and granularity == "landmark"
     if (not place or _normalize_for_match(place) in GENERIC_PLACES
-            or DETAILED_PLACE.search(place) or not isinstance(hierarchy, list) or not hierarchy):
+            or (not landmark and DETAILED_PLACE.search(place)) or not isinstance(hierarchy, list) or not hierarchy):
         return None
     if len(hierarchy) > MAX_HIERARCHY_ITEMS or not isinstance(granularity, str):
         return None
     labels = [_text(item, MAX_PLACE_CHARS) for item in hierarchy]
     if any(not item for item in labels) or labels[0].casefold() not in {"earth", "地球"}:
         return None
-    if any(_normalize_for_match(label) in GENERIC_PLACES or DETAILED_PLACE.search(label)
-           for label in labels[1:]):
+    if any(_normalize_for_match(label) in GENERIC_PLACES for label in labels[1:]) or any(
+            DETAILED_PLACE.search(label) for label in (labels[1:-1] if landmark else labels[1:])):
+        return None
+    if landmark and PRIVATE_PLACE.search(place):
         return None
     labels[0] = "Earth"
     granularity = granularity.strip().casefold()
-    if granularity not in GRANULARITIES:
+    if granularity not in GRANULARITIES and not landmark:
         return None
 
     payload: dict[str, Any] = {

@@ -348,7 +348,7 @@ async def _selected_place_news(authorization, project_id, place, period):
 
 @router.post('/places/{project_id}/groups')
 async def project_place_groups(project_id: str, payload: dict, authorization: str | None = Header(default=None)):
-    from .place_journey import validate_place_journey
+    from .place_journey import validate_event_location
     from .background_skills import group_places, action_turn
     storage=await asyncio.to_thread(authenticated_storage,authorization)
     try:
@@ -357,7 +357,7 @@ async def project_place_groups(project_id: str, payload: dict, authorization: st
         raw=payload.get('places')
         if not isinstance(raw,list) or len(raw)>1000:
             raise HTTPException(422,'Invalid place group input')
-        places=[validate_place_journey(item) for item in raw]
+        places=[validate_event_location(item) for item in raw]
         if any(item is None for item in places):raise HTTPException(422,'Invalid place group input')
         turn=await action_turn(storage,project_id,payload.get('client_turn_id'))
         return await group_places(storage.user_id,project_id,places,client_turn_id=turn,language=payload.get('language'))

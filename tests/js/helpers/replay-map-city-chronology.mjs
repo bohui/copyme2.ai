@@ -33,9 +33,9 @@ assert.deepEqual(cities.map(city=>city.count),[2,1,1]);
 for (const city of cities) {
   const html=memoryEventCardMarkup(city,{t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),
     lifeStageText:stage=>stage});
-  assert.ok(html.includes(`<strong class="map-memory-summary">${city.city}</strong>`));
+  assert.ok(html.includes(`<strong class="map-memory-summary"><span data-memory-text>${city.city}</span></strong>`));
   if (with_estimates || city.city==='Chengde') assert.match(html,/From .+ to .+/);
-  else assert.match(html,/<span class="map-memory-date">\?<\/span>/);
+  else assert.match(html,/<span class="map-memory-date"><span data-memory-text>\?<\/span><\/span>/);
   assert.doesNotMatch(html,/Year not yet known|Age not yet known/);
   assert.match(html,/data-memory-city=[^>]+>Expand memories<\/button>/);
   assert.match(html,/data-memory-add[^>]*>Add a memory<\/button>/);
@@ -56,7 +56,7 @@ for (const node of journey.nodes) {
     assert.match(html,/About \d{4}–\d{4} · About age \d+–\d+/);
     assert.ok(!('basis' in node.event.temporal_estimate));
   } else {
-    assert.match(html,/<span class="map-memory-date">\?<\/span>/);
+    assert.match(html,/<span class="map-memory-date"><span data-memory-text>\?<\/span><\/span>/);
   }
   assert.ok(!('source_refs' in node.event));
 }

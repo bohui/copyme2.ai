@@ -1228,3 +1228,6 @@ body:has(.story-shell #chat-scroll) { overflow: hidden; }
 .section-rework-form { display: grid; gap: 8px; margin-top: 12px; }
 .section-rework-form textarea { width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; resize: vertical; }
 .workspace-task-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+
+.map-memory-description:has(> [data-memory-text]:empty),
+.map-memory-location:has(> [data-memory-text]:empty) { display: none; }

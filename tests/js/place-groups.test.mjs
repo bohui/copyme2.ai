@@ -171,3 +171,14 @@ test('map markup shows city choices and independent pending pin labels', () => {
   assert.doesNotMatch(markup, /place-journey-toolbar|place-journey-status|place-map-link|approximate|exploreMap/);
   assert.doesNotMatch(markup, /data-place-choice=/);
 });
+
+
+test('an unresolved landmark keeps the known city view without acquiring a precise pin',()=>{
+  const hospital={place:'承德市附属医院',hierarchy:[...city.hierarchy,'承德市附属医院'],granularity:'landmark'};
+  const unresolved={...hospital,map_pin:null,map_city:hospital,map_city_key:'unresolved-hospital'};
+  const groups=groupPlaces([city,unresolved]);
+  assert.equal(groups.length,1);
+  assert.equal(groups[0].city.place,'承德');
+  assert.deepEqual(groupMapPins(groups[0]).map(pin=>pin.place),['承德']);
+  assert.equal(groups[0].members[1].place,'承德市附属医院');
+});

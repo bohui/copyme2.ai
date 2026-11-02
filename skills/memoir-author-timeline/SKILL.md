@@ -37,13 +37,24 @@ and continuation of an existing event. Cite original narrator evidence for each
 placement; assistant wording remains context only.
 
 Return locationConfidenceScore and yearConfidenceScore from 0 to 1 for EVERY
-proposed event. Select the most plausible city using the authorized originals,
+proposed event. Select the most specific supported event setting using the authorized originals,
 including earlier conversation and saved event context, and cite the exact
 context clues in location_basis. The location object has place, granularity and hierarchy;
 hierarchy begins with the literal "Earth" and ends with the identical place
 label, for example ["Earth", "Australia", "Tasmania", "Hobart"]. Use 1 for an
 explicit unambiguous placement and a score below 0.5 for a weak guess.
-For scores of at least 0.2, the city label must appear verbatim in location_basis.
+For scores of at least 0.2, the place label must appear verbatim in location_basis.
+Use suburb for a named town/neighbourhood and landmark for a named public
+hospital, school or other public point of interest. Keep the containing city in
+the hierarchy. For “出生在河北省承德市附属医院”, location.place is “承德市附属医院”,
+with hierarchy ["Earth","中国","河北省","承德市","承德市附属医院"] and granularity
+landmark. For a later clarification “承德师范，当时在大石庙镇”, update the existing
+childhood event's location to “大石庙镇” under 承德市, granularity suburb. Retain the
+stated historical name; a public map resolves coordinates separately. Household,
+building-unit and room details stay in the narrative; an unnamed hospital or
+school compound supplies no landmark identity. City-only context stays city-level
+until originals support a finer setting. Preserve detailed placements on later
+continuations. place_journeys remain separate coarse city-level workspace cues.
 When only a country or broader setting is plausible, still choose a provisional
 real city within that setting, preferring the narrator's known places. Give this
 city a confidence strictly between 0 and 0.2, typically 0.05–0.15. Its name need

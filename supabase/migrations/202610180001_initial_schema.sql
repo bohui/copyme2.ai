@@ -3049,7 +3049,7 @@ begin
         and jsonb_typeof(proposal->'uncertainty')='string' and length(btrim(proposal->>'uncertainty'))>0,false);
       perform public.validate_two_lane_places((select string_agg(value->>'quote',E'\n')
         from jsonb_array_elements(coalesce(proposal->'location_basis','[]'))),
-        jsonb_build_array(jsonb_build_object('schema_version',1)||(proposal->'location')),0,not contextual_city);
+        jsonb_build_array(jsonb_build_object('schema_version',1)||(proposal->'location')),0,not contextual_city,true);
       if not contextual_city and not exists(select 1 from jsonb_array_elements(coalesce(proposal->'location_basis','[]')) basis_item
           where strpos(basis_item->>'quote',proposal->'location'->>'place')>0) then
         raise exception 'location requires original evidence' using errcode='22023';end if;
@@ -4917,8 +4917,8 @@ begin
        or proposal is null or coalesce(item->>'role','') not in ('setting','origin','destination')
        or exists(select 1 from jsonb_object_keys(item->'place') k where k not in ('place','hierarchy','granularity')) then
        raise exception 'invalid selective event place' using errcode='22023';end if;
-     perform public.validate_two_lane_places(ref->>'quote',jsonb_build_array(item->'place'||'{"schema_version":1}'),coalesce((ref->>'char_start')::integer,0));
-     if exists(select 1 from jsonb_array_elements_text(item->'place'->'hierarchy') label where
+     perform public.validate_two_lane_places(ref->>'quote',jsonb_build_array(item->'place'||'{"schema_version":1}'),coalesce((ref->>'char_start')::integer,0),true,true);
+     if item->'place'->>'granularity'<>'landmark' and exists(select 1 from jsonb_array_elements_text(item->'place'->'hierarchy') label where
        label ~* '(医院|学校|大学|学院|车站|家属院|小区|大厦|大楼|街|路|巷)([0-9]+号)?$|\m(hospital|school|university|college|station|street|road|lane|avenue|building|compound)\M(\s+[0-9]+)?$') then
        raise exception 'public coarse geography required' using errcode='22023';end if;
      select min(e.id),count(*) into selected_event,matches from public.user_memory_event e
@@ -13348,7 +13348,7 @@ begin
 end $$;
 revoke all on function public.validate_place_research_window(text,jsonb,integer) from public,anon,authenticated,service_role;
 
-CREATE FUNCTION public.validate_two_lane_places(p_source_text text, p_journeys jsonb, p_source_offset integer DEFAULT 0, p_require_named boolean DEFAULT true) RETURNS void
+CREATE FUNCTION public.validate_two_lane_places(p_source_text text, p_journeys jsonb, p_source_offset integer DEFAULT 0, p_require_named boolean DEFAULT true, p_allow_landmark boolean DEFAULT false) RETURNS void
     LANGUAGE plpgsql
     SET search_path TO ''
     AS $$
@@ -13369,8 +13369,16 @@ begin
      or journey->'hierarchy'->>-1 is distinct from journey->>'place'
      or exists(select 1 from jsonb_array_elements(journey->'hierarchy') label
        where jsonb_typeof(label) is distinct from 'string' or length(label#>>'{}') not between 1 and 120)
-     or coalesce(journey->>'granularity','') not in ('country','region','city','suburb')
+     or not (coalesce(journey->>'granularity','') in ('country','region','city','suburb')
+       or p_allow_landmark and journey->>'granularity'='landmark')
      then raise exception 'grounded coarse place journey required' using errcode='22023'; end if;
+   if journey->>'granularity'='landmark' and (
+     lower(btrim(journey->>'place')) in ('医院','学校','家属院','小区','车站','hospital','school','station','school compound','residential compound','family compound')
+     or journey->>'place' ~* '(家属院|小区|大厦|大楼|街|路|巷)([0-9]+号)?$|\m(street|road|lane|avenue|building|compound)\M(\s+[0-9]+)?$'
+     or exists(select 1 from jsonb_array_elements_text(journey->'hierarchy') with ordinality parent(label,ordinal)
+       where ordinal<jsonb_array_length(journey->'hierarchy') and
+       label ~* '(医院|学校|大学|学院|中学|小学|车站|家属院|小区|大厦|大楼|街|路|巷)([0-9]+号)?$|\m(hospital|school|university|college|station|street|road|lane|avenue|building|compound)\M(\s+[0-9]+)?$')) then
+     raise exception 'public named landmark required' using errcode='22023';end if;
    if (journey ? 'latitude') is distinct from (journey ? 'longitude')
      or (journey ? 'latitude' and (jsonb_typeof(journey->'latitude') is distinct from 'number'
        or jsonb_typeof(journey->'longitude') is distinct from 'number'
@@ -14496,7 +14504,7 @@ revoke all on function public.validate_lifetime_replay_input(uuid, uuid, text, t
 revoke all on function public.validate_memory_evidence(uuid, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.validate_memory_temporal(uuid, text, jsonb) from public,anon,authenticated,service_role;
 revoke all on function public.validate_memory_temporal_before_attribution(uuid, text, jsonb) from public,anon,authenticated,service_role;
-revoke all on function public.validate_two_lane_places(text, jsonb, integer, boolean) from public,anon,authenticated,service_role;
+revoke all on function public.validate_two_lane_places(text, jsonb, integer, boolean, boolean) from public,anon,authenticated,service_role;
 revoke all on function public.verify_lifetime_chosen_name_write() from public,anon,authenticated,service_role;
 revoke all on function public.workspace_progressive_rework_section(public.user_workspace_section_rework) from public,anon,authenticated,service_role;
 revoke all on function public.workspace_progressive_section_current(public.user_lifetime_memoir_section) from public,anon,authenticated,service_role;

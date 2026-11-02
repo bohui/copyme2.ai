@@ -439,7 +439,7 @@ test('an unlocated memory appears on the map only once its location is confirmed
   memory.places=[{role:'setting',status:'supported',place:chengde}];
   refresh();
   assert.equal(map.nodes().length,1);
-  assert.match(cards.innerHTML,/<strong class="map-memory-summary">Chengde<\/strong>/);
+  assert.match(cards.innerHTML,/<strong class="map-memory-summary"><span data-memory-text>Chengde<\/span><\/strong>/);
   assert.doesNotMatch(cards.innerHTML,/data-memory-explore/);
   zoom(chengde);
   assert.equal((cards.innerHTML.match(/data-memory-explore="School compound"/g)||[]).length,1);

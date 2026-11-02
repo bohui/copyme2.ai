@@ -55,7 +55,10 @@ def resolve_place_groups(places, *, allow_provider=True, language=None):
             lookups += 1
             try:
                 query = ', '.join(reversed(_path(place)))
-                details = search_place_details(query, language=language) if language else search_place_details(query)
+                options = {'language': language} if language else {}
+                if place['granularity'] == 'landmark':
+                    options['landmark'] = True
+                details = search_place_details(query, **options)
             except (GeocodingUnavailable, httpx.HTTPError, ValueError, TypeError):
                 provider_available = False
         if details:

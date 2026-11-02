@@ -28,7 +28,7 @@ def geo_provider() -> str:
     return os.environ.get("MEMOIR_GEO_PROVIDER", "google").strip().lower() or "google"
 
 
-def _geoapify_trusted_fields(record: dict, rank: dict):
+def _geoapify_trusted_fields(record: dict, rank: dict, landmark=False):
     confidences = [rank.get('confidence')]
     if record.get('city') and 'confidence_city_level' in rank:
         confidences.append(rank['confidence_city_level'])
@@ -36,11 +36,13 @@ def _geoapify_trusted_fields(record: dict, rank: dict):
         if (not isinstance(confidence, (int, float)) or isinstance(confidence, bool)
                 or not math.isfinite(confidence) or not GEOAPIFY_MIN_CONFIDENCE <= confidence <= 1):
             return None
+    if landmark and record.get('result_type') in {'amenity', 'building'}:
+        return ('name',)
     return GEOAPIFY_RESULT_FIELDS.get(record.get('result_type'))
 
 
-def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
-    target_fields = _geoapify_trusted_fields(record, rank)
+def _geoapify_matches_query(record: dict, rank: dict, query: str, landmark=False) -> bool:
+    target_fields = _geoapify_trusted_fields(record, rank, landmark)
     labels = [geographic_label(label) for label in query.split(',') if label.strip()]
     if not target_fields or not labels:
         return False
@@ -61,7 +63,7 @@ def _geoapify_matches_query(record: dict, rank: dict, query: str) -> bool:
 
 
 @lru_cache(maxsize=1024)
-def _geocode_record(provider: str, query: str, language: str | None = None):
+def _geocode_record(provider: str, query: str, language: str | None = None, landmark=False):
     if provider == "google":
         api_key = os.environ.get("GOOGLE_MAPS_GEOCODING_API_KEY", "").strip()
         url = os.environ.get("GOOGLE_MAPS_GEOCODING_URL", GOOGLE_GEOCODING_URL)
@@ -118,7 +120,8 @@ def _geocode_record(provider: str, query: str, language: str | None = None):
         if prefecture.endswith('市'):
             city = prefecture
         region, country = components.get('administrative_area_level_1', ''), components.get('country', '')
-        partial_match = bool(record.get('partial_match'))
+        partial_match = bool(record.get('partial_match')) or landmark and not set(record.get('types', [])).intersection(
+            {'establishment', 'point_of_interest', 'premise', 'hospital', 'school', 'university'})
         attribution = 'Google Maps'
     else:
         city = (record.get('city') or record.get('municipality') or record.get('town')
@@ -130,11 +133,11 @@ def _geocode_record(provider: str, query: str, language: str | None = None):
         place_id = record.get('place_id')
         identity = (place_id, record.get('result_type')) if isinstance(place_id, str) and place_id.strip() else None
         partial_match = rank.get('match_type') != 'full_match'
-        if not _geoapify_matches_query(record, rank, query):
+        if not _geoapify_matches_query(record, rank, query, landmark):
             # Translate only the same provider feature; nearby places can have different levels and identities.
-            if not language or not _geoapify_trusted_fields(record, rank):
+            if not language or not _geoapify_trusted_fields(record, rank, landmark):
                 return None
-            canonical = _geocode_record(provider, query, None)
+            canonical = _geocode_record(provider, query, None, landmark)
             if not identity or not canonical or canonical.get('_geoapify_identity') != identity:
                 return None
             latitude, longitude = canonical['latitude'], canonical['longitude']
@@ -149,7 +152,7 @@ def _geocode_record(provider: str, query: str, language: str | None = None):
 
 def search_place(query: str):
     provider = geo_provider()
-    record = _geocode_record(provider, query, None)
+    record = _geocode_record(provider, query, None, False)
     if record and provider == 'geoapify' and record['partial_match']:
         return None
     return {'latitude': record['latitude'], 'longitude': record['longitude'],
@@ -159,9 +162,9 @@ def search_place(query: str):
 search_place.cache_clear = _geocode_record.cache_clear
 
 
-def search_place_details(query: str, *, language: str | None = None):
+def search_place_details(query: str, *, language: str | None = None, landmark=False):
     """Public administrative membership; partial results are not precise pins."""
-    record = _geocode_record(geo_provider(), query, language)
+    record = _geocode_record(geo_provider(), query, language, landmark)
     if not record:
         return None
     details = dict(record)

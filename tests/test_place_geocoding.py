@@ -457,3 +457,25 @@ def test_grouping_metadata_shares_map_cache_and_preserves_partial_match(monkeypa
     assert details['region'] == '河北省'
     assert calls == [TOWN_QUERY]
     geo.search_place.cache_clear()
+
+
+@pytest.mark.parametrize('provider',['google','geoapify'])
+def test_event_landmarks_require_a_matching_public_feature_not_just_a_city(monkeypatch,provider):
+    monkeypatch.setenv('MEMOIR_GEO_PROVIDER',provider)
+    monkeypatch.setenv('GOOGLE_MAPS_GEOCODING_API_KEY' if provider=='google' else 'GEOAPIFY_API_KEY','synthetic')
+    query='承德市附属医院, 承德市, 河北省, 中国'
+    def response(feature):
+        record=({'geometry':{'location':{'lat':40.966,'lng':117.95}},
+                 'types':['hospital','point_of_interest'] if feature else ['locality'],
+                 'address_components':[{'long_name':'承德市','types':['locality']}]}
+                if provider=='google' else dict(name='承德市附属医院' if feature else '承德市',
+                 result_type='amenity' if feature else 'city',lat=40.966,lon=117.95,
+                 city='承德市',state='河北省',country='中国',rank=dict(confidence=1.,match_type='full_match')))
+        return httpx.Response(200,json={'status':'OK','results':[record]},request=httpx.Request('GET','https://fixture.invalid'))
+    monkeypatch.setattr(httpx,'get',lambda *a,**k:response(True))
+    details=geo.search_place_details(query,landmark=True)
+    assert details and not details['partial_match'] and details['latitude']==40.966
+    geo.search_place.cache_clear()
+    monkeypatch.setattr(httpx,'get',lambda *a,**k:response(False))
+    details=geo.search_place_details(query,landmark=True)
+    assert details is None or details['partial_match'], 'A city match cannot authorize a hospital pin'

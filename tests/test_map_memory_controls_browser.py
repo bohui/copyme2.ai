@@ -29,12 +29,12 @@ const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(c
   camera:{frustum:{left:-100000,right:100000},flyTo(){}}};
 const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
   SceneTransforms:{worldToWindowCoordinates:()=>({x:scene.clientWidth*.7,y:scene.clientHeight*.6})}};
-const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([city]),getProfile:()=>({birth_year:1983}),
-  getScope:()=> 'fixture',getStage:()=> 'all',lifeStageText:stage=>stage,
+const map=createMapMemoryEvents({getEvents:()=>events,getGroups:places=>groupPlaces([city,...places.filter(place=>place.place!==city.place)]),getProfile:()=>({birth_year:1983}),
+  getScope:()=> 'fixture:'+events[0].revision,getIdentity:()=> 'fixture',getStage:()=> 'all',lifeStageText:stage=>stage,
   getPage:()=>({next_cursor:'fixture-next'}),
   t:(key,values)=>({mapMemoryJourney:'人生足迹',mapMemoryOverview:'完整旅程',mapEventExpand:'展开记忆'}[key]||key)});
 map.sync(scene);
-window.mapControls={attach(){map.attach(viewer,cesium);},arrive(){scene.classList.add('is-cesium-map');redraw();},
+window.mapControls={update(patch){Object.assign(events[0],patch);map.sync(scene);},attach(){map.attach(viewer,cesium);},arrive(){scene.classList.add('is-cesium-map');redraw();},
   redraw(){redraw();}};
 addEventListener('resize',()=>redraw());
 </script></html>'''
@@ -137,7 +137,7 @@ const entries=[chengde,sydney].map((place,index)=>({...place,pictures:[{asset_id
   image_url:`/static/album-fixture-${index}.svg`,date_expression:'1983',latitude:place.latitude,longitude:place.longitude,
   allowed_actions:{embed:true}}]}));
 const state={project:{id:'fixture',profile:{memory_places:entries,birth_year:1983}},supabase:{user:{id:'owner'}},
-  lifeStage:'all',chat:[],timeline:[{id:'birth',canonical:true,revision:1,status:'active',kind:'event',life_stage:'baby',
+  lifeStage:'all',chat:[],workspaceFocus:{place:'Chengde',source_sequence:1},timeline:[{id:'birth',canonical:true,revision:1,status:'active',kind:'event',life_stage:'baby',
   title:'Born in Chengde',temporal:{expression:'1983',precision:'year',year_start:1983},
   places:[{role:'setting',status:'supported',place:chengde}]}]};
 const dependencies={state,profile:()=>state.project.profile,render(){},lifeStageText:stage=>stage,
@@ -257,3 +257,44 @@ def test_both_lists_stay_while_the_100_km_city_circle_touches_the_view(controls_
         page.evaluate('span=>mapAlbums.view("far",span)', span)
         assert page.locator('.map-memory-card:visible').count() == 0
         assert page.locator('[data-photo-album]:visible').count() == 0
+
+
+def test_event_card_keeps_its_dom_while_only_changed_text_fades(controls_page):
+    page=controls_page
+    page.goto('http://map-controls.invalid/')
+    page.wait_for_function('window.mapControls')
+    page.evaluate('mapControls.attach();mapControls.arrive()')
+    page.locator('[data-memory-city]').click()
+    page.wait_for_selector('[data-memory-explore="birth"]')
+    page.evaluate("""() => {
+      window.originalCard=document.querySelector('.map-memory-card');
+      window.originalTitle=document.querySelector('.map-memory-summary');
+      window.originalText=originalTitle.querySelector('[data-memory-text]').firstChild;
+      window.originalExplore=document.querySelector('[data-memory-explore="birth"]');originalExplore.focus();
+      mapControls.update({revision:2,title:'Birth at hospital',summary:'A happy childhood by the river.',
+        temporal:{expression:'1984',precision:'year',year_start:1984},
+        places:[{role:'setting',status:'supported',place:{place:'Chengde Hospital',granularity:'landmark',
+          hierarchy:['Earth','China','Chengde','Chengde Hospital'],latitude:40.96,longitude:117.95}}]});
+    }""")
+    assert page.evaluate("originalCard===document.querySelector('.map-memory-card')"), 'Updating an event replaced its whole card'
+    assert page.evaluate("originalTitle===document.querySelector('.map-memory-summary')")
+    page.wait_for_function("document.querySelector('.map-memory-summary').textContent==='Birth at hospital'")
+    assert page.evaluate("document.querySelector('.map-memory-summary').getAnimations({subtree:true}).length>0")
+    assert page.evaluate("document.querySelector('.map-memory-card').getAnimations().length===0")
+    page.wait_for_timeout(450)
+    assert page.locator('.map-memory-location').inner_text()=='Chengde Hospital'
+    assert '1984' in page.locator('.map-memory-date').inner_text()
+    assert page.evaluate("originalCard===document.querySelector('.map-memory-card')")
+    page.evaluate("mapControls.update({revision:3,title:'Birth in hospital',summary:'A happy childhood beside the river.'})")
+    assert page.evaluate("[...document.querySelectorAll('.memory-text-change')].every(span=>!span.textContent.includes('Birth')&&!span.textContent.includes('happy childhood'))")
+    page.evaluate("mapControls.update({revision:4,title:'Birth near hospital',summary:'A happy childhood beside the school.'})")
+    page.wait_for_timeout(450)
+    assert page.locator('.map-memory-summary').inner_text()=='Birth near hospital'
+    assert page.locator('.map-memory-description').inner_text()=='A happy childhood beside the school.'
+    assert page.locator('.memory-text-change').count()==0
+    assert page.evaluate("originalText===originalTitle.querySelector('[data-memory-text]').firstChild")
+    assert page.evaluate("document.activeElement===originalExplore")
+    page.emulate_media(reduced_motion='reduce')
+    page.evaluate("mapControls.update({revision:5,title:'Born here'})")
+    assert page.locator('.map-memory-summary').inner_text()=='Born here'
+    assert page.locator('.memory-text-change').count()==0

@@ -28,7 +28,7 @@ if (relative_current_home) {
     assert.equal(home.event.temporal_anchor,'present');
     assert.ok(!('source_refs' in home.event),'Relative order must not expose original testimony');
   }
-  const cards={innerHTML:'',scrollTop:0,getBoundingClientRect:()=>({top:0,bottom:700})};
+  const cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
   const toolbar={innerHTML:''},overflow={replaceChildren(){}};
   const canvas={getContext:()=>new Proxy({},{get:()=>()=>{}})};
   const layer={isConnected:true,classList:{toggle(){}},addEventListener(){},querySelectorAll:()=>[],
