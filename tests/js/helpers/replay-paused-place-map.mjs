@@ -6,10 +6,11 @@ import {cityEventCards} from '../../../apps/web/client/memoir/map-memory-journey
 const {project_id,events,links,snapshot} = JSON.parse(readFileSync(0,'utf8'));
 const state = {project:{id:project_id,profile:{memory_places:snapshot.places}},
   timeline:events.map(event=>({...event,canonical:true})),lifeStage:'all',chat:[],supabase:{accessToken:'fixture'}};
-const cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[]};
+const cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
 const toolbar={innerHTML:''},overflow={replaceChildren(){}};
 const canvas={getContext:()=>new Proxy({},{get:()=>()=>{}})};
 const layer={isConnected:true,classList:{toggle(){}},addEventListener(){},querySelectorAll:()=>[],
+  getBoundingClientRect:()=>({left:0,top:0}),
   querySelector:selector=>({canvas,'.map-memory-cards':cards,'.map-memory-toolbar':toolbar,'.map-memory-overflow':overflow}[selector])};
 const scene={isConnected:true,clientWidth:600,clientHeight:700,classList:{toggle(){},contains:()=>true},
   querySelector:()=>layer};
@@ -20,6 +21,7 @@ const workspace=createPlaceWorkspace({state,profile:()=>state.project.profile,re
   photos:{bindPhotoMemoryActions(){},photoRequestKey:()=>'',pictureWall:()=>'',workspacePictureItems:()=>[]},
   storyApi:async path=>({items:links[events.find(event=>path.includes(event.id)).id]}),
   supabaseApi:async()=>{assert.fail('Supported saved coordinates must not require another geocoding request');}});
+workspace.mapPhotoAlbums.sync=()=>{};
 const map=workspace.mapMemoryEvents;
 map.sync(null);
 await new Promise(resolve=>setImmediate(resolve));
@@ -31,6 +33,6 @@ map.attach({isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){}
     west:80*Math.PI/180,east:170*Math.PI/180,south:-60*Math.PI/180,north:60*Math.PI/180})}},
   {SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
     SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:point.longitude*2,y:350-point.latitude*2})}});
-assert.match(cards.innerHTML,/map-memory-summary">悉尼</);
-assert.match(cards.innerHTML,/map-memory-summary">承德市</);
+assert.match(cards.innerHTML,/map-memory-summary"><span data-memory-text>悉尼</);
+assert.match(cards.innerHTML,/map-memory-summary"><span data-memory-text>承德市</);
 map.dispose();
