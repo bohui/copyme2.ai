@@ -55,6 +55,7 @@ const state = {
   pendingConversationTurn: null,
   preview: null,
   chat: [],
+  chatComposition: null,
   chatHistoryCollapsed: false,
   freshAnonymousSession: false,
   codexStarting: false,
@@ -2235,6 +2236,13 @@ async function hydrateAccountHistory(history = null) {
 }
 
 function renderStory() {
+  const composition = state.chatComposition;
+  if (composition && isCurrentProjectScope(composition.scope) && composition.input.isConnected) {
+    // Replacing the textarea commits unfinished IME text as literal letters.
+    composition.renderPending = true;
+    return;
+  }
+  state.chatComposition = null;
   for (const message of state.chat) {
     const row = message.id ? document.querySelector?.(`[data-message-id="${message.id}"]`) : null;
     const details = row?.querySelector(".agent-loop");
@@ -3003,6 +3011,18 @@ function bindViewActions() {
   $("#section-rework-form")?.addEventListener("submit", submitSectionRework);
   $("[data-cancel-section-rework]")?.addEventListener("click", () => { state.sectionRework = null; render(); });
   $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
+  $("#chat-input")?.addEventListener("compositionstart", (event) => {
+    state.chatComposition = {input: event.currentTarget, scope: captureProjectScope(), renderPending: false};
+  });
+  $("#chat-input")?.addEventListener("compositionend", (event) => {
+    const composition = state.chatComposition;
+    if (composition?.input !== event.currentTarget) return;
+    state.chatComposition = null;
+    if (composition.renderPending) {
+      // The committed input event follows compositionend; paint after it.
+      setTimeout(() => { if (isCurrentProjectScope(composition.scope)) render(); }, 0);
+    }
+  });
   $("#chat-input")?.addEventListener("input", (event) => {
     if (!state.audioTranscript) state.audioTranscriptKind = "narrator_chat";
     state.audioTranscript = event.target.value;
@@ -3010,7 +3030,10 @@ function bindViewActions() {
     resizeChatInput(event.target);
   });
   resizeChatInput($("#chat-input"));
-  $("#chat-input")?.addEventListener("keydown", (event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChatMessage(); } });
+  $("#chat-input")?.addEventListener("keydown", (event) => {
+    if (event.isComposing || event.keyCode === 229 || state.chatComposition) return;
+    if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }
+  });
   const lifeStageTabs = Array.from(document.querySelectorAll("[data-life-stage-tab]"));
   lifeStageTabs.forEach((button) => {
     button.addEventListener("click", () => selectLifeStage(button.dataset.lifeStageTab, true));

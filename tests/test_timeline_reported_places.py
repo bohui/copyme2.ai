@@ -76,6 +76,55 @@ def ref(quote):
     return dict(source_id='source', version=1, quote=quote, char_start=None, char_end=None)
 
 
+def test_unrelated_topic_pause_keeps_supported_sydney_event_on_the_map(sql, tmp_path, monkeypatch, fixed_policy_controls):
+    from pathlib import Path
+    import subprocess
+
+    text = '现在生活在悉尼，1983年4月出生在承德市。'
+    quotes = ['现在生活在悉尼', '1983年4月出生在承德市']
+    places = [dict(place='悉尼', hierarchy=['Earth', 'Australia', 'New South Wales', '悉尼'],
+                   granularity='city', latitude=-33.8688, longitude=151.2093),
+              dict(place='承德市', hierarchy=['Earth', '中国', '河北省', '承德市'],
+                   granularity='city', latitude=40.9515, longitude=117.9634)]
+
+    def extract(packet):
+        if packet['sources'][0]['text'] != text:
+            return empty(packet)
+        return {**empty(packet), 'events': [episode(packet, quote, title=place['place'])
+                    for quote, place in zip(quotes, places)], 'place_journeys': places,
+                'event_places': [dict(event_index=index, role='setting', source_ref=reference(packet, quote),
+                    place={key: value for key, value in place.items() if key not in {'latitude', 'longitude'}})
+                    for index, (quote, place) in enumerate(zip(quotes, places))]}
+
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract, family=False)
+    with conversation.client:
+        original = conversation.say(text, language='zh-CN')
+        conversation.drain()
+        initial = conversation.client.get('/v1/story/readiness', params=dict(project_id=conversation.project)).json()
+        assert len(initial['derived_workspace']['places']) == 2
+        fixed_policy_controls.append(('paused_topic', '先不说上海'))
+        conversation.say('先不说上海，还是继续聊承德。', language='zh-CN')
+        conversation.drain()
+        snapshot = conversation.client.get('/v1/story/readiness', params=dict(project_id=conversation.project)).json()['derived_workspace']
+        assert snapshot['places'] == [], 'Expired journey content must remain fenced'
+        page = conversation.client.get('/v1/story/map-events', params=dict(project_id=conversation.project)).json()
+        links = {event['id']: conversation.client.get(
+            f'/v1/story/map-events/{conversation.project}/{event["id"]}/places').json()['items']
+            for event in page['events']}
+        replay = Path(__file__).parent / 'js/helpers/replay-paused-place-map.mjs'
+        checked = subprocess.run(['node', str(replay)], input=json.dumps(dict(project_id=conversation.project,
+            events=page['events'], links=links, snapshot=snapshot)), text=True, capture_output=True, timeout=10)
+        assert checked.returncode == 0, checked.stdout + checked.stderr
+        foreign = conversation.client.get('/v1/story/map-events', params=dict(project_id=conversation.project),
+            headers={'authorization': 'Bearer another-owner'})
+        assert foreign.status_code != 200 and '悉尼' not in foreign.text
+        from test_shared_memory_events_postgres import literal, rpc
+        rpc(sql, 'change_user_narrator_source',
+            f"{literal(conversation.project)},'{original['accepted_source_id']}',1,'withdraw',null")
+        withdrawn = conversation.client.get('/v1/story/map-events', params=dict(project_id=conversation.project)).json()
+        assert withdrawn['events'] == [], 'Withdrawn sources must not keep map coordinates alive'
+
+
 @pytest.mark.parametrize('focus_city,question,quote', [
     ('承德','说起小时候，你最先想起的是怎样的一个画面？','我于1983年4月出生在河北省承德市附属医院'),
     ('悉尼','说起现在的生活，你最喜欢悉尼的什么地方？','现在生活在悉尼'),
