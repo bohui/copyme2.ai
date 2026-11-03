@@ -15,6 +15,7 @@ import json
 import math
 import os
 import re
+import signal
 from pathlib import Path
 import stat
 import subprocess
@@ -502,6 +503,30 @@ async def saved_canonical_checkpoint(account,binding,ordinal,accepted):
     return {'milestone':ordinal,'draft':head,'pages':pages,'readback_protocol':'lifetime_private_draft_pages'}
 
 
+async def run_backend_start(command, *, timeout, **options):
+    process = await asyncio.create_subprocess_exec(*command, start_new_session=True, **options)
+    try:
+        await asyncio.wait_for(process.wait(), timeout)
+    except BaseException:
+        try:
+            os.killpg(process.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            await asyncio.wait_for(process.wait(), 5)
+        except TimeoutError:
+            pass
+        finally:
+            # Make can exit before its children; settle the whole owned group.
+            try:
+                os.killpg(process.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            await process.wait()
+        raise
+    return subprocess.CompletedProcess(command, process.returncode)
+
+
 async def start_case_backend(requests, account, plan, settings, backend_lock_fd, *, ledger, directory, receipt):
     publication_url = settings.get('MEMOIR_PUBLICATION_DATABASE_URL') or settings.get('SUPABASE_DB_URL')
     if not isinstance(publication_url, str) or not publication_url.strip():
@@ -525,9 +550,12 @@ async def start_case_backend(requests, account, plan, settings, backend_lock_fd,
         LOCK_FD_ENV:str(backend_lock_fd), 'MEMORY_SPARK_API_PORT':str(urlsplit(plan['api_base']).port or 80)}
     if urlsplit(plan['api_base']).hostname not in {'localhost','127.0.0.1'}:
         raise EvaluationError('Automatic backend startup requires a local API origin')
-    result = await asyncio.to_thread(subprocess.run, ['make','--no-print-directory','memoir-live-fifty-backend'],
-        cwd=ROOT, env={key:str(value) for key,value in environment.items() if value is not None},
-        pass_fds=(backend_lock_fd,), stdout=sys.stderr, stderr=sys.stderr, timeout=min(180,requests.remaining()))
+    try:
+        result = await run_backend_start(['make','--no-print-directory','memoir-live-fifty-backend'],
+            cwd=ROOT, env={key:str(value) for key,value in environment.items() if value is not None},
+            pass_fds=(backend_lock_fd,), stdout=sys.stderr, stderr=sys.stderr, timeout=min(600,requests.remaining()))
+    except TimeoutError:
+        raise EvaluationError('Backend startup exceeded its bounded wait; child commands were stopped') from None
     if result.returncode:
         raise EvaluationError('Backend startup failed; see the backend output')
     await wait_for_backend(requests,plan)
