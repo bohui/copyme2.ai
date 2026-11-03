@@ -109,13 +109,14 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
     assert json.loads(result['reply'])=={'status':'finished'}
     assert len(requests)==2
     assert all('<skills_instructions>' not in json.dumps(request.get('input',[])) for request in requests)
-    observation,=tracer.observations
+    observation,*tools=tracer.observations
+    assert [tool.fields['name'] for tool in tools] == [
+        'memoir-atlas.read-skill' if background else 'memoir-skill-agent.read-skill']
     assert parents==[f'00-{observation.trace_id}-{observation.id}-01']*2
     assert not any(tool.get('type') in {'web_search','web_search_preview'} for tool in requests[0].get('tools',[]))
     assert result['skill_receipt']['skills_read']==['memoir-author-timeline']
     if background:
         assert observation.fields['name'] == 'memoir-atlas.orchestrate'
-        assert all(request['metadata']['trace_name'] == 'memoir-atlas' for request in requests)
         assert 'You are Atlas' in requests[0]['instructions']
     artifacts={item['name'] for item in result['skill_receipt']['prompt_manifest']['artifacts']}
     assert {'memoir/shared/skill-agent','memoir/agents/atlas/system',

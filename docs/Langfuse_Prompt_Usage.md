@@ -24,6 +24,10 @@ while naming its own step, such as `memoir-composer.review`. Each run has a uniq
 trace ID; the trace name labels similar runs. Historical observations keep their
 original labels.
 
+Mira's paired prompt evaluation uses the trace name `evaluation/memoir-mira`
+and observation names such as `evaluation/memoir-mira.baseline.<case>` and
+`evaluation/memoir-mira.judge`.
+
 Atlas's system prompt lives in `apps/api/prompts/atlas/system.md` and publishes
 under `memoir/agents/atlas/system`. The former `memoir/shared/background-agent`
 record remains historical and is outside the managed registry. The generic
