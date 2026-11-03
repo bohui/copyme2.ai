@@ -69,8 +69,9 @@ Mira's comparison judge and quality rubric save under
 these names and the five runtime names, then writes matching receipts beside
 their source files. Recovery export uses the full managed names; the single
 artifact exporter's `mira` and `atlas` targets resolve to each agent's `system.md`.
-Old skill prompt versions remain historical records, outside the managed
-registry. Existing dataset and case IDs remain stable for experiment continuity.
+The retired interviewer skill prompt family and obsolete background-agent prompt
+can be removed from Langfuse after the running services use the agent-owned
+prompts. Existing dataset and case IDs remain stable for experiment continuity.
 
 New namespace pins require publication from the committed branch. Until then, source-only
 offline tests and explicitly labelled draft evaluations can inspect these drafts;
