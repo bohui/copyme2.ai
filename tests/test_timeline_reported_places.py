@@ -77,12 +77,15 @@ def ref(quote):
 
 
 @pytest.mark.parametrize('legacy_receipt,existing_exclusion', [(False, False), (True, False), (False, True)])
+@pytest.mark.parametrize('origin', ['', 'test'])
 def test_topic_pause_keeps_saved_shanghai_and_sydney_on_the_map(sql, tmp_path, monkeypatch,
-        fixed_policy_controls, legacy_receipt, existing_exclusion):
+        fixed_policy_controls, legacy_receipt, existing_exclusion, origin):
     from pathlib import Path
     import subprocess
-    from test_agent_commit_postgres import as_user
+    from test_agent_commit_postgres import as_user, OWNER
     from test_shared_memory_events_postgres import literal, rpc
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN', origin)
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', OWNER)
 
     if existing_exclusion:
         sql(as_user("update public.user_profile set profile=profile||"
@@ -105,7 +108,14 @@ def test_topic_pause_keeps_saved_shanghai_and_sydney_on_the_map(sql, tmp_path, m
                     place={key: value for key, value in place.items() if key not in {'latitude', 'longitude'}})
                     for index, (quote, place) in enumerate(zip(quotes, places))]}
 
-    conversation = Conversation(sql, tmp_path, monkeypatch, extract, family=False)
+    async def traced_boundary(request, provider):
+        if 'governed' in json.loads(request.content):
+            from apps.api.llm_tracing import gateway_metadata
+            prefix = origin+'/' if origin else ''
+            assert gateway_metadata('memoir-interviewer.reply', trace_name='memoir-interviewer') == {
+                'generation_name': prefix+'memoir-interviewer.reply', 'trace_name': prefix+'memoir-interviewer'}
+        return await provider(request)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract, family=False, external_boundary=traced_boundary)
     with conversation.client:
         original = conversation.say(text, language='zh-CN')
         conversation.drain()

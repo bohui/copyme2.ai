@@ -255,12 +255,15 @@ class CodexRuntime:
         if lifetime_context is None:
             raise ValueError('A canonical publication context is required')
         from .lifetime_memory_runtime import run_lifetime_turn
-        return await run_lifetime_turn(self, storage,
-            conversation_text if conversation_text is not None else original_conversation_text(text),
-            publication=lifetime_context, project_id=project_id, language=language, client_turn_id=client_turn_id,
-            source_kind=source_kind, uploaded_photo_ids=uploaded_photo_ids, photo_selection=photo_selection, recording_ids=recording_ids,
-            workspace_focus=workspace_focus, user_response=user_response, on_delta=on_delta, on_event=on_event,
-            evaluation=evaluation,trajectory=trajectory)
+        from .llm_tracing import trace_for_owner
+        # Publication transfers its lease to another task; tracing stays here.
+        with trace_for_owner(storage.user_id):
+            return await run_lifetime_turn(self, storage,
+                conversation_text if conversation_text is not None else original_conversation_text(text),
+                publication=lifetime_context, project_id=project_id, language=language, client_turn_id=client_turn_id,
+                source_kind=source_kind, uploaded_photo_ids=uploaded_photo_ids, photo_selection=photo_selection, recording_ids=recording_ids,
+                workspace_focus=workspace_focus, user_response=user_response, on_delta=on_delta, on_event=on_event,
+                evaluation=evaluation,trajectory=trajectory)
 
 
     @staticmethod
