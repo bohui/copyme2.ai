@@ -41,6 +41,7 @@ EVAL_PROJECT_ID ?=
 EVAL_PROGRESSIVE_RERUN ?= 0
 MEMORY_SPARK_CODEX_WORKER_TIMEOUT ?= 240
 ENV_FILE ?= .env
+include-langfuse ?= true
 PROMPT_CREDENTIAL_FILE ?= $(HOME)/llm_provider/.env
 PROMPT_NAME ?=
 PROMPT_EVAL_NAME ?= memoir/skills/memoir-author-timeline/extract
@@ -60,7 +61,7 @@ SKILL_PACKAGER ?= $(HOME)/.codex/skills/skill-creator/scripts/package_skill.py
 SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))))
 
 .PHONY: help check migrate db-reset db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval prompt-export prompt-check prompt-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
-.PHONY: _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
+.PHONY: _db-reset _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
 .PHONY: prompt-sync prompt-sync-check prompt-sync-install
 .PHONY: test-web test-place-research
@@ -121,13 +122,14 @@ migrate: ## Apply the consolidated Supabase migration using tracked migration hi
 	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before running migrations."; exit 1; }; \
 	supabase db push --db-url "$${SUPABASE_DB_URL}" --yes
 
-db-reset: ## Reset the disposable Supabase database from the consolidated baseline without seeding.
+db-reset: ## Reset disposable Supabase and Memoir Langfuse history; opt out with include-langfuse=false.
+	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _db-reset
+
+_db-reset:
 	@set -a; \
 	if test -f "$(ENV_FILE)"; then . "$(ENV_FILE)"; fi; \
 	set +a; \
-	test -n "$${SUPABASE_DB_URL:-}" || { echo "Set SUPABASE_DB_URL in $(ENV_FILE)."; exit 2; }; \
-	command -v supabase >/dev/null || { echo "Missing Supabase CLI. Install it before resetting the database."; exit 1; }; \
-	supabase db reset --db-url "$${SUPABASE_DB_URL}" --no-seed --yes
+	python3 scripts/reset_database.py --include-langfuse "$(include-langfuse)" --credential-file "$(PROMPT_CREDENTIAL_FILE)"
 
 db-truncate: ## Clear user/app data, Auth, Storage and local Compose state; preserve shared photo search cache; pass RESET_CONFIRM=1.
 	@python3 scripts/backend_operation_lock.py -- $(MAKE) --no-print-directory _db-truncate
