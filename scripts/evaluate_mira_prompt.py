@@ -227,10 +227,10 @@ async def evaluate(args, inputs):
     semaphore = asyncio.Semaphore(4)
     calls = 0
     async with httpx.AsyncClient(timeout=75, trust_env=False, follow_redirects=False) as client:
-        async def request(body):
+        async def request(body, name):
             nonlocal calls
             body = {**body, 'metadata': {**body.get('metadata', {}),
-                'generation_name':'memoir-interviewer', 'trace_name':'memoir-interviewer'}}
+                'generation_name':f'evaluation/memoir-mira.{name}', 'trace_name':'evaluation/memoir-mira'}}
             async with semaphore:
                 calls += 1
                 if calls > 100:
@@ -250,7 +250,7 @@ async def evaluate(args, inputs):
                 max_output_tokens=3000, text=dict(format=dict(type='json_schema', name='mira_reply', strict=True, schema=schema)))
             row = dict(id=case['id'], arm=arm)
             try:
-                output, receipt = await request(body)
+                output, receipt = await request(body, f'{arm}.{case["id"]}')
                 row.update(output=output, receipt=receipt)
                 validate(output, schema)
                 validated = validate_governed_collector_result(output, case['context'])
@@ -278,7 +278,7 @@ async def evaluate(args, inputs):
             body = dict(model=args.judge_model, instructions=rubric, input=json.dumps(batch, ensure_ascii=False),
                 store=False, reasoning=dict(effort='low'), max_output_tokens=6000,
                 text=dict(format=dict(type='json_schema', name='mira_comparison', strict=True, schema=judge_schema())))
-            result, receipt = await request(body)
+            result, receipt = await request(body, 'judge')
             validate(result, judge_schema())
             if (len(result['results']) != len(batch)
                     or {row['id'] for row in result['results']} != {row['id'] for row in batch}):

@@ -1,7 +1,7 @@
 {
   "name": "memoir/agents/mira/system",
   "schema_version": 1,
-  "sha256": "c40fbf8cc231a1ff101fe121bc35c96292a0c982438f43e8e0a29092fdcd3f5f",
+  "sha256": "b4270c4c59303c8a7c101afb43c4661cf3ba1367047bd8040fc76378ddb54dfb",
   "type": "text",
-  "version": 6
+  "version": 7
 }

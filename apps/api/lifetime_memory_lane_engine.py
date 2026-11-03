@@ -878,7 +878,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         raise ValueError('Lane provider is not configured')
     manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
-    with trace_llm_call('memoir.' + bounded.phase, model,
+    with trace_llm_call(f'{skill_name}.{bounded.phase}', model, trace_name=skill_name,
             metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}, gateway=True):
         result = await run_skill_agent(command=command, home_root=home_root,
             base_url=base_url, api_key=api_key, model=model, instructions=instructions,
@@ -886,7 +886,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
             publisher=publisher, fence=bounded.fence, timeout=timeout,
             connection_factory=connection_factory, issue14_admission=issue14_admission,
             uid=uid, apply_owner=apply_owner,
-            trace_name=skill_name,
+            trace_name=skill_name, phase=bounded.phase,
             max_tool_bytes=min(32768, bounded.budget.input_budget - lane_request_tokens(bounded)
                 + bounded.budget.count(lane_skill_text(bounded))),
             effort=effort or (composer_configuration().effort if role == 'composer' else configured_effort(

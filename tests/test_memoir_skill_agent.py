@@ -108,7 +108,11 @@ def test_selected_extraction_contract_loads_only_the_requested_skill_instruction
     assert schema['properties']['place_journeys']['maxItems'] == 0
 
 
-def test_real_stdio_client_handles_skill_read_and_sends_its_body_back_to_harness(tmp_path):
+def test_real_stdio_client_handles_skill_read_and_sends_its_body_back_to_harness(tmp_path,monkeypatch):
+    from apps.api import llm_tracing
+    from test_llm_tracing import FakeLangfuse
+    tracer=FakeLangfuse()
+    monkeypatch.setattr(llm_tracing,'_client_cache',tracer)
     server = tmp_path / 'controlled_app_server.py'
     journal = tmp_path / 'journal.json'
     server.write_text('''import json,sys
@@ -121,6 +125,8 @@ for line in sys.stdin:
   assert any(t['name']=='memoir_read_skill' for t in m['params']['dynamicTools'])
   print(json.dumps({'id':m['id'],'result':{'thread':{'id':thread}}}),flush=True)
  elif m.get('method')=='turn/start':
+  assert m['params']['responsesapiClientMetadata']['generation_name']=='memoir-atlas.orchestrate'
+  assert m['params']['responsesapiClientMetadata']['trace_name']=='memoir-atlas'
   task=json.loads(m['params']['input'][0]['text'])
   assert len(task['available_skills'])==2
   print(json.dumps({'id':m['id'],'result':{'turn':{'id':turn}}}),flush=True)
@@ -136,15 +142,18 @@ for line in sys.stdin:
     publication = Publication()
     result = asyncio.run(run_skill_agent(command=[sys.executable,str(server),str(journal)],
         home_root=tmp_path / 'homes', base_url='http://provider.invalid', api_key='synthetic',
-        model='synthetic-byte-bpe', instructions=load_prompt_artifact(prompt_path('memoir/shared/background-agent')),
+        model='synthetic-byte-bpe', instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/system')),
         packet={'work':[]}, skills=['memoir-author-timeline','memoir-interview-guidance'],
-        publisher=publication, fence={}, timeout=5))
+        publisher=publication, fence={}, timeout=5,
+        trace_name='memoir-atlas', phase='orchestrate'))
     assert json.loads(result['reply']) == {'events':[]}
     assert result['skill_receipt']['skills_read'] == ['memoir-interview-guidance']
     assert json.loads(journal.read_text())['instructions'] == load_prompt_artifact(prompt_path(
         'memoir/skills/memoir-interview-guidance/instructions'))
     assert publication.calls >= 3
     assert not list((tmp_path / 'homes').iterdir())
+    assert [observation.fields['name'] for observation in tracer.observations]==[
+        'memoir-atlas.orchestrate','memoir-atlas.read-skill']
 
 
 def test_foreign_turn_cannot_execute_a_dynamic_tool(tmp_path):

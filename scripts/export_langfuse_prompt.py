@@ -21,6 +21,7 @@ from scripts.langfuse_prompt_client import prompt_client
 
 TARGETS = {
     "mira": Path("apps/api/prompts/mira/system.md"),
+    "atlas": Path("apps/api/prompts/atlas/system.md"),
 }
 
 

@@ -71,11 +71,12 @@ def decode_json_response(value):
 
 
 async def complete_json(name, payload, schema, *, model=None, effort=None, transport=None, body_factory=None,
-                        base_url=None, api_key=None, trace_name=None, diagnostic_request_id=None):
+                        base_url=None, api_key=None, trace_name=None, generation_name=None, diagnostic_request_id=None):
     import httpx
     body, manifest = managed_json_request(name, payload, schema, model=model, effort=effort)
+    call_name = generation_name or trace_name or name
     if trace_name:
-        body['metadata'] = {**body.get('metadata', {}), **gateway_metadata(trace_name)}
+        body['metadata'] = {**body.get('metadata', {}), **gateway_metadata(call_name, trace_name=trace_name)}
     if diagnostic_request_id is not None:
         from .diagnostics import new_request_id
         body['metadata']['request_id'] = new_request_id(diagnostic_request_id)
@@ -92,10 +93,10 @@ async def complete_json(name, payload, schema, *, model=None, effort=None, trans
     try:
         trace_metadata = {'prompt_manifest': manifest}
         if trace_name:
-            trace_metadata.update(generation_name=trace_name, trace_name=trace_name)
+            trace_metadata.update(gateway_metadata(call_name, trace_name=trace_name))
         if diagnostic_request_id is not None:
             trace_metadata['request_id'] = body['metadata']['request_id']
-        with trace_llm_call(trace_name or name, body['model'],
+        with trace_llm_call(call_name, body['model'], trace_name=trace_name,
                             input_summary={'kind': 'structured_input'},
                             metadata=trace_metadata, gateway=True) as trace:
             async with httpx.AsyncClient(transport=transport, timeout=60, trust_env=False, follow_redirects=False) as client:

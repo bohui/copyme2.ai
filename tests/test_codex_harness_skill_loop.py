@@ -99,7 +99,7 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
             result=asyncio.run(run_skill_agent(command=[shutil.which('codex'),'app-server'],
                 home_root=tmp_path / 'homes',base_url=f'http://127.0.0.1:{server.server_port}/v1',
                 api_key='synthetic-loopback-key',model='gpt-6.1-sol',
-                instructions=load_prompt_artifact(prompt_path('memoir/shared/background-agent')),
+                instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/system')),
                 packet={'lane':'B','work':[]},skills=['memoir-author-timeline'],
                 publisher=Publication(),fence={},timeout=20,effort='low'))
     finally:
@@ -109,12 +109,17 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
     assert json.loads(result['reply'])=={'status':'finished'}
     assert len(requests)==2
     assert all('<skills_instructions>' not in json.dumps(request.get('input',[])) for request in requests)
-    observation,=tracer.observations
+    observation,*tools=tracer.observations
+    assert [tool.fields['name'] for tool in tools] == [
+        'memoir-atlas.read-skill' if background else 'memoir-skill-agent.read-skill']
     assert parents==[f'00-{observation.trace_id}-{observation.id}-01']*2
     assert not any(tool.get('type') in {'web_search','web_search_preview'} for tool in requests[0].get('tools',[]))
     assert result['skill_receipt']['skills_read']==['memoir-author-timeline']
+    if background:
+        assert observation.fields['name'] == 'memoir-atlas.orchestrate'
+        assert 'You are Atlas' in requests[0]['instructions']
     artifacts={item['name'] for item in result['skill_receipt']['prompt_manifest']['artifacts']}
-    assert {'memoir/shared/skill-agent','memoir/shared/background-agent',
+    assert {'memoir/shared/skill-agent','memoir/agents/atlas/system',
         'memoir/skills/memoir-author-timeline/instructions'}<=artifacts
     # The second inference contains the actual tool result, not just a skill label.
     assert '# Memoir Author Timeline' in json.dumps(requests[1],ensure_ascii=False)

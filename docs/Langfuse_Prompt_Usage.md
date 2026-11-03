@@ -11,15 +11,34 @@ copy. After a reply identifies unavailable details, the host renders a selected
 broader pool question verbatim or this optional invitation. It makes no extra
 model call and does not treat the unavailable detail as an answered fact.
 
-Mira uses only `reply-v2`, with five agent-owned prompt drafts under
+Mira uses only `reply-v2`, with five agent-owned prompt sources under
 `apps/api/prompts/mira/`: `system`, `policy-review`, `repair`, `repair-codes`
-and `strategy-proposal`. They publish under `memoir/agents/mira/...` after merge
-to main; new namespace receipts are not fabricated from the older skill pins.
+and `strategy-proposal`. They publish under `memoir/agents/mira/...` from the
+committed branch; new namespace receipts are not fabricated from the older skill pins.
 
-Mira keeps the stable Langfuse trace and generation name `memoir-interviewer`
-for replies, repairs, privacy review and draft comparisons, including their
-judges. This observability label is separate from her `memoir/agents/mira/...`
-prompt namespace and does not make her a callable skill.
+Mira is the interviewer; Atlas is the background memoir curator. Their Langfuse
+trace names are `memoir-mira` and `memoir-atlas`. Observation names identify the
+step, such as `memoir-mira.reply`, `memoir-mira.policy-review` and
+`memoir-atlas.orchestrate`. A nested skill keeps the owning agent's trace name
+while naming its own step, such as `memoir-composer.review`. Each run has a unique
+trace ID; the trace name labels similar runs. Historical observations keep their
+original labels.
+
+Mira's paired prompt evaluation uses the trace name `evaluation/memoir-mira`
+and observation names such as `evaluation/memoir-mira.baseline.<case>` and
+`evaluation/memoir-mira.judge`.
+
+Atlas's system prompt lives in `apps/api/prompts/atlas/system.md` and publishes
+under `memoir/agents/atlas/system`. The former `memoir/shared/background-agent`
+record is retired and can be removed after running services use Atlas. The generic
+`memoir/shared/skill-agent` runner instructions remain shared infrastructure.
+
+The retired `memoir/skills/memoir-interviewer/*` prompt family and its old
+`memoir/evaluation/skills/memoir-interviewer/rubric` are no longer dependencies
+and can be removed from Langfuse. Keep managed shared prompts: bounded context,
+skill execution, recall invitations, historical acknowledgements and place
+conflicts still have runtime callers. Zero linked observations alone does not
+establish that a prompt is unused; runtime reads checked-in artifacts.
 
 The greeting endpoint returns localized application text without a model call.
 Duplicate dispatch instructions, the separate early-ack template and three repair

@@ -1,4 +1,4 @@
-"""A durable Lane B run exposes only current, owner-scoped Memoir work to Codex."""
+"""Atlas's durable Lane B run exposes only current, owner-scoped Memoir work to Codex."""
 from __future__ import annotations
 
 import asyncio
@@ -275,7 +275,7 @@ async def run_background_agent(worker, payload, *, publisher=None, broker=None, 
     if not work['work']:
         return {'reply':'{"status":"finished"}','thread_id':None,'artifacts':[],
             'pending':False,'model_invoked':False}
-    instructions = load_prompt_artifact(prompt_path('memoir/shared/background-agent'))
+    instructions = load_prompt_artifact(prompt_path('memoir/agents/atlas/system'))
     timeout = worker._execution_timeout('background_agent')
     result = await run_skill_agent(command=worker._run_command(worker._uid_for(fence['user_id'])),
         home_root=worker.home_root, base_url=worker.base_url, api_key=worker.api_key,
@@ -286,7 +286,7 @@ async def run_background_agent(worker, payload, *, publisher=None, broker=None, 
         source_skills=SOURCE_SKILLS, publisher=publisher, fence=fence,
         schema={'type':'object','additionalProperties':False,'properties':{'status':{'type':'string','const':'finished'}},'required':['status']},
         timeout=timeout, connection_factory=connection_factory,
-        trace_name='memoir-background-agent',
+        trace_name='memoir-atlas', phase='orchestrate',
         issue14_admission=worker._issue14_admission, uid=worker._uid_for(fence['user_id']),
         apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1')
     # A model's final message never marks pending domain obligations complete.
