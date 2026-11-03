@@ -764,9 +764,10 @@ turns without replacing text already streaming. Existing guidance storage and
 data validators remain available for older records; those records cannot start
 a model call or supply prepared questions or acknowledgement copy to Mira.
 
-The updated Mira and timeline Markdown need the normal merged-main publication
-before runtime activation. A bounded draft comparison for the bilingual current
-reply cases is available with `scripts/evaluate_mira_prompt.py --realtime`.
+Mira and timeline Markdown follow the versioned publication workflow above;
+source changes require matching receipts before runtime activation. A bounded
+comparison for bilingual current replies is available with
+`scripts/evaluate_mira_prompt.py --realtime`.
 
 The [`memoir-composer` skill](skills/memoir-composer/SKILL.md) consumes the same event IDs. Every five completed rounds by default, it waits for extraction, freezes the latest eligible snapshot, prepares dirty stage/year/event groups in bounded parallel work, and preserves unchanged prose and revisions. Temporal coordinates one active run per project/skill lane with coalesced catch-up, bounded deadlines, retries, and fenced commits. A validated repeat of unchanged event facts advances extraction without rewriting prose. A checkpoint with no supported events finishes collecting without inventing prose or requesting a provider retry.
 
