@@ -990,16 +990,19 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
     name = 'memoir/skills/memoir-place-photo-research/discovery'
     instructions = prompts.load_prompt_artifact(prompts.prompt_path(name))
     manifest = prompts.prompt_manifest([name], instructions, variant='native-photo-discovery')
+    call_name = 'memoir-place-photo-research.discovery'
     body = {"model": model, "instructions": instructions,
             "input": json.dumps({'place': place, 'temporal': temporal}, ensure_ascii=False),
             "tools": [{"type": "web_search"}],
             "tool_choice": "required", "include": ["web_search_call.action.sources"],
-            "metadata": {'prompt_manifest_sha256': manifest['manifest_sha256']},
+            "metadata": {'prompt_manifest_sha256': manifest['manifest_sha256'],
+                **prompts.gateway_metadata(call_name, trace_name='memoir-place-photo-research')},
             "reasoning": {"effort": effort}, "max_output_tokens": 1024, "store": False}
     req = http_request.Request(base + "/responses", data=json.dumps(body).encode(),
                                headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
     try:
-        with prompts.trace_llm_call(name,model,metadata={'prompt_manifest':manifest}, gateway=True):
+        with prompts.trace_llm_call(call_name,model,trace_name='memoir-place-photo-research',
+                metadata={'prompt_manifest':manifest}, gateway=True):
             for header,value in prompts.gateway_trace_headers().items():
                 req.add_header(header,value)
             with http_request.urlopen(req, timeout=timeout) as response:

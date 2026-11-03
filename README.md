@@ -542,6 +542,10 @@ the current prompts, models and validation.
 
 ### Versioned prompt artifacts
 
+Trace names, observation names and dataset folders follow the
+[Langfuse naming convention](docs/Langfuse_Naming.md). Quality judges have four
+separate prompts; live relevance, completeness and safety use 10% sampling.
+
 Git owns prompt content; Memoir's Langfuse project owns published
 versions. Mira owns its always-loaded agent instructions and supporting prompts
 under `memoir/agents/mira/...`, stored in `apps/api/prompts/mira/`. Atlas owns

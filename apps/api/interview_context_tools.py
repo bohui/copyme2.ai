@@ -48,6 +48,14 @@ class InterviewContextTools:
                 return (await result.fetchone())[0]
 
     async def call(self, params):
+        from .llm_tracing import trace_skill_execution
+        with trace_skill_execution('memoir-mira', 'read-context') as attempt:
+            result = await self._call(params)
+            if not result.get('success'):
+                attempt['status'] = 'failed'
+            return result
+
+    async def _call(self, params):
         args = params.get('arguments')
         fields = self.specs()[0]['inputSchema']['properties']
         if (params.get('tool') != 'memoir_read_context' or not isinstance(args, dict) or set(args) != set(fields)

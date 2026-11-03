@@ -253,7 +253,8 @@ def test_both_planning_calls_use_configured_route_and_distinct_managed_prompts(m
         assert sent['model'] == 'configured-scene-model'
         assert sent['reasoning'] == {'effort': 'high'} and sent['store'] is False and sent['stream'] is True
         assert sent['text']['format']['strict'] is True
-        assert sent['metadata']['generation_name'] == 'memoir-story-game-' + phase
+        assert sent['metadata']['generation_name'] == 'memoir-story-game.' + phase
+        assert sent['metadata']['trace_name'] == 'memoir-story-game'
         payload = json.loads(sent['input'])
         assert 'authority' not in payload and 'game_id' not in payload
         if phase == 'scenes':

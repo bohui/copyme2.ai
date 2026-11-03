@@ -70,7 +70,9 @@ async def main() -> int:
                 json={
                     "model": model,
                     "messages": [{"role": "user", "content": instructions}],
-                    "metadata": manifest_metadata(manifest),
+                    "metadata": {**manifest_metadata(manifest),
+                        'generation_name': 'evaluation/memoir-probes.connectivity',
+                        'trace_name': 'evaluation/memoir-probes'},
                     "temperature": 0,
                     "max_tokens": 4,
                 },

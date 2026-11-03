@@ -49,7 +49,7 @@ def test_mira_judge_uses_agent_prompt_and_keeps_historical_dataset_ids():
     assert judge['components'][-1]['name'] == 'memoir/evaluation/agents/mira/rubric'
     assert judge['components'][-1]['path'] == 'tests/evaluation/prompts/mira-rubric.md'
     assert {item['dataset'] for item in planned['items']} == {
-        'memoir/evaluation/skills/memoir-interviewer'}
+        'memoir/golden/memoir-mira/reply/core'}
 
 
 def test_cli_planning_never_allocates_services_or_reads_env(monkeypatch, capsys, tmp_path):

@@ -107,8 +107,8 @@ def datasets():
     expected = set(manifest()['skills'])
     if set(TRIGGERS) != expected or {r['input']['skill'] for r in deliveries} != expected:
         raise ValueError('missing_skill_coverage')
-    return {'memoir/evaluation/v2/skill-triggers': triggers,
-            'memoir/evaluation/v2/skill-deliveries': deliveries}
+    return {'memoir/golden/memoir-atlas/skill-selection/v2': triggers,
+            'memoir/golden/memoir-workflows/skill-delivery/v2': deliveries}
 
 
 def item_id(name, row):

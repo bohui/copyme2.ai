@@ -8,6 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # New evaluation sources enter the publisher before receipts exist.
 # Runtime/export consumers still require an actual publication receipt.
 EVALUATION_PROMPT_PATHS = {
+    **{'memoir/evaluators/' + dimension: 'tests/evaluation/prompts/quality/' + dimension + '.md'
+       for dimension in ('correctness', 'relevance', 'completeness', 'safety')},
     'memoir/evaluation/agents/mira/comparison': 'tests/evaluation/prompts/mira-comparison.md',
     'memoir/evaluation/agents/mira/rubric': 'tests/evaluation/prompts/mira-rubric.md',
     'memoir/evaluation/skills/shared-policy': 'tests/evaluation/prompts/skill-judges/policy.md',

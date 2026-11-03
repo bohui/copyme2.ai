@@ -66,6 +66,8 @@ def test_resumable_transport_honours_configured_route_and_confirmed_subset(appro
     fail=True
     def transport(request):
         body=json.loads(request.content); stage=body['metadata']['stage']; calls.append(stage)
+        assert body['metadata']['generation_name'] == 'memoir-story-game.' + stage
+        assert body['metadata']['trace_name'] == 'memoir-story-game'
         assert body['model']==model and body['reasoning']=={'effort':effort} and body['stream'] is True
         payload=json.loads(body['input'])
         assert 'mother repaired' not in body['input'] and approved['chapters'][0]['chapter_id'] not in body['input']

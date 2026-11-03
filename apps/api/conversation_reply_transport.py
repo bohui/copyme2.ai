@@ -75,9 +75,10 @@ async def stream_reply(*, view, prompt, schema, model, effort, budget, base_url,
     correlation = normalise_correlation(metadata)
     # Responses metadata allows sixteen entries; retain the prompt pins first.
     metadata = {key: correlation[key] for key in (
-        'prompt_sha256', 'schema_sha256', 'manifest_sha256', 'generation_name', 'trace_name',
+        'prompt_sha256', 'schema_sha256', 'manifest_sha256', 'generation_name', 'trace_name', 'session_id',
         'request_id', 'run_id', 'case_id', 'application_revision', 'contract_version',
         'round_id', 'trace_id', 'observation_id', 'job_id', 'checkpoint_id', 'variant') if key in correlation}
+    metadata = dict(list(metadata.items())[:16])
     endpoint = urlsplit(base_url)
     if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):

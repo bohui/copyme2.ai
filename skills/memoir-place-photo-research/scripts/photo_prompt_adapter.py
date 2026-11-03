@@ -7,7 +7,7 @@ from pathlib import Path
 try:
     from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
     from apps.api.model_request import prompt_manifest
-    from apps.api.llm_tracing import trace_llm_call, gateway_trace_headers
+    from apps.api.llm_tracing import trace_llm_call, gateway_trace_headers, gateway_metadata
 except ModuleNotFoundError as error:
     if error.name != 'apps' and not error.name.startswith('apps.'):
         raise
@@ -47,3 +47,6 @@ except ModuleNotFoundError as error:
 
     def gateway_trace_headers():
         return {}
+
+    def gateway_metadata(name, *, trace_name=None):
+        return {'generation_name': name, 'trace_name': trace_name or name}

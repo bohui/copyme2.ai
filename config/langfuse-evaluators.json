@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "project_id": "cmut9t75w00071z02n8bdv7it",
+  "online_sampling": 0.1,
+  "provider": "memoir-gateway",
+  "model": "gpt-6.1-sol",
+  "observation_type": "GENERATION",
+  "score_range": [0, 1],
+  "evaluators": [
+    {"name": "memoir-correctness", "prompt": "memoir/evaluators/correctness", "variables": ["expected_output", "output"], "scope": "dataset_experiments_with_expected_output"},
+    {"name": "memoir-relevance", "prompt": "memoir/evaluators/relevance", "variables": ["input", "output"], "scope": "dataset_and_online"},
+    {"name": "memoir-completeness", "prompt": "memoir/evaluators/completeness", "variables": ["input", "output"], "scope": "dataset_and_online"},
+    {"name": "memoir-safety", "prompt": "memoir/evaluators/safety", "variables": ["input", "output"], "scope": "dataset_and_online"}
+  ]
+}

@@ -136,6 +136,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     scope=AsyncExitStack();await scope.__aenter__()
     policy_task=None
     try:
+        from .llm_tracing import trace_session
+        scope.enter_context(trace_session(storage.user_id, project_id))
         await scope.enter_async_context(runtime._lock(storage.user_id))
         lease=await scope.enter_async_context(runtime._storage_lease(storage,timeout=5))
         accepted_source_id=None

@@ -219,6 +219,7 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         "evaluation_generation_name": "generation_name",
         "trace_name": "trace_name",
         "langfuse_trace_name": "trace_name",
+        "session_id": "session_id",
         "evaluator_version": "evaluator_version",
         "evaluation_version": "evaluator_version",
         "dataset_version": "dataset_version",
@@ -1531,8 +1532,9 @@ class OpenAICompatibleJudge:
         if self.reasoning_effort:
             body["reasoning_effort"] = self.reasoning_effort
         with trace_llm_call(
-            "evaluation.judge",
+            "evaluation/memoir-judges.trajectory",
             self.model,
+            trace_name="evaluation/memoir-judges",
             input_summary={
                 "kind": "trajectory_judge",
                 "fields": sorted(str(key) for key in judge_input.keys()),
@@ -1917,7 +1919,8 @@ class MemoirEvaluationRunner:
             "dataset": case.get("dataset") or case.get("dataset_name"),
             "dataset_version": case.get("dataset_version") or case.get("version"),
             "skill_hash": case.get("skill_manifest_sha256") or self.default_skill_manifest.get("sha256"),
-            "generation_name": case.get("generation_name") or "memoir-agent-evaluation",
+            "generation_name": case.get("generation_name") or "evaluation/memoir-agents.run",
+            "trace_name": "evaluation/memoir-agents",
             "model": case.get("model") or os.getenv("MEMORY_SPARK_LLM_MODEL"),
             "provider": case.get("provider") or "llm_provider",
             "evaluator_version": case.get("evaluator_version") or EVALUATION_RUBRIC_VERSION,

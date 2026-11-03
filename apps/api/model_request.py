@@ -74,9 +74,11 @@ async def complete_json(name, payload, schema, *, model=None, effort=None, trans
                         base_url=None, api_key=None, trace_name=None, generation_name=None, diagnostic_request_id=None):
     import httpx
     body, manifest = managed_json_request(name, payload, schema, model=model, effort=effort)
+    if trace_name is None and name.startswith('memoir/evaluation/'):
+        trace_name = 'evaluation/memoir-judges'
+        generation_name = generation_name or trace_name + '.' + name.removeprefix('memoir/evaluation/').replace('/', '.')
     call_name = generation_name or trace_name or name
-    if trace_name:
-        body['metadata'] = {**body.get('metadata', {}), **gateway_metadata(call_name, trace_name=trace_name)}
+    body['metadata'] = {**body.get('metadata', {}), **gateway_metadata(call_name, trace_name=trace_name)}
     if diagnostic_request_id is not None:
         from .diagnostics import new_request_id
         body['metadata']['request_id'] = new_request_id(diagnostic_request_id)

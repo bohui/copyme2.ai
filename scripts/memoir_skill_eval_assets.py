@@ -9,9 +9,11 @@ from datetime import datetime
 import math
 
 from scripts.memoir_skill_eval_suite import digest, identity
+from scripts.langfuse_dataset_names import SKILL_TASKS, skill_dataset, WORKFLOWS, CALIBRATION
 
-DATASET_PREFIX = 'memoir/evaluation/skills/'
-SHARED = {'memoir/evaluation/workflows', 'memoir/evaluation/judge-calibration'}
+DATASET_PREFIX = 'memoir/golden/'
+SKILL_DATASETS = {skill_dataset(skill) for skill in SKILL_TASKS}
+SHARED = {WORKFLOWS, CALIBRATION}
 
 
 def timestamp(value):
@@ -34,8 +36,8 @@ def dataset_rows(planned):
             input={k: deepcopy(item[k]) for k in ('id', 'skill', 'case', 'locale', 'phase', 'action', 'scope', 'task')},
             expected_output=deepcopy(item['gold']), metadata=dict(synthetic=True,
                 identity=item['id'], content_sha256=item['content_sha256'])))
-    for key, dataset in (('workflow_items', 'memoir/evaluation/workflows'),
-                         ('calibration_items', 'memoir/evaluation/judge-calibration')):
+    for key, dataset in (('workflow_items', WORKFLOWS),
+                         ('calibration_items', CALIBRATION)):
         for item in planned[key]:
             rows[dataset].append(dict(id=digest(item['id'])[:32], status='ACTIVE',
                 input={k: deepcopy(v) for k, v in item.items() if k != 'expected_output'},
@@ -47,7 +49,7 @@ def dataset_rows(planned):
 def managed_assets(planned, *, executor):
     if executor not in {'sdk', 'managed'}: raise ValueError('unknown_judge_executor')
     definitions, rules = deepcopy(planned['evaluators']), []
-    targets = {s: 'memoir/evaluation/skills/' + s for s in planned['inventory']}
+    targets = {s: skill_dataset(s) for s in planned['inventory']}
     for definition in definitions:
         skill = definition['name'].split('/')[-2]
         if definition['kind'] == 'quality' and executor == 'sdk': continue
@@ -63,7 +65,7 @@ def preflight(store, desired, *, snapshot):
     timestamp(snapshot)
     operations, observed = [], {}
     for name, rows in sorted(desired.items()):
-        if not (name.startswith(DATASET_PREFIX) or name in SHARED):
+        if name not in SKILL_DATASETS | SHARED:
             raise ValueError('historical_dataset_out_of_scope')
         current = store.read_dataset(name, snapshot=snapshot)
         if current is not None and current.get('synthetic') is not True:

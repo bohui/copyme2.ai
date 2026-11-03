@@ -91,7 +91,8 @@ async def generate_background(prompt,fence,*,transport=None,issue14_admission=No
     request=GameRequestBody(encoded,publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
         fence=fence.model_dump(mode='json'))
     try:
-        with trace_llm_call('story.game.novel.illustration',model,metadata={'prompt_manifest':manifest},
+        with trace_llm_call('memoir-story-game.illustration',model, trace_name='memoir-story-game',
+                metadata={'prompt_manifest':manifest},
                 gateway=base==os.getenv('MEMORY_SPARK_LLM_BASE_URL','').rstrip('/')) as trace:
             async with asyncio.timeout(600),httpx.AsyncClient(trust_env=False,follow_redirects=False,timeout=590,
                     **({'transport':transport} if transport is not None else {})) as client:

@@ -110,7 +110,8 @@ async def main() -> int:
     }
     instructions = load_prompt_artifact(prompt_path('memoir/evaluation/probes/web-search'))
     manifest = prompt_manifest(['memoir/evaluation/probes/web-search'],instructions,variant='synthetic-probe')
-    request_body['metadata']=manifest_metadata(manifest)
+    request_body['metadata']={**manifest_metadata(manifest),
+        'generation_name':'evaluation/memoir-probes.web-search', 'trace_name':'evaluation/memoir-probes'}
     receipt: dict[str, object] = {
         "schema_version": "memoir-provider-web-search-probe/1",
         "recorded_at": utc_now(),

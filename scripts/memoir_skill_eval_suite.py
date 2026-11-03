@@ -22,6 +22,7 @@ from uuid import uuid4
 
 from scripts.memoir_live_skill_cases import scenario_cases
 from scripts.run_memoir_live_skills import save
+from scripts.langfuse_dataset_names import skill_dataset, WORKFLOWS, CALIBRATION
 
 ROOT = Path(__file__).resolve().parents[1]
 KNOWN = frozenset('memoir-' + name for name in (
@@ -138,7 +139,7 @@ def plan(*, skill=None, phase=None, locale=None, case=None):
     if not selected_items or case and set(case) != {c['id'] for c in selected_items}:
         raise ValueError('empty_or_cross_phase_selection')
     selected = sorted({c['skill'] for c in selected_items})
-    all_datasets = {s: 'memoir/evaluation/skills/' + s for s in catalog}
+    all_datasets = {s: skill_dataset(s) for s in catalog}
     snapshot = datetime.now(timezone.utc).isoformat()
     for c in items:
         c.update(content_sha256=digest(c), dataset=all_datasets[c['skill']], dataset_snapshot=snapshot)
@@ -154,7 +155,7 @@ def plan(*, skill=None, phase=None, locale=None, case=None):
     return dict(schema_version='memoir-skill-evaluation/3', inventory=catalog, selected_skills=selected,
         upstream_dependencies=deepcopy(PHOTO_UPSTREAM_DEPENDENCIES) if 'memoir-place-photo-research' in selected else [],
         items=selected_items, catalog_items=items,
-        datasets=[*all_datasets.values(), 'memoir/evaluation/workflows', 'memoir/evaluation/judge-calibration'],
+        datasets=[*all_datasets.values(), WORKFLOWS, CALIBRATION],
         dataset_snapshot=snapshot, dataset_snapshot_kind='local_plan_timestamp',
         evaluators=definitions(catalog), http_dispatches=0, synthetic=True,
         human_calibration='pending_human_labels',

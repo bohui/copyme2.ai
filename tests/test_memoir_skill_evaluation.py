@@ -100,7 +100,7 @@ def test_case_from_another_phase_is_rejected_before_service_allocation(tmp_path,
     monkeypatch.setattr(evaluation, 'prompt_client', lambda *args: allocated.append('langfuse') or client)
     monkeypatch.setattr('scripts.export_langfuse_prompts.export_prompts', lambda *args, **kwargs: [])
     monkeypatch.setattr(evaluation, 'publish_datasets', lambda *args: (
-        {'memoir/evaluation/v2/skill-triggers': SimpleNamespace(items=[
+        {'memoir/golden/memoir-atlas/skill-selection/v2': SimpleNamespace(items=[
             SimpleNamespace(input=row['input']) for row in rows])}, datetime.now(timezone.utc)))
     monkeypatch.setattr(evaluation, 'TracedProvider', lambda *args, **kwargs: SimpleNamespace())
     env = tmp_path / 'empty.env'
@@ -123,7 +123,7 @@ def test_an_empty_experiment_cannot_report_passed(tmp_path, monkeypatch):
     import sys
     import scripts.run_memoir_skill_evaluation as evaluation
 
-    name = 'memoir/evaluation/v2/skill-triggers'
+    name = 'memoir/golden/memoir-atlas/skill-selection/v2'
     monkeypatch.setattr(evaluation, 'datasets', lambda: {name: []})
     client = SimpleNamespace(api=SimpleNamespace(projects=SimpleNamespace(get=lambda:
         SimpleNamespace(data=[SimpleNamespace(id='cmut9t75w00071z02n8bdv7it')]))))
