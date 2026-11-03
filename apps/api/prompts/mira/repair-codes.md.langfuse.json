@@ -1,7 +1,7 @@
 {
   "name": "memoir/agents/mira/repair-codes",
   "schema_version": 1,
-  "sha256": "b9e84a4c730dacc0680ccbe1c1d0039237e8b5a1df3309964185b3c97803a917",
+  "sha256": "2fc32aae2aa3e7d2b9d0361566c38b3c55bf7a6d80c8049b5af7c4de104ece5a",
   "type": "text",
-  "version": 1
+  "version": 2
 }
