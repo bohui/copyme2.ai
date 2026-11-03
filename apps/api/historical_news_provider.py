@@ -115,12 +115,13 @@ class GatewayHistoricalProvider:
         instructions = '\n\n'.join(load_prompt_artifact(prompt_path(item)) for item in names)
         manifest = prompt_manifest(names,instructions,variant='historical-native-search')
         prompt = instructions.replace('{{query}}', query)
+        from .llm_tracing import gateway_metadata, gateway_trace_headers, trace_llm_call
+        call_name = 'memoir-historical-news-research.discovery'
         body={'model':model,'input':prompt,'tools':[{'type':'web_search'}],'tool_choice':'required',
             'include':['web_search_call.action.sources'],'reasoning':{'effort':self.effort},
             'max_output_tokens':3000,'store':False,
-            'metadata':{**manifest_metadata(manifest),'generation_name':'memoir-historical-news-research',
-                'trace_name':'memoir-historical-news-research'}}
-        from .llm_tracing import gateway_trace_headers
+            'metadata':{**manifest_metadata(manifest),
+                **gateway_metadata(call_name, trace_name='memoir-historical-news-research')}}
         async def request(client):
             try:
                 async with client.stream('POST',base+'/responses',json=body,
@@ -134,8 +135,8 @@ class GatewayHistoricalProvider:
                 decoded['receipt']['prompt_manifest']=manifest
                 return decoded
             except httpx.HTTPError:raise OSError('Historical provider unavailable') from None
-        from .llm_tracing import trace_llm_call
-        with trace_llm_call('historical.discovery',model,metadata={'prompt_manifest':manifest}, gateway=True):
+        with trace_llm_call(call_name,model,trace_name='memoir-historical-news-research',
+                metadata={'prompt_manifest':manifest}, gateway=True):
             if self.client:return await request(self.client)
             async with httpx.AsyncClient(follow_redirects=False) as client:return await request(client)
 

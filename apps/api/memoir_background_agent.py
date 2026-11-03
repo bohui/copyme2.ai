@@ -286,7 +286,7 @@ async def run_background_agent(worker, payload, *, publisher=None, broker=None, 
         source_skills=SOURCE_SKILLS, publisher=publisher, fence=fence,
         schema={'type':'object','additionalProperties':False,'properties':{'status':{'type':'string','const':'finished'}},'required':['status']},
         timeout=timeout, connection_factory=connection_factory,
-        trace_name='memoir-background-agent',
+        trace_name='memoir-background-agent', phase='orchestrate',
         issue14_admission=worker._issue14_admission, uid=worker._uid_for(fence['user_id']),
         apply_owner=os.getenv('MEMORY_SPARK_DISABLE_PRIVDROP') != '1')
     # A model's final message never marks pending domain obligations complete.

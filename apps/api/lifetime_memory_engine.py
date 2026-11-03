@@ -8,7 +8,7 @@ homes and transcripts are disposable; they are never a source of personal truth.
 from __future__ import annotations
 
 from .model_request import instruction_manifest, manifest_metadata
-from .llm_tracing import trace_llm_call, update_llm_trace
+from .llm_tracing import trace_llm_call, update_llm_trace, gateway_metadata
 
 from copy import deepcopy
 from contextlib import AsyncExitStack
@@ -404,7 +404,9 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # Only the complete validated acknowledgement crosses this boundary.
             await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
     async with AsyncExitStack() as stack:
-        trace = stack.enter_context(trace_llm_call('memoir-interviewer', model, gateway=True))
+        call_name = 'memoir-interviewer.reply-repair' if repair_reason else 'memoir-interviewer.reply'
+        trace = stack.enter_context(trace_llm_call(call_name, model, gateway=True,
+            trace_name='memoir-interviewer'))
         direct_reply = interview_context.get('reply_contract') == 'reply-v2'
         session = None
         if direct_reply:
@@ -452,7 +454,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
                 'contract_version': interview_context.get('reply_contract', 'lifetime-v1'),
                 'prompt_manifest': manifest, 'input_view_sha256': sha256(model_packet.encode()).hexdigest()}
         metadata = {**manifest_metadata(manifest), **(responsesapi_client_metadata or {}),
-                    'generation_name': 'memoir-interviewer', 'trace_name': 'memoir-interviewer'}
+                    **gateway_metadata(call_name)}
         update_llm_trace(trace, metadata=trace_metadata)
         if direct_reply:
             reply = await connection.turn(candidate, packet.current.narrator.original,

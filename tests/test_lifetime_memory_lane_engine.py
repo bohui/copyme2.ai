@@ -110,7 +110,7 @@ def test_skill_attempt_is_named_even_when_extraction_is_blocked_or_fails(monkeyp
     with llm_tracing.trace_llm_call('memoir-background-agent','synthetic',gateway=True):
         with pytest.raises(failure):
             asyncio.run(composer.execute_lifetime_lane(page(),SimpleNamespace(broker=AsyncMock())))
-    attempts=[o for o in client.observations if o.fields['name']=='memoir-author-timeline']
+    attempts=[o for o in client.observations if o.fields['name']=='memoir-author-timeline.extract']
     assert len(attempts)==1
     assert attempts[0].fields['as_type']=='span'
     assert attempts[0].updates[-1]['metadata']['status']==status
@@ -129,7 +129,7 @@ def test_profile_attempt_is_visible_when_foreground_prevents_admission(monkeypat
     client=FakeLangfuse()
     monkeypatch.setattr(llm_tracing,'_client_cache',client)
     assert asyncio.run(composer.execute_lifetime_lane(current,SimpleNamespace(broker=broker)))=={'status':'pending'}
-    attempts=[o for o in client.observations if o.fields['name']=='memoir-memory-context']
+    attempts=[o for o in client.observations if o.fields['name']=='memoir-memory-context.profile']
     assert len(attempts)==1
     assert attempts[0].updates[-1]['metadata']['status']=='blocked'
 
@@ -155,7 +155,7 @@ def test_shared_timeline_and_place_attempts_are_named_without_duplicate_extracti
     else:
         asyncio.run(composer.execute_lifetime_lane(current,SimpleNamespace(broker=broker)))
     assert extraction.await_count==1
-    assert [o.fields['name'] for o in client.observations]==names
+    assert [o.fields['name'] for o in client.observations]==[f'{name}.extract' for name in names]
     assert all(o.updates[-1]['metadata']['status']==('failed' if commit_fails else 'completed') for o in client.observations)
     assert client.observations[1].updates[-1]['metadata']['execution']=='embedded'
 
@@ -329,6 +329,8 @@ def test_extraction_harness_keeps_exact_packet_schema_manifest_and_fence(tmp_pat
     body,=Provider.bodies
     instance = SkillConnection.instances[-1]
     _, prompt, options = instance.turns[0]
+    assert options['responsesapi_client_metadata']['generation_name']=='memoir-author-timeline.extract'
+    assert options['responsesapi_client_metadata']['trace_name']=='memoir-author-timeline'
     assert json.loads(prompt)['task'] == json.loads(bounded.packet)
     assert body['dynamicTools'][0]['name'] == 'memoir_read_skill'
     assert body['ephemeral'] is True

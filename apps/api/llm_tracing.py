@@ -17,8 +17,8 @@ _gateway_span = ContextVar('memoir_gateway_span', default=False)
 _trace_name = ContextVar('memoir_trace_name', default=None)
 
 
-def gateway_metadata(name):
-    return {'generation_name': name, 'trace_name': _trace_name.get() or name}
+def gateway_metadata(name, *, trace_name=None):
+    return {'generation_name': name, 'trace_name': _trace_name.get() or trace_name or name}
 
 
 @contextmanager
@@ -168,8 +168,9 @@ def trace_llm_call(
     input_summary: Mapping[str, Any] | None = None,
     metadata: Mapping[str, Any] | None = None,
     gateway: bool = False,
+    trace_name: str | None = None,
 ) -> Iterator[Any | None]:
-    with trace_scope(name):
+    with trace_scope(trace_name or name):
         with _trace_observation(name, model, input_summary=input_summary, metadata=metadata, gateway=gateway) as observation:
             yield observation
 
@@ -182,7 +183,8 @@ def trace_skill_execution(name, phase, *, embedded=False):
     metadata = {'skill': name, 'phase': phase, 'execution': 'embedded' if embedded else 'skill'}
     outcome = {'status': 'completed'}
     failure = None
-    with trace_llm_call(name, metadata={**metadata, 'status': 'running'}, gateway=True) as observation:
+    with trace_llm_call(f'{name}.{phase}', trace_name=name,
+            metadata={**metadata, 'status': 'running'}, gateway=True) as observation:
         try:
             yield outcome
         except BaseException as error:

@@ -80,13 +80,26 @@ def test_direct_trace_marks_errors_but_preserves_provider_error(monkeypatch):
 
 
 def test_skill_metadata_keeps_the_coordinator_trace_and_scope_does_not_leak(monkeypatch):
-    monkeypatch.setattr(llm_tracing,'_client_cache',FakeLangfuse())
+    client = FakeLangfuse()
+    monkeypatch.setattr(llm_tracing,'_client_cache',client)
     with llm_tracing.trace_llm_call('memoir-background-agent','synthetic',gateway=True):
         with llm_tracing.trace_skill_execution('memoir-memory-context','profile'):
-            assert llm_tracing.gateway_metadata('memoir-memory-context')=={
-                'generation_name':'memoir-memory-context','trace_name':'memoir-background-agent'}
+            assert llm_tracing.gateway_metadata('memoir-memory-context.profile',trace_name='memoir-memory-context')=={
+                'generation_name':'memoir-memory-context.profile','trace_name':'memoir-background-agent'}
+    assert client.observations[1].fields['name']=='memoir-memory-context.profile'
     assert llm_tracing.gateway_metadata('memoir-interviewer')=={
         'generation_name':'memoir-interviewer','trace_name':'memoir-interviewer'}
+
+
+def test_step_names_keep_a_stable_agent_trace_and_reset_after_each_call(monkeypatch):
+    monkeypatch.setattr(llm_tracing,'_client_cache',FakeLangfuse())
+    for step in ('policy-review','reply','reply-repair'):
+        name=f'memoir-interviewer.{step}'
+        with llm_tracing.trace_llm_call(name,'synthetic',trace_name='memoir-interviewer',gateway=True):
+            assert llm_tracing.gateway_metadata(name)=={
+                'generation_name':name,'trace_name':'memoir-interviewer'}
+    assert llm_tracing.gateway_metadata('next-agent.run',trace_name='next-agent')=={
+        'generation_name':'next-agent.run','trace_name':'next-agent'}
 
 
 def test_unavailable_tracing_does_not_block_execution(monkeypatch):

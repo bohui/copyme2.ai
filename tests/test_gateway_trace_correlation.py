@@ -146,8 +146,10 @@ def test_skill_agent_provider_config_uses_its_own_application_span(tmp_path, mon
                 packet={}, skills=['memoir-author-timeline'], schema={'properties':{'events':{}}},
                 publisher=Publication(), fence={}, connection_factory=Connection)
     asyncio.run(run())
-    parent, agent = tracer.observations
+    parent, agent, *tools = tracer.observations
     assert agent.fields['as_type'] == 'span'
+    assert agent.fields['name'] == 'memoir-skill-agent.run'
+    assert tools and all(tool.fields['name'] == 'memoir-skill-agent.read-skill' for tool in tools)
     assert configs[0]['model_providers']['llm_provider']['http_headers'] == {
         'traceparent': f'00-{agent.trace_id}-{agent.id}-01'}
     assert agent.id != parent.id

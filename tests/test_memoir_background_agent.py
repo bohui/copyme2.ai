@@ -111,7 +111,7 @@ def test_failed_news_research_is_visible_even_when_its_unavailable_result_is_sav
     skills.news_basis=AsyncMock(return_value=({'news_snapshot':{}},{'place':'Hobart','start':1960,'end':1970}))
     assert asyncio.run(skills.execute('memoir-historical-news-research'))['status']=='saved'
     attempt=next(o for o in client.observations if o.fields['metadata']['phase']=='research')
-    assert attempt.fields['name']=='memoir-historical-news-research'
+    assert attempt.fields['name']=='memoir-historical-news-research.research'
     assert attempt.updates[-1]['metadata']['status']=='failed'
 
 

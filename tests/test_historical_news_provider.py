@@ -8,7 +8,10 @@ from test_historical_news import evidence
 
 @pytest.mark.parametrize('research_model',[None,'approved-low-model'])
 @pytest.mark.parametrize('research_effort',[None,'medium'])
-def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(monkeypatch,research_model,research_effort):
+@pytest.mark.parametrize('parent_trace',[None,'memoir-background-agent'])
+def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(monkeypatch,research_model,research_effort,parent_trace):
+    from contextlib import nullcontext
+    from apps.api.llm_tracing import trace_scope
     monkeypatch.setenv('MEMORY_SPARK_LLM_BASE_URL','https://gateway.example/v1')
     monkeypatch.setenv('MEMORY_SPARK_LLM_MODEL','approved-model')
     monkeypatch.setenv('MEMORY_SPARK_LLM_API_KEY','synthetic-key')
@@ -34,14 +37,15 @@ def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(mo
             assert len(result['receipt']['response_id'])==457
             assert result['receipt']['urls']==[evidence()['source_url']]
             assert result['events']==[evidence()]
-    asyncio.run(run())
+    with trace_scope(parent_trace) if parent_trace else nullcontext():
+        asyncio.run(run())
     assert captured[0]['tools']==[{'type':'web_search'}]
     assert captured[0]['model']==(research_model or 'background-model')
     assert 'max_tool_calls' not in captured[0] and captured[0]['store'] is False
     assert captured[0]['reasoning']=={'effort':research_effort or 'high'}
     assert {k:captured[0]['metadata'][k] for k in ('generation_name','trace_name')} == {
-        'generation_name':'memoir-historical-news-research',
-        'trace_name':'memoir-historical-news-research'}
+        'generation_name':'memoir-historical-news-research.discovery',
+        'trace_name':parent_trace or 'memoir-historical-news-research'}
     assert 'photograph' not in captured[0]['input']
 
 

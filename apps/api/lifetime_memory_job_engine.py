@@ -7,7 +7,7 @@ an accumulated harness transcript. HTTP/pipe locks end at request admission.
 from __future__ import annotations
 
 from .model_request import instruction_manifest, manifest_metadata
-from .llm_tracing import trace_llm_call
+from .llm_tracing import trace_llm_call, gateway_metadata
 from .model_configuration import background_effort
 
 import asyncio
@@ -339,7 +339,8 @@ async def run_bounded_job(*,command,home_root,base_url,api_key,model,bounded_job
     home=root/f'job-{fence.user_id}-{fence.conversation_id}-{fence.snapshot_id}-epoch-{fence.policy_epoch}-page-{fence.page_number}-{uuid4()}'
     home.mkdir(mode=0o700)
     manifest = instruction_manifest(instructions, schema, variant=fence.phase)
-    with trace_llm_call('memoir.' + str(fence.phase), model,
+    call_name = f'memoir-composer.outline-{fence.phase}'
+    with trace_llm_call(call_name, model, trace_name='memoir-composer',
             metadata={'contract_version': 'lifetime-organiser-v1', 'prompt_manifest': manifest}, gateway=True):
         write_config(home,root,os.getuid() if uid is None else uid,provider_config(base_url,model,governed=True),apply_owner=apply_owner)
         async with (connection_factory or CodexConnection)(command,home,
@@ -351,6 +352,6 @@ async def run_bounded_job(*,command,home_root,base_url,api_key,model,bounded_job
                 identity={'owner_id':str(fence.user_id),'conversation_id':str(fence.conversation_id)})
             reply=await connection.turn(opened['thread_id'],bounded.packet,output_schema=schema,
                 effort=effort or background_effort(),
-                responsesapi_client_metadata={**manifest_metadata(manifest),'generation_name':'memoir-composer','trace_name':'memoir-composer'})
+                responsesapi_client_metadata={**manifest_metadata(manifest), **gateway_metadata(call_name)})
             validate_job_result(fence,reply)
     return {'thread_id':opened['thread_id'],'reply':reply,'artifacts':[]}
