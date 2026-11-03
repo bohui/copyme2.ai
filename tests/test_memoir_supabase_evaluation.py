@@ -528,6 +528,8 @@ def test_backend_startup_uses_existing_usage_and_scoped_owner_without_postgres(s
     command, options = started[0]
     assert command == ['make', '--no-print-directory', 'memoir-live-fifty-backend']
     assert options['env']['MEMORY_SPARK_EVAL_RECALL_OWNER_ID'] == OWNER
+    assert options['env']['MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID'] == OWNER
+    assert options['env']['MEMORY_SPARK_TRACE_ORIGIN'] == 'test'
     assert options['env']['MEMORY_SPARK_EVAL_RECALL_LIMIT'] == '75'
     assert options['env']['SUPABASE_SECRET_KEY'] == 'admin-secret'
     assert options['env']['MEMORY_SPARK_API_PORT'] == '8010'

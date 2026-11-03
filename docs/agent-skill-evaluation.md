@@ -21,6 +21,14 @@ embedded legacy dependency, not another standalone current agent.
 
 ## Run and inspect
 
+Evaluation observations use `evaluation/<agent-or-skill>.<case-or-phase>` and
+`evaluation/<agent-or-skill>` trace names. Gateway calls carry the same names and
+W3C parent context. The fifty-round conversation runner sets `test/` names only
+for its configured authenticated owner; other owners retain normal names.
+The standalone delivery dataset is v3: its bilingual profile cases now include
+the directly stated avatar choice among their expected fields. Prior v2 results
+remain historical; the combined agent evaluator uses content-pinned datasets.
+
 ```sh
 # No credentials, model calls, dataset writes or deployment.
 make memoir-agent-eval-plan

@@ -112,15 +112,16 @@ def profile_cases():
 
     add('checkpoint-en-AU',
         'My name is Alex. I was born in 1960 in Hobart. I grew up in Launceston. I am a man. Now I live in Sydney.',
-        dict(name='Alex', birth_year=1960, birth_place='Hobart'),
+        dict(name='Alex', birth_year=1960, birth_place='Hobart', avatar_style='male'),
         dict(name='My name is Alex.', birth_year='I was born in 1960 in Hobart.',
-             birth_place='I was born in 1960 in Hobart.'), target=5, sequence=2,
+             birth_place='I was born in 1960 in Hobart.', avatar_style='I am a man.'), target=5, sequence=2,
         targets=[field for field in PROFILE_FIELDS if field != 'birth_date_expression'],
         reference={'birth_date_expression': '', 'authority': {'birth_date_expression': 'explicit'}})
     add('checkpoint-zh-CN',
         '🌱 我的名字是小梅。我出生于1960年前后，出生地是成都。我在昆明长大。我是一名女性。现在我住在悉尼。',
-        dict(name='小梅', birth_date_expression='1960年前后', birth_place='成都'),
-        dict(name='我的名字是小梅。', birth_date_expression='我出生于1960年前后', birth_place='出生地是成都'), target=10, sequence=7,
+        dict(name='小梅', birth_date_expression='1960年前后', birth_place='成都', avatar_style='female'),
+        dict(name='我的名字是小梅。', birth_date_expression='我出生于1960年前后', birth_place='出生地是成都',
+             avatar_style='我是一名女性。'), target=10, sequence=7,
         targets=[field for field in PROFILE_FIELDS if field != 'birth_year'], start=140,
         reference={'birth_year': None, 'authority': {'birth_year': 'explicit'}}, kind='narrator_transcript')
     add('manual-reference',

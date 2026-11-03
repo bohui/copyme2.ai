@@ -113,15 +113,17 @@ async def background(case, config, directory, timeout):
     work = await skills.work()
     if not work['work']:
         return dict(model_invoked=False, executions=[], pending=False, skill_receipt=None)
-    result = await run_skill_agent(command=[shutil.which('codex') or 'codex', 'app-server'],
-        home_root=directory / 'native', base_url=config['MEMORY_SPARK_LLM_BASE_URL'],
-        api_key=config['MEMORY_SPARK_LLM_API_KEY'], model=background_model(config), effort=background_effort(config),
-        instructions=load_prompt_artifact(prompt_path('memoir/shared/background-agent')),
-        packet=dict(lane='B', **work, locale=case['locale'], budget=dict(max_tool_calls=32, seconds=timeout)),
-        skills=[*SOURCE_SKILLS, 'memoir-composer'], execute=skills.execute, work=skills.work,
-        process_source=skills.process_source, source_skills=SOURCE_SKILLS, publisher=Publisher(), fence=fence,
-        schema=dict(type='object', additionalProperties=False, properties=dict(status=dict(type='string', const='finished')), required=['status']),
-        timeout=timeout, apply_owner=False, trace_name='memoir-evaluation-lane-b', phase='orchestrate')
+    from apps.api.llm_tracing import trace_origin
+    with trace_origin('evaluation'):
+        result = await run_skill_agent(command=[shutil.which('codex') or 'codex', 'app-server'],
+            home_root=directory / 'native', base_url=config['MEMORY_SPARK_LLM_BASE_URL'],
+            api_key=config['MEMORY_SPARK_LLM_API_KEY'], model=background_model(config), effort=background_effort(config),
+            instructions=load_prompt_artifact(prompt_path('memoir/shared/background-agent')),
+            packet=dict(lane='B', **work, locale=case['locale'], budget=dict(max_tool_calls=32, seconds=timeout)),
+            skills=[*SOURCE_SKILLS, 'memoir-composer'], execute=skills.execute, work=skills.work,
+            process_source=skills.process_source, source_skills=SOURCE_SKILLS, publisher=Publisher(), fence=fence,
+            schema=dict(type='object', additionalProperties=False, properties=dict(status=dict(type='string', const='finished')), required=['status']),
+            timeout=timeout, apply_owner=False, trace_name='evaluation/memoir-background-agent', phase='orchestrate')
     pending = await skills.work()
     return dict(model_invoked=True, executions=executions, pending=bool(pending['work']),
                 reply=result['reply'], skill_receipt=result['skill_receipt'])

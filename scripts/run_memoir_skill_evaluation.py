@@ -108,7 +108,7 @@ def datasets():
     if set(TRIGGERS) != expected or {r['input']['skill'] for r in deliveries} != expected:
         raise ValueError('missing_skill_coverage')
     return {'memoir/evaluation/v2/skill-triggers': triggers,
-            'memoir/evaluation/v2/skill-deliveries': deliveries}
+            'memoir/evaluation/v3/skill-deliveries': deliveries}
 
 
 def item_id(name, row):
@@ -217,23 +217,27 @@ class TracedProvider(LiveProvider):
         self.langfuse = langfuse
 
     async def call(self, case_id, skill, instructions, packet, schema=None, *, search=False, messages=None):
+        from apps.api.llm_tracing import trace_llm_call, update_llm_trace
         failure = None
-        with self.langfuse.start_as_current_observation(name=case_id, as_type='generation',
-                input=dict(instructions=instructions, packet=packet, **(dict(messages=messages) if messages is not None else {})),
-                metadata=dict(skill=skill)) as span:
+        with trace_llm_call(f'evaluation/{skill}.{case_id}', trace_name=f'evaluation/{skill}',
+                client=self.langfuse, gateway=True,
+                input_summary=dict(instructions=instructions, packet=packet, **(dict(messages=messages) if messages is not None else {})),
+                metadata=dict(skill=skill, case_id=case_id)) as span:
             try:
                 value, response = await super().call(case_id, skill, instructions, packet, schema, search=search, messages=messages)
                 record = self.receipt['calls'][-1]
+                record.update(trace_id=getattr(span, 'trace_id', None), observation_id=getattr(span, 'id', None))
                 usage = record.get('usage') or {}
-                span.update(output=value, model=record['served_model'],
+                update_llm_trace(span, output=value,
                     usage_details={key: usage[key] for key in ('input_tokens', 'output_tokens', 'total_tokens')
                                    if isinstance(usage.get(key), int)},
                     metadata=dict(skill=skill, response_id=record['provider_response_id'],
-                                  requested_model=record['requested_model'], effort=record['effort']))
+                                  requested_model=record['requested_model'], served_model=record['served_model'], effort=record['effort']))
             except Exception as error:
                 # Do not send transport exception strings (which can contain credentials).
-                span.update(level='ERROR', status_message=type(error).__name__)
+                update_llm_trace(span, level='ERROR', status_message=type(error).__name__)
                 failure = error
+        save(self.directory / 'receipt.json', self.receipt)
         if failure is not None:
             raise failure
         return value, response

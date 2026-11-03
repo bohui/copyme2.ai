@@ -27,6 +27,7 @@ import jsonschema
 from scripts.memoir_live_skill_cases import cases, progressive_page, skill_prompt, validate_case
 from apps.api.prompt_artifact import load_prompt_artifact
 from apps.api.composer_configuration import composer_configuration
+from apps.api.llm_tracing import gateway_metadata, gateway_trace_headers
 
 
 def sha(value):
@@ -91,6 +92,7 @@ class LiveProvider:
                 'input': json.dumps(packet, ensure_ascii=False), 'store': False,
                 'max_output_tokens': 8192 if skill == 'memoir-composer' else 3000,
                 'reasoning': {'effort': effort}}
+        body['metadata'] = gateway_metadata(f'evaluation/{skill}.{case_id}', trace_name=f'evaluation/{skill}')
         if schema:
             body['text'] = {'format': {'type': 'json_schema', 'name': 'skill_result', 'strict': True, 'schema': schema}}
         if messages is not None:
@@ -113,7 +115,8 @@ class LiveProvider:
             async with asyncio.timeout(timeout):
                 async with httpx.AsyncClient(follow_redirects=False, trust_env=False) as client:
                     async with client.stream('POST', self.config['MEMORY_SPARK_LLM_BASE_URL'].rstrip('/') + '/responses',
-                        headers={'Authorization': 'Bearer ' + self.config['MEMORY_SPARK_LLM_API_KEY']},
+                        headers={'Authorization': 'Bearer ' + self.config['MEMORY_SPARK_LLM_API_KEY'],
+                                 **gateway_trace_headers()},
                         json=body, timeout=timeout) as response:
                         record['http_status'] = response.status_code
                         if not response.is_success:

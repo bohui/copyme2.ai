@@ -15,28 +15,40 @@ _UNSET = object()
 _client_cache: object = _UNSET
 _gateway_span = ContextVar('memoir_gateway_span', default=False)
 _trace_name = ContextVar('memoir_trace_name', default=None)
+_trace_origin = ContextVar('memoir_trace_origin', default=None)
+
+
+@contextmanager
+def trace_origin(origin):
+    token = _trace_origin.set(origin if origin in {'evaluation', 'test'} else None)
+    try:
+        yield
+    finally:
+        _trace_origin.reset(token)
+
+
+def trace_for_owner(owner_id):
+    """Classify only the configured test owner, using authenticated identity."""
+    selected = os.getenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', '').strip()
+    return trace_origin(os.getenv('MEMORY_SPARK_TRACE_ORIGIN') if selected and str(owner_id) == selected else None)
+
+
+def _origin_name(name):
+    origin = _trace_origin.get()
+    return f'{origin}/{name}' if origin and not name.startswith(f'{origin}/') else name
 
 
 def gateway_metadata(name, *, trace_name=None):
-    return {'generation_name': name, 'trace_name': _trace_name.get() or trace_name or name}
+    return {'generation_name': _origin_name(name),
+            'trace_name': _origin_name(_trace_name.get() or trace_name or name)}
 
 
 @contextmanager
 def trace_scope(name):
-    token = _trace_name.set(_trace_name.get() or name)
-    scope = ExitStack()
-    try:
-        from langfuse import propagate_attributes
-        scope.enter_context(propagate_attributes(trace_name=_trace_name.get()))
-    except Exception:
-        _LOGGER.debug('Langfuse trace attributes are unavailable', exc_info=True)
+    token = _trace_name.set(_origin_name(_trace_name.get() or name))
     try:
         yield
     finally:
-        try:
-            scope.close()
-        except Exception:
-            _LOGGER.debug('Langfuse trace attributes could not be closed', exc_info=True)
         _trace_name.reset(token)
 
 
@@ -169,9 +181,11 @@ def trace_llm_call(
     metadata: Mapping[str, Any] | None = None,
     gateway: bool = False,
     trace_name: str | None = None,
+    client: Any = _UNSET,
 ) -> Iterator[Any | None]:
     with trace_scope(trace_name or name):
-        with _trace_observation(name, model, input_summary=input_summary, metadata=metadata, gateway=gateway) as observation:
+        with _trace_observation(_origin_name(name), model, input_summary=input_summary, metadata=metadata,
+                gateway=gateway, client=client) as observation:
             yield observation
 
 
@@ -201,9 +215,9 @@ def trace_skill_execution(name, phase, *, embedded=False):
 
 
 @contextmanager
-def _trace_observation(name, model, *, input_summary=None, metadata=None, gateway=False):
+def _trace_observation(name, model, *, input_summary=None, metadata=None, gateway=False, client=_UNSET):
     """Gateway calls get an app span; directly observed calls get a generation."""
-    client = _get_client()
+    client = _get_client() if client is _UNSET else client
     if client is None:
         yield None
         return
@@ -228,6 +242,12 @@ def _trace_observation(name, model, *, input_summary=None, metadata=None, gatewa
         yield None
         return
 
+    attributes_scope = ExitStack()
+    try:
+        from langfuse import propagate_attributes
+        attributes_scope.enter_context(propagate_attributes(trace_name=_trace_name.get()))
+    except Exception:
+        _LOGGER.debug('Langfuse observation trace name is unavailable', exc_info=True)
     token = _gateway_span.set(gateway)
     exception_info: tuple[Any, Any, Any] = (None, None, None)
     try:
@@ -240,6 +260,7 @@ def _trace_observation(name, model, *, input_summary=None, metadata=None, gatewa
     finally:
         _gateway_span.reset(token)
         try:
+            attributes_scope.close()
             exit_context = getattr(context, "__exit__", None)
             if callable(exit_context):
                 exit_context(*exception_info)

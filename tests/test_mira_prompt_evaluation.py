@@ -36,11 +36,11 @@ def test_realtime_probes_use_no_background_question_pool_and_append_optional_new
     for case in inputs:
         assert case['view']['brief']['hints'] == []
         messages = reply_messages(case['view'], '')
+        assert messages[-1]['content'] == case['context']['source']['text']
+        updates = json.loads(messages[1]['content'])['memoir_context']['updates']
         if case['id'].split('/')[1].endswith('news'):
-            assert json.loads(messages[-1]['content'])['background_deliveries'][-1]['skill']=='memoir-historical-news-research'
-            assert json.loads(messages[-2]['content'])['current']['narrator']['original']==case['context']['source']['text']
-        else:
-            assert json.loads(messages[-1]['content'])['current']['narrator']['original']==case['context']['source']['text']
+            assert 'memoir-historical-news-research' in updates['deliveries']
+        assert updates['brief']['current']['hint_order'] == 'highest_priority_first'
         assert 'criteria' not in json.dumps(case['view'])
 
 
@@ -99,7 +99,10 @@ def test_generation_and_judge_requests_keep_the_interviewer_trace_name(tmp_path,
     asyncio.run(evaluate(args, [case]))
 
     assert len(requests) == 3
-    assert all(body.get('metadata', {}).get('trace_name') == 'memoir-interviewer' for body in requests)
-    assert all(body['metadata']['generation_name'] == 'memoir-interviewer' for body in requests)
+    assert all(body.get('metadata', {}).get('trace_name') == 'evaluation/memoir-interviewer' for body in requests)
+    assert [body['metadata']['generation_name'] for body in requests] == [
+        f'evaluation/memoir-interviewer.baseline.{case["id"]}',
+        f'evaluation/memoir-interviewer.candidate.{case["id"]}',
+        'evaluation/memoir-interviewer.judge']
     report = json.loads(args.output.read_text())
     assert all(row['contract'] == 'pass' for row in report['results'])

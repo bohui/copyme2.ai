@@ -519,6 +519,7 @@ async def start_case_backend(requests, account, plan, settings, backend_lock_fd,
     if type(limit) is not int or limit<used:
         raise EvaluationError('Original case allowance is exhausted or invalid; no replacement allowance')
     environment = {**settings, 'MEMORY_SPARK_EVAL_RECALL_OWNER_ID': account.verified_owner,
+        'MEMORY_SPARK_TRACE_ORIGIN': 'test', 'MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID': account.verified_owner,
         'MEMORY_SPARK_EVAL_RECALL_LIMIT':str(limit), 'SUPABASE_SECRET_KEY':account.secret_key,
         'MEMOIR_PUBLICATION_DATABASE_URL':publication_url,
         LOCK_FD_ENV:str(backend_lock_fd), 'MEMORY_SPARK_API_PORT':str(urlsplit(plan['api_base']).port or 80)}

@@ -102,6 +102,32 @@ def test_step_names_keep_a_stable_agent_trace_and_reset_after_each_call(monkeypa
         'generation_name':'next-agent.run','trace_name':'next-agent'}
 
 
+@pytest.mark.parametrize('origin', ['evaluation', 'test'])
+def test_execution_origin_names_every_step_and_restores_production(monkeypatch, origin):
+    client = FakeLangfuse()
+    monkeypatch.setattr(llm_tracing, '_client_cache', client)
+    with llm_tracing.trace_origin(origin):
+        with llm_tracing.trace_llm_call('memoir-background-agent', gateway=True):
+            with llm_tracing.trace_skill_execution('memoir-memory-context', 'profile'):
+                assert llm_tracing.gateway_metadata('memoir-memory-context.profile') == {
+                    'generation_name': f'{origin}/memoir-memory-context.profile',
+                    'trace_name': f'{origin}/memoir-background-agent'}
+    assert [span.fields['name'] for span in client.observations] == [
+        f'{origin}/memoir-background-agent', f'{origin}/memoir-memory-context.profile']
+    assert llm_tracing.gateway_metadata('memoir-interviewer.reply', trace_name='memoir-interviewer') == {
+        'generation_name': 'memoir-interviewer.reply', 'trace_name': 'memoir-interviewer'}
+
+
+def test_configured_test_origin_only_applies_to_the_authenticated_owner(monkeypatch):
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN', 'test')
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', 'selected-owner')
+    monkeypatch.setattr(llm_tracing, '_client_cache', FakeLangfuse())
+    for owner, expected in [('selected-owner', 'test/memoir-interviewer'), ('other-owner', 'memoir-interviewer')]:
+        with llm_tracing.trace_for_owner(owner):
+            with llm_tracing.trace_llm_call('memoir-interviewer', gateway=True):
+                assert llm_tracing.gateway_metadata('memoir-interviewer')['trace_name'] == expected
+
+
 def test_unavailable_tracing_does_not_block_execution(monkeypatch):
     class Unavailable:
         def start_as_current_observation(self,**fields):
