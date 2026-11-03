@@ -1,0 +1,60 @@
+{
+  "status": "awaiting_selected_test_account_approval",
+  "case_id": "chengdu-tea-ledger",
+  "target_rounds": 50,
+  "live_conversation_rounds_executed": 0,
+  "branch": "codex/fifty-round-agent-evaluation",
+  "logs": [
+    {
+      "name": "packet-before",
+      "path": "/Users/bohuihan/memoir/var/fifty-round-preflight-20261104/packet-before.log",
+      "sha256": "573ae0d268024272d537f44b0154bd3f7b61f9fe0fa7e3bfd587dac4976de7e3"
+    },
+    {
+      "name": "packet-after",
+      "path": "/Users/bohuihan/memoir/var/fifty-round-preflight-20261104/packet-after.log",
+      "sha256": "adc67bb9914e1bbb921a6e7c92f4688cd87534d370ba88f60ac048532cb3d41d"
+    },
+    {
+      "name": "historical-reply-after",
+      "path": "/Users/bohuihan/memoir/var/fifty-round-preflight-20261104/historical-reply-after.log",
+      "sha256": "2c79423a4e372b21edd11f20014d8a3dac09fb85880c6f673c61a483a51564f3"
+    },
+    {
+      "name": "fifty-harness-after",
+      "path": "/Users/bohuihan/memoir/var/fifty-round-preflight-20261104/fifty-harness-after.log",
+      "sha256": "2d0a9e5840aec98ad9ebe5a08d8d864f31881fda02041dd9d74ff098741ee68a"
+    },
+    {
+      "name": "place-regression",
+      "path": "/Users/bohuihan/memoir/var/fifty-round-preflight-20261104/place-regression.log",
+      "sha256": "433bc87e28fc36e86dbec42204c37bc9ef38772a91fe5d3d7b0a84a0ed78bea3"
+    },
+    {
+      "name": "composer-guards",
+      "path": "/Users/bohuihan/memoir/var/fifty-round-preflight-20261104/composer-guards.log",
+      "sha256": "9502b3583c04289d36e3ad81035156f87240a0186a706b9a34df765dbc6a0ba6"
+    },
+    {
+      "name": "composer-live",
+      "path": "/Users/bohuihan/memoir/var/fifty-round-preflight-20261104/composer-live.log",
+      "sha256": "5928ec18bcefc4cd4fefc3e59cb74910b635a9762e08b045bd0554d4d862917a"
+    }
+  ],
+  "selected_account_setup": {
+    "email": "test2@test.com",
+    "action": "create_missing_confirmed_test_account",
+    "send_email": false,
+    "change_existing_accounts": false,
+    "approval_received": false
+  },
+  "composer_followup": {
+    "run_id": "20261103T131526Z-fb9689",
+    "experiment_id": "39c4d4266737d7dd",
+    "status": "pass",
+    "elapsed_seconds": 81.646,
+    "model_calls": 2,
+    "case_timeout_seconds": 150,
+    "hosted_readback": "verified"
+  }
+}
