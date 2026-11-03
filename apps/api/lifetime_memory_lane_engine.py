@@ -887,7 +887,8 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
             connection_factory=connection_factory, issue14_admission=issue14_admission,
             uid=uid, apply_owner=apply_owner,
             trace_name=skill_name, phase=bounded.phase,
-            max_tool_bytes=min(32768, bounded.budget.input_budget - lane_request_tokens(bounded)
+            max_tool_bytes=min(65536 if role == 'composer' else 32768,
+                bounded.budget.input_budget - lane_request_tokens(bounded)
                 + bounded.budget.count(lane_skill_text(bounded))),
             effort=effort or (composer_configuration().effort if role == 'composer' else configured_effort(
                 'MEMORY_SPARK_AUTHOR_TIMELINE_REASONING_EFFORT', 'MEMORY_SPARK_MEMOIR_COMPOSER_REASONING_EFFORT',

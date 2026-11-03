@@ -149,10 +149,13 @@ async def run_skill_agent(*, command, home_root, base_url, api_key, model,
             'memoir_pending_work': 'check-pending-work', 'memoir_process_source': 'process-source'}
         step = steps.get(name, 'tool') if isinstance(name, str) else 'tool'
         with trace_skill_execution(trace_name, step) as attempt:
-            result = await tools.call(params)
-            if not result.get('success'):
-                attempt['status'] = 'failed'
-            return result
+            try:
+                result = await tools.call(params)
+                if not result.get('success'):
+                    attempt['status'] = 'failed'
+                return result
+            finally:
+                attempt.update(tool_calls=tools.calls, tool_bytes=tools.bytes, tool_byte_limit=tools.max_bytes)
     instructions = load_prompt_artifact(prompt_path('memoir/shared/skill-agent')) + '\n\n' + instructions
     catalog = list(tools.catalog.values())
     prompt = json.dumps({'task': packet, 'available_skills': catalog}, ensure_ascii=False)
