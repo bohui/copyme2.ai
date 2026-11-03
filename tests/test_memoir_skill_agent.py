@@ -41,16 +41,16 @@ def test_skill_selection_reads_the_actual_file_before_executor_runs():
         async def execute(name):
             executed.append(name)
             return {'status':'saved'}
-        tools = SkillTools(['memoir-author-timeline', 'memoir-interview-guidance'], execute=execute)
-        refused = await tools.call(params('memoir_execute_skill', skill='memoir-interview-guidance'))
+        tools = SkillTools(['memoir-author-timeline', 'memoir-memory-context'], execute=execute)
+        refused = await tools.call(params('memoir_execute_skill', skill='memoir-memory-context'))
         assert not refused['success'] and executed == []
-        read = await tools.call(params('memoir_read_skill', skill='memoir-interview-guidance'))
+        read = await tools.call(params('memoir_read_skill', skill='memoir-memory-context'))
         assert decoded(read)['instructions'] == load_prompt_artifact(prompt_path(
-            'memoir/skills/memoir-interview-guidance/instructions'))
-        assert tools.reads == [prompt_path('memoir/skills/memoir-interview-guidance/instructions')]
-        result = await tools.call(params('memoir_execute_skill', skill='memoir-interview-guidance'))
+            'memoir/skills/memoir-memory-context/instructions'))
+        assert tools.reads == [prompt_path('memoir/skills/memoir-memory-context/instructions')]
+        result = await tools.call(params('memoir_execute_skill', skill='memoir-memory-context'))
         assert decoded(result) == {'status':'saved'}
-        assert executed == ['memoir-interview-guidance']
+        assert executed == ['memoir-memory-context']
         assert all('timeline' not in row['skill'] for row in tools.executions)
     asyncio.run(scenario())
 
@@ -130,11 +130,11 @@ for line in sys.stdin:
   task=json.loads(m['params']['input'][0]['text'])
   assert len(task['available_skills'])==2
   print(json.dumps({'id':m['id'],'result':{'turn':{'id':turn}}}),flush=True)
-  print(json.dumps({'id':'choose-guidance','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'call','tool':'memoir_read_skill','arguments':{'skill':'memoir-interview-guidance'}}}),flush=True)
- elif m.get('id')=='choose-guidance':
+  print(json.dumps({'id':'choose-profile','method':'item/tool/call','params':{'threadId':thread,'turnId':turn,'callId':'call','tool':'memoir_read_skill','arguments':{'skill':'memoir-memory-context'}}}),flush=True)
+ elif m.get('id')=='choose-profile':
   assert m['result']['success']
   content=json.loads(m['result']['contentItems'][0]['text'])
-  assert '# Memoir Interview Guidance' in content['instructions']
+  assert '# Narrator profile' in content['instructions']
   json.dump(content,open(sys.argv[1],'w'))
   print(json.dumps({'method':'item/completed','params':{'threadId':thread,'turnId':turn,'item':{'id':'message','type':'agentMessage','phase':'final_answer','text':'{"events":[]}'}}}),flush=True)
   print(json.dumps({'method':'turn/completed','params':{'threadId':thread,'turn':{'id':turn,'status':'completed'}}}),flush=True)
@@ -143,13 +143,13 @@ for line in sys.stdin:
     result = asyncio.run(run_skill_agent(command=[sys.executable,str(server),str(journal)],
         home_root=tmp_path / 'homes', base_url='http://provider.invalid', api_key='synthetic',
         model='synthetic-byte-bpe', instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/system')),
-        packet={'work':[]}, skills=['memoir-author-timeline','memoir-interview-guidance'],
+        packet={'work':[]}, skills=['memoir-author-timeline','memoir-memory-context'],
         publisher=publication, fence={}, timeout=5,
         trace_name='memoir-atlas', phase='orchestrate'))
     assert json.loads(result['reply']) == {'events':[]}
-    assert result['skill_receipt']['skills_read'] == ['memoir-interview-guidance']
+    assert result['skill_receipt']['skills_read'] == ['memoir-memory-context']
     assert json.loads(journal.read_text())['instructions'] == load_prompt_artifact(prompt_path(
-        'memoir/skills/memoir-interview-guidance/instructions'))
+        'memoir/skills/memoir-memory-context/instructions'))
     assert publication.calls >= 3
     assert not list((tmp_path / 'homes').iterdir())
     assert [observation.fields['name'] for observation in tracer.observations]==[

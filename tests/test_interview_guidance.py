@@ -1,4 +1,4 @@
-"""Independent Lane B interviewing decisions; no timeline or biography writes."""
+"""Historical guidance validation and rejection of the retired model capability."""
 from copy import deepcopy
 
 import pytest
@@ -84,21 +84,22 @@ def test_no_trigger_preserves_the_existing_pool_and_does_not_invent_a_reflection
         'acknowledgement_guidance':None,'strategy_proposal':None},context())['prepared_questions']==[]
 
 
-def test_guidance_transport_keeps_evidence_scoped_and_uses_its_own_worker_role():
-    from apps.api.interview_guidance import guidance_packet
-    from apps.api.lifetime_memory_lane_engine import build_bounded_lane_input
+def test_retired_guidance_cannot_dispatch_a_model_or_register_a_prompt():
+    from apps.api.background_skills import SKILLS
     from apps.api.codex_worker_service import WorkerTurnInput
-    from test_lifetime_memory_lane_engine import page,BUDGET
+    from apps.api.lifetime_memory_lane_engine import lane_contract, build_bounded_lane_input
+    from apps.api.prompt_catalog import PROMPT_PATHS
+    from test_lifetime_memory_lane_engine import page, BUDGET
+    assert 'memoir-interview-guidance' not in SKILLS
+    assert 'memoir/skills/memoir-interview-guidance/instructions' not in PROMPT_PATHS
     current=page('guidance')
-    current['guidance_context']=dict(source_windows=[current['source']],recent_dialogue=[],news_clues=[],minimum_detail_rounds=3)
-    bounded=build_bounded_lane_input(current,phase='guidance',packet=guidance_packet(current),budget=BUDGET)
-    payload=dict(user_id=current['user_id'],project_id=current['project_id'],language=current['locale'],
-        model=BUDGET.model,bounded_lane=bounded)
-    assert WorkerTurnInput(**payload,agent_role='interview_guidance').bounded_lane.phase=='guidance'
-    with pytest.raises(ValueError):WorkerTurnInput(**payload,agent_role='author_timeline')
-    altered=deepcopy(guidance_packet(current));altered['guidance_context']['source_windows'][0]['text']='Another owner'
-    with pytest.raises(ValueError):build_bounded_lane_input(current,phase='guidance',packet=altered,budget=BUDGET)
-    with pytest.raises(ValueError):build_bounded_lane_input(current,phase='extract',packet=guidance_packet(current),budget=BUDGET)
+    with pytest.raises(ValueError):
+        build_bounded_lane_input(current,phase='guidance',packet={},budget=BUDGET)
+    with pytest.raises(ValueError,match='Unsupported lane phase'):
+        lane_contract('guidance','en-AU')
+    with pytest.raises(ValueError):
+        WorkerTurnInput(user_id=current['user_id'],project_id=current['project_id'],
+            agent_role='interview_guidance')
 
 
 def test_ready_research_without_a_guidance_selection_is_not_a_question():

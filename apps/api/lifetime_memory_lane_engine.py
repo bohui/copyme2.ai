@@ -145,7 +145,7 @@ class LaneFence(Contract):
     user_id: UUID
     project_id: str = Field(min_length=1, max_length=128, pattern=r'^[A-Za-z0-9][A-Za-z0-9_-]*$')
     conversation_id: UUID
-    skill: Literal['timeline', 'composer', 'guidance']
+    skill: Literal['timeline', 'composer']
     locale: Literal['en-AU', 'zh-CN']
     policy_epoch: int = Field(ge=1, strict=True)
     preference_revision: int = Field(ge=0, strict=True)
@@ -169,7 +169,6 @@ class LaneFence(Contract):
     attribution_context:AttributionContext|None=Field(default=None,exclude_if=lambda value:value is None)
     timeline_context:dict[str,Any]|None=Field(default=None,exclude_if=lambda value:value is None)
     attribution_coverage:dict[str,Any]|None=Field(default=None,exclude_if=lambda value:value is None)
-    guidance_context: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)
     prior_outputs: list[LaneArtifact] = Field(default_factory=list, max_length=16)
 
 
@@ -198,10 +197,9 @@ def _object(value):
 
 def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, retry_reason=None):
     """Use server code, never client-supplied instructions or output schemas."""
-    if phase == 'guidance':
-        from .interview_guidance import guidance_contract
-        instructions, schema = guidance_contract(fence)
-    elif phase == 'profile':
+    if phase not in {'extract', 'summarize', 'profile', 'prepare', 'draft', 'review'}:
+        raise ValueError('Unsupported lane phase')
+    if phase == 'profile':
         from .background_profile import profile_contract
         instructions, schema = profile_contract(fence)
     elif phase == 'summarize':
@@ -274,13 +272,13 @@ class BoundedLaneInput(Contract):
     fence: LaneFence
     budget: ContextBudget
     prompt_version: Literal['lifetime-lane-v1'] = 'lifetime-lane-v1'
-    phase: Literal['extract', 'summarize', 'profile', 'prepare', 'draft', 'review', 'guidance']
+    phase: Literal['extract', 'summarize', 'profile', 'prepare', 'draft', 'review']
     packet: str = Field(min_length=1, max_length=10_000_000)
 
     @model_validator(mode='after')
     def validate_transport(self):
         if self.phase not in {'timeline': {'extract','summarize','profile'},
-                               'composer': {'prepare','draft','review'}, 'guidance': {'guidance'}}[self.fence.skill]:
+                               'composer': {'prepare','draft','review'}}[self.fence.skill]:
             raise ValueError('Bounded lane phase does not match skill')
         maximum_input = 98304 if self.phase in {'prepare', 'draft', 'review'} or self.phase == 'extract' and self.fence.timeline_context else 65536
         if (self.budget.context_window > 131072 or self.budget.input_budget > maximum_input
@@ -438,28 +436,6 @@ def canonical_lane_request(fence):
 
 
 def _validate_phase_packet(fence,phase,payload):
-    if phase == 'guidance':
-        from .interview_guidance import guidance_packet
-        context = fence.guidance_context
-        if (not isinstance(context, dict) or fence.batch is not None or fence.memory_summary is not None
-                or fence.profile_context is not None or fence.prior_outputs
-                or len(serialize_packet(context).encode('utf-8')) > 32768
-                or not 1 <= len(context.get('source_windows', [])) <= 8
-                or len(context.get('news_clues', [])) > 5
-                or len(context.get('recent_dialogue', [])) > 8):
-            raise ValueError('Guidance requires its bounded canonical context')
-        for source in context['source_windows']:
-            if (source.get('project_id') != fence.project_id or source.get('status') != 'active'
-                    or source.get('kind') not in {'narrator_chat', 'narrator_transcript'}
-                    or not isinstance(source.get('text'), str) or not 0 < len(source['text']) <= 2304
-                    or type(source.get('char_start')) is not int or source['char_start'] < 0
-                    or source.get('char_end') != source['char_start'] + len(source['text'])):
-                raise ValueError('Guidance source window is outside its canonical scope')
-        if payload != guidance_packet(fence.model_dump(mode='json'), retry_reason=payload.get('retry_reason')):
-            raise ValueError('Guidance payload differs from its authoritative context')
-        return
-    if fence.guidance_context is not None:
-        raise ValueError('Guidance context cannot run another lane phase')
     if phase == 'profile':
         from .background_profile import RETRY_CODES, profile_packet
         if fence.memory_summary is not None or fence.batch is not None or fence.prior_outputs:
@@ -647,8 +623,6 @@ def lane_skill_names(bounded_lane):
         if chosen is not None:
             return tuple(name for name in chosen if name != 'memoir-memory-context')
         return ('memoir-author-timeline', 'memoir-place-journey') if bounded_lane.fence.two_lane else ('memoir-author-timeline',)
-    if bounded_lane.phase == 'guidance':
-        return ('memoir-interview-guidance',)
     if bounded_lane.phase in {'profile', 'summarize'}:
         return ('memoir-memory-context',)
     return ('memoir-composer',)
@@ -812,8 +786,7 @@ async def send_bounded_lane_request(*, worker_url, worker_secret, bounded_lane,
         raise PublicationUnavailable('Bounded lane worker is unavailable')
     publisher = _publisher(bounded,publisher)
     payload = {'user_id':str(bounded.fence.user_id), 'project_id':bounded.fence.project_id,
-        'agent_role':('interview_guidance' if bounded.phase == 'guidance' else
-            'memory_context' if bounded.phase == 'profile' else
+        'agent_role':('memory_context' if bounded.phase == 'profile' else
             'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer'),
         'model':bounded.budget.model, 'language':bounded.fence.locale,
         'bounded_lane':bounded.model_dump(mode='json')}
@@ -862,10 +835,9 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     check_lane_generation()
     bounded = _validated(bounded_lane,model)
     await validate_lane_payload(bounded)
-    role = ('interview_guidance' if bounded.phase == 'guidance' else
-        'memory_context' if bounded.phase == 'profile' else
+    role = ('memory_context' if bounded.phase == 'profile' else
         'author_timeline' if bounded.phase in {'extract','summarize'} else 'composer')
-    skill_name = {'interview_guidance': 'memoir-interview-guidance', 'memory_context': 'memoir-memory-context',
+    skill_name = {'memory_context': 'memoir-memory-context',
         'author_timeline': 'memoir-author-timeline', 'composer': 'memoir-composer'}[role]
     if bounded.phase == 'extract' and lane_skill_names(bounded) == ('memoir-place-journey',):
         skill_name = 'memoir-place-journey'

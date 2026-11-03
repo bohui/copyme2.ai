@@ -13,7 +13,6 @@ PROMPT_PATHS = {
        'skills/memoir-story-game/prompts/novel-to-game/' + name + '.md'
        for name in ('adapter', 'journey', 'assets', 'analyze', 'concept', 'design',
                     'whitebox', 'art', 'production', 'production_style', 'illustration')},
-    'memoir/skills/memoir-interview-guidance/instructions': 'skills/memoir-interview-guidance/SKILL.md',
     'memoir/skills/memoir-author-timeline/continuity': 'skills/memoir-author-timeline/prompts/continuity.md',
     'memoir/evaluation/semantic-boundaries-judge': 'apps/api/prompts/evaluation/semantic-boundaries-judge.md',
     'memoir/skills/memoir-place-photo-research/discovery': 'skills/memoir-place-photo-research/prompts/discovery.md',

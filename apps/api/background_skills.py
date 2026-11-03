@@ -21,8 +21,6 @@ class Skill:
 
 
 SKILLS = {item.name: item for item in (
-    Skill('memoir-interview-guidance', 'guidance', 'model', 'accepted_context_change', status='legacy',
-        gates=('canonical_activation','source_policy_fence','delivered_dialogue','current_public_news'),recovery='durable_lane'),
     Skill('memoir-author-timeline', 'timeline', 'model', 'accepted_source',
         gates=('canonical_activation','source_policy_fence','B_skill_selection'),recovery='durable_lane'),
     Skill('memoir-family-tree', None, 'model', 'relationship_evidence', 'unwired',
@@ -52,7 +50,7 @@ def execution_map():
         'mode_independent':item.name != 'memoir-story-game',
         'cadence':{'every_completed_rounds':private_draft_cadence()} if item.name=='memoir-composer' else None,
         'compatibility':'flag_off_place_in_A' if item.name == 'memoir-place-journey' else None}
-        for item in SKILLS.values() if item.status!='legacy']
+        for item in SKILLS.values()]
 
 
 class SkillUnavailable(ValueError):
@@ -80,7 +78,9 @@ def admit(name, trigger):
     mode or a round. Only the existing SQL schedulers can admit periodic pages.
     Optional runners retain their separate capacity, caches and recovery.
     """
-    skill = SKILLS[name]
+    skill = SKILLS.get(name)
+    if skill is None:
+        raise SkillUnavailable('unavailable')
     if skill.status != 'implemented' or skill.trigger != trigger:
         raise SkillUnavailable(skill.status if skill.status != 'implemented' else 'trigger_required')
     if name == 'memoir-historical-news-research' and os.getenv('MEMORY_SPARK_HISTORICAL_NEWS','').lower() not in {'1','true','yes'}:
@@ -90,10 +90,6 @@ def admit(name, trigger):
 
 def admit_lane(fence, phase):
     """Admit only canonical bounded phases, not a catalog-selected model call."""
-    if fence.skill == 'guidance':
-        if phase != 'guidance' or fence.guidance_context is None:
-            raise SkillUnavailable('phase_required')
-        return SKILLS['memoir-interview-guidance']  # Retained validator path; never scheduled or advertised.
     if fence.skill == 'timeline':
         if phase not in {'extract','summarize','profile'}:
             raise SkillUnavailable('phase_required')

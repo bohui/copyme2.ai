@@ -17,7 +17,7 @@ def news_context():
 def test_interview_guidance_is_not_an_active_background_skill():
     from apps.api.background_skills import admit,execution_map,SkillUnavailable
     assert 'memoir-interview-guidance' not in {skill['name'] for skill in execution_map()}
-    with pytest.raises(SkillUnavailable,match='legacy'):
+    with pytest.raises(SkillUnavailable,match='unavailable'):
         admit('memoir-interview-guidance','accepted_context_change')
 
 
@@ -36,6 +36,29 @@ def test_a_very_uncertain_city_reaches_mira_without_a_background_question_pool()
     packet=reply_packet(validate_governed_context(encode(raw),context))
     assert packet['brief']['hints']==[]
     assert packet['background_deliveries']==[dict(skill='memoir-author-timeline',events=[event])]
+
+
+def test_ready_news_enters_native_mira_context_without_a_guidance_skill():
+    import json
+    from apps.api.conversation_reply import reply_packet
+    from apps.api.conversation_reply_transport import reply_messages
+    from apps.api.historical_news import public_clue
+    from apps.api.lifetime_memory_engine import validate_governed_context
+    from test_lifetime_memory_engine import fixture, encode
+    governed, context = fixture()
+    context['historical_news'] = ready_context()['historical_news']
+    context['two_lane_memory'] = True
+    raw = json.loads(governed.packet)
+    raw['interview_context']['historical_news'] = context['historical_news']
+    raw['interview_context']['two_lane_memory'] = True
+    view = reply_packet(validate_governed_context(encode(raw), context))
+    messages = reply_messages(view, '')
+    application = json.loads(messages[1]['content'])['memoir_context']
+    clue = context['historical_news']['clues'][0]
+    assert application['origin'] == 'application' and application['narrator_message'] is False
+    assert application['updates']['deliveries']['memoir-historical-news-research']['clues'] == [public_clue(clue)]
+    assert messages[-1]['content'] == context['source']['text']
+    assert view['brief']['hints'] == []
 
 
 def test_mira_can_ignore_ready_news_and_keep_her_current_grounded_reply():
