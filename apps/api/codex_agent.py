@@ -340,6 +340,9 @@ def provider_config(base_url, model, *, governed=False):
     """Generate credential-free config; governed homes cannot create/use memories."""
     model = configured_model(environment={'MEMORY_SPARK_LLM_MODEL': model})
     headers = gateway_trace_headers()
+    single_attempt = model.startswith('deepseek-')
+    if single_attempt:
+        headers['x-litellm-num-retries'] = '0'
     return '\n'.join([
         'model_provider = "llm_provider"',
         'model = ' + json.dumps(model),
@@ -353,7 +356,10 @@ def provider_config(base_url, model, *, governed=False):
         'base_url = ' + json.dumps(base_url.rstrip('/')),
         'wire_api = "responses"',
         'env_key = "MEMORY_SPARK_LLM_API_KEY"',
-        *(['http_headers = { traceparent = ' + json.dumps(headers['traceparent']) + ' }'] if headers else []),
+        *(['http_headers = { ' + ', '.join(json.dumps(key) + ' = ' + json.dumps(value)
+            for key, value in headers.items()) + ' }'] if headers else []),
+        # Bound both HTTP attempts and outer stream restarts; the gateway has its own budget.
+        *(['request_max_retries = 0', 'stream_max_retries = 0'] if single_attempt else []),
         'requires_openai_auth = false',
         '[features]',
         'memories = ' + ('false' if governed else 'true'),

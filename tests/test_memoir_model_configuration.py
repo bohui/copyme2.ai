@@ -8,6 +8,21 @@ from apps.api.codex_runtime import CodexRuntime
 from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
 
 
+@pytest.mark.parametrize('governed', [False, True])
+@pytest.mark.parametrize('model', ['deepseek-v4.1-flash-1017', 'deepseek-v4-flash', 'gpt-6.1-sol'])
+def test_deepseek_transport_retries_are_bounded_without_changing_other_models(monkeypatch, model, governed):
+    monkeypatch.setattr('apps.api.codex_agent.gateway_trace_headers', lambda: {'traceparent': 'test-parent'})
+    provider = tomllib.loads(provider_config('http://gateway.test/v1', model,
+        governed=governed))['model_providers']['llm_provider']
+    assert provider['http_headers']['traceparent'] == 'test-parent'
+    if model.startswith('deepseek-'):
+        assert provider['http_headers']['x-litellm-num-retries'] == '0'
+        assert provider['request_max_retries'] == provider['stream_max_retries'] == 0
+    else:
+        assert provider['http_headers'] == {'traceparent': 'test-parent'}
+        assert 'request_max_retries' not in provider and 'stream_max_retries' not in provider
+
+
 def test_lane_a_and_b_sol_low_configuration_reaches_api_and_worker(monkeypatch, tmp_path):
     from types import SimpleNamespace
     from apps.api.collector_configuration import collector_configuration

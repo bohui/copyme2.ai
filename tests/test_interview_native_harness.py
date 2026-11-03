@@ -17,8 +17,52 @@ from test_interview_native_session import admission, packets
 
 
 @pytest.mark.skipif(not shutil.which('codex'), reason='Codex app-server is not installed')
+@pytest.mark.parametrize('streamed', [False, True])
+def test_native_deepseek_busy_response_does_not_repeat_until_timeout(tmp_path, streamed):
+    requests = []
+    first, _, _, _ = packets()
+    class BusyProvider(BaseHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
+        def do_POST(self):
+            requests.append(self.headers.get('x-litellm-num-retries'))
+            wire = json.dumps(dict(error=dict(type='service_unavailable_error',
+                code='service_unavailable_error', message='Service is too busy.'))).encode()
+            if streamed:
+                wire = ('data: ' + json.dumps(dict(type='error', code='server_error',
+                    message='Service is too busy.')) + '\n\n').encode()
+            self.send_response(200 if streamed else 503)
+            self.send_header('Content-Type', 'text/event-stream' if streamed else 'application/json')
+            self.send_header('Content-Length', str(len(wire)))
+            self.end_headers()
+            self.wfile.write(wire)
+    server = ThreadingHTTPServer(('127.0.0.1', 0), BusyProvider)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    async def run():
+        async with open_interview(root=tmp_path, packet=first, view=reply_packet(first),
+            schema={'type': 'object'}, model='deepseek-v4.1-flash-1017', effort='low',
+            base_url=f'http://127.0.0.1:{server.server_port}/v1', api_key='synthetic-loopback-key',
+            command=[shutil.which('codex'), 'app-server'], timeout=12,
+            admission=admission, connection_factory=CodexConnection) as (session, connection):
+            await connection.turn(session.thread_id, first.current.narrator.original)
+    try:
+        with pytest.raises((RuntimeError, TimeoutError)) as failure:
+            asyncio.run(run())
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+    assert requests == ['0']
+    assert not isinstance(failure.value, TimeoutError)
+    assert not list(tmp_path.glob('.interview-*.json'))
+
+
+@pytest.mark.skipif(not shutil.which('codex'), reason='Codex app-server is not installed')
+@pytest.mark.parametrize('model', ['gpt-6.1-sol', 'deepseek-v4.1-flash-1017'])
 @pytest.mark.parametrize('retrieval', [False, True])
-def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp_path, retrieval):
+def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp_path, retrieval, model):
     requests = []
     first, second, _, delivered = packets()
     class Provider(BaseHTTPRequestHandler):
@@ -67,7 +111,7 @@ def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp
             tools.read = AsyncMock(return_value={'records': [], 'complete': True})
             reads.append(tools.read)
             async with open_interview(root=tmp_path, packet=packet, view=reply_packet(packet), schema=schema,
-                model='gpt-6.1-sol', effort='low', base_url=f'http://127.0.0.1:{server.server_port}/v1',
+                model=model, effort='low', base_url=f'http://127.0.0.1:{server.server_port}/v1',
                 api_key='synthetic-loopback-key', command=[shutil.which('codex'), 'app-server'], timeout=20,
                 admission=admission, connection_factory=CodexConnection, tools=tools) as (session, connection):
                 assert session.resumed == bool(index)
