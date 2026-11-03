@@ -2,7 +2,7 @@
 
 ## One owner per instruction
 
-Merged Git main owns prompt content; Langfuse owns published versions and the
+Git owns prompt content; Langfuse owns published versions and the
 repository stores their pinned receipts. The name identifies the owning agent
 or skill and its task. Issue numbers, dates and release versions belong in
 metadata and version history.
@@ -72,7 +72,7 @@ artifact exporter's `mira` and `atlas` targets resolve to each agent's `system.m
 Old skill prompt versions remain historical records, outside the managed
 registry. Existing dataset and case IDs remain stable for experiment continuity.
 
-New namespace pins require normal merged-main publication. Until then, source-only
+New namespace pins require publication from the committed branch. Until then, source-only
 offline tests and explicitly labelled draft evaluations can inspect these drafts;
 production receipt validation still rejects missing or stale publication receipts.
 

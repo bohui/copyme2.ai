@@ -11,10 +11,10 @@ copy. After a reply identifies unavailable details, the host renders a selected
 broader pool question verbatim or this optional invitation. It makes no extra
 model call and does not treat the unavailable detail as an answered fact.
 
-Mira uses only `reply-v2`, with five agent-owned prompt drafts under
+Mira uses only `reply-v2`, with five agent-owned prompt sources under
 `apps/api/prompts/mira/`: `system`, `policy-review`, `repair`, `repair-codes`
-and `strategy-proposal`. They publish under `memoir/agents/mira/...` after merge
-to main; new namespace receipts are not fabricated from the older skill pins.
+and `strategy-proposal`. They publish under `memoir/agents/mira/...` from the
+committed branch; new namespace receipts are not fabricated from the older skill pins.
 
 Mira is the interviewer; Atlas is the background memoir curator. Their Langfuse
 trace names are `memoir-mira` and `memoir-atlas`. Observation names identify the

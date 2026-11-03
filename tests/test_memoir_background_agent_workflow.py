@@ -272,8 +272,8 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
         assert nested == phases
         assert all(meta['trace_name']=='memoir-atlas' for meta in nested_metadata)
         assert [meta['generation_name'] for meta in nested_metadata]==[
-            'memoir-memory-context' if phase=='profile_patch' else
-            'memoir-author-timeline' if 'memoir-author-timeline' in choices else 'memoir-place-journey'
+            'memoir-memory-context.profile' if phase=='profile_patch' else
+            'memoir-author-timeline.extract' if 'memoir-author-timeline' in choices else 'memoir-place-journey.extract'
             for phase in phases]
         assert sql('select bool_and(processing_status=\'succeeded\') from public.user_narrator_source;').stdout.strip() == 't'
         if choices == ('memoir-memory-context',):
