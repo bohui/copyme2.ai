@@ -170,7 +170,10 @@ def adapt_reply(raw, context):
         coarse = validate_place_journey(dict(place=proposed.place, hierarchy=['Earth', proposed.place], granularity='city'))
         if item.question is None or not original or not coarse or proposed.place not in proposed.quote:
             raise ValueError('Workspace focus requires a question and an original coarse place')
-        start, end = question_span(original, proposed.quote)
+        try:
+            start, end = question_span(original, proposed.quote)
+        except ValueError:
+            raise ValueError('Workspace focus quote must match one original passage in its selected source') from None
         focus = dict(place=proposed.place, evidence=dict(source_id=original['id'], version=original['version'],
             quote=proposed.quote, char_start=start, char_end=end))
     legacy['workspace_focus'] = focus

@@ -23,6 +23,7 @@ def evidence_key(ref):
 def conversation_context(view, known_sources=None):
     """Keep narrator testimony separate from application-supplied reference data."""
     current = view['current']
+    originals = [entry['narrator'] for entry in [*view.get('dialogue', []), current]]
     turns = []
     narrated = dict(known_sources or {})
     user_ids = {entry['narrator']['source_id'] for entry in [*view.get('dialogue', []), current]}
@@ -46,8 +47,12 @@ def conversation_context(view, known_sources=None):
             turns.append((sequence, 1, 'assistant', text))
         if (answer.get('role') == 'user' and answer.get('complete') is True and answer.get('text')
                 and answer.get('id') not in user_ids):
-            turns.append((answer.get('sequence', current['sequence'] - 1), 0, 'user', answer['text']))
+            sequence = answer.get('sequence', current['sequence'] - 1)
+            turns.append((sequence, 0, 'user', answer['text']))
             user_ids.add(answer.get('id'))
+            if ref := _span(answer):
+                originals.append(answer)
+                narrated[f"{ref['source_id']}:{ref['version']}"] = (sequence, ref)
     history = [dict(role=role, content=text) for _, _, role, text in sorted(turns, key=lambda row: row[:2])]
     evidence = {}
     def reference(value):
@@ -65,7 +70,7 @@ def conversation_context(view, known_sources=None):
         if key not in evidence or 'text' in record:
             evidence[key] = record
         return ref
-    for entry in view.get('original_evidence', []):
+    for entry in [*originals, *view.get('original_evidence', [])]:
         reference(entry)
     preferences = {key: deepcopy(value) for key, value in view.get('preferences', {}).items()
         if key in {'chosen_name', 'language', 'excluded_topics', 'paused_topics', 'unresolved_references'}}

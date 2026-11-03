@@ -73,6 +73,36 @@ def test_next_turn_resumes_native_history_and_appends_only_context_changes(tmp_p
     assert first.current.narrator.original not in json.dumps(injections[1])
 
 
+@pytest.mark.parametrize('repair', [None, 'Repair a workspace citation.'])
+@pytest.mark.parametrize('history', ['tail', 'recent_dialogue'])
+def test_rebuilt_history_keeps_source_references_without_repeating_originals(tmp_path, repair, history):
+    Native.calls = []
+    first, second, context, _ = packets()
+    settings = options(tmp_path, second, context)
+    if history == 'recent_dialogue':
+        settings['view']['dialogue'] = []
+        narrator = first.current.narrator
+        settings['view']['context']['recent_dialogue'] = [dict(
+            question=dict(role='assistant', delivered=True, sequence=0, text='What do you remember?'),
+            response=dict(id=str(narrator.source_id), version=narrator.version, sequence=1,
+                role='user', complete=True, text=narrator.original))]
+    async def run():
+        async with open_interview(**settings, repair=repair):
+            pass
+    asyncio.run(run())
+    items = next(call[1]['items'] for call in Native.calls if call[0] == 'thread/inject_items')
+    entities = json.loads(items[0]['content'][0]['text'])['memoir_context']['updates']
+    references = {ref['source_id']: ref for ref in entities['evidence'].values()}
+    for packet in (first, second):
+        narrator = packet.current.narrator
+        ref = references[str(narrator.source_id)]
+        assert ref == dict(source_id=str(narrator.source_id), version=narrator.version,
+            char_start=narrator.char_start, char_end=narrator.char_end,
+            role='storyteller', conversation_sequence=packet.current.sequence)
+    assert sum(first.current.narrator.original in json.dumps(item) for item in items) == 1
+    assert second.current.narrator.original not in json.dumps(items)
+
+
 @pytest.mark.parametrize('change', ['exclusion', 'epoch', 'uncommitted', 'retry', 'corrupt'])
 def test_unsafe_or_uncommitted_history_starts_from_authorized_canonical_items(tmp_path, change):
     Native.calls = []

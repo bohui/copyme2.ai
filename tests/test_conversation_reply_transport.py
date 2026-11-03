@@ -397,6 +397,48 @@ def test_completed_invalid_json_uses_the_existing_validation_repair_budget(monke
     assert 'INVALID_JSON' in captured[2]['input'][-2]['content']
 
 
+@pytest.mark.parametrize('fault,code', [('workspace_focus', 'CONTRACT_32'), ('questions', 'CONTRACT_18')])
+def test_retry_can_cite_an_earlier_place_and_repair_multiple_questions(monkeypatch, tmp_path, fault, code):
+    from uuid import UUID
+    from apps.api.lifetime_memory_engine import run_governed_collector
+    from test_conversation_reply import proposal
+    from test_lifetime_memory_engine import encode
+    governed, context = fixture()
+    packet = json.loads(governed.packet)
+    prior = deepcopy(packet['current'])
+    prior['conversation_saved'] = True
+    prior['assistant'] = dict(role='assistant', text='What did you enjoy doing there?', personal_testimony=False)
+    earlier = 'I was born in Montreal.'
+    prior['narrator'].update(original=earlier, char_end=len(earlier))
+    current = 'We often climbed hills and caught insects.'
+    packet['current']['sequence'] = 2
+    packet['current']['narrator'].update(source_id=str(UUID(int=5)), original=current, char_end=len(current))
+    packet['tail'] = [prior]
+    packet['source_ids'] = [str(UUID(int=5)), prior['narrator']['source_id']]
+    context.update(reply_contract='reply-v2', two_lane_memory=True,
+        source=dict(id=str(UUID(int=5)), version=1, text=current, status='active'),
+        recent_dialogue=[dict(response=dict(id=prior['narrator']['source_id'], version=1,
+            role='user', kind='narrator_chat', complete=True, text=earlier, sequence=1))])
+    packet['interview_context'] = {key:value for key,value in context.items() if key not in {'source','sources'}}
+    invalid = dict(proposal(), question='How far away was the river? Did you walk there?',
+        workspace_focus=dict(place='Montreal', quote=earlier, source_id=None) if fault=='workspace_focus' else None)
+    def repair(body):
+        guidance = body['input'][-2]['content']
+        assert code in guidance and 'one question' in guidance
+        entities = json.loads(body['input'][1]['content'])['memoir_context']['updates']
+        earlier_ref, = [ref for ref in entities['evidence'].values() if ref['conversation_sequence']==1]
+        assert earlier_ref['source_id'] == prior['narrator']['source_id'] and 'text' not in earlier_ref
+        return dict(proposal(), question='What do you remember about the river?',
+            workspace_focus=dict(place='Montreal', quote=earlier, source_id=earlier_ref['source_id']))
+    captured = install_reply_provider(monkeypatch, [invalid, repair])
+    result = asyncio.run(run_governed_collector(command=['controlled'], home_root=tmp_path,
+        base_url='https://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
+        governed=encode(packet), interview_context=context, publisher=FakePublisher()))
+    output = json.loads(result['reply'])
+    assert output['question'] == 'What do you remember about the river?' and len(captured)==2
+    assert output['workspace_focus']['source_id'] == prior['narrator']['source_id']
+
+
 def test_revisable_validation_repair_can_replace_a_displayed_draft(monkeypatch,tmp_path):
     from apps.api.conversation_reply import reply_instructions
     from apps.api.lifetime_memory_engine import run_governed_collector
