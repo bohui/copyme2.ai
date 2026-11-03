@@ -46,6 +46,13 @@ Attribution and uncertainty include whether an event or utterance happened,
 not merely its exact wording. Fairness must not sanitize harm or blame a victim.
 Use evidence excerpts and criterion-specific confidence; a short fragment may
 support a factual check yet leave sustained voice or reader resonance uncertain.
+For craft source_evidence, copy a source_ref exactly from requirements.contributions
+and copy its excerpt from that row's quote. Identifiers are opaque: never repair,
+complete or reformat them. For prose_evidence, copy section_id and field from
+requirements.prose and an exact substring of that row's excerpt. Its source_refs
+must include at least one source_evidence reference for the same rating. Reuse
+valid witnesses across criteria when appropriate; use insufficient_evidence
+when no supplied witness supports a judgment.
 Follow-up suggestions are optional, non-leading and subject to the host's
 permission and author boundaries. They never become testimony or an automatic
 interview action. A valid low score/NA leaves hard-gate readiness unchanged.

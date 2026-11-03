@@ -11,6 +11,27 @@ from apps.api.memoir_preview import compose_candidate
 from controlled_composer_review import controlled_review
 
 
+@pytest.mark.parametrize('changed', ['source_id', 'section_id'])
+def test_craft_review_cannot_reformat_opaque_evidence_identifiers(changed):
+    from apps.api.composer_review import review_errors
+    text = 'The bicycle was blue.'
+    ref = dict(source_id='source:opaque-01', version='1', char_start=0, char_end=len(text))
+    unit = dict(section_id='chapter:one__block:one', field='text', excerpt=text, source_refs=[ref])
+    requirements = dict(contributions=[dict(source_ref=ref, quote=text)], prose=[unit])
+    review = controlled_review(dict(requirements=requirements))
+    rating = review['craft']['ratings'][0]
+    rating.update(applicability='applicable', score=2,
+        source_evidence=[dict(source_ref=deepcopy(ref), excerpt=text)],
+        prose_evidence=[{key: unit[key] for key in ('section_id', 'field', 'excerpt')}])
+    assert review_errors(review, requirements) == []
+    if changed == 'source_id':
+        rating['source_evidence'][0]['source_ref']['source_id'] = 'source-opaque-01'
+    else:
+        rating['prose_evidence'][0]['section_id'] = 'chapter-one__block-one'
+    errors = review_errors(review, requirements)
+    assert ('CRAFT_SOURCE_MISMATCH' if changed == 'source_id' else 'CRAFT_PROSE_MISMATCH') in errors
+
+
 @pytest.mark.parametrize('complete_audit', [False, True])
 def test_en10_ready_without_findings_cannot_reuse_an_unaudited_review(monkeypatch, complete_audit):
     fixture = json.loads((Path(__file__).parent / 'fixtures/composer_en10_missed_finding.json').read_text())
