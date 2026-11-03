@@ -89,6 +89,8 @@ class LiveProvider:
             effort = 'low'
         body = {'model': model, 'instructions': instructions,
                 'input': json.dumps(packet, ensure_ascii=False), 'store': False,
+                'metadata': {'generation_name': 'evaluation/' + skill + '.probe',
+                    'trace_name': 'evaluation/' + skill, 'case_id': case_id},
                 'max_output_tokens': 8192 if skill == 'memoir-composer' else 3000,
                 'reasoning': {'effort': effort}}
         if schema:

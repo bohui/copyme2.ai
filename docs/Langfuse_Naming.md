@@ -23,6 +23,7 @@ different owners and projects remain separate.
 | `evaluation/memoir-mira` | `evaluation/memoir-mira.<variant>` |
 | `evaluation/memoir-judges` | `evaluation/memoir-judges.trajectory`, `.<judge>` |
 | `evaluation/memoir-probes` | `evaluation/memoir-probes.connectivity`, `.web-search` |
+| `evaluation/<skill>` | `evaluation/<skill>.probe` for isolated skill checks |
 
 Nested skill observations retain their skill-specific names and inherit the
 coordinator's trace name. For example, `memoir-composer.review` normally appears
@@ -36,6 +37,10 @@ they do not imply that every skill has a live standalone model path.
 Historical traces keep their recorded names. Only new observations use changed
 labels. Speech and image observations contain bounded summaries rather than full
 text or media, so textual online quality judges exclude these observations.
+Langfuse itself owns labels such as `Test evaluator` and `Execute evaluator: …`
+in its reserved `langfuse-llm-as-a-judge` environment. The online rule explicitly
+excludes these internal environments; application evaluation runs use the
+`evaluation/` prefix above.
 
 ## Datasets
 
@@ -64,6 +69,10 @@ namespace and may still contain `evaluation`.
 
 The classifier and producers share `scripts/langfuse_dataset_names.py` so normal
 publication does not recreate the retired dataset prefixes.
+The [migration receipt](langfuse-dataset-migration-20261104.json) records every
+old/new name, preserved dataset ID and item-content digest. A separate four-item
+synthetic wiring suite is stored at
+`memoir/calibration/memoir-judges/quality/smoke`.
 
 ## Quality judges
 
@@ -88,4 +97,16 @@ and do not certify human calibration.
 
 Model, sampling and judge prompt names are recorded in
 `config/langfuse-evaluators.json`. Published prompt receipts pin exact content;
-evaluator receipts record the corresponding Langfuse evaluator and rule IDs.
+[evaluator receipts](../config/langfuse-evaluators.receipt.json) record the
+corresponding Langfuse evaluator and rule IDs and the four synthetic check results.
+
+Correctness maps `expected_output` to `experimentItemExpectedOutput`. Use the
+standard SDK dataset `run_experiment` path, which records the reference on the
+experiment task observation. Attaching an ordinary observation with only the
+legacy dataset-run-item API does not populate that reference field on v4 events.
+The wiring check verifies that the actual reference is present in the rendered
+correctness prompt before accepting its result.
+
+The application changes are on `codex/langfuse-taxonomy`. Dataset names and judge
+rules were updated on the running local Langfuse project; application services
+have not been restarted from this branch.

@@ -24,6 +24,11 @@ if str(ROOT) not in sys.path:
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.memoir_live_skill_cases import cases, validate_case
 from scripts.run_memoir_live_skills import LiveProvider, compose, manifest, native_search, save
+from scripts.langfuse_dataset_names import dataset_name
+
+TRIGGER_DATASET = dataset_name('golden', 'memoir-atlas', 'skill-selection', 'v2')
+DELIVERY_DATASET = dataset_name('golden', 'memoir-workflows', 'skill-delivery', 'v2')
+DATASET_PHASES = {TRIGGER_DATASET: 'triggers', DELIVERY_DATASET: 'deliveries'}
 
 
 # These tests invoke production admission/scheduling code with controlled replies;
@@ -107,8 +112,7 @@ def datasets():
     expected = set(manifest()['skills'])
     if set(TRIGGERS) != expected or {r['input']['skill'] for r in deliveries} != expected:
         raise ValueError('missing_skill_coverage')
-    return {'memoir/golden/memoir-atlas/skill-selection/v2': triggers,
-            'memoir/golden/memoir-workflows/skill-delivery/v2': deliveries}
+    return {TRIGGER_DATASET: triggers, DELIVERY_DATASET: deliveries}
 
 
 def item_id(name, row):
@@ -149,7 +153,7 @@ def publish_datasets(client, definitions):
     for name, rows in definitions.items():
         if name not in existing:
             client.create_dataset(name=name,
-                description=('Application trigger checks with controlled replies' if name.endswith('triggers')
+                description=('Application trigger checks with controlled replies' if DATASET_PHASES[name] == 'triggers'
                     else 'Real gateway delivery probes; isolated synthetic inputs, no production persistence'),
                 metadata=dict(suite='memoir-skills/1', synthetic=True, contains_customer_data=False,
                               content_sha256=digest(rows), item_count=len(rows)))
@@ -217,9 +221,11 @@ class TracedProvider(LiveProvider):
         self.langfuse = langfuse
 
     async def call(self, case_id, skill, instructions, packet, schema=None, *, search=False):
+        from langfuse import propagate_attributes
         failure = None
-        with self.langfuse.start_as_current_observation(name=case_id, as_type='generation',
-                input=dict(instructions=instructions, packet=packet), metadata=dict(skill=skill)) as span:
+        with propagate_attributes(trace_name='evaluation/' + skill), self.langfuse.start_as_current_observation(
+                name='evaluation/' + skill + '.probe', as_type='generation',
+                input=dict(instructions=instructions, packet=packet), metadata=dict(skill=skill, case_id=case_id)) as span:
             try:
                 value, response = await super().call(case_id, skill, instructions, packet, schema, search=search)
                 record = self.receipt['calls'][-1]
@@ -260,7 +266,7 @@ def legacy_main():
     parser.add_argument('--output-root', type=Path, default=ROOT / 'var/skill-evaluation')
     args = parser.parse_args()
     definitions = {name: rows for name, rows in datasets().items()
-                   if args.phase == 'all' or name.endswith(args.phase)}
+                   if args.phase == 'all' or DATASET_PHASES[name] == args.phase}
     phase_cases = {row['input']['case_id'] for rows in definitions.values() for row in rows}
     if args.case and not set(args.case) <= phase_cases:
         parser.error('Selected case does not belong to the requested phase')
@@ -344,10 +350,12 @@ def legacy_main():
     for name, dataset in loaded.items():
         if not dataset.items:
             continue
-        if name.endswith('deliveries'):
+        phase = DATASET_PHASES[name]
+        if phase == 'deliveries':
             provider.deadline = time.monotonic() + 1800
-        result = dataset.run_experiment(name='Memoir skill ' + name.rsplit('-', 1)[-1],
-            run_name=run_id + '-' + name.rsplit('-', 1)[-1], task=task, evaluators=[evaluate],
+        trace_name = 'evaluation/memoir-atlas.skill-selection' if phase == 'triggers' else 'evaluation/memoir-workflows.skill-delivery'
+        result = dataset.run_experiment(name=trace_name,
+            run_name=run_id + '-' + phase, task=task, evaluators=[evaluate],
             max_concurrency=1, metadata=dict(suite='memoir-skills/1', synthetic=True,
                 source_revision=receipt['source_revision'], dataset_version=snapshot.isoformat()))
         experiment = dict(dataset=name, dataset_id=dataset.id, experiment_id=result.experiment_id,

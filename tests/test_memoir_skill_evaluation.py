@@ -10,6 +10,21 @@ from scripts.run_memoir_skill_evaluation import (
 )
 
 
+@pytest.mark.parametrize('phase', ['triggers', 'deliveries', 'all'])
+def test_legacy_plan_selects_the_task_when_the_dataset_leaf_is_a_version(monkeypatch, capsys, phase):
+    import json
+    import sys
+    from scripts import run_memoir_skill_evaluation as runner
+    definitions = {name: [{'input': {'case_id': selected}}]
+        for name, selected in runner.DATASET_PHASES.items()}
+    monkeypatch.setattr(runner, 'datasets', lambda: definitions)
+    monkeypatch.setattr(sys, 'argv', ['run_memoir_skill_evaluation', '--phase', phase])
+    assert runner.legacy_main() == 0
+    selected = json.loads(capsys.readouterr().out)
+    assert set(selected) == {name for name, task in runner.DATASET_PHASES.items()
+        if phase == 'all' or task == phase}
+
+
 def test_both_datasets_cover_every_registered_skill_and_hide_gold_from_model_packets():
     for name, rows in datasets().items():
         assert {r['input']['skill'] for r in rows} == set(manifest()['skills'])

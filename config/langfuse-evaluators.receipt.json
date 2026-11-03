@@ -1,0 +1,200 @@
+{
+  "schema_version": 1,
+  "project_id": "cmut9t75w00071z02n8bdv7it",
+  "verified_at": "2026-11-04",
+  "provider": "memoir-gateway",
+  "model": "gpt-6.1-sol",
+  "evaluators": [
+    {
+      "name": "memoir-correctness",
+      "id": "f2b1f884-57b2-50bc-bebd-f82b8a97b56d",
+      "version": 1,
+      "prompt_name": "memoir/evaluators/correctness",
+      "prompt_version": 1,
+      "prompt_sha256": "53a73743de44a5a6ffa5abb3f2bd2534fa37c0f8a0ba12edea973ae9f1530747"
+    },
+    {
+      "name": "memoir-relevance",
+      "id": "ececb3ff-3447-5538-95a5-fb9f1548fce5",
+      "version": 1,
+      "prompt_name": "memoir/evaluators/relevance",
+      "prompt_version": 1,
+      "prompt_sha256": "291a01d55116dbfc32bcd11a070cf4831479d13b39ccde7bef05fdaf87b20ddd"
+    },
+    {
+      "name": "memoir-completeness",
+      "id": "26b6e2a1-1513-5311-950b-aeecbff92554",
+      "version": 1,
+      "prompt_name": "memoir/evaluators/completeness",
+      "prompt_version": 1,
+      "prompt_sha256": "98fb333fdadda70ef27667d419be80cd935a5a877b57f551aa850c9b6a07311f"
+    },
+    {
+      "name": "memoir-safety",
+      "id": "3e806ed2-00ef-5f55-a0fd-1681923b86a7",
+      "version": 1,
+      "prompt_name": "memoir/evaluators/safety",
+      "prompt_version": 1,
+      "prompt_sha256": "68f060206b293867c0c9a84f362c135f1b26256a294f599cba647897c327d918"
+    }
+  ],
+  "rules": [
+    {
+      "id": "cmw19gnxs008p1z02wg3jq42q",
+      "name": "memoir-live-quality",
+      "targetObject": "event",
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "string",
+          "value": "memoir-",
+          "column": "name",
+          "operator": "starts with"
+        },
+        {
+          "type": "string",
+          "value": "memoir-speech.",
+          "column": "name",
+          "operator": "does not contain"
+        },
+        {
+          "type": "string",
+          "value": ".illustration",
+          "column": "name",
+          "operator": "does not contain"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        }
+      ],
+      "sampling": 0.1,
+      "enabled": true,
+      "timeScope": [
+        "NEW"
+      ],
+      "evaluator_ids": [
+        "ececb3ff-3447-5538-95a5-fb9f1548fce5",
+        "26b6e2a1-1513-5311-950b-aeecbff92554",
+        "3e806ed2-00ef-5f55-a0fd-1681923b86a7"
+      ]
+    },
+    {
+      "id": "cmw19go49008w1z02n7124hbo",
+      "name": "memoir-dataset-quality",
+      "targetObject": "event",
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "cmuzc53sj00031z02d3zzutu0",
+            "cmuzc59lq000e1z02ioeafsko",
+            "cmuzc5ese000v1z02wi65o5qc",
+            "cmuzc5g9f00101z02pkzc2lms",
+            "cmvcxwiok001n1z029quda4ra",
+            "cmvcxwj1b001y1z02xjgwdkjy",
+            "cmvcxwjms002f1z02fr0384pm",
+            "cmvcxwjt2002k1z02u2zdv6qn",
+            "cmvdcb1h100031z020eze1xt8",
+            "cmvdcb2g2000f1z02wqx8n34y",
+            "cmvde28s7001g1z024qbscebn",
+            "cmvdea22b00221z02a0nv1v93",
+            "cmvf62s10003s1z021ip1f0jw",
+            "cmvf62u0w004b1z02yp9bzm84",
+            "cmvf6340e004u1z02vmpkasz7",
+            "cmvf637t5005d1z02tpayqkcw",
+            "cmvf6398g005w1z029w2mw61u",
+            "cmvf63a7d006f1z0216n7260x",
+            "cmvf63b2m006y1z02j4hcpwry",
+            "cmvf63buk007h1z02aw7y2u4g",
+            "cmvf63crr00801z026ga66lt9",
+            "cmvf63dud008j1z028ssmdzxr",
+            "cmvf63exl00921z024ddyz6sa",
+            "cmvfsjodl009w1z02pt8x0c17",
+            "cmw0mslsy000e1z02swle8m8n",
+            "cmw0mso8i000i1z029068jddt",
+            "cmw0mspgg000m1z0211ur7wsg",
+            "cmw0mvvrr000q1z02a220a52m",
+            "cmw0mxskv000u1z02wrqo62mt",
+            "cmw0mxvhl001p1z02md3xby14",
+            "cmw0mxw4s00261z02ypyn2buw",
+            "cmw0nje4n003j1z029k7hbywi",
+            "cmw0nlzza004e1z02c3pi0kkw",
+            "cmw0pnedx004k1z02mjg6rkji"
+          ],
+          "column": "experimentDatasetId",
+          "operator": "any of"
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "sampling": 1,
+      "enabled": true,
+      "timeScope": [
+        "NEW"
+      ],
+      "evaluator_ids": [
+        "f2b1f884-57b2-50bc-bebd-f82b8a97b56d",
+        "ececb3ff-3447-5538-95a5-fb9f1548fce5",
+        "26b6e2a1-1513-5311-950b-aeecbff92554",
+        "3e806ed2-00ef-5f55-a0fd-1681923b86a7"
+      ]
+    }
+  ],
+  "smoke_checks": [
+    {
+      "judge": "correctness",
+      "score": 0,
+      "execution_trace_id": "cb25a872b0b01c796dfc3a7822ca8cec",
+      "reference_bound": true
+    },
+    {
+      "judge": "relevance",
+      "score": 1,
+      "execution_trace_id": "d848245b090ca8f7a429f67111230646",
+      "reference_bound": null
+    },
+    {
+      "judge": "completeness",
+      "score": 0.25,
+      "execution_trace_id": "a66704c9f45904b134e00c257ff6fe9b",
+      "reference_bound": null
+    },
+    {
+      "judge": "safety",
+      "score": 0.5,
+      "execution_trace_id": "6a695a5d50badba9c94395e46c0b4400",
+      "reference_bound": null
+    }
+  ]
+}
