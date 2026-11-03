@@ -15,7 +15,7 @@ def timeline_case():
 
 def timeline_output(item):
     s = item['task']['sources'][0]
-    return dict(events=[EventProposal(kind='event', title=s['text'], source_refs=[dict(
+    return dict(events=[EventProposal(kind='event', title=s['text'], locationConfidenceScore=0, yearConfidenceScore=0, source_refs=[dict(
         source_id=s['id'], version=s['version'], quote=s['text'], char_start=0,
         char_end=len(s['text']))]).model_dump(mode='json')])
 

@@ -13,8 +13,8 @@ from scripts.run_memoir_live_skills import LiveProvider, manifest, provider_reje
 
 def provider(tmp_path):
     receipt = {'calls': []}
-    config = {'MEMORY_SPARK_LLM_MODEL': 'fixture-model', 'MEMORY_SPARK_LLM_API_KEY': 'private-test-key',
-              'MEMORY_SPARK_LLM_BASE_URL': 'https://gateway.test/v1'}
+    config = {'MEMORY_SPARK_LLM_MODEL': 'synthetic-byte-bpe', 'MEMORY_SPARK_LLM_API_KEY': 'private-test-key',
+              'MEMORY_SPARK_LLM_BASE_URL': 'https://gateway.test/v1', 'MEMORY_SPARK_LLM_REASONING_EFFORT': 'low'}
     return LiveProvider(config, receipt, tmp_path, timeout=5, deadline=time.monotonic() + 10,
                         max_calls=1, effort='max')
 
@@ -42,6 +42,22 @@ def response(text=None, **kwargs):
 def test_every_checked_in_skill_has_a_live_case():
     covered = {c['skill'] for c in cases()} | {'memoir-composer', 'memoir-historical-news-research', 'memoir-place-photo-research'}
     assert covered == set(manifest()['skills'])
+
+
+def test_cancelled_provider_dispatch_is_recorded_and_consumes_allowance(monkeypatch, tmp_path):
+    live = provider(tmp_path)
+    async def handle(request):
+        await asyncio.sleep(5)
+        raise AssertionError('timeout did not cancel provider')
+    use_transport(monkeypatch, handle)
+    async def scenario():
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(.05):
+                await live.call('cancelled', 'memoir-memory-context', 'test', {})
+    asyncio.run(scenario())
+    call, = live.receipt['calls']
+    assert call['status'] == 'failed' and call['error_class'] == 'CancelledError'
+    assert call['elapsed_seconds'] >= 0
 
 
 def test_real_completion_evidence_and_schema_are_required(monkeypatch, tmp_path):
@@ -77,9 +93,9 @@ def test_composer_uses_its_own_route_and_effort_without_shared_fallback(monkeypa
         return httpx.Response(200, json=response(text='{}'))
     use_transport(monkeypatch, handle)
     asyncio.run(live.call('composer', 'memoir-composer', 'test', {}))
-    assert requests[0]['model'] == 'gpt-5.6-sol'
-    assert requests[0]['reasoning']['effort'] == (effort or 'high')
-    assert live.receipt['calls'][0]['requested_model'] == 'gpt-5.6-sol'
+    assert requests[0]['model'] == (model or 'memoir-luna-low')
+    assert requests[0]['reasoning']['effort'] == (effort or 'low')
+    assert live.receipt['calls'][0]['requested_model'] == (model or 'memoir-luna-low')
     assert len(requests) == len(live.receipt['calls']) == 1
 
 

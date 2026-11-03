@@ -96,14 +96,14 @@ export function memoryEventTiming(event, profile = {}, index = 0) {
   const inferred = Boolean(estimate && (statedYear === null || age.estimated));
   const calendar = stated || (inferred && year !== null ? {start:Date.UTC(year,0,1),end:Date.UTC(yearEnd,11,31)} : null);
   const lifeStage = stages.indexOf(event.life_stage);
-  const stage = lifeStage < 0 && !event.timing_conflict && !calendar && age.start === null && event.temporal_anchor === "present"
+  const stage = lifeStage < 0 && !event.timing_conflict && !stated && (age.start === null || age.estimated) && event.temporal_anchor === "present"
     ? stages.length : lifeStage;
   return {age, year, yearEnd, calendar, stage, index, inferred, approximateYear:statedYear === null && year !== null,
     uncertain:Number.isFinite(event.yearConfidenceScore) && event.yearConfidenceScore < .5,
     dated:!event.timing_conflict && (age.start !== null || year !== null || Boolean(calendar))};
 }
 
-const chronological = (a,b) => (a.calendar && b.calendar
+const chronological = (a,b) => (a.stage === stages.length) - (b.stage === stages.length) || (a.calendar && b.calendar
     ? (a.inferred || b.inferred) && a.year === b.year
       ? (a.stage >= 0 && b.stage >= 0 ? a.stage - b.stage : 0)
         || Number(a.inferred) - Number(b.inferred) || a.calendar.start - b.calendar.start
@@ -227,8 +227,9 @@ export function memoryTrailLegs(nodes) {
     const different = from.latitude !== to.latitude || from.longitude !== to.longitude;
     const ordered = (from.dated && to.dated && ((from.calendar && to.calendar && from.calendar.end < to.calendar.start)
         || (from.age.start !== null && to.age.start !== null && from.age.end < to.age.start)))
-      || (from.stage >= 0 && to.stage > from.stage && !(from.calendar && to.calendar)
-        && !(from.age.start !== null && to.age.start !== null) && !from.event.timing_conflict && !to.event.timing_conflict)
+      || (from.stage >= 0 && to.stage > from.stage && (to.stage === stages.length
+        || !(from.calendar && to.calendar) && !(from.age.start !== null && to.age.start !== null))
+        && !from.event.timing_conflict && !to.event.timing_conflict)
       || (from.event.id === to.event.id && from.role === "origin" && to.role === "destination");
     const related = from.event.relations?.some(relation => relation.kind === "before" && relation.event_id === to.event.id)
       || to.event.relations?.some(relation => relation.kind === "after" && relation.event_id === from.event.id);

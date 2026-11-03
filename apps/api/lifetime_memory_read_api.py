@@ -80,7 +80,9 @@ def collection_page(storage, project_id, *, kind, cursor=None, limit=8, event_id
     page = storage.lifetime_rpc('read_lifetime_collection_page', p_project_id=project_id,
         p_kind=kind, p_after=str(cursor) if cursor else None, p_limit=limit, p_event_id=event_id)
     if kind == 'events':
-        page = {**page, 'events': [{**event, **({'temporal_anchor':'present'} if _present_residence(event) else {})}
+        page = {**page, 'events': [{**{key:value for key,value in event.items()
+            if key not in {'primary_source_refs','primary_evidence_complete'}},
+            **({'temporal_anchor':'present'} if _present_residence(event) else {})}
                                  for event in page.get('events', [])]}
     return page
 
@@ -96,9 +98,16 @@ _NON_CURRENT = re.compile(
 
 def _present_residence(event):
     # Only a complete, single-clause residence statement establishes "now".
-    if event.get('timing_conflict') or not event.get('evidence_complete') or event.get('evidence_next_cursor'):
+    if event.get('timing_conflict'):
         return False
-    refs = event.get('source_refs') or []
+    refs = event.get('primary_source_refs')
+    if refs is not None:
+        if not event.get('primary_evidence_complete'):
+            return False
+    else:
+        if not event.get('evidence_complete') or event.get('evidence_next_cursor'):
+            return False
+        refs = event.get('source_refs') or []
     if not refs or _NON_CURRENT.search(event.get('title') or ''):
         return False
     return all(ref.get('attribution') in {None, 'self', 'narrator', 'storyteller', '我', '本人'}

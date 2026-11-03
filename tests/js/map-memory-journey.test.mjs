@@ -51,6 +51,19 @@ test('a known birth precedes a broad same-year residence estimate regardless of 
   }
 });
 
+test('a present residence with a broad estimate follows childhood and keeps its intercity footprints',()=>{
+  const birth={...event('birth',0,melbourne,'baby'),
+    temporal:{expression:'1983年4月',precision:'month',year_start:1983},yearConfidenceScore:1};
+  const childhood={...event('childhood',null,melbourne),temporal:null,
+    temporal_estimate:{year_start:1986,year_end:1995,age_start:3,age_end:12,confidence:.3}};
+  const home={...event('home',null,city,'unplaced'),kind:'period',temporal:null,temporal_anchor:'present',
+    temporal_estimate:{year_start:1983,year_end:2026,age_start:0,age_end:43,confidence:.2}};
+  const journey=buildMapMemoryJourney([home,birth,childhood],groups,{birth_year:1983});
+  assert.deepEqual(journey.nodes.map(node=>node.event.id),['birth','childhood','home']);
+  assert.deepEqual(journey.legs.map(leg=>[leg.from.event.id,leg.to.event.id]),[['childhood','home']]);
+  assert.equal(journey.nodes.at(-1).year,1983,'Keep the uncertain estimate as display data');
+});
+
 test('city summaries use their earliest event time even when supplied after a later related event',()=>{
   const early={...event('early',null,school),temporal:{expression:'1980',precision:'year',year_start:1980}};
   const late={...event('late',null,work),temporal:{expression:'2000',precision:'year',year_start:2000}};

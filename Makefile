@@ -62,6 +62,14 @@ SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))
 .PHONY: help check migrate db-reset db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval prompt-export prompt-check prompt-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 .PHONY: _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
+
+AGENT_EVAL_ARGS ?=
+.PHONY: memoir-agent-eval-plan memoir-agent-eval
+memoir-agent-eval-plan: ## Inspect the bounded current-agent/skill campaign; zero model calls.
+	@python3 scripts/run_memoir_agent_evaluation.py $(AGENT_EVAL_ARGS)
+
+memoir-agent-eval: ## Run current agent/skill probes and verify published Langfuse experiments.
+	@python3 scripts/run_memoir_agent_evaluation.py --execute --publish $(AGENT_EVAL_ARGS)
 .PHONY: prompt-sync prompt-sync-check prompt-sync-install
 .PHONY: test-web test-place-research
 .PHONY: deps-install deps-update

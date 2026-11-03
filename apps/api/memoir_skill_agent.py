@@ -123,7 +123,7 @@ class SkillTools:
                 self.executions.append({'skill': name, 'result': value})
         else:
             value = {'error': 'tool_unavailable'}
-        text = json.dumps(value, ensure_ascii=False, allow_nan=False)
+        text = json.dumps(value, ensure_ascii=False, allow_nan=False, separators=(',', ':'))
         self.bytes += len(text.encode())
         if self.bytes > self.max_bytes:
             raise ValueError('Memoir agent context budget exceeded')

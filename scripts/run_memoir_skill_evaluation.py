@@ -216,12 +216,13 @@ class TracedProvider(LiveProvider):
         super().__init__(*args, **kwargs)
         self.langfuse = langfuse
 
-    async def call(self, case_id, skill, instructions, packet, schema=None, *, search=False):
+    async def call(self, case_id, skill, instructions, packet, schema=None, *, search=False, messages=None):
         failure = None
         with self.langfuse.start_as_current_observation(name=case_id, as_type='generation',
-                input=dict(instructions=instructions, packet=packet), metadata=dict(skill=skill)) as span:
+                input=dict(instructions=instructions, packet=packet, **(dict(messages=messages) if messages is not None else {})),
+                metadata=dict(skill=skill)) as span:
             try:
-                value, response = await super().call(case_id, skill, instructions, packet, schema, search=search)
+                value, response = await super().call(case_id, skill, instructions, packet, schema, search=search, messages=messages)
                 record = self.receipt['calls'][-1]
                 usage = record.get('usage') or {}
                 span.update(output=value, model=record['served_model'],

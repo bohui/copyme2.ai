@@ -57,9 +57,13 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         const storageKey = `memory-spark-map-city:${identity}`;
         const saved = JSON.parse(localStorage.getItem(storageKey));
         const previousScope = JSON.stringify([identity,focus || (initial && [placeHistoryKey(initial),initial.source_sequence || initial.revision || 0])]);
-        if ((saved?.scope === cityScope || saved?.scope === previousScope) && (saved.city === null || typeof saved.city === "string")) {
+        const sameSource = !focus?.place && (Number(saved?.source_sequence) || 0) >= Math.max(latestSource,
+          Number(initial?.source_sequence || initial?.revision) || 0) && JSON.parse(saved?.scope || "null")?.[0] === identity
+          && (saved.city === null || groups.some(group => group.key === saved.city));
+        if ((saved?.scope === cityScope || saved?.scope === previousScope || sameSource)
+            && (saved.city === null || typeof saved.city === "string")) {
           activeCityKey = saved.city;
-          if (saved.scope !== cityScope) localStorage.setItem(storageKey,JSON.stringify({scope:cityScope,city:saved.city}));
+          if (saved.scope !== cityScope) localStorage.setItem(storageKey,JSON.stringify({...saved,scope:cityScope}));
         }
       } catch { /* Storage is optional; keep the city for this page. */ }
     }
