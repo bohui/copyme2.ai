@@ -48,7 +48,7 @@ def validate_page(page):
     if any(type(page.get(key)) is not int or page[key]<0 for key in (
         'policy_epoch','preference_revision','source_high_water','event_high_water','page_number')):
         raise ValueError('Invalid canonical lane fence')
-    if page.get('skill') not in {'timeline','composer','guidance'} or type(page.get('complete')) is not bool:
+    if page.get('skill') not in {'timeline','composer'} or type(page.get('complete')) is not bool:
         raise ValueError('Invalid canonical lane scope')
     preferences=page.get('preferences',{})
     if preferences.get('schema_version')!=1 or preferences.get('language') not in {'en-AU','zh-CN'}:
@@ -312,20 +312,15 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
                     continue
             return receipt(await worker.broker.rpc('complete_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token']))
         phase='summarize' if page.get('memory_summary') is not None else 'extract' if page['skill']=='timeline' else page['skill']
-        names=['memoir-'+('author-timeline' if page['skill']=='timeline' else
-            'interview-guidance' if page['skill']=='guidance' else 'composer')]
+        names=['memoir-author-timeline' if page['skill']=='timeline' else 'memoir-composer']
         if phase=='extract' and selected is not None:
             names=[name for name in ('memoir-author-timeline','memoir-place-journey') if name in selected]
         with ExitStack() as spans:
             attempts=[spans.enter_context(trace_skill_execution(name,phase,
                 embedded=name=='memoir-place-journey' and 'memoir-author-timeline' in names)) for name in names]
             try:
-                if page['skill']=='guidance':
-                    from .interview_guidance import execute_guidance_lane
-                    result=await execute_guidance_lane(page,worker)
-                else:
-                    result=await (_summarize(page,worker) if page.get('memory_summary') is not None else
-                        _extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))
+                result=await (_summarize(page,worker) if page.get('memory_summary') is not None else
+                    _extract(page,worker) if page['skill']=='timeline' else _compose(page,worker))
             except (LaneGenerationPaused, CanonicalActivationUnavailable) as deferred:
                 for attempt in attempts:attempt['status']='blocked'
                 return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
@@ -336,8 +331,6 @@ async def _execute_lifetime_lane(job,worker,*,page_quantum=8):
                 for attempt in attempts:attempt['status']='blocked'
                 return await worker.broker.rpc('defer_lifetime_memoir_lane',p_lane_id=job['lane_id'],p_token=job['token'],
                     p_reason='LIFETIME_MODEL_BUDGET_REQUIRED')
-            if page['skill']=='guidance':
-                return result
             if page.get('memory_summary') is not None:
                 result=await worker.broker.rpc('commit_lifetime_memory_summary_page',p_lane_id=job['lane_id'],p_token=job['token'],
                     p_revision=page['memory_summary']['revision'],p_result=result,p_page_digest=page['page_digest'])

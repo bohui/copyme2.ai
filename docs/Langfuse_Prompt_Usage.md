@@ -30,7 +30,7 @@ and observation names such as `evaluation/memoir-mira.baseline.<case>` and
 
 Atlas's system prompt lives in `apps/api/prompts/atlas/system.md` and publishes
 under `memoir/agents/atlas/system`. The former `memoir/shared/background-agent`
-record is retired and can be removed after running services use Atlas. The generic
+record has been removed from Langfuse after the old application workers stopped. The generic
 `memoir/shared/skill-agent` runner instructions remain shared infrastructure.
 
 The retired `memoir/skills/memoir-interviewer/*` prompt family and its old
@@ -39,6 +39,11 @@ and can be removed from Langfuse. Keep managed shared prompts: bounded context,
 skill execution, recall invitations, historical acknowledgements and place
 conflicts still have runtime callers. Zero linked observations alone does not
 establish that a prompt is unused; runtime reads checked-in artifacts.
+
+`memoir-interview-guidance` is also retired: its skill package, managed prompt,
+worker role and model execution path have been removed. Historical guidance
+data validators and storage remain for old records. Inspected news is delivered
+directly as host-owned context for Mira; it needs no guidance skill.
 
 The greeting endpoint returns localized application text without a model call.
 Duplicate dispatch instructions, the separate early-ack template and three repair

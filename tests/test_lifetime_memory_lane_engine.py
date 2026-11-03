@@ -47,14 +47,13 @@ def fence_for(current):
 
 
 @pytest.mark.parametrize('locale,language',[('zh-CN','Simplified Chinese'),('en-AU','Australian English')])
-@pytest.mark.parametrize('phase',['extract','profile','summarize','guidance','prepare','draft','review'])
+@pytest.mark.parametrize('phase',['extract','profile','summarize','prepare','draft','review'])
 def test_every_lane_phase_applies_the_resolved_output_language(phase,locale,language):
     from apps.api.lifetime_memory_lane_engine import lane_contract
     from test_background_profile import profile_page
     current=profile_page()
     current['locale']=locale
     current['preferences']['language']=locale
-    current['guidance_context']={'source_windows':[current['source']]}
     instructions,_=lane_contract(phase,locale,fence=fence_for(current))
     assert f'Write in {language}; preserve original quoted source language.' in instructions
 

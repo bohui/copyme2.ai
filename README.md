@@ -743,22 +743,31 @@ covers conflicts, ambiguity about people or timing, connected topic development,
 recall limits and tentative reflection on expressed values. Authorized original
 passages and recent exchanges provide evidence; alternatives remain unresolved
 until the narrator clarifies them. The background catalog and fresh-install
-triggers no longer schedule `memoir-interview-guidance`.
+triggers no longer schedule `memoir-interview-guidance`. Its skill package,
+managed prompt and model executor have been removed. Worker contracts reject
+the retired role and phase.
 
-Saved timeline events, accepted memory context and inspected public news appear
-as `background_deliveries` in a final user message after the current narration.
+Saved timeline events, accepted memory context and inspected public news enter
+the host-owned conversation context as `background_deliveries`. The native
+message projection places application context before the current narration;
+persistent sessions receive only changed context entries. Ready news appears at
+`memoir_context.updates.deliveries["memoir-historical-news-research"].clues`, with
+its title, summary, event dates, place and inspected source citation. At most five
+currently authorized clues are supplied. Disabled, rejected or stale clues are
+excluded or revalidated against the current public place/time evidence.
 Timeline deliveries use bounded coordinates and authorized original passages;
 generated titles and uncertainty prose do not become narrator evidence.
 Mira decides whether they help the acknowledgement or next question. News is
 optional public context, never personal testimony; a selected supplied clue ID
 keeps its validated citation. A completed background job contributes to later
 turns without replacing text already streaming. Existing guidance storage and
-validators remain available for older records, but current replies do not load
-their prepared questions or acknowledgement copy.
+data validators remain available for older records; those records cannot start
+a model call or supply prepared questions or acknowledgement copy to Mira.
 
-The updated Mira and timeline Markdown need the normal merged-main publication
-before runtime activation. A bounded draft comparison for the bilingual current
-reply cases is available with `scripts/evaluate_mira_prompt.py --realtime`.
+Mira and timeline Markdown follow the versioned publication workflow above;
+source changes require matching receipts before runtime activation. A bounded
+comparison for bilingual current replies is available with
+`scripts/evaluate_mira_prompt.py --realtime`.
 
 The [`memoir-composer` skill](skills/memoir-composer/SKILL.md) consumes the same event IDs. Every five completed rounds by default, it waits for extraction, freezes the latest eligible snapshot, prepares dirty stage/year/event groups in bounded parallel work, and preserves unchanged prose and revisions. Temporal coordinates one active run per project/skill lane with coalesced catch-up, bounded deadlines, retries, and fenced commits. A validated repeat of unchanged event facts advances extraction without rewriting prose. A checkpoint with no supported events finishes collecting without inventing prose or requesting a provider retry.
 

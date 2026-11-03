@@ -54,7 +54,10 @@ installed or invoked. The system prompt is included on every reply. Optional
 repair guidance and source-only privacy review enter only their relevant calls.
 Mira owns current clarification, topic development and values reflection; Atlas
 does not schedule interview guidance. Saved background deliveries enter a final
-user message for Mira to consider. Greeting text is application-owned.
+application-context message before the current narration for Mira to consider.
+Greeting text is application-owned. The retired `memoir-interview-guidance`
+skill package, prompt and model executor have been removed; only historical
+record validation/storage remains.
 
 Atlas is the background memoir curator in Lane B. Atlas's system prompt lives in
 `apps/api/prompts/atlas/system.md` under `memoir/agents/atlas/system`. The generic

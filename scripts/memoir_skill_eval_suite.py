@@ -55,7 +55,7 @@ def inventory():
     owners = {name.split('/')[2] for name in PROMPT_PATHS if name.startswith('memoir/skills/')}
     # Retain stable case IDs while evaluating Mira as an agent. Guidance is an
     # embedded background dependency, without a standalone scenario catalog.
-    actual = (set(SKILLS) | owners) - {'memoir-interview-guidance'}
+    actual = set(SKILLS) | owners
     if any(name.startswith('memoir/agents/mira/') for name in PROMPT_PATHS):
         actual.add('memoir-interviewer')
     if actual != KNOWN:

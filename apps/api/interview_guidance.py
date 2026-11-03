@@ -1,7 +1,6 @@
-"""Evidence-backed next-turn guidance, independently executed in Lane B."""
+"""Validate retained historical guidance records; current interviewing belongs to Mira."""
 from __future__ import annotations
 
-from copy import deepcopy
 import json
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -139,61 +138,3 @@ def validate_guidance_result(raw, page):
     if len(json.dumps(output, ensure_ascii=False).encode()) > 14000:
         raise ValueError('Guidance output exceeds its resource budget')
     return output
-
-
-def guidance_packet(page, *, retry_reason=None):
-    packet = {'source': deepcopy(page['source']), 'events': deepcopy(page['events']),
-              'guidance_context': deepcopy(page['guidance_context'])}
-    if retry_reason is not None:
-        if retry_reason != 'OUTPUT_SCHEMA':
-            raise ValueError('Unsupported guidance retry reason')
-        packet['retry_reason'] = retry_reason
-    return packet
-
-
-def guidance_contract(fence):
-    from .prompt_artifact import load_prompt_artifact, prompt_path
-    instructions = load_prompt_artifact(prompt_path('memoir/skills/memoir-interview-guidance/instructions'))
-    if fence.two_lane and fence.two_lane.strategy_mode:
-        instructions += '\n' + load_prompt_artifact(prompt_path('memoir/agents/mira/strategy-proposal'))
-    schema = GuidanceResult.model_json_schema()
-    def required(value):
-        if isinstance(value, dict):
-            if value.get('type') == 'object' and 'properties' in value:
-                value['required'] = list(value['properties'])
-            value.pop('default', None)
-            for child in value.values():required(child)
-        elif isinstance(value, list):
-            for child in value:required(child)
-    required(schema)
-    source_ids = list(dict.fromkeys(s['id'] for s in fence.guidance_context['source_windows']))
-    if fence.source and fence.source['id'] not in source_ids:source_ids.append(fence.source['id'])
-    schema['$defs']['EvidenceRef']['properties']['source_id']['enum'] = source_ids
-    schema['$defs']['GuidanceQuestion']['properties']['source_id']['enum'] = source_ids
-    return instructions, schema
-
-
-async def _commit_guidance(page, worker, result):
-    return await worker.broker.rpc('commit_lifetime_interview_guidance', p_lane_id=page['lane_id'],
-        p_token=page['token'], p_page_digest=page['page_digest'], p_result=result)
-
-
-async def execute_guidance_lane(page, worker):
-    from .lifetime_memory_composer import lane_model_budget
-    from .lifetime_memory_lane_engine import build_bounded_lane_input, send_bounded_lane_request
-    if not page['guidance_context']['source_windows']:
-        return await _commit_guidance(page, worker, dict(signals=[], prepared_questions=[],
-            acknowledgement_guidance=None, strategy_proposal=None))
-    for attempt in range(2):
-        bounded = build_bounded_lane_input(page, phase='guidance',
-            packet=guidance_packet(page, retry_reason='OUTPUT_SCHEMA' if attempt else None),
-            budget=lane_model_budget())
-        response = await send_bounded_lane_request(worker_url=worker.worker_url, worker_secret=worker.worker_secret,
-            bounded_lane=bounded, worker_transport=worker.worker_transport,
-            publisher=getattr(worker, 'lane_publisher', None), timeout=240)
-        try:
-            result = validate_guidance_result(json.loads(response['reply']), page)
-            break
-        except (ValueError, TypeError, KeyError):
-            if attempt:raise
-    return await _commit_guidance(page, worker, result)

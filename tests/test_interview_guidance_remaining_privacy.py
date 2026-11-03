@@ -5,7 +5,7 @@ import re
 
 import pytest
 
-from apps.api.interview_guidance import execute_guidance_lane, validate_guidance_result
+from apps.api.interview_guidance import validate_guidance_result
 from test_agent_commit_postgres import OLD
 from test_background_profile_workflow import database
 from test_conversation_attribution import Conversation, empty, episode, reference
@@ -19,18 +19,7 @@ from test_shared_memory_events_postgres import sql, rpc, literal
 
 @pytest.mark.parametrize('identifier', [PRIVATE, 'A cycling crash in Chengde left me injured.'])
 def test_supported_continuity_ids_have_stable_opaque_guidance_identity(sql, tmp_path, monkeypatch, identifier):
-    dispatched, results = [], []
-    async def boundary(request, provider):
-        body = json.loads(request.content)
-        if (body.get('bounded_lane') or {}).get('phase') == 'guidance':
-            dispatched.append(body)
-        return await provider(request)
-    def prepare(packet):
-        unsafe = identifier in json.dumps(dispatched[-1], ensure_ascii=False)
-        result = proposal(packet, UNSAFE_QUESTION if unsafe else SAFE_QUESTION)
-        results.append(result)
-        return result
-    conversation = Conversation(sql, tmp_path, monkeypatch, extract, guidance=prepare, external_boundary=boundary)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract)
     with conversation.client:
         accepted = conversation.say(MIXED)
         drain_timeline(conversation)
@@ -58,18 +47,17 @@ def test_supported_continuity_ids_have_stable_opaque_guidance_identity(sql, tmp_
         current = page['preferences']['known_continuity'][0]
         assert current['record_id'] == old['record_id'] and current['revision'] == 2
         assert commit_guidance(sql, before, proposal(before), check=False).returncode != 0
-        assert asyncio.run(execute_guidance_lane(page, conversation.worker))['status'] == 'finished'
-        assert 'replayed' in commit_guidance(sql, page, results[-1]).stdout
+        result = proposal(page)
+        assert 'finished' in commit_guidance(sql, page, result).stdout
+        assert 'replayed' in commit_guidance(sql, page, result).stdout
         original = rpc(sql, 'read_lifetime_pinned', f"'{who['conversation_id']}'")
         assert original['known_continuity'][0]['record_id'] == identifier
         response = conversation.say('I would like to continue.')
         assert 'bicycle accident' not in response['reply']
         from test_conversation_reply import proposal as current_reply
         assert response['reply'].endswith(current_reply()['question'])
-        assert identifier not in json.dumps(dispatched, ensure_ascii=False)
+        assert identifier not in json.dumps(page, ensure_ascii=False)
         assert re.fullmatch(r'ct-[0-9a-f]{64}', current['record_id'])
-        envelope = json.loads(dispatched[-1]['bounded_lane']['packet'])
-        assert envelope['lane_context']['preferences'] == dispatched[-1]['bounded_lane']['fence']['preferences']
         assert current['data']['text'] == ALLOWED and current['data']['source_refs'][0]['quote'] == ALLOWED
         assert pool(conversation)[0]['question']==SAFE_QUESTION
 
@@ -80,12 +68,6 @@ def test_latest_authorized_tail_precedes_a_fully_withheld_original_suffix(sql, t
     text = ''.join(f'Allowed fragment {i}. {secret}' for i, secret in enumerate(secrets)) + '序'*1000 + ' ' + recall + '密'*2400
     anchor = 'Allowed fragment 0.'
     assert len(text) == 3781 and (text.index(recall), text.index(recall)+len(recall)) == (1313, 1381)
-    dispatched = []
-    async def boundary(request, provider):
-        body = json.loads(request.content)
-        if (body.get('bounded_lane') or {}).get('phase') == 'guidance':
-            dispatched.append(body)
-        return await provider(request)
     def extraction(packet):
         source = packet['sources'][0]
         words = source['text']
@@ -110,32 +92,27 @@ def test_latest_authorized_tail_precedes_a_fully_withheld_original_suffix(sql, t
                 question='What would you like to tell me about the garden?', topic='Garden', quote=anchor,
                 source_id=source['id'], source_version=source['version'], trigger=kind,
                 requires_confirmation=False, scope='broader' if transition else 'detail')]), packet)
-    conversation = Conversation(sql, tmp_path, monkeypatch, extraction, guidance=prepare, external_boundary=boundary)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extraction)
     with conversation.client:
         accepted = conversation.say(text)
-        conversation.drain()
-        assert dispatched, conversation.last_db_error
-        packet = json.loads(dispatched[-1]['bounded_lane']['packet'])['payload']
+        drain_timeline(conversation)
+        page = claimed_guidance(conversation)
+        packet = page
         windows = packet['guidance_context']['source_windows']
         assert recall in packet['source']['text']
         assert packet['source']['char_end'] == 1381 and len(windows) <= 8
         assert any(anchor in w['text'] for w in windows)
-        assert all(secret not in json.dumps(dispatched) for secret in secrets)
-        assert '密' not in json.dumps(dispatched, ensure_ascii=False)
+        assert all(secret not in json.dumps(page) for secret in secrets)
+        assert '密' not in json.dumps(page, ensure_ascii=False)
         for window in windows:
             assert window['text'] == text[window['char_start']:window['char_end']]
+        assert 'finished' in commit_guidance(sql, page, prepare(page)).stdout
         assert pool(conversation)[0]['trigger'] == 'topic_transition'
         assert conversation.attribution(accepted['accepted_source_id'])['complete']
 
 
 def test_opaque_continuity_identity_growth_keeps_the_bounded_working_set_usable(sql, tmp_path, monkeypatch):
-    dispatched = []
-    async def boundary(request, provider):
-        body = json.loads(request.content)
-        if (body.get('bounded_lane') or {}).get('phase') == 'guidance':
-            dispatched.append(body)
-        return await provider(request)
-    conversation = Conversation(sql, tmp_path, monkeypatch, extract, guidance=proposal, external_boundary=boundary)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract)
     with conversation.client:
         text = ALLOWED + ' ' + 'note. '*160
         accepted = conversation.say(text)
@@ -152,9 +129,10 @@ def test_opaque_continuity_identity_growth_keeps_the_bounded_working_set_usable(
         rpc(sql, 'release_user_agent_turn_lease', f"'{OLD}'")
         original = rpc(sql, 'read_lifetime_pinned', f"'{who['conversation_id']}'")
         assert len(original['known_continuity']) == 4
-        conversation.drain()
-        assert dispatched, conversation.last_db_error
-        pins = dispatched[-1]['bounded_lane']['fence']['preferences']
+        drain_timeline(conversation)
+        page = claimed_guidance(conversation)
+        pins = page['preferences']
         assert len(pins['known_continuity']) == 3 and pins['known_continuity_complete'] is False
         assert len(json.dumps(pins['known_continuity'], separators=(',', ':')).encode()) <= 8192
+        assert 'finished' in commit_guidance(sql, page, proposal(page)).stdout
         assert pool(conversation)[0]['question'] == SAFE_QUESTION

@@ -1,4 +1,4 @@
-"""Derived prose cannot acquire permission through a different allowed citation."""
+"""Retained guidance records cannot expose derived private prose through allowed citations."""
 import asyncio
 import json
 import re
@@ -12,7 +12,6 @@ from test_interview_guidance_privacy import (PRIVATE, ALLOWED, MIXED, SAFE_QUEST
     UNSAFE_QUESTION, extract, proposal)
 from legacy_guidance_fixtures import (activate_guidance_pool, drain_timeline,
     claimed_guidance, commit_guidance, identity, pool)
-from apps.api.interview_guidance import execute_guidance_lane
 from test_lifetime_memory_postgres import event_database, private_database, attachment_database
 from test_shared_memory_events_postgres import sql, rpc, literal
 
@@ -23,12 +22,6 @@ from test_shared_memory_events_postgres import sql, rpc, literal
 def test_derived_prose_with_allowed_citations_cannot_enter_guidance_or_the_next_reply(sql, tmp_path, monkeypatch, field, reply_v2, poison):
     if reply_v2:
         monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')
-    dispatched = []
-    async def boundary(request, provider):
-        body = json.loads(request.content)
-        if (body.get('bounded_lane') or {}).get('phase') == 'guidance':
-            dispatched.append(body)
-        return await provider(request)
     def extraction(packet):
         result = extract(packet)
         if field.startswith('event_'):
@@ -40,10 +33,7 @@ def test_derived_prose_with_allowed_citations_cannot_enter_guidance_or_the_next_
                 uncertainty=poison, source_id=source['id'], source_version=source['version'],
                 quote=ALLOWED, char_start=start, char_end=start+len(ALLOWED))]
         return result
-    def prepare(packet):
-        question = UNSAFE_QUESTION if poison in json.dumps(dispatched[-1], ensure_ascii=False) else SAFE_QUESTION
-        return proposal(packet, question)
-    conversation = Conversation(sql, tmp_path, monkeypatch, extraction, guidance=prepare, external_boundary=boundary)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extraction)
     with conversation.client:
         accepted = conversation.say(MIXED)
         drain_timeline(conversation)
@@ -57,8 +47,8 @@ def test_derived_prose_with_allowed_citations_cannot_enter_guidance_or_the_next_
             epoch = sql('select policy_epoch from public.user_memoir_project;').stdout.strip()
             rpc(sql, 'save_lifetime_continuity', f"'{who['conversation_id']}','derived','person',0,{epoch},'{OLD}',{literal(data)}")
             rpc(sql, 'release_user_agent_turn_lease', f"'{OLD}'")
-        conversation.drain()
-        assert dispatched, conversation.last_db_error
+        drain_timeline(conversation)
+        page = claimed_guidance(conversation)
         # Confirm native evidence is allowed, while the derived text is private.
         if field.startswith('event_'):
             original = json.loads(sql('select data from public.user_memory_event;').stdout)
@@ -69,13 +59,14 @@ def test_derived_prose_with_allowed_citations_cannot_enter_guidance_or_the_next_
             assert original[field.removeprefix('continuity_')] == poison
             evidence = original['source_refs'][0]
         assert evidence['quote'] == ALLOWED
+        assert 'finished' in commit_guidance(sql, page, proposal(page)).stdout
         response = conversation.say('I would like to continue.')
         assert 'bicycle accident' not in response['reply']
         from test_conversation_reply import proposal as current_reply
         assert response['reply'].endswith(current_reply()['question'])
         assert pool(conversation)[0]['question']==SAFE_QUESTION
-        assert poison not in json.dumps(dispatched, ensure_ascii=False)
-        packet = json.loads(dispatched[-1]['bounded_lane']['packet'])['payload']
+        assert poison not in json.dumps(page, ensure_ascii=False)
+        packet = page
         allowed = next(w for w in packet['guidance_context']['source_windows'] if ALLOWED in w['text'])
         assert allowed['text'] == MIXED[allowed['char_start']:allowed['char_end']]
 
@@ -89,12 +80,6 @@ def test_fragmented_latest_source_reserves_an_authorized_tail_for_recall_limits(
     if mode == 'already_present':
         secrets = secrets[:1]
         text = ALLOWED + ' ' + '延' * 3000 + ' ' + secrets[0] + ' ' + recall
-    dispatched = []
-    async def boundary(request, provider):
-        body = json.loads(request.content)
-        if (body.get('bounded_lane') or {}).get('phase') == 'guidance':
-            dispatched.append(body)
-        return await provider(request)
     def extraction(packet):
         from test_conversation_attribution import empty, episode, reference
         source = packet['sources'][0]['text']
@@ -107,38 +92,24 @@ def test_fragmented_latest_source_reserves_an_authorized_tail_for_recall_limits(
             result['signals'][0].update(kind='topic_transition', recall_limit_quote=recall)
             result['prepared_questions'][0].update(trigger='topic_transition', scope='broader')
         return result
-    conversation = Conversation(sql, tmp_path, monkeypatch, extraction, guidance=prepare, external_boundary=boundary)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extraction)
     with conversation.client:
         conversation.say(text)
-        conversation.drain()
-        assert dispatched, conversation.last_db_error
-        packet = json.loads(dispatched[-1]['bounded_lane']['packet'])['payload']
+        drain_timeline(conversation)
+        page = claimed_guidance(conversation)
+        packet = page
         windows = packet['guidance_context']['source_windows']
         assert recall in packet['source']['text']
         assert len(windows) <= 8 and any(ALLOWED in w['text'] for w in windows)
-        assert all(secret not in json.dumps(dispatched) for secret in secrets)
+        assert all(secret not in json.dumps(page) for secret in secrets)
         for window in windows:
             assert window['text'] == text[window['char_start']:window['char_end']]
+        assert 'finished' in commit_guidance(sql, page, prepare(page)).stdout
         assert pool(conversation)[0]['trigger'] == 'topic_transition'
 
 
 def test_private_collector_ids_become_stable_opaque_delivered_identities(sql, tmp_path, monkeypatch):
-    dispatched, results = [], []
-    async def boundary(request, provider):
-        body = json.loads(request.content)
-        if (body.get('bounded_lane') or {}).get('phase') == 'guidance':
-            dispatched.append(body)
-        return await provider(request)
-    def prepare(packet):
-        unsafe = PRIVATE in json.dumps(dispatched[-1], ensure_ascii=False)
-        result = proposal(packet, UNSAFE_QUESTION if unsafe else SAFE_QUESTION)
-        if not unsafe:
-            ids = [item['question']['id'] for item in packet['guidance_context']['recent_dialogue']][:3]
-            result['signals'][0].update(kind='topic_transition', detail_question_ids=ids)
-            result['prepared_questions'][0].update(trigger='topic_transition', scope='broader')
-        results.append(result)
-        return result
-    conversation = Conversation(sql, tmp_path, monkeypatch, extract, guidance=prepare, external_boundary=boundary)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract)
     with conversation.client:
         for _ in range(3):
             conversation.say(MIXED)
@@ -153,14 +124,19 @@ def test_private_collector_ids_become_stable_opaque_delivered_identities(sql, tm
             again = await conversation.worker.broker.rpc('read_lifetime_interview_guidance_page',
                 p_lane_id=page['lane_id'], p_token=page['token'])
             assert again['guidance_context']['recent_dialogue'] == page['guidance_context']['recent_dialogue']
-            return await execute_guidance_lane(page, conversation.worker)
-        assert asyncio.run(run())['status'] == 'finished'
-        assert 'replayed' in commit_guidance(sql, page, results[-1]).stdout
+            return again
+        asyncio.run(run())
+        result = proposal(page)
+        ids = [item['question']['id'] for item in page['guidance_context']['recent_dialogue']][:3]
+        result['signals'][0].update(kind='topic_transition', detail_question_ids=ids)
+        result['prepared_questions'][0].update(trigger='topic_transition', scope='broader')
+        assert 'finished' in commit_guidance(sql, page, result).stdout
+        assert 'replayed' in commit_guidance(sql, page, result).stdout
         original = json.loads(sql(f"select public.lifetime_question_dialogue('{page['user_id']}',{literal(conversation.project)});").stdout)
         assert {item['question']['id'] for item in original} == {PRIVATE}
         response = conversation.say('I would like to continue.')
         assert 'bicycle accident' not in response['reply']
-        assert PRIVATE not in json.dumps(dispatched, ensure_ascii=False)
+        assert PRIVATE not in json.dumps(page, ensure_ascii=False)
         ids = [item['question']['id'] for item in page['guidance_context']['recent_dialogue']]
         assert len(set(ids)) == 3 and all(re.fullmatch(r'dq-[0-9a-f]{64}', value) for value in ids)
         from test_conversation_reply import proposal as current_reply
