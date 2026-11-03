@@ -490,6 +490,29 @@ does not offer this cache-preservation guarantee; use it only for an intentional
 full schema reset. Use
 `ENV_FILE=path/to/.env` to load a different file.
 
+For an intentional full schema reset, use:
+
+```bash
+make db-reset                         # includes Memoir's Langfuse run history
+make db-reset include-langfuse=false  # Supabase only
+```
+
+`include-langfuse` defaults to `true`. The reset uses the Memoir project
+credentials from `PROMPT_CREDENTIAL_FILE`, the same file as `make prompt-sync`.
+It clears traces, observations and scores, including scores attached directly
+to sessions or experiments. Prompt versions, evaluation datasets and their
+saved items, and score configurations are preserved.
+It checks the project and collects trace and score IDs before resetting Supabase,
+then deletes standalone scores and submits trace deletion in batches. A Langfuse
+preflight failure prevents the Supabase reset; a deletion failure after the
+database reset returns an error and reports that cleanup may be partial.
+The backend operation lock prevents the reset from
+interrupting a live evaluation. Langfuse deletes the selected traces and their
+linked observations and scores asynchronously, usually within 15 minutes; see
+the [Langfuse deletion guarantees](https://langfuse.com/docs/administration/data-deletion#limitations).
+The snapshot covers history visible when the reset starts; new or delayed
+ingestion may appear afterward.
+
 High-level Codex activity and early private-draft previews are hidden from storytellers by default. Both debug flags default to off. Set `MEMORY_SPARK_SHOW_THINKING_STEPS=1` to stream operation summaries and show "Thinking steps", including progressive `memoir-composer` draft/event previews in a collapsible entry on the covered turn. Preview text comes from the current saved view and is not copied into cached chat traces. Draft language and retry controls stay in the workspace's Chapters tab; the location/photo workspace and message input have no draft-status card. `MEMORY_SPARK_SHOW_DRAFT_UPDATES=1` also enables draft streaming and early saved-draft access inside Chapters, but generated text in Thinking steps still requires the thinking-step flag. Either debug mode requires a browser URL at `localhost`, `127.0.0.1` or `[::1]`. With thinking steps off, chat still streams its reply and saved/workspace events, but emits no thinking-step progress or trace. The draft endpoint negotiates `application/x-ndjson`, sends `draft_update` events when the saved view changes and periodic `heartbeat` events, then sends `complete` when background work settles or a safe `error` if delivery fails. The server checks durable draft state every two seconds while work is pending; the UI maintains one connection and only reconnects after transport interruptions, with two bounded retries. Each canonical update retains its own publication guard. Other browser hosts keep this debug UI hidden and cannot open the draft stream even when the flags are enabled. With both debug flags off, a one-time read loads the saved draft in the workspace's Chapters tab after the configured free recall rounds are complete (20 by default), including after refresh and for storytellers who paid early. Location/photo cues remain available alongside those tabs until composition unlock, when the composition views take over.
 
 ### First-response latency profiling

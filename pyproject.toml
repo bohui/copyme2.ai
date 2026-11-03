@@ -15,7 +15,7 @@ dependencies = [
   "pydantic>=2.13.5,<3",
   "Pillow>=12,<13",
   "temporalio>=1.33.0,<2",
-  "langfuse>=4,<5",
+  "langfuse>=4.8.1,<5",
 ]
 
 [tool.setuptools]
