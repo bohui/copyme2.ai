@@ -230,7 +230,7 @@ async def evaluate(args, inputs):
         async def request(body):
             nonlocal calls
             body = {**body, 'metadata': {**body.get('metadata', {}),
-                'generation_name':'memoir-interviewer', 'trace_name':'memoir-interviewer'}}
+                'generation_name':'memoir-mira', 'trace_name':'memoir-mira'}}
             async with semaphore:
                 calls += 1
                 if calls > 100:

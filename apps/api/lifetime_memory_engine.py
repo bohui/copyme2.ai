@@ -404,9 +404,9 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             # Only the complete validated acknowledgement crosses this boundary.
             await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
     async with AsyncExitStack() as stack:
-        call_name = 'memoir-interviewer.reply-repair' if repair_reason else 'memoir-interviewer.reply'
+        call_name = 'memoir-mira.reply-repair' if repair_reason else 'memoir-mira.reply'
         trace = stack.enter_context(trace_llm_call(call_name, model, gateway=True,
-            trace_name='memoir-interviewer'))
+            trace_name='memoir-mira'))
         direct_reply = interview_context.get('reply_contract') == 'reply-v2'
         session = None
         if direct_reply:

@@ -6,7 +6,7 @@ PROMPT_PATHS = {
     'memoir/agents/mira/repair': 'apps/api/prompts/mira/repair.md',
     'memoir/agents/mira/repair-codes': 'apps/api/prompts/mira/repair-codes.md',
     'memoir/agents/mira/strategy-proposal': 'apps/api/prompts/mira/strategy-proposal.md',
-    'memoir/shared/background-agent': 'apps/api/prompts/background-agent.md',
+    'memoir/agents/atlas/system': 'apps/api/prompts/atlas/system.md',
     'memoir/shared/skill-agent': 'apps/api/prompts/skill-agent.md',
     'memoir/skills/memoir-composer/instructions': 'skills/memoir-composer/SKILL.md',
     **{'memoir/skills/memoir-story-game/novel-to-game/' + name:

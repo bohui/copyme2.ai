@@ -23,23 +23,25 @@ class PromptClient:
                                is_fallback=False)
 
 
-def test_exact_langfuse_version_is_exported_and_verified(tmp_path):
-    path = tmp_path / "apps/api/prompts/mira/system.md"
+@pytest.mark.parametrize('agent', ['mira', 'atlas'])
+def test_exact_langfuse_version_is_exported_and_verified(tmp_path, agent):
+    name = f'memoir/agents/{agent}/system'
+    path = tmp_path / f"apps/api/prompts/{agent}/system.md"
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
 
-    receipt = sync_prompt(client, target="mira", name="memoir/agents/mira/system",
+    receipt = sync_prompt(client, target=agent, name=name,
                           version=7, root=tmp_path)
 
-    assert client.calls == [("memoir/agents/mira/system", {
+    assert client.calls == [(name, {
         "version": 7, "type": "text", "cache_ttl_seconds": 0, "max_retries": 0})]
     assert load_prompt_artifact(path) == "New prompt"
     assert receipt["sha256"] == hashlib.sha256(b"New prompt").hexdigest()
     assert json.loads(path.with_name(path.name + ".langfuse.json").read_text()) == {
-        "schema_version": 1, "name": "memoir/agents/mira/system", "version": 7,
+        "schema_version": 1, "name": name, "version": 7,
         "type": "text", "sha256": receipt["sha256"]}
-    sync_prompt(client, target="mira", name="memoir/agents/mira/system",
+    sync_prompt(client, target=agent, name=name,
                 version=7, root=tmp_path, check=True)
 
 
@@ -128,6 +130,13 @@ def test_mira_prompts_are_agent_owned_and_redundant_fragments_are_retired():
     assert {name.removeprefix(evaluation_prefix) for name in registry
             if name.startswith(evaluation_prefix)} == {'comparison', 'rubric'}
     assert not any(name.startswith('memoir/evaluation/skills/memoir-interviewer/') for name in registry)
+
+
+def test_atlas_system_prompt_is_agent_owned_and_the_shared_identity_is_retired():
+    registry = prompt_registry(include_unpublished=True)
+    assert registry['memoir/agents/atlas/system'] == 'apps/api/prompts/atlas/system.md'
+    assert 'memoir/shared/background-agent' not in registry
+    assert not (ROOT / 'apps/api/prompts/background-agent.md').exists()
 
 
 def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():

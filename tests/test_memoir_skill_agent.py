@@ -125,8 +125,8 @@ for line in sys.stdin:
   assert any(t['name']=='memoir_read_skill' for t in m['params']['dynamicTools'])
   print(json.dumps({'id':m['id'],'result':{'thread':{'id':thread}}}),flush=True)
  elif m.get('method')=='turn/start':
-  assert m['params']['responsesapiClientMetadata']['generation_name']=='memoir-background-agent.orchestrate'
-  assert m['params']['responsesapiClientMetadata']['trace_name']=='memoir-background-agent'
+  assert m['params']['responsesapiClientMetadata']['generation_name']=='memoir-atlas.orchestrate'
+  assert m['params']['responsesapiClientMetadata']['trace_name']=='memoir-atlas'
   task=json.loads(m['params']['input'][0]['text'])
   assert len(task['available_skills'])==2
   print(json.dumps({'id':m['id'],'result':{'turn':{'id':turn}}}),flush=True)
@@ -142,10 +142,10 @@ for line in sys.stdin:
     publication = Publication()
     result = asyncio.run(run_skill_agent(command=[sys.executable,str(server),str(journal)],
         home_root=tmp_path / 'homes', base_url='http://provider.invalid', api_key='synthetic',
-        model='synthetic-byte-bpe', instructions=load_prompt_artifact(prompt_path('memoir/shared/background-agent')),
+        model='synthetic-byte-bpe', instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/system')),
         packet={'work':[]}, skills=['memoir-author-timeline','memoir-interview-guidance'],
         publisher=publication, fence={}, timeout=5,
-        trace_name='memoir-background-agent', phase='orchestrate'))
+        trace_name='memoir-atlas', phase='orchestrate'))
     assert json.loads(result['reply']) == {'events':[]}
     assert result['skill_receipt']['skills_read'] == ['memoir-interview-guidance']
     assert json.loads(journal.read_text())['instructions'] == load_prompt_artifact(prompt_path(
@@ -153,7 +153,7 @@ for line in sys.stdin:
     assert publication.calls >= 3
     assert not list((tmp_path / 'homes').iterdir())
     assert [observation.fields['name'] for observation in tracer.observations]==[
-        'memoir-background-agent.orchestrate','memoir-background-agent.read-skill']
+        'memoir-atlas.orchestrate','memoir-atlas.read-skill']
 
 
 def test_foreign_turn_cannot_execute_a_dynamic_tool(tmp_path):

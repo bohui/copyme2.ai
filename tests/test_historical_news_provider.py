@@ -8,7 +8,7 @@ from test_historical_news import evidence
 
 @pytest.mark.parametrize('research_model',[None,'approved-low-model'])
 @pytest.mark.parametrize('research_effort',[None,'medium'])
-@pytest.mark.parametrize('parent_trace',[None,'memoir-background-agent'])
+@pytest.mark.parametrize('parent_trace',[None,'memoir-atlas'])
 def test_gateway_requires_observed_tool_and_returned_urls_and_minimized_query(monkeypatch,research_model,research_effort,parent_trace):
     from contextlib import nullcontext
     from apps.api.llm_tracing import trace_scope

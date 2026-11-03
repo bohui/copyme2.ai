@@ -270,7 +270,7 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
         conversation.deliver_receipts()
         asyncio.run(drain())
         assert nested == phases
-        assert all(meta['trace_name']=='memoir-background-agent' for meta in nested_metadata)
+        assert all(meta['trace_name']=='memoir-atlas' for meta in nested_metadata)
         assert [meta['generation_name'] for meta in nested_metadata]==[
             'memoir-memory-context' if phase=='profile_patch' else
             'memoir-author-timeline' if 'memoir-author-timeline' in choices else 'memoir-place-journey'

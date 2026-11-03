@@ -344,25 +344,45 @@ be running and this Mac must remain awake and online. See
 [`infra/cloudflare/README.md`](infra/cloudflare/README.md) for restart, logs,
 auth callback settings, and rollback.
 
-### Collection agents and background tasks
+### Mira and Atlas
 
-Lane B runs a durable `MemoirBackgroundAgent` workflow in the private Codex
-worker. Codex reviews each bounded original window and selects
+Memoir has two named agents:
+
+| Agent | Role | Responsibility | Trace name |
+| --- | --- | --- | --- |
+| Mira | Interviewer | The storyteller's conversation, clarification and follow-up questions | `memoir-mira` |
+| Atlas | Memoir curator | Background memory organization, skill selection, research and composition | `memoir-atlas` |
+
+Use their names when discussing agents. Lane A and Lane B describe execution
+lanes; collector, organiser and composer remain technical roles or task names.
+Skills keep descriptive capability names such as `memoir-author-timeline` and
+`memoir-composer`. The shared skill runner is execution infrastructure.
+
+Langfuse **Trace Name** identifies the overall agent run; **Name** identifies
+an observation within that run, such as `memoir-atlas.orchestrate`,
+`memoir-composer.review` or `memoir-mira.reply`. A trace has its own unique ID;
+the reusable trace name labels similar runs. Nested skills retain the owning
+agent's trace name and use their own skill/step observation names. Existing
+database, API and Temporal workflow identifiers, configuration keys and
+historical evaluation case/dataset IDs remain stable.
+
+Atlas runs in Lane B through the durable `MemoirBackgroundAgent` workflow in the
+private Codex worker. Atlas reviews each bounded original window and selects
 `memoir-author-timeline`, `memoir-place-journey`, `memoir-memory-context`, or none.
 It reads the selected versioned `SKILL.md` through `memoir_read_skill`, then calls
 `memoir_process_source` with those choices. Profile extraction is available on any
 narration, subject to manual field protection and automatic-profile settings.
 Its fields are name, birth details and an explicit avatar artwork hint. Childhood
 settings remain timeline/place evidence rather than profile settings.
-Lane A produces its reply without a skill-selection handoff. The host records
+Mira produces her reply in Lane A without a skill-selection handoff. The host records
 the source choice in the durable lane snapshot; a new window needs a new choice,
 and selected timeline/place work can share one extraction request.
-The agent also uses `memoir_execute_skill` for due private-draft composition and
+Atlas also uses `memoir_execute_skill` for due private-draft composition and
 enabled historical-news research. The host retains ownership, consent, dependency, evidence
 and publication checks. Explicit book/game actions and independent photo/group
 services retain their existing application contracts.
 
-New narrator evidence and selected place/period cues wake one coalesced agent
+New narrator evidence and selected place/period cues wake one coalesced Atlas run
 per owner/project. An active batch keeps its source boundary through retries;
 new arrivals wait until it finishes. The next batch covers all queued originals
 in order, delivering context pages of at most four windows and 16 KiB, with
@@ -370,15 +390,15 @@ evidence identities retained for extraction. Further pages stay in the same
 batch; surrounding question context is capped at 8 KiB.
 Thinking steps for a combined batch appear on its last covered reply. Photo,
 grouping and news requests retain their latest-reply correlation, and progress
-shows actual start and finish times. Results are saved for later turns. Lane A has reserved worker
-capacity and its own execution lock, so it does not wait for the background
-agent. Agent leases, revision checks and bounded retries survive restarts;
+shows actual start and finish times. Results are saved for later turns. Mira has reserved worker
+capacity and her own execution lock, so she does not wait for Atlas.
+Agent leases, revision checks and bounded retries survive restarts;
 required source work remains pending when a model stops early or a skill fails.
 Traces record the skills actually read and their prompt manifests, while native
 tool results contain the corresponding instructions.
 
 Activation requires the updated fresh-install schema and the published pins for
-`memoir/shared/background-agent`, `memoir/shared/skill-agent` and
+`memoir/agents/atlas/system`, `memoir/shared/skill-agent` and
 `memoir/skills/memoir-composer/instructions`. Commit the Markdown on the current
 branch, then use the normal publisher described below. Feature branches can
 publish before merging; missing pins fail closed. The background run
@@ -501,7 +521,9 @@ the current prompts, models and validation.
 
 Git owns prompt content; Memoir's Langfuse project owns published
 versions. Mira owns its always-loaded agent instructions and supporting prompts
-under `memoir/agents/mira/...`, stored in `apps/api/prompts/mira/`. Each skill owns its model
+under `memoir/agents/mira/...`, stored in `apps/api/prompts/mira/`. Atlas owns
+`memoir/agents/atlas/system`, stored in `apps/api/prompts/atlas/system.md`.
+Each skill owns its model
 instructions under `memoir/skills/<skill>/...`, including composer phases and
 shared editorial policy. Repository sources live under that skill's directory.
 Common bounded-worker instructions use `memoir/shared/...`; judge/probe and

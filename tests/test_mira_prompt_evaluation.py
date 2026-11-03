@@ -99,7 +99,7 @@ def test_generation_and_judge_requests_keep_the_interviewer_trace_name(tmp_path,
     asyncio.run(evaluate(args, [case]))
 
     assert len(requests) == 3
-    assert all(body.get('metadata', {}).get('trace_name') == 'memoir-interviewer' for body in requests)
-    assert all(body['metadata']['generation_name'] == 'memoir-interviewer' for body in requests)
+    assert all(body.get('metadata', {}).get('trace_name') == 'memoir-mira' for body in requests)
+    assert all(body['metadata']['generation_name'] == 'memoir-mira' for body in requests)
     report = json.loads(args.output.read_text())
     assert all(row['contract'] == 'pass' for row in report['results'])

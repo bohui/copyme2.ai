@@ -107,18 +107,18 @@ def test_main_sync_reuses_identical_content_without_creating_versions(repo):
     assert load_prompt_artifact(root / TARGET) == 'Original prompt\n'
 
 
-def test_mira_sync_saves_agent_names_and_receipts_and_preserves_old_history(repo, monkeypatch):
+def test_agent_sync_saves_names_and_receipts_and_preserves_old_history(repo, monkeypatch):
     from scripts.prompt_registry import prompt_registry
 
     root, _, _ = repo
     registry = {name: target for name, target in prompt_registry(include_unpublished=True).items()
-                if name.startswith(('memoir/agents/mira/', 'memoir/evaluation/agents/mira/'))}
-    assert len(registry) == 7
+                if name.startswith(('memoir/agents/', 'memoir/evaluation/agents/mira/'))}
+    assert len(registry) == 8
     for target in registry.values():
         path = root / target
         path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(ROOT / target, path)
-    commit(root, 'Merged Mira agent prompts')
+    commit(root, 'Merged Mira and Atlas agent prompts')
     git(root, 'push', 'origin', 'main')
 
     legacy_name = 'memoir/skills/memoir-interviewer/reply'
@@ -147,7 +147,7 @@ def test_mira_sync_saves_agent_names_and_receipts_and_preserves_old_history(repo
     assert publication.main([], root=root) == 0
     assert publication.main([], root=root) == 0
     assert {row['name'] for row in creates} == set(registry)
-    assert len(creates) == 7
+    assert len(creates) == 8
     assert saved[legacy_name] is historical
     for name, target in registry.items():
         path = root / target

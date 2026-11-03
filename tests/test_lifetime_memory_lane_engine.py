@@ -107,7 +107,7 @@ def test_skill_attempt_is_named_even_when_extraction_is_blocked_or_fails(monkeyp
     client=FakeLangfuse()
     monkeypatch.setattr(llm_tracing,'_client_cache',client)
     monkeypatch.setattr(composer,'_extract',AsyncMock(side_effect=failure('PRIVATE_NARRATION_AND_KEY')))
-    with llm_tracing.trace_llm_call('memoir-background-agent','synthetic',gateway=True):
+    with llm_tracing.trace_llm_call('memoir-atlas','synthetic',gateway=True):
         with pytest.raises(failure):
             asyncio.run(composer.execute_lifetime_lane(page(),SimpleNamespace(broker=AsyncMock())))
     attempts=[o for o in client.observations if o.fields['name']=='memoir-author-timeline.extract']

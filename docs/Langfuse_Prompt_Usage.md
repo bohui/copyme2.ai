@@ -16,10 +16,18 @@ Mira uses only `reply-v2`, with five agent-owned prompt drafts under
 and `strategy-proposal`. They publish under `memoir/agents/mira/...` after merge
 to main; new namespace receipts are not fabricated from the older skill pins.
 
-Mira keeps the stable Langfuse trace and generation name `memoir-interviewer`
-for replies, repairs, privacy review and draft comparisons, including their
-judges. This observability label is separate from her `memoir/agents/mira/...`
-prompt namespace and does not make her a callable skill.
+Mira is the interviewer; Atlas is the background memoir curator. Their Langfuse
+trace names are `memoir-mira` and `memoir-atlas`. Observation names identify the
+step, such as `memoir-mira.reply`, `memoir-mira.policy-review` and
+`memoir-atlas.orchestrate`. A nested skill keeps the owning agent's trace name
+while naming its own step, such as `memoir-composer.review`. Each run has a unique
+trace ID; the trace name labels similar runs. Historical observations keep their
+original labels.
+
+Atlas's system prompt lives in `apps/api/prompts/atlas/system.md` and publishes
+under `memoir/agents/atlas/system`. The former `memoir/shared/background-agent`
+record remains historical and is outside the managed registry. The generic
+`memoir/shared/skill-agent` runner instructions remain shared infrastructure.
 
 The greeting endpoint returns localized application text without a model call.
 Duplicate dispatch instructions, the separate early-ack template and three repair
