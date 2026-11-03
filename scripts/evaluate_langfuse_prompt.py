@@ -40,6 +40,9 @@ def experiment_task(prompt, model, client, *, instructions=None):
         input_text = dataset_input_text(item.input)
         response = client.chat.completions.create(
             model=model,
+            name='evaluation/memoir-prompts.generate',
+            extra_body={'metadata': {'generation_name': 'evaluation/memoir-prompts.generate',
+                'trace_name': 'evaluation/memoir-prompts'}},
             messages=[{"role": "system", "content": prompt.prompt if instructions is None else instructions},
                       {"role": "user", "content": input_text}],
             langfuse_prompt=prompt,
@@ -115,7 +118,7 @@ def main() -> int:
     client = OpenAI(api_key=api_key, **({"base_url": base_url} if base_url else {}))
     try:
         result = dataset.run_experiment(
-            name=f"{args.name}-v{args.version}",
+            name='evaluation/memoir-prompts',
             run_name=f"{args.name}-v{args.version}-{snapshot.isoformat()}",
             description=json.dumps(summary, sort_keys=True),
             task=experiment_task(prompt, args.model, client, instructions=instructions),

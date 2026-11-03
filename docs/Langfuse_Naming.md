@@ -3,7 +3,7 @@
 `Trace Name` identifies the agent or workflow for one run. `Name` identifies an
 observation (a model call, tool call or other step) within that run. A trace ID
 groups its observations; reusing a trace name does not merge runs. Sessions link
-related runs. Mira and Atlas use the same pseudonymous owner/project session ID;
+related runs. Mira and Atlas worker runs use the same pseudonymous owner/project session ID;
 different owners and projects remain separate.
 
 | Trace name | Observation names |
@@ -23,6 +23,7 @@ different owners and projects remain separate.
 | `evaluation/memoir-mira` | `evaluation/memoir-mira.<variant>` |
 | `evaluation/memoir-judges` | `evaluation/memoir-judges.trajectory`, `.<judge>` |
 | `evaluation/memoir-probes` | `evaluation/memoir-probes.connectivity`, `.web-search` |
+| `evaluation/memoir-prompts` | `evaluation/memoir-prompts.generate` for a pinned prompt experiment |
 | `evaluation/<skill>` | `evaluation/<skill>.probe` for isolated skill checks |
 
 Nested skill observations retain their skill-specific names and inherit the
@@ -30,9 +31,9 @@ coordinator's trace name. For example, `memoir-composer.review` normally appears
 under `memoir-atlas`. A directly invoked skill can have its own trace root.
 Evaluation worker runs prefix both levels with `evaluation/`. The generic worker
 fallback is `memoir-skill-agent.run`; its tool steps follow the Atlas convention.
-The existing conditional guidance lane retains `memoir-interview-guidance.guidance`
-until that separate workflow is retired. These labels describe instrumentation;
-they do not imply that every skill has a live standalone model path.
+These labels describe instrumentation; they do not imply that every skill has a
+live standalone model path. Interview guidance is part of Mira's native context;
+there is no separate interview-guidance model trace.
 
 Historical traces keep their recorded names. Only new observations use changed
 labels. Speech and image observations contain bounded summaries rather than full
@@ -41,6 +42,9 @@ Langfuse itself owns labels such as `Test evaluator` and `Execute evaluator: …
 in its reserved `langfuse-llm-as-a-judge` environment. The online rule explicitly
 excludes these internal environments; application evaluation runs use the
 `evaluation/` prefix above.
+The SDK also owns `experiment-item-run` and `experiment-item-task` observations
+in the `sdk-experiment` environment; their model calls carry the application
+evaluation labels.
 
 ## Datasets
 

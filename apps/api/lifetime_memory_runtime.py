@@ -3,7 +3,7 @@
 Narration, including transcribed microphone input, uses bounded model requests
 and transactional publication fences. There is no legacy conversation fallback.
 """
-from contextlib import AsyncExitStack, ExitStack
+from contextlib import AsyncExitStack
 import asyncio
 import json
 from pathlib import Path
@@ -134,12 +134,8 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
     identity=IdentityEnvelope.model_validate({k:v for k,v in identity_raw.items() if k!='outcome'})
     project_id=identity.project_id
     scope=AsyncExitStack();await scope.__aenter__()
-    tracing=ExitStack()
     policy_task=None
     try:
-        from .llm_tracing import trace_session
-        # The publication scope can close in another task; tracing stays local.
-        tracing.enter_context(trace_session(storage.user_id, project_id))
         await scope.enter_async_context(runtime._lock(storage.user_id))
         lease=await scope.enter_async_context(runtime._storage_lease(storage,timeout=5))
         accepted_source_id=None
@@ -516,14 +512,11 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
         publication.scope=scope;scope=None
         return GovernedResult(response,fence) if publication.emitter else response
     finally:
-        try:
-            if policy_task is not None:
-                from .parallel_reply import discard_generation
-                from .lifetime_memory_reads import _settle
-                await _settle(asyncio.create_task(discard_generation(policy_task)))
-            if scope is not None:await scope.aclose()
-        finally:
-            tracing.close()
+        if policy_task is not None:
+            from .parallel_reply import discard_generation
+            from .lifetime_memory_reads import _settle
+            await _settle(asyncio.create_task(discard_generation(policy_task)))
+        if scope is not None:await scope.aclose()
 
 
 async def lifetime_http_turn(runtime,storage,text,*,accept,options,close_storage=True):

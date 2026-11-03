@@ -190,7 +190,9 @@ def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
     task = experiment_task(prompt, "model-a", client)
 
     assert task(item=SimpleNamespace(input={"text": "A memory"})) == "Reply"
-    assert calls == [{"model": "model-a", "messages": [
+    assert calls == [{"model": "model-a", "name": "evaluation/memoir-prompts.generate",
+        "extra_body": {"metadata": {"generation_name": "evaluation/memoir-prompts.generate",
+            "trace_name": "evaluation/memoir-prompts"}}, "messages": [
         {"role": "system", "content": "Pinned instructions"},
         {"role": "user", "content": "A memory"}], "langfuse_prompt": prompt}]
     assert dataset_input_text({"question": "A memory"}) == '{"question": "A memory"}'
