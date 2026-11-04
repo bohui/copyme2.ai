@@ -51,6 +51,15 @@ def test_scored_dataset_items_do_not_certify_an_unverified_prompt_version():
     assert any('do not establish this prompt version' in gap for gap in row['gaps'])
 
 
+def test_sdk_grader_is_identified_separately_from_hosted_automation_rules():
+    coverage, bindings = inputs()
+    dataset = next(d for d in bindings['datasets'] if d['target']=='memoir/agents/mira/reply' and d['status']=='active')
+    dataset['evaluator'] = 'scripts/run_memoir_agent_evaluation.py:scores'
+    row = next(r for r in rows(coverage, bindings) if r['name']=='memoir/agents/mira/reply')
+    assert row['sdk_evaluators'] == ['scripts/run_memoir_agent_evaluation.py:scores']
+    assert row['evaluators'] == []
+
+
 def test_one_dataset_and_evaluator_set_can_cover_multiple_prompts():
     coverage, bindings = inputs()
     target='memoir/skills/historical-news-research/discovery'

@@ -1,5 +1,11 @@
 # Prompt and evaluation audit — 4 November 2026
 
+The counts and findings below describe the original inventory audit. The
+[subsequent execution report](prompt-evaluation-20261104.md) records the shared
+judge calibration, full 198-case campaign and targeted rechecks. The generated
+inventory and live snapshot now include those additional datasets; the original
+audit counts remain here as dated evidence.
+
 **The prompt inventory is now accountable; complete prompt-quality coverage is
 not established.** A dataset association, a passing controlled regression and a
 scored experiment are different kinds of evidence. None alone proves that the

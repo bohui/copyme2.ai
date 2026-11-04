@@ -22,6 +22,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -38,8 +41,8 @@
         "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3",
         "id": "cmw0mxvhl001p1z02md3xby14",
         "items": 14,
-        "experiments": 1,
-        "scored_items": 14,
+        "experiments": 2,
+        "scored_items": 28,
         "source": "live snapshot"
       },
       {
@@ -84,6 +87,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -175,6 +181,14 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
+        "id": "cmw1xdco600v51z024evmmr1v",
+        "items": 70,
+        "experiments": 1,
+        "scored_items": 70,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -215,6 +229,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -306,6 +323,14 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
+        "id": "cmw1xdco600v51z024evmmr1v",
+        "items": 70,
+        "experiments": 1,
+        "scored_items": 70,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -346,6 +371,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -434,6 +462,14 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
+        "id": "cmw1xdco600v51z024evmmr1v",
+        "items": 70,
+        "experiments": 1,
+        "scored_items": 70,
         "source": "live snapshot"
       }
     ],
@@ -470,6 +506,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -559,6 +598,14 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
+        "id": "cmw1xdco600v51z024evmmr1v",
+        "items": 70,
+        "experiments": 1,
+        "scored_items": 70,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -587,25 +634,44 @@
         "path": "scripts/evaluate_mira_prompt.py",
         "symbol": "evaluate",
         "line": 187
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/agents/mira/reply/comparison"
+      "memoir/evaluators/agents/mira/reply/comparison",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
-    "datasets": [],
+    "datasets": [
+      {
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
+        "source": "live snapshot"
+      }
+    ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
-      "No active hosted dataset",
       "No active hosted grader verified; use the declared regression/calibration path",
-      "Human calibration not established by wiring/contract tests"
+      "Human calibration not established by wiring/contract tests",
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -620,34 +686,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/agents/mira/reply/interview-quality"
+      "memoir/evaluators/agents/mira/reply/interview-quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/agents/mira/reply/interview-quality/calibration/core",
-        "id": "cmw1gu5hl009i1z025fk6iiwb",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -662,33 +738,43 @@
         "path": "config/langfuse-evaluators.json",
         "symbol": "/evaluators/2",
         "line": 1
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/shared/completeness"
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/shared/completeness/calibration/smoke",
-        "id": "cmw1gu5ux009n1z02x272veyj",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
-      "tests/test_langfuse_evaluation_bindings.py"
+      "tests/test_langfuse_evaluation_bindings.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -703,33 +789,43 @@
         "path": "config/langfuse-evaluators.json",
         "symbol": "/evaluators/0",
         "line": 1
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/shared/correctness"
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/shared/correctness/calibration/smoke",
-        "id": "cmw1gu5ys009r1z029kculg2k",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
-      "tests/test_langfuse_evaluation_bindings.py"
+      "tests/test_langfuse_evaluation_bindings.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -744,6 +840,11 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
@@ -757,110 +858,43 @@
       "memoir/evaluators/skills/place-photo-research/discovery/quality",
       "memoir/evaluators/workflows/composer-checkpoints/quality",
       "memoir/evaluators/workflows/story-game-adaptation/quality",
-      "memoir/evaluators/shared/evidence-policy"
+      "memoir/evaluators/shared/evidence-policy",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/agents/mira/reply/interview-quality/calibration/core",
-        "id": "cmw1gu5hl009i1z025fk6iiwb",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/evaluators/skills/author-timeline/extract/quality/calibration/core",
-        "id": "cmw1gu6at00a31z02p9au8ioy",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/evaluators/skills/family-tree/extract/quality/calibration/core",
-        "id": "cmw1gu6i900a81z025aite30g",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/evaluators/skills/historical-news-research/discovery/quality/calibration/core",
-        "id": "cmw1gu6mp00ad1z02lmqgwxvl",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/evaluators/skills/memory-context/profile/quality/calibration/core",
-        "id": "cmw1gu6tm00ai1z02gq32tula",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/evaluators/skills/place-groups/group/quality/calibration/core",
-        "id": "cmw1gu70400an1z02uw097afl",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/evaluators/skills/place-journey/extract/quality/calibration/core",
-        "id": "cmw1gu74800as1z02fso1roze",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/evaluators/skills/place-photo-research/discovery/quality/calibration/core",
-        "id": "cmw1gu7gh00ax1z02crec4737",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/evaluators/workflows/composer-checkpoints/quality/calibration/core",
-        "id": "cmw1gu7js00b21z02hf95rgs4",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/evaluators/workflows/story-game-adaptation/quality/calibration/core",
-        "id": "cmw1gu7q500b71z020444va5n",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
     "name": "memoir/evaluators/shared/relevance",
     "source": "tests/evaluation/prompts/quality/relevance.md",
-    "version": 1,
-    "sha256": "291a01d55116dbfc32bcd11a070cf4831479d13b39ccde7bef05fdaf87b20ddd",
+    "version": 2,
+    "sha256": "4082e28e397722b84aafb231dfac46feb978920f22817538e2fd970b83dda609",
     "use": "judge",
     "scenario": "Hosted quality judge: correctness requires a reference; online sampling excludes speech/images and internal judges.",
     "consumers": [
@@ -868,33 +902,43 @@
         "path": "config/langfuse-evaluators.json",
         "symbol": "/evaluators/1",
         "line": 1
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/shared/relevance"
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/shared/relevance/calibration/smoke",
-        "id": "cmw1gu62e009v1z02tvfwhho0",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
-      "tests/test_langfuse_evaluation_bindings.py"
+      "tests/test_langfuse_evaluation_bindings.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -909,33 +953,43 @@
         "path": "config/langfuse-evaluators.json",
         "symbol": "/evaluators/3",
         "line": 1
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/shared/safety"
+      "memoir/evaluators/shared/safety",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/shared/safety/calibration/smoke",
-        "id": "cmw1gu67k009z1z029paojmm7",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
-      "tests/test_langfuse_evaluation_bindings.py"
+      "tests/test_langfuse_evaluation_bindings.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -950,25 +1004,44 @@
         "path": "scripts/evaluate_llm_boundaries.py",
         "symbol": "main",
         "line": 64
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/shared/semantic-boundaries"
+      "memoir/evaluators/shared/semantic-boundaries",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
-    "datasets": [],
+    "datasets": [
+      {
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
+        "source": "live snapshot"
+      }
+    ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
-      "No active hosted dataset",
       "No active hosted grader verified; use the declared regression/calibration path",
-      "Human calibration not established by wiring/contract tests"
+      "Human calibration not established by wiring/contract tests",
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -988,24 +1061,43 @@
         "path": "apps/api/trajectory_evaluation.py",
         "symbol": "OpenAICompatibleJudge",
         "line": 1479
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/shared/trajectory/rubric"
+      "memoir/evaluators/shared/trajectory/rubric",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
-    "datasets": [],
+    "datasets": [
+      {
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
+        "source": "live snapshot"
+      }
+    ],
     "regressions": [
-      "tests/test_trajectory_evaluation.py"
+      "tests/test_trajectory_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
-      "No active hosted dataset",
       "No active hosted grader verified; use the declared regression/calibration path",
-      "Human calibration not established by wiring/contract tests"
+      "Human calibration not established by wiring/contract tests",
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1025,31 +1117,50 @@
         "path": "apps/api/trajectory_evaluation.py",
         "symbol": "OpenAICompatibleJudge",
         "line": 1479
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/shared/trajectory/system"
+      "memoir/evaluators/shared/trajectory/system",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
-    "datasets": [],
+    "datasets": [
+      {
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
+        "source": "live snapshot"
+      }
+    ],
     "regressions": [
-      "tests/test_trajectory_evaluation.py"
+      "tests/test_trajectory_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
-      "No active hosted dataset",
       "No active hosted grader verified; use the declared regression/calibration path",
-      "Human calibration not established by wiring/contract tests"
+      "Human calibration not established by wiring/contract tests",
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
     "name": "memoir/evaluators/skills/author-timeline/extract/quality",
     "source": "tests/evaluation/prompts/skill-judges/memoir-author-timeline.md",
-    "version": 1,
-    "sha256": "8988996834a0225f4803d814c6f98fe1ce65cbde9e7edb98975a8cfd49029897",
+    "version": 2,
+    "sha256": "f07e8191486b566e581b4f90c4186e862263a7374ebb2c68fd3ffcf080e66d03",
     "use": "judge",
     "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
     "consumers": [
@@ -1057,34 +1168,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/skills/author-timeline/extract/quality"
+      "memoir/evaluators/skills/author-timeline/extract/quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/skills/author-timeline/extract/quality/calibration/core",
-        "id": "cmw1gu6at00a31z02p9au8ioy",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1099,34 +1220,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/skills/family-tree/extract/quality"
+      "memoir/evaluators/skills/family-tree/extract/quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/skills/family-tree/extract/quality/calibration/core",
-        "id": "cmw1gu6i900a81z025aite30g",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1141,34 +1272,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/skills/historical-news-research/discovery/quality"
+      "memoir/evaluators/skills/historical-news-research/discovery/quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/skills/historical-news-research/discovery/quality/calibration/core",
-        "id": "cmw1gu6mp00ad1z02lmqgwxvl",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1183,34 +1324,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/skills/memory-context/profile/quality"
+      "memoir/evaluators/skills/memory-context/profile/quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/skills/memory-context/profile/quality/calibration/core",
-        "id": "cmw1gu6tm00ai1z02gq32tula",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1225,34 +1376,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/skills/place-groups/group/quality"
+      "memoir/evaluators/skills/place-groups/group/quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/skills/place-groups/group/quality/calibration/core",
-        "id": "cmw1gu70400an1z02uw097afl",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1267,34 +1428,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/skills/place-journey/extract/quality"
+      "memoir/evaluators/skills/place-journey/extract/quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/skills/place-journey/extract/quality/calibration/core",
-        "id": "cmw1gu74800as1z02fso1roze",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1309,34 +1480,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/skills/place-photo-research/discovery/quality"
+      "memoir/evaluators/skills/place-photo-research/discovery/quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/skills/place-photo-research/discovery/quality/calibration/core",
-        "id": "cmw1gu7gh00ax1z02crec4737",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1351,34 +1532,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/workflows/composer-checkpoints/quality"
+      "memoir/evaluators/workflows/composer-checkpoints/quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/workflows/composer-checkpoints/quality/calibration/core",
-        "id": "cmw1gu7js00b21z02hf95rgs4",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1393,24 +1584,43 @@
         "path": "scripts/run_memoir_five_case_semantic_judge.py",
         "symbol": "main",
         "line": 446
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/workflows/five-case-memoir/guard"
+      "memoir/evaluators/workflows/five-case-memoir/guard",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
-    "datasets": [],
+    "datasets": [
+      {
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
+        "source": "live snapshot"
+      }
+    ],
     "regressions": [
-      "tests/test_trajectory_evaluation.py"
+      "tests/test_trajectory_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
-      "No active hosted dataset",
       "No active hosted grader verified; use the declared regression/calibration path",
-      "Human calibration not established by wiring/contract tests"
+      "Human calibration not established by wiring/contract tests",
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1425,24 +1635,43 @@
         "path": "scripts/run_memoir_five_case_semantic_judge.py",
         "symbol": "main",
         "line": 446
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/workflows/five-case-memoir/trajectory"
+      "memoir/evaluators/workflows/five-case-memoir/trajectory",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
-    "datasets": [],
+    "datasets": [
+      {
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
+        "source": "live snapshot"
+      }
+    ],
     "regressions": [
-      "tests/test_trajectory_evaluation.py"
+      "tests/test_trajectory_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
-      "No active hosted dataset",
       "No active hosted grader verified; use the declared regression/calibration path",
-      "Human calibration not established by wiring/contract tests"
+      "Human calibration not established by wiring/contract tests",
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1457,34 +1686,44 @@
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "judge_definition",
         "line": 88
+      },
+      {
+        "path": "scripts/memoir_judge_calibration.py",
+        "symbol": "request",
+        "line": 74
       }
     ],
     "targets": [
-      "memoir/evaluators/workflows/story-game-adaptation/quality"
+      "memoir/evaluators/workflows/story-game-adaptation/quality",
+      "memoir/evaluators/shared/judge-calibration"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_judge_calibration.py:evaluations"
+    ],
     "declared_metrics": [
       "agreement (requires code/reference or manual grading)"
     ],
     "hosted_rule_ids": [],
     "datasets": [
       {
-        "name": "memoir/evaluators/workflows/story-game-adaptation/quality/calibration/core",
-        "id": "cmw1gu7q500b71z020444va5n",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
+        "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+        "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+        "items": 80,
+        "experiments": 6,
+        "scored_items": 96,
         "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_skill_eval_suite.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_judge_calibration.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "No scored experiment items verified for the current pin"
+      "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
@@ -1505,6 +1744,7 @@
       "memoir/probes/providers/connectivity"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1536,6 +1776,7 @@
       "memoir/probes/providers/web-search"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1567,6 +1808,7 @@
       "memoir/probes/providers/worker"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1603,6 +1845,7 @@
       "memoir/probes/shared/native-search"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1639,6 +1882,7 @@
       "memoir/probes/skills/author-timeline/extract"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1675,6 +1919,7 @@
       "memoir/probes/skills/historical-news-research/discovery"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1711,6 +1956,7 @@
       "memoir/probes/skills/place-groups/group"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1747,6 +1993,7 @@
       "memoir/probes/skills/place-groups"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1783,6 +2030,7 @@
       "memoir/probes/skills/place-photo-research/discovery"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1819,6 +2067,7 @@
       "memoir/probes/skills/story-game/brief"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "contract (requires code/reference or manual grading)"
     ],
@@ -1863,6 +2112,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -2088,6 +2340,62 @@
         "items": 2,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
+        "id": "cmw1xdio600yr1z027vlqx7x8",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-93cfb9cb67ba",
+        "id": "cmw2mfnh400031z02m8ma6xhy",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
         "source": "live snapshot"
       }
     ],
@@ -2130,6 +2438,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -2355,6 +2666,62 @@
         "items": 2,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
+        "id": "cmw1xdio600yr1z027vlqx7x8",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-93cfb9cb67ba",
+        "id": "cmw2mfnh400031z02m8ma6xhy",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
         "source": "live snapshot"
       }
     ],
@@ -2397,6 +2764,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -2623,6 +2993,62 @@
         "experiments": 0,
         "scored_items": 0,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
+        "id": "cmw1xdio600yr1z027vlqx7x8",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-93cfb9cb67ba",
+        "id": "cmw2mfnh400031z02m8ma6xhy",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -2655,6 +3081,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -2719,6 +3148,14 @@
         "experiments": 4,
         "scored_items": 64,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
+        "id": "cmw1xdco600v51z024evmmr1v",
+        "items": 70,
+        "experiments": 1,
+        "scored_items": 70,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -2756,6 +3193,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -2900,6 +3340,38 @@
         "experiments": 0,
         "scored_items": 0,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -2932,6 +3404,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -2996,6 +3471,14 @@
         "experiments": 4,
         "scored_items": 64,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
+        "id": "cmw1xdco600v51z024evmmr1v",
+        "items": 70,
+        "experiments": 1,
+        "scored_items": 70,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -3037,6 +3520,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -3081,8 +3567,8 @@
         "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3",
         "id": "cmw0mxvhl001p1z02md3xby14",
         "items": 14,
-        "experiments": 1,
-        "scored_items": 14,
+        "experiments": 2,
+        "scored_items": 28,
         "source": "live snapshot"
       },
       {
@@ -3284,6 +3770,62 @@
         "experiments": 0,
         "scored_items": 0,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
+        "id": "cmw1xdio600yr1z027vlqx7x8",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-93cfb9cb67ba",
+        "id": "cmw2mfnh400031z02m8ma6xhy",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -3322,6 +3864,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -3449,6 +3994,22 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
         "source": "live snapshot"
       }
     ],
@@ -3491,6 +4052,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -3617,6 +4181,22 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
         "source": "live snapshot"
       }
     ],
@@ -3659,6 +4239,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -3785,6 +4368,22 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
         "source": "live snapshot"
       }
     ],
@@ -3826,6 +4425,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -3952,6 +4554,22 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
         "source": "live snapshot"
       }
     ],
@@ -3995,6 +4613,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -4121,6 +4742,22 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
         "source": "live snapshot"
       }
     ],
@@ -4163,6 +4800,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -4289,6 +4929,22 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
         "source": "live snapshot"
       }
     ],
@@ -4331,6 +4987,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -4457,6 +5116,22 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
         "source": "live snapshot"
       }
     ],
@@ -4498,6 +5173,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -4624,6 +5302,22 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
         "source": "live snapshot"
       }
     ],
@@ -4661,6 +5355,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -4788,6 +5485,22 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -4821,6 +5534,9 @@
       "memoir/workflows/source-to-private-draft"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "trajectory (requires code/reference or manual grading)"
     ],
@@ -4888,6 +5604,30 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
         "source": "live snapshot"
       }
     ],
@@ -4925,6 +5665,9 @@
       "memoir/workflows/source-to-private-draft"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "trajectory (requires code/reference or manual grading)"
     ],
@@ -4992,6 +5735,30 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
         "source": "live snapshot"
       }
     ],
@@ -5033,6 +5800,9 @@
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -5108,6 +5878,30 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -5143,6 +5937,9 @@
       "memoir/workflows/source-to-private-draft"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "trajectory (requires code/reference or manual grading)"
     ],
@@ -5211,6 +6008,30 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -5245,6 +6066,9 @@
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -5319,6 +6143,30 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
         "source": "live snapshot"
       }
     ],
@@ -5355,6 +6203,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -5428,6 +6279,30 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
         "source": "live snapshot"
       }
     ],
@@ -5464,6 +6339,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -5537,6 +6415,30 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
         "source": "live snapshot"
       }
     ],
@@ -5573,6 +6475,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -5646,6 +6551,30 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
         "source": "live snapshot"
       }
     ],
@@ -5682,6 +6611,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -5755,6 +6687,30 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
         "source": "live snapshot"
       }
     ],
@@ -5790,6 +6746,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -5863,6 +6822,30 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
         "source": "live snapshot"
       }
     ],
@@ -5902,6 +6885,9 @@
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -5977,6 +6963,30 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -6016,6 +7026,9 @@
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -6090,6 +7103,30 @@
         "items": 2,
         "experiments": 1,
         "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
         "source": "live snapshot"
       }
     ],
@@ -6131,6 +7168,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -6205,6 +7245,30 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -6244,6 +7308,9 @@
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -6320,6 +7387,30 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 1,
+        "scored_items": 9,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -6341,7 +7432,7 @@
       {
         "path": "scripts/memoir_skill_eval_suite.py",
         "symbol": "packet",
-        "line": 170
+        "line": 167
       }
     ],
     "targets": [
@@ -6352,6 +7443,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -6398,6 +7492,14 @@
         "experiments": 0,
         "scored_items": 0,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/family-tree/extract/golden/campaign-8dbc6feacd76",
+        "id": "cmw1xdi4j00y81z029fh1psap",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -6431,6 +7533,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -6475,6 +7580,14 @@
         "items": 2,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/historical-news-research/discovery/golden/campaign-c7979e3b2ce3",
+        "id": "cmw1xdkp3010z1z02aj7o7fsu",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
         "source": "live snapshot"
       }
     ],
@@ -6508,6 +7621,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -6552,6 +7668,14 @@
         "items": 2,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/historical-news-research/discovery/golden/campaign-c7979e3b2ce3",
+        "id": "cmw1xdkp3010z1z02aj7o7fsu",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
         "source": "live snapshot"
       }
     ],
@@ -6585,6 +7709,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -6630,6 +7757,14 @@
         "experiments": 0,
         "scored_items": 0,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/historical-news-research/discovery/golden/campaign-c7979e3b2ce3",
+        "id": "cmw1xdkp3010z1z02aj7o7fsu",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -6661,6 +7796,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -6716,6 +7854,22 @@
         "experiments": 0,
         "scored_items": 0,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
+        "id": "cmw1xdio600yr1z027vlqx7x8",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-93cfb9cb67ba",
+        "id": "cmw2mfnh400031z02m8ma6xhy",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -6747,6 +7901,7 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -6792,6 +7947,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -6836,6 +7994,14 @@
         "items": 1,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
         "source": "live snapshot"
       }
     ],
@@ -6874,6 +8040,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -6919,6 +8088,14 @@
         "experiments": 0,
         "scored_items": 0,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -6950,6 +8127,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -6995,6 +8175,14 @@
         "items": 2,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-photo-research/discovery/golden/campaign-ebb28c084918",
+        "id": "cmw1xdknq010v1z02vg558r8m",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
         "source": "live snapshot"
       }
     ],
@@ -7030,6 +8218,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7075,6 +8266,14 @@
         "experiments": 0,
         "scored_items": 0,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-photo-research/discovery/golden/campaign-ebb28c084918",
+        "id": "cmw1xdknq010v1z02vg558r8m",
+        "items": 1,
+        "experiments": 1,
+        "scored_items": 1,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -7109,6 +8308,9 @@
       "memoir/evaluators/shared/correctness",
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
@@ -7154,6 +8356,14 @@
         "experiments": 1,
         "scored_items": 16,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
@@ -7188,6 +8398,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7210,6 +8423,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7243,6 +8464,9 @@
       "memoir/workflows/story-game-adaptation"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "trajectory (requires code/reference or manual grading)"
     ],
@@ -7259,6 +8483,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7303,6 +8535,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7330,6 +8565,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7368,6 +8611,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7390,6 +8636,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7428,6 +8682,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7450,6 +8707,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7490,6 +8755,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7514,6 +8782,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7552,6 +8828,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7574,6 +8853,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7612,6 +8899,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7634,6 +8924,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7672,6 +8970,9 @@
       "memoir/workflows/story-game-adaptation"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "trajectory (requires code/reference or manual grading)"
     ],
@@ -7688,6 +8989,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7732,6 +9041,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7759,6 +9071,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7797,6 +9117,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7819,6 +9142,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7852,6 +9183,7 @@
       "memoir/workflows/novel-to-game-style-repair"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7891,6 +9223,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7913,6 +9248,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -7951,6 +9294,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -7973,6 +9319,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -8006,6 +9360,9 @@
       "memoir/workflows/story-game-adaptation"
     ],
     "evaluators": [],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "trajectory (requires code/reference or manual grading)"
     ],
@@ -8022,6 +9379,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -8061,6 +9426,9 @@
       "memoir/evaluators/shared/relevance",
       "memoir/evaluators/shared/safety"
     ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
     "declared_metrics": [
       "memoir/evaluators/shared/completeness",
       "memoir/evaluators/shared/correctness",
@@ -8083,6 +9451,14 @@
       {
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 16,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
         "experiments": 1,
         "scored_items": 16,
@@ -8116,6 +9492,7 @@
       "memoir/workflows/speech/synthesis"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "audio-review (requires code/reference or manual grading)"
     ],
@@ -8149,6 +9526,7 @@
       "memoir/workflows/speech/synthesis"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "audio-review (requires code/reference or manual grading)"
     ],
@@ -8182,6 +9560,7 @@
       "memoir/workflows/speech/synthesis"
     ],
     "evaluators": [],
+    "sdk_evaluators": [],
     "declared_metrics": [
       "audio-review (requires code/reference or manual grading)"
     ],
