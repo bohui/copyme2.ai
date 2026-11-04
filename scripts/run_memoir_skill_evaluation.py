@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.memoir_live_skill_cases import cases, validate_case
 from scripts.run_memoir_live_skills import LiveProvider, compose, manifest, native_search, save, evaluation_trace_metadata
-from scripts.langfuse_dataset_names import (SKILL_TASKS, SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target)
+from scripts.langfuse_dataset_names import (SKILL_TASKS, SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target, score_name)
 
 # A dataset contains one target; batching is an execution concern.
 DATASET_PHASES = {
@@ -216,12 +216,14 @@ def run_trigger(value, directory):
     return checked
 
 
-def evaluate(*, output, **_kwargs):
+def evaluate(*, input, output, **_kwargs):
     from langfuse.experiment import Evaluation
+    target = (dataset_target(admission_dataset(input['skill']))
+        if input['kind'] == 'controlled_application_checks' else delivery_target(input))
     if output['status'] == 'unavailable':
-        return Evaluation(name='availability', value='unavailable', data_type='CATEGORICAL',
+        return Evaluation(name=score_name(target, 'availability'), value='unavailable', data_type='CATEGORICAL',
                           comment=output.get('reason', 'incomplete execution evidence'))
-    return Evaluation(name='contract_pass', value=int(output['status'] == 'passed'),
+    return Evaluation(name=score_name(target, 'contract_pass'), value=int(output['status'] == 'passed'),
                       comment=output.get('reason', output['evidence']), data_type='NUMERIC')
 
 

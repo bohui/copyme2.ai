@@ -28,7 +28,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.memoir_agent_eval_cases import catalog
 from scripts.memoir_skill_eval_suite import Budget, digest, inventory, packet, validate
 from scripts.run_memoir_live_skills import LiveProvider, native_search, save
-from scripts.langfuse_dataset_names import SKILL_TARGETS, target_dataset
+from scripts.langfuse_dataset_names import SKILL_TARGETS, target_dataset, score_name
 
 DIRECT_REPLAY_SKILLS={'memoir-author-timeline','memoir-memory-context','memoir-place-journey','memoir-place-groups'}
 
@@ -334,16 +334,17 @@ class Runner:
 
 def scores(*, output, **_kwargs):
     from langfuse import Evaluation
-    result = [Evaluation(name='execution_available', value=int(output['status'] != 'unavailable'), data_type='NUMERIC')]
+    target = SKILL_TARGETS[output['skill']]
+    result = [Evaluation(name=score_name(target, 'execution_available'), value=int(output['status'] != 'unavailable'), data_type='NUMERIC')]
     if output['status'] != 'unavailable':
-        result.append(Evaluation(name='contract_pass', value=int(output['status'] == 'pass'),
+        result.append(Evaluation(name=score_name(target, 'contract_pass'), value=int(output['status'] == 'pass'),
             comment=output.get('reason', 'Independent code checks; proposal scope only'), data_type='NUMERIC'))
-    result += [Evaluation(name=name, value=int(value), data_type='NUMERIC') for name, value in output['checks'].items()]
+    result += [Evaluation(name=score_name(target, name), value=int(value), data_type='NUMERIC') for name, value in output['checks'].items()]
     semantic = output.get('semantic') or {}
-    result += [Evaluation(name='advisory.' + name, value=value, data_type='NUMERIC',
+    result += [Evaluation(name=score_name(target, 'advisory.' + name), value=value, data_type='NUMERIC',
         comment=semantic['comments'][name] + ' [Uncalibrated; same model; advisory only]')
         for name, value in semantic.get('scores', {}).items()]
-    result.append(Evaluation(name='latency_seconds', value=output['elapsed_seconds'], data_type='NUMERIC'))
+    result.append(Evaluation(name=score_name(target, 'latency_seconds'), value=output['elapsed_seconds'], data_type='NUMERIC'))
     return result
 
 

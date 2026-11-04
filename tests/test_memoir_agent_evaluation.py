@@ -100,12 +100,12 @@ def test_disposable_native_host_does_not_enforce_or_expose_gold(monkeypatch, tmp
 
 
 def test_unavailable_and_semantic_scores_cannot_override_code_failure():
-    row = dict(status='unavailable', checks={}, elapsed_seconds=1, semantic=None)
-    values = {s.name: s.value for s in evaluation.scores(output=row)}
+    row = dict(skill='memoir-interviewer', status='unavailable', checks={}, elapsed_seconds=1, semantic=None)
+    values = {s.name.removeprefix('memoir/agents/mira/reply/'): s.value for s in evaluation.scores(output=row)}
     assert values['execution_available'] == 0
     assert 'contract_pass' not in values
     row.update(status='fail', semantic=dict(scores=dict(evidence_use=1), comments=dict(evidence_use='observed-1')))
-    values = {s.name: s.value for s in evaluation.scores(output=row)}
+    values = {s.name.removeprefix('memoir/agents/mira/reply/'): s.value for s in evaluation.scores(output=row)}
     assert values['contract_pass'] == 0 and values['advisory.evidence_use'] == 1
 
 
@@ -191,7 +191,7 @@ def test_bilingual_scenario_variants_share_calibration_split():
 def test_hosted_readback_verifies_actual_evidence_and_scores(mutation):
     case = next(c for c in catalog() if c['id'] == 'skills/memoir-place-groups/alias/en-AU')
     rows = next(iter(evaluation.dataset_rows([case]).values()))
-    result = dict(case_id=case['id'], status='pass', checks=dict(actual_check=True), elapsed_seconds=1.25, semantic=None)
+    result = dict(case_id=case['id'], skill=case['skill'], status='pass', checks=dict(actual_check=True), elapsed_seconds=1.25, semantic=None)
     item = SimpleNamespace(input=deepcopy(rows[0]['input']), expected_output=deepcopy(rows[0]['expected_output']),
         output=deepcopy(result), scores=evaluation.scores(output=result))
     if mutation in {'input', 'gold', 'output'}:
@@ -262,6 +262,6 @@ def test_provider_failure_without_a_response_is_not_a_model_contract_failure(tmp
     item=SimpleNamespace(**next(iter(evaluation.dataset_rows([case]).values()))[0])
     row=asyncio.run(runner.task(item=item))
     assert row['status']==expected
-    values={s.name:s.value for s in evaluation.scores(output=row)}
+    values={s.name.removeprefix('memoir/agents/mira/reply/'):s.value for s in evaluation.scores(output=row)}
     assert values['execution_available']==int(expected!='unavailable')
     assert ('contract_pass' in values)==(expected!='unavailable')

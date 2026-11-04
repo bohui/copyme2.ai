@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 from scripts.memoir_judge_calibration import DATASET, ORIGIN, SOURCE, TARGET, cases, digest, grade, hosted_item, item_id, judges, normalize, request
 from scripts.run_memoir_live_skills import save
 from scripts.snapshot_prompt_evaluations import pages, cursor_pages
+from scripts.langfuse_dataset_names import score_name
 
 PROJECT='cmut9t75w00071z02n8bdv7it'
 
@@ -56,13 +57,16 @@ def publish(client, rows):
 def evaluations(*, input, output, expected_output, **_kwargs):
     from langfuse.experiment import Evaluation
     result=[]
+    definitions=judges()
     for name,row in output['judgments'].items():
-        metadata=dict(judge=name,label_origin=ORIGIN,human_reviewed=False,
+        target={'trajectory':'memoir/evaluators/shared/trajectory/system',
+            'five-case':'memoir/evaluators/workflows/five-case-memoir/trajectory'}.get(name,definitions[name]['prompts'][-1])
+        metadata=dict(judge=name,evaluation_target=target,label_origin=ORIGIN,human_reviewed=False,
             prompt_manifest=row['manifest'],response_id=row.get('response_id'))
-        result.append(Evaluation(name='available/'+name,value=int(row['available']),data_type='NUMERIC',metadata=metadata))
+        result.append(Evaluation(name=score_name(target,'available'),value=int(row['available']),data_type='NUMERIC',metadata=metadata))
         if row['available']:
             compared=grade(row['actual'],expected_output[name])
-            result.append(Evaluation(name='agreement/'+name,value=int(compared['agreement']),data_type='NUMERIC',
+            result.append(Evaluation(name=score_name(target,'agreement'),value=int(compared['agreement']),data_type='NUMERIC',
                 comment=json.dumps(compared['problems']),metadata=metadata))
     return result
 

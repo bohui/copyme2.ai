@@ -93,7 +93,7 @@ def test_completed_phase_does_not_make_an_incomplete_workflow_pass():
     result=campaign.evidence([row],{},run)[0]
     assert result['current_pin_observed'] is True
     assert result['status']=='unavailable'
-    assert {s.name for s in campaign.scores(output=result)}=={'current_pin_observed'}
+    assert {s.name for s in campaign.scores(output=result)}=={'memoir/agents/mira/reply/current_pin_observed'}
 
 
 def test_rechecks_do_not_reuse_an_older_passing_phase_or_different_answer_key():
@@ -111,8 +111,8 @@ def test_rechecks_do_not_reuse_an_older_passing_phase_or_different_answer_key():
 def test_prompt_ledger_publication_uses_the_real_generic_dataset_publisher():
     from types import SimpleNamespace as NS
     from scripts.run_memoir_judge_calibration import PROJECT
-    rows=[dict(input={'case_id':'prompt','prompt':'memoir/agents/mira/reply'},expected_output={'current_pin_observed':True})]
-    output=dict(case_id='prompt',status='unavailable',current_pin_observed=False,evidence=[],human_reviewed=False)
+    rows=[dict(input={'case_id':'memoir/agents/mira/reply','prompt':'memoir/agents/mira/reply'},expected_output={'current_pin_observed':True})]
+    output=dict(case_id='memoir/agents/mira/reply',status='unavailable',current_pin_observed=False,evidence=[],human_reviewed=False)
     stored=[];hosted=[]
     def create_item(**value):
         assert value['metadata']['skill'] is None

@@ -18,6 +18,7 @@ from scripts.memoir_judge_calibration import SOURCE, cases, grade, request
 from scripts.memoir_skill_eval_suite import digest
 from scripts.prompt_registry import prompt_registry
 from scripts.run_memoir_live_skills import save
+from scripts.langfuse_dataset_names import score_name
 
 TARGET='memoir/workflows/prompt-evaluation'
 
@@ -125,9 +126,10 @@ def evidence(rows, calibration, campaign):
 
 def scores(*,output,**_kwargs):
     from langfuse import Evaluation
-    result=[Evaluation(name='current_pin_observed',value=int(output['current_pin_observed']),data_type='NUMERIC')]
+    target=output['case_id']
+    result=[Evaluation(name=score_name(target,'current_pin_observed'),value=int(output['current_pin_observed']),data_type='NUMERIC')]
     if output['status'] in {'pass','fail'}:
-        result.append(Evaluation(name='observed_scenario_checks_pass',value=int(output['status']=='pass'),data_type='NUMERIC',
+        result.append(Evaluation(name=score_name(target,'observed_scenario_checks_pass'),value=int(output['status']=='pass'),data_type='NUMERIC',
             comment='Code contracts or synthetic calibration agreement; no independent human quality acceptance.'))
     return result
 
