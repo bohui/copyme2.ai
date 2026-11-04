@@ -329,7 +329,8 @@ class CodexWorker:
             from .two_lane_memory import two_lanes_enabled
             from contextlib import AsyncExitStack
             async with AsyncExitStack() as admission:
-                from .llm_tracing import trace_session, trace_origin
+                from .llm_tracing import trace_session, trace_origin, trace_for_owner
+                admission.enter_context(trace_for_owner(payload.user_id))
                 admission.enter_context(trace_session(payload.user_id, payload.project_id))
                 if payload.evaluation:
                     admission.enter_context(trace_origin('evaluation'))

@@ -2,10 +2,12 @@
 import asyncio
 import hashlib
 import json
+import shutil
 from pathlib import Path
 from uuid import uuid4
 
 import httpx
+from pydantic import ValidationError
 import pytest
 
 from test_issue14_subscription_session import gateway, controlled_temporal_startup, REVISION
@@ -35,7 +37,7 @@ async def session(tmp_path, endpoint, *, mutate=None):
         storages[case_id] = facade.storage()
     broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic-service',
         client=httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=[]))))
-    binary = Path('/bin/true').resolve()
+    binary = Path(shutil.which('true')).resolve()
     try:
         return await OwnedSubscriptionSession.create(run=run, provider_transport=transport,
             storages=storages, broker=broker, temporal_client=object(), home_root=tmp_path / 'home',
@@ -48,22 +50,11 @@ async def session(tmp_path, endpoint, *, mutate=None):
 
 
 @pytest.mark.parametrize('role', ['collector', 'workspace', 'memory_context', 'author_timeline', 'composer'])
-def test_round_fifty_preserves_trusted_wire_metadata_for_every_role(tmp_path, gateway, monkeypatch, role):
+def test_round_fifty_rejects_retired_worker_payloads_before_any_provider_send(tmp_path, gateway, monkeypatch, role):
     from apps.api.codex_worker_service import CodexWorker
     endpoint, contacts = gateway
     async def worker(self, payload, **kwargs):
-        assert payload.evaluation['round_id'] == '50'
-        assert payload.evaluation['dataset'] == 'memoir-five-case/1'
-        if role == 'composer':
-            assert payload.evaluation['checkpoint_id'].endswith(':50')
-        async with httpx.AsyncClient(trust_env=False) as client:
-            response = await client.post(self.base_url + '/responses',
-                headers={'Authorization': 'Bearer synthetic-token'}, json={'stream': True,
-                    'model': self.model, 'reasoning': {'effort': self.reasoning_effort},
-                    'input': 'synthetic', 'client_metadata': {'x-codex-turn-metadata':
-                        json.dumps(payload.evaluation)}})
-            response.raise_for_status()
-        return {'reply': 'Controlled'}
+        pytest.fail('A retired payload must not reach a current canonical worker')
     monkeypatch.setattr(CodexWorker, 'turn', worker)
     async def scenario():
         owned = await session(tmp_path, endpoint)
@@ -76,14 +67,13 @@ def test_round_fifty_preserves_trusted_wire_metadata_for_every_role(tmp_path, ga
             if role in ('composer', 'author_timeline'):
                 owned._job_context.set({'job_id': 'synthetic-workflow:activity'})
             async with httpx.AsyncClient(transport=owned.worker_transport, base_url=owned.worker_url) as client:
-                result = await client.post('/internal/codex/turn', json={
-                    'user_id': details['owner_id'], 'project_id': details['project_id'],
-                    'language': details['language'], 'agent_role': role, 'text': 'synthetic',
-                    'family_enabled': role in ('collector', 'workspace')})
-                assert result.status_code == 200
-            owned.finish_round(); owned.finish_case(case)
-            assert len(contacts) == 1
-            assert owned.run.snapshot()['cases'][0]['client_requests_reserved'] == 1
+                with pytest.raises(ValidationError, match='canonical execution contract is required'):
+                    await client.post('/internal/codex/turn', json={
+                        'user_id': details['owner_id'], 'project_id': details['project_id'],
+                        'language': details['language'], 'agent_role': role, 'text': 'synthetic',
+                        'family_enabled': role in ('collector', 'workspace')})
+            assert contacts == []
+            assert owned.run.snapshot()['cases'][0]['client_requests_reserved'] == 0
         finally:
             await owned.close()
     asyncio.run(scenario())

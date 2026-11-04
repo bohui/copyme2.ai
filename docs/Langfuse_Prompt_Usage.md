@@ -1,5 +1,10 @@
 # Prompt ownership and usage
 
+The current [complete audit](prompt-audit.md) and [generated inventory](prompt-coverage.md)
+cover 96 retained managed sources, one retired source and 11 locked upstream
+instruction files. Counts and profiling results dated below describe their
+recorded snapshots, rather than current prompt-quality coverage.
+
 Verified on 18 October 2026. The catalog contains **69 model-consumed sources**:
 20 runtime, 21 conditional runtime, 10 shared runtime, and 18 evaluation inputs.
 The application and exporter use the same explicit catalog in
@@ -11,9 +16,10 @@ copy. After a reply identifies unavailable details, the host renders a selected
 broader pool question verbatim or this optional invitation. It makes no extra
 model call and does not treat the unavailable detail as an answered fact.
 
-Mira uses only `reply-v2`, with five agent-owned prompt sources under
-`apps/api/prompts/mira/`: `system`, `policy-review`, `repair`, `repair-codes`
-and `strategy-proposal`. They publish under `memoir/agents/mira/...` from the
+Mira uses only `reply-v2`, with four agent-owned prompt sources under
+`apps/api/prompts/mira/`: `system`, `policy-review`, `repair` and `repair-codes`.
+The unused strategy-proposal artifact is archived by the current audit. The
+retained sources publish under `memoir/agents/mira/...` from the
 committed branch; new namespace receipts are not fabricated from the older skill pins.
 
 Mira is the interviewer; Atlas is the background memoir curator. Their Langfuse
@@ -47,7 +53,7 @@ directly as host-owned context for Mira; it needs no guidance skill.
 
 The greeting endpoint returns localized application text without a model call.
 Duplicate dispatch instructions, the separate early-ack template and three repair
-fragments have been removed or folded into the five retained sources. The system
+fragments have been removed or folded into the retained sources. The system
 prompt owns voice and interviewing judgement; the schema and host validate the
 private work handoff to Lane B. Background workers read the accepted original
 source, so Mira does not extract or retell it in that handoff.

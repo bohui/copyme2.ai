@@ -287,6 +287,38 @@ def test_question_evidence_repair_names_fixed_reason_without_private_values(tmp_
     assert 'blue umbrella' not in caplog.text
 
 
+@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
+def test_historical_clue_reply_repairs_with_specific_question_guidance(tmp_path, locale):
+    from scripts.evaluate_mira_prompt import realtime_cases
+    from test_conversation_reply import proposal
+    case = next(c for c in realtime_cases() if c['id'] == 'realtime/relevant-news/' + locale)
+    context = case['context']
+    governed, _ = fixture()
+    packet = json.loads(governed.packet)
+    text = context['source']['text']
+    packet['current']['narrator'].update(original=text, char_end=len(text), language=locale)
+    packet['pinned']['language'] = locale
+    packet['interview_context'] = {k: v for k, v in context.items() if k not in {'source', 'sources'}}
+    valid = proposal()
+    valid.update(acknowledgement='这是供你选择的公共背景。' if locale == 'zh-CN' else 'This is optional public context.',
+        question='这让你想起当时的什么？' if locale == 'zh-CN' else 'What does that bring to mind?',
+        historical_clue_id=context['historical_news']['clues'][0]['id'])
+    invalid = {**valid, 'question': None, 'reason': 'direct_answer'}
+
+    class Repair(FakeConnection):
+        async def turn(self, thread_id, prompt, **options):
+            if len(FakeConnection.instances) == 1:
+                return json.dumps(invalid)
+            admitted = json.dumps(self.requests, ensure_ascii=False) + prompt
+            assert 'CONTRACT_33' in admitted
+            assert 'historical_clue_id' in admitted and 'latest_story' in admitted
+            return json.dumps(valid)
+
+    result = run(tmp_path, encode(packet), context, connection_factory=Repair)
+    assert json.loads(result['reply']) == valid
+    assert len(FakeConnection.instances) == 2
+
+
 @pytest.mark.parametrize('changes', [
     {'text':TEXT}, {'memories':['private']}, {'profile':{'name':'private'}},
     {'place_journey':{'places':['private']}}, {'family_context':{'people':['private']}},

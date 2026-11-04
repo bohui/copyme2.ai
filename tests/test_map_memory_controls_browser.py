@@ -128,6 +128,59 @@ def test_map_controls_follow_viewport_changes_during_flight(controls_page):
             assert layout['overview']['x'] + layout['overview']['width'] <= layout['collapse']['x']
 
 
+RESUME_HTML = HTML.split('<script type="module">')[0] + '''<script type="module">
+import {createMapMemoryEvents} from '/client/memoir/map-memory-events.mjs';
+import {groupPlaces} from '/client/memoir/places.mjs';
+const chengde={place:'Chengde',granularity:'city',hierarchy:['Earth','China','Chengde'],latitude:40.95,longitude:117.96};
+const sydney={place:'Sydney',granularity:'city',hierarchy:['Earth','Australia','Sydney'],latitude:-33.87,longitude:151.21};
+const initial={...(new URLSearchParams(location.search).get('initial')==='Sydney' ? sydney : chengde),source_sequence:1};
+const memory=(id,place,life_stage,extra={})=>({id,title:id,canonical:true,revision:1,status:'active',kind:'event',life_stage,
+  places:[{role:'setting',status:'supported',place}],...extra});
+const events=[memory('Birth',chengde,'baby',{temporal:{expression:'1983',precision:'year',year_start:1983}}),
+  memory('Childhood',chengde,'childhood',{temporal_estimate:{year_start:1986,year_end:1995,age_start:3,age_end:12,confidence:.3}}),
+  memory('Current home',sydney,'unplaced',{kind:'period',temporal_anchor:'present',
+    temporal_estimate:{year_start:1983,year_end:2026,age_start:0,age_end:43,confidence:.2}})];
+const scene=document.querySelector('.place-journey-scene'),flights=[];
+let redraw=()=>{},center=chengde;
+const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(callback){redraw=callback;return ()=>{};}}},
+  camera:{frustum:{left:-100000,right:100000},flyTo(frame){flights.push(frame.destination);center=frame.destination;}}};
+const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
+  SceneTransforms:{worldToWindowCoordinates:(_scene,point)=>({x:scene.clientWidth*.65+(point.longitude-center.longitude)*8,
+    y:scene.clientHeight*.4-(point.latitude-center.latitude)*6})}};
+const groups=groupPlaces([chengde,sydney]);
+const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groups,getProfile:()=>({birth_year:1983}),
+  getScope:()=> 'resume',getIdentity:()=> 'resume',getInitialPlace:()=>initial,getStage:()=> 'all',
+  t:key=>key,lifeStageText:stage=>stage});
+map.sync(scene);scene.classList.add('is-cesium-map');map.attach(viewer,cesium);
+window.mapResume={flights,selectChengde(){map.selectCity(groups.find(group=>group.city.place==='Chengde').key);map.sync(scene);}};
+function render(){redraw();requestAnimationFrame(render);}render();
+</script></html>'''
+
+
+@pytest.mark.parametrize('controls_page', [RESUME_HTML], indirect=True)
+@pytest.mark.parametrize('width', [1440, 390])
+def test_map_footprints_render_and_refresh_returns_to_chengde(controls_page, width):
+    page = controls_page
+    page.set_viewport_size({'width': width, 'height': 960})
+    page.add_init_script('''(() => {
+      const draw=CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage=function(image,...args){
+        if (image.src?.endsWith('/map-footprints.svg')) window.footprintDraws=(window.footprintDraws||0)+1;
+        return draw.call(this,image,...args);
+      };
+    })();''')
+    page.goto('http://map-controls.invalid/')
+    page.wait_for_function('window.mapResume && window.footprintDraws > 0')
+    page.evaluate('mapResume.selectChengde()')
+    page.goto('http://map-controls.invalid/?initial=Sydney')
+    page.wait_for_function('window.mapResume?.flights.length && window.footprintDraws > 0')
+    destination = page.evaluate('mapResume.flights[0]')
+    assert destination['latitude'] == pytest.approx(40.95)
+    assert destination['longitude'] == pytest.approx(117.96)
+    OUTPUT.mkdir(parents=True, exist_ok=True)
+    page.screenshot(path=str(OUTPUT / f'map-resume-footprints-{width}.png'))
+
+
 ALBUM_HTML = HTML.split('<script type="module">')[0] + '''<script type="module">
 import {createPlaceWorkspace} from '/client/memoir/place-workspace.mjs';
 import {createPhotoWorkspace} from '/client/memoir/photo-workspace.mjs';

@@ -180,6 +180,32 @@ test('refresh restores the selected city from storage on desktop and phone', t=>
   }
 });
 
+test('refresh restores the active city when hydration chooses a different initial place',t=>{
+  for (const mobile of [false,true]) {
+    const settings={values:new Map(),initialPlace:{...chengde,source_sequence:1}};
+    const first=mapFixture(t,mobile,[],undefined,true,settings);
+    first.zoom(chengde);
+    first.map.dispose();
+    for (const initialPlace of [sydney,shanghai]) {
+      settings.initialPlace={...initialPlace,source_sequence:1};
+      const refreshed=mapFixture(t,mobile,[],undefined,true,settings);
+      assert.equal(refreshed.initialFlights[0].destination.latitude,chengde.latitude);
+      assert.ok(Math.abs(refreshed.initialFlights[0].destination.longitude-chengde.longitude)<1e-9);
+      refreshed.map.dispose();
+    }
+  }
+});
+
+test('a newer explicit place cue supersedes an older saved city when there is no question focus',t=>{
+  const settings={values:new Map(),initialPlace:{...chengde,source_sequence:1}};
+  const first=mapFixture(t,false,[],undefined,true,settings);
+  first.zoom(chengde);
+  first.map.dispose();
+  settings.initialPlace={...sydney,source_sequence:2};
+  const refreshed=mapFixture(t,false,[],undefined,true,settings);
+  assert.equal(refreshed.initialFlights[0].destination.latitude,sydney.latitude);
+});
+
 test('existing saved city choices migrate to stable city scopes across same-city replies',t=>{
   const questionFocus={place:'Chengde',source_sequence:1};
   const savedCity=groupPlaces([sydney])[0].key;

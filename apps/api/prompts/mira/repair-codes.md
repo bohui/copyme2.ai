@@ -32,6 +32,7 @@
   "CONTRACT_30": "work.name is a current narrator name update, never the stored addressing name. Use null unless this original source explicitly supplies the narrator's preferred name.",
   "CONTRACT_31": "The selected hint owns its evidence. Keep its index, use prepared_candidate for its exact question or adapted_candidate for rewording, and set quote=null. Never substitute current narration for the hint's source.",
   "CONTRACT_32": "Fix workspace_focus: quote must occur exactly once in its selected original narrator source and contain the coarse place. source_id=null selects CURRENT narration only. For an earlier message, copy its source_id from the supplied evidence reference and use conversation_sequence to find its original words. If no supplied source supports the place, set workspace_focus=null. Return one question only, with at most one question mark (? or ？).",
+  "CONTRACT_33": "historical_clue_id is only for a supplied public clue used in an optional next question. With question=null, clear historical_clue_id. If offering a question, use latest_story or retain recall_limit, set hint=null, and clear quote except a valid exact current recall-limit quote. Keep public context separate from personal evidence; never invent a clue ID.",
   "INVALID_JSON": "Return valid JSON.",
   "INCOMPLETE_PROVIDER_OUTPUT": "Return one complete structured object.",
   "SCHEMA_OR_OTHER_CONTRACT": "Follow the supplied typed schema and exact evidence constraints.",

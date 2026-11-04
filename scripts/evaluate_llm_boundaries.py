@@ -39,6 +39,7 @@ def contract(case):
 async def execute(cases, output):
     import httpx
     from apps.api.model_request import instruction_manifest, decode_json_response, complete_json
+    from apps.api.llm_tracing import gateway_metadata
     results = []
     async with httpx.AsyncClient(timeout=120, trust_env=False) as client:
         for case in cases:
@@ -47,12 +48,15 @@ async def execute(cases, output):
             response = await client.post(os.environ['MEMORY_SPARK_LLM_BASE_URL'].rstrip('/') + '/responses',
                 headers={'Authorization': 'Bearer ' + os.environ['MEMORY_SPARK_LLM_API_KEY']}, json={
                     'model': os.environ['MEMORY_SPARK_LLM_MODEL'], 'instructions': instructions,
+                    'metadata': gateway_metadata(f'evaluation/semantic-boundaries.{case["contract"]}',
+                        trace_name='evaluation/semantic-boundaries'),
                     'input': json.dumps(payload, ensure_ascii=False), 'store': False,
                     'text': {'format': {'type': 'json_schema', 'name': 'proposal', 'strict': True, 'schema': schema}}})
             response.raise_for_status(); raw = response.json(); proposal = decode_json_response(raw)
             verdict, judge_receipt = await complete_json('memoir/evaluators/shared/semantic-boundaries',
                 {'case': case, 'result': proposal}, {'type':'object','additionalProperties':False,
-                    'required':['passed','notes'],'properties':{'passed':{'type':'boolean'},'notes':{'type':'string'}}})
+                    'required':['passed','notes'],'properties':{'passed':{'type':'boolean'},'notes':{'type':'string'}}},
+                trace_name='evaluation/semantic-boundaries.judge')
             results.append({'case_id':case['id'],'proposal':proposal,'verdict':verdict,
                 'receipt':{'response_id':raw['id'],'model':raw.get('model'),'prompt_manifest':manifest},'judge_receipt':judge_receipt})
             output.write_text(json.dumps({'scope':'live semantic contracts; not full application E2E','dataset_sha256':hashlib.sha256(DATASET.read_bytes()).hexdigest(),'results':results},ensure_ascii=False,indent=2)+'\n')

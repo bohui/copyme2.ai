@@ -63,6 +63,14 @@ SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))
 .PHONY: help check migrate db-reset db-truncate install_skill stripe_login setup_stripe setup_stripe_test setup_stripe_live runtime-start test langfuse-eval prompt-export prompt-check prompt-eval localization-catalog-test browser-test browser-localization-test browser-ten-round-test memoir-progressive-test acceptance-evidence spec-audit persistence-check container-config container-build container-up container-health container-check container-ps container-logs container-shell container-down
 .PHONY: _db-reset _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
+
+AGENT_EVAL_ARGS ?=
+.PHONY: memoir-agent-eval-plan memoir-agent-eval
+memoir-agent-eval-plan: ## Inspect the bounded current-agent/skill campaign; zero model calls.
+	@python3 scripts/run_memoir_agent_evaluation.py $(AGENT_EVAL_ARGS)
+
+memoir-agent-eval: ## Run current agent/skill probes and verify published Langfuse experiments.
+	@python3 scripts/run_memoir_agent_evaluation.py --execute --publish $(AGENT_EVAL_ARGS)
 .PHONY: prompt-sync prompt-sync-check prompt-sync-install
 .PHONY: test-web test-place-research
 .PHONY: deps-install deps-update
@@ -104,7 +112,16 @@ prompt-export: ## Recovery: export published prompts; optional PROMPT_NAME=memoi
 
 prompt-check: ## Verify evaluation bindings and pinned Langfuse prompt versions.
 	@python3 -B scripts/check_langfuse_evaluation_bindings.py
+	@python3 -B scripts/audit_prompt_coverage.py
 	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
+
+.PHONY: prompt-coverage prompt-coverage-snapshot
+
+prompt-coverage: ## Regenerate the complete prompt/source/evaluator/dataset table without model calls.
+	@python3 -B scripts/audit_prompt_coverage.py --write
+
+prompt-coverage-snapshot: ## Read only this local Langfuse project's dataset, evaluator and score metadata.
+	@python3 -B scripts/snapshot_prompt_evaluations.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --metadata-db
 
 prompt-eval: ## Preflight a pinned prompt and dataset; use PROMPT_EVAL_RUN=1 and PROMPT_EVAL_MODEL=... to call a model.
 	@python3 scripts/evaluate_langfuse_prompt.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --provider-credential-file "$(PROMPT_EVAL_PROVIDER_FILE)" --name "$(PROMPT_EVAL_NAME)" --dataset "$(PROMPT_EVAL_DATASET)" $(if $(strip $(PROMPT_EVAL_VERSION)),--version "$(PROMPT_EVAL_VERSION)",) $(if $(strip $(PROMPT_EVAL_MODEL)),--model "$(PROMPT_EVAL_MODEL)",) $(if $(filter 1,$(PROMPT_EVAL_RUN)),--run,)

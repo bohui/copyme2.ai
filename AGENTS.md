@@ -12,6 +12,14 @@ replay covering the reported failure; `python3 -m pytest` alone omits web tests.
 
 # Prompt governance
 
+For prompt additions, edits, shared-component changes or retirement, read the
+[prompt evaluation workflow](docs/prompt-evaluation-workflow.md) and update
+`config/prompt-coverage.json`. Review the affected dataset cases and evaluators
+together; record why either can be reused when no change is needed. Refresh the
+inventory with `make prompt-coverage` and run `make prompt-check` plus the relevant
+scenario regressions. A configured dataset or passing contract test does not
+establish quality for an unverified prompt version.
+
 Before creating or changing any model prompt, including shared components, read
 the [versioned prompt workflow](README.md#versioned-prompt-artifacts).
 

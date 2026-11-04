@@ -23,14 +23,14 @@ if str(ROOT) not in sys.path:
 
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.memoir_live_skill_cases import cases, validate_case
-from scripts.run_memoir_live_skills import LiveProvider, compose, manifest, native_search, save
+from scripts.run_memoir_live_skills import LiveProvider, compose, manifest, native_search, save, evaluation_trace_metadata
 from scripts.langfuse_dataset_names import (SKILL_TASKS, SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target)
 
 # A dataset contains one target; batching is an execution concern.
 DATASET_PHASES = {
     **{admission_dataset(s, 'triggers-v2'): 'triggers' for s in SKILL_TASKS if s != 'memoir-interviewer'},
     **{target_dataset(delivery_target(dict(skill=s, kind='live_contract' if s != 'memoir-composer' else 'live_composer')),
-        suite='delivery-v2'): 'deliveries' for s in SKILL_TASKS if s != 'memoir-interviewer'},
+        suite='delivery-v3'): 'deliveries' for s in SKILL_TASKS if s != 'memoir-interviewer'},
 }
 
 
@@ -119,7 +119,7 @@ def datasets():
     for row in triggers:
         grouped[admission_dataset(row['input']['skill'], 'triggers-v2')].append(row)
     for row in deliveries:
-        grouped[target_dataset(delivery_target(row['input']), suite='delivery-v2')].append(row)
+        grouped[target_dataset(delivery_target(row['input']), suite='delivery-v3')].append(row)
     if any(not rows for rows in grouped.values()):
         raise ValueError('empty_target_dataset')
     return grouped
@@ -163,10 +163,10 @@ def publish_datasets(client, definitions):
     for name, rows in definitions.items():
         if name not in existing:
             client.create_dataset(name=name,
-                description=('Application trigger checks with controlled replies' if DATASET_PHASES[name] == 'triggers'
+                description=('Application trigger checks with controlled replies' if DATASET_PHASES.get(name) == 'triggers'
                     else 'Real gateway delivery probes; isolated synthetic inputs, no production persistence'),
                 metadata=dict(suite='memoir-skills/1', synthetic=True, contains_customer_data=False,
-                              content_sha256=digest(rows), item_count=len(rows)))
+                              content_sha256=digest(rows), item_count=len(rows), target=dataset_target(name)))
         for row in rows:
             key = item_id(name, row)
             if row['input']['case_id'] in missing[name]:
@@ -230,25 +230,29 @@ class TracedProvider(LiveProvider):
         super().__init__(*args, **kwargs)
         self.langfuse = langfuse
 
-    async def call(self, case_id, skill, instructions, packet, schema=None, *, search=False):
-        from langfuse import propagate_attributes
+    async def call(self, case_id, skill, instructions, packet, schema=None, *, search=False, messages=None):
+        from apps.api.llm_tracing import trace_llm_call, update_llm_trace
         failure = None
-        with propagate_attributes(trace_name='evaluation/' + skill), self.langfuse.start_as_current_observation(
-                name='evaluation/' + skill + '.probe', as_type='generation',
-                input=dict(instructions=instructions, packet=packet), metadata=dict(skill=skill, case_id=case_id)) as span:
+        names = evaluation_trace_metadata(skill, case_id)
+        with trace_llm_call(names['generation_name'], trace_name=names['trace_name'],
+                client=self.langfuse, gateway=True,
+                input_summary=dict(instructions=instructions, packet=packet, **(dict(messages=messages) if messages is not None else {})),
+                metadata=dict(skill=skill, case_id=case_id)) as span:
             try:
-                value, response = await super().call(case_id, skill, instructions, packet, schema, search=search)
+                value, response = await super().call(case_id, skill, instructions, packet, schema, search=search, messages=messages)
                 record = self.receipt['calls'][-1]
+                record.update(trace_id=getattr(span, 'trace_id', None), observation_id=getattr(span, 'id', None))
                 usage = record.get('usage') or {}
-                span.update(output=value, model=record['served_model'],
+                update_llm_trace(span, output=value,
                     usage_details={key: usage[key] for key in ('input_tokens', 'output_tokens', 'total_tokens')
                                    if isinstance(usage.get(key), int)},
                     metadata=dict(skill=skill, response_id=record['provider_response_id'],
-                                  requested_model=record['requested_model'], effort=record['effort']))
+                                  requested_model=record['requested_model'], served_model=record['served_model'], effort=record['effort']))
             except Exception as error:
                 # Do not send transport exception strings (which can contain credentials).
-                span.update(level='ERROR', status_message=type(error).__name__)
+                update_llm_trace(span, level='ERROR', status_message=type(error).__name__)
                 failure = error
+        save(self.directory / 'receipt.json', self.receipt)
         if failure is not None:
             raise failure
         return value, response

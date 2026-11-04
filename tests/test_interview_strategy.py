@@ -25,9 +25,7 @@ def test_reply_keeps_strategy_in_context_instead_of_prompt_variants():
     prompt = reply_instructions()
     assert 'Active internal strategy:' not in prompt
     assert 'latest wishes' in prompt
-    assert [name for name in PROMPT_PATHS if name.startswith(
-        'memoir/agents/mira/strategy-')] == [
-            'memoir/agents/mira/strategy-proposal']
+    assert not any(name.startswith('memoir/agents/mira/strategy-') for name in PROMPT_PATHS)
 
 
 def test_compact_selector_has_no_fresh_future_pool():

@@ -207,6 +207,13 @@ def test_map_feed_retains_a_provisional_city_and_confidence_without_original_evi
     ('I currently live in Sydney.', {'evidence_next_cursor':'more-evidence'}, False),
     ('I currently live in Sydney.', {'timing_conflict':True}, False),
     ('I currently live in Sydney.', {'source_refs':[{'quote':'I currently live in Sydney.', 'attribution':'father'}]}, False),
+    ('I currently live in Sydney.', {'source_refs':[{'quote':'I was born in 1991.'}],
+        'evidence_complete':False, 'evidence_next_cursor':'date-evidence',
+        'primary_source_refs':[{'quote':'I currently live in Sydney.'}], 'primary_evidence_complete':True}, True),
+    ('I currently live in Sydney.', {'primary_source_refs':[{'quote':'I currently live in Sydney.'}],
+        'primary_evidence_complete':False}, False),
+    ('I currently live in Sydney.', {'primary_source_refs':[{'quote':'I currently live in Sydney.', 'attribution':'father'}],
+        'primary_evidence_complete':True}, False),
 ])
 @pytest.mark.parametrize('endpoint', ['map-events', 'events'])
 def test_map_current_time_anchor_uses_complete_positive_evidence_without_exposing_it(mapped, quote, changes, present, endpoint):
@@ -230,6 +237,7 @@ def test_map_current_time_anchor_uses_complete_positive_evidence_without_exposin
         assert 'source_refs' not in saved and 'evidence_complete' not in saved
         assert quote not in response.text
     assert event == original
+    assert 'primary_source_refs' not in saved and 'primary_evidence_complete' not in saved
     assert calls[-1][0] == 'actual_send_guard'
 
 

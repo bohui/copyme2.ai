@@ -27,10 +27,17 @@ import jsonschema
 from scripts.memoir_live_skill_cases import cases, progressive_page, skill_prompt, validate_case
 from apps.api.prompt_artifact import load_prompt_artifact
 from apps.api.composer_configuration import composer_configuration
+from apps.api.llm_tracing import gateway_metadata, gateway_trace_headers
 
 
 def sha(value):
     return hashlib.sha256(value.encode()).hexdigest()
+
+
+def evaluation_trace_metadata(skill, case_id):
+    name = {'memoir-interviewer': 'memoir-mira', 'memoir-background-agent': 'memoir-atlas',
+            'evaluation-judge': 'memoir-judges'}.get(skill, skill)
+    return {**gateway_metadata(f'evaluation/{name}.{case_id}', trace_name=f'evaluation/{name}'), 'case_id': case_id}
 
 
 def save(path, value):
@@ -79,7 +86,7 @@ class LiveProvider:
         self.config, self.receipt, self.directory = config, receipt, directory
         self.timeout, self.deadline, self.max_calls, self.effort = timeout, deadline, max_calls, effort
 
-    async def call(self, case_id, skill, instructions, packet, schema=None, *, search=False):
+    async def call(self, case_id, skill, instructions, packet, schema=None, *, search=False, messages=None):
         if len(self.receipt['calls']) >= self.max_calls or time.monotonic() >= self.deadline:
             raise RuntimeError('live_call_budget_exhausted')
         selection = composer_configuration(self.config) if skill == 'memoir-composer' else None
@@ -89,12 +96,16 @@ class LiveProvider:
             effort = 'low'
         body = {'model': model, 'instructions': instructions,
                 'input': json.dumps(packet, ensure_ascii=False), 'store': False,
-                'metadata': {'generation_name': 'evaluation/' + skill + '.probe',
-                    'trace_name': 'evaluation/' + skill, 'case_id': case_id},
+                'metadata': evaluation_trace_metadata(skill, case_id),
                 'max_output_tokens': 8192 if skill == 'memoir-composer' else 3000,
                 'reasoning': {'effort': effort}}
         if schema:
             body['text'] = {'format': {'type': 'json_schema', 'name': 'skill_result', 'strict': True, 'schema': schema}}
+        if messages is not None:
+            if search:
+                raise ValueError('messages_and_search_are_exclusive')
+            body.pop('instructions')
+            body['input'] = messages
         if search:
             body['input'] = body.pop('instructions')
             body.update(tools=[{'type': 'web_search'}], tool_choice='required',
@@ -110,7 +121,8 @@ class LiveProvider:
             async with asyncio.timeout(timeout):
                 async with httpx.AsyncClient(follow_redirects=False, trust_env=False) as client:
                     async with client.stream('POST', self.config['MEMORY_SPARK_LLM_BASE_URL'].rstrip('/') + '/responses',
-                        headers={'Authorization': 'Bearer ' + self.config['MEMORY_SPARK_LLM_API_KEY']},
+                        headers={'Authorization': 'Bearer ' + self.config['MEMORY_SPARK_LLM_API_KEY'],
+                                 **gateway_trace_headers()},
                         json=body, timeout=timeout) as response:
                         record['http_status'] = response.status_code
                         if not response.is_success:
@@ -152,7 +164,7 @@ class LiveProvider:
                 jsonschema.Draft202012Validator(schema).validate(value)
             record['status'] = 'completed'
             return value, decoded
-        except Exception as error:
+        except BaseException as error:
             record.update(status='failed', error_class=type(error).__name__)
             raise
         finally:
@@ -287,7 +299,9 @@ async def native_search(provider, skill):
 
 
 def manifest():
-    skills = sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md'))
+    from apps.api.background_skills import SKILLS
+    retired = {name for name, definition in SKILLS.items() if definition.status == 'legacy'}
+    skills = sorted(p.parent.name for p in (ROOT / 'skills').glob('*/SKILL.md') if p.parent.name not in retired)
     return dict(skills=skills, scope='isolated live LLM skill contracts; no application persistence or end-to-end certification',
                 synthetic=True, concurrency=1, transport_retries=0,
                 skill_sha256={s: hashlib.sha256((ROOT / 'skills' / s / 'SKILL.md').read_bytes()).hexdigest() for s in skills})
@@ -366,7 +380,7 @@ async def execute(args):
     report += [f"| {r['case_id']} | {r['skill']} | {r['status']} | {r['elapsed_seconds']} | {r['http_dispatches']} |" for r in receipt['results']]
     report += ['', 'Native search passes require completed tool receipts and independently inspected source evidence.',
                'Profile cases validate admitted checkpoint pages, not host scheduling or persisted effects. Retired localization is excluded.',
-               'Story-game tests the missing-authority rejection; game runtime is unavailable. Grouping uses deterministic production code.',
+               'Story-game probes missing-authority rejection; full game delivery is not certified by this probe. Grouping uses deterministic production code.',
                'HTTP calls are bounded; internal gateway attempts and monetary cost are not verified.', '']
     (directory / 'report.md').write_text('\n'.join(report))
     print(json.dumps({'status': receipt['status'], 'receipt': str(directory / 'receipt.json'), 'report': str(directory / 'report.md')}))

@@ -9017,7 +9017,7 @@ CREATE FUNCTION public.read_lifetime_collection_page_before_attribution(p_projec
 declare owner uuid:=auth.uid(); identity public.user_lifetime_conversation%rowtype; project public.user_memoir_project%rowtype;
  cursor_row public.user_lifetime_read_cursor%rowtype; records jsonb; extra boolean; cursor_id uuid;
  boundary_sequence bigint:=0; boundary_key text:=''; row_key text; row_sequence bigint;
- source_key text; event_record public.user_memory_event%rowtype; evidence_page jsonb;
+ source_key text; event_record public.user_memory_event%rowtype; evidence_page jsonb; primary_refs jsonb;
 begin
  if owner is null or p_limit is null or p_limit not between 1 and 8 or p_kind not in ('sources','events','event_sources','event_details') or
    (p_kind in ('event_sources','event_details') and (p_event_id is null or length(p_event_id)>128)) or (p_kind not in ('event_sources','event_details') and p_event_id is not null)
@@ -9069,6 +9069,18 @@ begin
      -- The complete evidence set is separately paginated; never aggregate all
      -- source_refs or embed accumulated relationship/basis arrays in a list.
      evidence_page:=public.read_lifetime_collection_page(p_project_id,'event_sources',null,1,event_record.id);
+     primary_refs:=null;
+     if event_record.kind='period' and event_record.data->'temporal'->>'year_start' is null then
+       -- Date dependencies must not hide the period's one complete primary assertion.
+       select coalesce(jsonb_agg(item order by key),'[]') into primary_refs from (
+         select s.source_id::text||':'||s.source_version::text||':'||s.evidence_hash key,s.evidence item
+         from public.user_memory_event_source s join public.user_narrator_source n
+           on n.user_id=s.user_id and n.project_id=s.project_id and n.id=s.source_id
+           and n.version=s.source_version and n.status='active'
+         where s.user_id=owner and s.project_id=p_project_id and s.event_id=event_record.id
+           and s.stage_progress_role in ('primary','legacy_primary')
+         order by key limit 2) selected;
+     end if;
      records:=records||jsonb_build_array(jsonb_build_object('id',event_record.id,'revision',event_record.revision,
        'kind',event_record.kind,'life_stage',event_record.life_stage,'status',event_record.status,
        'change_sequence',event_record.change_sequence,'title',event_record.data->'title',
@@ -9085,7 +9097,8 @@ begin
          where jsonb_typeof(event_record.data->k)='array' and jsonb_array_length(event_record.data->k)>0),
        'visibility',event_record.data->'visibility',
        'include_in_print',event_record.data->'include_in_print','source_refs',evidence_page->'source_refs',
-       'evidence_complete',evidence_page->'complete','evidence_next_cursor',evidence_page->'next_cursor'));
+       'evidence_complete',evidence_page->'complete','evidence_next_cursor',evidence_page->'next_cursor',
+       'primary_source_refs',primary_refs,'primary_evidence_complete',jsonb_array_length(primary_refs)<2));
    end loop;
  end if;
  extra:=jsonb_array_length(records)>p_limit;
@@ -9317,7 +9330,7 @@ CREATE FUNCTION public.lifetime_timeline_context(p_owner uuid,p_project text,p_s
 LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
 declare current_source public.user_narrator_source%rowtype; prior public.user_narrator_source%rowtype;
  identity public.user_lifetime_conversation%rowtype; history jsonb:='[]'; original jsonb; reply text; last_event jsonb;
- previous_owner text; entry jsonb; trimmed jsonb:='[]'; fragment jsonb;
+ previous_owner text; entry jsonb; trimmed jsonb:='[]'; fragment jsonb; history_text text;
 begin
  select * into current_source from public.user_narrator_source where user_id=p_owner and project_id=p_project
    and id=p_source and status='active';
@@ -9341,8 +9354,13 @@ begin
    for entry in select value from jsonb_array_elements(history) loop
      if jsonb_typeof(entry->'source')='object' then
        fragment:=entry->'source';
-       fragment:=fragment||jsonb_build_object('text',left(fragment->>'text',128),
-         'char_end',(fragment->>'char_start')::integer+length(left(fragment->>'text',128)));
+       history_text:=left(fragment->>'text',128);
+       -- JSON escapes can exceed the byte allowance for a compact history entry.
+       while octet_length(to_jsonb(history_text)::text)>512 loop
+         history_text:=left(history_text,length(history_text)-1);
+       end loop;
+       fragment:=fragment||jsonb_build_object('text',history_text,
+         'char_end',(fragment->>'char_start')::integer+length(history_text));
        entry:=entry||jsonb_build_object('source',fragment,'source_complete',false);
      end if;
      if jsonb_typeof(entry->'assistant')='object' then

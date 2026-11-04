@@ -564,6 +564,15 @@ For example, `memoir/agents/mira/reply/golden/core/quality` tests the
 `config/langfuse-evaluation-bindings.json` records every target, prompt dependency,
 dataset ID, split lineage and online rule. `make prompt-check` validates these
 bindings before checking the published versions. Historical records remain intact.
+The [complete prompt audit](docs/prompt-audit.md) and
+[per-prompt table](docs/prompt-coverage.md) distinguish source references,
+configured bindings, observed scores and remaining quality gaps. For prompt
+changes, follow the [dataset/evaluator review workflow](docs/prompt-evaluation-workflow.md).
+`make prompt-coverage` refreshes the table; `make prompt-coverage-snapshot` reads
+the local project's metadata without model calls. `make prompt-check` rejects
+stale coverage reviews. The committed retirement archive is checked before the
+main post-pull hook removes a retired remote prompt; feature branches leave
+records required by current main available until merge.
 Issue numbers and release dates stay in metadata and numeric version history.
 The [structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md) explains
 the execution paths, and the [individual inventory](docs/Langfuse_Prompt_Usage.md)
@@ -694,6 +703,13 @@ Langfuse documents [prompt versions](https://langfuse.com/docs/prompt-management
 and [versioned dataset experiments](https://langfuse.com/docs/evaluation/experiments/datasets).
 
 ### Langfuse trajectory evaluation
+
+The [current agent and skill baseline](docs/agent-skill-evaluation.md) runs
+bounded live Lane A replies, native Lane B tool selection and skill contracts,
+then verifies the published Langfuse SDK experiment inputs, outputs and scores.
+Use `make memoir-agent-eval-plan` for its zero-call plan and
+`make memoir-agent-eval` to execute and publish. Semantic scores stay advisory
+until independently labelled human calibration is available.
 
 The [ten-skill evaluation CLI](docs/issue90-offline-evaluation.md) provides
 zero-call planning, 160 bilingual synthetic tasks, controlled application

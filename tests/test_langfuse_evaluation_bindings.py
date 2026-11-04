@@ -19,6 +19,30 @@ def test_real_bindings_preserve_split_lineage_and_resolve_every_prompt():
     assert result['datasets'] >= 36
 
 
+def test_summary_target_binds_the_instructions_actually_sent_to_the_model():
+    from apps.api.lifetime_memory_summary import summary_contract
+    from apps.api.model_request import instruction_manifest
+    instructions, schema = summary_contract()
+    actual = {p['name'] for p in instruction_manifest(instructions, schema)['artifacts']}
+    target = bindings()['targets']['memoir/skills/author-timeline/summarize']
+    assert actual <= set(target['evaluated_prompts'])
+
+
+def test_production_target_binds_the_executed_stage_and_its_adapters():
+    target = bindings()['targets']['memoir/skills/story-game/production']
+    prefix = 'memoir/skills/story-game/novel-to-game/'
+    assert target['primary_prompt'] == prefix+'production'
+    assert {prefix+p for p in ('production','adapter','journey','assets')} <= set(target['evaluated_prompts'])
+
+
+def test_missing_shared_component_is_rejected_even_if_the_primary_is_registered():
+    cfg=bindings()
+    target=cfg['targets']['memoir/skills/composer/review']
+    target['evaluated_prompts'].remove('memoir/skills/composer/shared/editorial-review')
+    with pytest.raises(ValueError,match='Missing composed prompt dependency'):
+        validate(cfg,prompt_registry(include_unpublished=True))
+
+
 @pytest.mark.parametrize('mutation',['foreign_target','unknown_prompt','missing_item','duplicate_item','double_sampling','self_judging'])
 def test_invalid_bindings_fail_before_publication(mutation):
     cfg=bindings()

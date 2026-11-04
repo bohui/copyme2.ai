@@ -322,6 +322,36 @@ def run(tmp_path,bounded=None,publisher=None,**kwargs):
         connection_factory=SkillConnection,**kwargs))
 
 
+def test_source_window_input_contract_is_pinned_in_the_native_receipt(tmp_path):
+    result=run(tmp_path)
+    names={p['name'] for p in result['skill_receipt']['prompt_manifest']['artifacts']}
+    assert 'memoir/skills/author-timeline/window' in names
+
+
+@pytest.mark.parametrize('input_budget, fits', [(65536, True), (33000, False)])
+def test_composer_reference_reads_use_available_budget_without_exceeding_it(tmp_path, input_budget, fits):
+    current = page('composer')
+    bounded = build_bounded_lane_input(current, phase='prepare', packet=packet_for(current, 'prepare'),
+        budget=BUDGET.model_copy(update={'input_budget': input_budget}))
+    class ReferenceConnection(SkillConnection):
+        async def turn(self, thread, prompt, **options):
+            for file in ['SKILL.md', 'prompts/review.md', 'references/narrative-enrichment.md',
+                         'references/editorial-review.prompt.md']:
+                result = await self.options['tool_handler']({'tool':'memoir_read_skill',
+                    'arguments':{'skill':'memoir-composer', 'file':file}})
+                assert result['success']
+            return '{}'
+    async def execute():
+        return await run_bounded_lane(command=['fake'], home_root=tmp_path,
+            base_url='http://provider.invalid', api_key='transient-secret', model=BUDGET.model,
+            bounded_lane=bounded, publisher=Publisher(), connection_factory=ReferenceConnection)
+    if fits:
+        assert asyncio.run(execute())['reply'] == '{}'
+    else:
+        with pytest.raises(ValueError, match='context budget exceeded'):
+            asyncio.run(execute())
+
+
 def test_extraction_harness_keeps_exact_packet_schema_manifest_and_fence(tmp_path):
     bounded=transport();publisher=Publisher()
     result=run(tmp_path,bounded,publisher)

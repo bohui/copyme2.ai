@@ -103,6 +103,7 @@ assert.equal(cards.innerHTML,'','A view outside every API city must not retain e
 center=destination;redraw();
 assert.match(cards.innerHTML,/Sydney residence/);
 const active=places.find(place=>place.place==='Chengde');
+state.placeJourney=active;
 const groupKey=map.nodes().find(node=>node.city==='Chengde').groupKey;
 listeners.click({target:{closest:()=>({dataset:{memoryCity:groupKey},hasAttribute:name=>name==='data-memory-city'})}});
 assert.equal(frames.at(-1).destination.latitude,active.latitude);
@@ -113,6 +114,7 @@ assert.equal(views.at(-1).destination.latitude,active.latitude);
 assert.ok(views.at(-1).destination.height<=40000);
 map.dispose();
 scene.child=null;
+state.placeJourney=destination;
 const refreshed=workspace();
 assert.match(refreshed.workspaceMediaOverview(),new RegExp(`data-cesium-latitude="${active.latitude}"`),
   'The opening globe flight must use the saved city before the event layer is attached');

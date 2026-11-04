@@ -8,6 +8,7 @@ from contextlib import AsyncExitStack, asynccontextmanager
 import os
 
 from .prompt_artifact import load_prompt_artifact, prompt_path
+from .prompt_composition import render_prompt_artifact
 from .lifetime_memory_continuity import _Places
 from .interview_questions import PreparedQuestion, hint_evidence, question_candidates, question_priority
 
@@ -36,7 +37,7 @@ def extraction_contract(*, attribution=False, continuity=False, source=None, sel
         prompt_path('memoir/skills/author-timeline/shared/grounding'))
     if places:
         instructions += '\n' + load_prompt_artifact(Path(__file__).resolve().parents[2] / 'skills/memoir-place-journey/references/two-lane.md')
-        instructions += load_prompt_artifact(prompt_path('memoir/skills/author-timeline/derived-hints'))
+        instructions += render_prompt_artifact(prompt_path('memoir/skills/author-timeline/derived-hints'))
     if attribution:
         from .conversation_attribution import attribution_schema, INSTRUCTIONS
         instructions += INSTRUCTIONS

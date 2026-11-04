@@ -10,9 +10,12 @@ if str(ROOT) not in sys.path:
 
 from scripts.langfuse_dataset_names import dataset_target
 from scripts.prompt_registry import prompt_registry
+from apps.api.prompt_composition import component_paths
 
 
 def validate(config, prompts):
+    root = Path(__file__).resolve().parents[1]
+    by_path = {str(root/p):n for n,p in prompts.items()}
     targets = config['targets']
     datasets = config['datasets']
     if len({d['name'] for d in datasets}) != len(datasets) or len({d['id'] for d in datasets}) != len(datasets):
@@ -24,6 +27,10 @@ def validate(config, prompts):
             raise ValueError('Unknown evaluated prompt: ' + ', '.join(sorted(unknown)))
         if spec['primary_prompt'] and spec['primary_prompt'] not in spec['evaluated_prompts']:
             raise ValueError('Primary prompt missing from target binding')
+        for name in spec['evaluated_prompts']:
+            components = {by_path[str(path)] for path in component_paths((root/prompts[name]).read_text())}
+            if not components <= set(spec['evaluated_prompts']):
+                raise ValueError('Missing composed prompt dependency: '+name)
         if spec['scope'] == 'code' and (spec['evaluated_prompts'] or not spec['validator']):
             raise ValueError('Deterministic target must declare its validator and no model prompt')
     for row in datasets:

@@ -53,8 +53,8 @@ FAMILIES = {
     ],
     'memory-context': [
         ('explicit-profile', 'extract', 'My name is Alex. I was born in 1960 in Hobart.', '我叫亚历克斯。我于1960年出生在霍巴特。', 'extract supported target fields', 'omit supported target fields'),
-        ('manual-value', 'extract', 'My name is Robin. I grew up in Hobart.', '我叫罗宾。我在霍巴特长大。', 'protect the manual name Alex', 'overwrite manual values'),
-        ('manual-blank', 'extract', 'I was born in 1960. I grew up in Hobart.', '我出生于1960年。我在霍巴特长大。', 'protect manual blank birth year', 'fill a manually blank field'),
+        ('manual-value', 'extract', 'My name is Robin. I was born in Hobart.', '我叫罗宾。我出生在霍巴特。', 'protect the manual name Alex', 'overwrite manual values'),
+        ('manual-blank', 'extract', 'I was born in 1960 in Hobart.', '我于1960年出生在霍巴特。', 'protect manual blank birth year', 'fill a manually blank field'),
         ('correction', 'extract', 'I said 1961 before, but I was born in 1962.', '我之前说1961年，但我出生于1962年。', 'replace inferred year with 1962', 'retain superseded inferred year'),
         ('approximate-date', 'extract', 'I was born around 1960.', '我出生于1960年前后。', 'retain approximate date expression', 'infer an exact birth year'),
         ('other-people', 'extract', 'My father was born in 1930 in Hobart.', '我的父亲于1930年出生在霍巴特。', 'produce no narrator patch', 'copy relatives into narrator profile'),
@@ -214,8 +214,8 @@ def build_cases():
                     zh = locale == 'zh-CN'
                     facts = {
                         'explicit-profile': dict(name='亚历克斯' if zh else 'Alex', birth_year=1960, birth_place='霍巴特' if zh else 'Hobart'),
-                        'manual-value': dict(childhood_place='霍巴特' if zh else 'Hobart'),
-                        'manual-blank': dict(childhood_place='霍巴特' if zh else 'Hobart'),
+                        'manual-value': dict(birth_place='霍巴特' if zh else 'Hobart'),
+                        'manual-blank': dict(birth_place='霍巴特' if zh else 'Hobart'),
                         'correction': dict(birth_year=1962),
                         'approximate-date': dict(birth_date_expression='1960年前后' if zh else 'around 1960'),
                     }.get(case, {})

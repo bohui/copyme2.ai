@@ -147,9 +147,14 @@ def main(argv=None, *, root: Path = ROOT) -> int:
             client = prompt_client(args.credential_file)
             results = publish(client, root=root, branch=branch, revision=revision,
                               check=args.check, names=args.name)
+            retired=[]
+            if args.after_pull and not args.check:
+                from scripts.retire_prompt_artifacts import retire
+                retired=retire(client,root=root,execute=True)
         print(json.dumps({"mode": "check" if args.check else "sync", "git_branch": branch,
                           "git_commit": revision,
                           "artifacts": len(results),
+                          "retired": [row['name'] for row in retired if row['deleted']],
                           "published": sum(row["published"] for row in results),
                           "changed": [row["name"] for row in results if row["content_changed"]],
                           "receipt_updates_needed": [row["name"] for row in results if row["receipt_pending"]]}))

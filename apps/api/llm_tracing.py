@@ -31,6 +31,18 @@ def trace_origin(origin):
         _trace_origin.reset(token)
 
 
+@contextmanager
+def trace_for_owner(owner_id):
+    """Classify only the configured test owner, using authenticated identity."""
+    selected = os.getenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', '').strip()
+    origin = os.getenv('MEMORY_SPARK_TRACE_ORIGIN') if selected and str(owner_id) == selected else None
+    token = _trace_origin.set(origin if origin in {'evaluation', 'test'} else None)
+    try:
+        yield
+    finally:
+        _trace_origin.reset(token)
+
+
 def _origin_name(name):
     origin = _trace_origin.get()
     return f'{origin}/{name}' if origin and not name.startswith(('evaluation/', 'test/')) else name
@@ -215,9 +227,10 @@ def trace_llm_call(
     metadata: Mapping[str, Any] | None = None,
     gateway: bool = False,
     trace_name: str | None = None,
+    client: Any = _UNSET,
 ) -> Iterator[Any | None]:
     with trace_scope(trace_name or name):
-        with _trace_observation(_origin_name(name), model, input_summary=input_summary, metadata=metadata, gateway=gateway) as observation:
+        with _trace_observation(_origin_name(name), model, input_summary=input_summary, metadata=metadata, gateway=gateway, client=client) as observation:
             yield observation
 
 
@@ -247,9 +260,9 @@ def trace_skill_execution(name, phase, *, embedded=False):
 
 
 @contextmanager
-def _trace_observation(name, model, *, input_summary=None, metadata=None, gateway=False):
+def _trace_observation(name, model, *, input_summary=None, metadata=None, gateway=False, client=_UNSET):
     """Gateway calls get an app span; directly observed calls get a generation."""
-    client = _get_client()
+    client = _get_client() if client is _UNSET else client
     if client is None:
         yield None
         return

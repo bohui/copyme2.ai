@@ -120,7 +120,7 @@ def test_mira_prompts_are_agent_owned_and_redundant_fragments_are_retired():
     registry = prompt_registry(include_unpublished=True)
     names = {name.removeprefix(prefix) for name in registry if name.startswith(prefix)}
     assert names == {
-        'reply', 'policy-review', 'repair', 'repair-codes', 'strategy-proposal',
+        'reply', 'policy-review', 'repair', 'repair-codes',
     }
     assert all('/' not in name for name in names)
     assert all(path.startswith('apps/api/prompts/mira/')

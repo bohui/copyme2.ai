@@ -211,7 +211,8 @@ def test_place_extraction_is_embedded_in_one_real_timeline_packet(tmp_path):
             assert 'window_contract' in request['input']
             assert 'gold' not in request and 'rubric' not in request
             places = [place('Sydney', 'en-AU'), place('Perth', 'en-AU')]
-            return dict(output=dict(events=[], place_journeys=places, prepared_questions=[]),
+            places = [dict(p, research=None) for p in places]
+            return dict(output=dict(events=[], place_journeys=places),
                         response_id='timeline-fixture', model='controlled-model', usage=None)
     receipt = asyncio.run(suite.run(suite.plan(case=[
         'memoir-place-journey/two-cities/en-AU']), tmp_path, skill=Timeline()))

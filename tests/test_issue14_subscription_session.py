@@ -2,6 +2,7 @@
 import asyncio
 import hashlib
 import json
+import shutil
 from pathlib import Path
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -73,7 +74,7 @@ async def session(tmp_path, endpoint):
         client = httpx.Client(transport=httpx.MockTransport(lambda request, owner=plan['owner_id']:
             httpx.Response(200, json={'id': owner, 'is_anonymous': False})))
         storages[case_id] = UserStorage('http://synthetic.invalid', 'synthetic-public', 'synthetic-user-token', client=client)
-    binary = Path('/bin/true').resolve()
+    binary = Path(shutil.which('true')).resolve()
     broker = MemoirLaneBroker(url='http://synthetic.invalid', key='synthetic-service',
         client=httpx.AsyncClient(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=[]))))
     return await OwnedSubscriptionSession.create(run=run, provider_transport=transport,
