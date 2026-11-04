@@ -213,13 +213,15 @@ def main(argv=None):
     parser.add_argument('--base-url',help='Host-accessible URL of the existing gateway; credentials/model still come from --env-file')
     parser.add_argument('--output-root',type=Path,default=ROOT/'var/judge-calibration')
     parser.add_argument('--max-calls',type=int,default=256)
+    parser.add_argument('--timeout',type=float,default=90,help='Per-call seconds, at most 240; recorded in the receipt')
     args=parser.parse_args(argv)
     all_rows=cases()
     selected=[r for r in all_rows if (args.split=='all' or r['input']['split']==args.split)
         and (not args.judge or set(args.judge)&set(r['input']['judge_ids']))
         and (not args.case or r['input']['case_id'] in args.case)]
     calls=sum(len(set(r['input']['judge_ids']) & set(args.judge or judges())) for r in selected)
-    if not selected or not 1<=args.max_calls<=256 or calls>args.max_calls:raise ValueError('Invalid or over-budget selection')
+    if not selected or not 1<=args.max_calls<=256 or calls>args.max_calls or not 0<args.timeout<=240:
+        raise ValueError('Invalid or over-budget selection')
     if args.case and set(args.case)!={r['input']['case_id'] for r in selected}:raise ValueError('Unknown selected case')
     if not args.execute:
         print(json.dumps(dict(dataset=DATASET,items=len(all_rows),selected_items=len(selected),judges=len(judges()),
@@ -245,10 +247,10 @@ def main(argv=None):
             fixture_sha256=hashlib.sha256(SOURCE.read_bytes()).hexdigest(),label_origin=ORIGIN,human_reviewed=False,
             model=config['MEMORY_SPARK_LLM_MODEL'],effort=config['MEMORY_SPARK_LLM_REASONING_EFFORT'],split=args.split,
             selected_judges=args.judge,planned_calls=calls,planned_items=len(items),calls=[],results=[],
-            limits=dict(max_calls=args.max_calls,concurrency=4,seconds=1800,per_call_seconds=90,transport_retries=0),
+            limits=dict(max_calls=args.max_calls,concurrency=4,seconds=1800,per_call_seconds=args.timeout,transport_retries=0),
             dataset_version=snapshot.isoformat(),status='running')
         save(directory/'receipt.json',receipt)
-        runner=Runner(client,config,directory,receipt,maximum=args.max_calls)
+        runner=Runner(client,config,directory,receipt,maximum=args.max_calls,timeout=args.timeout)
         result=client.run_experiment(name='evaluation/memoir-judges.calibration',run_name=run_id,data=items,
             task=runner.task,evaluators=[evaluations],max_concurrency=4,_dataset_version=snapshot,
             metadata=dict(synthetic='true',label_origin=ORIGIN,human_reviewed='false',split=args.split,source_revision=revision))

@@ -77,6 +77,11 @@ def test_wrong_project_is_refused_before_any_dataset_mutation():
     with pytest.raises(ValueError,match='project'):runner.publish(client,suite.cases())
 
 
+@pytest.mark.parametrize('timeout',['0','241','nan','inf'])
+def test_calibration_timeout_is_bounded_before_provider_or_dataset_access(timeout):
+    with pytest.raises(ValueError,match='budget'):runner.main(['--execute','--timeout',timeout])
+
+
 def test_five_case_unavailable_cannot_silently_keep_numeric_scores():
     from scripts.run_memoir_five_case_semantic_judge import validate_judge_result
     status,_=validate_judge_result(dict(status='unavailable',scores={'evidence_use':1},
