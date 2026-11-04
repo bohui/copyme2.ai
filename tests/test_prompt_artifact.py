@@ -9,7 +9,6 @@ from scripts.export_langfuse_prompt import sync_prompt
 from scripts.export_langfuse_prompts import export_prompts, selected_prompts
 from apps.api.prompt_composition import render_prompt_artifact
 from scripts.prompt_registry import ROOT, prompt_registry
-from scripts.evaluate_langfuse_prompt import dataset_input_text, dataset_version, experiment_task
 
 
 class PromptClient:
@@ -177,33 +176,6 @@ def test_export_rejects_ambiguous_short_names():
         selected_prompts('en-AU', registry)
     assert selected_prompts('memoir/skills/composer/prepare', registry) == {
         'memoir/skills/composer/prepare': 'skills/memoir-composer/prompts/prepare.md'}
-
-
-def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
-    calls = []
-    class Completions:
-        def create(self, **kwargs):
-            calls.append(kwargs)
-            return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Reply"))])
-    client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
-    prompt = SimpleNamespace(prompt="Pinned instructions", name="memoir/agents/mira/reply", version=7)
-    task = experiment_task(prompt, "model-a", client)
-
-    assert task(item=SimpleNamespace(input={"text": "A memory"})) == "Reply"
-    assert calls == [{"model": "model-a", "name": "evaluation/memoir-prompts.generate",
-        "extra_body": {"metadata": {"generation_name": "evaluation/memoir-prompts.generate",
-            "trace_name": "evaluation/memoir-prompts"}}, "messages": [
-        {"role": "system", "content": "Pinned instructions"},
-        {"role": "user", "content": "A memory"}], "langfuse_prompt": prompt}]
-    assert dataset_input_text({"question": "A memory"}) == '{"question": "A memory"}'
-    with pytest.raises(ValueError, match="text or structured JSON"):
-        task(item=SimpleNamespace(input=None))
-    with pytest.raises(ValueError, match="timezone-aware"):
-        dataset_version("2026-10-18T12:00:00")
-    assert dataset_version("2026-10-18T12:00:00Z").utcoffset().total_seconds() == 0
-    experiment_task(SimpleNamespace(prompt="Pinned instructions\n"), "model-a", client)(
-        item=SimpleNamespace(input={"text": "A memory"}))
-    assert calls[-1]["messages"][0]["content"] == "Pinned instructions\n"
 
 
 def test_retired_workflows_cannot_be_exported_again():

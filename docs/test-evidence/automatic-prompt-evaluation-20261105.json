@@ -1,0 +1,1761 @@
+{
+  "schema_version": "memoir-automatic-prompt-evaluation/1",
+  "verified_at_utc": "2026-11-04T21:59:09.800567+00:00",
+  "label_date": "2026-11-05 Australia/Sydney",
+  "project_id": "cmut9t75w00071z02n8bdv7it",
+  "scope": "Automatic dataset and SDK/code grader selection; requested prompt pins require observed execution. Same-model LLM judgments remain advisory.",
+  "tests": {
+    "passed": 184,
+    "skipped": 4,
+    "skip_reason": "Linux /proc identity tests unavailable on macOS",
+    "followup_passed": 57
+  },
+  "runs": [
+    {
+      "source_receipt": "var/prompt-evaluation/automatic-public-command/20261104T215548Z-3a7d34/receipt.json",
+      "source_receipt_sha256": "d20189aef88f072e2a0097cd203aa936accad830189704b3cde08ba11ff5f620",
+      "source_revision": "60a8a7c8a7d85e986a16ccf749e10ec3c7b632a1",
+      "evaluator_sha256": "306d3511c1e9720612b8428a5375e68cd0a0a2432e12956506ddd209f678bcdb",
+      "status": "complete_with_findings",
+      "cases": 1,
+      "case_counts": {
+        "pass": 1,
+        "fail": 0,
+        "unavailable": 0
+      },
+      "direct_model_calls": 2,
+      "advisory_calls": 1,
+      "experiments": [
+        {
+          "dataset": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
+          "experiment_id": "a5c92f1459ff1dba",
+          "experiment_url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw2nofur0c801z02v7da7fyj/runs/a5c92f1459ff1dba",
+          "expected_items": 1,
+          "readback": {
+            "status": "verified",
+            "items": 1,
+            "verified_inputs_outputs_scores": 1,
+            "expected_items": 1
+          }
+        }
+      ],
+      "requested_prompts": [
+        {
+          "name": "memoir/agents/mira/reply",
+          "schema_version": 1,
+          "sha256": "b4270c4c59303c8a7c101afb43c4661cf3ba1367047bd8040fc76378ddb54dfb",
+          "type": "text",
+          "version": 7
+        }
+      ],
+      "prompt_coverage": [
+        {
+          "case_id": "memoir/agents/mira/reply",
+          "status": "pass",
+          "current_pin_observed": true,
+          "evidence": [
+            {
+              "case_id": "lane-a/memoir-interviewer/grounded-question/en-AU",
+              "status": "pass",
+              "scope": "live_reply_proposal",
+              "trace_id": "fab4078c6b73944764895e9a40dcf171",
+              "run_id": "20261104T215548Z-3a7d34"
+            }
+          ],
+          "reason": null,
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/agents/mira/reply",
+            "schema_version": 1,
+            "sha256": "b4270c4c59303c8a7c101afb43c4661cf3ba1367047bd8040fc76378ddb54dfb",
+            "type": "text",
+            "version": 7
+          }
+        }
+      ],
+      "replay": null,
+      "canonical_delivery": false,
+      "human_reviewed": false
+    },
+    {
+      "source_receipt": "var/prompt-evaluation/automatic-skill-regrade/20261104T215649Z-1fdf5c/receipt.json",
+      "source_receipt_sha256": "e850730d633141706f18d38d8d55d673f5cb8494256baea3719857b303d24190",
+      "source_revision": "60a8a7c8a7d85e986a16ccf749e10ec3c7b632a1",
+      "evaluator_sha256": "306d3511c1e9720612b8428a5375e68cd0a0a2432e12956506ddd209f678bcdb",
+      "status": "complete_with_findings",
+      "cases": 32,
+      "case_counts": {
+        "pass": 28,
+        "fail": 4,
+        "unavailable": 0
+      },
+      "direct_model_calls": 0,
+      "advisory_calls": 0,
+      "experiments": [
+        {
+          "dataset": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+          "experiment_id": "26df0e92878ab45f",
+          "experiment_url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw1xdh4100x61z02j759k06p/runs/26df0e92878ab45f",
+          "expected_items": 16,
+          "readback": {
+            "status": "verified",
+            "items": 16,
+            "verified_inputs_outputs_scores": 16,
+            "expected_items": 16
+          }
+        },
+        {
+          "dataset": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+          "experiment_id": "bc4c0eced039d7a8",
+          "experiment_url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw1xdj8r00za1z02ebar0x6p/runs/bc4c0eced039d7a8",
+          "expected_items": 16,
+          "readback": {
+            "status": "verified",
+            "items": 16,
+            "verified_inputs_outputs_scores": 16,
+            "expected_items": 16
+          }
+        }
+      ],
+      "requested_prompts": [
+        {
+          "name": "memoir/skills/author-timeline/continuity",
+          "schema_version": 1,
+          "sha256": "e4daebd5db07d3bf93d5561c1c7d7c5528157a3c5cb1213742614592345dcbd1",
+          "type": "text",
+          "version": 1
+        },
+        {
+          "name": "memoir/skills/author-timeline/attribution",
+          "schema_version": 1,
+          "sha256": "46b3ebee11562ffbe236890c2cc21ce308420ecdaf30a1290358f6a408c59d50",
+          "type": "text",
+          "version": 3
+        },
+        {
+          "name": "memoir/skills/author-timeline/contract",
+          "schema_version": 1,
+          "sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
+          "type": "text",
+          "version": 1
+        },
+        {
+          "name": "memoir/skills/author-timeline/derived-hints",
+          "schema_version": 1,
+          "sha256": "03c8f2aa49dd0433a3c15b733e802ff05f22edc9e4054c4f75b52b9b8c657eb9",
+          "type": "text",
+          "version": 5
+        },
+        {
+          "name": "memoir/skills/author-timeline/extract",
+          "schema_version": 1,
+          "sha256": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
+          "type": "text",
+          "version": 3
+        },
+        {
+          "name": "memoir/skills/author-timeline/extract-with-hints",
+          "schema_version": 1,
+          "sha256": "c4b2d944fa386f1b2fdee6148d16cbc31c2570a02d142d2b882cf48cbcdded60",
+          "type": "text",
+          "version": 3
+        },
+        {
+          "name": "memoir/skills/author-timeline/instructions",
+          "schema_version": 1,
+          "sha256": "45f3f4a70e5f01c8b1e850ef9682fd1f95aab0b3440f75f456ee6cb633250287",
+          "type": "text",
+          "version": 15
+        },
+        {
+          "name": "memoir/skills/author-timeline/shared/grounding",
+          "schema_version": 1,
+          "sha256": "540118842077b9f1bb3fffa4c97f9211c881841cf2de1be62ed89a1371fd48e3",
+          "type": "text",
+          "version": 2
+        },
+        {
+          "name": "memoir/skills/author-timeline/window",
+          "schema_version": 1,
+          "sha256": "ee95f381fcad58de15535bf81640f61f6ba10e98fcd695d5ccb6947e554e83b3",
+          "type": "text",
+          "version": 2
+        }
+      ],
+      "prompt_coverage": [
+        {
+          "case_id": "memoir/skills/author-timeline/continuity",
+          "status": "unavailable",
+          "current_pin_observed": false,
+          "evidence": [],
+          "reason": "No executed supported scenario supplied this current prompt pin; model-quality coverage remains missing.",
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/skills/author-timeline/continuity",
+            "schema_version": 1,
+            "sha256": "e4daebd5db07d3bf93d5561c1c7d7c5528157a3c5cb1213742614592345dcbd1",
+            "type": "text",
+            "version": 1
+          }
+        },
+        {
+          "case_id": "memoir/skills/author-timeline/attribution",
+          "status": "unavailable",
+          "current_pin_observed": false,
+          "evidence": [],
+          "reason": "No executed supported scenario supplied this current prompt pin; model-quality coverage remains missing.",
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/skills/author-timeline/attribution",
+            "schema_version": 1,
+            "sha256": "46b3ebee11562ffbe236890c2cc21ce308420ecdaf30a1290358f6a408c59d50",
+            "type": "text",
+            "version": 3
+          }
+        },
+        {
+          "case_id": "memoir/skills/author-timeline/contract",
+          "status": "fail",
+          "current_pin_observed": true,
+          "evidence": [
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8aaf122cdf9a3875cb97d78d5e5fabd5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac870adda74d3b474c8c6eaec8debd97",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "dcd3fb631190f26098ac2b2b1a4daeeb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac5fb35ed72af067f8cf04df03da8da2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f927589b33c3bf7268d4157144d5e1da",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c5a3e575bce685c2fedece28302e8847",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "252917ea5c2ed1e218ac4e0eb5a4e2ea",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "354d3a609ff548aa6962e8c61656b782",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "14bab24e603fa1d5d975e024d963c0e2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "894f393e81a14dc9602e139308d60d94",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f1962262c7fcd8221dcbd7d94ea15ef7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8c38c3a25309e1ab7f71568493d435bc",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "960a3033e92d7ed9fedbd54457a54adb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "1ad1248385b24db113c3fda371c91f7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "d2fdf4ad70d04b86bae6f8e6a9020b2a",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b240a9a3bcbec635cfd0ecaca5ee95b5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e8a03d7e994de2ab431cbe713ccafa11",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b183ef9695d9c4c7b43582ef60e5cea7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "6c3607440386ed10c052195d39264b06",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c43b1b29999b1146d042c1422720cdbf",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3485eddbf8c3f0b95df9145780498430",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "be59feea9f661d8cf7ea0b82af507bee",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "44b0d7f07756d5bd704017b4b41b9e7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fb75439ddc0610d514b13daf2c0181b9",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "98f5338421266167747c0834b7e01144",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e428f5e8c02e3f90002eea68a06530b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "90778dfbe37a9c3667a637c071aaacd8",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b008290de9130ccc4e6c2aa58b315da6",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3450cfa486e9610d4301b059fc7e80fa",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "924c4b6de6d061bbca012854ed369d48",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fe22958b671843ebe8ee3bf7eb7972b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "120eb53ae2d7d0afde1fce33731b6946",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            }
+          ],
+          "reason": "An observed scenario failed or did not complete; see its case evidence.",
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/skills/author-timeline/contract",
+            "schema_version": 1,
+            "sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
+            "type": "text",
+            "version": 1
+          }
+        },
+        {
+          "case_id": "memoir/skills/author-timeline/derived-hints",
+          "status": "pass",
+          "current_pin_observed": true,
+          "evidence": [
+            {
+              "case_id": "skills/memoir-place-journey/non-story/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e8a03d7e994de2ab431cbe713ccafa11",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b183ef9695d9c4c7b43582ef60e5cea7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "6c3607440386ed10c052195d39264b06",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c43b1b29999b1146d042c1422720cdbf",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3485eddbf8c3f0b95df9145780498430",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "be59feea9f661d8cf7ea0b82af507bee",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "44b0d7f07756d5bd704017b4b41b9e7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fb75439ddc0610d514b13daf2c0181b9",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "98f5338421266167747c0834b7e01144",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e428f5e8c02e3f90002eea68a06530b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "90778dfbe37a9c3667a637c071aaacd8",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b008290de9130ccc4e6c2aa58b315da6",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3450cfa486e9610d4301b059fc7e80fa",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "924c4b6de6d061bbca012854ed369d48",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fe22958b671843ebe8ee3bf7eb7972b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "120eb53ae2d7d0afde1fce33731b6946",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            }
+          ],
+          "reason": null,
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/skills/author-timeline/derived-hints",
+            "schema_version": 1,
+            "sha256": "03c8f2aa49dd0433a3c15b733e802ff05f22edc9e4054c4f75b52b9b8c657eb9",
+            "type": "text",
+            "version": 5
+          }
+        },
+        {
+          "case_id": "memoir/skills/author-timeline/extract",
+          "status": "fail",
+          "current_pin_observed": true,
+          "evidence": [
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8aaf122cdf9a3875cb97d78d5e5fabd5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac870adda74d3b474c8c6eaec8debd97",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "dcd3fb631190f26098ac2b2b1a4daeeb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac5fb35ed72af067f8cf04df03da8da2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f927589b33c3bf7268d4157144d5e1da",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c5a3e575bce685c2fedece28302e8847",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "252917ea5c2ed1e218ac4e0eb5a4e2ea",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "354d3a609ff548aa6962e8c61656b782",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "14bab24e603fa1d5d975e024d963c0e2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "894f393e81a14dc9602e139308d60d94",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f1962262c7fcd8221dcbd7d94ea15ef7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8c38c3a25309e1ab7f71568493d435bc",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "960a3033e92d7ed9fedbd54457a54adb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "1ad1248385b24db113c3fda371c91f7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "d2fdf4ad70d04b86bae6f8e6a9020b2a",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b240a9a3bcbec635cfd0ecaca5ee95b5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            }
+          ],
+          "reason": "An observed scenario failed or did not complete; see its case evidence.",
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/skills/author-timeline/extract",
+            "schema_version": 1,
+            "sha256": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
+            "type": "text",
+            "version": 3
+          }
+        },
+        {
+          "case_id": "memoir/skills/author-timeline/extract-with-hints",
+          "status": "pass",
+          "current_pin_observed": true,
+          "evidence": [
+            {
+              "case_id": "skills/memoir-place-journey/non-story/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e8a03d7e994de2ab431cbe713ccafa11",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b183ef9695d9c4c7b43582ef60e5cea7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "6c3607440386ed10c052195d39264b06",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c43b1b29999b1146d042c1422720cdbf",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3485eddbf8c3f0b95df9145780498430",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "be59feea9f661d8cf7ea0b82af507bee",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "44b0d7f07756d5bd704017b4b41b9e7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fb75439ddc0610d514b13daf2c0181b9",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "98f5338421266167747c0834b7e01144",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e428f5e8c02e3f90002eea68a06530b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "90778dfbe37a9c3667a637c071aaacd8",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b008290de9130ccc4e6c2aa58b315da6",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3450cfa486e9610d4301b059fc7e80fa",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "924c4b6de6d061bbca012854ed369d48",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fe22958b671843ebe8ee3bf7eb7972b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "120eb53ae2d7d0afde1fce33731b6946",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            }
+          ],
+          "reason": null,
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/skills/author-timeline/extract-with-hints",
+            "schema_version": 1,
+            "sha256": "c4b2d944fa386f1b2fdee6148d16cbc31c2570a02d142d2b882cf48cbcdded60",
+            "type": "text",
+            "version": 3
+          }
+        },
+        {
+          "case_id": "memoir/skills/author-timeline/instructions",
+          "status": "fail",
+          "current_pin_observed": true,
+          "evidence": [
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8aaf122cdf9a3875cb97d78d5e5fabd5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac870adda74d3b474c8c6eaec8debd97",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "dcd3fb631190f26098ac2b2b1a4daeeb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac5fb35ed72af067f8cf04df03da8da2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f927589b33c3bf7268d4157144d5e1da",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c5a3e575bce685c2fedece28302e8847",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "252917ea5c2ed1e218ac4e0eb5a4e2ea",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "354d3a609ff548aa6962e8c61656b782",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "14bab24e603fa1d5d975e024d963c0e2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "894f393e81a14dc9602e139308d60d94",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f1962262c7fcd8221dcbd7d94ea15ef7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8c38c3a25309e1ab7f71568493d435bc",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "960a3033e92d7ed9fedbd54457a54adb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "1ad1248385b24db113c3fda371c91f7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "d2fdf4ad70d04b86bae6f8e6a9020b2a",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b240a9a3bcbec635cfd0ecaca5ee95b5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e8a03d7e994de2ab431cbe713ccafa11",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b183ef9695d9c4c7b43582ef60e5cea7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "6c3607440386ed10c052195d39264b06",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c43b1b29999b1146d042c1422720cdbf",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3485eddbf8c3f0b95df9145780498430",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "be59feea9f661d8cf7ea0b82af507bee",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "44b0d7f07756d5bd704017b4b41b9e7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fb75439ddc0610d514b13daf2c0181b9",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "98f5338421266167747c0834b7e01144",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e428f5e8c02e3f90002eea68a06530b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "90778dfbe37a9c3667a637c071aaacd8",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b008290de9130ccc4e6c2aa58b315da6",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3450cfa486e9610d4301b059fc7e80fa",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "924c4b6de6d061bbca012854ed369d48",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fe22958b671843ebe8ee3bf7eb7972b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "120eb53ae2d7d0afde1fce33731b6946",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            }
+          ],
+          "reason": "An observed scenario failed or did not complete; see its case evidence.",
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/skills/author-timeline/instructions",
+            "schema_version": 1,
+            "sha256": "45f3f4a70e5f01c8b1e850ef9682fd1f95aab0b3440f75f456ee6cb633250287",
+            "type": "text",
+            "version": 15
+          }
+        },
+        {
+          "case_id": "memoir/skills/author-timeline/shared/grounding",
+          "status": "fail",
+          "current_pin_observed": true,
+          "evidence": [
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8aaf122cdf9a3875cb97d78d5e5fabd5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac870adda74d3b474c8c6eaec8debd97",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "dcd3fb631190f26098ac2b2b1a4daeeb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac5fb35ed72af067f8cf04df03da8da2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f927589b33c3bf7268d4157144d5e1da",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c5a3e575bce685c2fedece28302e8847",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "252917ea5c2ed1e218ac4e0eb5a4e2ea",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "354d3a609ff548aa6962e8c61656b782",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "14bab24e603fa1d5d975e024d963c0e2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "894f393e81a14dc9602e139308d60d94",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f1962262c7fcd8221dcbd7d94ea15ef7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8c38c3a25309e1ab7f71568493d435bc",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "960a3033e92d7ed9fedbd54457a54adb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "1ad1248385b24db113c3fda371c91f7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "d2fdf4ad70d04b86bae6f8e6a9020b2a",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b240a9a3bcbec635cfd0ecaca5ee95b5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e8a03d7e994de2ab431cbe713ccafa11",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b183ef9695d9c4c7b43582ef60e5cea7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "6c3607440386ed10c052195d39264b06",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c43b1b29999b1146d042c1422720cdbf",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3485eddbf8c3f0b95df9145780498430",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "be59feea9f661d8cf7ea0b82af507bee",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "44b0d7f07756d5bd704017b4b41b9e7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fb75439ddc0610d514b13daf2c0181b9",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "98f5338421266167747c0834b7e01144",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e428f5e8c02e3f90002eea68a06530b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "90778dfbe37a9c3667a637c071aaacd8",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b008290de9130ccc4e6c2aa58b315da6",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3450cfa486e9610d4301b059fc7e80fa",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "924c4b6de6d061bbca012854ed369d48",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fe22958b671843ebe8ee3bf7eb7972b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "120eb53ae2d7d0afde1fce33731b6946",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            }
+          ],
+          "reason": "An observed scenario failed or did not complete; see its case evidence.",
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/skills/author-timeline/shared/grounding",
+            "schema_version": 1,
+            "sha256": "540118842077b9f1bb3fffa4c97f9211c881841cf2de1be62ed89a1371fd48e3",
+            "type": "text",
+            "version": 2
+          }
+        },
+        {
+          "case_id": "memoir/skills/author-timeline/window",
+          "status": "fail",
+          "current_pin_observed": true,
+          "evidence": [
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8aaf122cdf9a3875cb97d78d5e5fabd5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/unicode-quote/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac870adda74d3b474c8c6eaec8debd97",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "dcd3fb631190f26098ac2b2b1a4daeeb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/conversation-control/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "ac5fb35ed72af067f8cf04df03da8da2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f927589b33c3bf7268d4157144d5e1da",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/withdrawn-source/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c5a3e575bce685c2fedece28302e8847",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "252917ea5c2ed1e218ac4e0eb5a4e2ea",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/other-person/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "354d3a609ff548aa6962e8c61656b782",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/zh-CN",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "14bab24e603fa1d5d975e024d963c0e2",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/ambiguous-identity/en-AU",
+              "status": "fail",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "894f393e81a14dc9602e139308d60d94",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "f1962262c7fcd8221dcbd7d94ea15ef7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/explicit-correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "8c38c3a25309e1ab7f71568493d435bc",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "960a3033e92d7ed9fedbd54457a54adb",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/uncertain-year/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "1ad1248385b24db113c3fda371c91f7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "d2fdf4ad70d04b86bae6f8e6a9020b2a",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-author-timeline/exact-testimony/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b240a9a3bcbec635cfd0ecaca5ee95b5",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e8a03d7e994de2ab431cbe713ccafa11",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/non-story/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b183ef9695d9c4c7b43582ef60e5cea7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "6c3607440386ed10c052195d39264b06",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/suburb/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "c43b1b29999b1146d042c1422720cdbf",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3485eddbf8c3f0b95df9145780498430",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/homonym/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "be59feea9f661d8cf7ea0b82af507bee",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "44b0d7f07756d5bd704017b4b41b9e7c",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/current-evidence/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fb75439ddc0610d514b13daf2c0181b9",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "98f5338421266167747c0834b7e01144",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/unnamed-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "e428f5e8c02e3f90002eea68a06530b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "90778dfbe37a9c3667a637c071aaacd8",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/correction/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "b008290de9130ccc4e6c2aa58b315da6",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "3450cfa486e9610d4301b059fc7e80fa",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/ambiguous-place/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "924c4b6de6d061bbca012854ed369d48",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/zh-CN",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "fe22958b671843ebe8ee3bf7eb7972b7",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            },
+            {
+              "case_id": "skills/memoir-place-journey/two-cities/en-AU",
+              "status": "pass",
+              "scope": "retained_live_output_regraded",
+              "trace_id": "120eb53ae2d7d0afde1fce33731b6946",
+              "run_id": "20261104T215649Z-1fdf5c",
+              "retained_provider_response": true
+            }
+          ],
+          "reason": "An observed scenario failed or did not complete; see its case evidence.",
+          "human_reviewed": false,
+          "canonical_delivery": false,
+          "pin": {
+            "name": "memoir/skills/author-timeline/window",
+            "schema_version": 1,
+            "sha256": "ee95f381fcad58de15535bf81640f61f6ba10e98fcd695d5ccb6947e554e83b3",
+            "type": "text",
+            "version": 2
+          }
+        }
+      ],
+      "replay": {
+        "source_run_id": "20261104T093921Z-9143ae",
+        "source_evaluator_sha256": "e8faf4997bba59af013d9d8ddbcdd88b241259804abc65e612a23a6be839cca8",
+        "source_receipt_sha256": "99827e09db7df032fcb06d360f81a59db712fc209418615ad7517b2e4783398f"
+      },
+      "canonical_delivery": false,
+      "human_reviewed": false
+    }
+  ],
+  "prompt_check": {
+    "managed_pins": 96,
+    "verified_dataset_identities": 112,
+    "passed": true
+  }
+}

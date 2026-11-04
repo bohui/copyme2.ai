@@ -33,16 +33,16 @@ remain historical; the combined agent evaluator uses content-pinned datasets.
 
 ```sh
 # No credentials, model calls, dataset writes or deployment.
-make memoir-agent-eval-plan
+make prompt-eval-plan PROMPT_EVAL_NAME=memoir/agents/mira/reply
 
 # Shared LLM judge regression checks, with scores in Langfuse.
 make llm_judge_calibrate
 
 # Existing local host gateway; publish an SDK experiment for each evaluation target.
-make memoir-agent-eval AGENT_EVAL_ARGS='--timeout 150'
-make memoir-agent-eval EVAL_AGENT=mira
-make memoir-agent-eval EVAL_AGENT=atlas
-make memoir-agent-eval EVAL_SKILL=memoir-author-timeline
+make prompt-eval PROMPT_EVAL_NAME=memoir/agents/mira/reply PROMPT_EVAL_ARGS='--timeout 150'
+make prompt-eval PROMPT_EVAL_NAME=memoir/agents/mira/reply
+make prompt-eval PROMPT_EVAL_NAME=memoir/agents/atlas/skill-selection
+make prompt-eval SKILL_EVAL_NAME=author-timeline
 
 # Complete supported catalog; exact current-pin calibration is required first.
 # Unsupported/unexecuted prompt branches remain visible in its Langfuse ledger.
@@ -63,8 +63,9 @@ python3 scripts/run_memoir_agent_evaluation.py --execute --publish \
   --component lane-a --replay-receipt var/agent-evaluation/<run>/receipt.json
 ```
 
-The default limits are 128 direct HTTP calls, 16 native runs, 32 dynamic tool
-calls per native run, 120 seconds per provider call and 30 minutes for the campaign.
+The automatic prompt command selects extended cases with limits of 400 direct
+HTTP calls, 16 native runs, 32 dynamic tool calls per native run, 150 seconds per
+provider call and two hours for the campaign.
 Composer has a separate 600-second workflow limit (`--workflow-timeout`, at most
 900), because a checkpoint can require several model calls. `--seconds` supports
 at most 7,200 seconds; deliberately increase it for an extended workflow run.

@@ -20,7 +20,11 @@ per prompt. After changing a grader or its consumer, run
 run the held-out split. Version changed gold and preserve prior results. These
 synthetic answer keys do not replace independent human labels. The
 [command guide](judge-calibration.md) explains `make prompt-eval-all` and selected
-agent/skill runs. Its coverage ledger must credit only actually executed current
+runs selected automatically by prompt name or skill owner. `make prompt-eval
+PROMPT_EVAL_NAME=memoir/agents/mira/reply` uses the production dataset/graders;
+`make prompt-eval SKILL_EVAL_NAME=author-timeline` combines the skill's cases and
+tracks every owned prompt independently. Missing current-pin execution must not
+inherit a passing parent-workflow grade. The full campaign coverage ledger must credit only actually executed current
 pins and keep unsupported branches unavailable.
 
 When adding or changing a prompt, including a shared component:

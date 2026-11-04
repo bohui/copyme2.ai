@@ -141,7 +141,7 @@ source metadata remain readable without restarting old generation.
 make prompt-export
 make prompt-export PROMPT_NAME=memoir/skills/composer/draft
 make prompt-check
-make prompt-eval
+make prompt-eval PROMPT_EVAL_NAME=memoir/agents/mira/reply
 ```
 
 Export selects the highest numeric version, then writes the source and receipt.
@@ -149,8 +149,9 @@ Check validates exact pinned versions and composed references. A unique short
 filename is accepted; ambiguous short names require the full Langfuse name.
 Commit and deploy exported artifacts to use a prompt change in the application.
 
-Dataset names remain under `memoir/evaluation/`. Preflight records the selected
-prompt, dataset snapshot, component pins and assembled digest. Explicit model
+The current `prompt-eval` command selects graded scenario datasets and evaluators
+from the managed prompt name. Use `prompt-eval-plan` to preview the selected
+prompt versions, datasets and graders without model calls. Historical model
 experiments use that assembled text. Application behavior and publication gates
 still require the bounded runtime checks.
 

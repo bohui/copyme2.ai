@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-04T21:26:52.611876+00:00",
+  "captured_at": "2026-11-04T21:59:17.300673+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -1068,6 +1068,47 @@
   ],
   "datasets": [
     {
+      "id": "cmw2nofur0c801z02v7da7fyj",
+      "name": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
+      "metadata": {
+        "suite": "memoir-skills/1",
+        "target": "memoir/agents/mira/reply",
+        "synthetic": true,
+        "content_sha256": "e894b2b5f4e13fd5239aaedcb5c9ebba6f6b73e72a1a64b89723ee09f30baeb6",
+        "contains_customer_data": false
+      },
+      "items": [
+        {
+          "id": "aab38e577c96450c28b98a3f9d79c9be",
+          "status": "ACTIVE",
+          "case_id": "lane-a/memoir-interviewer/grounded-question/en-AU",
+          "input_sha256": "e3de81c22dddc1dc67a141e9d0daca1c093a3725d19ef541e94e9bac6cc8f59d",
+          "expected_sha256": "36515e5c5e6b05d04089b1db64fa909aea89d7fab42f2ac8c095c02b2644a662",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        }
+      ],
+      "runs": [
+        {
+          "id": "a5c92f1459ff1dba",
+          "name": "20261104T215548Z-3a7d34-repeat1-campaign-534012cf63d7"
+        }
+      ],
+      "experiment_items": 1,
+      "scored_experiment_items": 1
+    },
+    {
       "id": "cmw2mgxk700071z02gnaeok6e",
       "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
       "metadata": {
@@ -1265,8 +1306,8 @@
           "name": "20261104T212158Z-659fbe"
         }
       ],
-      "experiment_items": 9,
-      "scored_experiment_items": 9
+      "experiment_items": 2,
+      "scored_experiment_items": 2
     },
     {
       "id": "cmw2mfnh400031z02m8ma6xhy",
@@ -1300,14 +1341,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "2cc1106657744d2f",
-          "name": "20261104T212058Z-7043ed-repeat1-campaign-93cfb9cb67ba"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1zjtg901421z021ktxc3wg",
@@ -1567,8 +1603,8 @@
           "name": "20261104T104020Z-15b472-repeat1-campaign-57fb0364bea0"
         }
       ],
-      "experiment_items": 9,
-      "scored_experiment_items": 9
+      "experiment_items": 1,
+      "scored_experiment_items": 1
     },
     {
       "id": "cmw1zbw9e013z1z02h8zhs4os",
@@ -3320,8 +3356,8 @@
           "name": "prompts-20261104T212227Z-d45fd3"
         }
       ],
-      "experiment_items": 192,
-      "scored_experiment_items": 191
+      "experiment_items": 19,
+      "scored_experiment_items": 19
     },
     {
       "id": "cmw1xdkp3010z1z02aj7o7fsu",
@@ -3352,14 +3388,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "98e928fb4b4c9e19",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-c7979e3b2ce3"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdknq010v1z02vg558r8m",
@@ -3390,14 +3421,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "44b18f4afaab830a",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-ebb28c084918"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdk6r010c1z025otonsvs",
@@ -3737,8 +3763,8 @@
           "name": "20261104T093921Z-9143ae-repeat1-campaign-c84200bd1d72"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 2,
+      "scored_experiment_items": 2
     },
     {
       "id": "cmw1xdjpy00zt1z029rbi0l7p",
@@ -4078,8 +4104,8 @@
           "name": "20261104T093921Z-9143ae-repeat1-campaign-30393d2d8676"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 2,
+      "scored_experiment_items": 2
     },
     {
       "id": "cmw1xdj8r00za1z02ebar0x6p",
@@ -4415,12 +4441,16 @@
       ],
       "runs": [
         {
+          "id": "bc4c0eced039d7a8",
+          "name": "20261104T215649Z-1fdf5c-repeat1-campaign-eac77f97ffe3"
+        },
+        {
           "id": "e89304f376748dd0",
           "name": "20261104T093921Z-9143ae-repeat1-campaign-eac77f97ffe3"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 19,
+      "scored_experiment_items": 19
     },
     {
       "id": "cmw1xdio600yr1z027vlqx7x8",
@@ -4760,8 +4790,8 @@
           "name": "20261104T093921Z-9143ae-repeat1-campaign-c9782a9df9b5"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 1,
+      "scored_experiment_items": 1
     },
     {
       "id": "cmw1xdi4j00y81z029fh1psap",
@@ -5095,14 +5125,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "87e8fb160edfa61c",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-8dbc6feacd76"
-        }
-      ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdhmc00xp1z02agkwl62w",
@@ -5442,8 +5467,8 @@
           "name": "20261104T093921Z-9143ae-repeat1-campaign-0c088257c478"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 1,
+      "scored_experiment_items": 1
     },
     {
       "id": "cmw1xdh4100x61z02j759k06p",
@@ -5779,12 +5804,16 @@
       ],
       "runs": [
         {
+          "id": "26df0e92878ab45f",
+          "name": "20261104T215649Z-1fdf5c-repeat1-campaign-47b4a4b14664"
+        },
+        {
           "id": "7902d039cd3e61fa",
           "name": "20261104T093921Z-9143ae-repeat1-campaign-47b4a4b14664"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 18,
+      "scored_experiment_items": 18
     },
     {
       "id": "cmw1xdco600v51z024evmmr1v",
@@ -7042,8 +7071,8 @@
           "name": "20261104T093921Z-9143ae-repeat1-campaign-b176fe2d7734"
         }
       ],
-      "experiment_items": 70,
-      "scored_experiment_items": 70
+      "experiment_items": 8,
+      "scored_experiment_items": 8
     },
     {
       "id": "cmw1wgk0x00sp1z02dpgfqqcf",
@@ -8558,18 +8587,6 @@
       ],
       "runs": [
         {
-          "id": "64853c78a59aca8a",
-          "name": "trajectory-bounded-recheck-20261104T093700Z-879efcb0"
-        },
-        {
-          "id": "644d6cdec4826a71",
-          "name": "timeline-v2-regression-20261104T093429Z-6e22f9fc"
-        },
-        {
-          "id": "2502e60a3c1ee608",
-          "name": "holdout-timeout-recheck-20261104T093249Z-e5468982"
-        },
-        {
           "id": "38ea9ee465fcfac6",
           "name": "shared-v2-holdout-20261104T092641Z-eaf584ff"
         },
@@ -8582,8 +8599,8 @@
           "name": "shared-v2-development-20261104T091718Z-5627bd2b"
         }
       ],
-      "experiment_items": 96,
-      "scored_experiment_items": 96
+      "experiment_items": 11,
+      "scored_experiment_items": 11
     },
     {
       "id": "cmw1rhucb00xy1z02p63v342y",
@@ -8599,22 +8616,10 @@
         {
           "id": "21f6bdc183aefbad",
           "name": "baseline-development-20261104T071048Z-fbb8d84b"
-        },
-        {
-          "id": "6eef025122d4eaad",
-          "name": "baseline-development-20261104T071048Z-fbb8d84b"
-        },
-        {
-          "id": "663d348d4c410755",
-          "name": "pilot-verified-20261104T070037Z-57b01e7e"
-        },
-        {
-          "id": "4843564a6a4a5bf8",
-          "name": "pilot-20261104T065449Z-2ccf0474"
         }
       ],
-      "experiment_items": 42,
-      "scored_experiment_items": 42
+      "experiment_items": 2,
+      "scored_experiment_items": 2
     },
     {
       "id": "cmw1guimf00il1z02oaetu8au",
@@ -11554,13 +11559,8 @@
           "expected_keys": []
         }
       ],
-      "runs": [
-        {
-          "id": "c2ba9bc93703ce7e",
-          "name": "quality-judge-sdk-wiring-20261104"
-        }
-      ],
-      "experiment_items": 4,
+      "runs": [],
+      "experiment_items": 0,
       "scored_experiment_items": 0
     },
     {
@@ -11594,14 +11594,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "39c4d4266737d7dd",
-          "name": "20261103T131526Z-fb9689-repeat1-skills"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw0nlzza004e1z02c3pi0kkw",
@@ -11631,22 +11626,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "1817d633e521f94e",
-          "name": "20261103T121820Z-0de243-repeat3-lane-a"
-        },
-        {
-          "id": "fecbbb93738bdfe2",
-          "name": "20261103T121820Z-0de243-repeat2-lane-a"
-        },
-        {
-          "id": "9e8d05ed25f6ed17",
-          "name": "20261103T121820Z-0de243-repeat1-lane-a"
-        }
-      ],
-      "experiment_items": 3,
-      "scored_experiment_items": 3
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw0nje4n003j1z029k7hbywi",
@@ -12177,8 +12159,8 @@
           "name": "20261103T121620Z-87791d-repeat1-lane-a"
         }
       ],
-      "experiment_items": 28,
-      "scored_experiment_items": 28
+      "experiment_items": 5,
+      "scored_experiment_items": 5
     },
     {
       "id": "cmw0mxw4s00261z02ypyn2buw",
@@ -13111,8 +13093,8 @@
           "name": "20261103T115931Z-b74da5-repeat1-skills"
         }
       ],
-      "experiment_items": 46,
-      "scored_experiment_items": 46
+      "experiment_items": 3,
+      "scored_experiment_items": 3
     },
     {
       "id": "cmw0mxvhl001p1z02md3xby14",
@@ -13387,8 +13369,8 @@
           "name": "20261103T115931Z-b74da5-repeat1-lane-b"
         }
       ],
-      "experiment_items": 28,
-      "scored_experiment_items": 28
+      "experiment_items": 4,
+      "scored_experiment_items": 4
     },
     {
       "id": "cmw0mxskv000u1z02wrqo62mt",
@@ -13919,8 +13901,8 @@
           "name": "20261103T115931Z-b74da5-repeat1-lane-a"
         }
       ],
-      "experiment_items": 28,
-      "scored_experiment_items": 28
+      "experiment_items": 1,
+      "scored_experiment_items": 1
     },
     {
       "id": "cmw0mvvrr000q1z02a220a52m",
@@ -13953,14 +13935,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "7898d55902678d43",
-          "name": "20261103T115802Z-6d87dc-repeat1-skills"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw0mspgg000m1z0211ur7wsg",
@@ -14026,22 +14003,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "438fe440780fea3c",
-          "name": "20261103T121820Z-0de243-repeat3-lane-b"
-        },
-        {
-          "id": "c82e5aed676656c3",
-          "name": "20261103T121820Z-0de243-repeat2-lane-b"
-        },
-        {
-          "id": "95c1c6ef58e8c094",
-          "name": "20261103T121820Z-0de243-repeat1-lane-b"
-        }
-      ],
-      "experiment_items": 3,
-      "scored_experiment_items": 3
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw0mslsy000e1z02swle8m8n",
@@ -14074,14 +14038,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "70ea74145ee31bd1",
-          "name": "20261103T115529Z-7ce59d-repeat1-lane-a"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvfsjodl009w1z02pt8x0c17",
@@ -14462,10 +14421,6 @@
       ],
       "runs": [
         {
-          "id": "5cc53c64971e206b",
-          "name": "interviewer-frequency-regression-20261019T225729Z"
-        },
-        {
           "id": "6d305141efbf8225",
           "name": "interviewer-reviewed-candidate-20261019T224835Z"
         },
@@ -14474,8 +14429,8 @@
           "name": "interviewer-reviewed-candidate-20261019T222842Z"
         }
       ],
-      "experiment_items": 33,
-      "scored_experiment_items": 33
+      "experiment_items": 4,
+      "scored_experiment_items": 4
     },
     {
       "id": "cmvf63f1v00971z0214q8rr07",
@@ -14852,8 +14807,8 @@
           "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 20,
-      "scored_experiment_items": 20
+      "experiment_items": 5,
+      "scored_experiment_items": 5
     },
     {
       "id": "cmvf63exl00921z024ddyz6sa",
@@ -14894,14 +14849,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "22c144de60da0148",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 2,
-      "scored_experiment_items": 2
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf63dud008j1z028ssmdzxr",
@@ -15286,8 +15236,8 @@
           "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 1,
+      "scored_experiment_items": 1
     },
     {
       "id": "cmvf63crr00801z026ga66lt9",
@@ -15676,8 +15626,8 @@
           "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 32,
-      "scored_experiment_items": 32
+      "experiment_items": 3,
+      "scored_experiment_items": 3
     },
     {
       "id": "cmvf63buk007h1z02aw7y2u4g",
@@ -16062,8 +16012,8 @@
           "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 3,
+      "scored_experiment_items": 3
     },
     {
       "id": "cmvf63b2m006y1z02j4hcpwry",
@@ -16456,8 +16406,8 @@
           "name": "all-skills-20261019-112750"
         }
       ],
-      "experiment_items": 18,
-      "scored_experiment_items": 18
+      "experiment_items": 3,
+      "scored_experiment_items": 3
     },
     {
       "id": "cmvf63a7d006f1z0216n7260x",
@@ -16842,8 +16792,8 @@
           "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 1,
+      "scored_experiment_items": 1
     },
     {
       "id": "cmvf6398g005w1z029w2mw61u",
@@ -17224,24 +17174,12 @@
       ],
       "runs": [
         {
-          "id": "e80087bad27ac916",
-          "name": "interviewer-reviewed-candidate-20261019T224835Z"
-        },
-        {
           "id": "75ba1835513e76b6",
           "name": "interviewer-reviewed-candidate-20261019T222842Z"
-        },
-        {
-          "id": "a46b75ac67c1b395",
-          "name": "interviewer-synthetic-candidate-20261019T215227Z"
-        },
-        {
-          "id": "891fc71a0274b439",
-          "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 64,
-      "scored_experiment_items": 64
+      "experiment_items": 1,
+      "scored_experiment_items": 1
     },
     {
       "id": "cmvf637t5005d1z02tpayqkcw",
@@ -17626,8 +17564,8 @@
           "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 1,
+      "scored_experiment_items": 1
     },
     {
       "id": "cmvf6340e004u1z02vmpkasz7",
@@ -18012,8 +17950,8 @@
           "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 4,
+      "scored_experiment_items": 4
     },
     {
       "id": "cmvf62u0w004b1z02yp9bzm84",
@@ -18398,8 +18336,8 @@
           "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 3,
+      "scored_experiment_items": 3
     },
     {
       "id": "cmvf62s10003s1z021ip1f0jw",
@@ -18784,8 +18722,8 @@
           "name": "all-skills-20261019-113129"
         }
       ],
-      "experiment_items": 16,
-      "scored_experiment_items": 16
+      "experiment_items": 2,
+      "scored_experiment_items": 2
     },
     {
       "id": "cmvdea22b00221z02a0nv1v93",
@@ -18962,16 +18900,12 @@
       ],
       "runs": [
         {
-          "id": "f64778dd2ade1edc",
-          "name": "skills-20261018T070626Z-triggers"
-        },
-        {
           "id": "1435168b1e0d6f2e",
           "name": "skills-20261018T053827Z-triggers"
         }
       ],
-      "experiment_items": 18,
-      "scored_experiment_items": 18
+      "experiment_items": 2,
+      "scored_experiment_items": 2
     },
     {
       "id": "cmvde28s7001g1z024qbscebn",
@@ -19392,18 +19326,6 @@
       ],
       "runs": [
         {
-          "id": "a59294cef64248fd",
-          "name": "skills-20261018T060706Z-deliveries"
-        },
-        {
-          "id": "00c4d72e3e789cf9",
-          "name": "skills-20261018T060037Z-deliveries"
-        },
-        {
-          "id": "3b3cc834ee8d7d53",
-          "name": "skills-20261018T054305Z-deliveries"
-        },
-        {
           "id": "b9e18a87d6e5e81c",
           "name": "skills-20261018T053749Z-deliveries"
         },
@@ -19412,8 +19334,8 @@
           "name": "skills-20261018T053225Z-deliveries"
         }
       ],
-      "experiment_items": 9,
-      "scored_experiment_items": 9
+      "experiment_items": 2,
+      "scored_experiment_items": 2
     },
     {
       "id": "cmvdcb2g2000f1z02wqx8n34y",
@@ -19842,8 +19764,8 @@
           "name": "skills-20261018T044320Z-deliveries"
         }
       ],
-      "experiment_items": 22,
-      "scored_experiment_items": 22
+      "experiment_items": 5,
+      "scored_experiment_items": 5
     },
     {
       "id": "cmvdcb1h100031z020eze1xt8",
@@ -20022,14 +19944,10 @@
         {
           "id": "d1a42b11b55b7808",
           "name": "skills-20261018T044657Z-triggers"
-        },
-        {
-          "id": "20e6b8bc73955097",
-          "name": "skills-20261018T044320Z-triggers"
         }
       ],
-      "experiment_items": 18,
-      "scored_experiment_items": 18
+      "experiment_items": 1,
+      "scored_experiment_items": 1
     },
     {
       "id": "cmvcxwjt2002k1z02u2zdv6qn",

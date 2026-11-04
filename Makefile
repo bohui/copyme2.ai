@@ -44,12 +44,8 @@ ENV_FILE ?= .env
 include-langfuse ?= true
 PROMPT_CREDENTIAL_FILE ?= $(HOME)/llm_provider/.env
 PROMPT_NAME ?=
-PROMPT_EVAL_NAME ?= memoir/skills/author-timeline/extract
-PROMPT_EVAL_DATASET ?= memoir/skills/author-timeline/extract/golden/event-grounding
-PROMPT_EVAL_VERSION ?=
-PROMPT_EVAL_MODEL ?=
-PROMPT_EVAL_PROVIDER_FILE ?= $(HOME)/llm_provider/.env
-PROMPT_EVAL_RUN ?= 0
+PROMPT_EVAL_NAME ?=
+SKILL_EVAL_NAME ?=
 LIVE_SKILL ?=
 LIVE_SKILL_CASE ?=
 LIVE_SKILL_EFFORT ?= max
@@ -64,10 +60,7 @@ SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))
 .PHONY: _db-reset _db-truncate _install_skill _validate-skills _memoir-live-fifty-backend _container-up _container-down
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
 
-AGENT_EVAL_ARGS ?=
 EVAL_GATEWAY_URL ?= http://127.0.0.1:4000/v1
-EVAL_SKILL ?=
-EVAL_AGENT ?=
 JUDGE_SPLIT ?= all
 JUDGE_EVAL_ARGS ?=
 PROMPT_EVAL_ARGS ?=
@@ -87,14 +80,6 @@ prompt-eval-all: ## Evaluate all supported agent/skill scenarios after calibrati
 	@python3 scripts/run_memoir_prompt_evaluation.py --execute --gateway-url "$(EVAL_GATEWAY_URL)" \
 		--env-file "$(ENV_FILE)" --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(PROMPT_EVAL_ARGS)
 
-.PHONY: memoir-agent-eval-plan memoir-agent-eval
-memoir-agent-eval-plan: ## Inspect the bounded current-agent/skill campaign; zero model calls.
-	@python3 scripts/run_memoir_agent_evaluation.py $(if $(strip $(EVAL_SKILL)),--skill "$(EVAL_SKILL)",) $(if $(strip $(EVAL_AGENT)),--agent "$(EVAL_AGENT)",) $(AGENT_EVAL_ARGS)
-
-memoir-agent-eval: ## Run current agent/skill probes and verify published Langfuse experiments.
-	@python3 scripts/run_memoir_agent_evaluation.py --execute --publish --gateway-url "$(EVAL_GATEWAY_URL)" \
-		--env-file "$(ENV_FILE)" --credential-file "$(PROMPT_CREDENTIAL_FILE)" \
-		$(if $(strip $(EVAL_SKILL)),--skill "$(EVAL_SKILL)",) $(if $(strip $(EVAL_AGENT)),--agent "$(EVAL_AGENT)",) $(AGENT_EVAL_ARGS)
 .PHONY: prompt-sync prompt-sync-check prompt-sync-install
 .PHONY: test-web test-place-research
 .PHONY: deps-install deps-update
@@ -147,8 +132,13 @@ prompt-coverage: ## Regenerate the complete prompt/source/evaluator/dataset tabl
 prompt-coverage-snapshot: ## Read only this local Langfuse project's dataset, evaluator and score metadata.
 	@python3 -B scripts/snapshot_prompt_evaluations.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --metadata-db
 
-prompt-eval: ## Preflight one prompt/dataset; PROMPT_EVAL_RUN=1 generates outputs without agent contract grading.
-	@python3 scripts/evaluate_langfuse_prompt.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --provider-credential-file "$(PROMPT_EVAL_PROVIDER_FILE)" --base-url "$(EVAL_GATEWAY_URL)" --name "$(PROMPT_EVAL_NAME)" --dataset "$(PROMPT_EVAL_DATASET)" $(if $(strip $(PROMPT_EVAL_VERSION)),--version "$(PROMPT_EVAL_VERSION)",) $(if $(strip $(PROMPT_EVAL_MODEL)),--model "$(PROMPT_EVAL_MODEL)",) $(if $(filter 1,$(PROMPT_EVAL_RUN)),--run,)
+.PHONY: prompt-eval-plan
+prompt-eval-plan: ## Preview automatic datasets/graders for PROMPT_EVAL_NAME or SKILL_EVAL_NAME; zero model calls.
+	@python3 scripts/evaluate_langfuse_prompt.py --plan $(if $(strip $(PROMPT_EVAL_NAME)),--name "$(PROMPT_EVAL_NAME)",) $(if $(strip $(SKILL_EVAL_NAME)),--skill "$(SKILL_EVAL_NAME)",) $(PROMPT_EVAL_ARGS)
+
+prompt-eval: ## Grade one PROMPT_EVAL_NAME or all prompts in SKILL_EVAL_NAME; publish verified Langfuse results.
+	@python3 scripts/evaluate_langfuse_prompt.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" \
+		--env-file "$(ENV_FILE)" --base-url "$(EVAL_GATEWAY_URL)" $(if $(strip $(PROMPT_EVAL_NAME)),--name "$(PROMPT_EVAL_NAME)",) $(if $(strip $(SKILL_EVAL_NAME)),--skill "$(SKILL_EVAL_NAME)",) $(PROMPT_EVAL_ARGS)
 
 check: ## Verify Mocker and Apple Container are installed.
 	@command -v $(MOCKER) >/dev/null || { echo "Missing Mocker. Install with: brew tap us/tap && brew install mocker"; exit 1; }

@@ -4599,6 +4599,33 @@
       ],
       "evaluator": "scripts/run_memoir_prompt_evaluation.py:scores",
       "evidence_scope": "Coverage ledger only; no model-quality score."
+    },
+    {
+      "id": "cmw2nofur0c801z02v7da7fyj",
+      "name": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
+      "target": "memoir/agents/mira/reply",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "aab38e577c96450c28b98a3f9d79c9be"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/shared/historical-acknowledgements",
+        "memoir/shared/recall-invitations"
+      ],
+      "metrics": [
+        "execution_available",
+        "contract_pass",
+        "current_pin_observed",
+        "observed_scenario_checks_pass",
+        "latency_seconds"
+      ],
+      "evaluator": "scripts/run_memoir_agent_evaluation.py:scores",
+      "evidence_scope": "Focused automatic-command verification; only the exact requested Mira reply pin is credited. Other permitted components retain their execution gaps."
     }
   ],
   "online": [

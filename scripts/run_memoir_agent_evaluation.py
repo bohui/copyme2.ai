@@ -326,6 +326,9 @@ class Runner:
                 row['semantic'] = dict(status='unavailable', reason=type(error).__name__, acceptance_role='advisory')
         row['direct_http_calls'] = len(self.receipt['calls']) - before
         row['input_sha256'], row['gold_sha256'] = digest(item.input), digest(item.expected_output)
+        if self.receipt.get('requested_prompts'):
+            row['prompt_coverage'] = prompt_coverage(self.receipt['requested_prompts'],
+                dict(calls=self.receipt['calls'][before:], results=[row]))
         self.receipt['results'].append(row)
         self.persist()
         print(json.dumps({k: row.get(k) for k in ('case_id', 'status', 'reason', 'elapsed_seconds')}, ensure_ascii=False), flush=True)
@@ -345,7 +348,20 @@ def scores(*, output, **_kwargs):
         comment=semantic['comments'][name] + ' [Uncalibrated; same model; advisory only]')
         for name, value in semantic.get('scores', {}).items()]
     result.append(Evaluation(name=score_name(target, 'latency_seconds'), value=output['elapsed_seconds'], data_type='NUMERIC'))
+    for observed in output.get('prompt_coverage', []):
+        result.append(Evaluation(name=score_name(observed['case_id'], 'current_pin_observed'),
+            value=int(observed['current_pin_observed']), data_type='NUMERIC', metadata=dict(prompt_pin=observed['pin'])))
+        if observed['status'] in {'pass', 'fail'}:
+            result.append(Evaluation(name=score_name(observed['case_id'], 'observed_scenario_checks_pass'),
+                value=int(observed['status']=='pass'), data_type='NUMERIC',
+                comment='Scenario/code contract result; not independent editorial acceptance.', metadata=dict(prompt_pin=observed['pin'])))
     return result
+
+
+def prompt_coverage(pins, campaign):
+    from scripts.run_memoir_prompt_evaluation import evidence
+    rows = [dict(input=dict(case_id=pin['name'], prompt=pin['name'], version=pin['version'], sha256=pin['sha256'])) for pin in pins]
+    return [dict(result, pin=pin) for result, pin in zip(evidence(rows, {}, campaign), pins)]
 
 
 def verify_experiment(client, experiment_id, rows, results, started_at):
@@ -388,6 +404,9 @@ def write_report(receipt, directory):
         lines.append(f"| {component} / {skill} | {counts['pass']} | {counts['fail']} | {counts['unavailable']} |")
     lines += ['', '| Case | Result | Reason |', '| --- | --- | --- |']
     lines += [f"| {r['case_id']} | {r['status']} | {r.get('reason', '')} |" for r in receipt['results']]
+    if receipt.get('prompt_coverage'):
+        lines += ['', '## Requested prompt coverage', '', '| Prompt | Version | Observed | Result |', '| --- | ---: | --- | --- |']
+        lines += [f"| {r['case_id']} | {r['pin']['version']} | {r['current_pin_observed']} | {r['status']} |" for r in receipt['prompt_coverage']]
     lines += ['', '## Advisory semantic judgments', '',
         '| Case | Judge status | Scores |', '| --- | --- | --- |']
     lines += [f"| {r['case_id']} | {r['semantic']['status']} | {json.dumps(r['semantic'].get('scores', {}))} |"
@@ -414,6 +433,7 @@ def main(argv=None):
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--publish', action='store_true')
     parser.add_argument('--full', action='store_true')
+    parser.add_argument('--prompt', action='append', help='Automatically select current datasets and graders for managed prompt names')
     parser.add_argument('--skill', action='append', choices=sorted(inventory()))
     parser.add_argument('--agent', choices=['mira','atlas'], help='Mira = Lane A; Atlas = Lane B')
     parser.add_argument('--replay-receipt', type=Path, help='Regrade retained Lane A/B or direct skill outputs; no model dispatch or advisory calls')
@@ -435,6 +455,14 @@ def main(argv=None):
             and 0 < args.timeout <= 240 and 0 < args.workflow_timeout <= 900 and 0 < args.seconds <= 7200):
         parser.error('invalid evaluation limits')
     cases = catalog(full=args.full)
+    pins = []
+    if args.prompt:
+        from scripts.evaluate_langfuse_prompt import select_cases, prompt_pin
+        try:
+            cases = select_cases(args.prompt, cases)
+            pins = [prompt_pin(name) for name in dict.fromkeys(args.prompt)]
+        except ValueError as error:
+            parser.error(str(error))
     if args.case and not set(args.case) <= {c['id'] for c in cases}:
         parser.error('unknown case; use --full to select an extended case')
     component={'mira':'lane-a','atlas':'lane-b'}.get(args.agent)
@@ -447,7 +475,11 @@ def main(argv=None):
         print(json.dumps(dict(cases=[c['id'] for c in cases], count=len(cases), repetitions=args.repeat,
             direct_http_call_cap=args.max_calls, native_run_cap=args.max_native_runs, seconds=args.seconds,
             per_call_seconds=args.timeout,workflow_seconds=args.workflow_timeout,
-            http_dispatches=0, dataset_names=list(dataset_rows(cases))), indent=2))
+            http_dispatches=0, dataset_names=list(dataset_rows(cases)), requested_prompts=pins,
+            evaluator='scripts/run_memoir_agent_evaluation.py:scores',
+            scenario_graders=sorted({('grade_reply' if c['component']=='lane-a' else 'grade_background'
+                if c['component']=='lane-b' else 'native_search' if c['task'].get('kind')=='native-discovery'
+                else 'validate_workflow' if c['skill']=='memoir-composer' else 'validate') for c in cases})), indent=2))
         return 0
     from dotenv import dotenv_values
     from scripts.backend_operation_lock import backend_operation_lock
@@ -470,6 +502,8 @@ def main(argv=None):
         if client and [p.id for p in client.api.projects.get().data]!=['cmut9t75w00071z02n8bdv7it']:
             raise ValueError('unexpected_langfuse_project')
         runner = Runner(args, config, directory, client=client)
+        if pins:
+            runner.receipt['requested_prompts'] = pins
         runner.by_id = {c['id']: c for c in cases}
         runner.judge_ids = judge_selection(cases, args.judge_cases)
         if args.replay_receipt:
@@ -498,10 +532,11 @@ def main(argv=None):
                             evaluators=[scores], max_concurrency=1,
                             metadata=dict(synthetic=True, suite='memoir-agent-evaluation/1', repeat=repeat + 1,
                                 source_revision=runner.receipt['source_revision'], dataset_version=snapshot.isoformat(),
-                                scope=runner.receipt['scope']))
+                                scope=runner.receipt['scope'], requested_prompts=pins))
                         client.flush()
                         # Preserve the experiment ID even when readback fails.
                         hosted = dict(dataset=name, experiment_id=experiment.experiment_id,
+                            experiment_url=experiment.dataset_run_url,
                             expected_items=len(dataset.items), readback=dict(status='pending'))
                         runner.receipt['experiments'].append(hosted)
                         runner.persist()
@@ -525,12 +560,14 @@ def main(argv=None):
             if client:
                 client.flush()
             runner.receipt['elapsed_seconds'] = round(time.monotonic() - runner.started, 3)
+            if pins:
+                runner.receipt['prompt_coverage'] = prompt_coverage(pins, runner.receipt)
             runner.persist()
             write_report(runner.receipt, directory)
         print(json.dumps(dict(directory=str(directory), counts=dict(Counter(r['status'] for r in runner.receipt['results'])),
-            experiments=runner.receipt['experiments']), indent=2))
+            experiments=runner.receipt['experiments'], prompt_coverage=runner.receipt.get('prompt_coverage')), indent=2))
         return 0 if runner.receipt.get('status') == 'complete_with_findings' and all(r['status'] == 'pass'
-            for r in runner.receipt['results']) else 1
+            for r in runner.receipt['results']) and all(r['status']=='pass' for r in runner.receipt.get('prompt_coverage', [])) else 1
 
 
 if __name__ == '__main__':

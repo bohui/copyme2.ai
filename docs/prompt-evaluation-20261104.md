@@ -11,19 +11,17 @@ conditional branch passed a quality evaluation.
 
 ```sh
 make llm_judge_calibrate
-make memoir-agent-eval EVAL_AGENT=mira
-make memoir-agent-eval EVAL_AGENT=atlas
-make memoir-agent-eval EVAL_SKILL=memoir-author-timeline
-make memoir-agent-eval EVAL_SKILL=memoir-author-timeline AGENT_EVAL_ARGS='--full'
+make prompt-eval PROMPT_EVAL_NAME=memoir/agents/mira/reply
+make prompt-eval PROMPT_EVAL_NAME=memoir/agents/atlas/skill-selection
+make prompt-eval SKILL_EVAL_NAME=author-timeline
 make prompt-eval-all
 ```
 
-The first command checks the graders against fixed synthetic answer keys. The
-selected agent/skill commands generate new work and check its contracts. The
-last command requires verified current-pin judge calibration, runs the extended
-catalog and publishes the complete prompt coverage ledger. Each has a plan
-target that dispatches no models. The fifty-round command exercises a complete
-application conversation and serves a separate purpose.
+These are the current commands. `prompt-eval` now selects its frozen datasets
+and graders automatically; `prompt-eval-plan` previews the selection without
+model calls. The raw prompt preflight and separate agent Make targets used during
+the original campaign are retired. Historical results below retain their original
+receipts and source revisions.
 
 See the [command guide](judge-calibration.md) for budgets, selected rechecks and
 publishing retained results without dispatching the full catalog again.
