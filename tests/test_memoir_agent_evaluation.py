@@ -11,15 +11,39 @@ from scripts.memoir_skill_eval_suite import inventory, packet, validate
 
 
 def test_catalog_covers_current_inventory_and_keeps_gold_outside_input():
+    from scripts.langfuse_dataset_names import SKILL_TARGETS, dataset_target
     cases = catalog()
     assert set(inventory()) <= {c['skill'] for c in cases}
     assert {c['locale'] for c in cases if c['component'] == 'lane-b'} == {'en-AU', 'zh-CN'}
     assert {c['component'] for c in cases} == {'lane-a', 'lane-b', 'skills'}
-    for rows in evaluation.dataset_rows(cases).values():
+    for name, rows in evaluation.dataset_rows(cases).items():
+        assert {SKILL_TARGETS[row['input']['skill']] for row in rows} == {dataset_target(name)}
         for row in rows:
             assert not {'gold', 'expected_output', 'instructions', 'scenario'} & row['input'].keys()
             if row['input']['component'] == 'lane-a':
                 assert 'instructions' not in row['input']['task']['view']
+
+
+def test_current_target_campaigns_can_use_the_shared_dataset_publisher():
+    from scripts.run_memoir_skill_evaluation import publish_datasets
+    from scripts.langfuse_dataset_names import dataset_target
+    case = next(c for c in catalog() if c['id'] == 'skills/memoir-place-groups/alias/en-AU')
+    definitions = evaluation.dataset_rows([case])
+    stored, metadata = {}, {}
+    def create_dataset(**value):
+        stored[value['name']] = []
+        metadata[value['name']] = value['metadata']
+    def create_item(**value):
+        stored[value['dataset_name']].append(SimpleNamespace(id=value['id'], input=value['input'],
+            expected_output=value['expected_output'], status='ACTIVE'))
+    client = SimpleNamespace(api=SimpleNamespace(datasets=SimpleNamespace(list=lambda **kw:
+        SimpleNamespace(data=[], meta=SimpleNamespace(total_pages=1)))), create_dataset=create_dataset,
+        create_dataset_item=create_item, get_dataset=lambda name, **kw:SimpleNamespace(items=stored[name]))
+    loaded, _ = publish_datasets(client, definitions)
+    assert set(loaded) == set(definitions)
+    for name in loaded:
+        assert metadata[name]['target'] == dataset_target(name)
+        assert loaded[name].items[0].input['case_id'] == case['id']
 
 
 @pytest.mark.parametrize('kind', ['manual-value', 'manual-blank'])

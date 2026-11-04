@@ -27,8 +27,8 @@ from .llm_tracing import mark_llm_trace_error, trace_llm_call, update_llm_trace
 
 
 _SPEECH_CHARACTERS = {
-    'zh-cn': {'voice': 'longwan_v3', 'speed': 1.1, 'prompt_name': 'memoir/speech/zh-CN'},
-    'en-au': {'voice': 'longwan_v3', 'prompt_name': 'memoir/speech/en-AU'},
+    'zh-cn': {'voice': 'longwan_v3', 'speed': 1.1, 'prompt_name': 'memoir/workflows/speech/synthesis/zh-CN'},
+    'en-au': {'voice': 'longwan_v3', 'prompt_name': 'memoir/workflows/speech/synthesis/en-AU'},
 }
 
 
@@ -39,8 +39,8 @@ def _speech_locale(language: str | None) -> str:
 
 def speech_prompt_name(language, prompt_name=None):
     locale = _speech_locale(language)
-    name = prompt_name or _SPEECH_CHARACTERS.get(locale, {}).get('prompt_name', 'memoir/speech/default')
-    if name not in {'memoir/speech/default', 'memoir/speech/en-AU', 'memoir/speech/zh-CN'}:
+    name = prompt_name or _SPEECH_CHARACTERS.get(locale, {}).get('prompt_name', 'memoir/workflows/speech/synthesis/default')
+    if name not in {'memoir/workflows/speech/synthesis/default', 'memoir/workflows/speech/synthesis/en-AU', 'memoir/workflows/speech/synthesis/zh-CN'}:
         raise ValueError('Unknown managed speech prompt')
     return name
 
@@ -118,8 +118,9 @@ class OpenAISpeechService:
                     normalized = normalized.replace("_", "-").split("-", 1)[0].lower()
                 data[key] = normalized
         with trace_llm_call(
-            "speech.transcription",
+            "memoir-speech.transcription",
             data["model"],
+            trace_name='memoir-speech',
             input_summary={"kind": "audio", "bytes": len(audio), "mime_type": mime_type},
             metadata={"provider": self.provider, "endpoint": "audio.transcriptions"},
         ) as trace:
@@ -178,8 +179,9 @@ class OpenAISpeechService:
             "response_format": str(options.get("output_format") or "mp3"),
         }
         with trace_llm_call(
-            "speech.synthesis",
+            "memoir-speech.synthesis",
             model,
+            trace_name='memoir-speech',
             input_summary={"kind": "text", "characters": len(text)},
             metadata={
                 "provider": self.provider,
@@ -256,8 +258,9 @@ class GroqSpeechService:
         if prompt:
             data['prompt'] = str(prompt).strip()
         with trace_llm_call(
-            'speech.transcription',
+            'memoir-speech.transcription',
             data['model'],
+            trace_name='memoir-speech',
             input_summary={'kind': 'audio', 'bytes': len(audio), 'mime_type': mime_type},
             metadata={'provider': self.provider, 'endpoint': 'audio.transcriptions'},
         ) as trace:
@@ -378,8 +381,9 @@ class QwenASRService:
             'asr_options': {'enable_itn': False},
         }
         with trace_llm_call(
-            'speech.transcription',
+            'memoir-speech.transcription',
             model,
+            trace_name='memoir-speech',
             input_summary={'kind': 'audio', 'bytes': len(audio), 'mime_type': mime_type},
             metadata={'provider': self.provider, 'endpoint': 'compatible-mode/v1/chat/completions'},
         ) as trace:
@@ -504,7 +508,7 @@ class GeminiSpeechService:
                 'speechConfig': {'voiceConfig': {'voice': character['voice']}},
             },
         }
-        with trace_llm_call('speech.synthesis', model,
+        with trace_llm_call('memoir-speech.synthesis', model, trace_name='memoir-speech',
                 input_summary={'kind': 'text', 'characters': len(text)},
                 metadata=_synthesis_metadata(self.provider, language, character, output_format, prompt_name)) as trace:
             try:
@@ -628,7 +632,7 @@ class DoubaoSpeechService:
     def transcribe(self, audio: bytes, **options: Any) -> dict[str, Any]:
         if not self.api_key:
             raise SpeechUnavailable('Chinese transcription requires DOUBAO_API_KEY')
-        with trace_llm_call('speech.transcription', self.stt_model,
+        with trace_llm_call('memoir-speech.transcription', self.stt_model, trace_name='memoir-speech',
                 input_summary={'kind': 'audio', 'bytes': len(audio), 'mime_type': options.get('mime_type')},
                 metadata={'provider': self.provider, 'endpoint': 'sauc/bigmodel_nostream'}) as trace:
             try:
@@ -668,7 +672,7 @@ class DoubaoSpeechService:
         }}
         headers = {'X-Api-Key': self.api_key, 'X-Api-Resource-Id': 'seed-tts-2.0',
                    'X-Api-Request-Id': str(uuid4())}
-        with trace_llm_call('speech.synthesis', self.tts_model,
+        with trace_llm_call('memoir-speech.synthesis', self.tts_model, trace_name='memoir-speech',
                 input_summary={'kind': 'text', 'characters': len(text)},
                 metadata=_synthesis_metadata(self.provider, language, character, output_format, prompt_name)) as trace:
             try:
@@ -766,8 +770,9 @@ class CosyVoiceSpeechService:
             'speed': speed,
         }
         with trace_llm_call(
-            'speech.synthesis',
+            'memoir-speech.synthesis',
             model,
+            trace_name='memoir-speech',
             input_summary={'kind': 'text', 'characters': len(text)},
             metadata=_synthesis_metadata(self.provider, language, character, output_format, prompt_name),
         ) as trace:

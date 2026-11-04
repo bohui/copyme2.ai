@@ -142,7 +142,7 @@ def test_skill_agent_provider_config_uses_its_own_application_span(tmp_path, mon
         with llm_tracing.trace_llm_call('background-parent', 'model', gateway=True):
             return await run_skill_agent(command=['controlled'], home_root=tmp_path,
                 base_url='https://gateway.invalid/v1', api_key='test-key', model='model',
-                instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/system')),
+                instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/skill-selection')),
                 packet={}, skills=['memoir-author-timeline'], schema={'properties':{'events':{}}},
                 publisher=Publication(), fence={}, connection_factory=Connection)
     asyncio.run(run())

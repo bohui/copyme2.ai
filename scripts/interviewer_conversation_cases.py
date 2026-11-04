@@ -9,7 +9,9 @@ from copy import deepcopy
 from apps.api.interview_strategy import stage_breadth_checkpoint
 from scripts.memoir_skill_eval_suite import digest
 
-DATASET = 'memoir/evaluation/conversations/memoir-interviewer'
+from scripts.langfuse_dataset_names import CONVERSATIONS
+
+DATASET = CONVERSATIONS
 
 REQUIREMENTS = {
     1: 'Follow the volunteered birthplace without assuming it was the childhood home or asking for an already supplied birth date.',

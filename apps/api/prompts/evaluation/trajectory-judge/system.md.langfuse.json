@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluation/trajectory-judge/system",
+  "name": "memoir/evaluators/shared/trajectory/system",
   "schema_version": 1,
   "sha256": "06a13cf8837a84f8e45c4fa15fc14310504c85edc9dcb634df51e9bd2bb81c3a",
   "type": "text",

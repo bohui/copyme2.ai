@@ -115,7 +115,8 @@ def test_failed_news_research_is_visible_even_when_its_unavailable_result_is_sav
     assert attempt.updates[-1]['metadata']['status']=='failed'
 
 
-def test_worker_test_names_are_bound_to_the_dispatched_owner(tmp_path, monkeypatch):
+@pytest.mark.parametrize('evaluation', [{}, {'case_id': 'trace-origin-test'}])
+def test_worker_test_names_are_bound_to_the_dispatched_owner(tmp_path, monkeypatch, evaluation):
     from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
     from apps.api.llm_tracing import gateway_metadata
     from test_lifetime_memory_engine import fixture, IDENTITY
@@ -124,15 +125,20 @@ def test_worker_test_names_are_bound_to_the_dispatched_owner(tmp_path, monkeypat
     monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN', 'test')
     monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', str(IDENTITY.owner_id))
     async def observe(payload):
-        return gateway_metadata('memoir-interviewer.reply', trace_name='memoir-interviewer')
+        return gateway_metadata('memoir-mira.reply', trace_name='memoir-mira')
     monkeypatch.setattr(worker, '_turn', observe)
     payload = WorkerTurnInput(user_id=IDENTITY.owner_id, project_id=IDENTITY.project_id,
-        governed=governed, interview_context=context)
-    assert asyncio.run(worker.turn(payload)) == {
-        'generation_name': 'test/memoir-interviewer.reply', 'trace_name': 'test/memoir-interviewer'}
+        governed=governed, interview_context=context, evaluation=evaluation)
+    result = asyncio.run(worker.turn(payload))
+    session = result.pop('session_id')
+    assert session.startswith('memoir-') and str(IDENTITY.owner_id) not in session
+    prefix = 'evaluation/' if evaluation else 'test/'
+    assert result == {'generation_name': prefix+'memoir-mira.reply', 'trace_name': prefix+'memoir-mira'}
     monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', str(UUID(int=42)))
-    assert asyncio.run(worker.turn(payload)) == {
-        'generation_name': 'memoir-interviewer.reply', 'trace_name': 'memoir-interviewer'}
+    result = asyncio.run(worker.turn(payload))
+    assert result.pop('session_id') == session
+    prefix = 'evaluation/' if evaluation else ''
+    assert result == {'generation_name': prefix+'memoir-mira.reply', 'trace_name': prefix+'memoir-mira'}
 
 
 def test_slow_background_agent_does_not_take_foreground_capacity(tmp_path,monkeypatch):

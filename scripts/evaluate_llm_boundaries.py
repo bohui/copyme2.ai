@@ -53,7 +53,7 @@ async def execute(cases, output):
                     'input': json.dumps(payload, ensure_ascii=False), 'store': False,
                     'text': {'format': {'type': 'json_schema', 'name': 'proposal', 'strict': True, 'schema': schema}}})
             response.raise_for_status(); raw = response.json(); proposal = decode_json_response(raw)
-            verdict, judge_receipt = await complete_json('memoir/evaluation/semantic-boundaries-judge',
+            verdict, judge_receipt = await complete_json('memoir/evaluators/shared/semantic-boundaries',
                 {'case': case, 'result': proposal}, {'type':'object','additionalProperties':False,
                     'required':['passed','notes'],'properties':{'passed':{'type':'boolean'},'notes':{'type':'string'}}},
                 trace_name='evaluation/semantic-boundaries.judge')

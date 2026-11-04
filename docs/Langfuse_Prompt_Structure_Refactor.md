@@ -60,7 +60,7 @@ skill package, prompt and model executor have been removed; only historical
 record validation/storage remains.
 
 Atlas is the background memoir curator in Lane B. Atlas's system prompt lives in
-`apps/api/prompts/atlas/system.md` under `memoir/agents/atlas/system`. The generic
+`apps/api/prompts/atlas/system.md` under `memoir/agents/atlas/skill-selection`. The generic
 skill runner remains shared infrastructure under `memoir/shared/skill-agent`.
 Runtime traces use `memoir-mira` and `memoir-atlas`; observations name individual
 steps, including nested skill steps such as `memoir-composer.review`. Persisted
@@ -139,7 +139,7 @@ source metadata remain readable without restarting old generation.
 
 ```sh
 make prompt-export
-make prompt-export PROMPT_NAME=memoir/skills/memoir-composer/draft
+make prompt-export PROMPT_NAME=memoir/skills/composer/draft
 make prompt-check
 make prompt-eval
 ```

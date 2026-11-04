@@ -1,0 +1,3572 @@
+{
+  "schema_version": 1,
+  "project_id": "cmut9t75w00071z02n8bdv7it",
+  "path_format": {
+    "dataset": "<target>/<category>/<suite>",
+    "rule": "<dataset>/<metric-or-metric-group>",
+    "online_rule": "<target>/online/<metric-or-metric-group>"
+  },
+  "judge_prompt_prefix": "memoir/evaluators/shared/",
+  "targets": {
+    "memoir/agents/atlas/skill-selection": {
+      "scope": "model",
+      "primary_prompt": "memoir/agents/atlas/skill-selection",
+      "evaluated_prompts": [
+        "memoir/agents/atlas/skill-selection"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/agents/mira/policy-review": {
+      "scope": "model",
+      "primary_prompt": "memoir/agents/mira/policy-review",
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/agents/mira/repair": {
+      "scope": "model",
+      "primary_prompt": "memoir/agents/mira/repair",
+      "evaluated_prompts": [
+        "memoir/agents/mira/repair"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/agents/mira/reply": {
+      "scope": "agent",
+      "primary_prompt": "memoir/agents/mira/reply",
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/agents/mira/reply/interview-quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/agents/mira/reply/interview-quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/agents/mira/reply/interview-quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/shared/completeness": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/shared/completeness",
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/completeness"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/shared/correctness": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/shared/correctness",
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/correctness"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/shared/relevance": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/shared/relevance",
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/relevance"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/shared/safety": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/shared/safety",
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/safety"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/skills/author-timeline/extract/quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/skills/author-timeline/extract/quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/author-timeline/extract/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/skills/family-tree/extract/quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/skills/family-tree/extract/quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/family-tree/extract/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/skills/historical-news-research/discovery/quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/skills/historical-news-research/discovery/quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/historical-news-research/discovery/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/skills/memory-context/profile/quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/skills/memory-context/profile/quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/memory-context/profile/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/skills/place-groups/group/quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/skills/place-groups/group/quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/place-groups/group/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/skills/place-journey/extract/quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/skills/place-journey/extract/quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/place-journey/extract/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/skills/place-photo-research/discovery/quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/skills/place-photo-research/discovery/quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/place-photo-research/discovery/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/workflows/composer-checkpoints/quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/workflows/composer-checkpoints/quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/workflows/composer-checkpoints/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/workflows/story-game-adaptation/quality": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/workflows/story-game-adaptation/quality",
+      "evaluated_prompts": [
+        "memoir/evaluators/workflows/story-game-adaptation/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/skills/author-timeline/extract": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/author-timeline/extract",
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/author-timeline/summarize": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/author-timeline/window",
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/composer/draft": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/composer/draft",
+      "evaluated_prompts": [
+        "memoir/skills/composer/draft"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/composer/outline": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/composer/outline/shared/prefix",
+      "evaluated_prompts": [
+        "memoir/skills/composer/outline/shared/prefix"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/composer/prepare": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/composer/prepare",
+      "evaluated_prompts": [
+        "memoir/skills/composer/prepare"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/composer/review": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/composer/review",
+      "evaluated_prompts": [
+        "memoir/skills/composer/review"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/family-tree/extract": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/family-tree/extract",
+      "evaluated_prompts": [
+        "memoir/skills/family-tree/extract"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/historical-news-research/discovery": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/historical-news-research/discovery",
+      "evaluated_prompts": [
+        "memoir/skills/historical-news-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/memory-context/profile": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/memory-context/profile",
+      "evaluated_prompts": [
+        "memoir/skills/memory-context/profile"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/place-groups/group": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "apps/api/place_groups.py"
+    },
+    "memoir/skills/place-journey/extract": {
+      "scope": "embedded",
+      "primary_prompt": "memoir/skills/place-journey/extract",
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/extract",
+        "memoir/skills/place-journey/instructions"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/place-photo-research/discovery": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/place-photo-research/discovery",
+      "evaluated_prompts": [
+        "memoir/skills/place-photo-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/story-game/analyze": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/story-game/novel-to-game/analyze",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/novel-to-game/analyze"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/story-game/art": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/story-game/novel-to-game/art",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/novel-to-game/art"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/story-game/brief": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/story-game/brief",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/brief"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/story-game/build": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/story-game/higgsfield",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/higgsfield"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/story-game/concept": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/story-game/novel-to-game/concept",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/novel-to-game/concept"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/story-game/design": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/story-game/novel-to-game/design",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/novel-to-game/design"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/story-game/production": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/story-game/novel-to-game/production_style",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/novel-to-game/production_style"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/story-game/scenes": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/story-game/proposal",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/proposal"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/skills/story-game/whitebox": {
+      "scope": "model",
+      "primary_prompt": "memoir/skills/story-game/novel-to-game/assets",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/novel-to-game/assets"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
+    },
+    "memoir/workflows/author-timeline-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/workflows/bilingual-reply-parity": {
+      "scope": "comparison",
+      "primary_prompt": null,
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "paired-outcome"
+      ],
+      "validator": null
+    },
+    "memoir/workflows/composer-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/workflows/composer-checkpoints": {
+      "scope": "workflow",
+      "primary_prompt": null,
+      "evaluated_prompts": [
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "validator": null
+    },
+    "memoir/workflows/family-tree-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/workflows/historical-news-research-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/workflows/judge-calibration": {
+      "scope": "historical-batch",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [],
+      "validator": null
+    },
+    "memoir/workflows/memory-context-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/workflows/multi-skill-delivery": {
+      "scope": "historical-batch",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [],
+      "validator": null
+    },
+    "memoir/workflows/multi-skill-regression": {
+      "scope": "historical-batch",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [],
+      "validator": null
+    },
+    "memoir/workflows/place-groups-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/workflows/place-journey-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/workflows/place-photo-research-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/workflows/quality-judge-wiring": {
+      "scope": "historical-batch",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [],
+      "validator": null
+    },
+    "memoir/workflows/skill-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/workflows/skill-agent-execution": {
+      "scope": "workflow",
+      "primary_prompt": null,
+      "evaluated_prompts": [
+        "memoir/shared/skill-agent"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "validator": null
+    },
+    "memoir/workflows/source-to-private-draft": {
+      "scope": "workflow",
+      "primary_prompt": null,
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal",
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "validator": null
+    },
+    "memoir/workflows/story-game-adaptation": {
+      "scope": "workflow",
+      "primary_prompt": null,
+      "evaluated_prompts": [
+        "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/higgsfield",
+        "memoir/skills/story-game/instructions",
+        "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/analyze",
+        "memoir/skills/story-game/novel-to-game/art",
+        "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/concept",
+        "memoir/skills/story-game/novel-to-game/design",
+        "memoir/skills/story-game/novel-to-game/illustration",
+        "memoir/skills/story-game/novel-to-game/journey",
+        "memoir/skills/story-game/novel-to-game/production",
+        "memoir/skills/story-game/novel-to-game/production_style",
+        "memoir/skills/story-game/novel-to-game/whitebox",
+        "memoir/skills/story-game/proposal",
+        "memoir/skills/story-game/runtime-contract",
+        "memoir/skills/story-game/webpage"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "validator": null
+    },
+    "memoir/workflows/story-game-admission": {
+      "scope": "code",
+      "primary_prompt": null,
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    }
+  },
+  "datasets": [
+    {
+      "id": "cmw0mxvhl001p1z02md3xby14",
+      "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3",
+      "target": "memoir/agents/atlas/skill-selection",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "04d3e2618f26c202e14363fc6d5411aa",
+        "3651847136af8d11e2ce38e75b79fbab",
+        "39c9f16d09e04edf9abe3905acf202b6",
+        "4e68439486bf68e73da90f933b588bd4",
+        "5828ac81fd2a03865af0bf4c899658d8",
+        "67443eaf0fb9522301d9ea37ec3329d3",
+        "721c7708e2879450b853b7e9f34eed1f",
+        "7c89fb65005d7ddd4dc70a710929fc23",
+        "94120eb4a58cd9a5f73c6250a95ed31d",
+        "94133e9bfd6783bece1889128558c709",
+        "a4b1b2e565729e3add318a7768becb6f",
+        "a66f8f096b2ee958966ee8e488040d09",
+        "a897a0a0e664b6f9ede4ebaac7895082",
+        "def4d43b7d5a7bdcf0781092f21f5f54"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/atlas/skill-selection"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-atlas/skill-selection/campaign-068f68a58ef3",
+      "children": []
+    },
+    {
+      "id": "cmw0mso8i000i1z029068jddt",
+      "name": "memoir/agents/atlas/skill-selection/golden/campaign-a5c15039ad35",
+      "target": "memoir/agents/atlas/skill-selection",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "02c024dbcdf991c466a7720bf7394af9"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/atlas/skill-selection"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-atlas/skill-selection/campaign-a5c15039ad35",
+      "children": []
+    },
+    {
+      "id": "cmw0nlzza004e1z02c3pi0kkw",
+      "name": "memoir/agents/mira/reply/golden/campaign-268c0e020d7c",
+      "target": "memoir/agents/mira/reply",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "5213a020dcff945f537efbfbc78d92ae"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-mira/reply/campaign-268c0e020d7c",
+      "children": []
+    },
+    {
+      "id": "cmw0mslsy000e1z02swle8m8n",
+      "name": "memoir/agents/mira/reply/golden/campaign-4652543f9a9b",
+      "target": "memoir/agents/mira/reply",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "ec652632e316cf39fbc198e56eb48a6f"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-mira/reply/campaign-4652543f9a9b",
+      "children": []
+    },
+    {
+      "id": "cmw0nje4n003j1z029k7hbywi",
+      "name": "memoir/agents/mira/reply/golden/campaign-4a07ac27fac9",
+      "target": "memoir/agents/mira/reply",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "009b00faf90b40f05ace5ab0aef3ed8f",
+        "0591355d09dbdb94997ffae483a4a7a5",
+        "0742d9a5b3b4e80ce7008e26de47c10f",
+        "1222a260e447d96833d80ab9a40221cc",
+        "1cd38f351c5b819b34a556473d6b40e4",
+        "22f3036489fbe9b7f6f229bb285e1696",
+        "2f4285c7aa57cc23f12f128451709270",
+        "41dd134ed4d70bbcf987bc8a58611214",
+        "41fbd93d59c3c60b1cd3ad3c27b654fe",
+        "5ed345c17be85df69c0861418d96aec1",
+        "6af601ffccafa6cbbd966d19011532ee",
+        "8aaff104af7341d713644925462339a5",
+        "92561f6207e58ca296062f1ddcdd1bd4",
+        "9352b713662a935d17037d55a2ec2dbe",
+        "9c30471c0ec65b0ad946e3f444dfc184",
+        "a42a50000b9da1caf4f4246ea960ae60",
+        "ab3c9f943dff0ab3d7fb771089ca7e19",
+        "b7ef1b555d77c1dd2abe90476f736af2",
+        "b876fd36af2aaa436216f6d6b5c7aa66",
+        "be273f3dfaadf1e704898e5be0639dbb",
+        "c1b3ed30af82f7c9aca42d9fc0bf9c60",
+        "d49105c6cd574fa9e75d422ae5ecfcec",
+        "d9465f7b39eaea77c332fee7fdb788ac",
+        "dcd819261141eb85ebc5063d8eb192e7",
+        "dd5ba4d9e15103a6ce4028b7796f34ba",
+        "e49cef89504aa011aa553f325ca78511",
+        "eb5b11e131f9b562e58c92b7eba92cd7",
+        "fec436a802832a863034281db819fadb"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-mira/reply/campaign-4a07ac27fac9",
+      "children": []
+    },
+    {
+      "id": "cmw0mxskv000u1z02wrqo62mt",
+      "name": "memoir/agents/mira/reply/golden/campaign-85af647a4fa8",
+      "target": "memoir/agents/mira/reply",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "00e30c222781c0bba1378f13d31e8ea4",
+        "02b96b290cf64bcfe3dfda427b02cbe2",
+        "047198d556c01da4f3d536e6995e730f",
+        "06f2358c7b9165a16ebe6c8e28e781c2",
+        "0c9d12c7171ac560c4f802fee0cd1d9d",
+        "0e3b24a46ceabc45dbcaa701408beaf8",
+        "10238334c21201b226e9909919ec2223",
+        "111f8b6e313e2b925880fb38be40fcee",
+        "203d272ac7a394a4a3c134af7a1b0285",
+        "4223a62659b228d65532d400c4cbaa33",
+        "49d97e037fd4878056f6491811132084",
+        "5433fd50b151c3606b3505d63e9a4080",
+        "56490e60b4be3aa4d132cf907bc8d6b4",
+        "59507b23f8b3abc5f5f189900ce88d2c",
+        "5f73fb91c5ae4dc9efb61a1b179afcfd",
+        "6e264f53691c240e76c643b3211ba8f2",
+        "6f94a9cf3ea01ce819359eedc602a775",
+        "706ffd7ac53d02bec10310ba52f6615e",
+        "71cf682f36ba6a3109ee6424099314c7",
+        "794c1a1b20ed7fa572371773a5fe424f",
+        "81b950013103d571cdd3177632e1575b",
+        "a60b11fe95c731254b3aba13932ce7ae",
+        "b1e0edbadf1f9d70bb071b3bb0c1ab8c",
+        "e3c3e56a34e9f3f2a6fc156917305c0f",
+        "e9cc9697b359f9d3264366a31c32cad8",
+        "efe7c5c23a8b12495cc230ee5689ae87",
+        "f0d81a66ec92dffcde051f295d1a2506",
+        "f964a3b5462115a5736f65054ab8fc83"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-mira/reply/campaign-85af647a4fa8",
+      "children": []
+    },
+    {
+      "id": "cmvfsjodl009w1z02pt8x0c17",
+      "name": "memoir/agents/mira/reply/golden/conversations",
+      "target": "memoir/agents/mira/reply",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "038d21bb7ea3a7198f42db5c0b245b0b",
+        "0632f96479434b3cd664847765e98dc8",
+        "076c0042f4de08a1fab399ff3e185bb5",
+        "084e2801940aae60e7ba1a5d2eb5efcc",
+        "0e2e52a73f1a40f8fad28ea380d34db5",
+        "0f34c42d650de8b0fb92cb5926525067",
+        "233f1f31fefaa2a08f37db75eefea5e6",
+        "4ba786595bb800343eb3aa31a261584c",
+        "5b2a0a1fd415e04762ce27a42968b00b",
+        "6fff9862aa7150a118796e36223c1670",
+        "7118c9bad9909f741ef1a16739cdb6a9",
+        "7d52d7d9b4a329669caebd982e0f4134",
+        "91e8946b5dbebcebe1b180683be008c0",
+        "c5b9fb375212eb509c11777325199476",
+        "d45341e57e1dfebc3d800885aecae4f6",
+        "dffe814bd3d9363daad8a8a21d9ea26e"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-mira/reply/conversations",
+      "children": []
+    },
+    {
+      "id": "cmvf6398g005w1z029w2mw61u",
+      "name": "memoir/agents/mira/reply/golden/core",
+      "target": "memoir/agents/mira/reply",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "002606dadce02fac8b1b5a835a4352dc",
+        "1c75275b471d27e042224cc90b70e71c",
+        "1db88a0a8b368c8126fabce9a191d9c6",
+        "1de8837f435f0669dbebc155a2704008",
+        "28a65bdd12bce0e31a9dbc56333f388c",
+        "54db665a7b9f2631fd1e3eab32f83992",
+        "60e20388e54d0eb99cd0da65f274d668",
+        "68428408e57d8df0b701639a5737fd40",
+        "6e1ffeb38ae14fca6049061d5941707e",
+        "86e0583cdff44b8023af983b0c015da0",
+        "992f668fcfe3ab75d930e573a5af8b74",
+        "bc415dab57da50a36ea6e3fa4f639627",
+        "c8371754e3012666e931a99ec6ebda96",
+        "e29f7abf71038be9880ecfa53857b11a",
+        "e3ba810e0b57794ca1011006e96a1b71",
+        "ec81355b3b58c44021469923e72810b4"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-mira/reply/core",
+      "children": []
+    },
+    {
+      "id": "cmw1gu5hl009i1z025fk6iiwb",
+      "name": "memoir/evaluators/agents/mira/reply/interview-quality/calibration/core",
+      "target": "memoir/evaluators/agents/mira/reply/interview-quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "556afac6e80ca2354f86574577925bbe",
+        "a488f283c9d4804e6a44c57d46bd7db8"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/agents/mira/reply/interview-quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu5ux009n1z02x272veyj",
+      "name": "memoir/evaluators/shared/completeness/calibration/smoke",
+      "target": "memoir/evaluators/shared/completeness",
+      "status": "active",
+      "source_dataset_id": "cmw193n0m008i1z02nqyguq1f",
+      "source_item_ids": [
+        "81dadd6f-69b5-59d6-8981-4c2225fd6f99"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/completeness"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu5ys009r1z029kculg2k",
+      "name": "memoir/evaluators/shared/correctness/calibration/smoke",
+      "target": "memoir/evaluators/shared/correctness",
+      "status": "active",
+      "source_dataset_id": "cmw193n0m008i1z02nqyguq1f",
+      "source_item_ids": [
+        "de10fffa-b2da-5dbc-9929-a38dec99f689"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/correctness"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu62e009v1z02tvfwhho0",
+      "name": "memoir/evaluators/shared/relevance/calibration/smoke",
+      "target": "memoir/evaluators/shared/relevance",
+      "status": "active",
+      "source_dataset_id": "cmw193n0m008i1z02nqyguq1f",
+      "source_item_ids": [
+        "a1ace2be-b8ac-5217-b483-e985246adaaf"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/relevance"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu67k009z1z029paojmm7",
+      "name": "memoir/evaluators/shared/safety/calibration/smoke",
+      "target": "memoir/evaluators/shared/safety",
+      "status": "active",
+      "source_dataset_id": "cmw193n0m008i1z02nqyguq1f",
+      "source_item_ids": [
+        "28b21160-5ef1-5b20-9588-b2935372f28c"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/safety"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu6at00a31z02p9au8ioy",
+      "name": "memoir/evaluators/skills/author-timeline/extract/quality/calibration/core",
+      "target": "memoir/evaluators/skills/author-timeline/extract/quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "1473038e7cc2167d23611e4a0efa624e",
+        "512d9e373f0152fee883dcd6f3f1e34e"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/author-timeline/extract/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu6i900a81z025aite30g",
+      "name": "memoir/evaluators/skills/family-tree/extract/quality/calibration/core",
+      "target": "memoir/evaluators/skills/family-tree/extract/quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "572242c9c45e9f803f1a0f4725fe4ba3",
+        "b565315bc3d396a2ad1ac51a5770f50f"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/family-tree/extract/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu6mp00ad1z02lmqgwxvl",
+      "name": "memoir/evaluators/skills/historical-news-research/discovery/quality/calibration/core",
+      "target": "memoir/evaluators/skills/historical-news-research/discovery/quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "480ba3410fc725bc87beefafebcf9992",
+        "888b485fcd5f351c057543c962c44029"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/historical-news-research/discovery/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu6tm00ai1z02gq32tula",
+      "name": "memoir/evaluators/skills/memory-context/profile/quality/calibration/core",
+      "target": "memoir/evaluators/skills/memory-context/profile/quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "1e087b37f5884dbdea55cb10bd82442e",
+        "ffd6926522a03006f1769e7de8ee9f43"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/memory-context/profile/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu70400an1z02uw097afl",
+      "name": "memoir/evaluators/skills/place-groups/group/quality/calibration/core",
+      "target": "memoir/evaluators/skills/place-groups/group/quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "376638106167c5517a992bd0296ab264",
+        "6570d1ff0948514471a88de5921bbc8f"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/place-groups/group/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu74800as1z02fso1roze",
+      "name": "memoir/evaluators/skills/place-journey/extract/quality/calibration/core",
+      "target": "memoir/evaluators/skills/place-journey/extract/quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "1e4208e540f9a184837cb07f73baadba",
+        "a46bd47a192b41ca29bc0bc6834989f5"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/place-journey/extract/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu7gh00ax1z02crec4737",
+      "name": "memoir/evaluators/skills/place-photo-research/discovery/quality/calibration/core",
+      "target": "memoir/evaluators/skills/place-photo-research/discovery/quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "0e95f91d42dd1fa19c261d161cd9a159",
+        "16210a5a987675e4e7e5bafb33bdaf9e"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/skills/place-photo-research/discovery/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu7js00b21z02hf95rgs4",
+      "name": "memoir/evaluators/workflows/composer-checkpoints/quality/calibration/core",
+      "target": "memoir/evaluators/workflows/composer-checkpoints/quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "682c72a6b9f041bfdf2911c45a291a3c",
+        "be0d4fc58de4339549a84d563d06c6d2"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/workflows/composer-checkpoints/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu7q500b71z020444va5n",
+      "name": "memoir/evaluators/workflows/story-game-adaptation/quality/calibration/core",
+      "target": "memoir/evaluators/workflows/story-game-adaptation/quality",
+      "status": "active",
+      "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
+      "source_item_ids": [
+        "7a904f93f4caf2526c7a7ce76670a3ce",
+        "e199b418ce5266153b79f5c5ca2cfa07"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/workflows/story-game-adaptation/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ]
+    },
+    {
+      "id": "cmw1gu7ws00bc1z02zjj4ib17",
+      "name": "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/skills/author-timeline/extract",
+      "status": "active",
+      "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
+      "source_item_ids": [
+        "1030f360a1b5542221ae693d6b60620c",
+        "2cbc0280aef1b919b55520b82a479dc2",
+        "4354550f09959ee8fa2ac0de50fce3ee",
+        "4f86512bcd8ca57cb68a87f5d613a294",
+        "6623e9d2d9b989d4af38c7a597a50e75",
+        "67396b78ff13e9ae1f61e6b8cd97a0f6"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmvf62s10003s1z021ip1f0jw",
+      "name": "memoir/skills/author-timeline/extract/golden/core",
+      "target": "memoir/skills/author-timeline/extract",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "02646f374cd35382283d58572cb00adf",
+        "0e7d230964eeba6ce35802dd9efe52df",
+        "21e4b29f4b4847e605ba9674adb7ef3b",
+        "341095d9e6ca1b6cefa0aad080b79ed4",
+        "39eed9e4c5db39b3f95de7dbda754d82",
+        "5eac73bf532dbf770de701608278df5b",
+        "62ff9465182a264122ea6d2334654054",
+        "85110c576b334e13c162d28689d393cb",
+        "89dcf7a9bc9f55f403309b69ae644f81",
+        "aace0ada266d12960b0ba29ac045c789",
+        "ab0f8256dd622f270cddc40c2e654922",
+        "c5bdb33aba4025b72d9d6fa8b2ddcf84",
+        "c9a682c5b1fa8cf39d9b0a0ae8e41a39",
+        "ef7db84ef4ef5cc92fb6a19ac66353e5",
+        "fc23576675863da93edf9df9fd837bc4",
+        "fe817be7bad63b36658d45cabbfe333e"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-author-timeline/extract/core",
+      "children": []
+    },
+    {
+      "id": "cmw1gu8fm00bm1z02de9qs56x",
+      "name": "memoir/skills/author-timeline/extract/golden/delivery-core",
+      "target": "memoir/skills/author-timeline/extract",
+      "status": "active",
+      "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "source_item_ids": [
+        "2f9c8044e5b8cf5de67201a5726cf47a",
+        "8258281a546d5f3e51e5182ef1c790fc"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gu8p900br1z02xxvlq4b6",
+      "name": "memoir/skills/author-timeline/extract/golden/delivery-v2",
+      "target": "memoir/skills/author-timeline/extract",
+      "status": "active",
+      "source_dataset_id": "cmvde28s7001g1z024qbscebn",
+      "source_item_ids": [
+        "6ca7f9107b08f921d40962a1b2ca445b",
+        "f77ca2eecf27fd82b7c5201b79378eeb"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmvcxwiok001n1z029quda4ra",
+      "name": "memoir/skills/author-timeline/extract/golden/event-grounding",
+      "target": "memoir/skills/author-timeline/extract",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "0cc283a0-a5f2-4c50-973d-8b7cd4ec19d6",
+        "2ad71760-adbb-4dd9-9d0d-13af1300cad4",
+        "2fc76199-56f0-410a-b7c2-831ebb9a7ff7",
+        "4fbd7569-6756-47d2-9f54-004638200080",
+        "b48f038a-5056-4cc0-a646-efbc7bab0a28",
+        "c7faf501-b2d3-42fa-b2da-c2a9a055a9b9",
+        "e26bf99a-006b-4c44-a244-032090e4ae0e",
+        "eafffeb1-c6f7-4993-a50f-48a5bd13d158"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-author-timeline/extract/event-grounding",
+      "children": []
+    },
+    {
+      "id": "cmuzc53sj00031z02d3zzutu0",
+      "name": "memoir/skills/author-timeline/extract/golden/event-grounding-20261008-v1",
+      "target": "memoir/skills/author-timeline/extract",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "29fefdbe-724e-56f1-aa23-ac3f0b50856a",
+        "731c2eeb-7354-5bf4-9622-a623e9a3fdf7",
+        "7809c929-69a5-57f7-8233-9d02142fa630",
+        "7a8c895d-a04a-5345-9b53-faaa74c1fd65",
+        "910cded7-03aa-502f-8d4a-0795151f9690",
+        "c4fed214-42dc-5c5d-a79b-0114d60e4931",
+        "d1e57b4a-4fb1-50e8-9f59-b96742d43ca7",
+        "ed04e07a-1317-50ab-8eac-47d1b4d45086"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-author-timeline/extract/event-grounding-20261008-v1",
+      "children": []
+    },
+    {
+      "id": "cmvcxwj1b001y1z02xjgwdkjy",
+      "name": "memoir/skills/author-timeline/extract/golden/temporal-placement",
+      "target": "memoir/skills/author-timeline/extract",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "0e5477b8-b8d0-481c-9b80-220078cbde29",
+        "47824a96-95db-403c-9f37-97568232349e",
+        "4e0f0fcd-5d41-4119-93b3-04ad023d05bd",
+        "5e7dbae5-9794-4e84-989b-3abfa029b6eb",
+        "6f55ee86-790a-4a68-b5fc-5a9fd8c54cc8",
+        "7e4de200-70c6-491c-95e6-9b896c71f8c7",
+        "953f2561-6b33-4ff1-a059-2b31ee90e25b",
+        "a7582232-ba1b-43dc-be99-801c93336169",
+        "b5301c43-3824-4560-9133-159c2548f86f",
+        "c2168902-67ff-4260-bacc-7b1af32119de",
+        "f37b641a-7ea9-4655-a05a-2f1211913a39",
+        "f5fab2c7-5661-4cfd-8f5d-040f85bfbdc2",
+        "f7f136ff-f848-41f2-9671-6f5ae34c1eb1",
+        "fbc7452a-b492-49be-88c8-722ed4491c5d"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-author-timeline/extract/temporal-placement",
+      "children": []
+    },
+    {
+      "id": "cmuzc59lq000e1z02ioeafsko",
+      "name": "memoir/skills/author-timeline/extract/golden/temporal-placement-20261008-v1",
+      "target": "memoir/skills/author-timeline/extract",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "1b578274-c384-5af0-bd7b-051ee931190b",
+        "1c365735-ce0d-5edf-a3b9-ecd661a9e646",
+        "2dc96040-1358-5374-ba81-57a147be8d33",
+        "5a497653-eec2-55be-a613-50b86a44ddce",
+        "68d12a65-8af3-5a4e-8c96-e824c6fe7cc0",
+        "7cb4bc4a-4ebc-5f87-8742-3f2a47f0ff7d",
+        "99b5904b-e859-5828-9c25-2e8d586ab54e",
+        "a2a9685c-f140-5520-8302-67ec844807c5",
+        "accd9cf8-678d-56a7-99e6-86c9fcabfc62",
+        "af9760b8-6117-55fc-bfb0-d7dbdf083805",
+        "cc67fe16-1ac4-51f0-adf9-671107b313e0",
+        "de5f3d7a-bdb8-5973-9290-3b760ce4fcd8",
+        "e64dd005-b99f-5bd1-88e1-0e61d5fcf6f5",
+        "f7511172-f66a-5a9c-8129-b416c089d99e"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-author-timeline/extract/temporal-placement-20261008-v1",
+      "children": []
+    },
+    {
+      "id": "cmw1gubhy00c01z022hhvxa63",
+      "name": "memoir/skills/family-tree/extract/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/skills/family-tree/extract",
+      "status": "active",
+      "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
+      "source_item_ids": [
+        "cbbddcbe71be05bf41cc72fb2a1e6d5c",
+        "d79787f9e82b830fff3196da6011b81e"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/family-tree/extract"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmvf6340e004u1z02vmpkasz7",
+      "name": "memoir/skills/family-tree/extract/golden/core",
+      "target": "memoir/skills/family-tree/extract",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "0cffb0729a5bfb864271a706ba0b04c7",
+        "2f9661d4ff3c3d4b350b9550620e22d0",
+        "435fb1525fffa0cbbeee9ee477a149cb",
+        "48b76010ed6d13f2df7d2e201f070a6a",
+        "6099bdfe5e185ed88895c93167cb35f7",
+        "62188fbfea4fa92d3b0919fdaabc173c",
+        "62229db3ed2b1028a5eff9dad9abf6be",
+        "6537cb732703d055af6fc50ef5490413",
+        "7159873009d44e78354cb749a7f82322",
+        "89e4d725346987077bc58975363205aa",
+        "b69a80d9d2e2753992a4afc6af7913f3",
+        "c89dd6fc5969e4066c34337646dbd48a",
+        "cf37cea16c60e9436ffb035bf853d98a",
+        "dd3ec83b79d134ef96cab9f90a2caec0",
+        "e21f435ce084da8c76a8487b38c79d7c",
+        "e42f48915b4e6839fc45e9fa69c68507"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/family-tree/extract"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-family-tree/extract/core",
+      "children": []
+    },
+    {
+      "id": "cmw1guc9a00c61z02sp1ad4nw",
+      "name": "memoir/skills/family-tree/extract/golden/delivery-core",
+      "target": "memoir/skills/family-tree/extract",
+      "status": "active",
+      "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "source_item_ids": [
+        "b4befb22b2d57622d816ab3f75272fd9"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/family-tree/extract"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gucc100ca1z02er0agn3g",
+      "name": "memoir/skills/family-tree/extract/golden/delivery-v2",
+      "target": "memoir/skills/family-tree/extract",
+      "status": "active",
+      "source_dataset_id": "cmvde28s7001g1z024qbscebn",
+      "source_item_ids": [
+        "5c89ddf9cd7fd169edf378182289512f"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/family-tree/extract"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gucem00ce1z023ctmixas",
+      "name": "memoir/skills/historical-news-research/discovery/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "status": "active",
+      "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
+      "source_item_ids": [
+        "78a94dfb568e6d1c299a9fe60a9ef608"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/historical-news-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmvf637t5005d1z02tpayqkcw",
+      "name": "memoir/skills/historical-news-research/discovery/golden/core",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "120aeaf19e9ffc60641528f261fb2e01",
+        "46e2672e0f12e6eb5010e5c7176a7ff7",
+        "4be04df2108f11f17abcfdf573f58b8c",
+        "55118ff9d1184f2b5a9ecabe15f62e7b",
+        "55ba10478c906dbd0db859404285ff66",
+        "56eaa2dbd3a39a0f60365ca35dbdbdae",
+        "67577f53447a77e16e55d3b119791f63",
+        "6bfc81ffb1ececee538faa67e7240fe0",
+        "a073762de22d76032a620457c587b259",
+        "b3003a0403b69ea64fa0f09a6f0e51f3",
+        "b3c53ba1aed93db0e61eb0cf1ffa36ed",
+        "c4f77369cbdfd672bb341601bca4388c",
+        "c69293b760cae581a5b835ea5b701240",
+        "d1ba081162e9c7ac31924d8438749906",
+        "f0bf58010059c40a0641b7d4b2a5d413",
+        "f90f0e8543ccfce8656c943d34b7af84"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/historical-news-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-historical-news-research/discovery/core",
+      "children": []
+    },
+    {
+      "id": "cmw1gucil00cj1z02jgu0r0tl",
+      "name": "memoir/skills/historical-news-research/discovery/golden/delivery-core",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "status": "active",
+      "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "source_item_ids": [
+        "2cb359e1e3ec7849494a895341c47c78",
+        "e4678ef33c8f4e2024b795b8bdd62bd0"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/historical-news-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gucmu00co1z027otcrrge",
+      "name": "memoir/skills/historical-news-research/discovery/golden/delivery-v2",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "status": "active",
+      "source_dataset_id": "cmvde28s7001g1z024qbscebn",
+      "source_item_ids": [
+        "7f8a91ba4d8146e2dfe49564171cca07",
+        "c52ad0e1145e9bdffc59fd7e0ad7e354"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/historical-news-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gucp800ct1z02dj82o3kg",
+      "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/skills/memory-context/profile",
+      "status": "active",
+      "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
+      "source_item_ids": [
+        "0c74448905a3002c9e8beb6f9302336f",
+        "2527422a029fdbbe8e8d930e92be7ace",
+        "463191cae8683b052b671e775b9c6782",
+        "59f39148657bb8040b5e692b888f00b5",
+        "5e08d7039a00f42e054ae8eb4eb02cd8",
+        "6379ac053b5831bf657343f2fd1d4699",
+        "6ac0e269550b3cef2f59038eb95feb9c",
+        "bae74eb4e20dc7bd29a9318f3617580d",
+        "f38354143471c9e8ecdb75737436a71a",
+        "fad559f9bd9d3ccd8d27c87aa6fb72f1"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/memory-context/profile"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw0mspgg000m1z0211ur7wsg",
+      "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-30b9a4222825",
+      "target": "memoir/skills/memory-context/profile",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "7a900129c8d122c9539ccc936a616519"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/memory-context/profile"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-workflows/skill-contracts/campaign-30b9a4222825",
+      "children": []
+    },
+    {
+      "id": "cmvf63a7d006f1z0216n7260x",
+      "name": "memoir/skills/memory-context/profile/golden/core",
+      "target": "memoir/skills/memory-context/profile",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "16481bed218f9f8041ad76c55c90a8cf",
+        "270776147bdb3186df689d4e3cd965a3",
+        "2b8223438fecd8e651d056caa70d811c",
+        "2b942ad784e16708eb76fe60b02ca893",
+        "30e05bd8bf3346a1ed9b7c793385e839",
+        "31f43b8539c6010e684f1a28ae1bb042",
+        "34894509f654a4c11dc4e31fbf05f4e2",
+        "388c3756f62e1ec759e94ed648e40040",
+        "59124326404978d25cc8392dd967f98c",
+        "70013b52535eb00967106eda185fa0e4",
+        "731f2e9aa6a5ffc04f1a0021e678311e",
+        "740ca753cf3fc6187613ec7ce98c1e67",
+        "8eac28f4b84a7500793496514a6a6445",
+        "c15b9d81cb8a6544f3e9e102bdf46859",
+        "eb001b4838f7afe2e51f546ff65eb788",
+        "f86a1cf70fc3f46a7c85600b89c986db"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/memory-context/profile"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-memory-context/profile/core",
+      "children": []
+    },
+    {
+      "id": "cmw1gud8400d81z02t3x7gtc0",
+      "name": "memoir/skills/memory-context/profile/golden/delivery-core",
+      "target": "memoir/skills/memory-context/profile",
+      "status": "active",
+      "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "source_item_ids": [
+        "5873ad158181e4ed47ca96fcb17fcdc7",
+        "92635177415ff8f466c08b1caf2cc502",
+        "99096c14a291a1d4c225b9455522fd7e",
+        "c1310483a86f11a3118688370a1085e0",
+        "c992e2c8efd4dc9446d7273942b66f1c",
+        "ca2a033cd29dd9e60c967ec16d8c74f4",
+        "d791703b52f08e42d267a9e032b46cd4"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/memory-context/profile"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gudpm00di1z02q9c9r3ac",
+      "name": "memoir/skills/memory-context/profile/golden/delivery-v2",
+      "target": "memoir/skills/memory-context/profile",
+      "status": "active",
+      "source_dataset_id": "cmvde28s7001g1z024qbscebn",
+      "source_item_ids": [
+        "003e5169957f0a1ec76473bdc64e4830",
+        "357fd51cf1666f2fac88d7cd924706b3",
+        "5f79304b4f0fd500256fc8ccc2d87f31",
+        "949de86e8d44dd7f9d85cc962050eebf",
+        "e41d16e92532596829019df969949475",
+        "e77b459c618f9dbefcb0fe20a473ae68",
+        "fdd9d4b2bd8c4f5052665689b4583aa7"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/memory-context/profile"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gue3p00ds1z020r47rjrs",
+      "name": "memoir/skills/place-groups/group/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/skills/place-groups/group",
+      "status": "active",
+      "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
+      "source_item_ids": [
+        "0f98114aa612e62160e4499e36e2ebee",
+        "45dc873a47aa3fc273e9a3e369a09118",
+        "4a17c0155e621d0315963a33e33e1357",
+        "4d74d68326066281a681334b3a252b6d",
+        "4fc3977b9703ff4f6b172349cbebea89",
+        "54af241888d15004a11b247b7f8830fd",
+        "80b3592d884dc73b88c853aa7053ca85",
+        "8b881ec0009647fd90222206b66fc141",
+        "966ccf99ff8e3836560d50e46da34635",
+        "9d21306cb77d86151b66526faa9120ad",
+        "9e6816d374412a865a8f95170772b51f",
+        "b44db17ac3b0b1a7ed843dd043beed07",
+        "bfeb6e3491e2af2260b24d8527fec12f",
+        "c0cf2e74b53b9e2b6003457b9a9a4e08",
+        "d167fbea92bc2104fef72ec1622f66b8",
+        "d52dadb37ab9e7cbdd5650d247f92f81"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw0mvvrr000q1z02a220a52m",
+      "name": "memoir/skills/place-groups/group/golden/contracts-campaign-3fc96c911046",
+      "target": "memoir/skills/place-groups/group",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "387b4b5a3685cc3cb07ad8839eccc147"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "previous_name": "memoir/golden/memoir-workflows/skill-contracts/campaign-3fc96c911046",
+      "children": []
+    },
+    {
+      "id": "cmvf63b2m006y1z02j4hcpwry",
+      "name": "memoir/skills/place-groups/group/golden/core",
+      "target": "memoir/skills/place-groups/group",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "054f088d921bb4b69b18d4a770aa4e28",
+        "14f70b87b62e8cd3680cbb11c6e160de",
+        "38c637a103c0a1c18f3b81b3809f07b4",
+        "57f1ec4a830deb70c8007e9915a51908",
+        "5ce853ab894f833a20d189024b1d6c1c",
+        "925a8e138006d91d020b3f445df9c0e3",
+        "a725645b849dcc85617d4c0010eefb46",
+        "ac9545555fef30185a90c8e789de18c8",
+        "b25bf9431b0a14a2db44e4fa1fa45fa1",
+        "bca7bc1fb8c00bd6c7c20aedf9802f73",
+        "d7c2a223061a7b3db4730e29b1b5b4ff",
+        "d8d6835f10fa787be8fb796768d6170f",
+        "f1ba79f7d05f0aca246c62a0aee23f76",
+        "f6aac9270efc18d41bc9fd5c61f12311",
+        "fe640fcb3675c144c8beda2840862a0b",
+        "ff96ff39a46c58580afb4890b20c2a98"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ],
+      "previous_name": "memoir/golden/memoir-place-groups/group/core",
+      "children": []
+    },
+    {
+      "id": "cmw1guf2k00ed1z02hgj1xte6",
+      "name": "memoir/skills/place-groups/group/golden/delivery-core",
+      "target": "memoir/skills/place-groups/group",
+      "status": "active",
+      "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "source_item_ids": [
+        "757f50cef23a876967b9ac8120bf967b"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1guf9300eh1z0260bktm91",
+      "name": "memoir/skills/place-groups/group/golden/delivery-v2",
+      "target": "memoir/skills/place-groups/group",
+      "status": "active",
+      "source_dataset_id": "cmvde28s7001g1z024qbscebn",
+      "source_item_ids": [
+        "17d120346eee853b38efb92e183d10e1"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1guffx00el1z028wb402jj",
+      "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/skills/place-journey/extract",
+      "status": "active",
+      "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
+      "source_item_ids": [
+        "116d4f0d09b82c2d38ffc6b3b21b8d2a",
+        "8003fb007d4217e7eccbb6256a31092a",
+        "c26ecbb9adbeeae9aa3a59ce305911df",
+        "fea43130b1f63601c7612aae211af5a9"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/extract",
+        "memoir/skills/place-journey/instructions"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmvf63buk007h1z02aw7y2u4g",
+      "name": "memoir/skills/place-journey/extract/golden/core",
+      "target": "memoir/skills/place-journey/extract",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "0bc00f81dd9054d6a2ba6532a0abfaee",
+        "20a153167dc07405ca85c84f7c6f98f9",
+        "20f252885f2dc8f33ca7d3fcff3a2253",
+        "2ce0dcefd8f85d1eaeaf69b5c257e142",
+        "3aa417f947965849af830ac242337f26",
+        "4b8c19bb1f523f666eaaf502e48d933f",
+        "5acf497d9b7e5a026cd353d9505fbb50",
+        "7554b8491863e063350d9e4ac5399782",
+        "75f42969a01870bfed127f78b409a9eb",
+        "82d2efdc15dab6905554ffcda0cbe069",
+        "85ce161db2f0bb37e56b5bf0c06d3b7b",
+        "8845bb44362729099e4224babdb48372",
+        "91984b54d3da2d1487f9d0941f7eae6e",
+        "aa42e381fd28aa0a99fe166868ec38a4",
+        "c3158d77a895cfeff1babd6d06ff202f",
+        "c6b3d49e24640d619836e0000d7f782d"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/extract",
+        "memoir/skills/place-journey/instructions"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-place-journey/extract/core",
+      "children": []
+    },
+    {
+      "id": "cmw1gufo400et1z02sko454ga",
+      "name": "memoir/skills/place-journey/extract/golden/delivery-core",
+      "target": "memoir/skills/place-journey/extract",
+      "status": "active",
+      "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "source_item_ids": [
+        "764669bf12ab4aaa930d7b195c24aef1"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/extract",
+        "memoir/skills/place-journey/instructions"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gufr300ex1z02s0vzre8q",
+      "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
+      "target": "memoir/skills/place-journey/extract",
+      "status": "active",
+      "source_dataset_id": "cmvde28s7001g1z024qbscebn",
+      "source_item_ids": [
+        "dfbcf8ad0c90558b4a32a645d66b5598"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/extract",
+        "memoir/skills/place-journey/instructions"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gufuq00f11z023c25c7j3",
+      "name": "memoir/skills/place-photo-research/discovery/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "status": "active",
+      "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
+      "source_item_ids": [
+        "06b3d54a8aa64a22e3a1cffef9d15902"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/place-photo-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmvf63crr00801z026ga66lt9",
+      "name": "memoir/skills/place-photo-research/discovery/golden/core",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "0235683433dbdcc8eadc3bfac8c16c40",
+        "08fc8beca0f2b2dd2b37599afb26dbcb",
+        "0f358278b92be5e83f9acd18af77a460",
+        "3f810b7333a82a91ee56eebb2f948df8",
+        "400653d1e5ab56a8c8c68e3b92fe9f0b",
+        "4c83860046b3c358d23c6762f7a6e1bc",
+        "67c4ba478ba7262a52944c311ae4b820",
+        "717047a895a56ff2891885da7382fe8f",
+        "75ad05d68a8b1672d5b6a6025a846347",
+        "a5648fa86f160aa39ef7f4ac7d622cb4",
+        "b9b1051da17aa133ed78e6df2a2ab5de",
+        "bcee83b10612e8ea8c966568910e17e8",
+        "c62fd83c1dd5a5009b6831ee7cbdc120",
+        "c959fbc169e846002dd0b7d4dc2dcb76",
+        "cb32d08e8087ce74034a5b0623220b1e",
+        "d0f5507fc50ace698111292998325767"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/place-photo-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "previous_name": "memoir/golden/memoir-place-photo-research/discovery/core",
+      "children": []
+    },
+    {
+      "id": "cmw1gug0500f61z029tzgytzj",
+      "name": "memoir/skills/place-photo-research/discovery/golden/delivery-core",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "status": "active",
+      "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "source_item_ids": [
+        "b9ecdb86a01965819c371ba001626c23",
+        "d6b6d7c42fe0200c71631ce34abebfc9"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/place-photo-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gug9h00fb1z02v4981agb",
+      "name": "memoir/skills/place-photo-research/discovery/golden/delivery-v2",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "status": "active",
+      "source_dataset_id": "cmvde28s7001g1z024qbscebn",
+      "source_item_ids": [
+        "33cd2489a326744a278c116f31dff8c1",
+        "e5a79d764a4f2c05f5a24101c7e78235"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/place-photo-research/discovery"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gugee00fg1z02zcm0ndjb",
+      "name": "memoir/skills/story-game/brief/golden/delivery-core",
+      "target": "memoir/skills/story-game/brief",
+      "status": "active",
+      "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "source_item_ids": [
+        "585538281dd76302c7b35683a84b2c82"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/story-game/brief"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gughv00fk1z02ndh4d8dx",
+      "name": "memoir/skills/story-game/brief/golden/delivery-v2",
+      "target": "memoir/skills/story-game/brief",
+      "status": "active",
+      "source_dataset_id": "cmvde28s7001g1z024qbscebn",
+      "source_item_ids": [
+        "cf7ea9161d34757275e430a485fb0007"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/story-game/brief"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ]
+    },
+    {
+      "id": "cmw1gugjq00fo1z02y9ccqhq0",
+      "name": "memoir/workflows/author-timeline-admission/golden/triggers-core",
+      "target": "memoir/workflows/author-timeline-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "source_item_ids": [
+        "4154001f3cf580af908a17513211f894"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1gugll00fs1z02hx5rnbtx",
+      "name": "memoir/workflows/author-timeline-admission/golden/triggers-v2",
+      "target": "memoir/workflows/author-timeline-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdea22b00221z02a0nv1v93",
+      "source_item_ids": [
+        "f9fc5ce99fd42c28d4c2386d9a9e0c99"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmvcxwjt2002k1z02u2zdv6qn",
+      "name": "memoir/workflows/bilingual-reply-parity/golden/bilingual-consistency",
+      "target": "memoir/workflows/bilingual-reply-parity",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "7c22e28f-c34a-47d6-89b1-c6ea1bf622ce",
+        "9c78c576-4d40-477a-b270-31749bf2ed95",
+        "a39b469f-fa6a-4bad-a6c6-be8928d0e41d",
+        "b86b87ec-a76e-4dae-bfd0-574dc2df8375"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "paired-outcome"
+      ],
+      "previous_name": "memoir/golden/memoir-mira/reply/bilingual-consistency",
+      "children": []
+    },
+    {
+      "id": "cmuzc5g9f00101z02pkzc2lms",
+      "name": "memoir/workflows/bilingual-reply-parity/golden/bilingual-consistency-20261008-v1",
+      "target": "memoir/workflows/bilingual-reply-parity",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "4661efc2-8a67-5f04-af1f-9b6ff106def4",
+        "4efc5c19-9173-5d67-bac4-7dd716007e7a",
+        "7d8ea286-fe73-535f-9f80-fb332a383978",
+        "b52a06ea-48f8-51ce-b45f-2bbe7984e7f2"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal"
+      ],
+      "metrics": [
+        "paired-outcome"
+      ],
+      "previous_name": "memoir/golden/memoir-mira/reply/bilingual-consistency-20261008-v1",
+      "children": []
+    },
+    {
+      "id": "cmw1gugqg00fy1z02akrq9fty",
+      "name": "memoir/workflows/composer-admission/golden/triggers-core",
+      "target": "memoir/workflows/composer-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "source_item_ids": [
+        "4b5b55c556fbc25e76d8142f91327c90"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1gugs800g21z02lhte7e00",
+      "name": "memoir/workflows/composer-admission/golden/triggers-v2",
+      "target": "memoir/workflows/composer-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdea22b00221z02a0nv1v93",
+      "source_item_ids": [
+        "bfb59d385b65f99d400afd347f098995"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmvcxwjms002f1z02fr0384pm",
+      "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity",
+      "target": "memoir/workflows/composer-checkpoints",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "2df23282-3625-470a-9d3d-02e4a1d73032",
+        "d559e96a-4a02-4626-b5a2-9fa419511912"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "previous_name": "memoir/golden/memoir-composer/compose/chapter-continuity",
+      "children": []
+    },
+    {
+      "id": "cmuzc5ese000v1z02wi65o5qc",
+      "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity-20261008-v1",
+      "target": "memoir/workflows/composer-checkpoints",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "4fc7b724-3e42-5ed1-9da5-ac3d1e0e43d0",
+        "66058db4-50ec-53f6-8f0d-025461fb57fa"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "previous_name": "memoir/golden/memoir-composer/compose/chapter-continuity-20261008-v1",
+      "children": []
+    },
+    {
+      "id": "cmw1gugxc00g81z02t5bj7he1",
+      "name": "memoir/workflows/composer-checkpoints/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/workflows/composer-checkpoints",
+      "status": "active",
+      "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
+      "source_item_ids": [
+        "23cd774e538c3d38ceabcf2285f3ed52",
+        "569f581431178abf512220044e8443f5",
+        "9a156bc635397f0d2105ab8ff8460d2e",
+        "e2e318ccb048de3c845d879aa5255a05"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ]
+    },
+    {
+      "id": "cmw0pnedx004k1z02mjg6rkji",
+      "name": "memoir/workflows/composer-checkpoints/golden/contracts-campaign-ae78da484eb8",
+      "target": "memoir/workflows/composer-checkpoints",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "f15227e2b32b20ca9d602babc1a0f717"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "previous_name": "memoir/golden/memoir-workflows/skill-contracts/campaign-ae78da484eb8",
+      "children": []
+    },
+    {
+      "id": "cmvf62u0w004b1z02yp9bzm84",
+      "name": "memoir/workflows/composer-checkpoints/golden/core",
+      "target": "memoir/workflows/composer-checkpoints",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "2214ebf96891f9009e228758a417585e",
+        "26b7cba72e6550fbea02a19c6bfc1e96",
+        "34d4dc7c0273b80bf5c3243497126765",
+        "35b5313353b6e79716cc8b9228b26de6",
+        "62613a1a9d85d8031a722943389641a6",
+        "72dd7c7c5b1819053f8c72da422a5f95",
+        "81fab41436021a29d683714df6259505",
+        "881ad5f3acf68b0961e84e9e2a7c168f",
+        "c08d0df90a991d9e585e4fb7d74f4dee",
+        "c52265e849f92a77af29df9d8199e5a7",
+        "c6ab6d00eabf7f14577471502785313a",
+        "d1edf1dbbb842e0d755808b7d2e89ab8",
+        "d7b7eea25e5f86412c6e8cef667f2dc9",
+        "e762fa75608ac5af08bde5916342f340",
+        "e8d0e80c0d5738c56dad220f1625b3f3",
+        "eb1255364ac6203f6cf2da643a713946"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "previous_name": "memoir/golden/memoir-composer/compose/core",
+      "children": []
+    },
+    {
+      "id": "cmw1guh6400gh1z02g3mxd1f4",
+      "name": "memoir/workflows/composer-checkpoints/golden/delivery-core",
+      "target": "memoir/workflows/composer-checkpoints",
+      "status": "active",
+      "source_dataset_id": "cmvdcb2g2000f1z02wqx8n34y",
+      "source_item_ids": [
+        "910bde128db19a4d7f2928758858cdba",
+        "efdf77f7964a0cf65b75521daaefc568"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ]
+    },
+    {
+      "id": "cmw1guh8800gm1z024xqfp9lu",
+      "name": "memoir/workflows/composer-checkpoints/golden/delivery-v2",
+      "target": "memoir/workflows/composer-checkpoints",
+      "status": "active",
+      "source_dataset_id": "cmvde28s7001g1z024qbscebn",
+      "source_item_ids": [
+        "374e982ac48160904f67852dd969083a",
+        "46f3ef6c9b66c2a1c932640ef71dbc58"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ]
+    },
+    {
+      "id": "cmw1guha300gr1z02ntsgohhe",
+      "name": "memoir/workflows/family-tree-admission/golden/triggers-core",
+      "target": "memoir/workflows/family-tree-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "source_item_ids": [
+        "f1fec547ea8729a3cfae8b497bb78962"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1guhbb00gv1z02hrqosh4g",
+      "name": "memoir/workflows/family-tree-admission/golden/triggers-v2",
+      "target": "memoir/workflows/family-tree-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdea22b00221z02a0nv1v93",
+      "source_item_ids": [
+        "293f76457922a1e0ffc0612ff890f6be"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1guhcv00gz1z02d42yhif9",
+      "name": "memoir/workflows/historical-news-research-admission/golden/triggers-core",
+      "target": "memoir/workflows/historical-news-research-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "source_item_ids": [
+        "8ec72a49f9c8dd744e9618aa597a8330"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1guhec00h31z02py48g0cu",
+      "name": "memoir/workflows/historical-news-research-admission/golden/triggers-v2",
+      "target": "memoir/workflows/historical-news-research-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdea22b00221z02a0nv1v93",
+      "source_item_ids": [
+        "10b6ea0bcf2e6d57b886bfc7da886506"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmvf63f1v00971z0214q8rr07",
+      "name": "memoir/workflows/judge-calibration/calibration/core",
+      "target": "memoir/workflows/judge-calibration",
+      "status": "historical",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "0e95f91d42dd1fa19c261d161cd9a159",
+        "1473038e7cc2167d23611e4a0efa624e",
+        "16210a5a987675e4e7e5bafb33bdaf9e",
+        "1e087b37f5884dbdea55cb10bd82442e",
+        "1e4208e540f9a184837cb07f73baadba",
+        "376638106167c5517a992bd0296ab264",
+        "480ba3410fc725bc87beefafebcf9992",
+        "512d9e373f0152fee883dcd6f3f1e34e",
+        "556afac6e80ca2354f86574577925bbe",
+        "572242c9c45e9f803f1a0f4725fe4ba3",
+        "6570d1ff0948514471a88de5921bbc8f",
+        "682c72a6b9f041bfdf2911c45a291a3c",
+        "7a904f93f4caf2526c7a7ce76670a3ce",
+        "888b485fcd5f351c057543c962c44029",
+        "a46bd47a192b41ca29bc0bc6834989f5",
+        "a488f283c9d4804e6a44c57d46bd7db8",
+        "b565315bc3d396a2ad1ac51a5770f50f",
+        "be0d4fc58de4339549a84d563d06c6d2",
+        "e199b418ce5266153b79f5c5ca2cfa07",
+        "ffd6926522a03006f1769e7de8ee9f43"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [],
+      "previous_name": "memoir/calibration/memoir-judges/quality/core",
+      "children": [
+        "memoir/evaluators/agents/mira/reply/interview-quality/calibration/core",
+        "memoir/evaluators/skills/author-timeline/extract/quality/calibration/core",
+        "memoir/evaluators/skills/family-tree/extract/quality/calibration/core",
+        "memoir/evaluators/skills/historical-news-research/discovery/quality/calibration/core",
+        "memoir/evaluators/skills/memory-context/profile/quality/calibration/core",
+        "memoir/evaluators/skills/place-groups/group/quality/calibration/core",
+        "memoir/evaluators/skills/place-journey/extract/quality/calibration/core",
+        "memoir/evaluators/skills/place-photo-research/discovery/quality/calibration/core",
+        "memoir/evaluators/workflows/composer-checkpoints/quality/calibration/core",
+        "memoir/evaluators/workflows/story-game-adaptation/quality/calibration/core"
+      ]
+    },
+    {
+      "id": "cmw1guhhw00h81z02v43bfmtp",
+      "name": "memoir/workflows/memory-context-admission/golden/triggers-core",
+      "target": "memoir/workflows/memory-context-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "source_item_ids": [
+        "35d798489103010d64e162e2b57cbeb4"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1guhlj00hc1z028d97dbr6",
+      "name": "memoir/workflows/memory-context-admission/golden/triggers-v2",
+      "target": "memoir/workflows/memory-context-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdea22b00221z02a0nv1v93",
+      "source_item_ids": [
+        "e81368eed69b02d6fbe7fb37b3200d3c"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmvdcb2g2000f1z02wqx8n34y",
+      "name": "memoir/workflows/multi-skill-delivery/golden/core",
+      "target": "memoir/workflows/multi-skill-delivery",
+      "status": "historical",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "2cb359e1e3ec7849494a895341c47c78",
+        "2f9c8044e5b8cf5de67201a5726cf47a",
+        "585538281dd76302c7b35683a84b2c82",
+        "5873ad158181e4ed47ca96fcb17fcdc7",
+        "757f50cef23a876967b9ac8120bf967b",
+        "764669bf12ab4aaa930d7b195c24aef1",
+        "8258281a546d5f3e51e5182ef1c790fc",
+        "910bde128db19a4d7f2928758858cdba",
+        "92635177415ff8f466c08b1caf2cc502",
+        "99096c14a291a1d4c225b9455522fd7e",
+        "b4befb22b2d57622d816ab3f75272fd9",
+        "b9ecdb86a01965819c371ba001626c23",
+        "c1310483a86f11a3118688370a1085e0",
+        "c992e2c8efd4dc9446d7273942b66f1c",
+        "ca2a033cd29dd9e60c967ec16d8c74f4",
+        "d6b6d7c42fe0200c71631ce34abebfc9",
+        "d791703b52f08e42d267a9e032b46cd4",
+        "e4678ef33c8f4e2024b795b8bdd62bd0",
+        "efdf77f7964a0cf65b75521daaefc568"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [],
+      "previous_name": "memoir/golden/memoir-workflows/skill-delivery/core",
+      "children": [
+        "memoir/skills/author-timeline/extract/golden/delivery-core",
+        "memoir/skills/family-tree/extract/golden/delivery-core",
+        "memoir/skills/historical-news-research/discovery/golden/delivery-core",
+        "memoir/skills/memory-context/profile/golden/delivery-core",
+        "memoir/skills/place-groups/group/golden/delivery-core",
+        "memoir/skills/place-journey/extract/golden/delivery-core",
+        "memoir/skills/place-photo-research/discovery/golden/delivery-core",
+        "memoir/skills/story-game/brief/golden/delivery-core",
+        "memoir/workflows/composer-checkpoints/golden/delivery-core"
+      ]
+    },
+    {
+      "id": "cmvde28s7001g1z024qbscebn",
+      "name": "memoir/workflows/multi-skill-delivery/golden/v2",
+      "target": "memoir/workflows/multi-skill-delivery",
+      "status": "historical",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "003e5169957f0a1ec76473bdc64e4830",
+        "17d120346eee853b38efb92e183d10e1",
+        "33cd2489a326744a278c116f31dff8c1",
+        "357fd51cf1666f2fac88d7cd924706b3",
+        "374e982ac48160904f67852dd969083a",
+        "46f3ef6c9b66c2a1c932640ef71dbc58",
+        "5c89ddf9cd7fd169edf378182289512f",
+        "5f79304b4f0fd500256fc8ccc2d87f31",
+        "6ca7f9107b08f921d40962a1b2ca445b",
+        "7f8a91ba4d8146e2dfe49564171cca07",
+        "949de86e8d44dd7f9d85cc962050eebf",
+        "c52ad0e1145e9bdffc59fd7e0ad7e354",
+        "cf7ea9161d34757275e430a485fb0007",
+        "dfbcf8ad0c90558b4a32a645d66b5598",
+        "e41d16e92532596829019df969949475",
+        "e5a79d764a4f2c05f5a24101c7e78235",
+        "e77b459c618f9dbefcb0fe20a473ae68",
+        "f77ca2eecf27fd82b7c5201b79378eeb",
+        "fdd9d4b2bd8c4f5052665689b4583aa7"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [],
+      "previous_name": "memoir/golden/memoir-workflows/skill-delivery/v2",
+      "children": [
+        "memoir/skills/author-timeline/extract/golden/delivery-v2",
+        "memoir/skills/family-tree/extract/golden/delivery-v2",
+        "memoir/skills/historical-news-research/discovery/golden/delivery-v2",
+        "memoir/skills/memory-context/profile/golden/delivery-v2",
+        "memoir/skills/place-groups/group/golden/delivery-v2",
+        "memoir/skills/place-journey/extract/golden/delivery-v2",
+        "memoir/skills/place-photo-research/discovery/golden/delivery-v2",
+        "memoir/skills/story-game/brief/golden/delivery-v2",
+        "memoir/workflows/composer-checkpoints/golden/delivery-v2"
+      ]
+    },
+    {
+      "id": "cmw0mxw4s00261z02ypyn2buw",
+      "name": "memoir/workflows/multi-skill-regression/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/workflows/multi-skill-regression",
+      "status": "historical",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "06b3d54a8aa64a22e3a1cffef9d15902",
+        "0c74448905a3002c9e8beb6f9302336f",
+        "0f98114aa612e62160e4499e36e2ebee",
+        "1030f360a1b5542221ae693d6b60620c",
+        "116d4f0d09b82c2d38ffc6b3b21b8d2a",
+        "23cd774e538c3d38ceabcf2285f3ed52",
+        "2527422a029fdbbe8e8d930e92be7ace",
+        "2cbc0280aef1b919b55520b82a479dc2",
+        "4354550f09959ee8fa2ac0de50fce3ee",
+        "45dc873a47aa3fc273e9a3e369a09118",
+        "463191cae8683b052b671e775b9c6782",
+        "4a17c0155e621d0315963a33e33e1357",
+        "4d74d68326066281a681334b3a252b6d",
+        "4f86512bcd8ca57cb68a87f5d613a294",
+        "4fc3977b9703ff4f6b172349cbebea89",
+        "54af241888d15004a11b247b7f8830fd",
+        "569f581431178abf512220044e8443f5",
+        "59f39148657bb8040b5e692b888f00b5",
+        "5e08d7039a00f42e054ae8eb4eb02cd8",
+        "6379ac053b5831bf657343f2fd1d4699",
+        "6623e9d2d9b989d4af38c7a597a50e75",
+        "67396b78ff13e9ae1f61e6b8cd97a0f6",
+        "6ac0e269550b3cef2f59038eb95feb9c",
+        "78a94dfb568e6d1c299a9fe60a9ef608",
+        "8003fb007d4217e7eccbb6256a31092a",
+        "80b3592d884dc73b88c853aa7053ca85",
+        "8b881ec0009647fd90222206b66fc141",
+        "966ccf99ff8e3836560d50e46da34635",
+        "9a156bc635397f0d2105ab8ff8460d2e",
+        "9d21306cb77d86151b66526faa9120ad",
+        "9e6816d374412a865a8f95170772b51f",
+        "b44db17ac3b0b1a7ed843dd043beed07",
+        "bae74eb4e20dc7bd29a9318f3617580d",
+        "bfeb6e3491e2af2260b24d8527fec12f",
+        "c0cf2e74b53b9e2b6003457b9a9a4e08",
+        "c26ecbb9adbeeae9aa3a59ce305911df",
+        "cbbddcbe71be05bf41cc72fb2a1e6d5c",
+        "d167fbea92bc2104fef72ec1622f66b8",
+        "d52dadb37ab9e7cbdd5650d247f92f81",
+        "d79787f9e82b830fff3196da6011b81e",
+        "d90a19b95e915de09940c411ba4b2abb",
+        "dccd9bb21fe4ea26a3f3aba8f7c629c3",
+        "e2e318ccb048de3c845d879aa5255a05",
+        "f38354143471c9e8ecdb75737436a71a",
+        "fad559f9bd9d3ccd8d27c87aa6fb72f1",
+        "fea43130b1f63601c7612aae211af5a9"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [],
+      "previous_name": "memoir/golden/memoir-workflows/skill-contracts/campaign-0114d47bf1df",
+      "children": [
+        "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df",
+        "memoir/skills/family-tree/extract/golden/contracts-campaign-0114d47bf1df",
+        "memoir/skills/historical-news-research/discovery/golden/contracts-campaign-0114d47bf1df",
+        "memoir/skills/memory-context/profile/golden/contracts-campaign-0114d47bf1df",
+        "memoir/skills/place-groups/group/golden/contracts-campaign-0114d47bf1df",
+        "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
+        "memoir/skills/place-photo-research/discovery/golden/contracts-campaign-0114d47bf1df",
+        "memoir/workflows/composer-checkpoints/golden/contracts-campaign-0114d47bf1df",
+        "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df"
+      ]
+    },
+    {
+      "id": "cmw1guhx500hj1z027vnafou4",
+      "name": "memoir/workflows/place-groups-admission/golden/triggers-core",
+      "target": "memoir/workflows/place-groups-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "source_item_ids": [
+        "020bce5343cc2a752ba1dc1c775bc857"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1guhz400hn1z02qbfob3qj",
+      "name": "memoir/workflows/place-groups-admission/golden/triggers-v2",
+      "target": "memoir/workflows/place-groups-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdea22b00221z02a0nv1v93",
+      "source_item_ids": [
+        "be79aeab19234df9e439e4fa477c4bdc"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1gui0w00hr1z024kfnjjuw",
+      "name": "memoir/workflows/place-journey-admission/golden/triggers-core",
+      "target": "memoir/workflows/place-journey-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "source_item_ids": [
+        "5fc1434405caab5516e7f3605d66fea9"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1gui2a00hv1z023zyxp4al",
+      "name": "memoir/workflows/place-journey-admission/golden/triggers-v2",
+      "target": "memoir/workflows/place-journey-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdea22b00221z02a0nv1v93",
+      "source_item_ids": [
+        "988ee01eba5619e6a2bf249f8b87780b"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1gui3s00hz1z02ovrod8jj",
+      "name": "memoir/workflows/place-photo-research-admission/golden/triggers-core",
+      "target": "memoir/workflows/place-photo-research-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "source_item_ids": [
+        "580fe615c52cb4bfa81c1f150b62248b"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1gui5c00i31z02l15m1ltq",
+      "name": "memoir/workflows/place-photo-research-admission/golden/triggers-v2",
+      "target": "memoir/workflows/place-photo-research-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdea22b00221z02a0nv1v93",
+      "source_item_ids": [
+        "6e738907d196e13788285cee8c61e27a"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw193n0m008i1z02nqyguq1f",
+      "name": "memoir/workflows/quality-judge-wiring/calibration/smoke",
+      "target": "memoir/workflows/quality-judge-wiring",
+      "status": "historical",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "28b21160-5ef1-5b20-9588-b2935372f28c",
+        "81dadd6f-69b5-59d6-8981-4c2225fd6f99",
+        "a1ace2be-b8ac-5217-b483-e985246adaaf",
+        "de10fffa-b2da-5dbc-9929-a38dec99f689"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [],
+      "previous_name": "memoir/calibration/memoir-judges/quality/smoke",
+      "children": [
+        "memoir/evaluators/shared/completeness/calibration/smoke",
+        "memoir/evaluators/shared/correctness/calibration/smoke",
+        "memoir/evaluators/shared/relevance/calibration/smoke",
+        "memoir/evaluators/shared/safety/calibration/smoke"
+      ]
+    },
+    {
+      "id": "cmvdcb1h100031z020eze1xt8",
+      "name": "memoir/workflows/skill-admission/golden/core",
+      "target": "memoir/workflows/skill-admission",
+      "status": "historical",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "020bce5343cc2a752ba1dc1c775bc857",
+        "35d798489103010d64e162e2b57cbeb4",
+        "4154001f3cf580af908a17513211f894",
+        "4b5b55c556fbc25e76d8142f91327c90",
+        "580fe615c52cb4bfa81c1f150b62248b",
+        "5fc1434405caab5516e7f3605d66fea9",
+        "8ec72a49f9c8dd744e9618aa597a8330",
+        "993542495cef9b2b06170ef8af95514c",
+        "f1fec547ea8729a3cfae8b497bb78962"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [],
+      "previous_name": "memoir/golden/memoir-atlas/skill-selection/core",
+      "children": [
+        "memoir/workflows/author-timeline-admission/golden/triggers-core",
+        "memoir/workflows/composer-admission/golden/triggers-core",
+        "memoir/workflows/family-tree-admission/golden/triggers-core",
+        "memoir/workflows/historical-news-research-admission/golden/triggers-core",
+        "memoir/workflows/memory-context-admission/golden/triggers-core",
+        "memoir/workflows/place-groups-admission/golden/triggers-core",
+        "memoir/workflows/place-journey-admission/golden/triggers-core",
+        "memoir/workflows/place-photo-research-admission/golden/triggers-core",
+        "memoir/workflows/story-game-admission/golden/triggers-core"
+      ]
+    },
+    {
+      "id": "cmvdea22b00221z02a0nv1v93",
+      "name": "memoir/workflows/skill-admission/golden/v2",
+      "target": "memoir/workflows/skill-admission",
+      "status": "historical",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "10b6ea0bcf2e6d57b886bfc7da886506",
+        "293f76457922a1e0ffc0612ff890f6be",
+        "6e738907d196e13788285cee8c61e27a",
+        "988ee01eba5619e6a2bf249f8b87780b",
+        "ac6c149fcd9b6e2f4a787599fe741d81",
+        "be79aeab19234df9e439e4fa477c4bdc",
+        "bfb59d385b65f99d400afd347f098995",
+        "e81368eed69b02d6fbe7fb37b3200d3c",
+        "f9fc5ce99fd42c28d4c2386d9a9e0c99"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [],
+      "previous_name": "memoir/golden/memoir-atlas/skill-selection/v2",
+      "children": [
+        "memoir/workflows/author-timeline-admission/golden/triggers-v2",
+        "memoir/workflows/composer-admission/golden/triggers-v2",
+        "memoir/workflows/family-tree-admission/golden/triggers-v2",
+        "memoir/workflows/historical-news-research-admission/golden/triggers-v2",
+        "memoir/workflows/memory-context-admission/golden/triggers-v2",
+        "memoir/workflows/place-groups-admission/golden/triggers-v2",
+        "memoir/workflows/place-journey-admission/golden/triggers-v2",
+        "memoir/workflows/place-photo-research-admission/golden/triggers-v2",
+        "memoir/workflows/story-game-admission/golden/triggers-v2"
+      ]
+    },
+    {
+      "id": "cmvf63exl00921z024ddyz6sa",
+      "name": "memoir/workflows/source-to-private-draft/golden/core",
+      "target": "memoir/workflows/source-to-private-draft",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "3db15dcb393de8418e8759b6845dbce4",
+        "4facefa7bb6b8f2011b1e8234d4963fc"
+      ],
+      "evaluated_prompts": [
+        "memoir/agents/mira/policy-review",
+        "memoir/agents/mira/repair",
+        "memoir/agents/mira/repair-codes",
+        "memoir/agents/mira/reply",
+        "memoir/agents/mira/strategy-proposal",
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/instructions",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix",
+        "memoir/skills/composer/prepare",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "previous_name": "memoir/golden/memoir-workflows/integration/core",
+      "children": []
+    },
+    {
+      "id": "cmw1guidl00ib1z02tlr3pvae",
+      "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+      "target": "memoir/workflows/story-game-adaptation",
+      "status": "active",
+      "source_dataset_id": "cmw0mxw4s00261z02ypyn2buw",
+      "source_item_ids": [
+        "d90a19b95e915de09940c411ba4b2abb",
+        "dccd9bb21fe4ea26a3f3aba8f7c629c3"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/higgsfield",
+        "memoir/skills/story-game/instructions",
+        "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/analyze",
+        "memoir/skills/story-game/novel-to-game/art",
+        "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/concept",
+        "memoir/skills/story-game/novel-to-game/design",
+        "memoir/skills/story-game/novel-to-game/illustration",
+        "memoir/skills/story-game/novel-to-game/journey",
+        "memoir/skills/story-game/novel-to-game/production",
+        "memoir/skills/story-game/novel-to-game/production_style",
+        "memoir/skills/story-game/novel-to-game/whitebox",
+        "memoir/skills/story-game/proposal",
+        "memoir/skills/story-game/runtime-contract",
+        "memoir/skills/story-game/webpage"
+      ],
+      "metrics": [
+        "trajectory"
+      ]
+    },
+    {
+      "id": "cmvf63dud008j1z028ssmdzxr",
+      "name": "memoir/workflows/story-game-adaptation/golden/core",
+      "target": "memoir/workflows/story-game-adaptation",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "0198708c8db8c1bc41d3dcb88c199850",
+        "164ca24a7ab7f901f73fe5c70defd43c",
+        "394b231fc5ea17371943542ace5c8fea",
+        "553d5001bfa2ad3dfe6624b3107cb16f",
+        "5d8f648554f2be2a567645f7e7addefb",
+        "6b7ca981ac0fc0736895f480cb28e783",
+        "8a41d95fecebe860a9f968bb06125ca1",
+        "bafede24e125da49b996a52ef82b542f",
+        "c76bfd9a82c1c654bd895b1e7f82d419",
+        "c9b9a848e508ab051867cf56f8df6137",
+        "cd94fbefbddb42dc91d26a450864d639",
+        "da84f617cd4f340c10b9cdff5e4bc932",
+        "de59ace5abf936abfafb6268a57e2085",
+        "def945a7c46eafe2e387c93ad7f1160c",
+        "fb9577e44853858d287b067941f8dcd5",
+        "fe51e5e3bc770ee106f7069cf05fbb1e"
+      ],
+      "evaluated_prompts": [
+        "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/higgsfield",
+        "memoir/skills/story-game/instructions",
+        "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/analyze",
+        "memoir/skills/story-game/novel-to-game/art",
+        "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/concept",
+        "memoir/skills/story-game/novel-to-game/design",
+        "memoir/skills/story-game/novel-to-game/illustration",
+        "memoir/skills/story-game/novel-to-game/journey",
+        "memoir/skills/story-game/novel-to-game/production",
+        "memoir/skills/story-game/novel-to-game/production_style",
+        "memoir/skills/story-game/novel-to-game/whitebox",
+        "memoir/skills/story-game/proposal",
+        "memoir/skills/story-game/runtime-contract",
+        "memoir/skills/story-game/webpage"
+      ],
+      "metrics": [
+        "trajectory"
+      ],
+      "previous_name": "memoir/golden/memoir-story-game/generate/core",
+      "children": []
+    },
+    {
+      "id": "cmw1guika00ih1z02jph2c3ek",
+      "name": "memoir/workflows/story-game-admission/golden/triggers-core",
+      "target": "memoir/workflows/story-game-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdcb1h100031z020eze1xt8",
+      "source_item_ids": [
+        "993542495cef9b2b06170ef8af95514c"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    },
+    {
+      "id": "cmw1guimf00il1z02oaetu8au",
+      "name": "memoir/workflows/story-game-admission/golden/triggers-v2",
+      "target": "memoir/workflows/story-game-admission",
+      "status": "active",
+      "source_dataset_id": "cmvdea22b00221z02a0nv1v93",
+      "source_item_ids": [
+        "ac6c149fcd9b6e2f4a787599fe741d81"
+      ],
+      "evaluated_prompts": [],
+      "metrics": [
+        "contract"
+      ]
+    }
+  ],
+  "online": [
+    {
+      "name": "memoir/agents/mira/reply/online/quality",
+      "target": "memoir/agents/mira/reply",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-mira.reply"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/agents/mira/policy-review/online/quality",
+      "target": "memoir/agents/mira/policy-review",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-mira.policy-review"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/agents/mira/repair/online/quality",
+      "target": "memoir/agents/mira/repair",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-mira.reply-repair"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/agents/atlas/skill-selection/online/quality",
+      "target": "memoir/agents/atlas/skill-selection",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-atlas.orchestrate"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/author-timeline/extract/online/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-author-timeline.extract"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/author-timeline/summarize/online/quality",
+      "target": "memoir/skills/author-timeline/summarize",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-author-timeline.summarize"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/composer/prepare/online/quality",
+      "target": "memoir/skills/composer/prepare",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-composer.prepare"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/composer/draft/online/quality",
+      "target": "memoir/skills/composer/draft",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-composer.draft"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/composer/review/online/quality",
+      "target": "memoir/skills/composer/review",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-composer.review"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/composer/outline/online/quality",
+      "target": "memoir/skills/composer/outline",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [],
+      "observation_prefix": "memoir-composer.outline-"
+    },
+    {
+      "name": "memoir/skills/memory-context/profile/online/quality",
+      "target": "memoir/skills/memory-context/profile",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-memory-context.profile"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/place-journey/extract/online/quality",
+      "target": "memoir/skills/place-journey/extract",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-place-journey.extract"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/family-tree/extract/online/quality",
+      "target": "memoir/skills/family-tree/extract",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [],
+      "observation_prefix": "memoir-family-tree."
+    },
+    {
+      "name": "memoir/skills/place-photo-research/discovery/online/quality",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-place-photo-research.discovery",
+        "memoir-place-photo-research.research"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/historical-news-research/discovery/online/quality",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-historical-news-research.discovery",
+        "memoir-historical-news-research.research"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/story-game/scenes/online/quality",
+      "target": "memoir/skills/story-game/scenes",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-story-game.scenes"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/story-game/brief/online/quality",
+      "target": "memoir/skills/story-game/brief",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-story-game.brief"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/story-game/analyze/online/quality",
+      "target": "memoir/skills/story-game/analyze",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-story-game.analyze"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/story-game/concept/online/quality",
+      "target": "memoir/skills/story-game/concept",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-story-game.concept"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/story-game/design/online/quality",
+      "target": "memoir/skills/story-game/design",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-story-game.design"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/story-game/whitebox/online/quality",
+      "target": "memoir/skills/story-game/whitebox",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-story-game.whitebox"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/story-game/art/online/quality",
+      "target": "memoir/skills/story-game/art",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-story-game.art"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/story-game/production/online/quality",
+      "target": "memoir/skills/story-game/production",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-story-game.production"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/skills/story-game/build/online/quality",
+      "target": "memoir/skills/story-game/build",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-story-game.build"
+      ],
+      "observation_prefix": null
+    },
+    {
+      "name": "memoir/workflows/skill-agent-execution/online/quality",
+      "target": "memoir/workflows/skill-agent-execution",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "observation_names": [
+        "memoir-skill-agent.run"
+      ],
+      "observation_prefix": null
+    }
+  ]
+}

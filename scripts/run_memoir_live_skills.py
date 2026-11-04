@@ -35,8 +35,9 @@ def sha(value):
 
 
 def evaluation_trace_metadata(skill, case_id):
-    name = {'memoir-interviewer': 'memoir-mira', 'memoir-background-agent': 'memoir-atlas'}.get(skill, skill)
-    return gateway_metadata(f'evaluation/{name}.{case_id}', trace_name=f'evaluation/{name}')
+    name = {'memoir-interviewer': 'memoir-mira', 'memoir-background-agent': 'memoir-atlas',
+            'evaluation-judge': 'memoir-judges'}.get(skill, skill)
+    return {**gateway_metadata(f'evaluation/{name}.{case_id}', trace_name=f'evaluation/{name}'), 'case_id': case_id}
 
 
 def save(path, value):
@@ -95,9 +96,9 @@ class LiveProvider:
             effort = 'low'
         body = {'model': model, 'instructions': instructions,
                 'input': json.dumps(packet, ensure_ascii=False), 'store': False,
+                'metadata': evaluation_trace_metadata(skill, case_id),
                 'max_output_tokens': 8192 if skill == 'memoir-composer' else 3000,
                 'reasoning': {'effort': effort}}
-        body['metadata'] = evaluation_trace_metadata(skill, case_id)
         if schema:
             body['text'] = {'format': {'type': 'json_schema', 'name': 'skill_result', 'strict': True, 'schema': schema}}
         if messages is not None:
@@ -240,7 +241,7 @@ async def native_search(provider, skill):
         from apps.api.historical_news_provider import decode_discovery, GatewayHistoricalProvider
         query = 'Sydney, Australia 2000–2000 civic culture sport public events'
         from apps.api.prompt_artifact import prompt_path
-        instructions = load_prompt_artifact(prompt_path('memoir/skills/memoir-historical-news-research/discovery')).replace('{{query}}', query)
+        instructions = load_prompt_artifact(prompt_path('memoir/skills/historical-news-research/discovery')).replace('{{query}}', query)
         _, response = await provider.call('historical-native-search', skill, instructions, {'public_query': query}, search=True)
         discovery = decode_discovery(response)
         hypothesis = {'start': 2000, 'end': 2000, 'place': 'Sydney, Australia', 'country': 'Australia'}

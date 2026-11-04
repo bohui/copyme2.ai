@@ -398,8 +398,8 @@ Traces record the skills actually read and their prompt manifests, while native
 tool results contain the corresponding instructions.
 
 Activation requires the updated fresh-install schema and the published pins for
-`memoir/agents/atlas/system`, `memoir/shared/skill-agent` and
-`memoir/skills/memoir-composer/instructions`. Commit the Markdown on the current
+`memoir/agents/atlas/skill-selection`, `memoir/shared/skill-agent` and
+`memoir/skills/composer/instructions`. Commit the Markdown on the current
 branch, then use the normal publisher described below. Feature branches can
 publish before merging; missing pins fail closed. The background run
 deadline is `MEMORY_SPARK_MEMOIR_RUN_SECONDS` (900 seconds by default).
@@ -542,17 +542,28 @@ the current prompts, models and validation.
 
 ### Versioned prompt artifacts
 
+Trace names, observation names and dataset folders follow the
+[Langfuse naming convention](docs/Langfuse_Naming.md). Quality judges have four
+separate prompts; live relevance, completeness and safety use 10% sampling.
+
 Git owns prompt content; Memoir's Langfuse project owns published
 versions. Mira owns its always-loaded agent instructions and supporting prompts
 under `memoir/agents/mira/...`, stored in `apps/api/prompts/mira/`. Atlas owns
-`memoir/agents/atlas/system`, stored in `apps/api/prompts/atlas/system.md`.
+`memoir/agents/atlas/skill-selection`, stored in `apps/api/prompts/atlas/system.md`.
 Each skill owns its model
-instructions under `memoir/skills/<skill>/...`, including composer phases and
+instructions under `memoir/skills/<name>/...`, including composer phases and
 shared editorial policy. Repository sources live under that skill's directory.
-Common bounded-worker instructions use `memoir/shared/...`; judge/probe and
-synthesis instructions use `memoir/evaluation/...` and `memoir/speech/...`.
-Mira's comparison and rubric save under `memoir/evaluation/agents/mira/...`;
-historical evaluation dataset IDs remain stable.
+Common bounded-worker instructions use `memoir/shared/...`. Judge prompts and
+evaluator definitions share `memoir/evaluators/...`; the four reusable judges
+live under `memoir/evaluators/shared/...`. Diagnostic inputs use `memoir/probes/...`.
+Speech instructions use `memoir/workflows/speech/synthesis/...`.
+Datasets use `<target>/<category>/<suite>` and rules use `<dataset>/<metric>`
+or `<dataset>/quality` for a shared sample of several quality dimensions.
+For example, `memoir/agents/mira/reply/golden/core/quality` tests the
+`memoir/agents/mira/reply` prompt with its `golden/core` dataset.
+`config/langfuse-evaluation-bindings.json` records every target, prompt dependency,
+dataset ID, split lineage and online rule. `make prompt-check` validates these
+bindings before checking the published versions. Historical records remain intact.
 Issue numbers and release dates stay in metadata and numeric version history.
 The [structure and usage audit](docs/Langfuse_Prompt_Structure_Refactor.md) explains
 the execution paths, and the [individual inventory](docs/Langfuse_Prompt_Usage.md)
@@ -660,7 +671,7 @@ git switch main
 git pull --ff-only origin main              # Automatically syncs after incoming main changes.
 ```
 
-For recovery exports/checks, use `PROMPT_NAME=memoir/skills/memoir-composer/draft`
+For recovery exports/checks, use `PROMPT_NAME=memoir/skills/composer/draft`
 to select one artifact. Commit prompt edits, sync the branch, then review and
 commit the generated receipts. To preflight another prompt/dataset pair, set
 `PROMPT_EVAL_NAME` and `PROMPT_EVAL_DATASET`. `PROMPT_EVAL_VERSION` can select a

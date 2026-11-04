@@ -129,7 +129,7 @@ def test_request_preserves_the_reviewed_output_field_order():
 
 def test_metadata_is_allowlisted_and_bounded_without_losing_prompt_pins():
     names = ('run_id', 'case_id', 'application_revision', 'dataset', 'skill_hash',
-        'generation_name', 'trace_name', 'evaluator_version', 'dataset_version', 'rubric_version',
+        'generation_name', 'trace_name', 'session_id', 'evaluator_version', 'dataset_version', 'rubric_version',
         'judge_rubric_version', 'model', 'provider', 'variant', 'request_id', 'round_id', 'trace_id',
         'observation_id', 'job_id', 'checkpoint_id', 'contract_version', 'prompt_sha256',
         'schema_sha256', 'manifest_sha256')
@@ -141,7 +141,7 @@ def test_metadata_is_allowlisted_and_bounded_without_losing_prompt_pins():
         return httpx.Response(200, content=sse(events('{"ok":true}')))
     asyncio.run(transport.stream_reply(**{**options(), 'metadata':metadata}, transport=httpx.MockTransport(provider)))
     assert len(captured[0]) <= 16 and 'private_unknown_field' not in captured[0]
-    for key in ('prompt_sha256', 'schema_sha256', 'manifest_sha256'):
+    for key in ('prompt_sha256', 'schema_sha256', 'manifest_sha256', 'generation_name', 'trace_name', 'session_id'):
         assert captured[0][key] == metadata[key]
 
 

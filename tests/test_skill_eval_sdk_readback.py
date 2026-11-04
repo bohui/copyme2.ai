@@ -10,7 +10,7 @@ from scripts.memoir_skill_eval_suite import digest, plan
 
 
 def binding():
-    row = dict(item_id='stable-item', dataset='memoir/evaluation/skills/memoir-interviewer', dataset_id='dataset-id',
+    row = dict(item_id='stable-item', dataset='memoir/agents/mira/reply/golden/core', dataset_id='dataset-id',
         dataset_snapshot='2026-10-19T00:00:00+00:00', trace_id='trace', observation_id='generation',
         input={'task': 'synthetic'}, expected_output={'action': 'deliver'}, output={'question': 'What happened next?'},
         item_metadata=dict(locale='en-AU', expected_action='deliver', content_sha256='c'*64),
@@ -82,7 +82,7 @@ def test_sdk_pagination_is_bounded_and_empty_or_duplicate_items_never_verify(mod
 def test_metadata_only_revision_is_a_reviewable_write_and_exact_readback():
     from test_skill_eval_assets import Store, publish
     rows = assets.dataset_rows(plan(skill=['memoir-interviewer']))
-    name = 'memoir/evaluation/skills/memoir-interviewer'
+    name = 'memoir/agents/mira/reply/golden/core'
     rows = {name: rows[name]}
     store = Store(); publish(store, rows)
     identity = rows[name][0]['id']

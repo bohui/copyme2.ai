@@ -28,7 +28,10 @@ def drain(conversation):
     assert outcome.get('status') not in {'retry','retry_required'}, conversation.last_db_error
     pending=conversation.sql(f"select count(*) from public.user_narrator_source where project_id={literal(conversation.project)} and processing_status<>'succeeded';").stdout.strip()
     if pending!='0':
-        pytest.fail(conversation.last_db_error)
+        lanes=conversation.sql("select jsonb_agg(jsonb_build_object('skill',skill,'pending',pending,"
+            "'attempts',attempts,'error',error,'available_at',available_at,'now',clock_timestamp())) "
+            "from public.user_memoir_lane;").stdout.strip()
+        pytest.fail(f'Pending source processing: outcome={outcome}; lanes={lanes}; database_error={conversation.last_db_error}')
     return outcome
 
 

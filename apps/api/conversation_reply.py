@@ -50,7 +50,7 @@ def reply_candidates(context):
 
 
 def reply_instructions():
-    core = load_prompt_artifact(prompt_path('memoir/agents/mira/system'))
+    core = load_prompt_artifact(prompt_path('memoir/agents/mira/reply'))
     if len(core) >= 2000:
         raise ValueError('Compiled reply instructions exceed the 2000 character budget')
     return core

@@ -64,7 +64,7 @@ def test_emotional_probes_cover_both_languages_without_putting_judge_criteria_in
         assert 'criteria' not in case['view'] and 'gold' not in case['view']
 
 
-def test_generation_and_judge_requests_keep_the_interviewer_trace_name(tmp_path, monkeypatch):
+def test_generation_and_judge_requests_use_their_own_evaluation_trace_names(tmp_path, monkeypatch):
     from scripts.evaluate_mira_prompt import evaluate, ROOT
     from test_conversation_reply import proposal
 
@@ -99,10 +99,11 @@ def test_generation_and_judge_requests_keep_the_interviewer_trace_name(tmp_path,
     asyncio.run(evaluate(args, [case]))
 
     assert len(requests) == 3
-    assert all(body.get('metadata', {}).get('trace_name') == 'evaluation/memoir-mira' for body in requests)
+    assert [body['metadata']['trace_name'] for body in requests] == [
+        'evaluation/memoir-mira', 'evaluation/memoir-mira', 'evaluation/memoir-judges']
     assert [body['metadata']['generation_name'] for body in requests] == [
         f'evaluation/memoir-mira.baseline.{case["id"]}',
         f'evaluation/memoir-mira.candidate.{case["id"]}',
-        'evaluation/memoir-mira.judge']
+        'evaluation/memoir-judges.judge']
     report = json.loads(args.output.read_text())
     assert all(row['contract'] == 'pass' for row in report['results'])

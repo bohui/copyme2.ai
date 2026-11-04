@@ -24,6 +24,14 @@ if str(ROOT) not in sys.path:
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.memoir_live_skill_cases import cases, validate_case
 from scripts.run_memoir_live_skills import LiveProvider, compose, manifest, native_search, save, evaluation_trace_metadata
+from scripts.langfuse_dataset_names import (SKILL_TASKS, SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target)
+
+# A dataset contains one target; batching is an execution concern.
+DATASET_PHASES = {
+    **{admission_dataset(s, 'triggers-v2'): 'triggers' for s in SKILL_TASKS if s != 'memoir-interviewer'},
+    **{target_dataset(delivery_target(dict(skill=s, kind='live_contract' if s != 'memoir-composer' else 'live_composer')),
+        suite='delivery-v3'): 'deliveries' for s in SKILL_TASKS if s != 'memoir-interviewer'},
+}
 
 
 # These tests invoke production admission/scheduling code with controlled replies;
@@ -107,8 +115,14 @@ def datasets():
     expected = set(manifest()['skills'])
     if set(TRIGGERS) != expected or {r['input']['skill'] for r in deliveries} != expected:
         raise ValueError('missing_skill_coverage')
-    return {'memoir/evaluation/v2/skill-triggers': triggers,
-            'memoir/evaluation/v3/skill-deliveries': deliveries}
+    grouped = {name: [] for name in DATASET_PHASES}
+    for row in triggers:
+        grouped[admission_dataset(row['input']['skill'], 'triggers-v2')].append(row)
+    for row in deliveries:
+        grouped[target_dataset(delivery_target(row['input']), suite='delivery-v3')].append(row)
+    if any(not rows for rows in grouped.values()):
+        raise ValueError('empty_target_dataset')
+    return grouped
 
 
 def item_id(name, row):
@@ -149,10 +163,10 @@ def publish_datasets(client, definitions):
     for name, rows in definitions.items():
         if name not in existing:
             client.create_dataset(name=name,
-                description=('Application trigger checks with controlled replies' if name.endswith('triggers')
+                description=('Application trigger checks with controlled replies' if DATASET_PHASES.get(name) == 'triggers'
                     else 'Real gateway delivery probes; isolated synthetic inputs, no production persistence'),
                 metadata=dict(suite='memoir-skills/1', synthetic=True, contains_customer_data=False,
-                              content_sha256=digest(rows), item_count=len(rows)))
+                              content_sha256=digest(rows), item_count=len(rows), target=dataset_target(name)))
         for row in rows:
             key = item_id(name, row)
             if row['input']['case_id'] in missing[name]:
@@ -266,7 +280,7 @@ def legacy_main():
     parser.add_argument('--output-root', type=Path, default=ROOT / 'var/skill-evaluation')
     args = parser.parse_args()
     definitions = {name: rows for name, rows in datasets().items()
-                   if args.phase == 'all' or name.endswith(args.phase)}
+                   if args.phase == 'all' or DATASET_PHASES[name] == args.phase}
     phase_cases = {row['input']['case_id'] for rows in definitions.values() for row in rows}
     if args.case and not set(args.case) <= phase_cases:
         parser.error('Selected case does not belong to the requested phase')
@@ -350,10 +364,12 @@ def legacy_main():
     for name, dataset in loaded.items():
         if not dataset.items:
             continue
-        if name.endswith('deliveries'):
+        phase = DATASET_PHASES[name]
+        if phase == 'deliveries':
             provider.deadline = time.monotonic() + 1800
-        result = dataset.run_experiment(name='Memoir skill ' + name.rsplit('-', 1)[-1],
-            run_name=run_id + '-' + name.rsplit('-', 1)[-1], task=task, evaluators=[evaluate],
+        trace_name = 'evaluation/' + dataset_target(name).replace('memoir/', 'memoir-', 1).replace('/', '-')
+        result = dataset.run_experiment(name=trace_name,
+            run_name=run_id + '-' + phase, task=task, evaluators=[evaluate],
             max_concurrency=1, metadata=dict(suite='memoir-skills/1', synthetic=True,
                 source_revision=receipt['source_revision'], dataset_version=snapshot.isoformat()))
         experiment = dict(dataset=name, dataset_id=dataset.id, experiment_id=result.experiment_id,

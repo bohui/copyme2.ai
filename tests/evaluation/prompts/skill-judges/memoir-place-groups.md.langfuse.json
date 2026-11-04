@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluation/skills/memoir-place-groups/rubric",
+  "name": "memoir/evaluators/skills/place-groups/group/quality",
   "schema_version": 1,
   "sha256": "e63c3c0092bc764e3f67dffe754828f6b5441dd459325ab876f2866e88fdb6d8",
   "type": "text",

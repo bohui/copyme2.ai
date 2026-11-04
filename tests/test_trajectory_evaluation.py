@@ -293,7 +293,7 @@ def test_openai_compatible_judge_uses_template_and_records_safe_usage(monkeypatc
         judge = OpenAICompatibleJudge(
             base_url="http://judge",
             model="configured-model",
-            prompt_names=('memoir/evaluation/trajectory-judge/rubric',),
+            prompt_names=('memoir/evaluators/shared/trajectory/rubric',),
         )
         result = await judge({"ordered_steps": [{"step_id": "step-0001"}]})
         assert result["status"] == "scored"

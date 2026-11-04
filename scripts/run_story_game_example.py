@@ -36,7 +36,7 @@ def run(output, settings, *, resume=False, selection=None):
     with httpx.Client(trust_env=False, timeout=180) as client:
         def call(phase, payload, model, schema_type):
             instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(prompt_path(
-                'memoir/skills/memoir-story-game/' + ('proposal' if phase == 'scenes' else 'brief')))
+                'memoir/skills/story-game/' + ('proposal' if phase == 'scenes' else 'brief')))
             schema = schema_type.model_json_schema()
             manifest = instruction_manifest(instructions, schema, variant='story-game-' + phase)
             request = dict(model=model, instructions=instructions, input=json.dumps(payload, ensure_ascii=False),
@@ -102,7 +102,7 @@ def run(output, settings, *, resume=False, selection=None):
             payload = dict(locale=packet['locale'], ui=game_ui(packet['locale']), scenes=public_scenes({'scenes': scenes}))
             brief = call('brief', payload, 'gpt-6.1-sol', GameBrief)
             brief = validate_brief(brief, len(scenes))
-            instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/' + name))
+            instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/story-game/' + name))
                 for name in ('higgsfield','webpage'))
             save('higgsfield-handoff.json', dict(model='gpt-6-astra', skill='higgsfield-websites', type='game',
                 instructions=instructions, input={**payload, 'brief': brief}, synthetic=True,

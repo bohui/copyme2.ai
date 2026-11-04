@@ -33,10 +33,10 @@ def extraction_contract(*, attribution=False, continuity=False, source=None, sel
     timeline = selected_skills is None or 'memoir-author-timeline' in selected_skills
     places = selected_skills is None or 'memoir-place-journey' in selected_skills
     instructions = extraction_instructions(derived_hints=places) if timeline else load_prompt_artifact(
-        prompt_path('memoir/skills/memoir-author-timeline/shared/grounding'))
+        prompt_path('memoir/skills/author-timeline/shared/grounding'))
     if places:
         instructions += '\n' + load_prompt_artifact(Path(__file__).resolve().parents[2] / 'skills/memoir-place-journey/references/two-lane.md')
-        instructions += load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/derived-hints'))
+        instructions += load_prompt_artifact(prompt_path('memoir/skills/author-timeline/derived-hints'))
     if attribution:
         from .conversation_attribution import attribution_schema, INSTRUCTIONS
         instructions += INSTRUCTIONS
@@ -47,7 +47,7 @@ def extraction_contract(*, attribution=False, continuity=False, source=None, sel
         schema['$defs'].update(extension['$defs'])
         schema['properties'].update(extension['properties'])
         schema['required'].append('continuity_updates')
-        instructions += load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/continuity'))
+        instructions += load_prompt_artifact(prompt_path('memoir/skills/author-timeline/continuity'))
     if selected_skills is not None:
         if 'memoir-author-timeline' not in selected_skills:
             for field in ('events', 'continuity_updates', 'event_places'):

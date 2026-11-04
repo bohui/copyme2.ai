@@ -133,4 +133,4 @@ def attribution_schema(schema):
     return schema
 
 
-INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/attribution'))
+INSTRUCTIONS = load_prompt_artifact(prompt_path('memoir/skills/author-timeline/attribution'))

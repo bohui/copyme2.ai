@@ -14,7 +14,7 @@ import httpx
 from .higgsfield_game import load_build_packet
 from .model_request import instruction_manifest, manifest_metadata
 from .model_configuration import game_configuration
-from .llm_tracing import gateway_trace_headers
+from .llm_tracing import gateway_trace_headers, gateway_metadata
 from .novel_game_bundle import assets, journey, scene_library, validate_bundle, validate_style
 from .novel_game_art import prepare_backgrounds,validate_bindings,generate_background
 from .prompt_artifact import load_prompt_artifact, prompt_path
@@ -118,7 +118,8 @@ async def model_stage(body, fence, *, transport=None, issue14_admission=None, ob
     request = GameRequestBody(encoded,publisher=GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL')),
         fence=fence.model_dump(mode='json'))
     try:
-        with trace_llm_call('story.game.novel.'+body['metadata']['stage'],body['model'],
+        with trace_llm_call('memoir-story-game.'+body['metadata']['stage'],body['model'],
+                trace_name='memoir-story-game',
                 metadata={'prompt_manifest':prompt_manifest or body['metadata']}, gateway=True) as trace:
             async with httpx.AsyncClient(trust_env=False,follow_redirects=False,timeout=590,
                     **({'transport':transport} if transport is not None else {})) as client:
@@ -184,7 +185,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
             upstream = {p:(runner.SKILL/p).read_text() for p in paths}
             managed = ['adapter','journey',stage]
             if stage in ('whitebox','art','production'): managed.append('assets')
-            instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/novel-to-game/'+n)) for n in managed)
+            instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/story-game/novel-to-game/'+n)) for n in managed)
             instructions += '\n\n'+'\n\n'.join('===== '+p+' =====\n'+v for p,v in upstream.items())
             outputs = config['outputs'] if stage!='art' else ['design/ART_DIRECTION.md','design/SCENE_BINDINGS.json']
             payload = dict(stage=stage,source=source,format_contract=runner.FORMAT,saved_artifacts=artifacts,
@@ -193,7 +194,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
             manifest = instruction_manifest(instructions,schema,variant='novel-game-'+stage)
             body = dict(model=model,reasoning={'effort':effort},instructions=instructions,input=canonical(payload),store=False,
                 stream=True,max_output_tokens=config['budget'],metadata={**manifest_metadata(manifest),
-                    'generation_name':'memoir-story-game-novel-'+stage,'trace_name':'memoir-story-game-build',
+                    **gateway_metadata('memoir-story-game.'+stage, trace_name='memoir-story-game'),
                     'stage':stage,'upstream_revision':dependency['revision'],'synthetic':str(source['fictional']).lower()},
                 text={'format':{'type':'json_schema','name':'memoir_novel_stage','strict':True,'schema':schema}})
             signature = fingerprint(body)

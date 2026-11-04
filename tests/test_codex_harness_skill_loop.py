@@ -99,7 +99,7 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
             result=asyncio.run(run_skill_agent(command=[shutil.which('codex'),'app-server'],
                 home_root=tmp_path / 'homes',base_url=f'http://127.0.0.1:{server.server_port}/v1',
                 api_key='synthetic-loopback-key',model='gpt-6.1-sol',
-                instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/system')),
+                instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/skill-selection')),
                 packet={'lane':'B','work':[]},skills=['memoir-author-timeline'],
                 publisher=Publication(),fence={},timeout=20,effort='low'))
     finally:
@@ -119,7 +119,7 @@ def test_native_codex_runs_tool_loop_and_receives_real_skill_instructions(tmp_pa
         assert observation.fields['name'] == 'memoir-atlas.orchestrate'
         assert 'You are Atlas' in requests[0]['instructions']
     artifacts={item['name'] for item in result['skill_receipt']['prompt_manifest']['artifacts']}
-    assert {'memoir/shared/skill-agent','memoir/agents/atlas/system',
-        'memoir/skills/memoir-author-timeline/instructions'}<=artifacts
+    assert {'memoir/shared/skill-agent','memoir/agents/atlas/skill-selection',
+        'memoir/skills/author-timeline/instructions'}<=artifacts
     # The second inference contains the actual tool result, not just a skill label.
     assert '# Memoir Author Timeline' in json.dumps(requests[1],ensure_ascii=False)

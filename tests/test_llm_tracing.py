@@ -128,6 +128,24 @@ def test_configured_test_origin_only_applies_to_the_authenticated_owner(monkeypa
                 assert llm_tracing.gateway_metadata('memoir-interviewer')['trace_name'] == expected
 
 
+@pytest.mark.parametrize('evaluation,prefix', [(None,'test/'), ({'case_id':'origin-fixture'},'evaluation/')])
+def test_runtime_origin_covers_the_api_policy_boundary(monkeypatch, tmp_path, evaluation, prefix):
+    import asyncio
+    from types import SimpleNamespace
+    from apps.api.codex_runtime import CodexRuntime
+    from apps.api import lifetime_memory_runtime
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN', 'test')
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', 'selected-owner')
+    async def run(*args, **kwargs):
+        return llm_tracing.gateway_metadata('memoir-mira.policy-review', trace_name='memoir-mira')
+    monkeypatch.setattr(lifetime_memory_runtime, 'run_lifetime_turn', run)
+    runtime = CodexRuntime(home_root=tmp_path)
+    result = asyncio.run(runtime.turn(SimpleNamespace(user_id='selected-owner'), 'synthetic',
+        evaluation=evaluation, lifetime_context=object()))
+    assert result == {'generation_name':prefix+'memoir-mira.policy-review', 'trace_name':prefix+'memoir-mira'}
+    assert llm_tracing.gateway_metadata('memoir-mira')['trace_name'] == 'memoir-mira'
+
+
 def test_unavailable_tracing_does_not_block_execution(monkeypatch):
     class Unavailable:
         def start_as_current_observation(self,**fields):
@@ -160,11 +178,65 @@ def test_background_trace_scope_does_not_change_a_concurrent_foreground_trace(mo
     asyncio.run(run())
 
 
+def test_sessions_connect_agents_and_reset_after_an_error(monkeypatch):
+    monkeypatch.setattr(llm_tracing, '_client_cache', FakeLangfuse())
+    sessions = []
+    for agent in ('memoir-mira', 'memoir-atlas'):
+        with llm_tracing.trace_session('owner-a', 'project-a'):
+            with llm_tracing.trace_llm_call(agent + '.run', 'synthetic', trace_name=agent):
+                sessions.append(llm_tracing.gateway_metadata(agent + '.run')['session_id'])
+    assert sessions[0] == sessions[1]
+    assert 'owner-a' not in sessions[0] and 'project-a' not in sessions[0]
+    with pytest.raises(RuntimeError):
+        with llm_tracing.trace_session('owner-b', 'project-a'):
+            assert llm_tracing.gateway_metadata('memoir-mira.reply')['session_id'] != sessions[0]
+            raise RuntimeError('provider failed')
+    assert 'session_id' not in llm_tracing.gateway_metadata('memoir-mira.reply')
+
+
+def test_evaluation_origin_prefixes_nested_steps_and_gateway_labels_once(monkeypatch):
+    client = FakeLangfuse()
+    monkeypatch.setattr(llm_tracing, '_client_cache', client)
+    with llm_tracing.trace_origin('evaluation'):
+        with llm_tracing.trace_llm_call('memoir-atlas.orchestrate', 'synthetic', trace_name='memoir-atlas'):
+            with llm_tracing.trace_skill_execution('memoir-composer', 'review'):
+                assert llm_tracing.gateway_metadata('memoir-composer.review') == {
+                    'generation_name': 'evaluation/memoir-composer.review',
+                    'trace_name': 'evaluation/memoir-atlas'}
+            assert llm_tracing.gateway_metadata('evaluation/memoir-atlas.orchestrate')['generation_name'] == 'evaluation/memoir-atlas.orchestrate'
+    assert [item.fields['name'] for item in client.observations] == [
+        'evaluation/memoir-atlas.orchestrate', 'evaluation/memoir-composer.review']
+    assert llm_tracing.gateway_metadata('memoir-mira.reply')['trace_name'] == 'memoir-mira.reply'
+
+
+def test_session_and_origin_do_not_leak_to_another_concurrent_task(monkeypatch):
+    import asyncio
+    monkeypatch.setattr(llm_tracing, '_client_cache', FakeLangfuse())
+    async def run():
+        entered, release = asyncio.Event(), asyncio.Event()
+        async def evaluation():
+            with llm_tracing.trace_session('owner-a', 'project-a'), llm_tracing.trace_origin('evaluation'):
+                entered.set()
+                await release.wait()
+                assert llm_tracing.gateway_metadata('memoir-mira.reply')['trace_name'].startswith('evaluation/')
+                assert 'session_id' in llm_tracing.gateway_metadata('memoir-mira.reply')
+        task = asyncio.create_task(evaluation())
+        try:
+            await entered.wait()
+            assert llm_tracing.gateway_metadata('memoir-mira.reply') == {
+                'generation_name': 'memoir-mira.reply', 'trace_name': 'memoir-mira.reply'}
+        finally:
+            release.set()
+            await task
+    asyncio.run(run())
+
+
 def test_speech_calls_are_traced_without_recording_audio_or_text(monkeypatch):
     client = FakeLangfuse()
     monkeypatch.setattr(llm_tracing, "_client_cache", client)
 
     def provider(request):
+        assert llm_tracing.gateway_metadata('probe')['trace_name'] == 'memoir-speech'
         if request.url.path.endswith("transcriptions"):
             return httpx.Response(200, json={"text": "A private answer.", "language": "en"})
         return httpx.Response(200, content=b"audio")
@@ -178,8 +250,8 @@ def test_speech_calls_are_traced_without_recording_audio_or_text(monkeypatch):
     speech.synthesize("private answer")
 
     assert [observation.fields["name"] for observation in client.observations] == [
-        "speech.transcription",
-        "speech.synthesis",
+        "memoir-speech.transcription",
+        "memoir-speech.synthesis",
     ]
     assert client.observations[0].fields["input"] == {
         "kind": "audio",

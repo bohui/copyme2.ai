@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluation/probes/web-search",
+  "name": "memoir/probes/providers/web-search",
   "schema_version": 1,
   "sha256": "d117d3c1f26437d0c1d52cca51a1fb1cfb349ccbf8b68ad720317694b391b1d6",
   "type": "text",

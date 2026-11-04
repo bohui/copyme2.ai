@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT))
 from scripts.memoir_agent_eval_cases import catalog
 from scripts.memoir_skill_eval_suite import Budget, digest, inventory, packet, validate
 from scripts.run_memoir_live_skills import LiveProvider, native_search, save
+from scripts.langfuse_dataset_names import SKILL_TARGETS, target_dataset
 
 
 def judge_selection(cases, maximum):
@@ -72,8 +73,8 @@ def dataset_rows(cases):
     for case in cases:
         row = dict(input=dict(case_id=case['id'], component=case['component'], skill=case['skill'],
                               locale=case['locale'], task=case['task']), expected_output=case['gold'])
-        groups.setdefault(case['component'], []).append(row)
-    return {'memoir/evaluation/v4/' + group + '/' + digest(rows)[:12]: rows for group, rows in groups.items()}
+        groups.setdefault(SKILL_TARGETS[case['skill']], []).append(row)
+    return {target_dataset(target, suite='campaign-'+digest(rows)[:12]): rows for target, rows in groups.items()}
 
 
 async def background(case, config, directory, timeout):
@@ -118,7 +119,7 @@ async def background(case, config, directory, timeout):
         result = await run_skill_agent(command=[shutil.which('codex') or 'codex', 'app-server'],
             home_root=directory / 'native', base_url=config['MEMORY_SPARK_LLM_BASE_URL'],
             api_key=config['MEMORY_SPARK_LLM_API_KEY'], model=background_model(config), effort=background_effort(config),
-            instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/system')),
+            instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/skill-selection')),
             packet=dict(lane='B', **work, locale=case['locale'], budget=dict(max_tool_calls=32, seconds=timeout)),
             skills=[*SOURCE_SKILLS, 'memoir-composer'], execute=skills.execute, work=skills.work,
             process_source=skills.process_source, source_skills=SOURCE_SKILLS, publisher=Publisher(), fence=fence,
@@ -198,7 +199,7 @@ class Runner:
     async def advisory(self, case, row):
         from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
         from apps.api.trajectory_evaluation import build_judge_prompt
-        instructions = load_prompt_artifact(prompt_path('memoir/evaluation/trajectory-judge/system'))
+        instructions = load_prompt_artifact(prompt_path('memoir/evaluators/shared/trajectory/system'))
         evidence = dict(task=case['task'], expected_outcomes=case['gold'],
             ordered_steps=[dict(id='observed-1', output=row['output'], evidence_scope=self.receipt['scope'])],
             final_state=dict(canonical_delivery=False, witnesses=row.get('witnesses'), checks=row['checks']))
@@ -462,7 +463,7 @@ def main(argv=None):
                 if client:
                     for name, dataset in loaded.items():
                         experiment = dataset.run_experiment(name='Memoir current agents and skills',
-                            run_name=directory.name + f'-repeat{repeat + 1}-' + name.split('/')[-2], task=runner.task,
+                            run_name=directory.name + f'-repeat{repeat + 1}-' + name.rsplit('/', 1)[-1], task=runner.task,
                             evaluators=[scores], max_concurrency=1,
                             metadata=dict(synthetic=True, suite='memoir-agent-evaluation/1', repeat=repeat + 1,
                                 source_revision=runner.receipt['source_revision'], dataset_version=snapshot.isoformat(),

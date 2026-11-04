@@ -77,7 +77,7 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
                               issue14_admission=None):
     from .issue14_execution_admission import check_issue14_dispatch
     from .lifetime_memory_lane_engine import check_lane_generation
-    from .llm_tracing import trace_llm_call, update_llm_trace
+    from .llm_tracing import trace_llm_call, update_llm_trace, gateway_metadata
     fence = GameFence.model_validate(fence)
     model, effort = game_configuration()
     check_issue14_dispatch(issue14_admission, role='tool_loop')
@@ -86,7 +86,7 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
     proposal = selected_scenes(packet)
     brief = validate_brief(packet['brief'], len(proposal['scenes']))
     files, skill_digest = skill_snapshot(skill_path)
-    instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/' + name))
+    instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/story-game/' + name))
         for name in ('higgsfield', 'webpage'))
     schema = BuildArtifact.model_json_schema()
     manifest = instruction_manifest(instructions, schema, variant='higgsfield-game')
@@ -108,15 +108,15 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
             body = dict(model=model, instructions=instructions, input=history, tools=TOOLS,
                 tool_choice='auto', parallel_tool_calls=True, store=False,
                 reasoning={'effort': effort}, include=['reasoning.encrypted_content'], max_output_tokens=20000,
-                metadata={**manifest_metadata(manifest), 'generation_name': 'higgsfield-websites-game',
-                    'trace_name': 'memoir-story-game-build'},
+                metadata={**manifest_metadata(manifest),
+                    **gateway_metadata('memoir-story-game.build', trace_name='memoir-story-game')},
                 text={'format': {'type': 'json_schema', 'name': 'memoir_game_artifact', 'strict': True, 'schema': schema}})
             encoded = json.dumps(body, ensure_ascii=False).encode()
             if len(encoded) > 2000000:
                 raise ValueError('game_build_context_limit')
             request = GameRequestBody(encoded, publisher=publisher, fence=fence.model_dump(mode='json'))
             try:
-                with trace_llm_call('story.game.higgsfield', model, metadata={
+                with trace_llm_call('memoir-story-game.build', model, trace_name='memoir-story-game', metadata={
                         'prompt_manifest': manifest, 'skill_sha256': skill_digest}, gateway=True) as trace:
                     async with client.stream('POST', base + '/responses', content=request,
                             headers={'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json',

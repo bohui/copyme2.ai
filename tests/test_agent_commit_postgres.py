@@ -337,7 +337,7 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                         raise RuntimeError('Disposable PostgreSQL container did not become ready')
                     time.sleep(min(.25, commands.remaining()))
             except BaseException:
-                ProcessDeadline(time.monotonic() + 10).run([engine, 'stop', pg_container_name], check=True)
+                ProcessDeadline(time.monotonic() + 30).run([engine, 'stop', pg_container_name], check=True)
                 raise
             command = [engine, 'exec', '--interactive', pg_container_name, 'psql', '-U', 'postgres', '-X', '-qAt', '-v', 'ON_ERROR_STOP=1', '-d', 'postgres']
         else:
@@ -390,7 +390,8 @@ def database(*, deadline=None, cancellation=None, allocation=None, on_allocation
                 if container_sql:
                     container_sql.close()
             finally:
-                ProcessDeadline(time.monotonic() + 10, environment=environment).run([engine, 'stop', pg_container_name] if container_backend else
+                # Container shutdown includes the guest's stop grace and VM cleanup.
+                ProcessDeadline(time.monotonic() + (30 if container_backend else 10), environment=environment).run([engine, 'stop', pg_container_name] if container_backend else
                                ['pg_ctl', '-D', data, '-m', 'fast', '-w', 'stop'], check=True)
 
 

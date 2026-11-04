@@ -40,14 +40,14 @@ async def main() -> int:
         "project_id": "synthetic-worker-smoke",
         "family_enabled": False,
         "language": "en-AU",
-        "text": load_prompt_artifact(prompt_path('memoir/evaluation/probes/worker')),
+        "text": load_prompt_artifact(prompt_path('memoir/probes/providers/worker')),
         "model": args.model,
         "agent_role": "collector",
     }
     if payload["model"] is None:
         payload.pop("model")
-    instructions = load_prompt_artifact(prompt_path('memoir/evaluation/probes/worker'))
-    manifest = prompt_manifest(['memoir/evaluation/probes/worker'],instructions,variant='synthetic-probe')
+    instructions = load_prompt_artifact(prompt_path('memoir/probes/providers/worker'))
+    manifest = prompt_manifest(['memoir/probes/providers/worker'],instructions,variant='synthetic-probe')
     payload['evaluation']=manifest_metadata(manifest)
     receipt: dict[str, object] = {
         "schema_version": "memoir-codex-worker-smoke-probe/1",

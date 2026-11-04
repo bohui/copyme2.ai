@@ -16,8 +16,8 @@ The compact campaign contains 88 cases:
 
 Family-tree remains unwired. Full game generation/publication requires a separate
 authorized application/browser workflow. Their unavailable rows receive no
-numeric contract passing credit. The retired interview-guidance package is an
-embedded legacy dependency, not another standalone current agent.
+numeric contract passing credit. Interview-guidance model execution is retired;
+Mira owns current interviewing decisions.
 
 ## Run and inspect
 
@@ -27,7 +27,7 @@ W3C parent context. The fifty-round conversation runner sets `test/` names only
 for its configured authenticated owner; other owners retain normal names.
 Agent traces use `memoir-mira` and `memoir-atlas`; historical case and dataset
 identifiers remain stable.
-The standalone delivery dataset is v3: its bilingual profile cases now include
+The per-target delivery suites use `delivery-v3`: their bilingual profile cases now include
 the directly stated avatar choice among their expected fields. Prior v2 results
 remain historical; the combined agent evaluator uses content-pinned datasets.
 
@@ -35,7 +35,7 @@ remain historical; the combined agent evaluator uses content-pinned datasets.
 # No credentials, model calls, dataset writes or deployment.
 make memoir-agent-eval-plan
 
-# Existing local host gateway; publish three SDK experiments in Memoir Langfuse.
+# Existing local host gateway; publish an SDK experiment for each evaluation target.
 make memoir-agent-eval \
   AGENT_EVAL_ARGS='--gateway-url http://127.0.0.1:4000/v1 --timeout 150'
 

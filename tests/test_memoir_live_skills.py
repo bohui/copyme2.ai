@@ -89,10 +89,11 @@ def test_evaluation_gateway_names_identify_skill_and_case(monkeypatch, tmp_path)
     asyncio.run(live.call('public-history/search', 'memoir-historical-news-research', 'test', {}, search=True))
     assert requests[0]['metadata'] == {
         'generation_name': 'evaluation/memoir-historical-news-research.public-history/search',
-        'trace_name': 'evaluation/memoir-historical-news-research'}
+        'trace_name': 'evaluation/memoir-historical-news-research', 'case_id': 'public-history/search'}
 
 
-@pytest.mark.parametrize('skill,name', [('memoir-interviewer','memoir-mira'), ('memoir-background-agent','memoir-atlas')])
+@pytest.mark.parametrize('skill,name', [('memoir-interviewer','memoir-mira'), ('memoir-background-agent','memoir-atlas'),
+                                      ('evaluation-judge','memoir-judges')])
 def test_historical_agent_ids_use_current_names_in_sdk_and_gateway_traces(monkeypatch, tmp_path, skill, name):
     from scripts.run_memoir_skill_evaluation import TracedProvider
     from test_gateway_trace_correlation import ApplicationTracer
@@ -107,7 +108,7 @@ def test_historical_agent_ids_use_current_names_in_sdk_and_gateway_traces(monkey
     use_transport(monkeypatch, handle)
     asyncio.run(live.call('historical-case', skill, 'test', {}))
     assert sent[0]['metadata'] == {'generation_name':f'evaluation/{name}.historical-case',
-                                  'trace_name':f'evaluation/{name}'}
+                                  'trace_name':f'evaluation/{name}', 'case_id':'historical-case'}
     assert tracer.observations[0].fields['name'] == f'evaluation/{name}.historical-case'
     assert live.receipt['calls'][0]['skill'] == skill
 

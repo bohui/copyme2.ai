@@ -25,7 +25,7 @@ class PromptClient:
 
 @pytest.mark.parametrize('agent', ['mira', 'atlas'])
 def test_exact_langfuse_version_is_exported_and_verified(tmp_path, agent):
-    name = f'memoir/agents/{agent}/system'
+    name = 'memoir/agents/' + {'mira':'mira/reply','atlas':'atlas/skill-selection'}[agent]
     path = tmp_path / f"apps/api/prompts/{agent}/system.md"
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
@@ -50,16 +50,16 @@ def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
     path.parent.mkdir(parents=True)
     path.write_text("Original prompt", encoding="utf-8")
     client = PromptClient()
-    sync_prompt(client, target="mira", name="memoir/agents/mira/system",
+    sync_prompt(client, target="mira", name="memoir/agents/mira/reply",
                 version=7, root=tmp_path)
     path.write_text("Local edit", encoding="utf-8")
     with pytest.raises(ValueError, match="Invalid Langfuse prompt artifact"):
-        sync_prompt(client, target="mira", name="memoir/agents/mira/system",
+        sync_prompt(client, target="mira", name="memoir/agents/mira/reply",
                     version=8, root=tmp_path)
     assert path.read_text(encoding="utf-8") == "Local edit"
 
     with pytest.raises(ValueError, match="repository prompt Markdown"):
-        sync_prompt(client, target="../outside.md", name="memoir/agents/mira/system",
+        sync_prompt(client, target="../outside.md", name="memoir/agents/mira/reply",
                     version=8, root=tmp_path)
 
     receipt_path = path.with_name(path.name + ".langfuse.json")
@@ -70,7 +70,7 @@ def test_drift_or_wrong_remote_version_cannot_replace_artifact(tmp_path):
     bad_client.get_prompt = lambda name, **kwargs: SimpleNamespace(
         name=name, version=99, prompt="Wrong version", is_fallback=False)
     with pytest.raises(ValueError, match="different"):
-        sync_prompt(bad_client, target="mira", name="memoir/agents/mira/system",
+        sync_prompt(bad_client, target="mira", name="memoir/agents/mira/reply",
                     version=8, root=tmp_path)
     assert path.read_text(encoding="utf-8") == "Local edit"
 
@@ -86,7 +86,7 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
     path.parent.mkdir(parents=True)
     path.write_text("Old", encoding="utf-8")
     monkeypatch.setattr("scripts.export_langfuse_prompts.prompt_registry",
-                        lambda root: {"memoir/agents/mira/system": str(path.relative_to(root))})
+                        lambda root: {"memoir/agents/mira/reply": str(path.relative_to(root))})
 
     class CurrentClient:
         def __init__(self):
@@ -94,7 +94,7 @@ def test_current_export_uses_highest_numeric_version_without_production_label(tm
             self.api = SimpleNamespace(prompts=SimpleNamespace(list=self.list))
 
         def list(self, **kwargs):
-            return SimpleNamespace(data=[SimpleNamespace(name="memoir/agents/mira/system",
+            return SimpleNamespace(data=[SimpleNamespace(name="memoir/agents/mira/reply",
                                                           versions=[1, 3, 2])])
 
         def get_prompt(self, name, **kwargs):
@@ -120,29 +120,29 @@ def test_mira_prompts_are_agent_owned_and_redundant_fragments_are_retired():
     registry = prompt_registry(include_unpublished=True)
     names = {name.removeprefix(prefix) for name in registry if name.startswith(prefix)}
     assert names == {
-        'system', 'policy-review', 'repair', 'repair-codes', 'strategy-proposal',
+        'reply', 'policy-review', 'repair', 'repair-codes', 'strategy-proposal',
     }
     assert all('/' not in name for name in names)
     assert all(path.startswith('apps/api/prompts/mira/')
                for name, path in registry.items() if name.startswith(prefix))
-    assert not any(name.startswith('memoir/skills/memoir-interviewer/') for name in registry)
-    evaluation_prefix = 'memoir/evaluation/agents/mira/'
+    assert not any(name.startswith('memoir/skills/interviewer/') for name in registry)
+    evaluation_prefix = 'memoir/evaluators/agents/mira/reply/'
     assert {name.removeprefix(evaluation_prefix) for name in registry
-            if name.startswith(evaluation_prefix)} == {'comparison', 'rubric'}
+            if name.startswith(evaluation_prefix)} == {'comparison', 'interview-quality'}
     assert not any(name.startswith('memoir/evaluation/skills/memoir-interviewer/') for name in registry)
 
 
 def test_atlas_system_prompt_is_agent_owned_and_the_shared_identity_is_retired():
     registry = prompt_registry(include_unpublished=True)
-    assert registry['memoir/agents/atlas/system'] == 'apps/api/prompts/atlas/system.md'
+    assert registry['memoir/agents/atlas/skill-selection'] == 'apps/api/prompts/atlas/system.md'
     assert 'memoir/shared/background-agent' not in registry
     assert not (ROOT / 'apps/api/prompts/background-agent.md').exists()
 
 
 def test_skill_instructions_have_one_langfuse_name_and_developer_contracts_are_not_prompts():
     registry = prompt_registry()
-    assert registry["memoir/skills/memoir-family-tree/instructions"] == "skills/memoir-family-tree/SKILL.md"
-    assert registry["memoir/skills/memoir-place-journey/instructions"] == "skills/memoir-place-journey/SKILL.md"
+    assert registry["memoir/skills/family-tree/extract"] == "skills/memoir-family-tree/SKILL.md"
+    assert registry["memoir/skills/place-journey/instructions"] == "skills/memoir-place-journey/SKILL.md"
     assert "memoir/memory/family-tree" not in registry
     assert "skills/memoir-family-tree/references/contract.md" not in registry.values()
     assert "skills/memoir-place-groups/references/contract.md" not in registry.values()
@@ -164,10 +164,10 @@ def test_catalog_has_one_owner_per_source_and_no_unused_receipts():
         receipt = json.loads(receipt_path.read_text())
         assert receipt['name'] == name
         if name.startswith('memoir/skills/'):
-            assert relative.startswith('skills/' + name.split('/')[2] + '/')
+            assert relative.startswith('skills/memoir-' + name.split('/')[2] + '/')
         assert not name.startswith(('memoir/composer/', 'memoir/memory/', 'memoir/interview/', 'memoir/research/'))
     publishing = prompt_registry(include_unpublished=True)
-    assert publishing['memoir/skills/memoir-composer/instructions'] == 'skills/memoir-composer/SKILL.md'
+    assert publishing['memoir/skills/composer/instructions'] == 'skills/memoir-composer/SKILL.md'
     assert 'skills/memoir-composer/references/workflows.md' not in registry.values()
 
 
@@ -175,8 +175,8 @@ def test_export_rejects_ambiguous_short_names():
     registry = prompt_registry()
     with pytest.raises(ValueError, match='Ambiguous prompt short name'):
         selected_prompts('en-AU', registry)
-    assert selected_prompts('memoir/skills/memoir-composer/prepare', registry) == {
-        'memoir/skills/memoir-composer/prepare': 'skills/memoir-composer/prompts/prepare.md'}
+    assert selected_prompts('memoir/skills/composer/prepare', registry) == {
+        'memoir/skills/composer/prepare': 'skills/memoir-composer/prompts/prepare.md'}
 
 
 def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
@@ -186,11 +186,13 @@ def test_prompt_experiment_uses_exact_prompt_and_dataset_input():
             calls.append(kwargs)
             return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Reply"))])
     client = SimpleNamespace(chat=SimpleNamespace(completions=Completions()))
-    prompt = SimpleNamespace(prompt="Pinned instructions", name="memoir/agents/mira/system", version=7)
+    prompt = SimpleNamespace(prompt="Pinned instructions", name="memoir/agents/mira/reply", version=7)
     task = experiment_task(prompt, "model-a", client)
 
     assert task(item=SimpleNamespace(input={"text": "A memory"})) == "Reply"
-    assert calls == [{"model": "model-a", "messages": [
+    assert calls == [{"model": "model-a", "name": "evaluation/memoir-prompts.generate",
+        "extra_body": {"metadata": {"generation_name": "evaluation/memoir-prompts.generate",
+            "trace_name": "evaluation/memoir-prompts"}}, "messages": [
         {"role": "system", "content": "Pinned instructions"},
         {"role": "user", "content": "A memory"}], "langfuse_prompt": prompt}]
     assert dataset_input_text({"question": "A memory"}) == '{"question": "A memory"}'
@@ -210,7 +212,7 @@ def test_retired_workflows_cannot_be_exported_again():
                                     "memoir/memory/marker/")) for name in registry)
     assert not {"memoir/interview/journalist", "memoir/composer/draft",
                 "memoir/composer/organiser-task", "memoir/interview/collector-repair",
-                "memoir/skills/memoir-author-timeline/legacy-marker"} & registry.keys()
+                "memoir/skills/author-timeline/legacy-marker"} & registry.keys()
 
 
 def test_legacy_collector_setting_is_rejected(monkeypatch):
