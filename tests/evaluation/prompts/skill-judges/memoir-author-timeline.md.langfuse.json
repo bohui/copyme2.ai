@@ -1,7 +1,7 @@
 {
   "name": "memoir/evaluators/skills/author-timeline/extract/quality",
   "schema_version": 1,
-  "sha256": "8988996834a0225f4803d814c6f98fe1ce65cbde9e7edb98975a8cfd49029897",
+  "sha256": "f07e8191486b566e581b4f90c4186e862263a7374ebb2c68fd3ffcf080e66d03",
   "type": "text",
-  "version": 1
+  "version": 2
 }
