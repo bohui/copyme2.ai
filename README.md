@@ -227,11 +227,14 @@ check failure can retry without rebuilding the dependency-heavy runtimes.
 Unchanged containers are reused; only services affected by an image, Compose
 configuration, or checkout-mount change are recreated.
 Named volumes, including Temporal history, are preserved. Startup refreshes
-service aliases from Apple Container's live addresses before waiting for health,
+service aliases from Apple Container's live addresses before waiting for health
+and again after all startup and readiness commands finish,
 including `llm-provider-litellm-1` and `llm-provider-langfuse-web-1` when those
 provider containers share the network. This keeps the model and tracing URLs
 stable when a reboot changes the virtual subnet; start the provider stack before
-`make up`. Mocker's cached inspection addresses are not used. Running conversations
+`make up`. The provider repo's `make up` and `make langfuse-up` also refresh these
+aliases in already-running Memoir containers, so either stack can be restarted
+after an IP change. Mocker's cached inspection addresses are not used. Running conversations
 and background tasks may be interrupted during startup. Worktrees share the `memory-spark` Compose project;
 running startup from a worktree changes the backend used by the main checkout.
 The first run establishes a

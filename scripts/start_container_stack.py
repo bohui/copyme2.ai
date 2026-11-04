@@ -342,12 +342,15 @@ def start(args):
     print('Starting services from local images (timeout: 180s).', flush=True)
     subprocess.run([*compose, 'up', '-f', args.compose_file, '--no-build', '--no-deps',
         '--no-recreate', '--detach', *services], check=True, timeout=180)
-    subprocess.run(['python3', 'scripts/refresh_mocker_compose_hosts.py',
+    refresh_command = ['python3', 'scripts/refresh_mocker_compose_hosts.py',
         '--mocker', args.mocker, '--apple-container', args.apple_container,
-        '--compose-file', args.compose_file], check=True)
+        '--compose-file', args.compose_file]
+    subprocess.run(refresh_command, check=True)
     subprocess.run([*compose, 'up', '-f', args.compose_file, '--no-build', '--no-recreate',
         '--no-deps', '--detach', '--wait', '--wait-timeout', '120', *services], check=True, timeout=180)
     subprocess.run(args.health_command, check=True)
+    # Reinspect live IPs after startup/readiness, including reused containers after a host reboot.
+    subprocess.run(refresh_command, check=True)
 
     write_cache(state_file, {'version': 1, 'compose_fingerprint': compose_fingerprint,
                              'temporal_config_fingerprint': current_temporal_config,

@@ -134,6 +134,7 @@ if args[:1] == ['rm']:
     overrides.write_text('''check runtime-start _validate-skills:
 \t@true
 container-health:
+\t@python3 -c 'import json; open("commands.jsonl", "a").write(json.dumps(["health-check"]) + "\\n")'
 \t@test ! -f fail-health
 ''')
 
@@ -316,6 +317,13 @@ def test_repeat_up_skips_builds_and_reuses_every_service(stack):
     assert start < refresh < ready
     assert all('--no-recreate' in c for c in repeated if c[:2] == ['compose', 'up'])
     assert not any('--volumes' in c or c[:2] == ['compose', 'down'] for c in repeated)
+
+
+def test_up_finishes_by_refreshing_aliases_after_all_compose_and_health_commands(stack):
+    _, up, calls = stack
+    up()
+    commands = calls()
+    assert commands[-2:] == [['health-check'], ['refresh-aliases']]
 
 
 def test_up_creates_story_game_object_mount_source(stack):
