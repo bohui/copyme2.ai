@@ -102,7 +102,7 @@ def publish(client,rows,outputs,run_id):
     from scripts.snapshot_prompt_evaluations import cursor_pages
     if [p.id for p in client.api.projects.get().data]!=[PROJECT]:raise ValueError('Wrong Langfuse project')
     name=TARGET+'/golden/pins-'+digest(rows)[:12]
-    datasets,_=publish_datasets(client,{name:rows})
+    datasets,_=publish_datasets(client,{name:rows},description='Current prompt pin coverage ledger. Missing scenarios are unavailable; observed pin coverage is not a model-quality score.')
     dataset=datasets[name];by_id={r['case_id']:r for r in outputs}
     started=datetime.now(timezone.utc)
     experiment=dataset.run_experiment(name='evaluation/memoir-prompts.coverage',run_name=run_id,

@@ -143,7 +143,7 @@ def verify_items(name, rows, items, *, complete):
     return set(wanted) - set(actual)
 
 
-def publish_datasets(client, definitions):
+def publish_datasets(client, definitions, *, description=None):
     existing, page = {}, 1
     while True:
         result = client.api.datasets.list(page=page, limit=100)
@@ -163,7 +163,7 @@ def publish_datasets(client, definitions):
     for name, rows in definitions.items():
         if name not in existing:
             client.create_dataset(name=name,
-                description=('Application trigger checks with controlled replies' if DATASET_PHASES.get(name) == 'triggers'
+                description=description or ('Application trigger checks with controlled replies' if DATASET_PHASES.get(name) == 'triggers'
                     else 'Real gateway delivery probes; isolated synthetic inputs, no production persistence'),
                 metadata=dict(suite='memoir-skills/1', synthetic=True, contains_customer_data=False,
                               content_sha256=digest(rows), item_count=len(rows), target=dataset_target(name)))
