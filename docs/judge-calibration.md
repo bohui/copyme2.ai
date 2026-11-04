@@ -59,6 +59,29 @@ Host commands use the existing gateway at `http://127.0.0.1:4000/v1`;
 `prompt-eval` generation mode and manual dataset/model/run variables are retired.
 The fifty-round command remains a separate full application conversation test.
 
+## Automatic command verification — 5 November 2026
+
+The focused Mira run passed its production contract checks and published its
+automatically selected advisory judgment. Exact v7 execution and all named
+scores were read back in [Langfuse](http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw2nofur0c801z02v7da7fyj/runs/a5c92f1459ff1dba).
+
+`SKILL_EVAL_NAME=author-timeline` selected all nine owned prompts and two frozen
+16-case datasets. A zero-model-call replay verified all 32 saved outputs with
+the current graders: 28 pass and four retain their earlier timeline omission
+failure. Seven requested prompt pins were observed; attribution and continuity
+remain unavailable because those branches were not exercised. The command
+returns nonzero for those findings. Both
+[timeline](http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw1xdh4100x61z02j759k06p/runs/26df0e92878ab45f)
+and [place](http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw1xdj8r00za1z02ebar0x6p/runs/bc4c0eced039d7a8)
+experiment inputs, gold, outputs and scores were read back.
+
+The affected regression suite passed 184 tests, with four Linux-only lifecycle
+checks skipped on macOS; 57 follow-up checks and `make prompt-check` also passed
+with 96 prompt pins and 112 dataset identities. [Verification receipts](test-evidence/automatic-prompt-evaluation-20261105.json)
+preserve source hashes, exact requested pins, outcomes and experiment links.
+
+## Shared judge suite
+
 The shared dataset has 80 fictional cases: 40 development and 40 holdout. Its
 18 judge contracts consume all 21 managed evaluator prompt components and make
 140 calls across both splits. Cases include supported answers, contradictions,

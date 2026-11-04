@@ -1,7 +1,6 @@
 """The public command selects frozen scenarios and proves requested prompt use."""
 from copy import deepcopy
 import json
-from pathlib import Path
 import subprocess
 
 import pytest
