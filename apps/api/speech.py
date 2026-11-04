@@ -27,8 +27,8 @@ from .llm_tracing import mark_llm_trace_error, trace_llm_call, update_llm_trace
 
 
 _SPEECH_CHARACTERS = {
-    'zh-cn': {'voice': 'longwan_v3', 'speed': 1.1, 'prompt_name': 'memoir/speech/zh-CN'},
-    'en-au': {'voice': 'longwan_v3', 'prompt_name': 'memoir/speech/en-AU'},
+    'zh-cn': {'voice': 'longwan_v3', 'speed': 1.1, 'prompt_name': 'memoir/workflows/speech/synthesis/zh-CN'},
+    'en-au': {'voice': 'longwan_v3', 'prompt_name': 'memoir/workflows/speech/synthesis/en-AU'},
 }
 
 
@@ -39,8 +39,8 @@ def _speech_locale(language: str | None) -> str:
 
 def speech_prompt_name(language, prompt_name=None):
     locale = _speech_locale(language)
-    name = prompt_name or _SPEECH_CHARACTERS.get(locale, {}).get('prompt_name', 'memoir/speech/default')
-    if name not in {'memoir/speech/default', 'memoir/speech/en-AU', 'memoir/speech/zh-CN'}:
+    name = prompt_name or _SPEECH_CHARACTERS.get(locale, {}).get('prompt_name', 'memoir/workflows/speech/synthesis/default')
+    if name not in {'memoir/workflows/speech/synthesis/default', 'memoir/workflows/speech/synthesis/en-AU', 'memoir/workflows/speech/synthesis/zh-CN'}:
         raise ValueError('Unknown managed speech prompt')
     return name
 

@@ -44,7 +44,7 @@ ENV_FILE ?= .env
 include-langfuse ?= true
 PROMPT_CREDENTIAL_FILE ?= $(HOME)/llm_provider/.env
 PROMPT_NAME ?=
-PROMPT_EVAL_NAME ?= memoir/skills/memoir-author-timeline/extract
+PROMPT_EVAL_NAME ?= memoir/skills/author-timeline/extract
 PROMPT_EVAL_DATASET ?= memoir/evaluation/event-grounding
 PROMPT_EVAL_VERSION ?=
 PROMPT_EVAL_MODEL ?=
@@ -99,10 +99,11 @@ prompt-sync: ## Publish changed prompts from the committed branch and refresh re
 prompt-sync-check: ## Check committed branch prompt changes without publishing.
 	@python3 scripts/publish_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
-prompt-export: ## Recovery: export published prompts; optional PROMPT_NAME=memoir/agents/mira/system.
+prompt-export: ## Recovery: export published prompts; optional PROMPT_NAME=memoir/agents/mira/reply.
 	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
-prompt-check: ## Verify repo prompt artifacts against their pinned Langfuse versions.
+prompt-check: ## Verify evaluation bindings and pinned Langfuse prompt versions.
+	@python3 -B scripts/check_langfuse_evaluation_bindings.py
 	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
 
 prompt-eval: ## Preflight a pinned prompt and dataset; use PROMPT_EVAL_RUN=1 and PROMPT_EVAL_MODEL=... to call a model.

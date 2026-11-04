@@ -148,7 +148,7 @@ def normalize_canonical_event_dispositions(draft):
 def composer_instructions(phase):
     if phase not in {"prepare", "draft", "review"}:
         raise KeyError(phase)
-    return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-composer/{phase}'))
+    return render_prompt_artifact(prompt_path(f'memoir/skills/composer/{phase}'))
 
 def json_reply(text):
     text = text.strip()

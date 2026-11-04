@@ -38,7 +38,7 @@ from .lifetime_memory_publication import PublicationUnavailable
 SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
     'memoir-luna-low', 'gpt-5.6-sol', 'gpt-6.1-sol', 'deepseek-v4.1-flash-1017',
     'synthetic-byte-bpe'})
-EXTRACTION_WINDOW_CONTRACT = load_prompt_artifact(prompt_path('memoir/skills/memoir-author-timeline/window'))
+EXTRACTION_WINDOW_CONTRACT = load_prompt_artifact(prompt_path('memoir/skills/author-timeline/window'))
 EXTRACTION_REJECTION_REASONS = {
     'temporal_estimate_range': 'TEMPORAL_ESTIMATE_RANGE',
     'Unsupported life stage': 'LIFE_STAGE',
@@ -258,9 +258,9 @@ def lane_contract(phase, locale, *, batch=False, two_lane=False, fence=None, ret
             schema['$defs']['ref']={'anyOf':choices}
     if batch:
         if phase == 'prepare':
-            instructions += load_prompt_artifact(prompt_path('memoir/skills/memoir-composer/batch/prepare'))
+            instructions += load_prompt_artifact(prompt_path('memoir/skills/composer/batch/prepare'))
         else:
-            instructions += load_prompt_artifact(prompt_path('memoir/skills/memoir-composer/batch/compose'))
+            instructions += load_prompt_artifact(prompt_path('memoir/skills/composer/batch/compose'))
     locale_name = 'zh-CN' if locale == 'zh-CN' else 'en-AU'
     instructions += render_prompt_artifact(prompt_path(f'memoir/shared/bounded-context/{locale_name}'))
     if getattr(fence, 'attribution_coverage', None):

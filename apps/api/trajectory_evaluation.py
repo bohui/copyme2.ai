@@ -1367,7 +1367,7 @@ def build_judge_prompt(
     judge_input: Mapping[str, Any],
     *,
     calibration_examples: Iterable[Mapping[str, Any]] = (),
-    prompt_names: tuple[str, ...] = ('memoir/evaluation/trajectory-judge/rubric',),
+    prompt_names: tuple[str, ...] = ('memoir/evaluators/shared/trajectory/rubric',),
 ) -> str:
     """Create the full-run, calibrated input for an external semantic judge."""
     payload = {
@@ -1494,7 +1494,7 @@ class OpenAICompatibleJudge:
         api_key: str = "",
         calibration_examples: Iterable[Mapping[str, Any]] = (),
         timeout: float = 60.0,
-        prompt_names: tuple[str, ...] = ('memoir/evaluation/trajectory-judge/rubric',),
+        prompt_names: tuple[str, ...] = ('memoir/evaluators/shared/trajectory/rubric',),
         max_tokens: int = 1200,
         reasoning_effort: str | None = None,
     ) -> None:
@@ -1521,7 +1521,7 @@ class OpenAICompatibleJudge:
             "max_tokens": self.max_tokens,
             "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": load_prompt_artifact(prompt_path('memoir/evaluation/trajectory-judge/system'))},
+                {"role": "system", "content": load_prompt_artifact(prompt_path('memoir/evaluators/shared/trajectory/system'))},
                 {"role": "user", "content": build_judge_prompt(
                     judge_input,
                     calibration_examples=self.calibration_examples,
@@ -1542,7 +1542,7 @@ class OpenAICompatibleJudge:
             },
             metadata={"provider": self.name, "endpoint": "chat.completions", "prompt_manifest":
                 prompt_manifest(
-                    ['memoir/evaluation/trajectory-judge/system', *self.prompt_names],
+                    ['memoir/evaluators/shared/trajectory/system', *self.prompt_names],
                     body['messages'][0]['content'] + '\n' + '\n'.join(load_prompt_artifact(prompt_path(n)) for n in self.prompt_names),
                     body['response_format'], variant='trajectory-judge')},
         ) as trace:

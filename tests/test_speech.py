@@ -70,7 +70,7 @@ def test_voice_override_uses_only_managed_delivery_policy(monkeypatch):
     character = speech_character('fr-FR')
     assert character['voice']=='shimmer'
     assert character['instructions'] != 'Unmanaged policy must not be sent'
-    assert speech_character('fr-FR',voice='nova',prompt_name='memoir/speech/en-AU')['voice']=='nova'
+    assert speech_character('fr-FR',voice='nova',prompt_name='memoir/workflows/speech/synthesis/en-AU')['voice']=='nova'
     with pytest.raises(ValueError,match='managed'):
         speech_character('fr-FR',prompt_name='unmanaged')
     with pytest.raises(ValueError,match='managed'):

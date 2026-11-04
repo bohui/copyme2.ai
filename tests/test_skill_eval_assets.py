@@ -180,7 +180,7 @@ def test_malformed_judge_text_and_missing_evidence_are_unavailable(tmp_path):
 def test_scoped_execution_never_archives_unselected_items_and_shared_assets_are_nonempty():
     rows = assets.dataset_rows(suite.plan(skill=['memoir-interviewer'], locale=['en-AU']))
     assert sum(len(items) for name, items in rows.items() if name in assets.SKILL_DATASETS) == 160
-    assert len(rows['memoir/golden/memoir-workflows/integration/core']) == 2
+    assert len(rows['memoir/workflows/source-to-private-draft/golden/core']) == 2
     assert len(rows['memoir/calibration/memoir-judges/quality/core']) == 20
     assert all(r['expected_output']['human_label'] is None for r in rows['memoir/calibration/memoir-judges/quality/core'])
 

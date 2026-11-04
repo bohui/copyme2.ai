@@ -17,13 +17,13 @@ def test_historical_suites_move_without_colliding_with_current_suites():
         'memoir/evaluation/v4/lane-a/abc123', 'memoir/evaluation/v4/lane-a/def456']
     new = [canonical_dataset_name(name) for name in old]
     assert len(new) == len(set(new))
-    assert new[0] == 'memoir/golden/memoir-atlas/skill-selection/core'
-    assert new[4] == 'memoir/golden/memoir-mira/reply/campaign-abc123'
+    assert new[0] == 'memoir/workflows/skill-admission/golden/core'
+    assert new[4] == 'memoir/agents/mira/reply/golden/campaign-abc123'
     assert all(canonical_dataset_name(name) == name for name in new)
 
 
 def test_interviewer_dataset_uses_mira_without_changing_the_skill_selector():
-    assert skill_dataset('memoir-interviewer') == 'memoir/golden/memoir-mira/reply/core'
+    assert skill_dataset('memoir-interviewer') == 'memoir/agents/mira/reply/golden/core'
 
 
 @pytest.mark.parametrize('name', ['memoir/unknown/data', 'another-project/evaluation/workflows'])

@@ -151,7 +151,7 @@ def job_contract(fence):
                 'title':{'type':'string','minLength':1,'maxLength':200},
                 field:{'type':'array','minItems':1,'maxItems':len(ids),
                     'items':{'type':'string','enum':ids}}}}}}}
-    instructions = render_prompt_artifact(prompt_path(f'memoir/skills/memoir-composer/outline/{fence.phase}/{fence.locale}'))
+    instructions = render_prompt_artifact(prompt_path(f'memoir/skills/composer/outline/{fence.phase}/{fence.locale}'))
     return instructions,schema
 
 

@@ -24,11 +24,14 @@ if str(ROOT) not in sys.path:
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.memoir_live_skill_cases import cases, validate_case
 from scripts.run_memoir_live_skills import LiveProvider, compose, manifest, native_search, save
-from scripts.langfuse_dataset_names import dataset_name
+from scripts.langfuse_dataset_names import (SKILL_TASKS, SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target)
 
-TRIGGER_DATASET = dataset_name('golden', 'memoir-atlas', 'skill-selection', 'v2')
-DELIVERY_DATASET = dataset_name('golden', 'memoir-workflows', 'skill-delivery', 'v2')
-DATASET_PHASES = {TRIGGER_DATASET: 'triggers', DELIVERY_DATASET: 'deliveries'}
+# A dataset contains one target; batching is an execution concern.
+DATASET_PHASES = {
+    **{admission_dataset(s, 'triggers-v2'): 'triggers' for s in SKILL_TASKS if s != 'memoir-interviewer'},
+    **{target_dataset(delivery_target(dict(skill=s, kind='live_contract' if s != 'memoir-composer' else 'live_composer')),
+        suite='delivery-v2'): 'deliveries' for s in SKILL_TASKS if s != 'memoir-interviewer'},
+}
 
 
 # These tests invoke production admission/scheduling code with controlled replies;
@@ -112,7 +115,14 @@ def datasets():
     expected = set(manifest()['skills'])
     if set(TRIGGERS) != expected or {r['input']['skill'] for r in deliveries} != expected:
         raise ValueError('missing_skill_coverage')
-    return {TRIGGER_DATASET: triggers, DELIVERY_DATASET: deliveries}
+    grouped = {name: [] for name in DATASET_PHASES}
+    for row in triggers:
+        grouped[admission_dataset(row['input']['skill'], 'triggers-v2')].append(row)
+    for row in deliveries:
+        grouped[target_dataset(delivery_target(row['input']), suite='delivery-v2')].append(row)
+    if any(not rows for rows in grouped.values()):
+        raise ValueError('empty_target_dataset')
+    return grouped
 
 
 def item_id(name, row):
@@ -353,7 +363,7 @@ def legacy_main():
         phase = DATASET_PHASES[name]
         if phase == 'deliveries':
             provider.deadline = time.monotonic() + 1800
-        trace_name = 'evaluation/memoir-atlas.skill-selection' if phase == 'triggers' else 'evaluation/memoir-workflows.skill-delivery'
+        trace_name = 'evaluation/' + dataset_target(name).replace('memoir/', 'memoir-', 1).replace('/', '-')
         result = dataset.run_experiment(name=trace_name,
             run_name=run_id + '-' + phase, task=task, evaluators=[evaluate],
             max_concurrency=1, metadata=dict(suite='memoir-skills/1', synthetic=True,

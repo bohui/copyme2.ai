@@ -83,7 +83,7 @@ async def generate_background(prompt,fence,*,transport=None,issue14_admission=No
     if (not key or not model or endpoint.scheme not in {'http','https'} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         raise ValueError('game_image_provider_unavailable')
-    instructions=load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/novel-to-game/illustration'))
+    instructions=load_prompt_artifact(prompt_path('memoir/skills/story-game/novel-to-game/illustration'))
     manifest=instruction_manifest(instructions,{},variant='novel-game-illustration')
     body=dict(model=model,prompt=prompt,n=1,size='1536x1024',
         quality='medium',background='opaque',output_format='png')
@@ -125,7 +125,7 @@ async def prepare_backgrounds(workspace,bindings,library,fence,*,generator=None)
     for scene,value in bindings.items():
         if isinstance(value,dict):
             from .prompt_artifact import load_prompt_artifact,prompt_path
-            instructions=load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/novel-to-game/illustration'))
+            instructions=load_prompt_artifact(prompt_path('memoir/skills/story-game/novel-to-game/illustration'))
             prompt=instructions+'\n\n'+assets.pack_catalog()['scene_style']['description']+'\n\n'+value['prompt'].strip()
             art=dict(id='background',kind='scene-background',prompt=prompt,columns=1,rows=1,scenes=['background'])
             plan=dict(style=assets.pack_catalog()['scene_style']['id'],illustrations=[art])

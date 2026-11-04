@@ -9,11 +9,11 @@ from datetime import datetime
 import math
 
 from scripts.memoir_skill_eval_suite import digest, identity
-from scripts.langfuse_dataset_names import SKILL_TASKS, skill_dataset, WORKFLOWS, CALIBRATION
+from scripts.langfuse_dataset_names import SKILL_TASKS, skill_dataset, calibration_dataset, WORKFLOWS
 
-DATASET_PREFIX = 'memoir/golden/'
+DATASET_PREFIX = 'memoir/'
 SKILL_DATASETS = {skill_dataset(skill) for skill in SKILL_TASKS}
-SHARED = {WORKFLOWS, CALIBRATION}
+SHARED = {WORKFLOWS, *[calibration_dataset(skill) for skill in SKILL_TASKS]}
 
 
 def timestamp(value):
@@ -36,9 +36,9 @@ def dataset_rows(planned):
             input={k: deepcopy(item[k]) for k in ('id', 'skill', 'case', 'locale', 'phase', 'action', 'scope', 'task')},
             expected_output=deepcopy(item['gold']), metadata=dict(synthetic=True,
                 identity=item['id'], content_sha256=item['content_sha256'])))
-    for key, dataset in (('workflow_items', WORKFLOWS),
-                         ('calibration_items', CALIBRATION)):
+    for key in ('workflow_items', 'calibration_items'):
         for item in planned[key]:
+            dataset = WORKFLOWS if key == 'workflow_items' else calibration_dataset(item['skill'])
             rows[dataset].append(dict(id=digest(item['id'])[:32], status='ACTIVE',
                 input={k: deepcopy(v) for k, v in item.items() if k != 'expected_output'},
                 expected_output=deepcopy(item['expected_output']), metadata=dict(synthetic=True,
@@ -51,9 +51,9 @@ def managed_assets(planned, *, executor):
     definitions, rules = deepcopy(planned['evaluators']), []
     targets = {s: skill_dataset(s) for s in planned['inventory']}
     for definition in definitions:
-        skill = definition['name'].split('/')[-2]
+        skill = definition['skill']
         if definition['kind'] == 'quality' and executor == 'sdk': continue
-        rules.append(dict(name=definition['name'] + '/synthetic-experiments', enabled=False,
+        rules.append(dict(name=targets[skill] + '/' + definition['kind'], enabled=False,
             evaluator_name=definition['name'], dataset=targets[skill], synthetic_only=True,
             evaluator_version=definition['hosted_evaluator_version']))
     return dict(definitions=definitions, rules=rules, executor=executor,

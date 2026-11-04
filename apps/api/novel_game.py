@@ -185,7 +185,7 @@ async def run_novel_game(fence, *, packet_loader=None, transport=None, stage_sto
             upstream = {p:(runner.SKILL/p).read_text() for p in paths}
             managed = ['adapter','journey',stage]
             if stage in ('whitebox','art','production'): managed.append('assets')
-            instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/novel-to-game/'+n)) for n in managed)
+            instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/story-game/novel-to-game/'+n)) for n in managed)
             instructions += '\n\n'+'\n\n'.join('===== '+p+' =====\n'+v for p,v in upstream.items())
             outputs = config['outputs'] if stage!='art' else ['design/ART_DIRECTION.md','design/SCENE_BINDINGS.json']
             payload = dict(stage=stage,source=source,format_contract=runner.FORMAT,saved_artifacts=artifacts,

@@ -20,7 +20,7 @@ def test_manifest_identifies_components_and_schema_without_request_testimony():
     manifest = instruction_manifest(instructions,schema,variant='extract')
     assert manifest['artifacts']
     assert manifest['prompt_sha256']==hashlib.sha256(instructions.encode()).hexdigest()
-    assert any(item['name']=='memoir/skills/memoir-author-timeline/instructions' for item in manifest['artifacts'])
+    assert any(item['name']=='memoir/skills/author-timeline/instructions' for item in manifest['artifacts'])
     changed=deepcopy(schema);changed['title']='Changed structural contract'
     assert instruction_manifest(instructions,changed)['schema_sha256'] != manifest['schema_sha256']
     assert all(item['version'] is None for item in manifest['artifacts'] if item['status']=='unpublished')
@@ -30,12 +30,12 @@ def test_manifest_ignores_catalog_sources_not_shipped_to_runtime(monkeypatch):
     from apps.api.prompt_catalog import PROMPT_PATHS
     from apps.api.memory_events import extraction_instructions, extraction_schema
 
-    monkeypatch.setitem(PROMPT_PATHS, 'memoir/evaluation/not-shipped',
+    monkeypatch.setitem(PROMPT_PATHS, 'memoir/probes/not-shipped',
                         'tests/evaluation/not-shipped.md')
 
     manifest = instruction_manifest(extraction_instructions(), extraction_schema(), variant='extract')
 
-    assert 'memoir/evaluation/not-shipped' not in {item['name'] for item in manifest['artifacts']}
+    assert 'memoir/probes/not-shipped' not in {item['name'] for item in manifest['artifacts']}
 
 
 def test_conversational_voice_lives_in_the_agent_prompt_not_schema_descriptions():
@@ -163,9 +163,9 @@ def test_worker_manifest_does_not_require_uninstalled_evaluation_prompts(monkeyp
     from apps.api.prompt_artifact import load_prompt_artifact
     from apps.api.model_request import PROMPT_PATHS
 
-    name = 'memoir/agents/mira/system'
+    name = 'memoir/agents/mira/reply'
     instructions = load_prompt_artifact(prompt_path(name))
-    missing = 'memoir/evaluation/not-installed-in-worker'
+    missing = 'memoir/probes/not-installed-in-worker'
     monkeypatch.setitem(PROMPT_PATHS, missing, 'tests/evaluation/not-installed-in-worker.md')
     manifest = instruction_manifest(instructions, {}, variant='collector')
     assert name in {artifact['name'] for artifact in manifest['artifacts']}

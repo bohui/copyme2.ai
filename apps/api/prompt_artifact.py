@@ -32,7 +32,7 @@ def load_prompt_artifact(path: Path) -> str:
 def validate_runtime_prompt_artifacts() -> None:
     invalid = []
     for name, relative in PROMPT_PATHS.items():
-        if name.startswith('memoir/evaluation/'):
+        if name.startswith(('memoir/evaluators/', 'memoir/probes/')):
             continue  # Evaluation inputs are not shipped in runtime containers.
         path = ROOT / relative
         try:

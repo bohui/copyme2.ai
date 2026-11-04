@@ -104,12 +104,12 @@ async def main() -> int:
     api_key = os.getenv("MEMORY_SPARK_LLM_API_KEY") or file_env.get("MEMORY_SPARK_LLM_API_KEY") or ""
     request_body = {
         "model": model,
-        "input": load_prompt_artifact(prompt_path('memoir/evaluation/probes/web-search')),
+        "input": load_prompt_artifact(prompt_path('memoir/probes/providers/web-search')),
         "tools": [{"type": "web_search"}],
         "max_output_tokens": 120,
     }
-    instructions = load_prompt_artifact(prompt_path('memoir/evaluation/probes/web-search'))
-    manifest = prompt_manifest(['memoir/evaluation/probes/web-search'],instructions,variant='synthetic-probe')
+    instructions = load_prompt_artifact(prompt_path('memoir/probes/providers/web-search'))
+    manifest = prompt_manifest(['memoir/probes/providers/web-search'],instructions,variant='synthetic-probe')
     request_body['metadata']={**manifest_metadata(manifest),
         'generation_name':'evaluation/memoir-probes.web-search', 'trace_name':'evaluation/memoir-probes'}
     receipt: dict[str, object] = {

@@ -27,7 +27,7 @@ def test_legacy_plan_selects_the_task_when_the_dataset_leaf_is_a_version(monkeyp
 
 def test_both_datasets_cover_every_registered_skill_and_hide_gold_from_model_packets():
     for name, rows in datasets().items():
-        assert {r['input']['skill'] for r in rows} == set(manifest()['skills'])
+        assert len({r['input']['skill'] for r in rows}) == 1
         assert len({item_id(name, r) for r in rows}) == len(rows)
         for row in rows:
             assert 'expected_output' not in row['input']
@@ -108,14 +108,14 @@ def test_case_from_another_phase_is_rejected_before_service_allocation(tmp_path,
     import sys
     import scripts.run_memoir_skill_evaluation as evaluation
 
-    rows = next(rows for name, rows in datasets().items() if name.endswith('triggers'))
+    rows = next(rows for name, rows in datasets().items() if name.endswith('triggers-v2'))
     allocated = []
     client = SimpleNamespace(api=SimpleNamespace(projects=SimpleNamespace(get=lambda:
         SimpleNamespace(data=[SimpleNamespace(id='cmut9t75w00071z02n8bdv7it')]))))
     monkeypatch.setattr(evaluation, 'prompt_client', lambda *args: allocated.append('langfuse') or client)
     monkeypatch.setattr('scripts.export_langfuse_prompts.export_prompts', lambda *args, **kwargs: [])
     monkeypatch.setattr(evaluation, 'publish_datasets', lambda *args: (
-        {'memoir/golden/memoir-atlas/skill-selection/v2': SimpleNamespace(items=[
+        {'memoir/workflows/author-timeline-admission/golden/triggers-v2': SimpleNamespace(items=[
             SimpleNamespace(input=row['input']) for row in rows])}, datetime.now(timezone.utc)))
     monkeypatch.setattr(evaluation, 'TracedProvider', lambda *args, **kwargs: SimpleNamespace())
     env = tmp_path / 'empty.env'
@@ -138,7 +138,7 @@ def test_an_empty_experiment_cannot_report_passed(tmp_path, monkeypatch):
     import sys
     import scripts.run_memoir_skill_evaluation as evaluation
 
-    name = 'memoir/golden/memoir-atlas/skill-selection/v2'
+    name = 'memoir/workflows/author-timeline-admission/golden/triggers-v2'
     monkeypatch.setattr(evaluation, 'datasets', lambda: {name: []})
     client = SimpleNamespace(api=SimpleNamespace(projects=SimpleNamespace(get=lambda:
         SimpleNamespace(data=[SimpleNamespace(id='cmut9t75w00071z02n8bdv7it')]))))

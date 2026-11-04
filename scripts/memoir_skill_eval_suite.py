@@ -22,7 +22,7 @@ from uuid import uuid4
 
 from scripts.memoir_live_skill_cases import scenario_cases
 from scripts.run_memoir_live_skills import save
-from scripts.langfuse_dataset_names import skill_dataset, WORKFLOWS, CALIBRATION
+from scripts.langfuse_dataset_names import skill_dataset, calibration_dataset, SKILL_TARGETS, WORKFLOWS
 
 ROOT = Path(__file__).resolve().parents[1]
 KNOWN = frozenset('memoir-' + name for name in (
@@ -53,7 +53,7 @@ def identity(item):
 def inventory():
     from apps.api.background_skills import SKILLS
     from apps.api.prompt_catalog import PROMPT_PATHS
-    owners = {name.split('/')[2] for name in PROMPT_PATHS if name.startswith('memoir/skills/')}
+    owners = {'memoir-' + name.split('/')[2] for name in PROMPT_PATHS if name.startswith('memoir/skills/')}
     # Retain stable case IDs while evaluating Mira as an agent. Guidance is an
     # embedded background dependency, without a standalone scenario catalog.
     actual = set(SKILLS) | owners
@@ -67,7 +67,7 @@ def inventory():
             name=skill, execution='model', runner='foreground_collector', status='implemented', trigger='foreground_turn')
         definition['kind'] = 'agent' if skill == 'memoir-interviewer' else 'skill'
         definition['prompt_sources'] = []
-        prefix = 'memoir/agents/mira/' if skill == 'memoir-interviewer' else 'memoir/skills/' + skill + '/'
+        prefix = 'memoir/agents/mira/' if skill == 'memoir-interviewer' else 'memoir/skills/' + skill.removeprefix('memoir-') + '/'
         for name, relative in sorted(PROMPT_PATHS.items()):
             if not name.startswith(prefix):
                 continue
@@ -106,7 +106,7 @@ def judge_definition(skill):
                                version=pin['version'] if pin else None))
         texts.append(content)
     compiled = '\n\n'.join(texts)
-    return dict(name='memoir/evaluation/' + skill + '/quality', kind='quality',
+    return dict(name=components[-1]['name'], skill=skill, kind='quality',
         compiled_text=compiled, compiled_sha256=hashlib.sha256(compiled.encode()).hexdigest(),
         components=components, publication='pinned' if all(c['version'] for c in components) else 'unpublished',
         hosted_evaluator_version=None, enabled=False)
@@ -116,7 +116,7 @@ def definitions(skills):
     result = []
     implementation = hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     for skill in skills:
-        result.append(dict(name='memoir/evaluation/' + skill + '/contract', kind='contract',
+        result.append(dict(name='memoir/evaluators/' + SKILL_TARGETS[skill].removeprefix('memoir/') + '/contract', skill=skill, kind='contract',
             implementation_sha256=implementation, hosted_evaluator_version=None, enabled=False))
         result.append(judge_definition(skill))
     return result
@@ -155,7 +155,7 @@ def plan(*, skill=None, phase=None, locale=None, case=None):
     return dict(schema_version='memoir-skill-evaluation/3', inventory=catalog, selected_skills=selected,
         upstream_dependencies=deepcopy(PHOTO_UPSTREAM_DEPENDENCIES) if 'memoir-place-photo-research' in selected else [],
         items=selected_items, catalog_items=items,
-        datasets=[*all_datasets.values(), WORKFLOWS, CALIBRATION],
+        datasets=[*all_datasets.values(), WORKFLOWS, *[calibration_dataset(s) for s in catalog]],
         dataset_snapshot=snapshot, dataset_snapshot_kind='local_plan_timestamp',
         evaluators=definitions(catalog), http_dispatches=0, synthetic=True,
         human_calibration='pending_human_labels',
@@ -193,12 +193,12 @@ def packet(item):
             coverage=dict(scope='source_window', snapshot_id=item['id'], source_high_water=1, complete=False),
             window_contract=EXTRACTION_WINDOW_CONTRACT)
     elif skill == 'memoir-family-tree':
-        instructions = load_prompt_artifact(prompt_path('memoir/skills/memoir-family-tree/instructions'))
+        instructions = load_prompt_artifact(prompt_path('memoir/skills/family-tree/extract'))
         payload = dict(source=task['source'], saved_people=[])
     elif skill == 'memoir-story-game' and item['phase'] == 'proposal':
         from apps.api.memoir_story_game import load_story_game_skill
         from apps.api.story_game_selection import ScenePool
-        instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(prompt_path('memoir/skills/memoir-story-game/proposal'))
+        instructions = load_story_game_skill() + '\n\n' + load_prompt_artifact(prompt_path('memoir/skills/story-game/proposal'))
         schema, payload = ScenePool.model_json_schema(), task
     else:
         raise ValueError('requires_application_adapter')

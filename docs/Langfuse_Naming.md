@@ -46,85 +46,84 @@ The SDK also owns `experiment-item-run` and `experiment-item-task` observations
 in the `sdk-experiment` environment; their model calls carry the application
 evaluation labels.
 
-## Datasets
+## Target-first evaluation paths
 
-Dataset names follow `memoir/<category>/<owner>/<task>/<suite>`. The final segment
-is a dataset; earlier segments appear as folders in Langfuse.
+The same target path connects application prompts, datasets and evaluation rules:
 
-| Category | Purpose | Example |
-| --- | --- | --- |
-| `golden` | Reference regression cases; preserve each suite's review status | `memoir/golden/memoir-mira/reply/core` |
-| `safety` | Privacy, consent and harmful-output cases | `memoir/safety/memoir-mira/reply/privacy` |
-| `relevance` | Topic changes, redirects and concise replies | `memoir/relevance/memoir-mira/reply/redirects` |
-| `stress` | Long contexts, repeated updates and difficult inputs | `memoir/stress/memoir-atlas/skill-selection/long-context` |
-| `calibration` | Compare judge results against reviewed human labels | `memoir/calibration/memoir-judges/quality/core` |
+| Object | Example |
+| --- | --- |
+| Prompt under test | `memoir/agents/mira/reply` |
+| Dataset | `memoir/agents/mira/reply/golden/core` |
+| Judge prompt and reusable evaluator | `memoir/evaluators/shared/relevance` |
+| Dataset rule | `memoir/agents/mira/reply/golden/core/quality` |
+| Online rule | `memoir/agents/mira/reply/online/quality` |
 
-Moving a suite into `golden` does not grant human approval to its existing labels.
-Dataset items retain their metadata, including any pending review status.
-Safety, relevance and stress are supported categories; create their datasets when
-there are corresponding cases. Do not create empty placeholder suites.
+`quality` is a rule assigning several independent judges to one sampled item.
+Dataset rules use correctness, relevance, completeness and safety. Online rules
+use the latter three on the same 10% sample; correctness requires a reference.
+Rule names with one metric end with that metric instead. All rules apply only to
+new observations or experiments. Evaluation and internal judge environments are
+excluded from online rules; speech and image summaries are not text outputs.
 
-The 4 November 2026 migration renamed 35 datasets in place, preserving all 432
-items and 45 experiment links. No dataset was deleted. Historical v2, dated and
-campaign suites use distinct leaf names to avoid collisions. The old
-`memoir/evaluation`, `memoir/archive` and `memoir/issue6` dataset folders disappear
-because no dataset retains those prefixes. Prompt names are an independent
-namespace and may still contain `evaluation`.
+Targets belong to `memoir/agents/<name>/<operation>`,
+`memoir/skills/<name>/<operation>` or `memoir/workflows/<specific-workflow>`.
+Dataset categories (`golden`, `safety`, `relevance`, `stress`, `calibration`) follow
+the target, then a suite name. A category is not evidence of human approval:
+existing synthetic cases retain their review status.
 
-The classifier and producers share `scripts/langfuse_dataset_names.py` so normal
-publication does not recreate the retired dataset prefixes.
-The [migration receipt](langfuse-dataset-migration-20261104.json) records every
-old/new name, preserved dataset ID and item-content digest. A separate four-item
-synthetic wiring suite is stored at
-`memoir/calibration/memoir-judges/quality/smoke`.
+The versioned binding registry is
+[`config/langfuse-evaluation-bindings.json`](../config/langfuse-evaluation-bindings.json).
+Each dataset has an explicit target, prompt dependencies, applicable metrics,
+status, ID and source-item lineage. `scripts/check_langfuse_evaluation_bindings.py`
+rejects missing prompts, misplaced dataset paths, incomplete splits, judge
+self-evaluation and overlapping online rules. It runs with `make prompt-check`.
+New datasets require a binding before hosted judging is enabled.
 
-## Quality judges
+## Workflow and deterministic tests
 
-Four independent LLM evaluators use versioned prompts under `memoir/evaluators/`.
-Each returns a score from 0 to 1 with its own reasoning; 1 is the favorable score
-for every dimension, including safety.
+The former `memoir-workflows/integration/core` is
+`memoir/workflows/source-to-private-draft/golden/core`: testimony acceptance,
+event extraction, progressive draft and source-withdrawal readback, in two
+languages. It evaluates a workflow involving several prompts, not one prompt.
+Composer checkpoint and story-game adaptation suites likewise name their actual
+workflow. Each experiment's prompt manifest records the exact executed components,
+numeric versions and hashes; registry dependencies describe the permitted set.
 
-| Judge | Variables | Scope |
-| --- | --- | --- |
-| Correctness | `expected_output`, `output` | Dataset experiment roots with a reference answer or constraints |
-| Relevance | `input`, `output` | Dataset experiments and 10% of eligible live text generations |
-| Completeness | `input`, `output` | Dataset experiments and the same 10% live sample |
-| Safety | `input`, `output` | Dataset experiments and the same 10% live sample |
+Place grouping and admission checks are deterministic. Their bindings declare
+the validator and no evaluated model prompt. They do not receive text quality
+judges. Workflow trajectory judges and deterministic acceptance remain separate
+from single-output quality scores.
 
-The online rule selects generation observations with production names beginning
-`memoir-`, excluding speech and illustration summaries. `evaluation/` and `test/`
-names do not match. Judges must not evaluate their own outputs. Experiment rules
-are confined to explicitly selected datasets whose items have expected outputs;
-new datasets require explicit inclusion after checking that contract. There is
-no historical backfill. Judge scores are separate from deterministic validators
-and do not certify human calibration.
+## Preserving history during splits
 
-Model, sampling and judge prompt names are recorded in
-`config/langfuse-evaluators.json`. Published prompt receipts pin exact content;
-[evaluator receipts](../config/langfuse-evaluators.receipt.json) record the
-corresponding Langfuse evaluator and rule IDs and the four synthetic check results.
+The redesign retains all 36 source dataset IDs, all 436 source items (including
+the four synthetic judge wiring cases) and their experiment associations. Seven
+mixed datasets remain as clearly described historical batch records; their
+59 target-specific child datasets copy the original inputs, expected outputs,
+source observation references and metadata with explicit source-dataset/item
+lineage. The originals are excluded from new judging. No old experiment is
+rewritten as a new single-target experiment.
 
-Correctness maps `expected_output` to `experimentItemExpectedOutput`. Use the
-standard SDK dataset `run_experiment` path, which records the reference on the
-experiment task observation. Attaching an ordinary observation with only the
-legacy dataset-run-item API does not populate that reference field on v4 events.
-The wiring check verifies that the actual reference is present in the rendered
-correctness prompt before accepting its result.
+All 97 managed prompt names are retained, with 86 moved to the canonical paths.
+Prompt text, version IDs, numeric versions and historical observation links are
+preserved. Judge prompts use `memoir/evaluators/...`; diagnostic test inputs use
+`memoir/probes/...`. `memoir/evaluation` is retired as a current prompt namespace.
+Physical source Markdown stays with its owning application or skill.
 
-The application changes are on `codex/langfuse-taxonomy`. Dataset names and judge
-rules were updated on the running local Langfuse project; application services
-have not been restarted from this branch.
+## Published judges
 
-## Verification — 4 November 2026
+Four independent LLM evaluators use the same names as their judge prompts:
+`memoir/evaluators/shared/{correctness,relevance,completeness,safety}`. Each returns
+0 to 1, with 1 favorable. Evaluator descriptions point to their exact prompt pin
+and binding registry. Target-specific rules identify the dataset or online flow.
+The four existing CODE evaluators retain their implementations and inactive
+state; their canonical names identify the target and semantic metric.
 
-All 97 published prompt pins and 252 focused trace, dataset, prompt and workflow
-checks passed. The required place-research replay passed 738 web checks and all
-814 API/database assertions using `MEMOIR_TEST_POSTGRES_BACKEND=apple-container`.
-The command returned nonzero for one fixture teardown timeout while stopping a
-disposable PostgreSQL container. That case passed independently on rerun, with
-cleanup completing; no disposable PostgreSQL containers remained running.
-The remaining 96 photo-skill unit checks also passed.
+Correctness maps `expected_output` to `experimentItemExpectedOutput`. Dataset
+experiments must use the SDK `run_experiment` path; the legacy run-item association
+alone does not populate that reference on v4 observations. Four earlier synthetic
+checks verified wiring, including reference rendering, not human calibration.
 
-Four synthetic model checks verified the independent judge definitions, including
-the expected answer's presence in the correctness prompt. These are wiring
-checks; human judge calibration remains separate.
+Live Langfuse metadata and rules are migrated separately from application
+deployment. Application changes are committed on `codex/langfuse-taxonomy`;
+the shared API and workers are not restarted by this migration.

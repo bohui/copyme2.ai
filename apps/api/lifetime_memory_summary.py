@@ -88,7 +88,7 @@ def summary_contract(page=None, *, retry_reason=None):
             choices.append(ref)
         if choices:schema['$defs']['SummaryRef']={'anyOf':choices}
         else:schema['properties']['items']['maxItems']=0
-    return load_prompt_artifact(prompt_path('memoir/skills/memoir-memory-context/summary')), schema
+    return load_prompt_artifact(prompt_path('memoir/skills/memory-context/summary')), schema
 
 
 def summary_packet(fence):

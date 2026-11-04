@@ -8,21 +8,25 @@ ROOT = Path(__file__).resolve().parents[1]
 # New evaluation sources enter the publisher before receipts exist.
 # Runtime/export consumers still require an actual publication receipt.
 EVALUATION_PROMPT_PATHS = {
-    **{'memoir/evaluators/' + dimension: 'tests/evaluation/prompts/quality/' + dimension + '.md'
+    **{'memoir/evaluators/shared/' + dimension: 'tests/evaluation/prompts/quality/' + dimension + '.md'
        for dimension in ('correctness', 'relevance', 'completeness', 'safety')},
-    'memoir/evaluation/agents/mira/comparison': 'tests/evaluation/prompts/mira-comparison.md',
-    'memoir/evaluation/agents/mira/rubric': 'tests/evaluation/prompts/mira-rubric.md',
-    'memoir/evaluation/skills/shared-policy': 'tests/evaluation/prompts/skill-judges/policy.md',
-    **{'memoir/evaluation/skills/' + name + '/rubric':
-       'tests/evaluation/prompts/skill-judges/' + name + '.md' for name in (
-           'memoir-author-timeline', 'memoir-composer', 'memoir-family-tree',
-           'memoir-memory-context', 'memoir-place-journey', 'memoir-place-groups',
-           'memoir-place-photo-research', 'memoir-historical-news-research', 'memoir-story-game')},
+    'memoir/evaluators/agents/mira/reply/comparison': 'tests/evaluation/prompts/mira-comparison.md',
+    'memoir/evaluators/agents/mira/reply/interview-quality': 'tests/evaluation/prompts/mira-rubric.md',
+    'memoir/evaluators/shared/evidence-policy': 'tests/evaluation/prompts/skill-judges/policy.md',
+    'memoir/evaluators/skills/author-timeline/extract/quality': 'tests/evaluation/prompts/skill-judges/memoir-author-timeline.md',
+    'memoir/evaluators/workflows/composer-checkpoints/quality': 'tests/evaluation/prompts/skill-judges/memoir-composer.md',
+    'memoir/evaluators/skills/family-tree/extract/quality': 'tests/evaluation/prompts/skill-judges/memoir-family-tree.md',
+    'memoir/evaluators/skills/memory-context/profile/quality': 'tests/evaluation/prompts/skill-judges/memoir-memory-context.md',
+    'memoir/evaluators/skills/place-journey/extract/quality': 'tests/evaluation/prompts/skill-judges/memoir-place-journey.md',
+    'memoir/evaluators/skills/place-groups/group/quality': 'tests/evaluation/prompts/skill-judges/memoir-place-groups.md',
+    'memoir/evaluators/skills/place-photo-research/discovery/quality': 'tests/evaluation/prompts/skill-judges/memoir-place-photo-research.md',
+    'memoir/evaluators/skills/historical-news-research/discovery/quality': 'tests/evaluation/prompts/skill-judges/memoir-historical-news-research.md',
+    'memoir/evaluators/workflows/story-game-adaptation/quality': 'tests/evaluation/prompts/skill-judges/memoir-story-game.md',
 }
 
 # New runtime sources need publication receipts before runtime/export use.
 NEW_RUNTIME_PROMPTS = {'memoir/shared/skill-agent',
-    'memoir/skills/memoir-composer/instructions',
+    'memoir/skills/composer/instructions',
     *[name for name in PROMPT_PATHS if name.startswith('memoir/agents/')]}
 
 
