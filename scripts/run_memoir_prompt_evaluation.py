@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Run the full supported campaign and expose every current prompt's evidence gap."""
 import argparse
+from copy import deepcopy
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -72,7 +73,13 @@ def retained_campaigns(primary,rechecks):
         for row in run['results']:
             if any(not row.get(k) or row[k]!=original[row['case_id']].get(k) for k in ('input_sha256','gold_sha256')):
                 raise ValueError('Recheck input or gold differs from the retained campaign')
-    return sorted([primary,*rechecks],key=lambda r:datetime.fromisoformat(r['started_at']))
+    from scripts.run_memoir_agent_evaluation import evaluated_status
+    runs=deepcopy([primary,*rechecks])
+    for run in runs:
+        for row in run['results']:
+            status=evaluated_status(row,run['calls'])
+            if status!=row['status']:row.update(source_status=row['status'],status=status)
+    return sorted(runs,key=lambda r:datetime.fromisoformat(r['started_at']))
 
 
 def evidence(rows, calibration, campaign):
@@ -93,6 +100,10 @@ def evidence(rows, calibration, campaign):
                 observations.append(dict(manifest=call.get('prompt_manifest',{}),case_id=case['case_id'],
                     status=case['status'],scope=case['evidence_mode'],trace_id=call.get('trace_id'),run_id=run.get('run_id')))
         for case in current:
+            for call in case.get('replay',{}).get('source_calls',[]):
+                observations.append(dict(manifest=call.get('prompt_manifest',{}),case_id=case['case_id'],
+                    status=case['status'],scope=case['evidence_mode'],trace_id=call.get('trace_id'),run_id=run.get('run_id'),
+                    retained_provider_response=True))
             output=case.get('output') or {}
             if isinstance(output,dict) and output.get('model_invoked') and output.get('skill_receipt'):
                 observations.append(dict(manifest=output['skill_receipt'].get('prompt_manifest',{}),
@@ -202,6 +213,8 @@ def main(argv=None):
         evaluator_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         agent_receipt_sha256=hashlib.sha256(agent_path.read_bytes()).hexdigest(),
         rechecks=[dict(receipt=str(p),sha256=hashlib.sha256(p.read_bytes()).hexdigest()) for p in args.recheck_receipt],
+        availability_regrades=[dict(run_id=r['run_id'],case_id=row['case_id'],source_status=row['source_status'],status=row['status'])
+            for r in runs for row in r['results'] if row.get('source_status') and row['source_status']!=row['status']],
         agent_receipt=str(agent_path),results=outputs,hosted=hosted,human_reviewed=False,
         status='complete_with_gaps' if hosted['readback']['verified'] else 'publication_pending')
     save(directory/'receipt.json',receipt)

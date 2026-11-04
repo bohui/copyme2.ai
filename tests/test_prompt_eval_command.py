@@ -128,3 +128,13 @@ def test_prompt_ledger_publication_uses_the_real_generic_dataset_publisher():
         create_dataset=lambda **kw:None,create_dataset_item=create_item,
         get_dataset=lambda *args,**kw:NS(id='dataset',items=stored,run_experiment=experiment),flush=lambda:None)
     assert campaign.publish(client,rows,[output],'retained-ledger')['readback']['verified']
+
+
+def test_retained_provider_availability_is_reclassified_without_changing_original_receipt():
+    row=dict(case_id='c1',status='fail',input_sha256='input',gold_sha256='gold')
+    primary=dict(run_id='original',started_at='2026-11-04T00:00:00+00:00',results=[row],
+        calls=[dict(case_id='c1/proposal',status='failed',http_status=502,provider_response_id=None)])
+    revised=campaign.retained_campaigns(primary,[])[0]
+    assert revised['results'][0]['status']=='unavailable'
+    assert revised['results'][0]['source_status']=='fail'
+    assert primary['results'][0]['status']=='fail'

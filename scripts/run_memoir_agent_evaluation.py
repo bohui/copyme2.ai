@@ -30,6 +30,18 @@ from scripts.memoir_skill_eval_suite import Budget, digest, inventory, packet, v
 from scripts.run_memoir_live_skills import LiveProvider, native_search, save
 from scripts.langfuse_dataset_names import SKILL_TARGETS, target_dataset
 
+DIRECT_REPLAY_SKILLS={'memoir-author-timeline','memoir-memory-context','memoir-place-journey','memoir-place-groups'}
+
+
+def evaluated_status(row,calls):
+    """An absent provider response cannot establish a model contract failure."""
+    if row['status']!='fail' or row.get('output') is not None:return row['status']
+    latest=next((c for c in reversed(calls) if c['case_id']==row['case_id']
+        or c['case_id'].startswith(row['case_id']+'/')),None)
+    if latest and latest.get('status')=='failed' and not latest.get('provider_response_id'):
+        return 'unavailable'
+    return row['status']
+
 
 def judge_selection(cases, maximum):
     """Stratify by component/skill instead of judging only the earliest replies."""
@@ -239,9 +251,12 @@ class Runner:
                     row.update(output=deepcopy(original['output']), evidence_mode='retained_live_output_regraded',
                         replay=dict(source_output_sha256=digest(original['output']),
                             source_evidence_mode=original.get('evidence_mode'), source_gold_sha256=original['gold_sha256'],
-                            source_status=original['status']))
-                    row['checks'] = (grade_reply(case, row['output']) if case['component'] == 'lane-a'
-                                     else grade_background(case, row['output']))
+                            source_status=original['status'],source_calls=deepcopy(getattr(self,'replay_calls',{}).get(case['id'],[]))))
+                    if case['component']=='lane-a':row['checks']=grade_reply(case,row['output'])
+                    elif case['component']=='lane-b':row['checks']=grade_background(case,row['output'])
+                    else:
+                        validate(case['scenario'],row['output'])
+                        row['checks']['production_and_gold_contract']=True
                 elif case['component'] == 'lane-a':
                     row['evidence_mode'] = 'live_reply_proposal'
                     from apps.api.conversation_reply import reply_instructions, reply_schema
@@ -302,8 +317,7 @@ class Runner:
             latest = self.receipt['calls'][-1] if len(self.receipt['calls']) > before else {}
             if latest.get('rejection_category'):
                 row['reason'] = latest['rejection_category']
-            if latest.get('status') == 'failed' and not row.get('output') and 'http_status' not in latest:
-                row['status'] = 'unavailable'
+            row['status']=evaluated_status(row,self.receipt['calls'][before:])
         row['elapsed_seconds'] = round(time.monotonic() - started, 3)
         if case['id'] in self.judge_ids and row.get('output') is not None:
             try:
@@ -401,7 +415,7 @@ def main(argv=None):
     parser.add_argument('--full', action='store_true')
     parser.add_argument('--skill', action='append', choices=sorted(inventory()))
     parser.add_argument('--agent', choices=['mira','atlas'], help='Mira = Lane A; Atlas = Lane B')
-    parser.add_argument('--replay-receipt', type=Path, help='Regrade retained Lane A/B outputs; no model dispatch or advisory calls')
+    parser.add_argument('--replay-receipt', type=Path, help='Regrade retained Lane A/B or direct skill outputs; no model dispatch or advisory calls')
     parser.add_argument('--component', action='append', choices=['lane-a', 'lane-b', 'skills'])
     parser.add_argument('--case', action='append')
     parser.add_argument('--repeat', type=int, default=1)
@@ -458,13 +472,16 @@ def main(argv=None):
         runner.by_id = {c['id']: c for c in cases}
         runner.judge_ids = judge_selection(cases, args.judge_cases)
         if args.replay_receipt:
-            if any(c['component'] not in {'lane-a', 'lane-b'} for c in cases):
-                parser.error('replay supports Lane A/B outputs; select --component lane-a and/or lane-b')
+            if any(c['component'] not in {'lane-a','lane-b'} and c['skill'] not in DIRECT_REPLAY_SKILLS for c in cases):
+                parser.error('replay supports Lane A/B and direct timeline, profile, place and grouping contracts')
             original = json.loads(args.replay_receipt.read_text())
             rows = [r for r in original['results'] if r['case_id'] in runner.by_id]
             if len(rows) != len(cases) or {r['case_id'] for r in rows} != set(runner.by_id) or any('output' not in r for r in rows):
                 raise ValueError('replay_requires_one_observed_output_per_selected_case')
             runner.replay, runner.judge_ids = {r['case_id']: r for r in rows}, set()
+            runner.replay_calls={row['case_id']:[c for c in original['calls'] if c.get('provider_response_id')
+                and c.get('skill')!='evaluation-judge' and (c['case_id']==row['case_id'] or c['case_id'].startswith(row['case_id']+'/'))]
+                for row in rows}
             runner.receipt.update(scope='Retained live agent outputs regraded with current code; zero model dispatches',
                 replay=dict(source_run_id=original['run_id'], source_evaluator_sha256=original['evaluator_sha256'],
                     source_receipt_sha256=hashlib.sha256(args.replay_receipt.read_bytes()).hexdigest()))

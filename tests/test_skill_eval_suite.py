@@ -222,7 +222,7 @@ def test_elapsed_budget_prevents_all_skill_dispatches(tmp_path):
     assert len(receipt['results']) == 16
 
 
-def test_profile_omission_and_wrong_unicode_offsets_fail_host_contract(tmp_path):
+def test_profile_contract_repairs_unique_quote_offsets_but_rejects_missing_facts_or_evidence(tmp_path):
     planned = suite.plan(case=['memoir-memory-context/explicit-profile/zh-CN'])
     class Omit(ControlledSkill):
         async def call(self, request):
@@ -233,6 +233,12 @@ def test_profile_omission_and_wrong_unicode_offsets_fail_host_contract(tmp_path)
     assert receipt['results'][0]['contract']['status'] == 'fail'
     output = profile_output(planned['items'][0])
     output['profile_patch'][0]['source_refs'][0]['char_end'] = len(planned['items'][0]['task']['source']['text'].encode())
+    # Production repairs this byte/character mismatch from the unique exact quote.
+    # Evaluate the delivered normalized result while retaining the original output.
+    retained = deepcopy(output)
+    suite.validate(planned['items'][0], output)
+    assert output == retained
+    output['profile_patch'][0]['source_refs'][0]['quote'] = 'An unsupported profile claim.'
     with pytest.raises(ValueError): suite.validate(planned['items'][0], output)
 
 

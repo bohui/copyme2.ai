@@ -226,3 +226,42 @@ def test_multicall_composer_workflow_has_a_separate_total_deadline(monkeypatch,t
     monkeypatch.setattr('scripts.memoir_skill_eval_suite.validate_workflow',lambda *a,**kw:None)
     row=asyncio.run(runner.task(item=SimpleNamespace(input=next(iter(evaluation.dataset_rows([case]).values()))[0]['input'],expected_output=case['gold'])))
     assert row['status']=='pass'
+
+
+def test_direct_profile_output_is_regraded_without_new_dispatch_or_losing_provenance(tmp_path):
+    import time
+    case=next(c for c in catalog(full=True) if c['id']=='skills/memoir-memory-context/correction/en-AU')
+    item=SimpleNamespace(**next(iter(evaluation.dataset_rows([case]).values()))[0])
+    source=case['task']['page']['source']
+    output={'profile_patch':[{'field':'birth_year','value':1962,'source_refs':[{
+        'source_id':source['id'],'version':1,'quote':source['text'],'char_start':0,'char_end':41}]}]}
+    runner=object.__new__(evaluation.Runner);runner.args=SimpleNamespace(seconds=1,timeout=1,workflow_timeout=1)
+    runner.started=time.monotonic();runner.by_id={case['id']:case};runner.judge_ids=set();runner.directory=tmp_path
+    runner.receipt={'calls':[],'results':[]};runner.persist=lambda:None
+    runner.replay={case['id']:dict(input_sha256=evaluation.digest(item.input),gold_sha256=evaluation.digest(item.expected_output),
+        output=output,status='fail',evidence_mode='live_skill_proposal')}
+    original_call=dict(case_id=case['id']+'/proposal',provider_response_id='original-response',prompt_manifest={'artifacts':[]})
+    runner.replay_calls={case['id']:[original_call]}
+    row=asyncio.run(runner.task(item=item))
+    assert row['status']=='pass' and row['direct_http_calls']==0 and runner.receipt['calls']==[]
+    assert row['output']==output and row['replay']['source_status']=='fail'
+    assert row['replay']['source_calls']==[original_call]
+
+
+@pytest.mark.parametrize('status,response_id,expected',[(502,None,'unavailable'),(200,'observed-response','fail')])
+def test_provider_failure_without_a_response_is_not_a_model_contract_failure(tmp_path,status,response_id,expected):
+    import time
+    case=next(c for c in catalog() if c['component']=='lane-a')
+    runner=object.__new__(evaluation.Runner);runner.args=SimpleNamespace(seconds=1,timeout=1,workflow_timeout=1)
+    runner.started=time.monotonic();runner.by_id={case['id']:case};runner.judge_ids=set();runner.directory=tmp_path
+    runner.receipt={'calls':[],'results':[]};runner.persist=lambda:None;runner.replay=None
+    async def unavailable(*args,**kwargs):
+        runner.receipt['calls'].append(dict(case_id=case['id'],status='failed',http_status=status,provider_response_id=response_id))
+        raise ValueError('provider_or_contract_error')
+    runner.provider=SimpleNamespace(call=unavailable)
+    item=SimpleNamespace(**next(iter(evaluation.dataset_rows([case]).values()))[0])
+    row=asyncio.run(runner.task(item=item))
+    assert row['status']==expected
+    values={s.name:s.value for s in evaluation.scores(output=row)}
+    assert values['execution_available']==int(expected!='unavailable')
+    assert ('contract_pass' in values)==(expected!='unavailable')

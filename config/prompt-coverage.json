@@ -110,8 +110,8 @@
         "prompt_sha256": "07ad112afa8d413a237072ccfbdc0c1a8853483c49ae0bed7e5c497e6e6d53f8",
         "datasets_sha256": "6cc2d42c3a708d41d2b3ad5271c39544dfee940f2ceb2b54ef335846ecefa4ef",
         "evaluators_sha256": "c39f890fc4e831226e7d156248aeb4b115ced1b0fa42d82754c7d3c84fc3e15d",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
+        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair.",
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail."
       }
     },
     "memoir/skills/composer/instructions": {
@@ -673,8 +673,8 @@
         "prompt_sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
         "datasets_sha256": "a759d034ccffe0bd529a879b45365fd0aba68a3891e4ba6fa6c46df0bfa547fb",
         "evaluators_sha256": "35fda75224464de542bd5fba8e1ebe6a71c49ad6f4d01c5295bce1c6854eaee0",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
+        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair.",
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail."
       }
     },
     "memoir/shared/bounded-context/policy": {
@@ -691,8 +691,8 @@
         "prompt_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
         "datasets_sha256": "a759d034ccffe0bd529a879b45365fd0aba68a3891e4ba6fa6c46df0bfa547fb",
         "evaluators_sha256": "35fda75224464de542bd5fba8e1ebe6a71c49ad6f4d01c5295bce1c6854eaee0",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
+        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair.",
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail."
       }
     },
     "memoir/shared/bounded-context/zh-CN": {
@@ -709,8 +709,8 @@
         "prompt_sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
         "datasets_sha256": "a759d034ccffe0bd529a879b45365fd0aba68a3891e4ba6fa6c46df0bfa547fb",
         "evaluators_sha256": "35fda75224464de542bd5fba8e1ebe6a71c49ad6f4d01c5295bce1c6854eaee0",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
+        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair.",
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail."
       }
     },
     "memoir/shared/place-conflicts": {
@@ -1205,8 +1205,8 @@
         "prompt_sha256": "9448aaff608e25c2f98e9dbae64ae2663fa5e4685ff98134498280bc26cdf00d",
         "datasets_sha256": "757e156c5d3db2ee19c337cc4d2ecf9573c26d9fa455ead9490e2444637ad74c",
         "evaluators_sha256": "ec89d23d8baf1b4f977b721b2c194d4991398fcc282dd44bee87b9e9991fa849",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
+        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair.",
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail."
       }
     },
     "memoir/skills/memory-context/summary": {
