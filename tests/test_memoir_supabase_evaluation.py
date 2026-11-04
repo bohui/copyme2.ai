@@ -515,10 +515,10 @@ def test_account_session_refresh_keeps_the_real_owner(setup):
 def test_backend_startup_uses_existing_usage_and_scoped_owner_without_postgres(setup, tmp_path, monkeypatch, publication_url):
     plan, remote = setup()
     started = []
-    def start(command, **kwargs):
+    async def start(command, **kwargs):
         started.append((command, kwargs))
         return SimpleNamespace(returncode=0)
-    monkeypatch.setattr(module.subprocess, 'run', start)
+    monkeypatch.setattr(module, 'run_backend_start', start)
     settings = {**SETTINGS, 'SUPABASE_SECRET_KEY': None, 'SUPABASE_SERVICE_ROLE_KEY': 'admin-secret'}
     if publication_url is not None:
         settings['MEMOIR_PUBLICATION_DATABASE_URL'] = publication_url
@@ -528,6 +528,8 @@ def test_backend_startup_uses_existing_usage_and_scoped_owner_without_postgres(s
     command, options = started[0]
     assert command == ['make', '--no-print-directory', 'memoir-live-fifty-backend']
     assert options['env']['MEMORY_SPARK_EVAL_RECALL_OWNER_ID'] == OWNER
+    assert options['env']['MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID'] == OWNER
+    assert options['env']['MEMORY_SPARK_TRACE_ORIGIN'] == 'test'
     assert options['env']['MEMORY_SPARK_EVAL_RECALL_LIMIT'] == '75'
     assert options['env']['SUPABASE_SECRET_KEY'] == 'admin-secret'
     assert options['env']['MEMORY_SPARK_API_PORT'] == '8010'
@@ -540,7 +542,7 @@ def test_backend_startup_uses_existing_usage_and_scoped_owner_without_postgres(s
 ])
 def test_backend_startup_honors_explicit_rollout_controls(setup, tmp_path, monkeypatch, overrides, reason):
     plan, remote = setup()
-    monkeypatch.setattr(module.subprocess, 'run', lambda *args, **kwargs: pytest.fail('Invalid configuration started services.'))
+    monkeypatch.setattr(module, 'run_backend_start', lambda *args, **kwargs: pytest.fail('Invalid configuration started services.'))
     result = asyncio.run(module.execute(plan, tmp_path / 'run', {**SETTINGS, **overrides}, start_backend=True))
     assert result['status'] == 'incomplete' and reason in result['stop_reason']
     assert result['evaluation']['failure_stage'] == 'backend_startup'
@@ -1242,9 +1244,9 @@ def test_resumed_backend_startup_reuses_original_case_allowance(setup,tmp_path,m
             return httpx.Response(200,json=[{'rounds_completed':25+len(remote.storages[PROJECTS[module.CASE_IDS[0]]].sources)}])
         return response
     remote.handler=scoped
-    def startup(*args,**kwargs):
+    async def startup(*args,**kwargs):
         limits.append(kwargs['env']['MEMORY_SPARK_EVAL_RECALL_LIMIT']);return SimpleNamespace(returncode=0)
-    monkeypatch.setattr(module.subprocess,'run',startup)
+    monkeypatch.setattr(module,'run_backend_start',startup)
     first=asyncio.run(module.execute(plan,directory,SETTINGS,start_backend=True));assert first['status']=='incomplete'
     remote.draft_failed=False
     result=asyncio.run(module.execute(plan,directory,SETTINGS,start_backend=True,resume=directory))
@@ -1318,7 +1320,7 @@ def test_subset_finishes_with_read_only_validation_of_expired_completed_case_wit
     stop[0]=False;before=len(remote.calls)
     selected={**plan,'case_ids':[target],'cases':{target:plan['cases'][target]}}
     def no_startup(*args,**kwargs):pytest.fail('Read-only completion verification must not start a service.')
-    monkeypatch.setattr(module.subprocess,'run',no_startup)
+    monkeypatch.setattr(module,'run_backend_start',no_startup)
     result=asyncio.run(module.execute(selected,directory,SETTINGS,resume=directory))
     assert result['status']==result['selected_case_status']=='completed',result
     assert result['case_started_at_unix']==original_origins and module.budget_contract(plan)==result['budget_contract']
@@ -1339,7 +1341,7 @@ def test_all_completed_cases_can_be_revalidated_after_submission_deadlines_expir
     for case in plan['case_ids']:receipt['case_started_at_unix'][case]=now-450
     origins=dict(receipt['case_started_at_unix']);module.save(directory/'receipt.json',receipt)
     before=len(remote.calls);counter=module.private_json(directory/'request-counter.json')['reserved']
-    monkeypatch.setattr(module.subprocess,'run',lambda *a,**k:pytest.fail('No startup allowed for completed-case read-only validation.'))
+    monkeypatch.setattr(module,'run_backend_start',lambda *a,**k:pytest.fail('No startup allowed for completed-case read-only validation.'))
     result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,start_backend=True))
     assert result['status']=='completed',result
     assert len(remote.submitted)==100 and result['case_started_at_unix']==origins
@@ -1358,7 +1360,7 @@ def test_saved_fiftieth_reply_can_finish_read_only_after_submission_deadline(set
         failure_summary={'reason':'Original deadline expired during checkpoint readback'})
     case['checkpoints']=case['checkpoints'][:-1];case.pop('current_checkpoint',None)
     module.save(directory/'receipt.json',receipt);before=len(remote.calls)
-    monkeypatch.setattr(module.subprocess,'run',lambda *a,**k:pytest.fail('Read-only finalization must not start the backend.'))
+    monkeypatch.setattr(module,'run_backend_start',lambda *a,**k:pytest.fail('Read-only finalization must not start the backend.'))
     result=asyncio.run(module.execute(plan,directory,SETTINGS,resume=directory,start_backend=True))
     assert result['status']=='completed',result
     assert result['case_started_at_unix']==origins and result['budget_contract']==module.budget_contract(plan)
@@ -1408,3 +1410,24 @@ def test_terminal_composition_error_stops_at_the_checkpoint_without_settle_wait(
     assert result['status']=='incomplete' and len(remote.submitted)==5
     assert result['stop_reason']=='Background composition failed; explicit review is required'
     assert result['evaluation']['cases'][0]['checkpoints']==[]
+
+
+@pytest.mark.parametrize('cancel', [False, True])
+def test_backend_startup_timeout_or_cancellation_stops_its_children(tmp_path, cancel):
+    marker = tmp_path/'child.pid'
+    child = 'import os,time;from pathlib import Path;Path('+repr(str(marker))+').write_text(str(os.getpid()));time.sleep(60)'
+    parent = 'import subprocess,sys;subprocess.Popen([sys.executable,"-c",'+repr(child)+']);import time;time.sleep(60)'
+    async def run():
+        task = asyncio.create_task(module.run_backend_start([sys.executable,'-c',parent], timeout=2))
+        if cancel:
+            for _ in range(100):
+                if marker.exists(): break
+                await asyncio.sleep(.01)
+            assert marker.exists(), 'Startup child never became ready'
+            task.cancel()
+        with pytest.raises(asyncio.CancelledError if cancel else TimeoutError):
+            await task
+    asyncio.run(run())
+    assert marker.exists()
+    state = subprocess.run(['ps','-p',marker.read_text(),'-o','stat='], capture_output=True,text=True).stdout.strip()
+    assert not state or state.startswith('Z'), 'Startup child survived the bounded operation'

@@ -77,12 +77,15 @@ def ref(quote):
 
 
 @pytest.mark.parametrize('legacy_receipt,existing_exclusion', [(False, False), (True, False), (False, True)])
+@pytest.mark.parametrize('origin', ['', 'test'])
 def test_topic_pause_keeps_saved_shanghai_and_sydney_on_the_map(sql, tmp_path, monkeypatch,
-        fixed_policy_controls, legacy_receipt, existing_exclusion):
+        fixed_policy_controls, legacy_receipt, existing_exclusion, origin):
     from pathlib import Path
     import subprocess
-    from test_agent_commit_postgres import as_user
+    from test_agent_commit_postgres import as_user, OWNER
     from test_shared_memory_events_postgres import literal, rpc
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN', origin)
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', OWNER)
 
     if existing_exclusion:
         sql(as_user("update public.user_profile set profile=profile||"
@@ -105,7 +108,14 @@ def test_topic_pause_keeps_saved_shanghai_and_sydney_on_the_map(sql, tmp_path, m
                     place={key: value for key, value in place.items() if key not in {'latitude', 'longitude'}})
                     for index, (quote, place) in enumerate(zip(quotes, places))]}
 
-    conversation = Conversation(sql, tmp_path, monkeypatch, extract, family=False)
+    async def traced_boundary(request, provider):
+        if 'governed' in json.loads(request.content):
+            from apps.api.llm_tracing import gateway_metadata
+            prefix = origin+'/' if origin else ''
+            assert gateway_metadata('memoir-interviewer.reply', trace_name='memoir-interviewer') == {
+                'generation_name': prefix+'memoir-interviewer.reply', 'trace_name': prefix+'memoir-interviewer'}
+        return await provider(request)
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract, family=False, external_boundary=traced_boundary)
     with conversation.client:
         original = conversation.say(text, language='zh-CN')
         conversation.drain()
@@ -542,8 +552,8 @@ def test_profile_reason_cannot_override_a_withheld_or_unresolved_passage(monkeyp
 
 
 @pytest.mark.parametrize('with_city_history', [False, True])
-@pytest.mark.parametrize('relative_current_home', [False, True])
-def test_map_cards_replay_canonical_places_at_city_and_event_scale(sql, tmp_path, monkeypatch, with_city_history, relative_current_home):
+@pytest.mark.parametrize('relative_current_home,estimated_current_home', [(False, False), (True, False), (True, True)])
+def test_map_cards_replay_canonical_places_at_city_and_event_scale(sql, tmp_path, monkeypatch, with_city_history, relative_current_home, estimated_current_home):
     from pathlib import Path
     import subprocess
     from apps.api import place_groups
@@ -576,6 +586,11 @@ def test_map_cards_replay_canonical_places_at_city_and_event_scale(sql, tmp_path
                     temporal=dict(expression='1991', precision='year', year_start=1991, basis=[evidence]) if index == 0 else None,
                     locationConfidenceScore=1.0, location_basis=[evidence],
                     yearConfidenceScore=1.0 if index == 0 else 0.0)
+                if estimated_current_home and index == 1:
+                    item.update(yearConfidenceScore=.2, temporal_estimate=dict(
+                        year_start=1991, year_end=2026, age_start=0, age_end=35, confidence=.2,
+                        rationale='Current residence with an unknown start; birth is only the earliest possible bound.',
+                        basis=[evidence, reference(packet, quotes[0])]))
             events.append(item)
             hierarchy = ['Earth', 'China' if label == 'Chengde' else 'Australia', label] if relative_current_home else ['Earth', 'Australia', 'Sydney', label]
             links.append(dict(event_index=index, role='setting', source_ref=evidence,
@@ -610,5 +625,5 @@ def test_map_cards_replay_canonical_places_at_city_and_event_scale(sql, tmp_path
         replay = Path(__file__).parent/'js/helpers/replay-map-memory-events.mjs'
         result = subprocess.run(['node', str(replay)], input=json.dumps(dict(events=events,
             locations=locations, places=places, grouping=grouping, snapshot=snapshot,
-            relative_current_home=relative_current_home)), text=True, capture_output=True, timeout=10)
+            relative_current_home=relative_current_home, estimated_current_home=estimated_current_home)), text=True, capture_output=True, timeout=10)
         assert result.returncode == 0, result.stdout + result.stderr

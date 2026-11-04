@@ -353,7 +353,9 @@ class CodexWorker:
                             options['on_delta'] = on_delta
                         if on_event:
                             options['on_event'] = on_event
-                        result = await self._turn(payload, **options)
+                        from .llm_tracing import trace_for_owner
+                        with trace_for_owner(payload.user_id):
+                            result = await self._turn(payload, **options)
             log_diagnostic(
                 diagnostic_logger,
                 'worker_turn_terminal',

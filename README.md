@@ -684,6 +684,13 @@ and [versioned dataset experiments](https://langfuse.com/docs/evaluation/experim
 
 ### Langfuse trajectory evaluation
 
+The [current agent and skill baseline](docs/agent-skill-evaluation.md) runs
+bounded live Lane A replies, native Lane B tool selection and skill contracts,
+then verifies the published Langfuse SDK experiment inputs, outputs and scores.
+Use `make memoir-agent-eval-plan` for its zero-call plan and
+`make memoir-agent-eval` to execute and publish. Semantic scores stay advisory
+until independently labelled human calibration is available.
+
 The [ten-skill evaluation CLI](docs/issue90-offline-evaluation.md) provides
 zero-call planning, 160 bilingual synthetic tasks, controlled application
 witnesses and independent judge/readback contracts. Hosted publication and live

@@ -23,7 +23,7 @@ from scripts.memoir_five_case_evaluator import (
 )
 
 EXPECTED_PATH = Path(__file__).resolve().parents[1] / 'tests/evaluation/memoir_five_case_expected.json'
-EXPECTED_SHA256 = '504966b0da5cdede879d5f23f792a9793356c330660876da61329647e41c1a14'
+EXPECTED_SHA256 = '19018428b93545c7d7d251243ee48716e876f3779845773d00b70a50e430bc6c'
 
 
 def _positive(value):

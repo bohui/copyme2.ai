@@ -29,7 +29,7 @@ class ReplyProposal(BaseModel):
     strategy: Strategy = Field(default='explore',
         description='Your current interviewing approach: comfort for gentle support, explore for memory details, shape for arranging or connecting established memories. This does not authorize game or book actions.')
     quote: str | None = Field(min_length=1, max_length=500,
-        description='Null with a hint or historical_clue_id. Otherwise, for recall_limit cite exact unique CURRENT wording about unavailable detail; for other reasons use an exact unique CURRENT-source passage or null.')
+        description='With a hint or public clue, use null except for recall_limit: cite exact unique CURRENT wording about unavailable detail. For other reasons, use an exact unique CURRENT-source passage or null.')
     hint: int | None = Field(ge=0,
         description='First relevant hint index. Recall_limit uses a scope=broader hint; null when none is relevant. Current intent overrides priority.')
     deferred_hints: list[int] = Field(default_factory=list, max_length=5,
@@ -39,7 +39,7 @@ class ReplyProposal(BaseModel):
     workspace_focus: WorkspaceFocus | None = Field(default=None,
         description='City of the memory your NEXT QUESTION explores, including an implicit continuation. Choose that city when acknowledgement mentions several. Example: living in Sydney but born in Chengde, followed by a childhood question -> Chengde. Null when no question or its place is unresolved. This selects the map, photos and event list; it asserts no new biography.')
     historical_clue_id: str | None = Field(default=None, max_length=128,
-        description='Optional supplied public clue ID used in this question; null when irrelevant. When set, hint and quote must be null. Public history is separate from personal testimony.')
+        description='Supplied public clue ID used in an optional next question; null when question is null or the clue is irrelevant. With a clue, use latest_story or recall_limit and hint=null; quote is null except an exact recall-limit quote. Public history is separate from personal testimony.')
     resolved_questions: list[QuestionResolution] = Field(default_factory=list, max_length=5)
     associations: list[PhotoAssociation] = Field(default_factory=list, max_length=20)
     response_photo_ids: list[str] = Field(default_factory=list, max_length=5)

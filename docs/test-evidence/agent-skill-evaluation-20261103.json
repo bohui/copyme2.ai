@@ -1,0 +1,280 @@
+{
+  "schema_version": "memoir-agent-baseline/1",
+  "project_id": "cmut9t75w00071z02n8bdv7it",
+  "synthetic": true,
+  "contains_customer_data": false,
+  "current_contract_results": {
+    "lane_a": {
+      "pass_count": 27,
+      "fail_count": 1
+    },
+    "lane_b": {
+      "pass_count": 14,
+      "fail_count": 0
+    },
+    "skills": {
+      "pass_count": 39,
+      "fail_count": 2,
+      "unavailable_count": 5
+    }
+  },
+  "runs": [
+    {
+      "run_id": "20261103T115931Z-b74da5",
+      "path": "/Users/bohuihan/memoir/var/agent-evaluation/20261103T115931Z-b74da5",
+      "receipt_sha256": "34795a30585e1fbe119622364c2424d9d4d3492af0f88ae7964adfe4834b67e2",
+      "status": "complete_with_findings",
+      "counts": {
+        "pass": 79,
+        "fail": 4,
+        "unavailable": 5
+      },
+      "elapsed_seconds": 970.901,
+      "direct_http_calls": 66,
+      "advisory_http_calls": 10,
+      "native_model_invocations": 12,
+      "served_models": [
+        "gpt-6.1-sol"
+      ],
+      "reported_usage": {
+        "input_tokens": 230470,
+        "output_tokens": 28650
+      },
+      "calls_with_reported_usage": 65,
+      "experiments": [
+        {
+          "dataset": "memoir/evaluation/v4/lane-a/85af647a4fa8",
+          "experiment_id": "6d94636c7b4626b8",
+          "expected_items": 28,
+          "readback": {
+            "status": "verified",
+            "items": 28,
+            "verified_inputs_outputs_scores": 28,
+            "expected_items": 28
+          }
+        },
+        {
+          "dataset": "memoir/evaluation/v4/lane-b/068f68a58ef3",
+          "experiment_id": "28fd045d692c16fd",
+          "expected_items": 14,
+          "readback": {
+            "status": "verified",
+            "items": 14,
+            "verified_inputs_outputs_scores": 14,
+            "expected_items": 14
+          }
+        },
+        {
+          "dataset": "memoir/evaluation/v4/skills/0114d47bf1df",
+          "experiment_id": "9e2240228c579332",
+          "expected_items": 46,
+          "readback": {
+            "status": "verified",
+            "items": 46,
+            "verified_inputs_outputs_scores": 46,
+            "expected_items": 46
+          }
+        }
+      ]
+    },
+    {
+      "run_id": "20261103T121620Z-87791d",
+      "path": "/Users/bohuihan/memoir/var/agent-evaluation/20261103T121620Z-87791d",
+      "receipt_sha256": "53c4a926488b7653f0dd5fa210393a1bd52db9a484be67008563b79af58769e7",
+      "status": "complete_with_findings",
+      "counts": {
+        "pass": 27,
+        "fail": 1
+      },
+      "elapsed_seconds": 15.253,
+      "direct_http_calls": 0,
+      "advisory_http_calls": 0,
+      "native_model_invocations": 0,
+      "served_models": [],
+      "reported_usage": {
+        "input_tokens": 0,
+        "output_tokens": 0
+      },
+      "calls_with_reported_usage": 0,
+      "experiments": [
+        {
+          "dataset": "memoir/evaluation/v4/lane-a/4a07ac27fac9",
+          "experiment_id": "81f6af98a38c06d9",
+          "expected_items": 28,
+          "readback": {
+            "status": "verified",
+            "items": 28,
+            "verified_inputs_outputs_scores": 28,
+            "expected_items": 28
+          }
+        }
+      ]
+    },
+    {
+      "run_id": "20261103T121820Z-0de243",
+      "path": "/Users/bohuihan/memoir/var/agent-evaluation/20261103T121820Z-0de243",
+      "receipt_sha256": "fc467ae1676d86c80d04ba8be4d534531fed2c8c3c43bec9f058a2dd3443cfa2",
+      "status": "complete_with_findings",
+      "counts": {
+        "pass": 6
+      },
+      "elapsed_seconds": 128.826,
+      "direct_http_calls": 3,
+      "advisory_http_calls": 0,
+      "native_model_invocations": 3,
+      "served_models": [
+        "gpt-6.1-sol"
+      ],
+      "reported_usage": {
+        "input_tokens": 4749,
+        "output_tokens": 712
+      },
+      "calls_with_reported_usage": 3,
+      "experiments": [
+        {
+          "dataset": "memoir/evaluation/v4/lane-a/268c0e020d7c",
+          "experiment_id": "9e8d05ed25f6ed17",
+          "expected_items": 1,
+          "readback": {
+            "status": "verified",
+            "items": 1,
+            "verified_inputs_outputs_scores": 1,
+            "expected_items": 1
+          }
+        },
+        {
+          "dataset": "memoir/evaluation/v4/lane-b/a5c15039ad35",
+          "experiment_id": "95c1c6ef58e8c094",
+          "expected_items": 1,
+          "readback": {
+            "status": "verified",
+            "items": 1,
+            "verified_inputs_outputs_scores": 1,
+            "expected_items": 1
+          }
+        },
+        {
+          "dataset": "memoir/evaluation/v4/lane-a/268c0e020d7c",
+          "experiment_id": "fecbbb93738bdfe2",
+          "expected_items": 1,
+          "readback": {
+            "status": "verified",
+            "items": 1,
+            "verified_inputs_outputs_scores": 1,
+            "expected_items": 1
+          }
+        },
+        {
+          "dataset": "memoir/evaluation/v4/lane-b/a5c15039ad35",
+          "experiment_id": "c82e5aed676656c3",
+          "expected_items": 1,
+          "readback": {
+            "status": "verified",
+            "items": 1,
+            "verified_inputs_outputs_scores": 1,
+            "expected_items": 1
+          }
+        },
+        {
+          "dataset": "memoir/evaluation/v4/lane-a/268c0e020d7c",
+          "experiment_id": "1817d633e521f94e",
+          "expected_items": 1,
+          "readback": {
+            "status": "verified",
+            "items": 1,
+            "verified_inputs_outputs_scores": 1,
+            "expected_items": 1
+          }
+        },
+        {
+          "dataset": "memoir/evaluation/v4/lane-b/a5c15039ad35",
+          "experiment_id": "438fe440780fea3c",
+          "expected_items": 1,
+          "readback": {
+            "status": "verified",
+            "items": 1,
+            "verified_inputs_outputs_scores": 1,
+            "expected_items": 1
+          }
+        }
+      ]
+    }
+  ],
+  "datasets": {
+    "memoir/evaluation/v4/lane-a/85af647a4fa8": {
+      "id": "cmw0mxskv000u1z02wrqo62mt",
+      "url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw0mxskv000u1z02wrqo62mt"
+    },
+    "memoir/evaluation/v4/lane-b/068f68a58ef3": {
+      "id": "cmw0mxvhl001p1z02md3xby14",
+      "url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw0mxvhl001p1z02md3xby14"
+    },
+    "memoir/evaluation/v4/skills/0114d47bf1df": {
+      "id": "cmw0mxw4s00261z02ypyn2buw",
+      "url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw0mxw4s00261z02ypyn2buw"
+    },
+    "memoir/evaluation/v4/lane-a/4a07ac27fac9": {
+      "id": "cmw0nje4n003j1z029k7hbywi",
+      "url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw0nje4n003j1z029k7hbywi"
+    },
+    "memoir/evaluation/v4/lane-a/268c0e020d7c": {
+      "id": "cmw0nlzza004e1z02c3pi0kkw",
+      "url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw0nlzza004e1z02c3pi0kkw"
+    },
+    "memoir/evaluation/v4/lane-b/a5c15039ad35": {
+      "id": "cmw0mso8i000i1z029068jddt",
+      "url": "http://127.0.0.1:3001/project/cmut9t75w00071z02n8bdv7it/datasets/cmw0mso8i000i1z029068jddt"
+    }
+  },
+  "unobserved": [
+    "human_calibrated_quality",
+    "positive_canonical_game_delivery",
+    "canonical_family_execution",
+    "gateway_attempt_count",
+    "monetary_cost"
+  ],
+  "checks": [
+    {
+      "name": "evaluation",
+      "exit_code": 0,
+      "result": "208 passed",
+      "path": "/Users/bohuihan/memoir/var/agent-evaluation/checks-20261103/evaluation.log",
+      "sha256": "6900e89a341668c836b998b79d4e2dca86c83b7730918794d00ffbd6e7627614"
+    },
+    {
+      "name": "place-research",
+      "exit_code": 0,
+      "result": "741 JavaScript + 821 Python + 96 skill checks passed",
+      "path": "/Users/bohuihan/memoir/var/agent-evaluation/checks-20261103/place-research.log",
+      "sha256": "46adbfd7aaf86c32f2801bde80c55a35c393bcdf1f1de08d965a3a89a9341b74"
+    },
+    {
+      "name": "boundaries-initial",
+      "exit_code": 1,
+      "result": "193 passed, 23 failed, 6 skipped; superseded endpoint/trace fixtures",
+      "path": "/Users/bohuihan/memoir/var/agent-evaluation/checks-20261103/boundaries-initial.log",
+      "sha256": "9a807e75abe0dfa8d6a242c5e1d32eca24a5d467b8247d683eedb2be1b7e3173"
+    },
+    {
+      "name": "boundaries-confirmed",
+      "exit_code": 1,
+      "result": "53 passed, 1 packet-size assertion failed",
+      "path": "/Users/bohuihan/memoir/var/agent-evaluation/checks-20261103/boundaries-confirmed.log",
+      "sha256": "ab0b8275f1cb9aa16dd03c052cbe40acecf16cb2b4decdaedea0c3c51d64b075"
+    },
+    {
+      "name": "browser",
+      "exit_code": 0,
+      "result": "6 passed; task-owned server stopped",
+      "path": "/Users/bohuihan/memoir/var/agent-evaluation/checks-20261103/browser.log",
+      "sha256": "25928a4e520ee839de14ddab9455c8de8cd56f95e5dd64d3203b5003ab38adc6"
+    },
+    {
+      "name": "prompt-pins",
+      "exit_code": 0,
+      "result": "94 verified",
+      "path": "/Users/bohuihan/memoir/var/agent-evaluation/checks-20261103/prompt-pins.log",
+      "sha256": "cd6a89503c788fcb549aaf6792802c03efa98f2e0d707389b25ca6e0d7f5c09c"
+    }
+  ]
+}

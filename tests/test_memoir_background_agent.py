@@ -115,6 +115,26 @@ def test_failed_news_research_is_visible_even_when_its_unavailable_result_is_sav
     assert attempt.updates[-1]['metadata']['status']=='failed'
 
 
+def test_worker_test_names_are_bound_to_the_dispatched_owner(tmp_path, monkeypatch):
+    from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
+    from apps.api.llm_tracing import gateway_metadata
+    from test_lifetime_memory_engine import fixture, IDENTITY
+    governed, context = fixture()
+    worker = CodexWorker(home_root=tmp_path)
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN', 'test')
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', str(IDENTITY.owner_id))
+    async def observe(payload):
+        return gateway_metadata('memoir-interviewer.reply', trace_name='memoir-interviewer')
+    monkeypatch.setattr(worker, '_turn', observe)
+    payload = WorkerTurnInput(user_id=IDENTITY.owner_id, project_id=IDENTITY.project_id,
+        governed=governed, interview_context=context)
+    assert asyncio.run(worker.turn(payload)) == {
+        'generation_name': 'test/memoir-interviewer.reply', 'trace_name': 'test/memoir-interviewer'}
+    monkeypatch.setenv('MEMORY_SPARK_TRACE_ORIGIN_OWNER_ID', str(UUID(int=42)))
+    assert asyncio.run(worker.turn(payload)) == {
+        'generation_name': 'memoir-interviewer.reply', 'trace_name': 'memoir-interviewer'}
+
+
 def test_slow_background_agent_does_not_take_foreground_capacity(tmp_path,monkeypatch):
     from apps.api.codex_worker_service import CodexWorker
     from test_lifetime_memory_engine import fixture as collector_fixture, IDENTITY

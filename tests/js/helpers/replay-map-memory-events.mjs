@@ -6,7 +6,7 @@ import {buildMapMemoryJourney,cityEventCards} from '../../../apps/web/client/mem
 import {createMapMemoryEvents} from '../../../apps/web/client/memoir/map-memory-events.mjs';
 import {groupPlaces,mergePlaces} from '../../../apps/web/client/memoir/places.mjs';
 
-const {events,locations,places,grouping,snapshot,relative_current_home} = JSON.parse(readFileSync(0,'utf8'));
+const {events,locations,places,grouping,snapshot,relative_current_home,estimated_current_home} = JSON.parse(readFileSync(0,'utf8'));
 const enriched = events.map(event => ({...event,canonical:true,map_places:locations[event.id].items.map(link => {
   const record=grouping[link.place.place].places[0];
   return {...link,place:{...link.place,map_city:record.city,map_city_key:record.city_key,map_pin:record.pin}};
@@ -20,9 +20,12 @@ if (relative_current_home) {
     assert.deepEqual(route.legs.map(leg=>[leg.from.city,leg.to.city]),[['Chengde','Sydney']],
       'Birth precedes the undated current home regardless of API event order');
     const home=route.nodes.find(node=>node.city==='Sydney');
-    assert.equal(home.year,null);
-    assert.deepEqual(home.age,{start:null,end:null});
-    assert.equal(home.event.yearConfidenceScore,0);
+    assert.equal(home.year,estimated_current_home ? 1991 : null);
+    if (estimated_current_home) {
+      assert.equal(home.age.start,0);
+      assert.equal(home.age.end,35);
+    } else assert.deepEqual(home.age,{start:null,end:null});
+    assert.equal(home.event.yearConfidenceScore,estimated_current_home ? .2 : 0);
     assert.equal(home.event.temporal.year_start,null);
     assert.equal(home.event.temporal.year_end,null);
     assert.equal(home.event.temporal_anchor,'present');
@@ -30,14 +33,17 @@ if (relative_current_home) {
   }
   const cards={innerHTML:'',scrollTop:0,querySelectorAll:()=>[],getBoundingClientRect:()=>({top:0,bottom:700})};
   const toolbar={innerHTML:''},overflow={replaceChildren(){}};
-  const canvas={getContext:()=>new Proxy({},{get:()=>()=>{}})};
+  const stamps=[];
+  const canvas={getContext:()=>new Proxy({clearRect:()=>{stamps.length=0;},drawImage:()=>stamps.push(true)},
+    {get:(target,key)=>target[key] || (()=>{})})};
   const layer={isConnected:true,classList:{toggle(){}},addEventListener(){},querySelectorAll:()=>[],
     getBoundingClientRect:()=>({left:0,top:0}),
     querySelector:selector=>({'.map-memory-cards':cards,'.map-memory-toolbar':toolbar,
       '.map-memory-overflow':overflow,canvas}[selector])};
   const scene={isConnected:true,clientWidth:600,clientHeight:700,classList:{toggle(){},contains:()=>true},
     append:value=>{scene.child=value;},querySelector:()=>scene.child};
-  Object.assign(globalThis,{document:{createElement:()=>layer},window:{devicePixelRatio:1,matchMedia:()=>({matches:false})}});
+  Object.assign(globalThis,{document:{createElement:()=>layer},window:{devicePixelRatio:1,matchMedia:()=>({matches:false})},
+    Image:class {complete=true;naturalWidth=16;}});
   const mapGroups=groupPlaces(mergePlaces([...places,...enriched.flatMap(event=>event.map_places.map(link=>link.place))]));
   const overlay=createMapMemoryEvents({getEvents:()=>enriched.map(event=>({...event,places:event.map_places})),
     getGroups:()=>mapGroups,getProfile:()=>({}),getScope:()=>snapshot.project_id,getStage:()=> 'all',
@@ -56,6 +62,7 @@ if (relative_current_home) {
     assert.equal((cards.innerHTML.match(/data-memory-explore=/g)||[]).length,1,
       'The API-backed list must keep only the visible city’s event when zooming in or out');
     assert.ok(cards.innerHTML.includes(`data-memory-explore="${node.event.id}"`));
+    assert.ok(stamps.length>0,'The API-backed intercity trail must draw its footprints at each city');
     assert.doesNotMatch(layer.innerHTML,/map-memory-detail/);
   }
   overlay.dispose();
