@@ -114,3 +114,17 @@ correctness prompt before accepting its result.
 The application changes are on `codex/langfuse-taxonomy`. Dataset names and judge
 rules were updated on the running local Langfuse project; application services
 have not been restarted from this branch.
+
+## Verification — 4 November 2026
+
+All 97 published prompt pins and 252 focused trace, dataset, prompt and workflow
+checks passed. The required place-research replay passed 738 web checks and all
+814 API/database assertions using `MEMOIR_TEST_POSTGRES_BACKEND=apple-container`.
+The command returned nonzero for one fixture teardown timeout while stopping a
+disposable PostgreSQL container. That case passed independently on rerun, with
+cleanup completing; no disposable PostgreSQL containers remained running.
+The remaining 96 photo-skill unit checks also passed.
+
+Four synthetic model checks verified the independent judge definitions, including
+the expected answer's presence in the correctness prompt. These are wiring
+checks; human judge calibration remains separate.

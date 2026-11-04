@@ -553,8 +553,9 @@ under `memoir/agents/mira/...`, stored in `apps/api/prompts/mira/`. Atlas owns
 Each skill owns its model
 instructions under `memoir/skills/<skill>/...`, including composer phases and
 shared editorial policy. Repository sources live under that skill's directory.
-Common bounded-worker instructions use `memoir/shared/...`; judge/probe and
-synthesis instructions use `memoir/evaluation/...` and `memoir/speech/...`.
+Common bounded-worker instructions use `memoir/shared/...`. Evaluation prompts
+use `memoir/evaluation/...`; the four quality judges use `memoir/evaluators/...`.
+Speech instructions use `memoir/speech/...`.
 Mira's comparison and rubric save under `memoir/evaluation/agents/mira/...`;
 historical evaluation dataset IDs remain stable.
 Issue numbers and release dates stay in metadata and numeric version history.
