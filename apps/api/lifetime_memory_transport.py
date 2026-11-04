@@ -126,7 +126,7 @@ class GovernedEmitter:
             self._stream.request_id = new_request_id((event.get('data') or {}).get('client_turn_id'))
         if event['type'] == 'progress':
             stage = (event.get('data') or {}).get('id')
-            if stage in _PROGRESS_IDS | {'memory-context', 'collector-call', 'question-pool'}:
+            if stage in _PROGRESS_IDS | {'memory-context', 'collector-call'}:
                 self._stream.stage = stage
         await self._stream._queue.put(envelope)
 

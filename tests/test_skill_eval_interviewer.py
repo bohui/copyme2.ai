@@ -12,7 +12,7 @@ from scripts import memoir_skill_eval_suite as suite
 def test_isolated_interviewer_packet_uses_reply_v2_without_retired_prompts(locale, pause):
     from apps.api.conversation_reply import reply_instructions
     from test_conversation_reply import proposal, reply_context
-    context = {**reply_context(), 'interview_language': locale, 'strategy_selector': True}
+    context = {**reply_context(), 'interview_language': locale}
     reason = 'pause' if pause else 'latest_story'
     item = dict(id='isolated-reply-' + locale, skill='memoir-interviewer', locale=locale,
         task=dict(context=context), gold=dict(facts=dict(stopped=pause,
@@ -21,7 +21,7 @@ def test_isolated_interviewer_packet_uses_reply_v2_without_retired_prompts(local
     assert request['instructions'] == reply_instructions()
     assert request['input']['reply_language'] == locale
     assert request['input']['reply_contract'] == 'reply-v2'
-    assert request['input']['brief']['hints'] == []
+    assert 'brief' not in request['input']
     output = {**proposal(), 'reason': reason}
     if pause:
         output['question'] = None
@@ -42,7 +42,7 @@ def test_foreground_packets_validate_real_selector_and_current_intent(tmp_path, 
         '您还记得什么？' if locale == 'zh-CN' else 'What else do you remember?', 'reason': reason}
     class Provider:
         async def call(self, packet):
-            assert packet['input']['strategy_selector'] is True
+            assert not {'strategy_selector', 'strategy_context', 'prepared_questions'} & packet['input'].keys()
             assert 'gold' not in packet and 'rubric' not in packet
             assert packet['input']['reply_contract'] == 'reply-v2'
             assert packet['instructions'] == reply_instructions()

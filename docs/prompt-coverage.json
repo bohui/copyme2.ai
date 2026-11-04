@@ -451,12 +451,12 @@
     "version": 7,
     "sha256": "b4270c4c59303c8a7c101afb43c4661cf3ba1367047bd8040fc76378ddb54dfb",
     "use": "runtime",
-    "scenario": "Every narrator reply; native persistent Mira thread.",
+    "scenario": "Every narrator reply; persistent native Mira thread ordered as system instructions, authorized chat history, optional Atlas context and current narrator answer. Atlas supplies context only; Mira chooses one next question.",
     "consumers": [
       {
         "path": "apps/api/conversation_reply.py",
         "symbol": "reply_instructions",
-        "line": 52
+        "line": 45
       }
     ],
     "targets": [
@@ -563,7 +563,13 @@
     ],
     "regressions": [
       "tests/test_mira_realtime_interviewing.py",
-      "tests/test_mira_prompt_evaluation.py"
+      "tests/test_mira_prompt_evaluation.py",
+      "tests/test_conversation_reply.py",
+      "tests/test_conversation_reply_transport.py",
+      "tests/test_interview_native_session.py",
+      "tests/test_lane_b_question_priorities.py",
+      "tests/test_recall_limit_questions.py",
+      "tests/test_skill_eval_interviewer.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -580,7 +586,7 @@
       {
         "path": "scripts/evaluate_mira_prompt.py",
         "symbol": "evaluate",
-        "line": 192
+        "line": 187
       }
     ],
     "targets": [
@@ -943,7 +949,7 @@
       {
         "path": "scripts/evaluate_llm_boundaries.py",
         "symbol": "main",
-        "line": 65
+        "line": 64
       }
     ],
     "targets": [

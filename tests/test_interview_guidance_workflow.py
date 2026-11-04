@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from apps.api.conversation_reply import reply_candidates
+from apps.api.conversation_reply import reply_schema
 from scripts.evaluate_mira_prompt import realtime_cases
 from test_background_profile_workflow import database
 from test_conversation_attribution import Conversation, empty, episode
@@ -37,7 +37,7 @@ def test_mira_saves_current_interviewing_decisions_before_background_work(sql,tm
         '我们可以慢慢把这段回忆说清楚。' if locale=='zh-CN' else 'We can take our time with that memory.')
     def reply(context):
         output=proposal()
-        assert reply_candidates(context)==[]
+        assert 'hint' not in reply_schema(context)['properties']
         if context['source']['text']==current:
             output.update(acknowledgement=acknowledgement,question=questions[locale][kind])
             if kind=='topic':
@@ -124,7 +124,7 @@ def test_late_news_waits_for_the_next_reply_without_replacing_current_text(sql,t
         assert second.get('historical_context') is None
         third=conversation.say('I remember the neighbours too.')
         assert calls[-1]['historical_news']['clues']
-        assert reply_candidates(calls[-1])==[]
+        assert 'hint' not in reply_schema(calls[-1])['properties']
         assert third.get('historical_context') is None, 'An available clue remains optional'
         saved=json.loads(sql('select json_agg(collector order by sequence) from public.user_interview_turn;').stdout)
         assert saved[0]['reply']==first['reply'] and saved[1]['reply']==frozen

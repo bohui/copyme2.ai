@@ -34,7 +34,7 @@ def test_a_very_uncertain_city_reaches_mira_without_a_background_question_pool()
     raw=json.loads(governed.packet)
     raw['interview_context']['events']=[event]
     packet=reply_packet(validate_governed_context(encode(raw),context))
-    assert packet['brief']['hints']==[]
+    assert set(packet['brief']) == {'covered_through_sequence'}
     assert packet['background_deliveries']==[dict(skill='memoir-author-timeline',events=[event])]
 
 
@@ -58,7 +58,7 @@ def test_ready_news_enters_native_mira_context_without_a_guidance_skill():
     assert application['origin'] == 'application' and application['narrator_message'] is False
     assert application['updates']['deliveries']['memoir-historical-news-research']['clues'] == [public_clue(clue)]
     assert messages[-1]['content'] == context['source']['text']
-    assert view['brief']['hints'] == []
+    assert set(view['brief']) == {'covered_through_sequence'}
 
 
 def test_mira_can_ignore_ready_news_and_keep_her_current_grounded_reply():

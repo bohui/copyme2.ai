@@ -44,14 +44,6 @@ def neutral_acknowledgement(context):
     return copies.get(context.get('interview_language'), copies['en-AU'])
 
 
-def defer_prepared_acknowledgement(context):
-    if (context or {}).get('reply_contract') == 'reply-v2':
-        return False
-    from .two_lane_memory import pending_confirmation
-    return bool(context.get('historical_news', {}).get('clues') or pending_confirmation(context)
-        or (context.get('interview_guidance') or {}).get('acknowledgement_guidance'))
-
-
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra='forbid')
 

@@ -111,10 +111,6 @@ def prioritize_question(value, context, *, selection_reason):
     resolved = {item['question_id'] for name in ('resolved_questions', 'deferred_questions')
                 for item in value['plan'].get(name, [])}
     question = pending_confirmation(context, exclude_ids=resolved)
-    if (question is None and context.get('reply_contract') == 'reply-v2'
-            and selection_reason in {'prepared_candidate', 'adapted_candidate', 'return_context'}):
-        from .conversation_reply import reply_candidates
-        question = next((item for item in reply_candidates(context) if item['id'] not in resolved), None)
     # The independent skill supplies next-turn options, not a guardrail that
     # rewrites a reply already chosen or streamed by Lane A.
     if question and question.get('trigger'):

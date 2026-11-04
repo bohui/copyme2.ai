@@ -1,14 +1,16 @@
-"""Small reply proposals; host-owned evidence and saved-plan compatibility."""
+"""Mira owns the next reply; Atlas supplies evidence through context only."""
 from copy import deepcopy
+from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from .interview_plan import PhotoAssociation, authorized_photos
-from .interview_questions import (QuestionResolution, hint_evidence, question_candidates,
-                                 resolution_schema, validate_question_evidence, recall_question, recall_hint, question_span)
-from .interview_strategy import SelectionReason, Strategy, selection_candidates, prioritized_candidates
+from .interview_questions import validate_question_evidence, recall_question, question_span
+from .interview_strategy import Strategy
 from .prompt_artifact import load_prompt_artifact, prompt_path
 
 REPLY_VERSION = 'reply-v2'
+ReplyReason = Literal['latest_story', 'user_redirect', 'current_correction', 'pacing',
+                      'recall_limit', 'pause', 'direct_answer', 'return_context']
 
 
 class WorkspaceFocus(BaseModel):
@@ -25,28 +27,19 @@ class ReplyProposal(BaseModel):
         description='Grounded statement only. Leave facts awaiting clarification unresolved.')
     recall_limit_quote: str | None = Field(default=None, min_length=1, max_length=500,
         description='Exact unique CURRENT narrator wording that they cannot recall a requested detail, even when other details follow; otherwise null. Not another speaker, ordinary uncertainty or a short answer.')
-    reason: SelectionReason = Field(description='pause and direct_answer require question=null. Use latest_story for an optional next question, including public context; recall_limit for recall difficulty. With a hint: prepared_candidate for copy, adapted_candidate for rewording. Mere continuation is return_context.')
+    reason: ReplyReason = Field(description='pause and direct_answer require question=null. Use latest_story for an optional next question, including public context; recall_limit for recall difficulty. Mere continuation is return_context.')
     strategy: Strategy = Field(default='explore',
         description='Your current interviewing approach: comfort for gentle support, explore for memory details, shape for arranging or connecting established memories. This does not authorize game or book actions.')
     quote: str | None = Field(min_length=1, max_length=500,
-        description='With a hint or public clue, use null except for recall_limit: cite exact unique CURRENT wording about unavailable detail. For other reasons, use an exact unique CURRENT-source passage or null.')
-    hint: int | None = Field(ge=0,
-        description='First relevant hint index. Recall_limit uses a scope=broader hint; null when none is relevant. Current intent overrides priority.')
-    deferred_hints: list[int] = Field(default_factory=list, max_length=5,
-        description='Unavailable detail indices in brief.hints. Only defer questions seeking the detail the narrator cannot recall; quote cites CURRENT recall-limit wording. Never include the chosen hint.')
+        description='With a public clue, use null except for recall_limit: cite exact unique CURRENT wording about unavailable detail. For other reasons, use an exact unique CURRENT-source passage or null.')
     question: str | None = Field(min_length=1, max_length=800,
         description='One useful next question, including a connected broader direction after a recall limit; null for a stop or direct answer.')
     workspace_focus: WorkspaceFocus | None = Field(default=None,
         description='City of the memory your NEXT QUESTION explores, including an implicit continuation. Choose that city when acknowledgement mentions several. Example: living in Sydney but born in Chengde, followed by a childhood question -> Chengde. Null when no question or its place is unresolved. This selects the map, photos and event list; it asserts no new biography.')
     historical_clue_id: str | None = Field(default=None, max_length=128,
-        description='Supplied public clue ID used in an optional next question; null when question is null or the clue is irrelevant. With a clue, use latest_story or recall_limit and hint=null; quote is null except an exact recall-limit quote. Public history is separate from personal testimony.')
-    resolved_questions: list[QuestionResolution] = Field(default_factory=list, max_length=5)
+        description='Supplied public clue ID used in an optional next question; null when question is null or the clue is irrelevant. With a clue, use latest_story or recall_limit; quote is null except an exact recall-limit quote. Public history is separate from personal testimony.')
     associations: list[PhotoAssociation] = Field(default_factory=list, max_length=20)
     response_photo_ids: list[str] = Field(default_factory=list, max_length=5)
-
-
-def reply_candidates(context):
-    return selection_candidates(context) if context.get('strategy_selector') else prioritized_candidates(context, question_candidates(context))
 
 
 def reply_instructions():
@@ -71,15 +64,11 @@ def reply_schema(context):
 
 
 def adapt_reply(raw, context):
-    # Older workers can still send the retired handoff; it has no routing authority.
-    item = ReplyProposal.model_validate({key: value for key, value in raw.items() if key != 'work'})
+    item = ReplyProposal.model_validate(raw)
     if not authorized_photos(context) and (item.associations or item.response_photo_ids):
         raise ValueError('Unavailable photo fields must be omitted')
     name = None
     source = context.get('source') or {}
-    candidates = reply_candidates(context)
-    if item.hint is not None and item.hint >= len(candidates):
-        raise ValueError('Candidate is stale, asked or outside this project')
     if item.recall_limit_quote is not None:
         validate_question_evidence(dict(source_id=source.get('id'), version=source.get('version'),
             quote=item.recall_limit_quote, char_start=None, char_end=None, attribution=None), context)
@@ -87,76 +76,32 @@ def adapt_reply(raw, context):
             item.reason = 'recall_limit'
             item.quote = item.recall_limit_quote
     if item.reason == 'recall_limit':
-        had_hint = item.hint is not None
-        selected = recall_hint(context, candidates, candidates[item.hint] if item.hint is not None else None)
-        item.hint = next((i for i, hint in enumerate(candidates) if selected and hint['id'] == selected['id']), None)
-        if selected is not None or had_hint or item.question is None:
-            item.question = recall_question(context, selected)
-    deferrals = []
-    if item.deferred_hints:
-        if item.reason != 'recall_limit' or item.quote is None or len(set(item.deferred_hints)) != len(item.deferred_hints):
-            raise ValueError('Question deferral requires current recall-limit evidence and distinct hints')
-        validate_question_evidence(dict(source_id=source.get('id'), version=source.get('version'),
-            quote=item.quote, char_start=None, char_end=None, attribution=None), context)
-        start, end = question_span(source, item.quote)
-        for index in item.deferred_hints:
-            if (index < 0 or index >= len(candidates) or index == item.hint
-                    or candidates[index].get('scope') == 'broader' or candidates[index].get('historical_clue_id')):
-                raise ValueError('Question deferral requires an unchosen detail hint')
-            deferrals.append(dict(question_id=candidates[index]['id'], source_id=source['id'],
-                source_version=source['version'], char_start=start, char_end=end, quote=item.quote))
+        if item.question is None:
+            item.question = recall_question(context)
     if ((item.question is None and item.reason not in {'pause', 'direct_answer', 'current_correction'})
             or (item.question is not None and item.reason in {'pause', 'direct_answer'})):
         raise ValueError('No-question outcome requires an explicit reason')
     if item.historical_clue_id is not None:
         from .historical_news import authorized_clue
         authorized_clue(context, item.historical_clue_id)
-        if item.question is None or item.hint is not None or (item.quote is not None and item.reason!='recall_limit'):
-            raise ValueError('Public context requires one optional question without personal evidence or a prepared hint')
-    hint = None
-    if item.hint is not None:
-        hint = candidates[item.hint]
-        if item.reason not in {'prepared_candidate', 'adapted_candidate', 'recall_limit'} or item.question is None:
-            raise ValueError('Candidate use requires its recorded reason')
-        if hint.get('historical_clue_id'):
-            # Public clues use the host's optional invitation, never model-written biography.
-            item.question = hint['question']
-            if item.reason != 'recall_limit':
-                item.reason = 'prepared_candidate'
-        if item.reason == 'prepared_candidate' and item.question.strip() != hint['question'].strip():
-            raise ValueError('Prepared candidate text changed')
-        evidence = None if hint.get('historical_clue_id') else hint_evidence(hint, context)
-        if item.quote is not None:
-            if item.reason == 'recall_limit':
-                validate_question_evidence(dict(source_id=source.get('id'), version=source.get('version'),
-                    quote=item.quote, char_start=None, char_end=None, attribution=None), context)
-            elif not evidence or item.quote != evidence['quote']:
-                raise ValueError('Question candidate cannot change its referenced passage')
-    else:
-        if item.reason in {'prepared_candidate', 'adapted_candidate'}:
-            raise ValueError('Candidate identity required')
-        evidence = None
-        if item.quote is not None:
-            source = context.get('source') or {}
-            evidence = validate_question_evidence(dict(source_id=source.get('id'),
-                version=source.get('version'), quote=item.quote, char_start=None,
-                char_end=None, attribution=None), context).model_dump()
-            if item.historical_clue_id is not None:
-                evidence = None  # Recall control is not evidence of attending a public event.
-    identity = hint['id'] if hint else 'immediate-' + (context.get('source') or {}).get('id', 'fallback')
+        if item.question is None or (item.quote is not None and item.reason!='recall_limit'):
+            raise ValueError('Public context requires one optional question without personal evidence')
+    evidence = None
+    if item.quote is not None:
+        evidence = validate_question_evidence(dict(source_id=source.get('id'),
+            version=source.get('version'), quote=item.quote, char_start=None,
+            char_end=None, attribution=None), context).model_dump()
+        if item.historical_clue_id is not None:
+            evidence = None  # Recall control is not evidence of attending a public event.
+    identity = 'immediate-' + (context.get('source') or {}).get('id', 'fallback')
     questions = [] if item.question is None else [dict(id=identity, question=item.question,
         context=dict(event_id=None, photo_id=None, life_stage=None, year=None, evidence=evidence),
         order=0, bridge='')]
-    if questions and hint and hint.get('historical_clue_id'):
-        questions[0]['context']['historical_clue_id'] = hint['historical_clue_id']
-        questions[0]['bridge'] = hint['bridge']
     if questions and item.historical_clue_id is not None:
         questions[0]['context']['historical_clue_id'] = item.historical_clue_id
-    legacy = dict(acknowledgement=item.acknowledgement,
+    saved = dict(acknowledgement=item.acknowledgement,
         plan=dict(candidates=questions, chosen_id=identity if questions else None,
-                  active_event_id=None, work=dict(mode='extract', name=None),
-                  resolved_questions=[value.model_dump() for value in item.resolved_questions],
-                  deferred_questions=deferrals),
+                  active_event_id=None, work=dict(mode='extract', name=None)),
         associations=[value.model_dump() for value in item.associations],
         response_photo_ids=item.response_photo_ids, stopped=item.question is None, continuity_updates=[])
     focus = None
@@ -176,15 +121,13 @@ def adapt_reply(raw, context):
             raise ValueError('Workspace focus quote must match one original passage in its selected source') from None
         focus = dict(place=proposed.place, evidence=dict(source_id=original['id'], version=original['version'],
             quote=proposed.quote, char_start=start, char_end=end))
-    legacy['workspace_focus'] = focus
-    state = context.get('strategy_context') or {}
-    plan = state.get('plan') or {}
+    saved['workspace_focus'] = focus
     outcome = dict(schema_version=1,
-        plan_revision_seen=plan.get('plan_revision', state.get('invalid_plan_revision')),
-        selected_candidate_id=hint['id'] if hint else None, selection_reason=item.reason,
+        plan_revision_seen=None,
+        selected_candidate_id=None, selection_reason=item.reason,
         used_strategy=item.strategy,
-        question_delivered=item.question, work_hint='extract') if context.get('strategy_selector') else None
-    return legacy, item.reason, outcome, item.question is None and item.reason != 'direct_answer', name
+        question_delivered=item.question, work_hint='extract')
+    return saved, item.reason, outcome, item.question is None and item.reason != 'direct_answer', name
 
 
 def reply_packet(packet):
@@ -192,11 +135,6 @@ def reply_packet(packet):
     context = packet.interview_context
     checkpoint = packet.checkpoint
     summary = checkpoint.memory_summary if checkpoint else None
-    state = context.get('strategy_context') or {}
-    hints = reply_candidates(context)
-    selectable_ids = {hint['id'] for hint in hints}
-    resolution_only = {hint['id']: dict(id=hint['id'], question=hint['question'])
-                       for hint in question_candidates(context) if hint['id'] not in selectable_ids}
     deliveries = deepcopy(context.get('background_deliveries', []))
     if summary and summary.items:
         deliveries.append(dict(skill='memoir-memory-context',
@@ -213,14 +151,8 @@ def reply_packet(packet):
         preferences=packet.pinned.model_dump(mode='json'),
         original_evidence=[ref.model_dump(mode='json') for ref in
             [*(checkpoint.evidence if checkpoint else []), *packet.retrieved]],
-        brief=dict(covered_through_sequence=packet.coverage_end,
-                   hint_order='highest_priority_first',
-                   objective=(state.get('plan') or {}).get('objective'),
-                   last_delivered_question=deepcopy(state.get('prior_delivered_question')),
-                   hints=[dict(index=index, **deepcopy(hint))
-                          for index, hint in enumerate(hints)],
-                   resolution_only_questions=list(resolution_only.values())),
+        brief=dict(covered_through_sequence=packet.coverage_end),
         background_deliveries=deliveries,
         context={key: deepcopy(context[key]) for key in (
-            'opening_turn', 'active_strategy', 'breadth_checkpoint', 'recent_dialogue',
+            'opening_turn', 'breadth_checkpoint', 'recent_dialogue',
             'photos', 'photo_context', 'reviewed_acknowledgement') if key in context})

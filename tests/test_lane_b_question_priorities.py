@@ -1,257 +1,65 @@
-"""Ready background findings must be selectable by the current reply contract."""
+"""Atlas supplies context; Mira owns the wording and direction of every question."""
 from copy import deepcopy
 import json
 
 import pytest
 
-from apps.api.conversation_reply import reply_candidates, reply_packet
-from apps.api.interview_plan import historical_acknowledgements
-from apps.api.interview_strategy import validate_proposal
+from apps.api.conversation_reply import reply_packet, reply_schema
 from apps.api.lifetime_memory_continuity import validate_governed_collector_result
 from apps.api.lifetime_memory_engine import validate_governed_context
 from test_conversation_reply import proposal, reply_context
 from test_historical_news import ready_context
-from controlled_interview_guidance import select_news
 from test_lifetime_memory_engine import encode, fixture
 from test_reply_v2_contract_compatibility import hint
 
 
-def test_ready_news_can_change_the_next_reply_question_with_active_strategy():
-    context = reply_context('What else was happening in Boston around then?')
-    select_news(context, strategy_selector=True,
-        strategy_context={'mode': 'active', 'plan': None}, interview_language='en-AU')
-    clue = context['historical_news']['clues'][0]
-    raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
-        'hint': 0, 'reason': 'prepared_candidate',
-        'question': 'Does this bring any memory of that time to mind?'}
-
-    result = validate_governed_collector_result(raw, context)
-
-    assert result['plan']['candidates'][0]['context']['historical_clue_id'] == clue['id']
-    assert result['historical_context']['source_url'] == clue['source_url']
-    assert result['plan']['candidates'][0]['question'] == raw['question']
-
-
-@pytest.mark.parametrize('question', [
-    'Was the move in 1962 or 1963?',
-    'Which sister were you describing?',
-    'Did the shop open before or after the move?',
-])
-def test_saved_confirmation_does_not_replace_miras_current_question(question):
+def test_background_plans_cannot_change_the_reply_schema_or_selected_question():
     context = reply_context()
-    confirmation = {**hint(context, 'a', confirmation=True), 'question': question}
-    context.update(strategy_selector=True, strategy_context={'mode': 'active',
-        'plan': dict(plan_revision=1, strategy='shape', objective='clarify_order', candidates=[confirmation])})
-
+    context['strategy_selector'] = True
+    before = reply_schema(context)
+    candidate = hint(context, 'a', confirmation=True)
+    context.update(prepared_questions=[candidate], strategy_context=dict(plan=dict(
+        plan_revision=9, strategy='shape', objective='broaden_scope', candidates=[candidate])))
+    assert reply_schema(context) == before
     result = validate_governed_collector_result(proposal(), context)
-
-    assert result['plan']['chosen_id'] != confirmation['id']
-    assert result['plan']['candidates'][0]['question']==proposal()['question']
+    assert result['plan']['candidates'][0]['question'] == proposal()['question']
+    assert result['plan']['chosen_id'].startswith('immediate-')
+    assert result['strategy_outcome']['plan_revision_seen'] is None
     assert result['strategy_outcome']['selected_candidate_id'] is None
 
 
-def test_background_can_propose_broadening_without_declaring_a_completed_stage():
-    raw = dict(strategy='explore', objective='broaden_scope', focus_event_ids=[])
-    assert validate_proposal(raw, {'events': []}) == raw
-    with pytest.raises(ValueError):
-        validate_proposal({**raw, 'strategy': 'shape'}, {'events': []})
-
-
-def test_broadening_plan_reaches_reply_after_selected_historical_news():
+def test_reply_packet_has_no_background_question_or_strategy_channels():
     governed, context = fixture()
-    broader = {**hint(context, 'a'), 'question': 'What changed in your life after school?'}
-    select_news(context, reply_contract='reply-v2', strategy_selector=True,
-        strategy_context={'mode': 'active', 'plan': dict(plan_revision=1, strategy='explore',
-            objective='broaden_scope', candidates=[broader])})
-    packet = json.loads(governed.packet)
-    packet['interview_context'] = {key: value for key, value in context.items() if key not in {'source', 'sources'}}
-
-    view = reply_packet(validate_governed_context(encode(packet), context))
-
-    assert view['brief']['objective'] == 'broaden_scope'
-    assert view['brief']['hint_order'] == 'highest_priority_first'
-    assert view['brief']['hints'][1]['id'] == broader['id']
-    assert view['brief']['hints'][1]['purpose'] == 'broaden_scope'
-    assert any(item.get('historical_clue_id') for item in view['brief']['hints'])
-
-
-@pytest.mark.parametrize('selector', [False, True])
-@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
-@pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate'])
-def test_news_uses_the_existing_neutral_cited_reply_and_never_narrator_evidence(selector, locale, reason):
-    from apps.api.historical_news import HISTORICAL_INVITATIONS
-    context = reply_context()
-    select_news(context, strategy_selector=selector,
-        strategy_context={'mode': 'active', 'plan': None}, interview_language=locale)
-    question, bridge = HISTORICAL_INVITATIONS[locale]
-    raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
-        'hint': 0, 'reason': reason, 'question': question}
-    result = validate_governed_collector_result(raw, context)
-    candidate = result['plan']['candidates'][0]
-    assert candidate['bridge'] == bridge
-    assert candidate['context'].get('evidence') is None
-    assert bridge in result['reply'] and result['reply'].endswith(question)
-    assert result['historical_context']['id'] == candidate['id']
-    with pytest.raises(ValueError):
-        validate_governed_collector_result({**raw, 'quote': context['source']['text']}, context)
+    context.update(reply_contract='reply-v2', two_lane_memory=True, strategy_selector=True,
+        active_strategy='shape', prepared_questions=[hint(context, 'a')],
+        strategy_context=dict(plan=dict(objective='broaden_scope', candidates=[hint(context, 'b')])) )
+    raw = json.loads(governed.packet)
+    raw['interview_context'] = {key: value for key, value in context.items() if key not in {'source', 'sources'}}
+    view = reply_packet(validate_governed_context(encode(raw), context))
+    assert set(view['brief']) == {'covered_through_sequence'}
+    assert not {'active_strategy', 'strategy_context', 'prepared_questions'} & view['context'].keys()
+    assert 'bq-' not in json.dumps(view)
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
-@pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate'])
-def test_selected_news_renders_the_host_invitation_instead_of_model_rewriting(locale, reason):
-    from apps.api.historical_news import HISTORICAL_INVITATIONS
-    context = reply_context('What else could we explore from those years?')
-    select_news(context, strategy_selector=True,
-        strategy_context={'mode': 'active', 'plan': None}, interview_language=locale)
-    raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
-        'hint': 0, 'reason': reason, 'question': 'You were at the fair, right?'}
-
+@pytest.mark.parametrize('use_news', [False, True])
+def test_public_news_is_optional_context_and_never_rewrites_miras_question(locale, use_news):
+    context = {**reply_context(), **ready_context(), 'interview_language': locale}
+    clue = context['historical_news']['clues'][0]
+    question = '那份公开档案让您想起什么吗？' if locale == 'zh-CN' else 'Does that public archive bring any memory to mind?'
+    raw = {**proposal(), 'question': question, 'historical_clue_id': clue['id'] if use_news else None}
+    before = deepcopy(raw)
     result = validate_governed_collector_result(raw, context)
-
-    question, bridge = HISTORICAL_INVITATIONS[locale]
     assert result['plan']['candidates'][0]['question'] == question
-    assert result['strategy_outcome']['question_delivered'] == question
-    assert result['strategy_outcome']['selection_reason'] == 'prepared_candidate'
-    assert result['reply'].endswith(bridge + ' ' + question)
-    assert raw['question'] not in result['reply']
-    assert result['historical_context']['source_url'] == context['historical_news']['clues'][0]['source_url']
     assert result['plan']['candidates'][0]['context'].get('evidence') is None
+    assert bool(result.get('historical_context')) == use_news
+    assert raw == before
 
 
-@pytest.mark.parametrize('objective', ['follow_story', 'broaden_scope'])
-@pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate', 'return_context'])
-def test_guidance_priority_orders_candidates_without_rewriting_a_valid_selection(objective, reason):
-    context = reply_context('What else could we explore from those years?')
-    ordinary = hint(context, 'a')
-    select_news(context, strategy_selector=True,
-        strategy_context={'mode': 'active', 'plan': dict(plan_revision=1, strategy='explore',
-            objective=objective, candidates=[ordinary])}, interview_language='en-AU')
-    hints = reply_candidates(context)
-    lower = hints[1]
-    raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
-        'reason': reason, 'hint': None if reason == 'return_context' else 1, 'question': lower['question']}
-
-    result = validate_governed_collector_result(raw, context)
-
-    assert result['plan']['chosen_id'] == (lower['id'] if reason != 'return_context' else 'immediate-'+context['source']['id'])
-    assert result['strategy_outcome']['selected_candidate_id'] == (lower['id'] if reason != 'return_context' else None)
-    assert result['strategy_outcome']['question_delivered'] == lower['question']
-    assert result.get('historical_context') is None
-
-
-def test_adaptation_of_the_highest_ordinary_hint_is_preserved():
-    context = reply_context()
-    ordinary = hint(context, 'a')
-    context.update(strategy_selector=True, strategy_context={'mode': 'active',
-        'plan': dict(plan_revision=1, strategy='explore', candidates=[ordinary])})
-    raw = {**proposal(), 'reason': 'adapted_candidate', 'hint': 0}
-    result = validate_governed_collector_result(raw, context)
-    assert result['strategy_outcome']['selection_reason'] == 'adapted_candidate'
-    assert result['strategy_outcome']['question_delivered'] == raw['question']
-
-
-@pytest.mark.parametrize('fault', ['disabled', 'used', 'uninspected', 'stale', 'foreign', 'missing_receipt'])
-def test_unavailable_news_never_enters_selectable_hints(fault):
-    context = reply_context()
-    select_news(context)
-    state = context['historical_news']
-    clue = state['clues'][0]
-    if fault == 'disabled': state['enabled'] = False
-    elif fault == 'used': clue['status'] = 'used'
-    elif fault == 'uninspected': clue['evidence_status'] = 'uninspected'
-    elif fault == 'stale': clue['context_revision'] = 'old'
-    elif fault == 'foreign': clue['project_id'] = 'another-project'
-    else: clue.pop('receipt')
-    assert reply_candidates(context) == []
-
-
-@pytest.mark.parametrize('reason', ['pause', 'direct_answer', 'current_correction', 'user_redirect', 'pacing'])
-def test_current_intent_keeps_precedence_over_all_background_priorities(reason):
-    context = reply_context()
-    confirmation = hint(context, 'a', confirmation=True)
-    select_news(context, strategy_selector=True, strategy_context={'mode': 'active',
-        'plan': dict(plan_revision=1, strategy='explore', objective='broaden_scope', candidates=[confirmation])})
-    raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0], 'reason': reason}
-    if reason in {'pause', 'direct_answer'}:
-        raw['question'] = None
-    result = validate_governed_collector_result(raw, context)
-    assert result['strategy_outcome']['selection_reason'] == reason
-    assert result['strategy_outcome']['selected_candidate_id'] is None
-    assert result.get('historical_context') is None
-
-
-def test_answered_plan_confirmation_is_not_forced_back_into_reply():
-    context = reply_context('The umbrella was blue.')
-    confirmation = {**hint(context, 'a', confirmation=True), 'question': 'What colour was the umbrella?'}
-    context.update(strategy_selector=True, strategy_context={'mode': 'active',
-        'plan': dict(plan_revision=1, strategy='explore', candidates=[confirmation])})
-    raw = {**proposal(), 'resolved_questions': [dict(question_id=confirmation['id'],
-        source_id=context['source']['id'], source_version=context['source']['version'], quote='blue', char_start=17, char_end=21)]}
-    result = validate_governed_collector_result(raw, context)
-    assert result['plan']['chosen_id'] != confirmation['id']
-
-
-@pytest.mark.parametrize('news_ready', [False, True])
-@pytest.mark.parametrize('reason', ['prepared_candidate', 'adapted_candidate', 'return_context'])
-def test_resolving_a_confirmation_does_not_force_another_over_miras_selection(news_ready, reason):
-    context = reply_context('The umbrella was blue.')
-    prior = dict(id='prior-story', version=1, status='active', text=(
-        'I cannot remember whether the umbrella was blue or green. '
-        'May helped Lin at the shop, but I cannot remember which sister managed it.'))
-    first, second, ordinary = [dict(hint(context, identity, confirmation=identity != 'c'),
-        source_id=prior['id'], quote=prior['text'], char_start=0, char_end=len(prior['text']))
-        for identity in ['a', 'b', 'c']]
-    first['question'] = 'What colour was the umbrella?'
-    second['question'] = 'Was it May or Lin who managed the shop?'
-    ordinary['question'] = 'What else do you remember about the shop?'
-    context.update(sources=[prior], prepared_questions=[first, second], strategy_selector=True,
-        strategy_context={'mode': 'active', 'plan': dict(plan_revision=2, strategy='explore',
-            objective='follow_story', candidates=[ordinary])}, interview_language='en-AU')
-    if news_ready:
-        select_news(context)
-    hints = reply_candidates(context)
-    assert second['id'] in {item['id'] for item in hints}, 'All pending pool questions survive strategy projection'
-    raw = {**proposal(), 'acknowledgement': sorted(historical_acknowledgements(context))[0],
-        'question': ordinary['question'], 'reason': reason,
-        'hint': None if reason == 'return_context' else next(
-            index for index, item in enumerate(hints) if item['id'] == ordinary['id']),
-        'resolved_questions': [dict(question_id=first['id'], source_id=context['source']['id'],
-            source_version=context['source']['version'], quote='blue', char_start=17, char_end=21)]}
-
-    result = validate_governed_collector_result(raw, context)
-
-    assert result['plan']['chosen_id'] != second['id']
-    assert result['plan']['candidates'][0]['question'] == ordinary['question']
-    assert result['strategy_outcome']['selected_candidate_id'] == (ordinary['id'] if raw['hint'] is not None else None)
-    assert result['strategy_outcome']['question_delivered'] == ordinary['question']
-    assert result['plan']['resolved_questions'] == raw['resolved_questions']
-    assert result.get('historical_context') is None
-
-
-def test_confirmation_ranks_before_topic_expansion_and_news_without_duplicates():
-    context = reply_context()
-    confirmation, broader = hint(context, 'a', confirmation=True), hint(context, 'b')
-    select_news(context, strategy_selector=True, prepared_questions=[confirmation],
-        strategy_context={'mode': 'active', 'plan': dict(plan_revision=1, strategy='explore',
-            objective='broaden_scope', candidates=[confirmation, broader])})
-    hints = reply_candidates(context)
-    assert [item['purpose'] for item in hints] == ['clarification', 'historical_news', 'broaden_scope']
-    assert [item['id'] for item in (hints[0], hints[2])] == [confirmation['id'], broader['id']]
-
-
-@pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
-def test_older_strategy_selector_preserves_the_same_public_clue_contract(locale):
-    from test_interview_strategy import wire
-    context = reply_context()
-    context.pop('reply_contract')
-    select_news(context, strategy_selector=True,
-        strategy_context={'mode': 'active', 'plan': None}, interview_language=locale)
-    hint = reply_candidates(context)[0]
-    raw = wire(acknowledgement=sorted(historical_acknowledgements(context))[0],
-        selected_candidate_id=hint['id'], question=hint['question'], selection_reason='prepared_candidate')
-    result = validate_governed_collector_result(raw, context)
-    assert result['historical_context']['id'] == hint['id']
-    with pytest.raises(ValueError):
-        validate_governed_collector_result({**raw, 'question_evidence': dict(source_id=context['source']['id'],
-            version=context['source']['version'], quote=context['source']['text'], char_start=0,
-            char_end=len(context['source']['text']), attribution=None)}, context)
+@pytest.mark.parametrize('reason', ['pause', 'direct_answer', 'user_redirect', 'current_correction', 'pacing'])
+def test_current_intent_has_no_background_question_override(reason):
+    context = {**reply_context(), **ready_context()}
+    context['prepared_questions'] = [hint(context, 'a', confirmation=True)]
+    question = None if reason in {'pause', 'direct_answer'} else 'What would you like to share about your sister?'
+    result = validate_governed_collector_result({**proposal(), 'reason': reason, 'question': question}, context)
+    assert [candidate['question'] for candidate in result['plan']['candidates']] == ([] if question is None else [question])

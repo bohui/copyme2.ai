@@ -131,7 +131,6 @@ def lane_b_cases():
     from apps.api.conversation_reply import reply_instructions, reply_packet
     from apps.api.lifetime_memory_engine import validate_governed_context
     from test_lifetime_memory_engine import fixture, encode
-    from test_recall_limit_questions import recall_case
     result = []
     for locale in ('en-AU', 'zh-CN'):
         texts = (dict(confirmation='I remember waiting outside while Dad bought paint. Please go on.',
@@ -141,16 +140,12 @@ def lane_b_cases():
                 recall='等爸爸买涂料时做了什么，我记不得了。我们在那个家住了很多年。',
                 redirect='先别再问等爸爸的事了，我想聊姐姐。'))
         for kind, text in texts.items():
-            governed, original = fixture()
-            context, _, detail, broader = recall_case(text)
-            context.update(interview_language=locale)
-            context['source']['id'] = original['source']['id']
+            governed, context = fixture()
+            context.update(reply_contract='reply-v2', two_lane_memory=True, interview_language=locale)
+            context['source']['text'] = text
             context['sources'] = [context['source']]
-            for hint in (detail, broader):
-                hint['source_id'] = context['source']['id']
-            if locale == 'zh-CN':
-                detail['question'] = '当时等爸爸的时候，您具体做了什么？'
-                broader['question'] = '说起住在那个家的日子，您会想到什么？'
+            context['events'] = [dict(id='family-home', revision=1,
+                yearConfidenceScore=0.1, needs_confirmation=dict(year=True))]
             packet = json.loads(governed.packet)
             packet['current']['narrator'].update(original=text, char_end=len(text),
                 version=context['source']['version'], language=locale)
@@ -158,9 +153,9 @@ def lane_b_cases():
             packet.update(instructions=reply_instructions(), interview_context={
                 key: value for key, value in context.items() if key not in {'source', 'sources'}})
             view = reply_packet(validate_governed_context(encode(packet), context))
-            expected = dict(confirmation='Ask the prepared clarification without asserting its proposed answer.',
-                recall='Accept the recall limit, leave the detail unresolved and offer the broader home-memory hint.',
-                redirect='Follow the sister topic; the current boundary overrides both Lane B hints.')[kind]
+            expected = dict(confirmation='Use saved uncertainty only as context; choose a useful neutral follow-up without asserting an unconfirmed year.',
+                recall='Accept the recall limit, leave the detail unresolved and offer a connected broader home-memory question.',
+                redirect='Follow the sister topic; background uncertainty must not override the current boundary.')[kind]
             result.append(dict(id=f'lane-b/{kind}/{locale}', context=context, view=view,
                 criteria=dict(required=[expected])))
     return result

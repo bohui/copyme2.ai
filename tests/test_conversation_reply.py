@@ -17,8 +17,8 @@ def reply_context(text='My brother Ming moved to Perth.'):
 
 def proposal():
     return dict(acknowledgement='We can follow that memory.', recall_limit_quote=None, question='What do you remember about the move?',
-        reason='latest_story', hint=None, quote=None, strategy='explore', workspace_focus=None,
-        deferred_hints=[], historical_clue_id=None, resolved_questions=[], associations=[], response_photo_ids=[])
+        reason='latest_story', quote=None, strategy='explore', workspace_focus=None,
+        historical_clue_id=None, associations=[], response_photo_ids=[])
 
 
 def test_next_question_selects_one_grounded_city_from_a_two_city_reply():
@@ -163,9 +163,8 @@ def test_correction_without_a_followup_keeps_extract_work_and_no_question_outcom
 @pytest.mark.parametrize('mode', ['extract', 'reply_only'])
 def test_older_worker_handoff_cannot_select_background_work_or_update_profile(mode):
     raw = {**proposal(), 'work': {'mode': mode, 'name': 'Avery'}}
-    result = validate_governed_collector_result(raw, reply_context('Please call me Avery. I grew up in Perth.'))
-    assert result['immediate_name'] is None
-    assert result['plan']['work'] == {'mode': 'extract', 'name': None}
+    with pytest.raises(ValueError, match='Extra inputs are not permitted'):
+        validate_governed_collector_result(raw, reply_context('Please call me Avery. I grew up in Perth.'))
 
 
 def test_pending_hint_uses_exact_host_evidence_and_current_intent_can_override_it():
@@ -176,10 +175,11 @@ def test_pending_hint_uses_exact_host_evidence_and_current_intent_can_override_i
         char_start=11, char_end=30, requires_confirmation=True)]
     raw = {**proposal(), 'question': ctx['prepared_questions'][0]['question'],
            'hint': 0, 'reason': 'prepared_candidate'}
-    result = validate_governed_collector_result(raw, ctx)
-    assert result['plan']['chosen_id'] == ctx['prepared_questions'][0]['id']
     with pytest.raises(ValueError):
-        validate_governed_collector_result({**raw, 'quote': 'Invented words'}, ctx)
+        validate_governed_collector_result(raw, ctx)
+    result = validate_governed_collector_result(proposal(), ctx)
+    assert result['plan']['candidates'][0]['question'] == proposal()['question']
+    assert result['plan']['chosen_id'].startswith('immediate-')
     stopped = validate_governed_collector_result({**proposal(), 'question': None, 'reason': 'pause'}, ctx)
     assert stopped['plan']['candidates'] == []
 
@@ -268,36 +268,34 @@ def test_retired_work_hint_does_not_repair_the_reply_or_publish_a_name(tmp_path,
     packet.update(instructions=reply_instructions(), interview_context={
         key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
     invalid = {**proposal(), 'work':{'mode':'extract', 'name':'Stored name absent from source'}}
-    captured = install_reply_provider(monkeypatch, [invalid])
+    captured = install_reply_provider(monkeypatch, [invalid, proposal()])
     result = asyncio.run(run_governed_collector(command=['fake'], home_root=tmp_path,
         base_url='http://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
         governed=encode(packet), interview_context=ctx, publisher=FakePublisher()))
-    assert len(captured) == 1
+    assert len(captured) == 2
     assert 'work' not in captured[0]['text']['format']['schema']['properties']
-    assert json.loads(result['reply']) == invalid
+    assert json.loads(result['reply']) == proposal()
 
 
-def test_hint_quote_mismatch_is_rejected_then_repaired_without_replacing_its_evidence(tmp_path, monkeypatch):
+def test_invalid_current_quote_is_repaired_without_adding_a_question_pool(tmp_path, monkeypatch):
     import asyncio
     from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
     from test_conversation_reply_transport import install_reply_provider
-    from test_reply_v2_contract_compatibility import hint
     from apps.api.lifetime_memory_engine import run_governed_collector
     governed, ctx = fixture()
-    candidate = hint(ctx, 'a')
-    ctx.update(reply_contract='reply-v2', two_lane_memory=True, prepared_questions=[candidate])
+    ctx.update(reply_contract='reply-v2', two_lane_memory=True)
     packet = json.loads(governed.packet)
     packet.update(instructions=reply_instructions(), interview_context={
         key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
-    valid = {**proposal(), 'hint': 0, 'question': candidate['question'], 'reason': 'prepared_candidate'}
+    valid = {**proposal(), 'quote': ctx['source']['text']}
     invalid = {**valid, 'quote': 'Invented evidence'}
     before = deepcopy(invalid)
-    with pytest.raises(ValueError, match='cannot change its referenced passage'):
+    with pytest.raises(ValueError, match='exact passage'):
         validate_governed_collector_result(invalid, ctx)
     assert invalid == before
     def repaired(body):
-        assert 'CONTRACT_31' in body['input'][-2]['content']
-        assert 'set quote=null' in body['input'][-2]['content']
+        assert 'CONTRACT_23' in body['input'][-2]['content']
+        assert 'hint' not in body['text']['format']['schema']['properties']
         return valid
     captured = install_reply_provider(monkeypatch, [invalid, repaired])
     result = asyncio.run(run_governed_collector(command=['forbidden'], home_root=tmp_path,
@@ -305,7 +303,7 @@ def test_hint_quote_mismatch_is_rejected_then_repaired_without_replacing_its_evi
         governed=encode(packet), interview_context=ctx, publisher=FakePublisher()))
     assert len(captured) == 2
     adapted = validate_governed_collector_result(json.loads(result['reply']), ctx)
-    assert adapted['plan']['candidates'][0]['context']['evidence']['quote'] == candidate['quote']
+    assert adapted['plan']['candidates'][0]['context']['evidence']['quote'] == ctx['source']['text']
 
 
 @pytest.mark.parametrize('language,current', [
@@ -379,7 +377,7 @@ def test_ready_news_preserves_miras_explicit_stop(
     packet.update(instructions=reply_instructions(), interview_context={
         key: value for key, value in ctx.items() if key not in {'source', 'sources'}})
     raw = {**proposal(), 'acknowledgement': stopped, 'question': None, 'reason': 'pause',
-        'quote': current if anchored else None, 'work': {'mode': 'reply_only', 'name': None}}
+        'quote': current if anchored else None}
     captured = install_reply_provider(monkeypatch, [raw])
     visible = []
     async def delta(value):

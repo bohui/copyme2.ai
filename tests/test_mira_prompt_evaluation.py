@@ -34,22 +34,23 @@ def test_realtime_probes_use_no_background_question_pool_and_append_optional_new
     inputs = realtime_cases()
     assert len(inputs) == len({case['id'] for case in inputs}) == 12
     for case in inputs:
-        assert case['view']['brief']['hints'] == []
+        assert set(case['view']['brief']) == {'covered_through_sequence'}
         messages = reply_messages(case['view'], '')
         assert messages[-1]['content'] == case['context']['source']['text']
-        updates = json.loads(messages[1]['content'])['memoir_context']['updates']
+        updates = json.loads(messages[-2]['content'])['memoir_context']['updates']
         if case['id'].split('/')[1].endswith('news'):
             assert 'memoir-historical-news-research' in updates['deliveries']
-        assert updates['brief']['current']['hint_order'] == 'highest_priority_first'
+        assert set(updates['brief']['current']) == {'covered_through_sequence'}
         assert 'criteria' not in json.dumps(case['view'])
 
 
-def test_lane_b_probes_keep_prepared_hints_and_current_narration_in_the_real_packet():
+def test_lane_b_probes_supply_context_without_prepared_questions():
     cases()  # Load the existing shared fixture modules.
     inputs = lane_b_cases()
     assert len(inputs) == 6
     for case in inputs:
-        assert len(case['view']['brief']['hints']) == 2
+        assert set(case['view']['brief']) == {'covered_through_sequence'}
+        assert case['view']['background_deliveries'][0]['events']
         assert case['view']['current']['narrator']['original'] == case['context']['source']['text']
 
 

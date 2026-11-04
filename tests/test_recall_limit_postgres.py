@@ -5,7 +5,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from apps.api.conversation_reply import reply_candidates
+from apps.api.conversation_reply import reply_schema
 from test_conversation_reply import proposal
 from test_interview_strategy_runtime import client_fixture
 from test_two_lane_memory import (database, sql, event_database, private_database, attachment_database,
@@ -33,10 +33,8 @@ def test_mira_saves_her_connected_question_after_recall_limit_and_ignores_legacy
         if len(calls) == 1:
             output.update(question='How did you help?', quote=story)
         else:
-            hints = reply_candidates(context)
-            assert hints==[]
-            output.update(question=broader, reason='recall_limit',recall_limit_quote=limited,
-                          work={'mode': 'reply_only', 'name': None})
+            assert 'hint' not in reply_schema(context)['properties']
+            output.update(question=broader, reason='recall_limit',recall_limit_quote=limited)
         return httpx.Response(200, json={'reply': json.dumps(output), 'thread_id': 'recall-test', 'artifacts': []})
 
     with client_fixture(sql, tmp_path, monkeypatch, provider) as client:

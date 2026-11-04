@@ -139,6 +139,6 @@ def native_messages(view, prompt=''):
     if prompt:
         instructions.append(dict(type='input_text', text=prompt))
     context, history = conversation_context(view)
-    return [dict(role='developer', content=instructions),
-        dict(role='user', content=context_update(context)), *history,
+    return [dict(role='developer', content=instructions), *history,
+        dict(role='user', content=context_update(context)),
         dict(role='user', content=view['current']['narrator']['original'])]

@@ -7,7 +7,7 @@ from uuid import uuid4
 import httpx
 import pytest
 
-from apps.api.conversation_reply import reply_candidates
+from apps.api.conversation_reply import reply_schema
 from apps.api.historical_news import HistoricalResearch
 from test_conversation_reply import proposal
 from test_historical_news import evidence, receipt
@@ -31,7 +31,7 @@ def test_mira_decides_whether_ready_news_changes_the_reply_and_replays_her_choic
         context = json.loads(request.content)['interview_context']
         calls.append(context)
         output = proposal()
-        assert reply_candidates(context)==[]
+        assert 'hint' not in reply_schema(context)['properties']
         news = context.get('historical_news',{}).get('clues',[])
         if news:
             output.update(acknowledgement='您还记得波士顿的生活。' if language=='zh-CN' else 'You remember your life in Boston.',
@@ -107,9 +107,9 @@ def test_ready_news_can_save_and_replay_an_explicit_stop_without_touching_the_pr
         output = proposal()
         if len(calls) == 2:
             assert context['historical_news']['clues'], 'Exercise a ready clue at actual reply admission'
-            assert reply_candidates(context)==[]
+            assert 'hint' not in reply_schema(context)['properties']
             output.update(acknowledgement=acknowledgement, question=None, reason='pause',
-                historical_clue_id=None,work={'mode': 'reply_only', 'name': None})
+                historical_clue_id=None)
         return response(request, output)
 
     class PublicSources:
@@ -177,7 +177,7 @@ def test_correction_after_stop_saves_and_replays_without_reopening_questions_or_
         output = proposal()
         if len(calls) == 2:
             output.update(acknowledgement='好的，今天就到这里。' if language == 'zh-CN' else 'We’ll stop here for today.',
-                          question=None, reason='pause', work={'mode': 'reply_only', 'name': None})
+                          question=None, reason='pause')
         elif len(calls) == 3:
             assert stop in json.dumps(context['recent_dialogue'], ensure_ascii=False)
             output.update(acknowledgement=acknowledgement, question=None, reason='current_correction', quote=correction)
@@ -234,7 +234,7 @@ def test_mira_makes_interviewing_decisions_in_the_current_saved_reply(sql, tmp_p
         context = json.loads(request.content)['interview_context']
         calls.append(context)
         output = proposal()
-        assert reply_candidates(context)==[]
+        assert 'hint' not in reply_schema(context)['properties']
         output.update(question=question)
         return response(request, output)
 

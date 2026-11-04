@@ -91,7 +91,13 @@ def test_rebuilt_history_keeps_source_references_without_repeating_originals(tmp
             pass
     asyncio.run(run())
     items = next(call[1]['items'] for call in Native.calls if call[0] == 'thread/inject_items')
-    entities = json.loads(items[0]['content'][0]['text'])['memoir_context']['updates']
+    context_item = next(item for item in items
+        if item['role'] == 'user' and item['content'][0]['text'].startswith('{"memoir_context":'))
+    entities = json.loads(context_item['content'][0]['text'])['memoir_context']['updates']
+    context_index = items.index(context_item)
+    assert context_index > 0
+    assert all(item['role'] in {'user', 'assistant'} for item in items[:context_index])
+    assert all(item['role'] == 'developer' for item in items[context_index + 1:])
     references = {ref['source_id']: ref for ref in entities['evidence'].values()}
     for packet in (first, second):
         narrator = packet.current.narrator

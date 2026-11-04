@@ -278,13 +278,12 @@ test('real memory saves and named skill events remain visible, simulated traces 
  assert.equal(context.renderAgentTrace(steps,'simulated'),'');
 });
 
-test('thinking steps show Lane A selecting the connected Lane B direction', () => {
+test('thinking steps hide retired Lane B question-selection claims', () => {
  const context=vm.createContext({state:{showThinkingSteps:true},escapeHtml,translate:key=>key});
  vm.runInContext(extract('renderAgentTrace'),context);
  for(const detail of ['Selected Lane B guidance · connected topic transition','已选用 B 访谈建议 · 衔接新话题']) {
   const html=context.renderAgentTrace([{id:'question-selection',kind:'progress',status:'completed',detail}],'live');
-  assert.match(html,/data-step-id="question-selection"[^>]*data-lane="A"/);
-  assert.ok(html.includes('A · '+detail));
+  assert.equal(html,'');
  }
 });
 
@@ -339,7 +338,7 @@ test('thinking steps hide private question candidates including legacy traces', 
  const html=context.renderMessage({id:'m',role:'assistant',text:'Where did you play?',trace,traceMode:'live'});
  const thinking=html.slice(html.indexOf('<details'),html.indexOf('</details>'));
  assert.doesNotMatch(thinking,/class="agent-question-pool"/);
- assert.match(thinking,/LLM call · Reply and question pool generated/);
+ assert.doesNotMatch(thinking,/question pool|Generated question pool · 2 candidates|data-step-id="question-pool"/);
  assert.match(thinking,/read_file · Completed/);
  assert.match(thinking,/Conversation memory saved/);
  assert.doesNotMatch(thinking,/data-candidate-id|You also mentioned the garden|Who was with you/);
@@ -357,5 +356,5 @@ test('private question candidates are excluded from local trace persistence', ()
   sessionStorage:{setItem:(key,value)=>{saved=value;},getItem:()=>saved},cleanAssistantText:text=>text});
  for(const name of ['chatHistoryStorageKey','readBrowserValue','saveBrowserValue','persistChatHistory','restoreChatHistory']) vm.runInContext(extract(name),context);
  context.persistChatHistory();
- assert.deepEqual(JSON.parse(JSON.stringify(context.restoreChatHistory('p')[0].trace)),[{id:'question-pool',status:'completed'}]);
+ assert.deepEqual(JSON.parse(JSON.stringify(context.restoreChatHistory('p')[0].trace)),[]);
 });

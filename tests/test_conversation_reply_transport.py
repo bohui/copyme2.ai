@@ -97,6 +97,29 @@ def test_background_context_is_labeled_as_application_data_before_current_narrat
     assert settings['view'] == before
 
 
+@pytest.mark.parametrize('answer', ['The village school.', '是村里的小学。'])
+def test_history_then_atlas_context_then_latest_answer_without_repeating_the_question(answer):
+    from apps.api.conversation_reply import reply_packet
+    from test_interview_native_session import packets
+    first, second, _, question = packets()
+    view = reply_packet(second)
+    view['current']['narrator'].update(original=answer, char_end=len(answer))
+    view['background_deliveries'] = [dict(skill='memoir-memory-context',
+        items=[dict(text='Synthetic saved school context')])]
+    before = deepcopy(view)
+    messages = transport.reply_messages(view, '')
+    assert [message['role'] for message in messages] == ['developer', 'user', 'assistant', 'user', 'user']
+    assert messages[1]['content'] == first.current.narrator.original
+    assert messages[2]['content'] == question
+    assert sum(message.get('content') == question for message in messages) == 1
+    context = json.loads(messages[-2]['content'])['memoir_context']
+    assert context['origin'] == 'application' and context['narrator_message'] is False
+    assert context['updates']['deliveries']['memoir-memory-context']['items']
+    assert messages[-1] == dict(role='user', content=answer)
+    assert 'Synthetic saved school context' not in json.dumps([messages[0], *messages[1:3], messages[-1]])
+    assert view == before
+
+
 def test_actual_request_is_tools_free_scoped_and_keeps_schema_and_route():
     captured = []
     def provider(request):
@@ -425,7 +448,9 @@ def test_retry_can_cite_an_earlier_place_and_repair_multiple_questions(monkeypat
     def repair(body):
         guidance = body['input'][-2]['content']
         assert code in guidance and 'one question' in guidance
-        entities = json.loads(body['input'][1]['content'])['memoir_context']['updates']
+        application = next(message for message in body['input']
+            if isinstance(message.get('content'), str) and message['content'].startswith('{"memoir_context":'))
+        entities = json.loads(application['content'])['memoir_context']['updates']
         earlier_ref, = [ref for ref in entities['evidence'].values() if ref['conversation_sequence']==1]
         assert earlier_ref['source_id'] == prior['narrator']['source_id'] and 'text' not in earlier_ref
         return dict(proposal(), question='What do you remember about the river?',

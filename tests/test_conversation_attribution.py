@@ -88,20 +88,18 @@ class Conversation:
                     pause = body['interview_context']['source']['text'].startswith('Please stop.')
                     output = wire(question=None if pause else 'What happened next?',used_strategy=strategy,
                         selection_reason='pause' if pause else 'latest_story',stopped=bool(pause),work={'mode':work,'name':name})
-                from apps.api.conversation_reply import reply_candidates
+                from apps.api.interview_strategy import selection_candidates
                 from apps.api.interview_questions import hint_evidence
-                hints = reply_candidates(context)
+                hints = [] if context.get('reply_contract') == 'reply-v2' else selection_candidates(context)
                 selected = hints[0] if hints else None
                 reflection = (context.get('interview_guidance') or {}).get('acknowledgement_guidance')
                 if context.get('reply_contract') == 'reply-v2':
                     from test_conversation_reply import proposal as reply_proposal
-                    output = {**reply_proposal(), 'work': {'mode':work, 'name':name}}
+                    output = reply_proposal()
                     if strategy:
                         output['strategy'] = strategy
                     if context['source']['text'].startswith('Please stop.'):
-                        output.update(question=None, reason='pause', work={'mode':'reply_only', 'name':None})
-                    elif selected:
-                        output.update(hint=0, reason='prepared_candidate', question=selected['question'])
+                        output.update(question=None, reason='pause')
                 elif selected and not (strategy and output.get('stopped')):
                     if strategy:
                         output.update(question=selected['question'], selected_candidate_id=selected['id'],

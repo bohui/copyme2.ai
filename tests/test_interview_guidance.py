@@ -103,9 +103,9 @@ def test_retired_guidance_cannot_dispatch_a_model_or_register_a_prompt():
 
 
 def test_ready_research_without_a_guidance_selection_is_not_a_question():
-    from apps.api.conversation_reply import reply_candidates
+    from apps.api.conversation_reply import reply_schema
     from test_historical_news import ready_context
-    assert reply_candidates(dict(ready_context(),two_lane_memory=True))==[]
+    assert 'hint' not in reply_schema(dict(ready_context(),two_lane_memory=True))['properties']
 
 
 def test_unique_original_quotes_repair_model_offset_counts_without_guessing_repeated_passages():

@@ -383,23 +383,18 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
         return _admission(publisher, json.loads(fence_snapshot))
     # Snapshot validation-only data before awaiting provider work.
     interview_context = deepcopy(interview_context)
-    from .interview_plan import (CollectorVisibleStream, historical_acknowledgement_allowed,
-                                defer_prepared_acknowledgement)
+    from .interview_plan import CollectorVisibleStream, historical_acknowledgement_allowed
     visible = CollectorVisibleStream()
     streamed_acknowledgement = None
-    defer_acknowledgement = defer_prepared_acknowledgement(interview_context)
 
     async def model_delta(chunk):
         nonlocal streamed_acknowledgement
-        # Prepared copy depends on the validated current intent and chosen question.
-        if defer_acknowledgement:
-            return
         if revisable:
             await on_delta(chunk)
             return
         value = visible.feed(chunk)
         if (value and historical_acknowledgement_allowed(value, interview_context)
-            and (acknowledgement is None or value == acknowledgement)):
+                and (acknowledgement is None or value == acknowledgement)):
             streamed_acknowledgement = value
             # Only the complete validated acknowledgement crosses this boundary.
             await on_delta(json.dumps({'acknowledgement': value}, ensure_ascii=False))
@@ -498,7 +493,7 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
              'Question candidate cannot change its referenced passage': 'CONTRACT_31',
              'Workspace focus requires a question and an original coarse place': 'CONTRACT_32',
              'Workspace focus quote must match one original passage in its selected source': 'CONTRACT_32',
-             'Public context requires one optional question without personal evidence or a prepared hint': 'CONTRACT_33',
+             'Public context requires one optional question without personal evidence': 'SCHEMA_FIELD_historical_clue_id',
              'Prepared candidate text changed': 'CONTRACT_19',
              'Privacy and commitment continuity require asserted direct narrator wording': 'CONTRACT_20',
              'Question candidates must be distinct': 'CONTRACT_21',
@@ -531,9 +526,8 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn',reason=reason) from None
         if session is not None:
             session.accept(validated['reply'])
-    if on_delta and streamed_acknowledgement is None and (not revisable or defer_acknowledgement):
-        await on_delta(json.dumps({'acknowledgement': validated['acknowledgement']}, ensure_ascii=False)
-                       if defer_acknowledgement else reply)
+    if on_delta and streamed_acknowledgement is None and not revisable:
+        await on_delta(reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
         'cold_resume_reason':(None if session.resumed else 'missing') if session is not None
             else ('unvalidated_transcript' if thread_id else 'missing')}

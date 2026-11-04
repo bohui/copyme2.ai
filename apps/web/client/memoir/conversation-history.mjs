@@ -108,7 +108,8 @@ export function createConversationHistory({
         if (message.responsePhotos?.length) saved.responsePhotos = state.photoTurns?.cards(message.responsePhotos);
         if (Array.isArray(message.cues) && message.cues.length) saved.cues = message.cues;
         if (Array.isArray(message.trace) && message.trace.length) {
-          saved.trace = message.trace.map(({question_pool, ...step}) => step);
+          saved.trace = message.trace.filter(step => !["question-pool", "question-selection"].includes(step.id))
+            .map(({question_pool, ...step}) => step);
           saved.traceMode = message.traceMode;
         }
         if (message.action && typeof message.action === "object") {
@@ -162,7 +163,8 @@ export function createConversationHistory({
             responsePhotos: state.photoTurns?.cards(message.responsePhotos),
             historicalContext: message.historicalContext ? historicalContext(message.historicalContext) : null,
             cues: Array.isArray(message.cues) ? message.cues : undefined,
-            trace: Array.isArray(message.trace) ? message.trace : undefined,
+            trace: Array.isArray(message.trace) ? message.trace.filter(step => !["question-pool", "question-selection"].includes(step.id))
+              .map(({question_pool, ...step}) => step) : undefined,
             traceMode: typeof message.traceMode === "string" ? message.traceMode : undefined,
             action,
           };

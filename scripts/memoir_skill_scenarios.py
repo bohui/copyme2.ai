@@ -231,8 +231,7 @@ def build_cases():
                 elif short == 'interviewer':
                     task['context'] = dict(source=source, sources=[source], events=[], photos=[],
                         photo_context=[], interview_language=locale, plan=None,
-                        strategy_selector=True, two_lane_memory=True, opening_turn=False,
-                        has_accepted_narration=True, strategy_context=dict(mode='active', plan=None))
+                        two_lane_memory=True, opening_turn=False, has_accepted_narration=True)
                     task['strategy'] = 'explore'
                     gold['facts'] = dict(stopped=case == 'pause', question=case != 'pause',
                         selection_reason={'pause': 'pause', 'redirect': 'user_redirect',

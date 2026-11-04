@@ -83,8 +83,8 @@ def test_parallel_reply_replaces_only_current_turn_and_never_saves_before_policy
             question=(('父亲有没有帮助您在悉尼安顿下来？' if chinese else 'Did your father help you settle in Sydney?') if stale else
                 ('您初到悉尼时，什么最让您难忘？' if chinese else 'What stands out about your first days in Sydney?'))
             raw=json.dumps(dict(acknowledgement=acknowledgement,question=question,
-                reason='latest_story' if first or outcome=='clear' else 'user_redirect',hint=None,
-                quote=None,work=dict(mode='extract',name=None),resolved_questions=[]),ensure_ascii=False)
+                reason='latest_story' if first or outcome=='clear' else 'user_redirect',
+                quote=None),ensure_ascii=False)
             class Stream(httpx.AsyncByteStream):
                 async def __aiter__(self):
                     yield sse(events(raw)[:1])

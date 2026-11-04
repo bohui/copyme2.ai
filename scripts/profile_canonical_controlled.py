@@ -83,8 +83,7 @@ def controlled_reply_provider():
             replies.append(body)
             output = dict(acknowledgement='We can follow that memory.',
                 question='What other details do you remember?', reason='latest_story',
-                hint=None, quote=None, recall_limit_quote=None,
-                work=dict(mode='extract', name=None), resolved_questions=[])
+                quote=None, recall_limit_quote=None)
         else:
             output = dict(complete=True, restrictions=[], reason=None)
         text = json.dumps(output)

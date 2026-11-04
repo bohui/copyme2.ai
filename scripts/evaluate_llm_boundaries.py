@@ -22,9 +22,8 @@ def contract(case):
     source = dict(id='00000000-0000-4000-8000-000000000001', version=1, sequence=1,
                   status='active', kind='narrator_chat', text=case['source'], language=case['locale'], author_role='storyteller')
     context = dict(source=source, sources=[source], events=[], photos=[], photo_context=[],
-                   interview_language=case['locale'], active_strategy='explore', strategy_selector=True,
-                   two_lane_memory=True, reply_contract='reply-v2', prepared_questions=[],
-                   reply_language=case['locale'], brief={'hints': []})
+                   interview_language=case['locale'], two_lane_memory=True,
+                   reply_contract='reply-v2', reply_language=case['locale'])
     if case['contract'] == 'policy':
         return load_prompt_artifact(prompt_path('memoir/agents/mira/policy-review')), PolicyReview.model_json_schema(), {'source': source}
     if case['contract'] == 'collector':

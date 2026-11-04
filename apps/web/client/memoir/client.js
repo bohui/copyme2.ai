@@ -2917,8 +2917,8 @@ function renderAgentTrace(trace, mode = "simulated", expanded = false, clientTur
   const draft = state.privateDraft && clientTurnId ? privateDraftThinkingStep(clientTurnId) : "";
   if (mode === "simulated" && !draft) return "";
   // Routine transport and persistence events are not useful conversation steps.
-  const visibleSteps = mode === "simulated" ? [] : trace.filter(step => step.skill || (!["context", "reply"].includes(step.id)
-    && (step.id !== "workspace" || ["completed", "failed"].includes(step.status))));
+  const visibleSteps = mode === "simulated" ? [] : trace.filter(step => !["question-pool", "question-selection"].includes(step.id) && (step.skill || (!["context", "reply", "collector-call"].includes(step.id)
+    && (step.id !== "workspace" || ["completed", "failed"].includes(step.status)))));
   if (!visibleSteps.length && !draft) return "";
   const title = escapeHtml(translate("Memoir.trace.title"));
   const steps = visibleSteps.map((step) => {

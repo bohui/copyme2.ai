@@ -148,8 +148,8 @@ def test_current_pinned_judge_accepts_comment_list_but_requires_evidence():
 def caption_reply(case):
     return dict(acknowledgement='The caption supplies that description.', recall_limit_quote=None,
         reason='current_correction', strategy='comfort', quote=case['task']['context']['source']['text'],
-        hint=None, deferred_hints=[], question=None, workspace_focus=None, historical_clue_id=None,
-        resolved_questions=[], associations=[], response_photo_ids=[])
+        question=None, workspace_focus=None, historical_clue_id=None,
+        associations=[], response_photo_ids=[])
 
 
 def test_caption_correction_may_acknowledge_without_another_question():

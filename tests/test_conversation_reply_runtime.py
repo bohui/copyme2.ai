@@ -26,8 +26,6 @@ def saved_turn(sql, tmp_path, monkeypatch, *, text='My brother Ming moved to Per
         from apps.api.lifetime_memory_engine import GOVERNED_TURN_PROMPT
         assert len(packet['instructions'] + '\n' + GOVERNED_TURN_PROMPT) < 2000
         output = proposal()
-        if name is not None:
-            output['work'] = {'mode': mode, 'name': name}
         return httpx.Response(200, json={'reply': json.dumps(output), 'thread_id': 'small-reply', 'artifacts': []})
     client = client_fixture(sql, tmp_path, monkeypatch, provider)
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_PROMPT_VERSION', 'reply-v2')

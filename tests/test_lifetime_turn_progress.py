@@ -9,7 +9,12 @@ import pytest
 
 from apps.api.codex_runtime import CodexRuntime
 from apps.api.lifetime_memory_runtime import LifetimePublicationContext
-from test_lifetime_memory_engine import FENCE, IDENTITY, TEXT, fixture, valid_reply
+from test_lifetime_memory_engine import FENCE, IDENTITY, TEXT, fixture
+from test_conversation_reply import proposal
+
+
+def valid_reply():
+    return json.dumps({**proposal(), 'question': 'Where did you carry it?'})
 
 
 class Storage:
@@ -35,18 +40,19 @@ class Storage:
             return FENCE.model_dump(mode='json')
         if name == 'validate_lifetime_replay_input':
             return False
-        if name in {'read_lifetime_reply', 'read_lifetime_checkpoint', 'claim_lifetime_memory_obligation',
-                    'read_lifetime_policy_review'}:
+        if name in {'read_lifetime_two_lane_reply', 'read_lifetime_checkpoint_before',
+                    'read_lifetime_policy_review', 'read_lifetime_workspace_focus'}:
             return None
         if name == 'read_lifetime_policy_status':
             return {'pending': False}
         if name == 'read_lifetime_interview_context':
             return {'historical_news': {},
                     'has_accepted_narration': False, 'events': [], 'photo_context': []}
-        if name == 'read_lifetime_tail':
+        if name == 'read_lifetime_two_lane_tail':
             return {'records': [], 'tombstones': [], 'complete': True}
-        if name == 'commit_lifetime_turn':
-            return {'fence': FENCE.model_dump(mode='json'), 'interview': {'plan': kwargs['p_plan']}}
+        if name == 'commit_lifetime_strategy_turn':
+            return {'fence': FENCE.model_dump(mode='json'), 'interview': {'plan': kwargs['p_plan']},
+                    'memory': [{'id': str(uuid4())}]}
         raise AssertionError(f'Unexpected storage call: {name}')
 
 
@@ -60,7 +66,7 @@ class Lease:
 @pytest.mark.parametrize('execution', ['worker', 'local'])
 @pytest.mark.parametrize('streaming', [True, False])
 @pytest.mark.parametrize('thinking,drafts', [(True,True),(True,False),(False,True),(False,False)])
-def test_model_tool_activity_and_question_pool_share_the_same_turn_trace(tmp_path, monkeypatch, execution, streaming, thinking, drafts):
+def test_current_progress_excludes_retired_pools_and_private_model_activity(tmp_path, monkeypatch, execution, streaming, thinking, drafts):
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS', '1' if thinking else '0')
     monkeypatch.setenv('MEMORY_SPARK_SHOW_DRAFT_UPDATES', '1' if drafts else '0')
     monkeypatch.setenv('MEMORY_SPARK_COLLECTOR_MODEL', 'synthetic-byte-bpe')
@@ -115,16 +121,10 @@ def test_model_tool_activity_and_question_pool_share_the_same_turn_trace(tmp_pat
         if streaming:
             assert any(event['type'] == 'conversation_saved' for event in events)
         return
-    if streaming:
-        assert [event['data']['status'] for event in events
-                if event['type'] == 'progress' and event['data']['id'] == 'tool-1'] == ['running', 'completed']
-    activity = next((step for step in result['trace'] if step['id'] == 'tool-1'), None)
-    assert activity is not None, 'Tool calls disappeared from thinking steps; only the question pool remains'
-    assert activity['status'] == 'completed'
-    assert [step['id'] for step in result['trace']] == ['memory-context', 'collector-call', 'tool-1', 'save', 'question-pool']
+    assert not any(event['type'] == 'progress' and event['data']['id'] == 'tool-1' for event in events)
+    assert [step['id'] for step in result['trace']] == ['memory-context', 'collector-call', 'save']
     assert all(step['status'] == 'completed' for step in result['trace'])
-    pool = next(step for step in result['trace'] if step['id'] == 'question-pool')
-    assert 'question_pool' not in pool
+    assert not any(step['id'] in {'question-pool', 'question-selection'} for step in result['trace'])
     if streaming:
         saved = next(event['data'] for event in events if event['type'] == 'conversation_saved')
-        assert activity in saved['trace'] and pool in saved['trace']
+        assert saved['trace'] == result['trace']

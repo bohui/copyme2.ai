@@ -1,4 +1,4 @@
-"""A prepared clarification must not appear once in speech and again as its question."""
+"""Background guidance cannot replace or delay Mira's own acknowledgement."""
 import asyncio
 import json
 
@@ -19,7 +19,7 @@ from test_lifetime_memory_engine import fixture, encode, FakePublisher, BUDGET
      '雨伞是蓝色还是绿色的呢', '我们可以按您的节奏继续回忆。'),
 ])
 @pytest.mark.parametrize('revisable', [False, True])
-def test_unpunctuated_question_never_escapes_as_a_clarification_acknowledgement(
+def test_retired_guidance_cannot_supply_the_acknowledgement_or_next_question(
         tmp_path, monkeypatch, locale, current, question, unpunctuated, neutral, revisable):
     from apps.api.lifetime_memory_engine import run_governed_collector
     governed, context = fixture()
@@ -30,13 +30,14 @@ def test_unpunctuated_question_never_escapes_as_a_clarification_acknowledgement(
     context['prepared_questions'] = [dict(id='bq-' + 'a'*64, question=question,
         topic='umbrella', source_id=source['id'], source_version=source['version'],
         quote=current, char_start=0, char_end=len(current), requires_confirmation=True)]
+    context['interview_guidance'] = dict(acknowledgement_guidance=dict(text=unpunctuated))
     packet = json.loads(governed.packet)
     packet['current']['narrator'].update(original=current, char_end=len(current), language=locale)
     packet['pinned']['language'] = locale
     packet.update(instructions=reply_instructions(), interview_context={
         key: value for key, value in context.items() if key not in {'source', 'sources'}})
-    raw = {**proposal(), 'acknowledgement': unpunctuated,
-        'question': question, 'reason': 'prepared_candidate', 'hint': 0}
+    own_question = '那天还有什么让您记得？' if locale == 'zh-CN' else 'What else do you remember about that day?'
+    raw = {**proposal(), 'acknowledgement': neutral, 'question': own_question}
     captured = install_reply_provider(monkeypatch, [raw])
     monkeypatch.setenv('MEMORY_SPARK_PARALLEL_POLICY_REVIEW', '1' if revisable else '0')
     visible = []
@@ -46,13 +47,12 @@ def test_unpunctuated_question_never_escapes_as_a_clarification_acknowledgement(
         base_url='https://provider.invalid/v1', api_key='synthetic', model=BUDGET.model,
         governed=encode(packet), interview_context=context, publisher=FakePublisher(), on_delta=delta))
     accepted = validate_governed_collector_result(result['reply'], context)
-    assert accepted['reply'] == neutral + '\n\n' + question
+    assert accepted['reply'] == neutral + '\n\n' + own_question
+    assert unpunctuated not in accepted['reply']
     assert visible == [neutral]
     assert len(captured) == 1
 
 
-def test_captured_life_reflection_defers_the_generic_early_acknowledgement():
-    from apps.api.interview_plan import defer_prepared_acknowledgement
-    assert not defer_prepared_acknowledgement({})
-    context={'interview_guidance':{'acknowledgement_guidance':{'text':'Helping family seems to be a thread worth exploring.'}}}
-    assert defer_prepared_acknowledgement(context)
+def test_interview_plan_has_no_prepared_acknowledgement_adapter():
+    from apps.api import interview_plan
+    assert not hasattr(interview_plan, 'defer_prepared_acknowledgement')

@@ -593,8 +593,12 @@ matching API/worker code and published prompt receipts. Two lanes are enabled
 by default; the separate database rollout guard still applies. The [Mira prompt evaluation](docs/Langfuse_Prompt_Usage.md#mira-role-prompt-evaluation--29-october-2026) compares the concise role with the earlier instructions on 42 fictional bilingual cases.
 
 Mira continues a persistent Codex app-server thread with native user and assistant
-messages. New application context is appended as changes, with shared evidence
-supplied once; the current narrator message remains last. The schema and tool
+messages. Requests order Mira's system instructions, authorized chat history
+(including her preceding question), application context with any Atlas results,
+and the current narrator answer last. New application context is appended as
+changes, with shared evidence supplied once. Atlas supplies context only; Mira
+writes her own next question without a prepared-question pool or strategy handoff.
+The schema and tool
 definitions stay stable across ordinary turns, and Codex owns history compaction.
 Resumption requires proof that the preceding reply was committed under compatible
 source and privacy authority. Pausing a topic preserves saved exchanges; exclusions

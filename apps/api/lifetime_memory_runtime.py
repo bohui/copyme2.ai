@@ -211,7 +211,6 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if two_lane:
                     response['workspace_focus']=await call('read_lifetime_workspace_focus',p_project_id=project_id)
                 if (interview or {}).get('plan'):
-                    await progress.record_question_pool(interview['plan'])
                     if (interview['plan'].get('candidates')
                         and (interview.get('source') or {}).get('sequence')==fence['source_revision']):
                         # A successful retry can recover work skipped after failed delivery.
@@ -307,17 +306,14 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 if two_lane:
                     context['two_lane_memory']=True
                 from .policy_review import reviewed_acknowledgement
-                from .interview_plan import historical_acknowledgement_allowed, defer_prepared_acknowledgement
                 opening=None if revisable else reviewed_acknowledgement(reviewed_opening or policy_status.get('reviewed_acknowledgement'),
                     source,selected_language)
-                if (opening and not defer_prepared_acknowledgement(context)
-                        and historical_acknowledgement_allowed(opening,context)):
+                if opening:
                     context['reviewed_acknowledgement']=opening
                 else:
                     opening=None
                 collector=collector_configuration(runtime.model)
                 context['reply_contract'] = 'reply-v2'
-                context['strategy_selector'] = True  # Save Mira's decision without a background plan.
                 if revisable:
                     context.update(revisable_reply=True, policy_review_pending=pending_review)
                 overall=ContextBudget(model=collector.model,context_window=131072,input_budget=65536,output_headroom=8192,framing_headroom=2048)
@@ -358,7 +354,6 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 generation_state={'active':True, 'visible':visible}
                 async def delta(chunk, _state=generation_state):
                     if not _state['active']: return
-                    if defer_prepared_acknowledgement(context): return
                     value=_state['visible'].feed(chunk)
                     if value and on_delta:await on_delta(value)
                 async def collector_event(event, _state=generation_state, _pending=pending_review):
@@ -369,7 +364,7 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 async def retract(_state=generation_state):
                     _state['active']=False
                     await publication.emitter.begin_revision(draft=False)
-                await progress.update('collector-call','LLM call · Generating reply and question pool','LLM 调用 · 正在生成回复和问题池')
+                await progress.update('collector-call','Mira is preparing a reply','Mira 正在准备回复')
                 model_started=time.monotonic()
                 if publication.strategy_metrics is not None:
                     publication.strategy_timings.update(context_preparation_ms=round((model_started-turn_started)*1000,3),
@@ -439,16 +434,16 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                     raise
                 await progress.update('place-journey','Validated and saved place cues · '+places,
                     '已核实并保存地点线索 · '+places,status='completed',skill='memoir-place-journey')
-            await progress.update('collector-call','LLM call · Reply and question pool generated','LLM 调用 · 回复和问题池已生成',status='completed')
+            await progress.update('collector-call','Mira’s reply is ready','Mira 的回复已准备好',status='completed')
             await progress.update('save','Saving conversation memory','正在保存对话记忆')
             await publication.flush()  # no old queued chunk can be relabeled by our phase commit
             save_started=time.monotonic()
             try:
-                committed=await call('commit_lifetime_strategy_turn' if context.get('strategy_selector') else 'commit_lifetime_turn',p_fence=fence,p_client_turn_id=client_turn_id,p_plan=validated['plan'],
+                committed=await call('commit_lifetime_strategy_turn',p_fence=fence,p_client_turn_id=client_turn_id,p_plan=validated['plan'],
                     p_associations=validated['associations'],p_reply=validated['reply'],p_response_photo_ids=[p['photo_id'] for p in validated['response_photos']],
                     p_thread_id=result['thread_id'],p_prompt_version=context.get('reply_contract', 'lifetime-v1'),p_model=collector.model,p_continuity_updates=validated['continuity_updates'],
                     **({'p_name_update': validated['immediate_name']} if context.get('reply_contract') == 'reply-v2' else {}),
-                    **({'p_outcome':validated['strategy_outcome']} if context.get('strategy_selector') else {}))
+                    p_outcome=validated['strategy_outcome'])
             except PolicyMaintenancePending:
                 raise
             except Exception:
@@ -461,7 +456,6 @@ async def run_lifetime_turn(runtime,storage,text,*,publication,project_id=None,l
                 publication.strategy_timings.update(save_ms=round((time.monotonic()-save_started)*1000,3),
                     **committed.get('strategy_metrics',{}))
             await progress.update('save','Conversation memory saved','对话记忆已保存',status='completed')
-            await progress.record_question_pool(validated['plan'], context=context)
             has_question=validated['plan']['chosen_id'] is not None
             milestone_identity={'project_id':project_id,'client_turn_id':client_turn_id,'accepted_source_id':source['id']}
             if on_event and has_question:

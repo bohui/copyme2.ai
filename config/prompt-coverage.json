@@ -3,20 +3,26 @@
   "prompts": {
     "memoir/agents/mira/reply": {
       "use": "runtime",
-      "scenario": "Every narrator reply; native persistent Mira thread.",
+      "scenario": "Every narrator reply; persistent native Mira thread ordered as system instructions, authorized chat history, optional Atlas context and current narrator answer. Atlas supplies context only; Mira chooses one next question.",
       "consumers": [
         "apps/api/conversation_reply.py:reply_instructions"
       ],
       "regressions": [
         "tests/test_mira_realtime_interviewing.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_conversation_reply.py",
+        "tests/test_conversation_reply_transport.py",
+        "tests/test_interview_native_session.py",
+        "tests/test_lane_b_question_priorities.py",
+        "tests/test_recall_limit_questions.py",
+        "tests/test_skill_eval_interviewer.py"
       ],
       "review": {
         "prompt_sha256": "b4270c4c59303c8a7c101afb43c4661cf3ba1367047bd8040fc76378ddb54dfb",
         "datasets_sha256": "f4e50984772c88a24c769137b336145e5c9d5cf538eafff87fff9d7ef59d5aaf",
         "evaluators_sha256": "db6cd08b9b1a196bb7b0d4fce1797cb3d8034fbb7f8b72486f8b7fadd60ceff7",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "dataset_decision": "Replace local prepared-hint probes with bilingual context-only cases and add ordering, current-intent, recall-limit and rejected-handoff regressions. Existing hosted datasets and historical scores remain unchanged; they do not establish quality for this revised request/schema contract.",
+        "evaluator_decision": "Reuse correctness, relevance, completeness and safety rubrics: their grounded-follow-up and narrator-intent criteria still apply. Deterministic checks now enforce message ordering, strict rejection of pool/handoff fields and Atlas context isolation. Model-quality evaluation of this revised contract remains pending."
       }
     },
     "memoir/agents/mira/policy-review": {

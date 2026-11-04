@@ -54,8 +54,8 @@ def inventory():
     from apps.api.background_skills import SKILLS
     from apps.api.prompt_catalog import PROMPT_PATHS
     owners = {'memoir-' + name.split('/')[2] for name in PROMPT_PATHS if name.startswith('memoir/skills/')}
-    # Retain stable case IDs while evaluating Mira as an agent. Guidance is an
-    # embedded background dependency, without a standalone scenario catalog.
+    # Retain stable case IDs while evaluating Mira as an agent. Atlas supplies
+    # saved context; interviewing decisions belong to Mira.
     actual = set(SKILLS) | owners
     if any(name.startswith('memoir/agents/mira/') for name in PROMPT_PATHS):
         actual.add('memoir-interviewer')
@@ -177,14 +177,12 @@ def packet(item):
         instructions, schema = profile_contract(task['page'])
         payload = profile_packet(task['page'])
     elif skill == 'memoir-interviewer':
-        from apps.api.conversation_reply import reply_candidates, reply_instructions
+        from apps.api.conversation_reply import reply_instructions
         from apps.api.lifetime_memory_continuity import governed_collector_schema
         task['context'].update(reply_contract='reply-v2', two_lane_memory=True)
         instructions = reply_instructions()
         schema = governed_collector_schema(task['context'])
-        payload = {**task['context'], 'reply_language': item['locale'],
-            'brief': {'hints': [dict(index=index, **hint)
-                for index, hint in enumerate(reply_candidates(task['context']))]}}
+        payload = {**task['context'], 'reply_language': item['locale']}
     elif skill in {'memoir-author-timeline', 'memoir-place-journey'}:
         from apps.api.lifetime_memory_lane_engine import lane_contract, EXTRACTION_WINDOW_CONTRACT
         instructions, schema = lane_contract('extract', item['locale'], two_lane=skill == 'memoir-place-journey')
