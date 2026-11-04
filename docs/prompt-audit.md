@@ -88,13 +88,21 @@ evaluation target, controlled regression path and reviewed change receipt.
 **75 of 96 retained prompts have an active hosted dataset association.** That
 association remains weaker than version-specific execution and passing quality.
 
+One dataset, evaluator and evaluation run may cover multiple prompts together.
+The counts above already include shared workflow/component associations. For
+example, the historical-news core dataset and its hosted graders are associated
+with the instructions, discovery and contract prompts. Extend or reuse suitable
+shared suites for the remaining gaps; 21 missing associations do not imply 21
+new datasets. Cases and actual manifests must establish which prompts and branches
+were exercised within the shared run.
+
 The remaining **21 prompts without an active hosted dataset** are:
 
-| Group | Count | Missing evidence / required dataset |
+| Group | Count | Evidence to add to shared or focused suites |
 | --- | ---: | --- |
 | Judge/comparison components | 6 | Human-labelled, held-out calibration for paired Mira preference, semantic boundaries, shared trajectory system/rubric and five-case trajectory/guard. Synthetic wiring checks establish connectivity, not agreement with expert judgement. |
 | Diagnostic probe inputs | 10 | Explicit diagnostic fixtures for connectivity, worker transport, native search and the skill probes, or a documented decision to keep their command-level checks instead of a hosted dataset. Their outputs do not grade production skill quality. |
-| Selective summary | 1 | A direct summary dataset covering exact citations, prior summaries, uncertainty, restricted/deleted sources, empty output and budget retry. Existing summary regressions provide controlled correctness, not live summary quality. |
+| Selective summary | 1 | Summary cases in a shared workflow suite or focused dataset, covering exact citations, prior summaries, uncertainty, restricted/deleted sources, empty output and budget retry. Existing summary regressions provide controlled correctness, not live summary quality. |
 | Experimental styling repair | 1 | A CSS-only experiment fixture preserving source passages, markup/behavior, hidden states, accessibility and real desktop/touch replay. |
 | Speech policies | 3 | Modality-specific speech fixtures for default, en-AU and zh-CN; actual audio and pronunciation/intelligibility review. Text-only judges on bounded speech metadata are inappropriate. |
 

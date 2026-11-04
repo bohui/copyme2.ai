@@ -7,6 +7,12 @@ adds actual consumers, scenarios, controlled regression selectors and reviewed
 content hashes. [The generated table](prompt-coverage.md) joins those sources;
 [the audit](prompt-audit.md) records the remaining quality gaps.
 
+Coverage is many-to-many: reuse one dataset, evaluator and evaluation run across
+multiple prompts when its cases exercise their scenarios. Link every participating
+prompt through the target's `evaluated_prompts` and retain the actual prompt
+manifest for each case/run, including conditional branches. Review affected shared
+cases and graders when a prompt changes; reuse them when they remain suitable.
+
 When adding or changing a prompt, including a shared component:
 
 1. Trace the real assembler and its conditions. Record dynamic loaders, optional

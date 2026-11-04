@@ -51,6 +51,21 @@ def test_scored_dataset_items_do_not_certify_an_unverified_prompt_version():
     assert any('do not establish this prompt version' in gap for gap in row['gaps'])
 
 
+def test_one_dataset_and_evaluator_set_can_cover_multiple_prompts():
+    coverage, bindings = inputs()
+    target='memoir/skills/historical-news-research/discovery'
+    dataset=next(d for d in bindings['datasets'] if d['target']==target
+        and d['status']=='active' and d['name'].endswith('/golden/core'))
+    snapshot=json.loads((ROOT/'docs/prompt-audit-live.json').read_text())
+    report={r['name']:r for r in rows(coverage,bindings,snapshot)}
+    prompts=bindings['targets'][target]['evaluated_prompts']
+    assert len(prompts)>1
+    for name in prompts:
+        assert dataset['id'] in {d['id'] for d in report[name]['datasets']}
+        assert 'memoir/evaluators/shared/correctness' in report[name]['evaluators']
+        assert 'No active hosted dataset' not in report[name]['gaps']
+
+
 def test_missing_datasets_and_media_quality_remain_visible():
     coverage, bindings = inputs()
     report=rows(coverage,bindings)
