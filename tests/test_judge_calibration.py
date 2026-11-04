@@ -94,4 +94,5 @@ def test_installed_experiment_api_serialized_io_is_compared_with_full_answer_key
         output=json.dumps(expected['output']),expected_output=json.dumps(expected['expected_output']),scores=scores)
     client=NS(api=NS(experiments=NS(list_items=lambda **kwargs:NS(data=[item],meta=NS(cursor=None))),
         scores_v3=NS(get_many_v3=lambda **kwargs:NS(data=scores,meta=NS(cursor=None)))))
-    assert runner.readback(client,'experiment','dataset',[expected])['verified']
+    from datetime import datetime, timezone
+    assert runner.readback(client,'experiment','dataset',[expected],started_at=datetime.now(timezone.utc))['verified']

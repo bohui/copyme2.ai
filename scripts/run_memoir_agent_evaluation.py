@@ -395,6 +395,8 @@ def main(argv=None):
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--publish', action='store_true')
     parser.add_argument('--full', action='store_true')
+    parser.add_argument('--skill', action='append', choices=sorted(inventory()))
+    parser.add_argument('--agent', choices=['mira','atlas'], help='Mira = Lane A; Atlas = Lane B')
     parser.add_argument('--replay-receipt', type=Path, help='Regrade retained Lane A/B outputs; no model dispatch or advisory calls')
     parser.add_argument('--component', action='append', choices=['lane-a', 'lane-b', 'skills'])
     parser.add_argument('--case', action='append')
@@ -415,7 +417,10 @@ def main(argv=None):
     cases = catalog(full=args.full)
     if args.case and not set(args.case) <= {c['id'] for c in cases}:
         parser.error('unknown case; use --full to select an extended case')
-    cases = [c for c in cases if (not args.component or c['component'] in args.component) and (not args.case or c['id'] in args.case)]
+    component={'mira':'lane-a','atlas':'lane-b'}.get(args.agent)
+    cases = [c for c in cases if (not args.component or c['component'] in args.component)
+        and (not component or c['component']==component) and (not args.skill or c['skill'] in args.skill)
+        and (not args.case or c['id'] in args.case)]
     if not cases:
         parser.error('empty selection')
     if not args.execute:

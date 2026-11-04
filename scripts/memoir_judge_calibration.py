@@ -15,7 +15,7 @@ from scripts.prompt_registry import prompt_registry
 ROOT=Path(__file__).resolve().parents[1]
 SOURCE=ROOT/'tests/evaluation/shared_judge_calibration.json'
 TARGET='memoir/evaluators/shared/judge-calibration'
-DATASET=target_dataset(TARGET,'calibration','shared-v1')
+DATASET=target_dataset(TARGET,'calibration','shared-v2')
 ORIGIN='synthetic-specification-answer-key'
 
 

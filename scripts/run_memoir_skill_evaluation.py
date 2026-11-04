@@ -225,6 +225,30 @@ def evaluate(*, output, **_kwargs):
                       comment=output.get('reason', output['evidence']), data_type='NUMERIC')
 
 
+def evaluation_manifest(instructions, schema=None):
+    """Match actual static instructions, including evaluation-only prompt sources."""
+    from apps.api.model_request import digest as request_digest
+    from apps.api.prompt_composition import component_paths, render_prompt_artifact
+    from apps.api.prompt_artifact import load_prompt_artifact
+    from scripts.prompt_registry import prompt_registry
+    registry=prompt_registry()
+    paths=[]
+    for name,relative in registry.items():
+        path=ROOT/relative
+        source=load_prompt_artifact(path)
+        if source and (source in instructions or '{{prompt:' in source and render_prompt_artifact(path) in instructions):
+            for used in (path,*component_paths(source)):
+                if used not in paths:paths.append(used)
+    artifacts=[]
+    for path in paths:
+        pin=json.loads(path.with_name(path.name+'.langfuse.json').read_text())
+        load_prompt_artifact(path)
+        artifacts.append(dict(name=pin['name'],version=pin['version'],sha256=pin['sha256'],status='published'))
+    value=dict(artifacts=artifacts,prompt_sha256=request_digest(instructions),schema_sha256=request_digest(schema),
+        variant='live-evaluation')
+    return {**value,'manifest_sha256':request_digest(value)}
+
+
 class TracedProvider(LiveProvider):
     def __init__(self, *args, langfuse, **kwargs):
         super().__init__(*args, **kwargs)
@@ -234,10 +258,11 @@ class TracedProvider(LiveProvider):
         from apps.api.llm_tracing import trace_llm_call, update_llm_trace
         failure = None
         names = evaluation_trace_metadata(skill, case_id)
+        manifest=evaluation_manifest(instructions,schema)
         with trace_llm_call(names['generation_name'], trace_name=names['trace_name'],
                 client=self.langfuse, gateway=True,
                 input_summary=dict(instructions=instructions, packet=packet, **(dict(messages=messages) if messages is not None else {})),
-                metadata=dict(skill=skill, case_id=case_id)) as span:
+                metadata=dict(skill=skill, case_id=case_id,prompt_manifest=manifest)) as span:
             try:
                 value, response = await super().call(case_id, skill, instructions, packet, schema, search=search, messages=messages)
                 record = self.receipt['calls'][-1]
@@ -252,6 +277,9 @@ class TracedProvider(LiveProvider):
                 # Do not send transport exception strings (which can contain credentials).
                 update_llm_trace(span, level='ERROR', status_message=type(error).__name__)
                 failure = error
+            finally:
+                if self.receipt['calls'] and self.receipt['calls'][-1]['case_id']==case_id:
+                    self.receipt['calls'][-1]['prompt_manifest']=manifest
         save(self.directory / 'receipt.json', self.receipt)
         if failure is not None:
             raise failure

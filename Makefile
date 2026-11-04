@@ -65,12 +65,35 @@ SKILLS ?= $(sort $(notdir $(patsubst %/SKILL.md,%,$(wildcard skills/*/SKILL.md))
 .PHONY: memoir-live-skills-plan memoir-live-skills-test
 
 AGENT_EVAL_ARGS ?=
+EVAL_GATEWAY_URL ?= http://127.0.0.1:4000/v1
+EVAL_SKILL ?=
+EVAL_AGENT ?=
+JUDGE_SPLIT ?= all
+JUDGE_EVAL_ARGS ?=
+.PHONY: llm_judge_calibrate llm_judge_calibrate_plan prompt-eval-all prompt-eval-all-plan
+llm_judge_calibrate_plan: ## Inspect the shared LLM judge answer keys; zero model calls.
+	@python3 scripts/run_memoir_judge_calibration.py --split "$(JUDGE_SPLIT)" $(JUDGE_EVAL_ARGS)
+
+llm_judge_calibrate: ## Calibrate all LLM judges against shared answer keys and verify Langfuse scores.
+	@python3 scripts/run_memoir_judge_calibration.py --execute --split "$(JUDGE_SPLIT)" \
+		--env-file "$(ENV_FILE)" --credential-file "$(PROMPT_CREDENTIAL_FILE)" \
+		--base-url "$(EVAL_GATEWAY_URL)" $(JUDGE_EVAL_ARGS)
+
+prompt-eval-all-plan: ## Inspect the current prompt campaign and its coverage limits; zero model calls.
+	@python3 scripts/run_memoir_prompt_evaluation.py
+
+prompt-eval-all: ## Evaluate all supported agent/skill scenarios after calibration; publish per-prompt coverage gaps too.
+	@python3 scripts/run_memoir_prompt_evaluation.py --execute --gateway-url "$(EVAL_GATEWAY_URL)" \
+		--env-file "$(ENV_FILE)" --credential-file "$(PROMPT_CREDENTIAL_FILE)"
+
 .PHONY: memoir-agent-eval-plan memoir-agent-eval
 memoir-agent-eval-plan: ## Inspect the bounded current-agent/skill campaign; zero model calls.
-	@python3 scripts/run_memoir_agent_evaluation.py $(AGENT_EVAL_ARGS)
+	@python3 scripts/run_memoir_agent_evaluation.py $(if $(strip $(EVAL_SKILL)),--skill "$(EVAL_SKILL)",) $(if $(strip $(EVAL_AGENT)),--agent "$(EVAL_AGENT)",) $(AGENT_EVAL_ARGS)
 
 memoir-agent-eval: ## Run current agent/skill probes and verify published Langfuse experiments.
-	@python3 scripts/run_memoir_agent_evaluation.py --execute --publish $(AGENT_EVAL_ARGS)
+	@python3 scripts/run_memoir_agent_evaluation.py --execute --publish --gateway-url "$(EVAL_GATEWAY_URL)" \
+		--env-file "$(ENV_FILE)" --credential-file "$(PROMPT_CREDENTIAL_FILE)" \
+		$(if $(strip $(EVAL_SKILL)),--skill "$(EVAL_SKILL)",) $(if $(strip $(EVAL_AGENT)),--agent "$(EVAL_AGENT)",) $(AGENT_EVAL_ARGS)
 .PHONY: prompt-sync prompt-sync-check prompt-sync-install
 .PHONY: test-web test-place-research
 .PHONY: deps-install deps-update

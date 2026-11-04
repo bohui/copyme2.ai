@@ -9,20 +9,16 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from uuid import NAMESPACE_URL, uuid4, uuid5
+from uuid import uuid4
 
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:sys.path.insert(0,str(ROOT))
 
-from scripts.memoir_judge_calibration import DATASET, ORIGIN, SOURCE, TARGET, cases, digest, grade, judges, normalize, request
+from scripts.memoir_judge_calibration import DATASET, ORIGIN, SOURCE, TARGET, cases, digest, grade, hosted_item, item_id, judges, normalize, request
 from scripts.run_memoir_live_skills import save
 from scripts.snapshot_prompt_evaluations import pages, cursor_pages
 
 PROJECT='cmut9t75w00071z02n8bdv7it'
-
-
-def item_id(case):
-    return str(uuid5(NAMESPACE_URL,DATASET+'/'+case['input']['case_id']))
 
 
 def publish(client, rows):
@@ -46,9 +42,7 @@ def publish(client, rows):
                 human_reviewed=False,content_sha256=content,item_count=len(rows)),request_options={'max_retries':0})
     for key,case in wanted.items():
         if key not in existing:
-            client.api.dataset_items.create(dataset_name=DATASET,id=key,**case,
-                metadata=dict(synthetic=True,label_origin=ORIGIN,human_reviewed=False,
-                    case_id=case['input']['case_id'],split=case['input']['split'],content_sha256=digest(case)),
+            client.api.dataset_items.create(dataset_name=DATASET,**hosted_item(case),
                 request_options={'max_retries':0})
     snapshot=datetime.now(timezone.utc)
     dataset=client.get_dataset(DATASET,version=snapshot)
@@ -169,9 +163,10 @@ def summarize(results):
     return dict(by_judge)
 
 
-def readback(client, experiment_id, dataset_id, results):
+def readback(client, experiment_id, dataset_id, results, *, started_at):
     rows=cursor_pages(client.api.experiments.list_items,experiment_id=experiment_id,
-        from_start_time=datetime(1970,1,1,tzinfo=timezone.utc),fields='core,dataset,io,scores',score_limit=50)
+        dataset_id=dataset_id,from_start_time=started_at,fields='core,dataset,io,scores',score_limit=50,
+        request_options={'timeout_in_seconds':30,'max_retries':0})
     wanted={r['input']['case_id']:r for r in results};seen=set()
     if len(rows)!=len(wanted):return dict(verified=False,reason='experiment_item_count',items=len(rows))
     ids=sorted({s.id for row in rows for s in (row.scores or [])})
@@ -261,7 +256,7 @@ def main(argv=None):
             summary=summarize(receipt['results']))
         client.flush()
         for _ in range(12):
-            receipt['readback']=readback(client,result.experiment_id,dataset.id,receipt['results'])
+            receipt['readback']=readback(client,result.experiment_id,dataset.id,receipt['results'],started_at=snapshot)
             if receipt['readback']['verified']:break
             time.sleep(2)
         complete=len(receipt['results'])==len(items) and len(receipt['calls'])==calls
