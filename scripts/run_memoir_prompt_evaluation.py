@@ -27,7 +27,7 @@ def calibrated(paths):
     fixture=hashlib.sha256(SOURCE.read_bytes()).hexdigest()
     for path in sorted(paths,key=lambda p:p.stat().st_mtime):
         receipt=json.loads(path.read_text())
-        if receipt.get('status')!='passed' or not receipt.get('readback',{}).get('verified') or receipt.get('fixture_sha256')!=fixture:
+        if not receipt.get('readback',{}).get('verified') or receipt.get('fixture_sha256')!=fixture:
             continue
         valid=[]
         for row in receipt['results']:
@@ -35,9 +35,12 @@ def calibrated(paths):
                 key=(row['input']['case_id'],name)
                 if key not in expected:continue
                 source,_=expected[key]
-                if (verdict.get('available') and verdict.get('manifest')==request(name,source['input'])['manifest']
-                        and grade(verdict['actual'],source['expected_output'][name])['agreement']):
-                    seen[key]=verdict;valid.append(key)
+                if verdict.get('manifest')==request(name,source['input'])['manifest']:
+                    # Latest current-pin attempt owns this key, including failure.
+                    seen.pop(key,None)
+                    if verdict.get('available') and grade(verdict['actual'],source['expected_output'][name])['agreement']:
+                        seen[key]=verdict
+                    valid.append(key)
         if valid:used.append(str(path))
     if set(seen)!=set(expected):
         raise ValueError(f'Current judge calibration is incomplete: {len(seen)}/{len(expected)} verified agreements. Run make llm_judge_calibrate.')

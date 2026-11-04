@@ -58,3 +58,14 @@ def test_per_prompt_coverage_requires_actual_current_pin_and_keeps_failures():
     assert campaign.evidence([stale],{},source)[0]['status']=='unavailable'
     call.pop('provider_response_id')
     assert campaign.evidence([row],{},source)[0]['status']=='unavailable'
+
+
+def test_a_later_wrong_grade_does_not_inherit_an_earlier_passing_attempt(tmp_path):
+    row=cases()[0];judge=row['input']['judge_ids'][0]
+    verdict=dict(available=True,actual={'score':1},manifest=request(judge,row['input'])['manifest'])
+    receipt=dict(status='passed',readback={'verified':True},fixture_sha256=hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
+        results=[dict(input=row['input'],output={'judgments':{judge:verdict}})])
+    first=tmp_path/'first.json';first.write_text(json.dumps(receipt))
+    receipt['status']='failed';verdict['actual']={'score':0}
+    second=tmp_path/'second.json';second.write_text(json.dumps(receipt))
+    with pytest.raises(ValueError,match='0/140'):campaign.calibrated([first,second])
