@@ -184,7 +184,8 @@ def readback(client, experiment_id, dataset_id, results):
             matches=[s for s in (row.scores or []) if s.name==score.name]
             if len(matches)!=1 or type(matches[0].value) not in (int,float) or matches[0].value!=score.value:
                 return dict(verified=False,reason='missing_or_wrong_named_score',items=len(rows))
-            if getattr(matches[0],'metadata',None)!=score.metadata:
+            metadata=getattr(matches[0],'metadata',None) or {}
+            if any(metadata.get(key)!=value for key,value in score.metadata.items()):
                 return dict(verified=False,reason='score_provenance',items=len(rows))
     return dict(verified=seen==set(wanted),items=len(rows))
 
@@ -198,6 +199,7 @@ def main(argv=None):
     parser.add_argument('--label',default='calibration')
     parser.add_argument('--credential-file',type=Path,default=Path.home()/'llm_provider/.env')
     parser.add_argument('--env-file',type=Path,default=ROOT/'.env')
+    parser.add_argument('--base-url',help='Host-accessible URL of the existing gateway; credentials/model still come from --env-file')
     parser.add_argument('--output-root',type=Path,default=ROOT/'var/judge-calibration')
     parser.add_argument('--max-calls',type=int,default=256)
     args=parser.parse_args(argv)
@@ -215,6 +217,7 @@ def main(argv=None):
     from dotenv import dotenv_values
     from scripts.langfuse_prompt_client import prompt_client
     config=dotenv_values(args.env_file,interpolate=False)
+    if args.base_url:config['MEMORY_SPARK_LLM_BASE_URL']=args.base_url
     if config.get('MEMORY_SPARK_LLM_MODEL')!='gpt-6.1-sol':raise ValueError('Calibration uses the requested GPT-6.1 Sol model')
     if not config.get('MEMORY_SPARK_LLM_BASE_URL') or not config.get('MEMORY_SPARK_LLM_API_KEY'):
         raise ValueError('Missing existing gateway configuration')
@@ -238,7 +241,7 @@ def main(argv=None):
         result=client.run_experiment(name='evaluation/memoir-judges.calibration',run_name=run_id,data=items,
             task=runner.task,evaluators=[evaluations],max_concurrency=4,_dataset_version=snapshot,
             metadata=dict(synthetic='true',label_origin=ORIGIN,human_reviewed='false',split=args.split,source_revision=revision))
-        receipt.update(experiment_id=result.experiment_id,experiment_url=result.experiment_url,
+        receipt.update(experiment_id=result.experiment_id,experiment_url=result.dataset_run_url,
             summary=summarize(receipt['results']))
         client.flush()
         for _ in range(12):
@@ -250,7 +253,7 @@ def main(argv=None):
             s['planned']==s['available']==s['agreement'] for s in receipt['summary'].values()) else 'failed'
         save(directory/'receipt.json',receipt)
         print(json.dumps(dict(status=receipt['status'],receipt=str(directory/'receipt.json'),
-            experiment_url=result.experiment_url,summary=receipt['summary'],readback=receipt['readback'])),flush=True)
+            experiment_url=receipt['experiment_url'],summary=receipt['summary'],readback=receipt['readback'])),flush=True)
         return int(receipt['status']!='passed')
     finally:client.shutdown()
 
