@@ -127,3 +127,34 @@ checks verified wiring, including reference rendering, not human calibration.
 Live Langfuse metadata and rules are migrated separately from application
 deployment. Application changes are committed on `codex/langfuse-taxonomy`;
 the shared API and workers are not restarted by this migration.
+
+## Verification — target-first migration
+
+`make prompt-check` passed all 97 exact published prompt pins and the 58-target,
+95-dataset, 25-online-rule binding checks. Prompt synchronization created zero
+new versions; all 183 original prompt version records remain intact.
+The focused naming, prompt, evaluator, agent, speech and game checks passed
+298 tests, with one known controlled-CLI fixture check deselected.
+
+The final `MEMOIR_TEST_POSTGRES_BACKEND=apple-container make test-place-research`
+completed successfully: 738 web checks, 814 API/database checks and 96 standalone
+photo-skill checks passed. This includes both standalone photo callers updated
+for the renamed discovery prompt.
+
+A broader legacy evaluation run still exposes pre-existing fixture failures:
+the profile case builder contains the removed `childhood_place` field, and the
+controlled positive-delivery CLI fixture reports incomplete. The profile case
+builder is unchanged from baseline `bb65c7d8`. These are not claimed as passing;
+this change does not alter the profile contract or publication guards.
+
+Live readback verified all 95 dataset names, 97 prompt names, eight evaluator
+names, 64 enabled target-specific rules and four retained inactive CODE rules.
+All enabled rules are NEW-only; no historical backfill was requested. Non-text
+suite descriptions identify their validator, SDK workflow judge or calibration
+purpose rather than a hosted text-quality rule.
+
+The [migration receipt](langfuse-target-migration-20261104.json) preserves the
+36 original dataset IDs, 436 source items and all 46 existing experiment IDs;
+59 child datasets contain 126 copies with explicit source lineage. The private
+full-content backup is not committed. Other checkouts should use the updated
+catalog before prompt synchronization so they do not recreate retired names.
