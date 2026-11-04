@@ -1054,6 +1054,37 @@
         "safety"
       ],
       "validator": null
+    },
+    "memoir/evaluators/shared/judge-calibration": {
+      "scope": "judge-calibration",
+      "primary_prompt": null,
+      "evaluated_prompts": [
+        "memoir/evaluators/agents/mira/reply/comparison",
+        "memoir/evaluators/agents/mira/reply/interview-quality",
+        "memoir/evaluators/shared/completeness",
+        "memoir/evaluators/shared/correctness",
+        "memoir/evaluators/shared/evidence-policy",
+        "memoir/evaluators/shared/relevance",
+        "memoir/evaluators/shared/safety",
+        "memoir/evaluators/shared/semantic-boundaries",
+        "memoir/evaluators/shared/trajectory/rubric",
+        "memoir/evaluators/shared/trajectory/system",
+        "memoir/evaluators/skills/author-timeline/extract/quality",
+        "memoir/evaluators/skills/family-tree/extract/quality",
+        "memoir/evaluators/skills/historical-news-research/discovery/quality",
+        "memoir/evaluators/skills/memory-context/profile/quality",
+        "memoir/evaluators/skills/place-groups/group/quality",
+        "memoir/evaluators/skills/place-journey/extract/quality",
+        "memoir/evaluators/skills/place-photo-research/discovery/quality",
+        "memoir/evaluators/workflows/composer-checkpoints/quality",
+        "memoir/evaluators/workflows/five-case-memoir/guard",
+        "memoir/evaluators/workflows/five-case-memoir/trajectory",
+        "memoir/evaluators/workflows/story-game-adaptation/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": "scripts/memoir_judge_calibration.py:grade"
     }
   },
   "datasets": [
@@ -1358,7 +1389,7 @@
       "id": "cmw1gu5hl009i1z025fk6iiwb",
       "name": "memoir/evaluators/agents/mira/reply/interview-quality/calibration/core",
       "target": "memoir/evaluators/agents/mira/reply/interview-quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "556afac6e80ca2354f86574577925bbe",
@@ -1368,15 +1399,15 @@
         "memoir/evaluators/agents/mira/reply/interview-quality",
         "memoir/evaluators/shared/evidence-policy"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu5ux009n1z02x272veyj",
       "name": "memoir/evaluators/shared/completeness/calibration/smoke",
       "target": "memoir/evaluators/shared/completeness",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmw193n0m008i1z02nqyguq1f",
       "source_item_ids": [
         "81dadd6f-69b5-59d6-8981-4c2225fd6f99"
@@ -1384,15 +1415,15 @@
       "evaluated_prompts": [
         "memoir/evaluators/shared/completeness"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu5ys009r1z029kculg2k",
       "name": "memoir/evaluators/shared/correctness/calibration/smoke",
       "target": "memoir/evaluators/shared/correctness",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmw193n0m008i1z02nqyguq1f",
       "source_item_ids": [
         "de10fffa-b2da-5dbc-9929-a38dec99f689"
@@ -1400,15 +1431,15 @@
       "evaluated_prompts": [
         "memoir/evaluators/shared/correctness"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu62e009v1z02tvfwhho0",
       "name": "memoir/evaluators/shared/relevance/calibration/smoke",
       "target": "memoir/evaluators/shared/relevance",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmw193n0m008i1z02nqyguq1f",
       "source_item_ids": [
         "a1ace2be-b8ac-5217-b483-e985246adaaf"
@@ -1416,15 +1447,15 @@
       "evaluated_prompts": [
         "memoir/evaluators/shared/relevance"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu67k009z1z029paojmm7",
       "name": "memoir/evaluators/shared/safety/calibration/smoke",
       "target": "memoir/evaluators/shared/safety",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmw193n0m008i1z02nqyguq1f",
       "source_item_ids": [
         "28b21160-5ef1-5b20-9588-b2935372f28c"
@@ -1432,15 +1463,15 @@
       "evaluated_prompts": [
         "memoir/evaluators/shared/safety"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu6at00a31z02p9au8ioy",
       "name": "memoir/evaluators/skills/author-timeline/extract/quality/calibration/core",
       "target": "memoir/evaluators/skills/author-timeline/extract/quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "1473038e7cc2167d23611e4a0efa624e",
@@ -1450,15 +1481,15 @@
         "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/author-timeline/extract/quality"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu6i900a81z025aite30g",
       "name": "memoir/evaluators/skills/family-tree/extract/quality/calibration/core",
       "target": "memoir/evaluators/skills/family-tree/extract/quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "572242c9c45e9f803f1a0f4725fe4ba3",
@@ -1468,15 +1499,15 @@
         "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/family-tree/extract/quality"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu6mp00ad1z02lmqgwxvl",
       "name": "memoir/evaluators/skills/historical-news-research/discovery/quality/calibration/core",
       "target": "memoir/evaluators/skills/historical-news-research/discovery/quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "480ba3410fc725bc87beefafebcf9992",
@@ -1486,15 +1517,15 @@
         "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/historical-news-research/discovery/quality"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu6tm00ai1z02gq32tula",
       "name": "memoir/evaluators/skills/memory-context/profile/quality/calibration/core",
       "target": "memoir/evaluators/skills/memory-context/profile/quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "1e087b37f5884dbdea55cb10bd82442e",
@@ -1504,15 +1535,15 @@
         "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/memory-context/profile/quality"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu70400an1z02uw097afl",
       "name": "memoir/evaluators/skills/place-groups/group/quality/calibration/core",
       "target": "memoir/evaluators/skills/place-groups/group/quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "376638106167c5517a992bd0296ab264",
@@ -1522,15 +1553,15 @@
         "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/place-groups/group/quality"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu74800as1z02fso1roze",
       "name": "memoir/evaluators/skills/place-journey/extract/quality/calibration/core",
       "target": "memoir/evaluators/skills/place-journey/extract/quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "1e4208e540f9a184837cb07f73baadba",
@@ -1540,15 +1571,15 @@
         "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/place-journey/extract/quality"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu7gh00ax1z02crec4737",
       "name": "memoir/evaluators/skills/place-photo-research/discovery/quality/calibration/core",
       "target": "memoir/evaluators/skills/place-photo-research/discovery/quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "0e95f91d42dd1fa19c261d161cd9a159",
@@ -1558,15 +1589,15 @@
         "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/place-photo-research/discovery/quality"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu7js00b21z02hf95rgs4",
       "name": "memoir/evaluators/workflows/composer-checkpoints/quality/calibration/core",
       "target": "memoir/evaluators/workflows/composer-checkpoints/quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "682c72a6b9f041bfdf2911c45a291a3c",
@@ -1576,15 +1607,15 @@
         "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/workflows/composer-checkpoints/quality"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu7q500b71z020444va5n",
       "name": "memoir/evaluators/workflows/story-game-adaptation/quality/calibration/core",
       "target": "memoir/evaluators/workflows/story-game-adaptation/quality",
-      "status": "active",
+      "status": "superseded",
       "source_dataset_id": "cmvf63f1v00971z0214q8rr07",
       "source_item_ids": [
         "7a904f93f4caf2526c7a7ce76670a3ce",
@@ -1594,9 +1625,9 @@
         "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/workflows/story-game-adaptation/quality"
       ],
-      "metrics": [
-        "agreement"
-      ]
+      "metrics": [],
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Placeholder answer keys replaced by a shared, versioned synthetic calibration corpus. Preserve split lineage and historical experiments; human review remains pending."
     },
     {
       "id": "cmw1gu7ws00bc1z02zjj4ib17",
@@ -3646,6 +3677,240 @@
       "metrics": [
         "contract"
       ]
+    },
+    {
+      "id": "cmw1rhucb00xy1z02p63v342y",
+      "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v1",
+      "target": "memoir/evaluators/shared/judge-calibration",
+      "status": "superseded",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "5bdf2730-e0e9-540a-874b-5d15bc82167b",
+        "e680a535-72aa-51b5-91e1-622dbb550ab2",
+        "c1726c59-97cf-58b2-a075-434036a813d0",
+        "a9bc7604-7e35-59c1-a249-8f56c5c834c7",
+        "8163e2b4-869a-5af6-92ab-efe14ba0a58d",
+        "6d0cdf63-0da2-5822-b71a-27192fb4c8d6",
+        "dc714004-9f1c-5c6c-83e5-f86477ca0a61",
+        "bab69bbd-60fd-52c5-b5a2-72494c46a37e",
+        "e2d19b07-372a-56db-8eea-14aa3cbf6234",
+        "c954962a-b36a-5025-866b-82cbdf040fba",
+        "de60848c-732a-5a53-af8b-b805eaa4cad9",
+        "b21226f4-e1ae-5cde-858b-3b4e8f564f8d",
+        "9dc40895-8a61-5534-98c0-db43d200e87f",
+        "08ec97ea-ba89-5280-8790-7840daaf2a75",
+        "f9e4e5bc-2c01-51ad-bbd7-83cfcdbd60aa",
+        "8ff91320-1270-5499-a5b7-833d1034635d",
+        "c5ee4c62-0888-5c31-a6d1-941045918faf",
+        "21b168b8-94de-53e9-acad-3a6bf69cffa2",
+        "ec5b434a-4a70-5c54-9c95-248b687a6d0b",
+        "e94d23fb-641f-5664-819c-5d5a6ecb0086",
+        "d3065e2e-4d01-5b4f-a1fa-7815d5644904",
+        "1fa4792e-7717-5c9d-bf18-76f4ce514d42",
+        "4a77677a-0dbf-5de4-aaa7-d9e011cedd39",
+        "cff41f63-72c0-5f28-9c9f-8274e9ad1e91",
+        "609a094e-d417-541a-8cea-1299dd3e09bb",
+        "ea19b531-de98-500c-8987-9fa9a342e438",
+        "ceb99869-651a-539e-9686-a235080bbc28",
+        "2967aa3d-431c-54da-bd48-8e97f2e8ebbb",
+        "ceaac96b-d727-5801-b609-400ca90082b0",
+        "c0009455-ef3a-5d02-a810-411b5e3c1a7f",
+        "80bbf39f-d439-5a2a-9edd-d81861e6f08f",
+        "b1a6d750-573a-5cac-94d2-9c170d9a3006",
+        "a95a97a2-710e-5a2e-ae38-feb5459f0d39",
+        "ec1c2df0-a4f1-5fc9-848d-3bd588fe1a23",
+        "441b5468-471d-57b4-b24b-88bd11e56260",
+        "a7c5a847-874d-5a1d-b951-379a76f3198f",
+        "8717d2e4-3ac3-58d9-95ba-7b4f20429757",
+        "c82e3a17-d0db-52a1-82be-663a483c6565",
+        "4899e224-becc-548b-ac36-66ac9fdd3c42",
+        "20610db0-6180-59e7-aedf-50f41aa655a4",
+        "471161d9-90eb-50a4-a84f-a6a20853e013",
+        "0ed8ebc8-15d2-5a56-8afb-168a2b165c25",
+        "9a71ae6f-e1e8-533e-9968-cf61cb207e96",
+        "9b69714e-be35-5131-ae1e-2905f0250544",
+        "5608eb96-ae12-5367-b656-9a779e8fb941",
+        "b7b546c0-a8fc-50ba-83ac-613046b8d4db",
+        "1b3b5144-884e-5a87-b96d-d29f25acbf19",
+        "6936f8ab-daf4-5665-8c3d-97c3ce5abde7",
+        "8573bd21-a668-521c-be8e-c74d311044d0",
+        "2191bafe-f907-52b2-a0dd-409e15a0f059",
+        "b8069608-c04c-58d8-8e3e-633ace9a0467",
+        "9d615a41-b402-5cc3-9111-b984e9830b83",
+        "30e5a45b-1993-51c8-8055-5ed2cac53e92",
+        "3b56d733-e9d5-5bd2-a205-cc7562eafda6",
+        "1e3f2211-7c86-5eea-967d-e58737166858",
+        "f31878c6-90cc-5f90-b495-29e48d8d64a3",
+        "caba2ae0-0dd9-51b9-9e8a-154f1b7e5b3a",
+        "483ab1f9-11cb-5040-aaba-bd1968dbd77e",
+        "bb14daee-aa45-57af-aaaf-2c99814fc1c6",
+        "ad546ecb-3d1a-5e60-8f22-6b940c95cafd",
+        "c7303ea6-c98e-524b-b3a2-6e5ee1bad50d",
+        "ce1ff544-0602-5f28-8777-51e7a4c893b9",
+        "807b3a19-4681-5a3a-b747-230bb0812a18",
+        "e398ad44-d4f9-507f-8191-d0eab95be9fa",
+        "bcce8ac6-f82e-527e-b0d2-41d0782c14f2",
+        "77004f5b-f176-5e8a-9c4f-95bbb75ba7e1",
+        "03838385-78d8-56b1-bc37-d5b0181eb4a4",
+        "a28ef665-8ad5-5ede-826f-bd756c35a795",
+        "198dc0db-1102-586e-ba01-54cc95110a60",
+        "c2b3b370-ad36-53b5-8ba5-e57aec2176ae",
+        "63c9ca8b-c32d-5850-b133-4c3793a50c77",
+        "4a3ce5e2-8a36-5239-8fad-a7c25562b4f7",
+        "1dd3eb1e-4993-5669-958e-5bf1bc6d6185",
+        "c082de85-a7a1-5457-91b8-56837e27a24f",
+        "e620f9f9-0da8-5036-9de7-f3b8a5f4e05a",
+        "cfe4b376-e20f-50b2-a032-e164f6c4db1a",
+        "c31dcde2-9673-5107-b2ee-0ebb40727542",
+        "7383b6ab-5526-5f0d-98d3-db2e0fae0159",
+        "332d102f-52d1-5287-9940-cd055d7cb820",
+        "5745ca30-e5e3-53d1-abf7-221e91f013a3"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/agents/mira/reply/comparison",
+        "memoir/evaluators/agents/mira/reply/interview-quality",
+        "memoir/evaluators/shared/completeness",
+        "memoir/evaluators/shared/correctness",
+        "memoir/evaluators/shared/evidence-policy",
+        "memoir/evaluators/shared/relevance",
+        "memoir/evaluators/shared/safety",
+        "memoir/evaluators/shared/semantic-boundaries",
+        "memoir/evaluators/shared/trajectory/rubric",
+        "memoir/evaluators/shared/trajectory/system",
+        "memoir/evaluators/skills/author-timeline/extract/quality",
+        "memoir/evaluators/skills/family-tree/extract/quality",
+        "memoir/evaluators/skills/historical-news-research/discovery/quality",
+        "memoir/evaluators/skills/memory-context/profile/quality",
+        "memoir/evaluators/skills/place-groups/group/quality",
+        "memoir/evaluators/skills/place-journey/extract/quality",
+        "memoir/evaluators/skills/place-photo-research/discovery/quality",
+        "memoir/evaluators/workflows/composer-checkpoints/quality",
+        "memoir/evaluators/workflows/five-case-memoir/guard",
+        "memoir/evaluators/workflows/five-case-memoir/trajectory",
+        "memoir/evaluators/workflows/story-game-adaptation/quality"
+      ],
+      "metrics": [],
+      "case_source": "tests/evaluation/archive/shared_judge_calibration_v1.json",
+      "case_source_sha256": "cb5cf9582a4891e9ea7cc191d5aaea58d817a044091fd02aec22439e6c0c4e43",
+      "superseded_by": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "retirement_reason": "Preserved initial synthetic development fixture version; explicit source/privacy/task constraints corrected in shared-v2."
+    },
+    {
+      "id": "cmw1wgk0x00sp1z02dpgfqqcf",
+      "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
+      "target": "memoir/evaluators/shared/judge-calibration",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "b9458979-f9b6-5b3c-8337-8e9b640e5206",
+        "71ebbec1-5e45-51f9-9d99-73ea7788d992",
+        "8d985eaf-10af-5640-8291-61fb76b12be8",
+        "8e3e00fb-06ed-5066-aa4f-39c109afd776",
+        "5cef5eb4-c814-5725-92fa-b05c68d161cf",
+        "1889cfae-2f2b-5b95-86d9-c1b3c4a61071",
+        "f06a936e-6768-5e30-b05e-8d5d9913fb4e",
+        "62d43796-475b-5dc4-b32a-3d8af814c2cb",
+        "a414f025-2ae1-5dcf-bfb4-cf33d605749b",
+        "56e4d1d6-c0e0-5517-9435-23c0c4d42120",
+        "772c4e1c-9596-586f-b651-290f3f7b28ec",
+        "65bc0333-a04c-5a0f-8939-da31299f32ce",
+        "b30de1a0-1149-54a1-9b7b-23cc3e5caa8f",
+        "98a2ef08-c5da-5d44-8953-27aaa82596ee",
+        "ca49e44e-523b-5058-8140-0c2638e5e0e5",
+        "c79da1a9-e12d-57aa-bcd0-650f6a1b8661",
+        "d612bc05-c7af-5105-a563-92b639178f00",
+        "8784a854-f2c2-50b1-b333-86d60ec3c6c8",
+        "b4d4bfce-acdd-5bbe-bc66-3cc69183ced2",
+        "5c65c7aa-3e6a-5bc7-a94d-f96d85a6f787",
+        "e81ab63e-022f-5cec-ae04-fb9a8e0325a4",
+        "bd4caa05-f507-552c-b206-95336343ffd8",
+        "a6f296d8-5f73-57e4-a9a1-5dd218b62f4f",
+        "d1b850e4-caef-51ab-b499-80f063ff4345",
+        "6ce7c2a3-f310-544f-b15b-28c3996e74ff",
+        "308258c4-0584-5d20-9cb8-e830077d2152",
+        "1b0afa4c-72a9-5b05-9737-2b760ae3181e",
+        "09fc8222-2679-5424-b042-ee8e527988f1",
+        "c1fc9ba1-175d-541f-bd9b-644cac719598",
+        "8e3186b8-d269-5619-a189-f4d270439fa1",
+        "5aa1f213-eecb-5e4a-bdb0-7f49663d7cff",
+        "2f2e3ab4-03ee-5cb1-a3e5-08d0f1fb3814",
+        "3990a980-ed1e-58ea-b10e-4e9f86571260",
+        "f74ef5f9-ef0d-5862-960c-8164a84113d8",
+        "5039f8fc-1209-58dc-9333-fbf4a9ed368b",
+        "ecdb8fa4-fa3d-5dab-abfc-d8c2c06622ba",
+        "a0dbb058-e324-5edc-a3ae-3ed81c56ee6f",
+        "eed0d2e9-2d42-57f8-b516-0feaa3581f09",
+        "d1eef6b1-05e1-5b6a-81d7-c6ffbcfbd591",
+        "cb82bd95-f13b-58e0-8d6b-f0730a07bc27",
+        "89750892-1a2e-5ff3-87dc-a771f0152a0a",
+        "1e06d2fb-e817-553d-8bc4-d2bf47db2c67",
+        "e9142f1f-55de-53ba-a779-ea81b5b5f9f2",
+        "c5c7ea9e-1d9b-56bf-8bed-261dcc18155a",
+        "89dcd311-bbd3-5777-960d-c4315a61c07a",
+        "5db3e298-6a59-5759-8a93-75b7e9aff2b9",
+        "34e71b1c-6281-5fd2-a76b-89c59fb0d249",
+        "c1058998-b13d-56ef-a58b-023480bc5990",
+        "c66f30c9-3f2e-500f-923f-e363af658711",
+        "5f8542e7-771f-5b1c-a199-c0d5024cea8a",
+        "c16fe70f-9248-5b77-92c6-feb3f10842f8",
+        "d55333cf-55c1-5296-b5c5-319a31da5478",
+        "b4c1c992-63bf-5fb1-9a99-c5babb55d81f",
+        "eb63ea77-3dfd-5f24-be17-97a2915bb2a0",
+        "79f58fc8-d8dd-5b70-aa2e-cbd47a1be03a",
+        "35787dab-8726-5e20-85cb-da95540ce45d",
+        "c17791a1-034d-5c8f-b3ec-53d35f8d99d6",
+        "6b22fe05-b809-5c19-a008-efefcb266507",
+        "4b6bd5ab-ec6b-5239-bdb6-beae8fd672d1",
+        "d5f273f4-7551-5b6b-a62c-67316da7bc7b",
+        "b5d03525-644e-5d7f-bdd4-a37b04efd725",
+        "2edd7d43-8769-5424-b07e-5ea2b8babe08",
+        "d763c282-78c1-56e3-8a6a-7efd48a82912",
+        "0de6cd6f-573d-5ea1-b784-7515e90e7f28",
+        "61c4e763-fb0f-5461-ab7b-1e566e31b88f",
+        "f1f4003d-8aec-5cb3-acc5-722a24c095ee",
+        "37dd961a-57f3-5f17-8c6f-29a4b9ddf391",
+        "3719d778-00dc-5e97-a72a-643bb0c2dc70",
+        "e22a677b-b183-533a-81da-eb4416bdec66",
+        "92b3cbe3-70de-57c8-b63c-19c89e23f7a9",
+        "f63a03a1-ced9-56fd-bca4-7ae32778e7a6",
+        "2efdd849-98a1-5f30-a9b6-76c346cd17bc",
+        "37e0af25-7f1e-5f0b-8f0d-d9b284b2be97",
+        "a9a8756a-2cc2-58fe-9db6-9fdf850863a2",
+        "cebe565b-52c3-533e-becd-abec0ff77611",
+        "36ff8190-9495-55d5-ae88-c52bba1d5ac9",
+        "38845bb7-8023-5590-a048-a0f72f2d37c1",
+        "5d4dbf65-b42d-5f95-b901-bf2ffe98b76f",
+        "27554e13-644d-5156-87a6-285d7eafd9f8",
+        "ca84a962-75ce-503c-8bd6-13322ae8167f"
+      ],
+      "evaluated_prompts": [
+        "memoir/evaluators/agents/mira/reply/comparison",
+        "memoir/evaluators/agents/mira/reply/interview-quality",
+        "memoir/evaluators/shared/completeness",
+        "memoir/evaluators/shared/correctness",
+        "memoir/evaluators/shared/evidence-policy",
+        "memoir/evaluators/shared/relevance",
+        "memoir/evaluators/shared/safety",
+        "memoir/evaluators/shared/semantic-boundaries",
+        "memoir/evaluators/shared/trajectory/rubric",
+        "memoir/evaluators/shared/trajectory/system",
+        "memoir/evaluators/skills/author-timeline/extract/quality",
+        "memoir/evaluators/skills/family-tree/extract/quality",
+        "memoir/evaluators/skills/historical-news-research/discovery/quality",
+        "memoir/evaluators/skills/memory-context/profile/quality",
+        "memoir/evaluators/skills/place-groups/group/quality",
+        "memoir/evaluators/skills/place-journey/extract/quality",
+        "memoir/evaluators/skills/place-photo-research/discovery/quality",
+        "memoir/evaluators/workflows/composer-checkpoints/quality",
+        "memoir/evaluators/workflows/five-case-memoir/guard",
+        "memoir/evaluators/workflows/five-case-memoir/trajectory",
+        "memoir/evaluators/workflows/story-game-adaptation/quality"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "case_source": "tests/evaluation/shared_judge_calibration.json",
+      "case_source_sha256": "da6417bca78e1bbb0d97f5d67cb9ff7e0346a1cdb5f9ba903fca9fe7e0d089d3"
     }
   ],
   "online": [

@@ -568,6 +568,13 @@ The [complete prompt audit](docs/prompt-audit.md) and
 [per-prompt table](docs/prompt-coverage.md) distinguish source references,
 configured bindings, observed scores and remaining quality gaps. For prompt
 changes, follow the [dataset/evaluator review workflow](docs/prompt-evaluation-workflow.md).
+Use `make llm_judge_calibrate` to check the shared judge answer keys, then
+`make prompt-eval-all` for the complete supported prompt campaign and coverage
+ledger in Langfuse. Select a component with
+`make memoir-agent-eval EVAL_AGENT=mira` (or `atlas`) or
+`make memoir-agent-eval EVAL_SKILL=memoir-author-timeline`.
+See the [calibration and evaluation commands](docs/judge-calibration.md) for
+development/holdout runs, score meanings and missing coverage.
 `make prompt-coverage` refreshes the table; `make prompt-coverage-snapshot` reads
 the local project's metadata without model calls. `make prompt-check` rejects
 stale coverage reviews. The committed retirement archive is checked before the

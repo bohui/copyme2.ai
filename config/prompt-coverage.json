@@ -20,9 +20,9 @@
       "review": {
         "prompt_sha256": "b4270c4c59303c8a7c101afb43c4661cf3ba1367047bd8040fc76378ddb54dfb",
         "datasets_sha256": "f4e50984772c88a24c769137b336145e5c9d5cf538eafff87fff9d7ef59d5aaf",
-        "evaluators_sha256": "db6cd08b9b1a196bb7b0d4fce1797cb3d8034fbb7f8b72486f8b7fadd60ceff7",
+        "evaluators_sha256": "c2d459d8ef2f5cde141c65f12c720d0276dd7ad8cc57e5332f384b1c184dee8b",
         "dataset_decision": "Replace local prepared-hint probes with bilingual context-only cases and add ordering, current-intent, recall-limit and rejected-handoff regressions. Existing hosted datasets and historical scores remain unchanged; they do not establish quality for this revised request/schema contract.",
-        "evaluator_decision": "Reuse correctness, relevance, completeness and safety rubrics: their grounded-follow-up and narrator-intent criteria still apply. Deterministic checks now enforce message ordering, strict rejection of pool/handoff fields and Atlas context isolation. Model-quality evaluation of this revised contract remains pending."
+        "evaluator_decision": "Reuse correctness, relevance, completeness and safety rubrics: their grounded-follow-up and narrator-intent criteria still apply. Deterministic checks now enforce message ordering, strict rejection of pool/handoff fields and Atlas context isolation. Model-quality evaluation of this revised contract remains pending. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/agents/mira/policy-review": {
@@ -38,9 +38,9 @@
       "review": {
         "prompt_sha256": "f6fb9f8a8e0d9ca2f74f1c1624c1bb95aa51f53f05f4bb822a25dd6c4f344354",
         "datasets_sha256": "f4e50984772c88a24c769137b336145e5c9d5cf538eafff87fff9d7ef59d5aaf",
-        "evaluators_sha256": "c1085f6bc863283a53a7680cb2542ebae6c89080fccd1dcae681568271497990",
+        "evaluators_sha256": "4ebc98df65622bc80eb2feeef293789de5d690e9e793578b9d1ac7f840a7ac74",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/agents/mira/repair": {
@@ -56,9 +56,9 @@
       "review": {
         "prompt_sha256": "482dba5c55ffbfd9fc7a6fc45f23891c16ca761c621f30f4b2e6f4390054a578",
         "datasets_sha256": "f4e50984772c88a24c769137b336145e5c9d5cf538eafff87fff9d7ef59d5aaf",
-        "evaluators_sha256": "3770900c9c2d46d7d89ab53a9c190f8ca65c55cb04e8022874446a971f126e4c",
+        "evaluators_sha256": "b367771380ad23ac6830af5d0717200e0deb5886b9683dfda0fb3ac5cf1265ea",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/agents/mira/repair-codes": {
@@ -74,9 +74,9 @@
       "review": {
         "prompt_sha256": "ae6e3d6fa9e3485f1090dc68a7a154297f4caf597cbc998738f725af53dda4da",
         "datasets_sha256": "f4e50984772c88a24c769137b336145e5c9d5cf538eafff87fff9d7ef59d5aaf",
-        "evaluators_sha256": "db6cd08b9b1a196bb7b0d4fce1797cb3d8034fbb7f8b72486f8b7fadd60ceff7",
+        "evaluators_sha256": "c2d459d8ef2f5cde141c65f12c720d0276dd7ad8cc57e5332f384b1c184dee8b",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/agents/atlas/skill-selection": {
@@ -92,9 +92,9 @@
       "review": {
         "prompt_sha256": "70203c3a8c9c5beed54a512b888feaac2dc426be1c9f6b5a53273117125cda42",
         "datasets_sha256": "f2b6756fc93b8d4bb954f46ab9b94c86caae71704df7cb249f562dff5441811f",
-        "evaluators_sha256": "80fb397e2d34f9ef30acb60045f162ba2d7c60f37633a485e5842c5035798efd",
+        "evaluators_sha256": "579f5036c0382101066a46995434d38d6205e060530bc3055f0913181cced0cb",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/shared/skill-agent": {
@@ -109,9 +109,9 @@
       "review": {
         "prompt_sha256": "07ad112afa8d413a237072ccfbdc0c1a8853483c49ae0bed7e5c497e6e6d53f8",
         "datasets_sha256": "6cc2d42c3a708d41d2b3ad5271c39544dfee940f2ceb2b54ef335846ecefa4ef",
-        "evaluators_sha256": "2e8515ea73fe4fc0a6c20e916a6ddbbe3c1d8927f26cc4cea96b6deecd971044",
+        "evaluators_sha256": "d0be1a412dc16a8d0340fe0ccd9c07eeb7f4cf357426b76393f4739a78fb27d5",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/instructions": {
@@ -128,9 +128,9 @@
       "review": {
         "prompt_sha256": "6451bff0aa29c6e4b11ad9d8e8b29a7bf21d59574b2a1d7fe1f5b756e5b894b8",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "e24f2e20ded2236f453ca10f317cb891a009fdf18a997ed3d01db5400543d82d",
+        "evaluators_sha256": "4bd6fabad64bfe4ad0f8963d9e6184a9cfd2d78f9a85b325eb2c734a3549c711",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/adapter": {
@@ -146,9 +146,9 @@
       "review": {
         "prompt_sha256": "02e34bd45576f21ad6e7e13114d014fa82370854c1c473f1da05f41dcee79b31",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "b8ca0ee24ac50a64da996f7b4346768d0c55ba7799d2d7124eb413d41c1f8069",
+        "evaluators_sha256": "94516f4edc944c15e37c5278023bf19f335841783392324437b7ad3c8a8d06d5",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/journey": {
@@ -164,9 +164,9 @@
       "review": {
         "prompt_sha256": "d9e45af61ee6363b690fa239a63ef64f75840f6482640a0e2f0d98549b9572c9",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "b8ca0ee24ac50a64da996f7b4346768d0c55ba7799d2d7124eb413d41c1f8069",
+        "evaluators_sha256": "94516f4edc944c15e37c5278023bf19f335841783392324437b7ad3c8a8d06d5",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/assets": {
@@ -182,9 +182,9 @@
       "review": {
         "prompt_sha256": "ca611dc370c14efcd0e628df2b52a495fa0aa99dd792d722aebe28e6db4c9ef0",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "fb416e4eb8f83899250789edfc047ba48dca3131445e0f2f384be23e894a3fd0",
+        "evaluators_sha256": "acc59e53f1346a7ae6cb35899bfbffa84681198e91be650c80dbd8c598666e2d",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/analyze": {
@@ -200,9 +200,9 @@
       "review": {
         "prompt_sha256": "8dc3b02cd2e2e3d5051ca7047f5b21530ebb25fbf6a94fddbe46107e5867e9eb",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "3af66ef613c6ddf578cce8acdb6fa1c5cf7799afb820a50a3e76eaa4a63ed9cb",
+        "evaluators_sha256": "58e4a68c0668e46d66a8d6b2796022e6185cf22361f00caf49bc7dea4928ecbb",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/concept": {
@@ -218,9 +218,9 @@
       "review": {
         "prompt_sha256": "602a5db980d52f12678ea9346d52b84cd5d7c1700d32f0f2d410fa1445469a67",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "4a58f5172e77b51bbaecacba294748486deafc133065e7e663ba369afe13e9e7",
+        "evaluators_sha256": "e6d9ab171cf78263ec16f851f8d6dc4564484d9186115e8a0a2cdebc0bdb04b4",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/design": {
@@ -236,9 +236,9 @@
       "review": {
         "prompt_sha256": "7ad4d7cb4ab51ad79bc2e725d740bdf5997469b946b5123ceef722a1cee79746",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "8076e2bae93fc820743a6507465e75ac84ac2d6a15eb070887e5f9e3a3a041bf",
+        "evaluators_sha256": "96561dc8e45d348ba3184c00821ef9975255228230be2a514fe6869814f7feb6",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/whitebox": {
@@ -254,9 +254,9 @@
       "review": {
         "prompt_sha256": "879c614efa67fe6eef2ac256c35dfdd0c720da950d6df61eb5dbad3432baff12",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "fd17500d0439331e7024d60e64d936373398102208e2461003f5c12c6fafbb92",
+        "evaluators_sha256": "a2bc4580f6ce162f0aee8ed5d5e98a456ef1e2ea116cb572b5a3f834cdc773fa",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/art": {
@@ -272,9 +272,9 @@
       "review": {
         "prompt_sha256": "1290e01c85d3313e5960312c690c9479fc8b2d9c254cd827b0774ee147f71f2e",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "c5bbc762fc6fcd74e2949157eb3f5f7524525f63214a9e9ad74f85b10d77ab15",
+        "evaluators_sha256": "fe2edcbf5203bc7f87cbf8b8d40dff76a29a38cf9440b4e40330809b42c33bf3",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/production": {
@@ -290,9 +290,9 @@
       "review": {
         "prompt_sha256": "8f9f324126da5678c265d02dfde495586b5a59d007e44f9a392cc1edfb265dd5",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "eceb60979a5a4a4f32b750c64fcbea0572841cc333ae5d978b7cb0d52b4fdded",
+        "evaluators_sha256": "2a0251802e0fa758228e12ddf753d031c70592b8a7e856693ceb46b5a96e46e2",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/production_style": {
@@ -307,9 +307,9 @@
       "review": {
         "prompt_sha256": "e042fb711a9dd35399662d87c95747f8a532ab3d87b8fee29dda3a37095a2392",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "d582027e66d87c4544d108282af050d448f922b1228567c8a3652c067f620830",
+        "evaluators_sha256": "2fa5e2bcf19b2e4f3a9c97f1db62bdd8428a87a1742cc05f41e809dc2952ca30",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/novel-to-game/illustration": {
@@ -326,9 +326,9 @@
       "review": {
         "prompt_sha256": "c839e4f6636858d3c4ef0fea73b7463e87ac404a3ec028edb52736d34a112e29",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "b1374b2ed2a5905cd917746f55a14a747bea5337104094ce62a50be0b2a43368",
+        "evaluators_sha256": "3caa38a762bdc61724bfb14a4bf15e7b9fb0ad42b30f71b3bd97bffe12dee3e4",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/author-timeline/continuity": {
@@ -345,27 +345,29 @@
       "review": {
         "prompt_sha256": "e4daebd5db07d3bf93d5561c1c7d7c5528157a3c5cb1213742614592345dcbd1",
         "datasets_sha256": "702728fcde942fc39743b41a6866426661ba055ba0c66194b6c33fca667cfbab",
-        "evaluators_sha256": "17ff5074497bf4897b0789f68607e03d882c7107eb19fed0e478ef2b62e54e06",
+        "evaluators_sha256": "7ae68c53d00d89c032cd2e6419b12d17a2a2317db80b8708fe6dbd89b07bc733",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/evaluators/shared/semantic-boundaries": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/evaluate_llm_boundaries.py:main"
+        "scripts/evaluate_llm_boundaries.py:main",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "e275dc874326b9826f5f816a47024df87ee6094d65bc62c9d8cc537b6a608724",
-        "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "d0ab78dd463a65b01f1378154426158e4ba4869123f60a5c5b6abd05375cc851",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "8c161e2c4aee21edca9583db192a7d1267199a62f9fc91cd5bfafa3419e5e757",
+        "evaluators_sha256": "59eacc91ce82dc873f750d6c952bef707c101a097b37536bda1a6daddca293fc",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/skills/place-photo-research/discovery": {
@@ -381,9 +383,9 @@
       "review": {
         "prompt_sha256": "f101aad128deeb167e7363a38bd3ab4a36cefb54a7e63ebbab5a0cad158fdf46",
         "datasets_sha256": "63a4845c4dd9ab73a2eadfbd584eb24ac0f4e24822fcff2b709b7f065994a19a",
-        "evaluators_sha256": "c02aec19f014aa1c7c6a1e21a03bb8c69207846ca478eef531e2f6474fe55747",
+        "evaluators_sha256": "311c7bcc4080fa4d5c548317f17bffa379dd73149b503027248f7f7037d43524",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/shared/historical-acknowledgements": {
@@ -398,9 +400,9 @@
       "review": {
         "prompt_sha256": "9e16e6c3ffed6779f0baead80e747dc762002a35317a1d1173472cf5828ce733",
         "datasets_sha256": "c8e082e3e00268a185f513e2fa4bbe76330911a0d15b798a601dd642d726734f",
-        "evaluators_sha256": "1532754de9fe9fed42713c11ac8691d148110bf203c5a9394df4cff396c15fad",
+        "evaluators_sha256": "619379c81d6b1c7c2c5eca112aef8ad54a13ac7a7c5602f665735ff683bdbb89",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/shared/recall-invitations": {
@@ -415,9 +417,9 @@
       "review": {
         "prompt_sha256": "5a7d6a180609b95c0a11a26b1668884998e925cdb3bbffcc688751680f687069",
         "datasets_sha256": "c8e082e3e00268a185f513e2fa4bbe76330911a0d15b798a601dd642d726734f",
-        "evaluators_sha256": "1532754de9fe9fed42713c11ac8691d148110bf203c5a9394df4cff396c15fad",
+        "evaluators_sha256": "619379c81d6b1c7c2c5eca112aef8ad54a13ac7a7c5602f665735ff683bdbb89",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/probes/providers/connectivity": {
@@ -432,9 +434,9 @@
       "review": {
         "prompt_sha256": "68b09e089f3fe6ce9e71be8870ed95c6be9ec4d751ac25a6153ab8bac5d923dd",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "bccca139f370a67d2e799c2ff311263ffe46668bc32114689ea94a7cfa2ce21b",
+        "evaluators_sha256": "6ec251037fcbd0f65c172115b55e5c2f3f3ad255996a3a8d8788315655bd0c59",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/probes/providers/worker": {
@@ -449,9 +451,9 @@
       "review": {
         "prompt_sha256": "0f81c3837bd57f633c7b2a11a583d82ef3cb0298b56d6e068112454a886bab8d",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "36c17b251b8d2873fc615ebdaee34e48e61b502af101040cd1912795ef5ce178",
+        "evaluators_sha256": "11bf5d8c7a4836dc61182a4cc39a8fe3c6c232bdfd6c5c6a2af9f29e727249fe",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/probes/providers/web-search": {
@@ -466,43 +468,47 @@
       "review": {
         "prompt_sha256": "d117d3c1f26437d0c1d52cca51a1fb1cfb349ccbf8b68ad720317694b391b1d6",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "b6d12352d8495114a4ec311e317cf2e0a862d80436d5c48bca3f5ff3fb921e3a",
+        "evaluators_sha256": "683560f01c41032c799108342a4f7d635e129dc686b32ba42e9a25ec08dd079d",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/evaluators/workflows/five-case-memoir/trajectory": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/run_memoir_five_case_semantic_judge.py:main"
+        "scripts/run_memoir_five_case_semantic_judge.py:main",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
-        "tests/test_trajectory_evaluation.py"
+        "tests/test_trajectory_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "9ca0213f4b44be0432ab633c02979edd5acd13f77f132cfc938832e42570a4db",
-        "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "9510844e479d696e84f2de0e95f9ef283ce0e2066a215bfce1d6f72a5bb4540b",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "8c161e2c4aee21edca9583db192a7d1267199a62f9fc91cd5bfafa3419e5e757",
+        "evaluators_sha256": "5625732ba9f0984b52c8449e463fdd1298572652999aa448ed7979a539cfe942",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/workflows/five-case-memoir/guard": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/run_memoir_five_case_semantic_judge.py:main"
+        "scripts/run_memoir_five_case_semantic_judge.py:main",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
-        "tests/test_trajectory_evaluation.py"
+        "tests/test_trajectory_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "5beb9825df0498e8479923848b50bc7d51244c89c779c8fa9411fa5bb50629fe",
-        "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "babb57c85a4035837c4e159ac0a6e5c3d82b462051f63b51711bfc352cea2be5",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "8c161e2c4aee21edca9583db192a7d1267199a62f9fc91cd5bfafa3419e5e757",
+        "evaluators_sha256": "b58f2bdfed0c8fc28fecb284ce8d99ecd81ccf5e2996f5c8e001863fd6ca59f7",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/probes/skills/historical-news-research/discovery": {
@@ -518,9 +524,9 @@
       "review": {
         "prompt_sha256": "26f8246ed283766a25d6c693da4f0297560904ef3869a521164664c45e0082d1",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "f2a34798bf9e1687f0bb82831b06b43cbd1ee8bd1ffdf28d21da3dc805683fa1",
+        "evaluators_sha256": "c15d9a2733fb948155cfe0deb128d74953348f10ac2d971fd4c54d6caee67787",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/probes/skills/author-timeline/extract": {
@@ -536,9 +542,9 @@
       "review": {
         "prompt_sha256": "5db0d3708e75b39394991834ce5dedd8a5c119e5f78baa728661505554e32093",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "a8ebfe80cc5617adfd8b1b77a978aa24cc2b2a60d33d981bdbb9dc57f2a53607",
+        "evaluators_sha256": "49213d4ae1f5d729852234db24bf30ba6535cdab309828157a04a987b3ba0cd6",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/probes/shared/native-search": {
@@ -554,9 +560,9 @@
       "review": {
         "prompt_sha256": "cadef7da2324b0c83655dc6d9b8c690ec034ea375a3e1e31fbf2f42f6e665bc1",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "8c5abb0ebbd99a1b67dce1d0710dda6dc1fe4da52d2d250d56965c3919a02c23",
+        "evaluators_sha256": "a6c756918f1d0e6a205547eeeec2342f1dd2b5550005fbe1fbc43ca317a019ae",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/probes/skills/place-photo-research/discovery": {
@@ -572,9 +578,9 @@
       "review": {
         "prompt_sha256": "9f294a84742fc492197b5379182e7c86a32374b228f45ef5b01f0129174343c5",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "a24525866ec7ed4c427f8f3503a032fa89f9a28c3c58e25223dd3525168c9e16",
+        "evaluators_sha256": "06600960d5d656bbc7b9761cc9ea0204d5462084ccf060e73e5868bf5d815d93",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/probes/skills/place-groups/group": {
@@ -590,9 +596,9 @@
       "review": {
         "prompt_sha256": "8608c7d241e54df1b460248bf12e26c373361f4b9f4b20f50a92324aecf447cc",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "c06f92ef6fa2547e44f7f5585e0435023eae174038609f182f274a4f38813c8e",
+        "evaluators_sha256": "a207890d5e802df981409f0b4e730dd3abb4ac5f984d2b284e274a7a8c77c49f",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/probes/skills/story-game/brief": {
@@ -608,9 +614,9 @@
       "review": {
         "prompt_sha256": "240fdbe344baf24be85b648167f07271e8e99415091caadc0d3a1cea3267b52b",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "88830b4cb5871307232064bfc72265adb8f979b15063abda12682fea5e53dd36",
+        "evaluators_sha256": "0f2f2f29cd40531a6a51854ad4ec40b6b4fe70eb3c8a097b879b25086886da29",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/evaluators/shared/trajectory/rubric": {
@@ -618,17 +624,19 @@
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
         "apps/api/trajectory_evaluation.py:build_judge_prompt",
-        "apps/api/trajectory_evaluation.py:OpenAICompatibleJudge"
+        "apps/api/trajectory_evaluation.py:OpenAICompatibleJudge",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
-        "tests/test_trajectory_evaluation.py"
+        "tests/test_trajectory_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "d8e9d743de1ad91da9ea6dce088d509c1edba6b5323f4fb9e8c4e29e98c9a0c3",
-        "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "35d2f423577fb3d4efee735f92a17e6358a07ea3029f93a1489b497a32ed6c30",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "8c161e2c4aee21edca9583db192a7d1267199a62f9fc91cd5bfafa3419e5e757",
+        "evaluators_sha256": "bed20169d4a99b26196c28beb400b455cda6c6cf767bb0e2979159180b9fc4bf",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/shared/trajectory/system": {
@@ -636,17 +644,19 @@
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
         "apps/api/trajectory_evaluation.py:build_judge_prompt",
-        "apps/api/trajectory_evaluation.py:OpenAICompatibleJudge"
+        "apps/api/trajectory_evaluation.py:OpenAICompatibleJudge",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
-        "tests/test_trajectory_evaluation.py"
+        "tests/test_trajectory_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "06a13cf8837a84f8e45c4fa15fc14310504c85edc9dcb634df51e9bd2bb81c3a",
-        "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "27969db836b24f74fe294baa4ada593eb54b22b207b67ea5d3252dca53c9f98f",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "8c161e2c4aee21edca9583db192a7d1267199a62f9fc91cd5bfafa3419e5e757",
+        "evaluators_sha256": "b9ede8c31d4ab10c7836256d0d9d77de75f15df1d910ded367ebdbfbfd47ff94",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/shared/bounded-context/en-AU": {
@@ -662,9 +672,9 @@
       "review": {
         "prompt_sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
         "datasets_sha256": "a759d034ccffe0bd529a879b45365fd0aba68a3891e4ba6fa6c46df0bfa547fb",
-        "evaluators_sha256": "e60a45703839840043f9490087def3d410699bc9e6dcebb8ce3c26ed31cf1ffc",
+        "evaluators_sha256": "c59595014b02685606dce1487fa1ef21ac254ef081bdca882d0d1c33a649deea",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/shared/bounded-context/policy": {
@@ -680,9 +690,9 @@
       "review": {
         "prompt_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
         "datasets_sha256": "a759d034ccffe0bd529a879b45365fd0aba68a3891e4ba6fa6c46df0bfa547fb",
-        "evaluators_sha256": "e60a45703839840043f9490087def3d410699bc9e6dcebb8ce3c26ed31cf1ffc",
+        "evaluators_sha256": "c59595014b02685606dce1487fa1ef21ac254ef081bdca882d0d1c33a649deea",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/shared/bounded-context/zh-CN": {
@@ -698,9 +708,9 @@
       "review": {
         "prompt_sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
         "datasets_sha256": "a759d034ccffe0bd529a879b45365fd0aba68a3891e4ba6fa6c46df0bfa547fb",
-        "evaluators_sha256": "e60a45703839840043f9490087def3d410699bc9e6dcebb8ce3c26ed31cf1ffc",
+        "evaluators_sha256": "c59595014b02685606dce1487fa1ef21ac254ef081bdca882d0d1c33a649deea",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/shared/place-conflicts": {
@@ -716,9 +726,9 @@
       "review": {
         "prompt_sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
         "datasets_sha256": "a35cf9d3752d1bea6496ead675deaa96b16b57b96827c92b03e32e016393aef5",
-        "evaluators_sha256": "c09fc112e61b0e150a2422d1a6918ae5b6b1d29d2db073337f9b252c38174500",
+        "evaluators_sha256": "2d66d8a151152b25d522dc8fe2544af0af9fcf3aebea408d5f475f6f0c98985b",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/historical-news-research/contract": {
@@ -733,9 +743,9 @@
       "review": {
         "prompt_sha256": "8b7a43b49b0dd1b7e94b7c18dd9074f8d8156dafceb47d14fec818d322742111",
         "datasets_sha256": "baec74c05c5e8f981d43dd7fded257fce3b72f14caaf02b1704d1752b5ec4f96",
-        "evaluators_sha256": "09c507524d71d4bd69e784c62b5c5bfdcf9d87f918dfc7a1fb2f3c225103d2a1",
+        "evaluators_sha256": "1e869fc588537906f77e977367afeedd8b605db8b0d5c8fb2c717aa8c978387c",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/historical-news-research/discovery": {
@@ -750,9 +760,9 @@
       "review": {
         "prompt_sha256": "92bced910bfb0de9ee5ab0b9ca89446b432d9ac3b4cbeea3e2d781df362ef0d9",
         "datasets_sha256": "baec74c05c5e8f981d43dd7fded257fce3b72f14caaf02b1704d1752b5ec4f96",
-        "evaluators_sha256": "09c507524d71d4bd69e784c62b5c5bfdcf9d87f918dfc7a1fb2f3c225103d2a1",
+        "evaluators_sha256": "1e869fc588537906f77e977367afeedd8b605db8b0d5c8fb2c717aa8c978387c",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/historical-news-research/instructions": {
@@ -767,9 +777,9 @@
       "review": {
         "prompt_sha256": "e31e6f403b0bd506eb044af2f94a86ef9a0fe4d633d7c68a646d02f8d18dd74a",
         "datasets_sha256": "baec74c05c5e8f981d43dd7fded257fce3b72f14caaf02b1704d1752b5ec4f96",
-        "evaluators_sha256": "09c507524d71d4bd69e784c62b5c5bfdcf9d87f918dfc7a1fb2f3c225103d2a1",
+        "evaluators_sha256": "1e869fc588537906f77e977367afeedd8b605db8b0d5c8fb2c717aa8c978387c",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/author-timeline/attribution": {
@@ -786,9 +796,9 @@
       "review": {
         "prompt_sha256": "46b3ebee11562ffbe236890c2cc21ce308420ecdaf30a1290358f6a408c59d50",
         "datasets_sha256": "702728fcde942fc39743b41a6866426661ba055ba0c66194b6c33fca667cfbab",
-        "evaluators_sha256": "17ff5074497bf4897b0789f68607e03d882c7107eb19fed0e478ef2b62e54e06",
+        "evaluators_sha256": "7ae68c53d00d89c032cd2e6419b12d17a2a2317db80b8708fe6dbd89b07bc733",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/author-timeline/contract": {
@@ -805,9 +815,9 @@
       "review": {
         "prompt_sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
         "datasets_sha256": "702728fcde942fc39743b41a6866426661ba055ba0c66194b6c33fca667cfbab",
-        "evaluators_sha256": "17ff5074497bf4897b0789f68607e03d882c7107eb19fed0e478ef2b62e54e06",
+        "evaluators_sha256": "7ae68c53d00d89c032cd2e6419b12d17a2a2317db80b8708fe6dbd89b07bc733",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/author-timeline/derived-hints": {
@@ -825,9 +835,9 @@
       "review": {
         "prompt_sha256": "03c8f2aa49dd0433a3c15b733e802ff05f22edc9e4054c4f75b52b9b8c657eb9",
         "datasets_sha256": "702728fcde942fc39743b41a6866426661ba055ba0c66194b6c33fca667cfbab",
-        "evaluators_sha256": "17ff5074497bf4897b0789f68607e03d882c7107eb19fed0e478ef2b62e54e06",
+        "evaluators_sha256": "7ae68c53d00d89c032cd2e6419b12d17a2a2317db80b8708fe6dbd89b07bc733",
         "dataset_decision": "Added selected-skill composition cases for joint and place-only extraction; they reject unresolved prompt macros and verify the actual grounding/derived-hint manifest. Existing frozen semantic gold is reused because the intended policy is unchanged.",
-        "evaluator_decision": "Retain grounding and source-accuracy judges; add deterministic pre-dispatch macro and component-provenance assertions. Live semantic quality for the newly compiled text still requires a version-witnessed run."
+        "evaluator_decision": "Retain grounding and source-accuracy judges; add deterministic pre-dispatch macro and component-provenance assertions. Live semantic quality for the newly compiled text still requires a version-witnessed run. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/author-timeline/extract": {
@@ -844,9 +854,9 @@
       "review": {
         "prompt_sha256": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
         "datasets_sha256": "702728fcde942fc39743b41a6866426661ba055ba0c66194b6c33fca667cfbab",
-        "evaluators_sha256": "17ff5074497bf4897b0789f68607e03d882c7107eb19fed0e478ef2b62e54e06",
+        "evaluators_sha256": "7ae68c53d00d89c032cd2e6419b12d17a2a2317db80b8708fe6dbd89b07bc733",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/author-timeline/extract-with-hints": {
@@ -863,9 +873,9 @@
       "review": {
         "prompt_sha256": "c4b2d944fa386f1b2fdee6148d16cbc31c2570a02d142d2b882cf48cbcdded60",
         "datasets_sha256": "702728fcde942fc39743b41a6866426661ba055ba0c66194b6c33fca667cfbab",
-        "evaluators_sha256": "17ff5074497bf4897b0789f68607e03d882c7107eb19fed0e478ef2b62e54e06",
+        "evaluators_sha256": "7ae68c53d00d89c032cd2e6419b12d17a2a2317db80b8708fe6dbd89b07bc733",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/author-timeline/instructions": {
@@ -882,9 +892,9 @@
       "review": {
         "prompt_sha256": "45f3f4a70e5f01c8b1e850ef9682fd1f95aab0b3440f75f456ee6cb633250287",
         "datasets_sha256": "702728fcde942fc39743b41a6866426661ba055ba0c66194b6c33fca667cfbab",
-        "evaluators_sha256": "17ff5074497bf4897b0789f68607e03d882c7107eb19fed0e478ef2b62e54e06",
+        "evaluators_sha256": "7ae68c53d00d89c032cd2e6419b12d17a2a2317db80b8708fe6dbd89b07bc733",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/author-timeline/shared/grounding": {
@@ -902,9 +912,9 @@
       "review": {
         "prompt_sha256": "540118842077b9f1bb3fffa4c97f9211c881841cf2de1be62ed89a1371fd48e3",
         "datasets_sha256": "702728fcde942fc39743b41a6866426661ba055ba0c66194b6c33fca667cfbab",
-        "evaluators_sha256": "17ff5074497bf4897b0789f68607e03d882c7107eb19fed0e478ef2b62e54e06",
+        "evaluators_sha256": "7ae68c53d00d89c032cd2e6419b12d17a2a2317db80b8708fe6dbd89b07bc733",
         "dataset_decision": "Added selected-skill composition cases for joint and place-only extraction; they reject unresolved prompt macros and verify the actual grounding/derived-hint manifest. Existing frozen semantic gold is reused because the intended policy is unchanged.",
-        "evaluator_decision": "Retain grounding and source-accuracy judges; add deterministic pre-dispatch macro and component-provenance assertions. Live semantic quality for the newly compiled text still requires a version-witnessed run."
+        "evaluator_decision": "Retain grounding and source-accuracy judges; add deterministic pre-dispatch macro and component-provenance assertions. Live semantic quality for the newly compiled text still requires a version-witnessed run. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/author-timeline/window": {
@@ -919,9 +929,9 @@
       "review": {
         "prompt_sha256": "ee95f381fcad58de15535bf81640f61f6ba10e98fcd695d5ccb6947e554e83b3",
         "datasets_sha256": "702728fcde942fc39743b41a6866426661ba055ba0c66194b6c33fca667cfbab",
-        "evaluators_sha256": "17ff5074497bf4897b0789f68607e03d882c7107eb19fed0e478ef2b62e54e06",
+        "evaluators_sha256": "7ae68c53d00d89c032cd2e6419b12d17a2a2317db80b8708fe6dbd89b07bc733",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/batch/compose": {
@@ -938,9 +948,9 @@
       "review": {
         "prompt_sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "e24f2e20ded2236f453ca10f317cb891a009fdf18a997ed3d01db5400543d82d",
+        "evaluators_sha256": "4bd6fabad64bfe4ad0f8963d9e6184a9cfd2d78f9a85b325eb2c734a3549c711",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/batch/prepare": {
@@ -957,9 +967,9 @@
       "review": {
         "prompt_sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "e24f2e20ded2236f453ca10f317cb891a009fdf18a997ed3d01db5400543d82d",
+        "evaluators_sha256": "4bd6fabad64bfe4ad0f8963d9e6184a9cfd2d78f9a85b325eb2c734a3549c711",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/draft": {
@@ -976,9 +986,9 @@
       "review": {
         "prompt_sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "765359750ae4fd902eb89bb91ec41780c0ceda31424ac3ec00f6cf95c98c70ca",
+        "evaluators_sha256": "0a2d2b48b8e11a1b9fd854f1243db386c24de46e6a23eddd3e165855c6831f12",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/outline/leaf/en-AU": {
@@ -994,9 +1004,9 @@
       "review": {
         "prompt_sha256": "a32e8ad5e53803c2b5c0ea3e0b77ed1793a3a393c86b3dc148dc1f4ad9a573f2",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "26dd00a54d684e4536986d76ef5d3c5e0db19ec7bde1ddcff521bb37dccd9921",
+        "evaluators_sha256": "7978b6137fbc8a48081423b8f1b0c4738fad66dd26bda5b2822bceb21adf7005",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/outline/leaf/zh-CN": {
@@ -1012,9 +1022,9 @@
       "review": {
         "prompt_sha256": "a3108ba8705f81ceccaeb85da14393b4ff18dba7d224f87b01bb9b0776340b2b",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "26dd00a54d684e4536986d76ef5d3c5e0db19ec7bde1ddcff521bb37dccd9921",
+        "evaluators_sha256": "7978b6137fbc8a48081423b8f1b0c4738fad66dd26bda5b2822bceb21adf7005",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/outline/merge/en-AU": {
@@ -1030,9 +1040,9 @@
       "review": {
         "prompt_sha256": "b1af3ebef85419e8344db5ad56b9524645e7b094e3f0386b0f12155b4e593aa5",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "26dd00a54d684e4536986d76ef5d3c5e0db19ec7bde1ddcff521bb37dccd9921",
+        "evaluators_sha256": "7978b6137fbc8a48081423b8f1b0c4738fad66dd26bda5b2822bceb21adf7005",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/outline/merge/zh-CN": {
@@ -1048,9 +1058,9 @@
       "review": {
         "prompt_sha256": "80fdf1243c337012039ce5b94a3b37cb0d9cfffd9a45785ffbb788b25b3beb07",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "26dd00a54d684e4536986d76ef5d3c5e0db19ec7bde1ddcff521bb37dccd9921",
+        "evaluators_sha256": "7978b6137fbc8a48081423b8f1b0c4738fad66dd26bda5b2822bceb21adf7005",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/outline/shared/prefix": {
@@ -1066,9 +1076,9 @@
       "review": {
         "prompt_sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "26dd00a54d684e4536986d76ef5d3c5e0db19ec7bde1ddcff521bb37dccd9921",
+        "evaluators_sha256": "7978b6137fbc8a48081423b8f1b0c4738fad66dd26bda5b2822bceb21adf7005",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/outline/shared/suffix": {
@@ -1084,9 +1094,9 @@
       "review": {
         "prompt_sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "26dd00a54d684e4536986d76ef5d3c5e0db19ec7bde1ddcff521bb37dccd9921",
+        "evaluators_sha256": "7978b6137fbc8a48081423b8f1b0c4738fad66dd26bda5b2822bceb21adf7005",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/prepare": {
@@ -1103,9 +1113,9 @@
       "review": {
         "prompt_sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "87da9ee659371a811f1df351ffc89ef931baaf3a529ef9d25e4a61a6ca91045c",
+        "evaluators_sha256": "fe265d7cd94f17da85ac66b0b178fbbd0cae44b2e434ee6604373700569052d0",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/review": {
@@ -1122,9 +1132,9 @@
       "review": {
         "prompt_sha256": "61be8f8c2fb1694d8a9cb1ed63ce572762ba65e0d842bb884d2b92ae3616e7c9",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "3054675b1fab53d32592f5afbe02267f8279fcfa27f6ffc50b0f2d205da7fb4a",
+        "evaluators_sha256": "46d22956e2bb53a192fcf2120f0cd5c217c367e3e551e2c09174f62daae32916",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/shared/editorial-review": {
@@ -1141,9 +1151,9 @@
       "review": {
         "prompt_sha256": "53cd7a3578952dd25ae1b7cfc8ea64c1c6f9705199101f666cb1cb8cb179ba15",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "3054675b1fab53d32592f5afbe02267f8279fcfa27f6ffc50b0f2d205da7fb4a",
+        "evaluators_sha256": "46d22956e2bb53a192fcf2120f0cd5c217c367e3e551e2c09174f62daae32916",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/composer/shared/narrative-enrichment": {
@@ -1160,9 +1170,9 @@
       "review": {
         "prompt_sha256": "1f54526e76fcb210656c7bb713e7909c5e81a2dfc524e08af3ef42261f31ab3e",
         "datasets_sha256": "5d2a0794f285348b7a9e22d89ce653c5f37261df4b07644b312b5adb12f07d61",
-        "evaluators_sha256": "7b398c6cd014854694577068766771c8c910ef824a2303aa81077e57cadcef7e",
+        "evaluators_sha256": "470d1764693060a5c9486650b28037679cd4d32abb0e3ae5e04186486b8b810e",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/family-tree/extract": {
@@ -1177,9 +1187,9 @@
       "review": {
         "prompt_sha256": "5e6961f5109c4e1efdcb6ab7d9f364db1e5e884de86241ad3ad9471d77a63978",
         "datasets_sha256": "0a26d87b4e3d498af56d20614c5aa299611fc2bdd7967a5c95a95150e37c44f6",
-        "evaluators_sha256": "8186248b3175b3177e43d46fbdc185168a812933b9e6f0044048a2f91fb3ada6",
+        "evaluators_sha256": "071c23f77343e5f68f3d815deefe00d85b5fcee7a35f08354ebf473805eb6d27",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/memory-context/profile": {
@@ -1194,9 +1204,9 @@
       "review": {
         "prompt_sha256": "9448aaff608e25c2f98e9dbae64ae2663fa5e4685ff98134498280bc26cdf00d",
         "datasets_sha256": "757e156c5d3db2ee19c337cc4d2ecf9573c26d9fa455ead9490e2444637ad74c",
-        "evaluators_sha256": "824e3bc855c3911011737c10044f291794a00cf3a20918acf55f785ebb2f7d50",
+        "evaluators_sha256": "ba62f223929cb5681460f1a4f137d4fae5f6a9ff57ae7bda1ee9e7b39a8924e1",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/memory-context/summary": {
@@ -1211,9 +1221,9 @@
       "review": {
         "prompt_sha256": "01e01f507ce1888fc1bc1cf912db861c321afff05e3cd43d71341b4089a0a4d8",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "f35ee0a042754f15d79b56b66e9f3808c142d57a4f3037f938f599a5a8d5b77a",
+        "evaluators_sha256": "e2bdc2240c4001f60fc302f30f906342adca73f621441d5050bd561690af633e",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/probes/skills/place-groups/instructions": {
@@ -1229,9 +1239,9 @@
       "review": {
         "prompt_sha256": "f03171f20d2c2d595b08e0fe579ed456a4da606da8e02c3555c27788e50fdda4",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "8ae021724732f60e7cb30c226c5643f6dcb7d8f2eed355ffda18ad33f8310a16",
+        "evaluators_sha256": "4efdfdfe3c7157cd1ffb55d5084c913aad28efebb629f9c6e269d2390c46834f",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/place-journey/extract": {
@@ -1247,9 +1257,9 @@
       "review": {
         "prompt_sha256": "d2a4b04a177f3df72b5a90233f4c025a46bfc14870ac962f04004e0146791e4c",
         "datasets_sha256": "b56cafe536a8ff6472b06e3d26ba93e0245683fdfaf4a2bd6cde697487bab197",
-        "evaluators_sha256": "fd073102338e8b70f42a47398fed2ee9ee3bf01a838a985e85c34f368d190205",
+        "evaluators_sha256": "67eb466a16eb3b612f8cf78580156974d5f262c0cf26395e36270a94e1c8b3c6",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/place-journey/instructions": {
@@ -1265,9 +1275,9 @@
       "review": {
         "prompt_sha256": "a7e45041686e0be511db8fcfc6fdba4eb4c1970d90ac102901c751fd1abc0379",
         "datasets_sha256": "b56cafe536a8ff6472b06e3d26ba93e0245683fdfaf4a2bd6cde697487bab197",
-        "evaluators_sha256": "fd073102338e8b70f42a47398fed2ee9ee3bf01a838a985e85c34f368d190205",
+        "evaluators_sha256": "67eb466a16eb3b612f8cf78580156974d5f262c0cf26395e36270a94e1c8b3c6",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/instructions": {
@@ -1283,9 +1293,9 @@
       "review": {
         "prompt_sha256": "3c82d3a17a16d4707ca969a3476869ca7f0bd74dbed21fb3db8983eb5cb93dfc",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "b1374b2ed2a5905cd917746f55a14a747bea5337104094ce62a50be0b2a43368",
+        "evaluators_sha256": "3caa38a762bdc61724bfb14a4bf15e7b9fb0ad42b30f71b3bd97bffe12dee3e4",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/proposal": {
@@ -1301,9 +1311,9 @@
       "review": {
         "prompt_sha256": "ad6c3f10984fdc5bee09a852808234b9c0f4418c96392ffd124fe0716c994822",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "67b0f0ea73a5c58060de78558c08f31fb33bf10d7b940ba293185893a3feaf00",
+        "evaluators_sha256": "192fbc67d453bfc05246d8bd721cdff1b0f4f1caef8acf7f4721598ab630d6f3",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/brief": {
@@ -1319,9 +1329,9 @@
       "review": {
         "prompt_sha256": "b7e94782fef5c59d3ebf6077472520aa5026991d115e755a172cc05f375429a7",
         "datasets_sha256": "84668b15f17d30c35ef057ca5b2e087cac93b4f783d94b31c6c82743abce610f",
-        "evaluators_sha256": "1a5b68f47d099c2b780c34ba0c359d5a163b751ff142c8b136710a2411bd9808",
+        "evaluators_sha256": "77da42539449dc92349b2f0e38203adfc3175c625896c0f7aa2dd5cd7ba860cd",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/higgsfield": {
@@ -1337,9 +1347,9 @@
       "review": {
         "prompt_sha256": "7f917826e50b0a17589acd73665d69a2e2d029b5e4099ba6f0489cd772a4bdfb",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "e35c239ed00cdff42865e96f028e286cc6a87211dc5eff465cd9e099911e39aa",
+        "evaluators_sha256": "31ffe01b440e200d344793bb868789146f78be4d6030874894a7b5d7e9c34920",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/webpage": {
@@ -1355,9 +1365,9 @@
       "review": {
         "prompt_sha256": "ce16dea98cd17d0f47de6a9c10df4b5b1b674f9ad8d5e8cb050a1107ca14dc89",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "e35c239ed00cdff42865e96f028e286cc6a87211dc5eff465cd9e099911e39aa",
+        "evaluators_sha256": "31ffe01b440e200d344793bb868789146f78be4d6030874894a7b5d7e9c34920",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/story-game/runtime-contract": {
@@ -1373,9 +1383,9 @@
       "review": {
         "prompt_sha256": "0fb4bcb6d38b5a4c16c5e5447497e3e79d629fbde1d09d482dcea4fc481c0e4f",
         "datasets_sha256": "b02f3331ecbddf586b27f9ad8832340245d32b109fce9a6bac6391da0efd13ac",
-        "evaluators_sha256": "b1374b2ed2a5905cd917746f55a14a747bea5337104094ce62a50be0b2a43368",
+        "evaluators_sha256": "3caa38a762bdc61724bfb14a4bf15e7b9fb0ad42b30f71b3bd97bffe12dee3e4",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/skills/place-photo-research/instructions": {
@@ -1391,9 +1401,9 @@
       "review": {
         "prompt_sha256": "c796185cf190aea666fc7b69b6aadd80293831214f47bc9fd2b432157bcf50a7",
         "datasets_sha256": "63a4845c4dd9ab73a2eadfbd584eb24ac0f4e24822fcff2b709b7f065994a19a",
-        "evaluators_sha256": "c02aec19f014aa1c7c6a1e21a03bb8c69207846ca478eef531e2f6474fe55747",
+        "evaluators_sha256": "311c7bcc4080fa4d5c548317f17bffa379dd73149b503027248f7f7037d43524",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/workflows/speech/synthesis/default": {
@@ -1409,9 +1419,9 @@
       "review": {
         "prompt_sha256": "90925ec99590f6f948bd6dcc5ffbd1a15ccd8609363d75bdc6bfd199c375b8f8",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "0dfe91a48cc4152180d19827e8d3f04f008d1f114aeea0325eb5eb2d58e62788",
+        "evaluators_sha256": "9c384d4d839d1337f9fe5141ced9afd54b45cd02d81237f62e725cc333131743",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/workflows/speech/synthesis/en-AU": {
@@ -1427,9 +1437,9 @@
       "review": {
         "prompt_sha256": "e361615ad29303fed0d2e9870ebab92f819b8b4e6f449a68646b9cf8a5c8f968",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "0dfe91a48cc4152180d19827e8d3f04f008d1f114aeea0325eb5eb2d58e62788",
+        "evaluators_sha256": "9c384d4d839d1337f9fe5141ced9afd54b45cd02d81237f62e725cc333131743",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/workflows/speech/synthesis/zh-CN": {
@@ -1445,293 +1455,325 @@
       "review": {
         "prompt_sha256": "35bbc00ef5d92a6c250f8504fe3c0fa4e95f819bb46dc8b04e8638a008239191",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "0dfe91a48cc4152180d19827e8d3f04f008d1f114aeea0325eb5eb2d58e62788",
+        "evaluators_sha256": "9c384d4d839d1337f9fe5141ced9afd54b45cd02d81237f62e725cc333131743",
         "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result."
       }
     },
     "memoir/evaluators/shared/correctness": {
       "use": "judge",
       "scenario": "Hosted quality judge: correctness requires a reference; online sampling excludes speech/images and internal judges.",
       "consumers": [
-        "config/langfuse-evaluators.json:/evaluators/0"
+        "config/langfuse-evaluators.json:/evaluators/0",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
-        "tests/test_langfuse_evaluation_bindings.py"
+        "tests/test_langfuse_evaluation_bindings.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "53a73743de44a5a6ffa5abb3f2bd2534fa37c0f8a0ba12edea973ae9f1530747",
-        "datasets_sha256": "19c7e0afa4ed09b3088cc79b157c786a82fc4565afe4b652dff36b11ec014918",
-        "evaluators_sha256": "ea9d354396953c0f20554bda56692a1bc516ac70468e7a980b7163efe7fca6ff",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "a1ef7a40c59a520ee6deaa7b17a8951635dac82005b0669a47850b1dbefe9827",
+        "evaluators_sha256": "96a66a5c849e453a662b0e2058ca63e997c9cd59952c7d7c7727b7a3fc70461a",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/shared/relevance": {
       "use": "judge",
       "scenario": "Hosted quality judge: correctness requires a reference; online sampling excludes speech/images and internal judges.",
       "consumers": [
-        "config/langfuse-evaluators.json:/evaluators/1"
+        "config/langfuse-evaluators.json:/evaluators/1",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
-        "tests/test_langfuse_evaluation_bindings.py"
+        "tests/test_langfuse_evaluation_bindings.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
-        "prompt_sha256": "291a01d55116dbfc32bcd11a070cf4831479d13b39ccde7bef05fdaf87b20ddd",
-        "datasets_sha256": "89b65f7bd62e3307ed27bd9e2703338d094dd9bcb0dc1aa32aa8cccb62a2dce8",
-        "evaluators_sha256": "68fc25937ff767252870014bf562bfe9fc57672a3d02a22cc82ff584514d678c",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "prompt_sha256": "4082e28e397722b84aafb231dfac46feb978920f22817538e2fd970b83dda609",
+        "datasets_sha256": "65a0fc4fbd202a9a578139be0bef16e2a6e1ae7d88772583bf4f4013ee64d1f5",
+        "evaluators_sha256": "5b35c398604d93ede8aa9fb9563b62161e6246a80e3a85113ff1b073f3a77cbc",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration. Development calibration exposed interpolated relevance scores. Make the existing three anchors explicit; retain the task-specific checks and shared answer keys because their useful/digressive/closed-topic distinctions are unchanged."
       }
     },
     "memoir/evaluators/shared/completeness": {
       "use": "judge",
       "scenario": "Hosted quality judge: correctness requires a reference; online sampling excludes speech/images and internal judges.",
       "consumers": [
-        "config/langfuse-evaluators.json:/evaluators/2"
+        "config/langfuse-evaluators.json:/evaluators/2",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
-        "tests/test_langfuse_evaluation_bindings.py"
+        "tests/test_langfuse_evaluation_bindings.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "98fb333fdadda70ef27667d419be80cd935a5a877b57f551aa850c9b6a07311f",
-        "datasets_sha256": "99b59b25ad727d22895bf2ca66569a08b72a880d14c853938c8158f8d9b57003",
-        "evaluators_sha256": "077c39514b0635f5ca5d4cec3eeecd7b0e9475e1548647481acba0e08b0e84e7",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "cadb4d1a25ada0b47214b0e1b76c16ccbcf9474da04f9ac471c8a025996a4f13",
+        "evaluators_sha256": "d5ecfa96d22545dedc192a37558c81f7bb1eef35c4a58014bacea8b41f0a409b",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/shared/safety": {
       "use": "judge",
       "scenario": "Hosted quality judge: correctness requires a reference; online sampling excludes speech/images and internal judges.",
       "consumers": [
-        "config/langfuse-evaluators.json:/evaluators/3"
+        "config/langfuse-evaluators.json:/evaluators/3",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
-        "tests/test_langfuse_evaluation_bindings.py"
+        "tests/test_langfuse_evaluation_bindings.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "68f060206b293867c0c9a84f362c135f1b26256a294f599cba647897c327d918",
-        "datasets_sha256": "ff31a30053e24f23e98e7a5eb5d8658330f05a786dd636eb26d20f6b0234f139",
-        "evaluators_sha256": "9c443974ae86dc68cb8890a11107d97f2efced860c4c1672d579eddb92f47c52",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "727f3cbec99536e8122a019a358cedadb94dae8b3dcec67939a4d2451b20da1f",
+        "evaluators_sha256": "d3c37d9867fa3bd813e8dbd619d241f690c90496f38209ee9297d5a224d8bfda",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/agents/mira/reply/comparison": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/evaluate_mira_prompt.py:evaluate"
+        "scripts/evaluate_mira_prompt.py:evaluate",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "59e30ceede1896e4698c8b9694d3eeeafea37af9e8166a82c6e67bc395bbb5f0",
-        "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "d126e1c06d67e82c00133f5d78ed90be43858f7c95e38b388db7c9f32ff623c5",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "8c161e2c4aee21edca9583db192a7d1267199a62f9fc91cd5bfafa3419e5e757",
+        "evaluators_sha256": "c54975fa7a2b481af7a8362948a117adb3e5e4a4b664cf3fd73d223682f0c63d",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/agents/mira/reply/interview-quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "1281fe63ea71ea1902ea3bc2c4aacb382678be6a21b7ef10a4b020d340a90c10",
-        "datasets_sha256": "ef2d3227a86478286e43b00f682852e23e1e3dd3523406e409dbe71c502ce269",
-        "evaluators_sha256": "70d916ffe0c830c455e1be78350f850903bac46abcd5c81f69f6d20d41087f99",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "b83c22466fb2b1e3564a20e80f6e53a9bd979ee4a3d2a1fe515035e6eba2c98c",
+        "evaluators_sha256": "4accd515a4b57292c5a2de8250d9ecadbe0ad49c1813e8e747e02cdfe622ccc7",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/shared/evidence-policy": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "8be3e0ed026c79f19b4737d906173e823471cf0b5ad61c93352976515f8fa3ba",
-        "datasets_sha256": "1745f471066ae69643f38493e5d9c760aef1fce76dad750082d9cc3b2bf10fed",
-        "evaluators_sha256": "c47e2a961e0a2c70d9612a84ae7cb08ce699e6a6bf6e794643812a6b84d215bf",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "83e97636fc54b8f4fb9bed0171be076155cbaeeb5ffaf8eacb66c800ee89cf50",
+        "evaluators_sha256": "f1e2d9324d0c1f6fd28b1e4f163e5d561b0ec874680545c16ddbedbb644dac1d",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/skills/author-timeline/extract/quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "8988996834a0225f4803d814c6f98fe1ce65cbde9e7edb98975a8cfd49029897",
-        "datasets_sha256": "42ce0a6164ba3f95b5b77799f2d504b6a78cc8b47eff1fbb042c63f6e722fedd",
-        "evaluators_sha256": "03dbb4d64b162403428e4c5f7d5d7fd2752d5a5146fcf02c1f75c89a2dd30679",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "6be0ae5226518bad3381151559ff3fc866cb65ca7e9fe8b4c1c075db068e6376",
+        "evaluators_sha256": "e8a033b472785bc56d2f5700b4be646227b9bdf6c41b13bae349a5bd50a77cd7",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/workflows/composer-checkpoints/quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "705c405b971edbf6c25f0fdb36af426dff03c5159e61ef62eeeaa2ccb3314031",
-        "datasets_sha256": "64525476b0e1313bfd5140f3680800d75e4707c53e40905d987b8f10e24cb859",
-        "evaluators_sha256": "8270475c5c8e278acc0f043324303b859fd2da3e2fcde33da8dc340ac60e4070",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "1809a87bb27e8834c60c50e0675687eaf45c72f016d049841dc8e1b2319323b0",
+        "evaluators_sha256": "5df894f4f1391fc56146f8edb2ac677f93e4e15cd37d82c274d05692d5511877",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/skills/family-tree/extract/quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "5282ab0846d4440713800a9fc7cb2dab4e24eca2de63ac7de5c6a195718353ca",
-        "datasets_sha256": "84ce8cc7086d1915a8b12543e73537b5b872755dbc5847e1156c338d129d0309",
-        "evaluators_sha256": "876932581ca702dac6d815659bb6d1438152aa4962495cf6922323968d6e0c8c",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "8c4dd6bc5e12d21ff35933c8db37a2988bc877a10e46c2dd39985d6c50764699",
+        "evaluators_sha256": "9e274292e9fac21dc0ccb3bc78f890075b5127f490e94b7d8a32f35f39ec7f21",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/skills/memory-context/profile/quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "ce4ba4b18e11dcfc6d477bd975d2a8316df3dcbe1e2580373fabf3cf4cb561e7",
-        "datasets_sha256": "ad450675980ef1e4224f4fa3dc9f73123cb1b8f30ddf2f29e152c79af947ec45",
-        "evaluators_sha256": "1574c83c2abcf39f56f1b9964c714861c917946cc320cecb1da652d59107c200",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "81ae943f20badb661a46c58a108b5227143bd70bf65fa36cd2078e541cbd49ae",
+        "evaluators_sha256": "28b72b1d2ba0d35ec600f6107160af64a640af09c7f91c67748487792d97acfa",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/skills/place-journey/extract/quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "e4c28969702ac1887cd68c34e9f790ada3f0a8181239f4e0e9d8cb9631e651bf",
-        "datasets_sha256": "61cd5675a359dc00659c492e803e59853cefd95ff1bed18da640309090d46b4c",
-        "evaluators_sha256": "323048074c8582d655008a3782204a9a7464f3fac4b67b8f246483886b0e49d1",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "8a1b031042d3ecc22cd3691ff1fa1d8811a7606cf82d087f7441fd73666c092a",
+        "evaluators_sha256": "e15d34b06b151cbe8276f336db8b18d51f64a92f86bc65c563590046c38081e9",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/skills/place-groups/group/quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "e63c3c0092bc764e3f67dffe754828f6b5441dd459325ab876f2866e88fdb6d8",
-        "datasets_sha256": "bc8e3c2a63a5031d53a12f71e5741b54c59b56f51618a867230a7a392a674301",
-        "evaluators_sha256": "dc0f2f9aa3079c04c8790b4dc93abb109e042d4052123c0619d0aedaa0106baa",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "ff9eabdcd994197ea973e168f6888ed168dbd3378d8c6b96c714a9169425b381",
+        "evaluators_sha256": "d8a97e043937fe73ae9e1d35024233a9e27989f24b9c7f0c07bea7ef616d2e56",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/skills/place-photo-research/discovery/quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "e96ef7343aa76df44a97eddde6cd79bcb55fc468342c9e037930ee21cdeb79d0",
-        "datasets_sha256": "bd4082916340671a93808317f348660d837f907bd5b552fba79d4f943df61fba",
-        "evaluators_sha256": "6284c7e80cb8adcec8ac2251411e80b336596f912d70e999e5c21a1bfc08fc05",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "fb84c265fdaa42f3c75a9f35923a55dc754d7b293e1c5647ca88e17c7ac72d80",
+        "evaluators_sha256": "f5a20bc237eed4f0d8b6aedbf83d3d2858026a79413a6df2727eb33c972b11cf",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/skills/historical-news-research/discovery/quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "a8c5a1ce06c75e655656567649b7b08a224a7874d665b6e01e74e0e576a6433d",
-        "datasets_sha256": "d5fc85ecc2beabed13332c0f6dd8e71cd4a05bc21c51526c2ee79b7023b9ecbe",
-        "evaluators_sha256": "f12262ce858a75104c8a7cee74381cfa37c59c0db8bcd89acaaa33fb600f4fe0",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "afab37293420c2688030212b7fd09e23e3f4838c0e8e8fb0fed1bb1d2169734b",
+        "evaluators_sha256": "0872b5ab4fa4c14da527656ab5dae833bd9e5cd28f78028f2c3abc81353cdbb1",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     },
     "memoir/evaluators/workflows/story-game-adaptation/quality": {
       "use": "judge",
       "scenario": "Offline rubric/comparison or shared judge policy; expected human labels and judge agreement are a separate calibration obligation.",
       "consumers": [
-        "scripts/memoir_skill_eval_suite.py:judge_definition"
+        "scripts/memoir_skill_eval_suite.py:judge_definition",
+        "scripts/memoir_judge_calibration.py:request"
       ],
       "regressions": [
         "tests/test_skill_eval_suite.py",
-        "tests/test_mira_prompt_evaluation.py"
+        "tests/test_mira_prompt_evaluation.py",
+        "tests/test_judge_calibration.py"
       ],
       "review": {
         "prompt_sha256": "70e9e2cc5ae5b5ff603ce06605096e3d4bbd8b02186c2136251df28e3e653054",
-        "datasets_sha256": "0e28e929087634c40eea7d994cfb82539e8d310baf2a5591fe41b42d6c53add4",
-        "evaluators_sha256": "bfa996a39e95fb7a3894d8fd0a9808b3734173374d29682b424736cee2bb7077",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores."
+        "datasets_sha256": "ab606187b106b5f955b55b32009d6874a04e3422cdf239d5b645a0db2822cf28",
+        "evaluators_sha256": "3bc88dbeb16cab4f80601e0e0bd2f7a0d634806e08c1d9fbd2ac9c02c230c59c",
+        "dataset_decision": "Replace placeholder calibration items with the shared-v2 synthetic specification answer key: 80 bilingual development/holdout cases, 140 applicable judgments across all 21 evaluator components. Reuse one dataset/run across prompts; preserve previous fixture bytes, item lineage and experiments. Labels are not independently human-reviewed.",
+        "evaluator_decision": "Reuse the published judge rubrics and their real output contracts. Compare held-out answer keys in code, retain unavailable calls in the denominator and read back exact named scores/provenance. Fix the five-case consumer to accept evidenced observed-category subsets and reject unavailable verdicts carrying numeric scores. A passing synthetic run does not establish independent human calibration."
       }
     }
   },
