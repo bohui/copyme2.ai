@@ -43,6 +43,18 @@ def test_missing_shared_component_is_rejected_even_if_the_primary_is_registered(
         validate(cfg,prompt_registry(include_unpublished=True))
 
 
+@pytest.mark.parametrize('mutation',['replacement','metrics','source'])
+def test_superseded_calibration_keeps_lineage_but_cannot_be_evaluated_again(mutation):
+    cfg=bindings()
+    row=next(d for d in cfg['datasets'] if d['status']=='active')
+    replacement=next(d for d in cfg['datasets'] if d['status']=='active' and d is not row)
+    row.update(status='superseded',metrics=[],superseded_by=replacement['name'],retirement_reason='Replaced placeholder cases')
+    if mutation=='replacement':row['superseded_by']='missing/dataset'
+    elif mutation=='metrics':row['metrics']=['agreement']
+    else:row.update(case_source='tests/evaluation/shared_judge_calibration.json',case_source_sha256='stale')
+    with pytest.raises(ValueError):validate(cfg,prompt_registry(include_unpublished=True))
+
+
 @pytest.mark.parametrize('mutation',['foreign_target','unknown_prompt','missing_item','duplicate_item','double_sampling','self_judging'])
 def test_invalid_bindings_fail_before_publication(mutation):
     cfg=bindings()

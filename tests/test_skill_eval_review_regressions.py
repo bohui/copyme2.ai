@@ -76,3 +76,20 @@ def test_historical_requests_use_case_context_and_production_minimization(tmp_pa
     provider = Capture()
     asyncio.run(suite.run(invalid, tmp_path / 'invalid', history_provider=provider))
     assert provider.requests == []
+
+
+@pytest.mark.parametrize('start,end',[(0,41),(None,None)])
+def test_profile_grading_uses_production_exact_quote_span_repair(start,end):
+    from copy import deepcopy
+    from scripts.memoir_skill_scenarios import build_cases
+    from scripts.memoir_skill_eval_suite import validate
+    case=next(c for c in build_cases() if c['id']=='memoir-memory-context/correction/en-AU')
+    source=case['task']['page']['source']
+    output={'profile_patch':[{'field':'birth_year','value':1962,'source_refs':[{
+        'source_id':source['id'],'version':source['version'],'quote':source['text'],
+        'char_start':start,'char_end':end}]}]}
+    before=deepcopy(output)
+    validate(case,output)
+    assert output==before
+    output['profile_patch'][0]['source_refs'][0]['quote']='unsupported quotation'
+    with pytest.raises(ValueError):validate(case,output)

@@ -22,7 +22,7 @@ from uuid import uuid4
 
 from scripts.memoir_live_skill_cases import scenario_cases
 from scripts.run_memoir_live_skills import save
-from scripts.langfuse_dataset_names import skill_dataset, calibration_dataset, SKILL_TARGETS, WORKFLOWS
+from scripts.langfuse_dataset_names import skill_dataset, SKILL_TARGETS, WORKFLOWS
 
 ROOT = Path(__file__).resolve().parents[1]
 KNOWN = frozenset('memoir-' + name for name in (
@@ -147,20 +147,17 @@ def plan(*, skill=None, phase=None, locale=None, case=None):
         task=dict(action='accepted testimony, event extraction, progressive private draft, source withdrawal', synthetic=True),
         expected_output=dict(witnesses=['source_versions', 'event_revisions', 'composer_checkpoints', 'withdrawal_readback']))
         for language in ('en-AU', 'zh-CN')]
-    calibration_items = [dict(id='calibration-' + split + '-' + s, skill=s, split=split,
-        task=dict(action='independent synthetic judgment calibration', synthetic=True,
-            example='unsupported claim' if split == 'development' else 'missing required witness'),
-        expected_output=dict(human_label=None, human_reviewed=False, critical_violation_label=None))
-        for s in catalog for split in ('development', 'holdout')]
-    return dict(schema_version='memoir-skill-evaluation/3', inventory=catalog, selected_skills=selected,
+    from scripts.memoir_judge_calibration import DATASET, cases as judge_cases
+    calibration_items=[dict(id=c['input']['case_id'],split=c['input']['split'],**c) for c in judge_cases()]
+    return dict(schema_version='memoir-skill-evaluation/4', inventory=catalog, selected_skills=selected,
         upstream_dependencies=deepcopy(PHOTO_UPSTREAM_DEPENDENCIES) if 'memoir-place-photo-research' in selected else [],
         items=selected_items, catalog_items=items,
-        datasets=[*all_datasets.values(), WORKFLOWS, *[calibration_dataset(s) for s in catalog]],
+        datasets=[*all_datasets.values(), WORKFLOWS, DATASET],
         dataset_snapshot=snapshot, dataset_snapshot_kind='local_plan_timestamp',
         evaluators=definitions(catalog), http_dispatches=0, synthetic=True,
         human_calibration='pending_human_labels',
         workflow_items=workflow_items, calibration_items=calibration_items,
-        calibration={split: [c['id'] for c in calibration_items if c['split'] == split and c['skill'] in selected]
+        calibration={split: [c['id'] for c in calibration_items if c['split'] == split]
                      for split in ('development', 'holdout')},
         publication=dict(status='blocked', reasons=['merged_main_judge_publication_required',
             'installed_langfuse_evaluator_and_rule_interfaces_unverified'],
@@ -218,14 +215,14 @@ def validate(item, output):
         from jsonschema import Draft202012Validator
         Draft202012Validator(packet(item)['schema']).validate(output)
         original = task['page']['source']
-        for change in output['profile_patch']:
+        value = validate_profile(output, task['page'])
+        for change in value['profile_patch']:
             for ref in change['source_refs']:
-                start, end = ref['char_start'], ref['char_end']
+                start, end = ref['char_start']-original['char_start'], ref['char_end']-original['char_start']
                 if (type(start) is not int or type(end) is not int
                     or not 0 <= start < end <= len(original['text'])
                     or original['text'][start:end] != ref['quote']):
                     raise ValueError('profile_original_character_span')
-        value = validate_profile(output, task['page'])
         if {c['field']: c['value'] for c in value['profile_patch']} != facts:
             raise ValueError('profile_gold_mismatch')
     elif skill == 'memoir-interviewer':

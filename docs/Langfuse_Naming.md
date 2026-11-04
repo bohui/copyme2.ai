@@ -65,6 +65,15 @@ Rule names with one metric end with that metric instead. All rules apply only to
 new observations or experiments. Evaluation and internal judge environments are
 excluded from online rules; speech and image summaries are not text outputs.
 
+SDK experiment scores use `<evaluated-target>/<metric>`, for example
+`memoir/agents/mira/reply/contract_pass` or
+`memoir/skills/memory-context/profile/latency_seconds`. Prompt coverage scores
+name the individual prompt; calibration scores name the judge prompt being
+tested. Admission and multi-stage checks name their application workflow.
+Exact prompt versions and shared components remain in the recorded manifests.
+This keeps the global Scores table readable without treating a workflow check
+as the quality score of a single component prompt.
+
 Targets belong to `memoir/agents/<name>/<operation>`,
 `memoir/skills/<name>/<operation>` or `memoir/workflows/<specific-workflow>`.
 Dataset categories (`golden`, `safety`, `relevance`, `stress`, `calibration`) follow

@@ -35,9 +35,18 @@ remain historical; the combined agent evaluator uses content-pinned datasets.
 # No credentials, model calls, dataset writes or deployment.
 make memoir-agent-eval-plan
 
+# Shared LLM judge regression checks, with scores in Langfuse.
+make llm_judge_calibrate
+
 # Existing local host gateway; publish an SDK experiment for each evaluation target.
-make memoir-agent-eval \
-  AGENT_EVAL_ARGS='--gateway-url http://127.0.0.1:4000/v1 --timeout 150'
+make memoir-agent-eval AGENT_EVAL_ARGS='--timeout 150'
+make memoir-agent-eval EVAL_AGENT=mira
+make memoir-agent-eval EVAL_AGENT=atlas
+make memoir-agent-eval EVAL_SKILL=memoir-author-timeline
+
+# Complete supported catalog; exact current-pin calibration is required first.
+# Unsupported/unexecuted prompt branches remain visible in its Langfuse ledger.
+make prompt-eval-all
 
 # Repeat a difficult native selection case without relaunching every workflow.
 python3 scripts/run_memoir_agent_evaluation.py --execute --publish \
@@ -55,13 +64,18 @@ python3 scripts/run_memoir_agent_evaluation.py --execute --publish \
 ```
 
 The default limits are 128 direct HTTP calls, 16 native runs, 32 dynamic tool
-calls per native run, 120 seconds per case and 30 minutes for the campaign.
+calls per native run, 120 seconds per provider call and 30 minutes for the campaign.
+Composer has a separate 600-second workflow limit (`--workflow-timeout`, at most
+900), because a checkpoint can require several model calls. `--seconds` supports
+at most 7,200 seconds; deliberately increase it for an extended workflow run.
 Advisory judges consume the same direct HTTP allowance. Failed dispatches count;
 the runner adds no direct transport retry. Native provider calls, gateway retries
 and monetary spend are not established by these counters. `--repeat` shares the
 campaign limits, so increase bounds deliberately when repeating the full catalog.
 The CLI returns nonzero when cases fail, capabilities are unavailable or hosted
 verification stays pending. Inspect the saved receipt before deciding to rerun.
+The [calibration command guide](judge-calibration.md) explains shared answer keys,
+current-version gating, independent human review and the all-prompt coverage ledger.
 
 Receipts, actual model outputs, source inspections, a Markdown report and an
 unlabelled human review worksheet live in `var/agent-evaluation/<run>/`. Receipts

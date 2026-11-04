@@ -57,6 +57,15 @@ def evaluation_rule(name, metric):
     return f'{name}/{metric}'
 
 
+def score_name(target, metric):
+    """Keep the evaluated target visible in the global Scores table."""
+    if not re.fullmatch(r'memoir/(?:agents|skills|workflows|evaluators|probes|shared)(?:/[A-Za-z0-9][A-Za-z0-9_-]*)+', target):
+        raise ValueError('Invalid Memoir score target')
+    if not re.fullmatch(r'[a-z][a-z0-9_.-]*(?:/[a-z][a-z0-9_.-]*)*', metric):
+        raise ValueError('Invalid evaluation score metric')
+    return f'{target}/{metric}'
+
+
 def owner_target(owner, task):
     if owner == 'memoir-mira':
         return f'memoir/agents/mira/{task}'

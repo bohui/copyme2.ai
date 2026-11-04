@@ -66,12 +66,13 @@ def test_junit_needs_executed_assertions_and_no_skips(tmp_path, child, code, exp
 
 
 def test_unavailable_and_failed_checks_cannot_earn_numeric_credit():
-    unavailable = evaluate(output=dict(status='unavailable', reason='provider_timeout'))
-    assert unavailable.name == 'availability' and unavailable.value == 'unavailable'
+    item = dict(skill='memoir-memory-context', kind='live_contract')
+    unavailable = evaluate(input=item, output=dict(status='unavailable', reason='provider_timeout'))
+    assert unavailable.name == 'memoir/skills/memory-context/profile/availability' and unavailable.value == 'unavailable'
     assert unavailable.data_type == 'CATEGORICAL'
-    failed = evaluate(output=dict(status='failed', evidence='controlled assertions'))
+    failed = evaluate(input=item, output=dict(status='failed', evidence='controlled assertions'))
     assert failed.value == 0
-    assert evaluate(output=dict(status='passed', evidence='verified completion')).value == 1
+    assert evaluate(input=item, output=dict(status='passed', evidence='verified completion')).value == 1
 
 
 @pytest.mark.parametrize('skill', manifest()['skills'])

@@ -342,3 +342,16 @@ def test_five_case_round_runner_publishes_minimized_trajectory_receipt(tmp_path)
     assert round_trace['visible_delta_chars'] == sum(map(len, delivered)) > 0
     assert client.observation.updated[0]["metadata"]["evaluation_round_status"] == round_trace['grade']['overall']
     assert client.flushed
+
+
+def test_canonical_fixture_emits_the_current_reply_contract_and_keeps_reviewed_ack():
+    from apps.api.conversation_reply import ReplyProposal
+    for locale in ('en-AU','zh-CN'):
+        worker=FixtureWorker({'id':'synthetic-current-reply'})
+        context=dict(reply_contract='reply-v2',source={'text':'A fictional neutral memory.'},
+            reviewed_acknowledgement='Already reviewed acknowledgement.')
+        output=asyncio.run(worker.turn(governed=True,interview_context=context,language=locale))
+        value=json.loads(output['reply'])
+        actual=ReplyProposal.model_validate(value)
+        assert actual.acknowledgement==context['reviewed_acknowledgement']
+        assert actual.question and not {'plan','place_journeys'} & value.keys()

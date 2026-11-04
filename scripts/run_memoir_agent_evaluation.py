@@ -28,7 +28,19 @@ sys.path.insert(0, str(ROOT))
 from scripts.memoir_agent_eval_cases import catalog
 from scripts.memoir_skill_eval_suite import Budget, digest, inventory, packet, validate
 from scripts.run_memoir_live_skills import LiveProvider, native_search, save
-from scripts.langfuse_dataset_names import SKILL_TARGETS, target_dataset
+from scripts.langfuse_dataset_names import SKILL_TARGETS, target_dataset, score_name
+
+DIRECT_REPLAY_SKILLS={'memoir-author-timeline','memoir-memory-context','memoir-place-journey','memoir-place-groups'}
+
+
+def evaluated_status(row,calls):
+    """An absent provider response cannot establish a model contract failure."""
+    if row['status']!='fail' or row.get('output') is not None:return row['status']
+    latest=next((c for c in reversed(calls) if c['case_id']==row['case_id']
+        or c['case_id'].startswith(row['case_id']+'/')),None)
+    if latest and latest.get('status')=='failed' and not latest.get('provider_response_id'):
+        return 'unavailable'
+    return row['status']
 
 
 def judge_selection(cases, maximum):
@@ -179,7 +191,8 @@ class Runner:
                 'apps/api/memoir_background_agent.py', 'apps/api/conversation_reply.py')},
             inventory=inventory(), calls=[], results=[], experiments=[],
             limits=dict(direct_http_calls=args.max_calls, native_runs=args.max_native_runs,
-                native_tool_calls_per_run=32, seconds=args.seconds, per_case_seconds=args.timeout),
+                native_tool_calls_per_run=32, seconds=args.seconds, per_call_seconds=args.timeout,
+                workflow_seconds=getattr(args,'workflow_timeout',None) or args.timeout),
             native_runs=0, native_provider_request_count=None, monetary_cost=None,
             human_calibration='pending; semantic judgments are advisory and use the same configured model',
             scope='Live model proposals and native tool selection with isolated host tools; no canonical saves or browser delivery')
@@ -213,13 +226,16 @@ class Runner:
         save(self.directory / 'receipt.json', self.receipt)
 
     async def call(self, request):
-        value, raw = await self.provider.call(request['item_id'], request['skill'], request['instructions'],
+        value, raw = await self.provider.call(self.active_case_id+'/'+request.get('phase','proposal'), request['skill'], request['instructions'],
             request['input'], request.get('schema'))
         return dict(output=value, response_id=raw['id'], model=raw.get('model'), usage=raw.get('usage'))
 
     async def task(self, *, item, **_kwargs):
         case = self.by_id[item.input['case_id']]
+        self.active_case_id=case['id']
         started, before = time.monotonic(), len(self.receipt['calls'])
+        case_timeout=(getattr(self.args,'workflow_timeout',None) or self.args.timeout
+            if case['component']=='skills' and case['skill']=='memoir-composer' else self.args.timeout)
         row = dict(case_id=case['id'], component=case['component'], skill=case['skill'], locale=case['locale'],
             repeat=getattr(self, 'repeat', 1),
             status='unavailable', checks={}, canonical_delivery=False, semantic=None)
@@ -227,7 +243,7 @@ class Runner:
             remaining = self.started + self.args.seconds - started
             if remaining <= 0:
                 raise LookupError('run_deadline_exhausted')
-            async with asyncio.timeout(min(self.args.timeout, remaining)):
+            async with asyncio.timeout(min(case_timeout, remaining)):
                 if self.replay is not None:
                     original = self.replay[case['id']]
                     if original['input_sha256'] != digest(item.input):
@@ -235,9 +251,12 @@ class Runner:
                     row.update(output=deepcopy(original['output']), evidence_mode='retained_live_output_regraded',
                         replay=dict(source_output_sha256=digest(original['output']),
                             source_evidence_mode=original.get('evidence_mode'), source_gold_sha256=original['gold_sha256'],
-                            source_status=original['status']))
-                    row['checks'] = (grade_reply(case, row['output']) if case['component'] == 'lane-a'
-                                     else grade_background(case, row['output']))
+                            source_status=original['status'],source_calls=deepcopy(getattr(self,'replay_calls',{}).get(case['id'],[]))))
+                    if case['component']=='lane-a':row['checks']=grade_reply(case,row['output'])
+                    elif case['component']=='lane-b':row['checks']=grade_background(case,row['output'])
+                    else:
+                        validate(case['scenario'],row['output'])
+                        row['checks']['production_and_gold_contract']=True
                 elif case['component'] == 'lane-a':
                     row['evidence_mode'] = 'live_reply_proposal'
                     from apps.api.conversation_reply import reply_instructions, reply_schema
@@ -275,7 +294,7 @@ class Runner:
                         row['evidence_mode'] = 'live_composition_with_in_memory_checkpoints'
                         from scripts.memoir_skill_eval_workflows import composer
                         from scripts.memoir_skill_eval_suite import validate_workflow
-                        budget = Budget(self.args.max_calls - len(self.receipt['calls']), min(remaining, self.args.timeout),
+                        budget = Budget(self.args.max_calls - len(self.receipt['calls']), min(remaining, case_timeout),
                             self.args.timeout, time.monotonic)
                         value, witnesses = await composer(scenario, self, budget)
                         row['output'], row['witnesses'] = value, witnesses
@@ -298,8 +317,7 @@ class Runner:
             latest = self.receipt['calls'][-1] if len(self.receipt['calls']) > before else {}
             if latest.get('rejection_category'):
                 row['reason'] = latest['rejection_category']
-            if latest.get('status') == 'failed' and not row.get('output') and 'http_status' not in latest:
-                row['status'] = 'unavailable'
+            row['status']=evaluated_status(row,self.receipt['calls'][before:])
         row['elapsed_seconds'] = round(time.monotonic() - started, 3)
         if case['id'] in self.judge_ids and row.get('output') is not None:
             try:
@@ -316,16 +334,17 @@ class Runner:
 
 def scores(*, output, **_kwargs):
     from langfuse import Evaluation
-    result = [Evaluation(name='execution_available', value=int(output['status'] != 'unavailable'), data_type='NUMERIC')]
+    target = SKILL_TARGETS[output['skill']]
+    result = [Evaluation(name=score_name(target, 'execution_available'), value=int(output['status'] != 'unavailable'), data_type='NUMERIC')]
     if output['status'] != 'unavailable':
-        result.append(Evaluation(name='contract_pass', value=int(output['status'] == 'pass'),
+        result.append(Evaluation(name=score_name(target, 'contract_pass'), value=int(output['status'] == 'pass'),
             comment=output.get('reason', 'Independent code checks; proposal scope only'), data_type='NUMERIC'))
-    result += [Evaluation(name=name, value=int(value), data_type='NUMERIC') for name, value in output['checks'].items()]
+    result += [Evaluation(name=score_name(target, name), value=int(value), data_type='NUMERIC') for name, value in output['checks'].items()]
     semantic = output.get('semantic') or {}
-    result += [Evaluation(name='advisory.' + name, value=value, data_type='NUMERIC',
+    result += [Evaluation(name=score_name(target, 'advisory.' + name), value=value, data_type='NUMERIC',
         comment=semantic['comments'][name] + ' [Uncalibrated; same model; advisory only]')
         for name, value in semantic.get('scores', {}).items()]
-    result.append(Evaluation(name='latency_seconds', value=output['elapsed_seconds'], data_type='NUMERIC'))
+    result.append(Evaluation(name=score_name(target, 'latency_seconds'), value=output['elapsed_seconds'], data_type='NUMERIC'))
     return result
 
 
@@ -395,7 +414,9 @@ def main(argv=None):
     parser.add_argument('--execute', action='store_true')
     parser.add_argument('--publish', action='store_true')
     parser.add_argument('--full', action='store_true')
-    parser.add_argument('--replay-receipt', type=Path, help='Regrade retained Lane A/B outputs; no model dispatch or advisory calls')
+    parser.add_argument('--skill', action='append', choices=sorted(inventory()))
+    parser.add_argument('--agent', choices=['mira','atlas'], help='Mira = Lane A; Atlas = Lane B')
+    parser.add_argument('--replay-receipt', type=Path, help='Regrade retained Lane A/B or direct skill outputs; no model dispatch or advisory calls')
     parser.add_argument('--component', action='append', choices=['lane-a', 'lane-b', 'skills'])
     parser.add_argument('--case', action='append')
     parser.add_argument('--repeat', type=int, default=1)
@@ -404,23 +425,28 @@ def main(argv=None):
     parser.add_argument('--judge-cases', type=int, default=12, help='Stratified same-model advisory sample; included in direct HTTP cap')
     parser.add_argument('--seconds', type=float, default=1800)
     parser.add_argument('--timeout', type=float, default=120)
+    parser.add_argument('--workflow-timeout',type=float,default=600,help='Total multi-call composer workflow seconds; each provider call still uses --timeout')
     parser.add_argument('--env-file', type=Path, default=ROOT / '.env')
     parser.add_argument('--gateway-url', help='Existing gateway origin reachable from this host; no routing changes')
     parser.add_argument('--credential-file', type=Path, default=Path.home() / 'llm_provider/.env')
     parser.add_argument('--output-root', type=Path, default=ROOT / 'var/agent-evaluation')
     args = parser.parse_args(argv)
     if not (1 <= args.repeat <= 5 and 1 <= args.max_calls <= 1000 and 0 <= args.max_native_runs <= 100 and 0 <= args.judge_cases <= 100
-            and 0 < args.timeout <= 240 and 0 < args.seconds <= 3600):
+            and 0 < args.timeout <= 240 and 0 < args.workflow_timeout <= 900 and 0 < args.seconds <= 7200):
         parser.error('invalid evaluation limits')
     cases = catalog(full=args.full)
     if args.case and not set(args.case) <= {c['id'] for c in cases}:
         parser.error('unknown case; use --full to select an extended case')
-    cases = [c for c in cases if (not args.component or c['component'] in args.component) and (not args.case or c['id'] in args.case)]
+    component={'mira':'lane-a','atlas':'lane-b'}.get(args.agent)
+    cases = [c for c in cases if (not args.component or c['component'] in args.component)
+        and (not component or c['component']==component) and (not args.skill or c['skill'] in args.skill)
+        and (not args.case or c['id'] in args.case)]
     if not cases:
         parser.error('empty selection')
     if not args.execute:
         print(json.dumps(dict(cases=[c['id'] for c in cases], count=len(cases), repetitions=args.repeat,
             direct_http_call_cap=args.max_calls, native_run_cap=args.max_native_runs, seconds=args.seconds,
+            per_call_seconds=args.timeout,workflow_seconds=args.workflow_timeout,
             http_dispatches=0, dataset_names=list(dataset_rows(cases))), indent=2))
         return 0
     from dotenv import dotenv_values
@@ -441,17 +467,22 @@ def main(argv=None):
     directory.mkdir(parents=True, mode=0o700)
     with backend_operation_lock():
         client = prompt_client(args.credential_file) if args.publish else None
+        if client and [p.id for p in client.api.projects.get().data]!=['cmut9t75w00071z02n8bdv7it']:
+            raise ValueError('unexpected_langfuse_project')
         runner = Runner(args, config, directory, client=client)
         runner.by_id = {c['id']: c for c in cases}
         runner.judge_ids = judge_selection(cases, args.judge_cases)
         if args.replay_receipt:
-            if any(c['component'] not in {'lane-a', 'lane-b'} for c in cases):
-                parser.error('replay supports Lane A/B outputs; select --component lane-a and/or lane-b')
+            if any(c['component'] not in {'lane-a','lane-b'} and c['skill'] not in DIRECT_REPLAY_SKILLS for c in cases):
+                parser.error('replay supports Lane A/B and direct timeline, profile, place and grouping contracts')
             original = json.loads(args.replay_receipt.read_text())
             rows = [r for r in original['results'] if r['case_id'] in runner.by_id]
             if len(rows) != len(cases) or {r['case_id'] for r in rows} != set(runner.by_id) or any('output' not in r for r in rows):
                 raise ValueError('replay_requires_one_observed_output_per_selected_case')
             runner.replay, runner.judge_ids = {r['case_id']: r for r in rows}, set()
+            runner.replay_calls={row['case_id']:[c for c in original['calls'] if c.get('provider_response_id')
+                and c.get('skill')!='evaluation-judge' and (c['case_id']==row['case_id'] or c['case_id'].startswith(row['case_id']+'/'))]
+                for row in rows}
             runner.receipt.update(scope='Retained live agent outputs regraded with current code; zero model dispatches',
                 replay=dict(source_run_id=original['run_id'], source_evaluator_sha256=original['evaluator_sha256'],
                     source_receipt_sha256=hashlib.sha256(args.replay_receipt.read_bytes()).hexdigest()))
@@ -462,7 +493,7 @@ def main(argv=None):
                 runner.repeat = repeat + 1
                 if client:
                     for name, dataset in loaded.items():
-                        experiment = dataset.run_experiment(name='Memoir current agents and skills',
+                        experiment = dataset.run_experiment(name='evaluation/memoir-agents-and-skills',
                             run_name=directory.name + f'-repeat{repeat + 1}-' + name.rsplit('/', 1)[-1], task=runner.task,
                             evaluators=[scores], max_concurrency=1,
                             metadata=dict(synthetic=True, suite='memoir-agent-evaluation/1', repeat=repeat + 1,

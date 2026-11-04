@@ -24,7 +24,7 @@ if str(ROOT) not in sys.path:
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.memoir_live_skill_cases import cases, validate_case
 from scripts.run_memoir_live_skills import LiveProvider, compose, manifest, native_search, save, evaluation_trace_metadata
-from scripts.langfuse_dataset_names import (SKILL_TASKS, SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target)
+from scripts.langfuse_dataset_names import (SKILL_TASKS, SKILL_TARGETS, target_dataset, dataset_target, admission_dataset, delivery_target, score_name)
 
 # A dataset contains one target; batching is an execution concern.
 DATASET_PHASES = {
@@ -143,7 +143,7 @@ def verify_items(name, rows, items, *, complete):
     return set(wanted) - set(actual)
 
 
-def publish_datasets(client, definitions):
+def publish_datasets(client, definitions, *, description=None):
     existing, page = {}, 1
     while True:
         result = client.api.datasets.list(page=page, limit=100)
@@ -163,7 +163,7 @@ def publish_datasets(client, definitions):
     for name, rows in definitions.items():
         if name not in existing:
             client.create_dataset(name=name,
-                description=('Application trigger checks with controlled replies' if DATASET_PHASES.get(name) == 'triggers'
+                description=description or ('Application trigger checks with controlled replies' if DATASET_PHASES.get(name) == 'triggers'
                     else 'Real gateway delivery probes; isolated synthetic inputs, no production persistence'),
                 metadata=dict(suite='memoir-skills/1', synthetic=True, contains_customer_data=False,
                               content_sha256=digest(rows), item_count=len(rows), target=dataset_target(name)))
@@ -171,7 +171,7 @@ def publish_datasets(client, definitions):
             key = item_id(name, row)
             if row['input']['case_id'] in missing[name]:
                 client.create_dataset_item(dataset_name=name, id=key, **row,
-                    metadata=dict(skill=row['input']['skill'], case_id=row['input']['case_id'],
+                    metadata=dict(skill=row['input'].get('skill'), case_id=row['input']['case_id'],
                                   content_sha256=digest(row), synthetic=True))
     snapshot = datetime.now(timezone.utc)
     loaded = {name: client.get_dataset(name, version=snapshot) for name in definitions}
@@ -216,13 +216,42 @@ def run_trigger(value, directory):
     return checked
 
 
-def evaluate(*, output, **_kwargs):
+def evaluate(*, input, output, **_kwargs):
     from langfuse.experiment import Evaluation
+    target = (dataset_target(admission_dataset(input['skill']))
+        if input['kind'] == 'controlled_application_checks' else delivery_target(input))
     if output['status'] == 'unavailable':
-        return Evaluation(name='availability', value='unavailable', data_type='CATEGORICAL',
+        return Evaluation(name=score_name(target, 'availability'), value='unavailable', data_type='CATEGORICAL',
                           comment=output.get('reason', 'incomplete execution evidence'))
-    return Evaluation(name='contract_pass', value=int(output['status'] == 'passed'),
+    return Evaluation(name=score_name(target, 'contract_pass'), value=int(output['status'] == 'passed'),
                       comment=output.get('reason', output['evidence']), data_type='NUMERIC')
+
+
+def evaluation_manifest(instructions, schema=None, *, input_packet=None):
+    """Match actual static instructions, including evaluation-only prompt sources."""
+    from apps.api.model_request import digest as request_digest
+    from apps.api.prompt_composition import component_paths, render_prompt_artifact
+    from apps.api.prompt_artifact import load_prompt_artifact
+    from scripts.prompt_registry import prompt_registry
+    registry=prompt_registry()
+    paths=[]
+    from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
+    if isinstance(input_packet,dict) and input_packet.get('window_contract')==EXTRACTION_WINDOW_CONTRACT:
+        paths.append(ROOT/registry['memoir/skills/author-timeline/window'])
+    for name,relative in registry.items():
+        path=ROOT/relative
+        source=load_prompt_artifact(path)
+        if source and (source in instructions or '{{prompt:' in source and render_prompt_artifact(path) in instructions):
+            for used in (path,*component_paths(source)):
+                if used not in paths:paths.append(used)
+    artifacts=[]
+    for path in paths:
+        pin=json.loads(path.with_name(path.name+'.langfuse.json').read_text())
+        load_prompt_artifact(path)
+        artifacts.append(dict(name=pin['name'],version=pin['version'],sha256=pin['sha256'],status='published'))
+    value=dict(artifacts=artifacts,prompt_sha256=request_digest(instructions),schema_sha256=request_digest(schema),
+        variant='live-evaluation')
+    return {**value,'manifest_sha256':request_digest(value)}
 
 
 class TracedProvider(LiveProvider):
@@ -234,10 +263,11 @@ class TracedProvider(LiveProvider):
         from apps.api.llm_tracing import trace_llm_call, update_llm_trace
         failure = None
         names = evaluation_trace_metadata(skill, case_id)
+        manifest=evaluation_manifest(instructions,schema,input_packet=packet)
         with trace_llm_call(names['generation_name'], trace_name=names['trace_name'],
                 client=self.langfuse, gateway=True,
                 input_summary=dict(instructions=instructions, packet=packet, **(dict(messages=messages) if messages is not None else {})),
-                metadata=dict(skill=skill, case_id=case_id)) as span:
+                metadata=dict(skill=skill, case_id=case_id,prompt_manifest=manifest)) as span:
             try:
                 value, response = await super().call(case_id, skill, instructions, packet, schema, search=search, messages=messages)
                 record = self.receipt['calls'][-1]
@@ -252,6 +282,9 @@ class TracedProvider(LiveProvider):
                 # Do not send transport exception strings (which can contain credentials).
                 update_llm_trace(span, level='ERROR', status_message=type(error).__name__)
                 failure = error
+            finally:
+                if self.receipt['calls'] and self.receipt['calls'][-1]['case_id']==case_id:
+                    self.receipt['calls'][-1]['prompt_manifest']=manifest
         save(self.directory / 'receipt.json', self.receipt)
         if failure is not None:
             raise failure

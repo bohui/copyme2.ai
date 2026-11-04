@@ -13,6 +13,16 @@ prompt through the target's `evaluated_prompts` and retain the actual prompt
 manifest for each case/run, including conditional branches. Review affected shared
 cases and graders when a prompt changes; reuse them when they remain suitable.
 
+LLM judges share the versioned answer keys in
+`tests/evaluation/shared_judge_calibration.json`; they do not need one dataset
+per prompt. After changing a grader or its consumer, run
+`make llm_judge_calibrate JUDGE_SPLIT=development`, resolve disagreements, then
+run the held-out split. Version changed gold and preserve prior results. These
+synthetic answer keys do not replace independent human labels. The
+[command guide](judge-calibration.md) explains `make prompt-eval-all` and selected
+agent/skill runs. Its coverage ledger must credit only actually executed current
+pins and keep unsupported branches unavailable.
+
 When adding or changing a prompt, including a shared component:
 
 1. Trace the real assembler and its conditions. Record dynamic loaders, optional
