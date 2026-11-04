@@ -208,19 +208,25 @@ def compact_trajectory(trajectory: Mapping[str, Any]) -> dict[str, Any]:
 def validate_judge_result(result: Mapping[str, Any]) -> tuple[str, dict[str, Any]]:
     status = str(result.get("status") or "scored")
     if status != "scored":
+        if status == "unavailable" and result.get("scores"):
+            return "invalid", {"status": "invalid", "problems": ["unavailable judgment contains scores"]}
         return status, {"status": status, "comment": str(result.get("comment") or "")[:1000]}
     scores = result.get("scores") if isinstance(result.get("scores"), Mapping) else {}
     comments = result.get("comments") if isinstance(result.get("comments"), Mapping) else {}
     evidence = result.get("evidence")
     problems: list[str] = []
     normalized: dict[str, float] = {}
-    for category in JUDGE_RUBRIC:
-        value = scores.get(category)
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= float(value) <= 1:
+    if not scores:
+        problems.append("no observed scores; return unavailable")
+    for category, value in scores.items():
+        if (category not in JUDGE_RUBRIC or isinstance(value, bool)
+                or not isinstance(value, (int, float)) or not 0 <= float(value) <= 1):
             problems.append(f"invalid score: {category}")
         else:
             normalized[category] = float(value)
-    if not isinstance(evidence, list) or not evidence:
+            if not isinstance(comments.get(category), str) or not comments[category].strip():
+                problems.append(f"missing observed-score comment: {category}")
+    if not isinstance(evidence, list) or not evidence or any(not isinstance(e, str) or not e.strip() for e in evidence):
         problems.append("missing evidence list")
     if problems:
         return "invalid", {
@@ -233,7 +239,7 @@ def validate_judge_result(result: Mapping[str, Any]) -> tuple[str, dict[str, Any
     return "scored", {
         "status": "scored",
         "scores": normalized,
-        "comments": {category: str(comments.get(category) or "")[:1000] for category in JUDGE_RUBRIC},
+        "comments": {str(category): str(comment)[:1000] for category, comment in comments.items()},
         "evidence": [str(item)[:200] for item in evidence[:20]],
     }
 
