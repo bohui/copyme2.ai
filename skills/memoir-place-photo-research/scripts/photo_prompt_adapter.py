@@ -13,7 +13,7 @@ except ModuleNotFoundError as error:
         raise
 
     ROOT = Path(__file__).resolve().parents[1]
-    PROMPTS = {'memoir/skills/memoir-place-photo-research/discovery': ROOT / 'prompts' / 'discovery.md'}
+    PROMPTS = {'memoir/skills/place-photo-research/discovery': ROOT / 'prompts' / 'discovery.md'}
 
     def digest(value):
         text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))

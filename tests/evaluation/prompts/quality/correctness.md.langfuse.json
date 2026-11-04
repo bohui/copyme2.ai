@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluators/correctness",
+  "name": "memoir/evaluators/shared/correctness",
   "schema_version": 1,
   "sha256": "53a73743de44a5a6ffa5abb3f2bd2534fa37c0f8a0ba12edea973ae9f1530747",
   "type": "text",

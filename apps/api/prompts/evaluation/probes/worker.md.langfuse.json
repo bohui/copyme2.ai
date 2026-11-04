@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluation/probes/worker",
+  "name": "memoir/probes/providers/worker",
   "schema_version": 1,
   "sha256": "0f81c3837bd57f633c7b2a11a583d82ef3cb0298b56d6e068112454a886bab8d",
   "type": "text",

@@ -1054,7 +1054,7 @@
       "children": []
     },
     {
-      "id": "1539e2ad-2dc2-5c98-9c02-e1997efc908c",
+      "id": "cmw1gu5hl009i1z025fk6iiwb",
       "name": "memoir/evaluators/agents/mira/reply/interview-quality/calibration/core",
       "target": "memoir/evaluators/agents/mira/reply/interview-quality",
       "status": "active",
@@ -1071,7 +1071,7 @@
       ]
     },
     {
-      "id": "b96d54ea-9a8e-5a01-a6b6-1d07f17d51af",
+      "id": "cmw1gu5ux009n1z02x272veyj",
       "name": "memoir/evaluators/shared/completeness/calibration/smoke",
       "target": "memoir/evaluators/shared/completeness",
       "status": "active",
@@ -1087,7 +1087,7 @@
       ]
     },
     {
-      "id": "2587d386-31e6-54e3-a503-2faa4679edf2",
+      "id": "cmw1gu5ys009r1z029kculg2k",
       "name": "memoir/evaluators/shared/correctness/calibration/smoke",
       "target": "memoir/evaluators/shared/correctness",
       "status": "active",
@@ -1103,7 +1103,7 @@
       ]
     },
     {
-      "id": "68c158a4-2b8f-5f19-bff6-40285841211a",
+      "id": "cmw1gu62e009v1z02tvfwhho0",
       "name": "memoir/evaluators/shared/relevance/calibration/smoke",
       "target": "memoir/evaluators/shared/relevance",
       "status": "active",
@@ -1119,7 +1119,7 @@
       ]
     },
     {
-      "id": "c7aba2fb-dfea-59eb-987b-603ce6d782de",
+      "id": "cmw1gu67k009z1z029paojmm7",
       "name": "memoir/evaluators/shared/safety/calibration/smoke",
       "target": "memoir/evaluators/shared/safety",
       "status": "active",
@@ -1135,7 +1135,7 @@
       ]
     },
     {
-      "id": "2c896a42-27fb-55de-b249-a3ee618a93bd",
+      "id": "cmw1gu6at00a31z02p9au8ioy",
       "name": "memoir/evaluators/skills/author-timeline/extract/quality/calibration/core",
       "target": "memoir/evaluators/skills/author-timeline/extract/quality",
       "status": "active",
@@ -1152,7 +1152,7 @@
       ]
     },
     {
-      "id": "17845f3f-4047-5dfe-92e2-d09737d21ebb",
+      "id": "cmw1gu6i900a81z025aite30g",
       "name": "memoir/evaluators/skills/family-tree/extract/quality/calibration/core",
       "target": "memoir/evaluators/skills/family-tree/extract/quality",
       "status": "active",
@@ -1169,7 +1169,7 @@
       ]
     },
     {
-      "id": "8c11dcb7-5d5d-554d-a206-657a4a67f7b6",
+      "id": "cmw1gu6mp00ad1z02lmqgwxvl",
       "name": "memoir/evaluators/skills/historical-news-research/discovery/quality/calibration/core",
       "target": "memoir/evaluators/skills/historical-news-research/discovery/quality",
       "status": "active",
@@ -1186,7 +1186,7 @@
       ]
     },
     {
-      "id": "9e655d67-a4e6-549a-ac0f-b3a9f1059287",
+      "id": "cmw1gu6tm00ai1z02gq32tula",
       "name": "memoir/evaluators/skills/memory-context/profile/quality/calibration/core",
       "target": "memoir/evaluators/skills/memory-context/profile/quality",
       "status": "active",
@@ -1203,7 +1203,7 @@
       ]
     },
     {
-      "id": "0e4cc8fd-cdc8-579a-84cf-b260a65c01b9",
+      "id": "cmw1gu70400an1z02uw097afl",
       "name": "memoir/evaluators/skills/place-groups/group/quality/calibration/core",
       "target": "memoir/evaluators/skills/place-groups/group/quality",
       "status": "active",
@@ -1220,7 +1220,7 @@
       ]
     },
     {
-      "id": "86902a01-a451-5983-bf29-d2f887e9171a",
+      "id": "cmw1gu74800as1z02fso1roze",
       "name": "memoir/evaluators/skills/place-journey/extract/quality/calibration/core",
       "target": "memoir/evaluators/skills/place-journey/extract/quality",
       "status": "active",
@@ -1237,7 +1237,7 @@
       ]
     },
     {
-      "id": "ef2917a2-e261-580e-812a-4c4617538895",
+      "id": "cmw1gu7gh00ax1z02crec4737",
       "name": "memoir/evaluators/skills/place-photo-research/discovery/quality/calibration/core",
       "target": "memoir/evaluators/skills/place-photo-research/discovery/quality",
       "status": "active",
@@ -1254,7 +1254,7 @@
       ]
     },
     {
-      "id": "0d241360-93ca-5144-80ce-d67461d77d9d",
+      "id": "cmw1gu7js00b21z02hf95rgs4",
       "name": "memoir/evaluators/workflows/composer-checkpoints/quality/calibration/core",
       "target": "memoir/evaluators/workflows/composer-checkpoints/quality",
       "status": "active",
@@ -1271,7 +1271,7 @@
       ]
     },
     {
-      "id": "5245b52a-7ee4-5bcd-89aa-820615cdf815",
+      "id": "cmw1gu7q500b71z020444va5n",
       "name": "memoir/evaluators/workflows/story-game-adaptation/quality/calibration/core",
       "target": "memoir/evaluators/workflows/story-game-adaptation/quality",
       "status": "active",
@@ -1288,7 +1288,7 @@
       ]
     },
     {
-      "id": "9eeba6b2-d1fb-5437-b363-e631c026cd8f",
+      "id": "cmw1gu7ws00bc1z02zjj4ib17",
       "name": "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/skills/author-timeline/extract",
       "status": "active",
@@ -1364,7 +1364,7 @@
       "children": []
     },
     {
-      "id": "1c752d4d-05fd-5d74-aac5-31bbb87c94f0",
+      "id": "cmw1gu8fm00bm1z02de9qs56x",
       "name": "memoir/skills/author-timeline/extract/golden/delivery-core",
       "target": "memoir/skills/author-timeline/extract",
       "status": "active",
@@ -1392,7 +1392,7 @@
       ]
     },
     {
-      "id": "ae3f8078-deb1-567f-a55a-eb04d4108fe1",
+      "id": "cmw1gu8p900br1z02xxvlq4b6",
       "name": "memoir/skills/author-timeline/extract/golden/delivery-v2",
       "target": "memoir/skills/author-timeline/extract",
       "status": "active",
@@ -1576,7 +1576,7 @@
       "children": []
     },
     {
-      "id": "78bf6753-1c66-54cc-b109-3bc8df80785f",
+      "id": "cmw1gubhy00c01z022hhvxa63",
       "name": "memoir/skills/family-tree/extract/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/skills/family-tree/extract",
       "status": "active",
@@ -1632,7 +1632,7 @@
       "children": []
     },
     {
-      "id": "cd110bab-1b8b-53d5-9aaa-e0e8657a58a3",
+      "id": "cmw1guc9a00c61z02sp1ad4nw",
       "name": "memoir/skills/family-tree/extract/golden/delivery-core",
       "target": "memoir/skills/family-tree/extract",
       "status": "active",
@@ -1651,7 +1651,7 @@
       ]
     },
     {
-      "id": "ae3a9a63-a563-59ed-9b69-ce3b5e767774",
+      "id": "cmw1gucc100ca1z02er0agn3g",
       "name": "memoir/skills/family-tree/extract/golden/delivery-v2",
       "target": "memoir/skills/family-tree/extract",
       "status": "active",
@@ -1670,7 +1670,7 @@
       ]
     },
     {
-      "id": "c0b0aa61-15b0-52cc-97d6-89cc66c9540b",
+      "id": "cmw1gucem00ce1z023ctmixas",
       "name": "memoir/skills/historical-news-research/discovery/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/skills/historical-news-research/discovery",
       "status": "active",
@@ -1725,7 +1725,7 @@
       "children": []
     },
     {
-      "id": "25feb4f7-9366-53b7-9b7b-37f1f1a66381",
+      "id": "cmw1gucil00cj1z02jgu0r0tl",
       "name": "memoir/skills/historical-news-research/discovery/golden/delivery-core",
       "target": "memoir/skills/historical-news-research/discovery",
       "status": "active",
@@ -1745,7 +1745,7 @@
       ]
     },
     {
-      "id": "33908ed7-c472-5313-83d5-f7f5b3a1d703",
+      "id": "cmw1gucmu00co1z027otcrrge",
       "name": "memoir/skills/historical-news-research/discovery/golden/delivery-v2",
       "target": "memoir/skills/historical-news-research/discovery",
       "status": "active",
@@ -1765,7 +1765,7 @@
       ]
     },
     {
-      "id": "c2c1056f-8a6d-5d81-8885-28dfaee69dd1",
+      "id": "cmw1gucp800ct1z02dj82o3kg",
       "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/skills/memory-context/profile",
       "status": "active",
@@ -1850,7 +1850,7 @@
       "children": []
     },
     {
-      "id": "23e2a71b-39dc-5c41-8e68-f681f26aa12f",
+      "id": "cmw1gud8400d81z02t3x7gtc0",
       "name": "memoir/skills/memory-context/profile/golden/delivery-core",
       "target": "memoir/skills/memory-context/profile",
       "status": "active",
@@ -1875,7 +1875,7 @@
       ]
     },
     {
-      "id": "8ac553a9-5400-5d87-8b6d-c0dcb879ab82",
+      "id": "cmw1gudpm00di1z02q9c9r3ac",
       "name": "memoir/skills/memory-context/profile/golden/delivery-v2",
       "target": "memoir/skills/memory-context/profile",
       "status": "active",
@@ -1900,7 +1900,7 @@
       ]
     },
     {
-      "id": "5b1d8c6e-0b53-5baa-b73b-b31e4f234548",
+      "id": "cmw1gue3p00ds1z020r47rjrs",
       "name": "memoir/skills/place-groups/group/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/skills/place-groups/group",
       "status": "active",
@@ -1976,7 +1976,7 @@
       "children": []
     },
     {
-      "id": "46de8d11-29e7-5ec7-a4c5-201eda49f30f",
+      "id": "cmw1guf2k00ed1z02hgj1xte6",
       "name": "memoir/skills/place-groups/group/golden/delivery-core",
       "target": "memoir/skills/place-groups/group",
       "status": "active",
@@ -1990,7 +1990,7 @@
       ]
     },
     {
-      "id": "5b774251-9af6-5cbb-9475-a1f6f123ce36",
+      "id": "cmw1guf9300eh1z0260bktm91",
       "name": "memoir/skills/place-groups/group/golden/delivery-v2",
       "target": "memoir/skills/place-groups/group",
       "status": "active",
@@ -2004,7 +2004,7 @@
       ]
     },
     {
-      "id": "78c437ce-5931-5a4e-b46e-a8c8f58671d2",
+      "id": "cmw1guffx00el1z028wb402jj",
       "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/skills/place-journey/extract",
       "status": "active",
@@ -2082,7 +2082,7 @@
       "children": []
     },
     {
-      "id": "f2cc463f-f109-5714-95e6-0722cda61c53",
+      "id": "cmw1gufo400et1z02sko454ga",
       "name": "memoir/skills/place-journey/extract/golden/delivery-core",
       "target": "memoir/skills/place-journey/extract",
       "status": "active",
@@ -2111,7 +2111,7 @@
       ]
     },
     {
-      "id": "51413a76-2c93-56d9-b8a8-40fbe8627925",
+      "id": "cmw1gufr300ex1z02s0vzre8q",
       "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
       "target": "memoir/skills/place-journey/extract",
       "status": "active",
@@ -2140,7 +2140,7 @@
       ]
     },
     {
-      "id": "6a745a1c-ef2c-592e-ab9d-0c24cd59f084",
+      "id": "cmw1gufuq00f11z023c25c7j3",
       "name": "memoir/skills/place-photo-research/discovery/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/skills/place-photo-research/discovery",
       "status": "active",
@@ -2195,7 +2195,7 @@
       "children": []
     },
     {
-      "id": "bda6e618-c9f8-5f4f-8e4d-650d4f15023b",
+      "id": "cmw1gug0500f61z029tzgytzj",
       "name": "memoir/skills/place-photo-research/discovery/golden/delivery-core",
       "target": "memoir/skills/place-photo-research/discovery",
       "status": "active",
@@ -2215,7 +2215,7 @@
       ]
     },
     {
-      "id": "23cfd162-e979-539f-b565-93d2657817c8",
+      "id": "cmw1gug9h00fb1z02v4981agb",
       "name": "memoir/skills/place-photo-research/discovery/golden/delivery-v2",
       "target": "memoir/skills/place-photo-research/discovery",
       "status": "active",
@@ -2235,7 +2235,7 @@
       ]
     },
     {
-      "id": "650a35e3-14ce-5ba6-b06c-463dbc650700",
+      "id": "cmw1gugee00fg1z02zcm0ndjb",
       "name": "memoir/skills/story-game/brief/golden/delivery-core",
       "target": "memoir/skills/story-game/brief",
       "status": "active",
@@ -2254,7 +2254,7 @@
       ]
     },
     {
-      "id": "0dce80d5-f358-573c-91f6-b8930359b784",
+      "id": "cmw1gughv00fk1z02ndh4d8dx",
       "name": "memoir/skills/story-game/brief/golden/delivery-v2",
       "target": "memoir/skills/story-game/brief",
       "status": "active",
@@ -2273,7 +2273,7 @@
       ]
     },
     {
-      "id": "22747939-bd4e-5776-82da-6bfe26a66b0d",
+      "id": "cmw1gugjq00fo1z02y9ccqhq0",
       "name": "memoir/workflows/author-timeline-admission/golden/triggers-core",
       "target": "memoir/workflows/author-timeline-admission",
       "status": "active",
@@ -2287,7 +2287,7 @@
       ]
     },
     {
-      "id": "e4cb36c1-6083-53da-8774-47e5e7ff612f",
+      "id": "cmw1gugll00fs1z02hx5rnbtx",
       "name": "memoir/workflows/author-timeline-admission/golden/triggers-v2",
       "target": "memoir/workflows/author-timeline-admission",
       "status": "active",
@@ -2351,7 +2351,7 @@
       "children": []
     },
     {
-      "id": "2753182a-834e-561e-ae06-4b6802692b96",
+      "id": "cmw1gugqg00fy1z02akrq9fty",
       "name": "memoir/workflows/composer-admission/golden/triggers-core",
       "target": "memoir/workflows/composer-admission",
       "status": "active",
@@ -2365,7 +2365,7 @@
       ]
     },
     {
-      "id": "6cfcdd3d-6a36-5881-9532-9d269489548e",
+      "id": "cmw1gugs800g21z02lhte7e00",
       "name": "memoir/workflows/composer-admission/golden/triggers-v2",
       "target": "memoir/workflows/composer-admission",
       "status": "active",
@@ -2443,7 +2443,7 @@
       "children": []
     },
     {
-      "id": "e89fc8e2-b8c3-5726-94e8-2f40e18586c7",
+      "id": "cmw1gugxc00g81z02t5bj7he1",
       "name": "memoir/workflows/composer-checkpoints/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/workflows/composer-checkpoints",
       "status": "active",
@@ -2552,7 +2552,7 @@
       "children": []
     },
     {
-      "id": "3356d270-72bf-52ef-a230-afd15fa87784",
+      "id": "cmw1guh6400gh1z02g3mxd1f4",
       "name": "memoir/workflows/composer-checkpoints/golden/delivery-core",
       "target": "memoir/workflows/composer-checkpoints",
       "status": "active",
@@ -2582,7 +2582,7 @@
       ]
     },
     {
-      "id": "fe48cec8-cedf-50ea-9b24-fb7ece7d25c5",
+      "id": "cmw1guh8800gm1z024xqfp9lu",
       "name": "memoir/workflows/composer-checkpoints/golden/delivery-v2",
       "target": "memoir/workflows/composer-checkpoints",
       "status": "active",
@@ -2612,7 +2612,7 @@
       ]
     },
     {
-      "id": "62b3ed91-f92c-5d94-a420-57381cf472bb",
+      "id": "cmw1guha300gr1z02ntsgohhe",
       "name": "memoir/workflows/family-tree-admission/golden/triggers-core",
       "target": "memoir/workflows/family-tree-admission",
       "status": "active",
@@ -2626,7 +2626,7 @@
       ]
     },
     {
-      "id": "48b951bd-2921-541a-b4bc-f606130da50f",
+      "id": "cmw1guhbb00gv1z02hrqosh4g",
       "name": "memoir/workflows/family-tree-admission/golden/triggers-v2",
       "target": "memoir/workflows/family-tree-admission",
       "status": "active",
@@ -2640,7 +2640,7 @@
       ]
     },
     {
-      "id": "33b02dc1-b326-5047-bdc6-e2e5b8203b49",
+      "id": "cmw1guhcv00gz1z02d42yhif9",
       "name": "memoir/workflows/historical-news-research-admission/golden/triggers-core",
       "target": "memoir/workflows/historical-news-research-admission",
       "status": "active",
@@ -2654,7 +2654,7 @@
       ]
     },
     {
-      "id": "3b9bc63e-c2f2-55c7-932b-c3460a45ac24",
+      "id": "cmw1guhec00h31z02py48g0cu",
       "name": "memoir/workflows/historical-news-research-admission/golden/triggers-v2",
       "target": "memoir/workflows/historical-news-research-admission",
       "status": "active",
@@ -2712,7 +2712,7 @@
       ]
     },
     {
-      "id": "4198f5d2-394c-5077-8a03-c61d4131ce91",
+      "id": "cmw1guhhw00h81z02v43bfmtp",
       "name": "memoir/workflows/memory-context-admission/golden/triggers-core",
       "target": "memoir/workflows/memory-context-admission",
       "status": "active",
@@ -2726,7 +2726,7 @@
       ]
     },
     {
-      "id": "d25c06ea-a58b-5e7b-976b-228467db1f3b",
+      "id": "cmw1guhlj00hc1z028d97dbr6",
       "name": "memoir/workflows/memory-context-admission/golden/triggers-v2",
       "target": "memoir/workflows/memory-context-admission",
       "status": "active",
@@ -2893,7 +2893,7 @@
       ]
     },
     {
-      "id": "ec1744ec-880e-51da-be37-08524b09a666",
+      "id": "cmw1guhx500hj1z027vnafou4",
       "name": "memoir/workflows/place-groups-admission/golden/triggers-core",
       "target": "memoir/workflows/place-groups-admission",
       "status": "active",
@@ -2907,7 +2907,7 @@
       ]
     },
     {
-      "id": "6ff36230-8d43-5047-8c35-223af4eb8409",
+      "id": "cmw1guhz400hn1z02qbfob3qj",
       "name": "memoir/workflows/place-groups-admission/golden/triggers-v2",
       "target": "memoir/workflows/place-groups-admission",
       "status": "active",
@@ -2921,7 +2921,7 @@
       ]
     },
     {
-      "id": "e0c86dcf-3acb-5e2e-80e5-7017f0c15b2d",
+      "id": "cmw1gui0w00hr1z024kfnjjuw",
       "name": "memoir/workflows/place-journey-admission/golden/triggers-core",
       "target": "memoir/workflows/place-journey-admission",
       "status": "active",
@@ -2935,7 +2935,7 @@
       ]
     },
     {
-      "id": "80c2805d-f53c-5a0c-8786-a1e81d57a33a",
+      "id": "cmw1gui2a00hv1z023zyxp4al",
       "name": "memoir/workflows/place-journey-admission/golden/triggers-v2",
       "target": "memoir/workflows/place-journey-admission",
       "status": "active",
@@ -2949,7 +2949,7 @@
       ]
     },
     {
-      "id": "266db8eb-05e9-5126-8086-51f3f3265091",
+      "id": "cmw1gui3s00hz1z02ovrod8jj",
       "name": "memoir/workflows/place-photo-research-admission/golden/triggers-core",
       "target": "memoir/workflows/place-photo-research-admission",
       "status": "active",
@@ -2963,7 +2963,7 @@
       ]
     },
     {
-      "id": "2aa3d6e4-1a0e-5240-b4ea-f6b3a2f718ab",
+      "id": "cmw1gui5c00i31z02l15m1ltq",
       "name": "memoir/workflows/place-photo-research-admission/golden/triggers-v2",
       "target": "memoir/workflows/place-photo-research-admission",
       "status": "active",
@@ -3109,7 +3109,7 @@
       "children": []
     },
     {
-      "id": "9fcd3c8a-4575-5acd-b7ce-75ebdee5b441",
+      "id": "cmw1guidl00ib1z02tlr3pvae",
       "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
       "target": "memoir/workflows/story-game-adaptation",
       "status": "active",
@@ -3191,7 +3191,7 @@
       "children": []
     },
     {
-      "id": "d67cc69f-460a-5d16-836b-b54cb2584710",
+      "id": "cmw1guika00ih1z02jph2c3ek",
       "name": "memoir/workflows/story-game-admission/golden/triggers-core",
       "target": "memoir/workflows/story-game-admission",
       "status": "active",
@@ -3205,7 +3205,7 @@
       ]
     },
     {
-      "id": "20cf97f3-f793-54bd-8e3d-5ca911a42ffc",
+      "id": "cmw1guimf00il1z02oaetu8au",
       "name": "memoir/workflows/story-game-admission/golden/triggers-v2",
       "target": "memoir/workflows/story-game-admission",
       "status": "active",

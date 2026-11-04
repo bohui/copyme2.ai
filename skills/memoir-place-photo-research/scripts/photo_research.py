@@ -987,7 +987,7 @@ def llm_search(place: str, temporal: dict, *, timeout: float = 30) -> dict:
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         fail("llm_search_invalid_endpoint")
     prompts = _prompt_adapter()
-    name = 'memoir/skills/memoir-place-photo-research/discovery'
+    name = 'memoir/skills/place-photo-research/discovery'
     instructions = prompts.load_prompt_artifact(prompts.prompt_path(name))
     manifest = prompts.prompt_manifest([name], instructions, variant='native-photo-discovery')
     call_name = 'memoir-place-photo-research.discovery'

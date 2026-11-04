@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluators/completeness",
+  "name": "memoir/evaluators/shared/completeness",
   "schema_version": 1,
   "sha256": "98fb333fdadda70ef27667d419be80cd935a5a877b57f551aa850c9b6a07311f",
   "type": "text",

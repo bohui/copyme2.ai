@@ -1,48 +1,81 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "verified_at": "2026-11-04",
+  "verified_at": "2026-11-04T02:09:08.759429+00:00",
   "provider": "memoir-gateway",
   "model": "gpt-6.1-sol",
   "evaluators": [
     {
-      "name": "memoir-correctness",
-      "id": "f2b1f884-57b2-50bc-bebd-f82b8a97b56d",
-      "version": 1,
-      "prompt_name": "memoir/evaluators/correctness",
-      "prompt_version": 1,
-      "prompt_sha256": "53a73743de44a5a6ffa5abb3f2bd2534fa37c0f8a0ba12edea973ae9f1530747"
-    },
-    {
-      "name": "memoir-relevance",
-      "id": "ececb3ff-3447-5538-95a5-fb9f1548fce5",
-      "version": 1,
-      "prompt_name": "memoir/evaluators/relevance",
-      "prompt_version": 1,
-      "prompt_sha256": "291a01d55116dbfc32bcd11a070cf4831479d13b39ccde7bef05fdaf87b20ddd"
-    },
-    {
-      "name": "memoir-completeness",
-      "id": "26b6e2a1-1513-5311-950b-aeecbff92554",
-      "version": 1,
-      "prompt_name": "memoir/evaluators/completeness",
-      "prompt_version": 1,
-      "prompt_sha256": "98fb333fdadda70ef27667d419be80cd935a5a877b57f551aa850c9b6a07311f"
-    },
-    {
-      "name": "memoir-safety",
       "id": "3e806ed2-00ef-5f55-a0fd-1681923b86a7",
+      "name": "memoir/evaluators/shared/safety",
+      "type": "LLM_AS_JUDGE",
       "version": 1,
-      "prompt_name": "memoir/evaluators/safety",
-      "prompt_version": 1,
-      "prompt_sha256": "68f060206b293867c0c9a84f362c135f1b26256a294f599cba647897c327d918"
+      "judge_prompt": "memoir/evaluators/shared/safety"
+    },
+    {
+      "id": "26b6e2a1-1513-5311-950b-aeecbff92554",
+      "name": "memoir/evaluators/shared/completeness",
+      "type": "LLM_AS_JUDGE",
+      "version": 1,
+      "judge_prompt": "memoir/evaluators/shared/completeness"
+    },
+    {
+      "id": "ececb3ff-3447-5538-95a5-fb9f1548fce5",
+      "name": "memoir/evaluators/shared/relevance",
+      "type": "LLM_AS_JUDGE",
+      "version": 1,
+      "judge_prompt": "memoir/evaluators/shared/relevance"
+    },
+    {
+      "id": "f2b1f884-57b2-50bc-bebd-f82b8a97b56d",
+      "name": "memoir/evaluators/shared/correctness",
+      "type": "LLM_AS_JUDGE",
+      "version": 1,
+      "judge_prompt": "memoir/evaluators/shared/correctness"
+    },
+    {
+      "id": "cmuze63u8000i1z02vdx03rul",
+      "name": "memoir/evaluators/workflows/bilingual-reply-parity/bilingual-consistency",
+      "type": "CODE",
+      "version": 1,
+      "judge_prompt": null
+    },
+    {
+      "id": "cmuze63rg000d1z02l8hvc9cm",
+      "name": "memoir/evaluators/workflows/composer-checkpoints/chapter-continuity",
+      "type": "CODE",
+      "version": 1,
+      "judge_prompt": null
+    },
+    {
+      "id": "cmuze63oz00081z02ag91ae8l",
+      "name": "memoir/evaluators/skills/author-timeline/extract/temporal-placement",
+      "type": "CODE",
+      "version": 1,
+      "judge_prompt": null
+    },
+    {
+      "id": "cmuze63ja00031z02b85oqwl2",
+      "name": "memoir/evaluators/skills/author-timeline/extract/event-grounding",
+      "type": "CODE",
+      "version": 1,
+      "judge_prompt": null
     }
   ],
   "rules": [
     {
       "id": "cmw19gnxs008p1z02wg3jq42q",
-      "name": "memoir-live-quality",
+      "name": "memoir/agents/mira/reply/online/quality",
+      "target": "memoir/agents/mira/reply",
+      "dataset_id": null,
+      "enabled": true,
       "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
       "filter": [
         {
           "type": "stringOptions",
@@ -51,24 +84,6 @@
           ],
           "column": "type",
           "operator": "any of"
-        },
-        {
-          "type": "string",
-          "value": "memoir-",
-          "column": "name",
-          "operator": "starts with"
-        },
-        {
-          "type": "string",
-          "value": "memoir-speech.",
-          "column": "name",
-          "operator": "does not contain"
-        },
-        {
-          "type": "string",
-          "value": ".illustration",
-          "column": "name",
-          "operator": "does not contain"
         },
         {
           "type": "stringOptions",
@@ -92,63 +107,2762 @@
           ],
           "column": "level",
           "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-mira.reply"
+          ]
         }
       ],
-      "sampling": 0.1,
-      "enabled": true,
       "timeScope": [
         "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnj300j51z029qix0oqe",
+      "name": "memoir/agents/mira/policy-review/online/quality",
+      "target": "memoir/agents/mira/policy-review",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
       ],
-      "evaluator_ids": [
-        "ececb3ff-3447-5538-95a5-fb9f1548fce5",
-        "26b6e2a1-1513-5311-950b-aeecbff92554",
-        "3e806ed2-00ef-5f55-a0fd-1681923b86a7"
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-mira.policy-review"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnkg00jc1z02fotasngl",
+      "name": "memoir/agents/mira/repair/online/quality",
+      "target": "memoir/agents/mira/repair",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-mira.reply-repair"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnlh00jj1z02tahxb82k",
+      "name": "memoir/agents/atlas/skill-selection/online/quality",
+      "target": "memoir/agents/atlas/skill-selection",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-atlas.orchestrate"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnnd00jq1z02kohj4xzk",
+      "name": "memoir/skills/author-timeline/extract/online/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-author-timeline.extract"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnoo00jx1z02z32m1vpw",
+      "name": "memoir/skills/author-timeline/summarize/online/quality",
+      "target": "memoir/skills/author-timeline/summarize",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-author-timeline.summarize"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnqj00k41z028ocl1zmo",
+      "name": "memoir/skills/composer/prepare/online/quality",
+      "target": "memoir/skills/composer/prepare",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-composer.prepare"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnrq00kb1z02d1lbx7vj",
+      "name": "memoir/skills/composer/draft/online/quality",
+      "target": "memoir/skills/composer/draft",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-composer.draft"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxntj00ki1z023uj2ab4t",
+      "name": "memoir/skills/composer/review/online/quality",
+      "target": "memoir/skills/composer/review",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-composer.review"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnuh00kp1z02046y8wvw",
+      "name": "memoir/skills/composer/outline/online/quality",
+      "target": "memoir/skills/composer/outline",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "string",
+          "column": "name",
+          "operator": "starts with",
+          "value": "memoir-composer.outline-"
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnvo00kw1z02voy5xihn",
+      "name": "memoir/skills/memory-context/profile/online/quality",
+      "target": "memoir/skills/memory-context/profile",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-memory-context.profile"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnx400l31z02dl5sz9py",
+      "name": "memoir/skills/place-journey/extract/online/quality",
+      "target": "memoir/skills/place-journey/extract",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-place-journey.extract"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxnz200la1z02phll1bey",
+      "name": "memoir/skills/family-tree/extract/online/quality",
+      "target": "memoir/skills/family-tree/extract",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "string",
+          "column": "name",
+          "operator": "starts with",
+          "value": "memoir-family-tree."
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxo0700lh1z02xsqwqh5f",
+      "name": "memoir/skills/place-photo-research/discovery/online/quality",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-place-photo-research.discovery",
+            "memoir-place-photo-research.research"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxo1h00lo1z02jqhc5bv4",
+      "name": "memoir/skills/historical-news-research/discovery/online/quality",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-historical-news-research.discovery",
+            "memoir-historical-news-research.research"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxo2q00lv1z02c914f33e",
+      "name": "memoir/skills/story-game/scenes/online/quality",
+      "target": "memoir/skills/story-game/scenes",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-story-game.scenes"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxo4l00m21z022uy1c6c2",
+      "name": "memoir/skills/story-game/brief/online/quality",
+      "target": "memoir/skills/story-game/brief",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-story-game.brief"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxo5x00m91z02eamser57",
+      "name": "memoir/skills/story-game/analyze/online/quality",
+      "target": "memoir/skills/story-game/analyze",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-story-game.analyze"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxo8400mg1z02lsw56eg8",
+      "name": "memoir/skills/story-game/concept/online/quality",
+      "target": "memoir/skills/story-game/concept",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-story-game.concept"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxo9a00mn1z02hbgpy5nh",
+      "name": "memoir/skills/story-game/design/online/quality",
+      "target": "memoir/skills/story-game/design",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-story-game.design"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxoa800mu1z02gaf6nle7",
+      "name": "memoir/skills/story-game/whitebox/online/quality",
+      "target": "memoir/skills/story-game/whitebox",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-story-game.whitebox"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxob300n11z02myao97o0",
+      "name": "memoir/skills/story-game/art/online/quality",
+      "target": "memoir/skills/story-game/art",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-story-game.art"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxobu00n81z02m3v5gw0f",
+      "name": "memoir/skills/story-game/production/online/quality",
+      "target": "memoir/skills/story-game/production",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-story-game.production"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxocx00nf1z024unom9us",
+      "name": "memoir/skills/story-game/build/online/quality",
+      "target": "memoir/skills/story-game/build",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-story-game.build"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxoe000nm1z02gks8yu3r",
+      "name": "memoir/workflows/skill-agent-execution/online/quality",
+      "target": "memoir/workflows/skill-agent-execution",
+      "dataset_id": null,
+      "enabled": true,
+      "targetObject": "event",
+      "sampling": 0.1,
+      "metrics": [
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "GENERATION"
+          ],
+          "column": "type",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "sdk-experiment",
+            "memoir-evaluator-smoke",
+            "langfuse-evaluation",
+            "langfuse-prompt-experiment",
+            "langfuse-llm-as-a-judge",
+            "langfuse-code-eval",
+            "langfuse-natural-language-filter",
+            "langfuse-in-app-agent"
+          ],
+          "column": "environment",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "ERROR"
+          ],
+          "column": "level",
+          "operator": "none of"
+        },
+        {
+          "type": "stringOptions",
+          "column": "name",
+          "operator": "any of",
+          "value": [
+            "memoir-skill-agent.run"
+          ]
+        }
+      ],
+      "timeScope": [
+        "NEW"
       ]
     },
     {
       "id": "cmw19go49008w1z02n7124hbo",
-      "name": "memoir-dataset-quality",
+      "name": "memoir/agents/mira/reply/golden/core/quality",
+      "target": "memoir/agents/mira/reply",
+      "dataset_id": "cmvf6398g005w1z029w2mw61u",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvf6398g005w1z029w2mw61u"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxog300ny1z028ciq4o7v",
+      "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3/quality",
+      "target": "memoir/agents/atlas/skill-selection",
+      "dataset_id": "cmw0mxvhl001p1z02md3xby14",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw0mxvhl001p1z02md3xby14"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxogr00o61z02goxb7196",
+      "name": "memoir/agents/atlas/skill-selection/golden/campaign-a5c15039ad35/quality",
+      "target": "memoir/agents/atlas/skill-selection",
+      "dataset_id": "cmw0mso8i000i1z029068jddt",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw0mso8i000i1z029068jddt"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxoil00oe1z02s3n2mdrd",
+      "name": "memoir/agents/mira/reply/golden/campaign-268c0e020d7c/quality",
+      "target": "memoir/agents/mira/reply",
+      "dataset_id": "cmw0nlzza004e1z02c3pi0kkw",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw0nlzza004e1z02c3pi0kkw"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxojf00om1z021agqjxdk",
+      "name": "memoir/agents/mira/reply/golden/campaign-4652543f9a9b/quality",
+      "target": "memoir/agents/mira/reply",
+      "dataset_id": "cmw0mslsy000e1z02swle8m8n",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw0mslsy000e1z02swle8m8n"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxokz00ou1z02ma71n9bp",
+      "name": "memoir/agents/mira/reply/golden/campaign-4a07ac27fac9/quality",
+      "target": "memoir/agents/mira/reply",
+      "dataset_id": "cmw0nje4n003j1z029k7hbywi",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw0nje4n003j1z029k7hbywi"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxoly00p21z02ozi5vpcm",
+      "name": "memoir/agents/mira/reply/golden/campaign-85af647a4fa8/quality",
+      "target": "memoir/agents/mira/reply",
+      "dataset_id": "cmw0mxskv000u1z02wrqo62mt",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw0mxskv000u1z02wrqo62mt"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxon800pa1z028caaocvw",
+      "name": "memoir/agents/mira/reply/golden/conversations/quality",
+      "target": "memoir/agents/mira/reply",
+      "dataset_id": "cmvfsjodl009w1z02pt8x0c17",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvfsjodl009w1z02pt8x0c17"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxorh00pi1z02gv53pn1h",
+      "name": "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmw1gu7ws00bc1z02zjj4ib17",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gu7ws00bc1z02zjj4ib17"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxosj00pq1z028cgxafa1",
+      "name": "memoir/skills/author-timeline/extract/golden/core/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmvf62s10003s1z021ip1f0jw",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvf62s10003s1z021ip1f0jw"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxotn00py1z0279y1br4o",
+      "name": "memoir/skills/author-timeline/extract/golden/delivery-core/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmw1gu8fm00bm1z02de9qs56x",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gu8fm00bm1z02de9qs56x"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxoub00q61z02iz9y33y1",
+      "name": "memoir/skills/author-timeline/extract/golden/delivery-v2/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmw1gu8p900br1z02xxvlq4b6",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gu8p900br1z02xxvlq4b6"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxovu00qe1z02e9fhtbvw",
+      "name": "memoir/skills/author-timeline/extract/golden/event-grounding/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmvcxwiok001n1z029quda4ra",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvcxwiok001n1z029quda4ra"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxoxt00qm1z021jsj08gg",
+      "name": "memoir/skills/author-timeline/extract/golden/event-grounding-20261008-v1/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmuzc53sj00031z02d3zzutu0",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmuzc53sj00031z02d3zzutu0"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxozh00qu1z023nygmiw6",
+      "name": "memoir/skills/author-timeline/extract/golden/temporal-placement/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmvcxwj1b001y1z02xjgwdkjy",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvcxwj1b001y1z02xjgwdkjy"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxp1800r21z02cf04y226",
+      "name": "memoir/skills/author-timeline/extract/golden/temporal-placement-20261008-v1/quality",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmuzc59lq000e1z02ioeafsko",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmuzc59lq000e1z02ioeafsko"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxp2e00ra1z023x6bpbmo",
+      "name": "memoir/skills/family-tree/extract/golden/contracts-campaign-0114d47bf1df/quality",
+      "target": "memoir/skills/family-tree/extract",
+      "dataset_id": "cmw1gubhy00c01z022hhvxa63",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gubhy00c01z022hhvxa63"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxp3u00ri1z02qsv143yc",
+      "name": "memoir/skills/family-tree/extract/golden/core/quality",
+      "target": "memoir/skills/family-tree/extract",
+      "dataset_id": "cmvf6340e004u1z02vmpkasz7",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvf6340e004u1z02vmpkasz7"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxp4z00rq1z02hjvxv1el",
+      "name": "memoir/skills/family-tree/extract/golden/delivery-core/quality",
+      "target": "memoir/skills/family-tree/extract",
+      "dataset_id": "cmw1guc9a00c61z02sp1ad4nw",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1guc9a00c61z02sp1ad4nw"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxp6600ry1z02nlrgdhqo",
+      "name": "memoir/skills/family-tree/extract/golden/delivery-v2/quality",
+      "target": "memoir/skills/family-tree/extract",
+      "dataset_id": "cmw1gucc100ca1z02er0agn3g",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gucc100ca1z02er0agn3g"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxp7700s61z02zd0ckbw9",
+      "name": "memoir/skills/historical-news-research/discovery/golden/contracts-campaign-0114d47bf1df/quality",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "dataset_id": "cmw1gucem00ce1z023ctmixas",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gucem00ce1z023ctmixas"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxp8a00se1z02dv2e3zgq",
+      "name": "memoir/skills/historical-news-research/discovery/golden/core/quality",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "dataset_id": "cmvf637t5005d1z02tpayqkcw",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvf637t5005d1z02tpayqkcw"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxp9o00sm1z02e2d5abd2",
+      "name": "memoir/skills/historical-news-research/discovery/golden/delivery-core/quality",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "dataset_id": "cmw1gucil00cj1z02jgu0r0tl",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gucil00cj1z02jgu0r0tl"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpbi00su1z02o09my6a3",
+      "name": "memoir/skills/historical-news-research/discovery/golden/delivery-v2/quality",
+      "target": "memoir/skills/historical-news-research/discovery",
+      "dataset_id": "cmw1gucmu00co1z027otcrrge",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gucmu00co1z027otcrrge"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpd400t21z02nzr502wk",
+      "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-0114d47bf1df/quality",
+      "target": "memoir/skills/memory-context/profile",
+      "dataset_id": "cmw1gucp800ct1z02dj82o3kg",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gucp800ct1z02dj82o3kg"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpey00ta1z02ayfpg1n6",
+      "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-30b9a4222825/quality",
+      "target": "memoir/skills/memory-context/profile",
+      "dataset_id": "cmw0mspgg000m1z0211ur7wsg",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw0mspgg000m1z0211ur7wsg"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpga00ti1z02nl91aavg",
+      "name": "memoir/skills/memory-context/profile/golden/core/quality",
+      "target": "memoir/skills/memory-context/profile",
+      "dataset_id": "cmvf63a7d006f1z0216n7260x",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvf63a7d006f1z0216n7260x"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpjb00tq1z0251f3gzz0",
+      "name": "memoir/skills/memory-context/profile/golden/delivery-core/quality",
+      "target": "memoir/skills/memory-context/profile",
+      "dataset_id": "cmw1gud8400d81z02t3x7gtc0",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gud8400d81z02t3x7gtc0"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpkf00ty1z02dzlcdv49",
+      "name": "memoir/skills/memory-context/profile/golden/delivery-v2/quality",
+      "target": "memoir/skills/memory-context/profile",
+      "dataset_id": "cmw1gudpm00di1z02q9c9r3ac",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gudpm00di1z02q9c9r3ac"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpl600u61z029ljswpzl",
+      "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df/quality",
+      "target": "memoir/skills/place-journey/extract",
+      "dataset_id": "cmw1guffx00el1z028wb402jj",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1guffx00el1z028wb402jj"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpm500ue1z02p4lx9i25",
+      "name": "memoir/skills/place-journey/extract/golden/core/quality",
+      "target": "memoir/skills/place-journey/extract",
+      "dataset_id": "cmvf63buk007h1z02aw7y2u4g",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvf63buk007h1z02aw7y2u4g"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpn000um1z02lhgh2a47",
+      "name": "memoir/skills/place-journey/extract/golden/delivery-core/quality",
+      "target": "memoir/skills/place-journey/extract",
+      "dataset_id": "cmw1gufo400et1z02sko454ga",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gufo400et1z02sko454ga"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpnw00uu1z02zzm00d7k",
+      "name": "memoir/skills/place-journey/extract/golden/delivery-v2/quality",
+      "target": "memoir/skills/place-journey/extract",
+      "dataset_id": "cmw1gufr300ex1z02s0vzre8q",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gufr300ex1z02s0vzre8q"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpoz00v21z02vca4xfiv",
+      "name": "memoir/skills/place-photo-research/discovery/golden/contracts-campaign-0114d47bf1df/quality",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "dataset_id": "cmw1gufuq00f11z023c25c7j3",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gufuq00f11z023c25c7j3"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxppr00va1z027cr5y1s9",
+      "name": "memoir/skills/place-photo-research/discovery/golden/core/quality",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "dataset_id": "cmvf63crr00801z026ga66lt9",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmvf63crr00801z026ga66lt9"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpqi00vi1z02v9f50a9z",
+      "name": "memoir/skills/place-photo-research/discovery/golden/delivery-core/quality",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "dataset_id": "cmw1gug0500f61z029tzgytzj",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gug0500f61z029tzgytzj"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpsa00vq1z023jjav7yw",
+      "name": "memoir/skills/place-photo-research/discovery/golden/delivery-v2/quality",
+      "target": "memoir/skills/place-photo-research/discovery",
+      "dataset_id": "cmw1gug9h00fb1z02v4981agb",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gug9h00fb1z02v4981agb"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxptc00vy1z021cgo1k1z",
+      "name": "memoir/skills/story-game/brief/golden/delivery-core/quality",
+      "target": "memoir/skills/story-game/brief",
+      "dataset_id": "cmw1gugee00fg1z02zcm0ndjb",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gugee00fg1z02zcm0ndjb"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmw1gxpty00w61z02jcinm1n4",
+      "name": "memoir/skills/story-game/brief/golden/delivery-v2/quality",
+      "target": "memoir/skills/story-game/brief",
+      "dataset_id": "cmw1gughv00fk1z02ndh4d8dx",
+      "enabled": true,
+      "targetObject": "experiment",
+      "sampling": 1,
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "filter": [
+        {
+          "type": "stringOptions",
+          "column": "experimentDatasetId",
+          "operator": "any of",
+          "value": [
+            "cmw1gughv00fk1z02ndh4d8dx"
+          ]
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmuze64fd00121z0222opzaww",
+      "name": "memoir/workflows/bilingual-reply-parity/golden/bilingual-consistency-20261008-v1/bilingual-consistency",
+      "target": "memoir/workflows/bilingual-reply-parity",
+      "dataset_id": "cmuzc5g9f00101z02pkzc2lms",
+      "enabled": false,
+      "metrics": [
+        "bilingual-consistency"
+      ],
+      "sampling": 1,
       "targetObject": "event",
       "filter": [
         {
           "type": "stringOptions",
           "value": [
-            "cmuzc53sj00031z02d3zzutu0",
-            "cmuzc59lq000e1z02ioeafsko",
-            "cmuzc5ese000v1z02wi65o5qc",
-            "cmuzc5g9f00101z02pkzc2lms",
-            "cmvcxwiok001n1z029quda4ra",
-            "cmvcxwj1b001y1z02xjgwdkjy",
-            "cmvcxwjms002f1z02fr0384pm",
-            "cmvcxwjt2002k1z02u2zdv6qn",
-            "cmvdcb1h100031z020eze1xt8",
-            "cmvdcb2g2000f1z02wqx8n34y",
-            "cmvde28s7001g1z024qbscebn",
-            "cmvdea22b00221z02a0nv1v93",
-            "cmvf62s10003s1z021ip1f0jw",
-            "cmvf62u0w004b1z02yp9bzm84",
-            "cmvf6340e004u1z02vmpkasz7",
-            "cmvf637t5005d1z02tpayqkcw",
-            "cmvf6398g005w1z029w2mw61u",
-            "cmvf63a7d006f1z0216n7260x",
-            "cmvf63b2m006y1z02j4hcpwry",
-            "cmvf63buk007h1z02aw7y2u4g",
-            "cmvf63crr00801z026ga66lt9",
-            "cmvf63dud008j1z028ssmdzxr",
-            "cmvf63exl00921z024ddyz6sa",
-            "cmvfsjodl009w1z02pt8x0c17",
-            "cmw0mslsy000e1z02swle8m8n",
-            "cmw0mso8i000i1z029068jddt",
-            "cmw0mspgg000m1z0211ur7wsg",
-            "cmw0mvvrr000q1z02a220a52m",
-            "cmw0mxskv000u1z02wrqo62mt",
-            "cmw0mxvhl001p1z02md3xby14",
-            "cmw0mxw4s00261z02ypyn2buw",
-            "cmw0nje4n003j1z029k7hbywi",
-            "cmw0nlzza004e1z02c3pi0kkw",
-            "cmw0pnedx004k1z02mjg6rkji"
+            "cmuzc5g9f00101z02pkzc2lms"
           ],
           "column": "experimentDatasetId",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "issue6-synthetic-evaluation"
+          ],
+          "column": "environment",
           "operator": "any of"
         },
         {
@@ -158,16 +2872,125 @@
           "value": true
         }
       ],
-      "sampling": 1,
-      "enabled": true,
       "timeScope": [
         "NEW"
+      ]
+    },
+    {
+      "id": "cmuze64a0000x1z0285cg3285",
+      "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity-20261008-v1/chapter-continuity",
+      "target": "memoir/workflows/composer-checkpoints",
+      "dataset_id": "cmuzc5ese000v1z02wi65o5qc",
+      "enabled": false,
+      "metrics": [
+        "chapter-continuity"
       ],
-      "evaluator_ids": [
-        "f2b1f884-57b2-50bc-bebd-f82b8a97b56d",
-        "ececb3ff-3447-5538-95a5-fb9f1548fce5",
-        "26b6e2a1-1513-5311-950b-aeecbff92554",
-        "3e806ed2-00ef-5f55-a0fd-1681923b86a7"
+      "sampling": 1,
+      "targetObject": "event",
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "cmuzc5ese000v1z02wi65o5qc"
+          ],
+          "column": "experimentDatasetId",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "issue6-synthetic-evaluation"
+          ],
+          "column": "environment",
+          "operator": "any of"
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmuze6459000s1z027556xpay",
+      "name": "memoir/skills/author-timeline/extract/golden/temporal-placement-20261008-v1/temporal-placement",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmuzc59lq000e1z02ioeafsko",
+      "enabled": false,
+      "metrics": [
+        "temporal-placement"
+      ],
+      "sampling": 1,
+      "targetObject": "event",
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "cmuzc59lq000e1z02ioeafsko"
+          ],
+          "column": "experimentDatasetId",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "issue6-synthetic-evaluation"
+          ],
+          "column": "environment",
+          "operator": "any of"
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
+      ]
+    },
+    {
+      "id": "cmuze63z4000n1z027idmcz4t",
+      "name": "memoir/skills/author-timeline/extract/golden/event-grounding-20261008-v1/event-grounding",
+      "target": "memoir/skills/author-timeline/extract",
+      "dataset_id": "cmuzc53sj00031z02d3zzutu0",
+      "enabled": false,
+      "metrics": [
+        "event-grounding"
+      ],
+      "sampling": 1,
+      "targetObject": "event",
+      "filter": [
+        {
+          "type": "stringOptions",
+          "value": [
+            "cmuzc53sj00031z02d3zzutu0"
+          ],
+          "column": "experimentDatasetId",
+          "operator": "any of"
+        },
+        {
+          "type": "stringOptions",
+          "value": [
+            "issue6-synthetic-evaluation"
+          ],
+          "column": "environment",
+          "operator": "any of"
+        },
+        {
+          "type": "boolean",
+          "column": "isExperimentItemRootSpan",
+          "operator": "=",
+          "value": true
+        }
+      ],
+      "timeScope": [
+        "NEW"
       ]
     }
   ],
@@ -196,5 +3019,7 @@
       "execution_trace_id": "6a695a5d50badba9c94395e46c0b4400",
       "reference_bound": null
     }
-  ]
+  ],
+  "binding_registry": "config/langfuse-evaluation-bindings.json",
+  "binding_registry_sha256": "560f500509a9a5951c1caccf3ffc4a587a34ee9cd350c83e70de209ed15b5a87"
 }

@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluation/five-case-judge/guard",
+  "name": "memoir/evaluators/workflows/five-case-memoir/guard",
   "schema_version": 1,
   "sha256": "5beb9825df0498e8479923848b50bc7d51244c89c779c8fa9411fa5bb50629fe",
   "type": "text",

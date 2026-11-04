@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluation/trajectory-judge/rubric",
+  "name": "memoir/evaluators/shared/trajectory/rubric",
   "schema_version": 1,
   "sha256": "d8e9d743de1ad91da9ea6dce088d509c1edba6b5323f4fb9e8c4e29e98c9a0c3",
   "type": "text",

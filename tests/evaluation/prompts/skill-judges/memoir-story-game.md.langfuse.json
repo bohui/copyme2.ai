@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluation/skills/memoir-story-game/rubric",
+  "name": "memoir/evaluators/workflows/story-game-adaptation/quality",
   "schema_version": 1,
   "sha256": "70e9e2cc5ae5b5ff603ce06605096e3d4bbd8b02186c2136251df28e3e653054",
   "type": "text",
