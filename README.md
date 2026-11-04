@@ -570,9 +570,10 @@ configured bindings, observed scores and remaining quality gaps. For prompt
 changes, follow the [dataset/evaluator review workflow](docs/prompt-evaluation-workflow.md).
 Use `make llm_judge_calibrate` to check the shared judge answer keys, then
 `make prompt-eval-all` for the complete supported prompt campaign and coverage
-ledger in Langfuse. Select a component with
-`make memoir-agent-eval EVAL_AGENT=mira` (or `atlas`) or
-`make memoir-agent-eval EVAL_SKILL=memoir-author-timeline`.
+ledger in Langfuse. Evaluate one prompt with
+`make prompt-eval PROMPT_EVAL_NAME=memoir/agents/mira/reply`, or all prompts in
+a skill with `make prompt-eval SKILL_EVAL_NAME=author-timeline`. Dataset and
+grader selection is automatic; `prompt-eval-plan` previews it without model calls.
 See the [calibration and evaluation commands](docs/judge-calibration.md) for
 development/holdout runs, score meanings and missing coverage.
 `make prompt-coverage` refreshes the table; `make prompt-coverage-snapshot` reads
@@ -684,7 +685,9 @@ make prompt-sync-install                   # Once per clone; enables the Git hoo
 make prompt-sync-check                     # Read-only preview on the current branch.
 make prompt-sync                           # Publishes changed committed prompts and refreshes receipts.
 make prompt-check
-make prompt-eval                           # Read-only preflight for timeline/event-grounding.
+make prompt-eval-plan PROMPT_EVAL_NAME=memoir/agents/mira/reply  # No model calls.
+make prompt-eval PROMPT_EVAL_NAME=memoir/agents/mira/reply       # Grade and publish.
+make prompt-eval SKILL_EVAL_NAME=author-timeline                # All skill prompts.
 
 # After merging:
 git switch main
@@ -693,22 +696,15 @@ git pull --ff-only origin main              # Automatically syncs after incoming
 
 For recovery exports/checks, use `PROMPT_NAME=memoir/skills/composer/draft`
 to select one artifact. Commit prompt edits, sync the branch, then review and
-commit the generated receipts. To preflight another prompt/dataset pair, set
-`PROMPT_EVAL_NAME` and `PROMPT_EVAL_DATASET`. `PROMPT_EVAL_VERSION` can select a
-candidate version before export; otherwise the checked-in version is used.
-Use this evaluation command for composed templates: it supplies the complete
-model input using the same component pins as the app. The template text shown
-in Langfuse is one source of that input, not the complete assembled request.
-`make prompt-eval` pins the dataset at its current UTC snapshot and prints the
-prompt version and item count without model calls. To run the experiment, set
-`PROMPT_EVAL_RUN=1` and `PROMPT_EVAL_MODEL=...`. The command reads provider
-credentials from `PROMPT_EVAL_PROVIDER_FILE` (the same `llm_provider/.env` by
-default), or use a different credential file and `--base-url` via the Python CLI. It sends
-one request at a time, up to 50 items by default. Structured dataset input is
-sent as JSON text. Review Langfuse outputs and human or managed scores before
-publishing a candidate. This generic experiment does not run application packet
-validation or automatically assign a quality score; full application behavior
-still needs its normal runtime checks.
+commit the generated receipts. `make prompt-eval` selects current frozen scenario
+datasets and the production contract graders from the managed prompt name or
+skill owner. It runs the real assembled request, publishes scored Langfuse
+experiments and verifies exact input/gold/output/score readback. Requested prompt
+versions are credited only when present in actual execution manifests. Missing
+branches remain unavailable, even when another component's checks pass. Judge
+prompt names route to their shared calibration answer keys. Model and provider
+credentials come from `.env`; no manual dataset, evaluator or run flag is needed.
+See the [command guide](docs/judge-calibration.md) for limits and focused cases.
 
 Langfuse documents [prompt versions](https://langfuse.com/docs/prompt-management/features/prompt-version-control)
 and [versioned dataset experiments](https://langfuse.com/docs/evaluation/experiments/datasets).
@@ -718,8 +714,8 @@ and [versioned dataset experiments](https://langfuse.com/docs/evaluation/experim
 The [current agent and skill baseline](docs/agent-skill-evaluation.md) runs
 bounded live Lane A replies, native Lane B tool selection and skill contracts,
 then verifies the published Langfuse SDK experiment inputs, outputs and scores.
-Use `make memoir-agent-eval-plan` for its zero-call plan and
-`make memoir-agent-eval` to execute and publish. Semantic scores stay advisory
+Use `make prompt-eval-plan PROMPT_EVAL_NAME=memoir/agents/mira/reply` to preview
+and `make prompt-eval PROMPT_EVAL_NAME=memoir/agents/mira/reply` to grade and publish. Semantic scores stay advisory
 until independently labelled human calibration is available.
 
 The [ten-skill evaluation CLI](docs/issue90-offline-evaluation.md) provides

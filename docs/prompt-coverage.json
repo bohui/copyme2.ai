@@ -56,7 +56,8 @@
     ],
     "regressions": [
       "tests/test_memoir_background_agent.py",
-      "tests/test_memoir_agent_evaluation.py"
+      "tests/test_memoir_agent_evaluation.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -193,7 +194,8 @@
     ],
     "regressions": [
       "tests/test_policy_review_recovery.py",
-      "tests/test_llm_boundary_regressions.py"
+      "tests/test_llm_boundary_regressions.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -334,7 +336,8 @@
       }
     ],
     "regressions": [
-      "tests/test_lifetime_memory_engine.py"
+      "tests/test_lifetime_memory_engine.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -474,7 +477,8 @@
       }
     ],
     "regressions": [
-      "tests/test_lifetime_memory_engine.py"
+      "tests/test_lifetime_memory_engine.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -616,7 +620,8 @@
       "tests/test_interview_native_session.py",
       "tests/test_lane_b_question_priorities.py",
       "tests/test_recall_limit_questions.py",
-      "tests/test_skill_eval_interviewer.py"
+      "tests/test_skill_eval_interviewer.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -666,7 +671,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -718,7 +724,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -769,7 +776,8 @@
     ],
     "regressions": [
       "tests/test_langfuse_evaluation_bindings.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -820,7 +828,8 @@
     ],
     "regressions": [
       "tests/test_langfuse_evaluation_bindings.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -882,7 +891,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -933,7 +943,8 @@
     ],
     "regressions": [
       "tests/test_langfuse_evaluation_bindings.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -984,7 +995,8 @@
     ],
     "regressions": [
       "tests/test_langfuse_evaluation_bindings.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1036,7 +1048,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1092,7 +1105,8 @@
     ],
     "regressions": [
       "tests/test_trajectory_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1148,7 +1162,8 @@
     ],
     "regressions": [
       "tests/test_trajectory_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1200,7 +1215,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1252,7 +1268,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1304,7 +1321,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1356,7 +1374,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1408,7 +1427,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1460,7 +1480,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1512,7 +1533,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1564,7 +1586,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1615,7 +1638,8 @@
     ],
     "regressions": [
       "tests/test_trajectory_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1666,7 +1690,8 @@
     ],
     "regressions": [
       "tests/test_trajectory_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1718,7 +1743,8 @@
     "regressions": [
       "tests/test_skill_eval_suite.py",
       "tests/test_mira_prompt_evaluation.py",
-      "tests/test_judge_calibration.py"
+      "tests/test_judge_calibration.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -1751,7 +1777,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_model_boundaries.py"
+      "tests/test_model_boundaries.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -1783,7 +1810,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_model_boundaries.py"
+      "tests/test_model_boundaries.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -1815,7 +1843,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_model_boundaries.py"
+      "tests/test_model_boundaries.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -1852,7 +1881,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -1889,7 +1919,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -1926,7 +1957,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -1963,7 +1995,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -2000,7 +2033,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -2037,7 +2071,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -2074,7 +2109,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -2401,7 +2437,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -2727,7 +2764,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -3053,7 +3091,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -3159,7 +3198,8 @@
       }
     ],
     "regressions": [
-      "tests/test_interview_plan.py"
+      "tests/test_interview_plan.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -3376,7 +3416,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -3482,7 +3523,8 @@
       }
     ],
     "regressions": [
-      "tests/test_recall_limit_questions.py"
+      "tests/test_recall_limit_questions.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -3829,7 +3871,8 @@
       }
     ],
     "regressions": [
-      "tests/test_codex_harness_skill_loop.py"
+      "tests/test_codex_harness_skill_loop.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -4015,7 +4058,8 @@
     ],
     "regressions": [
       "tests/test_model_boundaries.py",
-      "tests/test_timeline_context_confidence.py"
+      "tests/test_timeline_context_confidence.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -4202,7 +4246,8 @@
     ],
     "regressions": [
       "tests/test_model_boundaries.py",
-      "tests/test_timeline_context_confidence.py"
+      "tests/test_timeline_context_confidence.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -4389,7 +4434,8 @@
     ],
     "regressions": [
       "tests/test_model_boundaries.py",
-      "tests/test_timeline_context_confidence.py"
+      "tests/test_timeline_context_confidence.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -4576,7 +4622,8 @@
     "regressions": [
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -4763,7 +4810,8 @@
     ],
     "regressions": [
       "tests/test_model_boundaries.py",
-      "tests/test_timeline_context_confidence.py"
+      "tests/test_timeline_context_confidence.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -4950,7 +4998,8 @@
     ],
     "regressions": [
       "tests/test_model_boundaries.py",
-      "tests/test_timeline_context_confidence.py"
+      "tests/test_timeline_context_confidence.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -5137,7 +5186,8 @@
     ],
     "regressions": [
       "tests/test_model_boundaries.py",
-      "tests/test_timeline_context_confidence.py"
+      "tests/test_timeline_context_confidence.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -5324,7 +5374,8 @@
     "regressions": [
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -5504,7 +5555,8 @@
       }
     ],
     "regressions": [
-      "tests/test_lifetime_memory_lane_engine.py"
+      "tests/test_lifetime_memory_lane_engine.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -5633,7 +5685,8 @@
     ],
     "regressions": [
       "tests/test_composer_review.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -5764,7 +5817,8 @@
     ],
     "regressions": [
       "tests/test_composer_review.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -5906,7 +5960,8 @@
     ],
     "regressions": [
       "tests/test_composer_review.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6036,7 +6091,8 @@
     ],
     "regressions": [
       "tests/test_composer_review.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -6172,7 +6228,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6308,7 +6365,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6444,7 +6502,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6580,7 +6639,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6716,7 +6776,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -6851,7 +6912,8 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -6991,7 +7053,8 @@
     ],
     "regressions": [
       "tests/test_composer_review.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -7132,7 +7195,8 @@
     ],
     "regressions": [
       "tests/test_composer_review.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -7273,7 +7337,8 @@
     ],
     "regressions": [
       "tests/test_composer_review.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -7415,7 +7480,8 @@
     ],
     "regressions": [
       "tests/test_composer_review.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -7503,7 +7569,8 @@
       }
     ],
     "regressions": [
-      "tests/test_memoir_skill_evaluation.py"
+      "tests/test_memoir_skill_evaluation.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -7592,7 +7659,8 @@
       }
     ],
     "regressions": [
-      "tests/test_historical_news_provider.py"
+      "tests/test_historical_news_provider.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -7680,7 +7748,8 @@
       }
     ],
     "regressions": [
-      "tests/test_historical_news_provider.py"
+      "tests/test_historical_news_provider.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -7768,7 +7837,8 @@
       }
     ],
     "regressions": [
-      "tests/test_historical_news_provider.py"
+      "tests/test_historical_news_provider.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -7873,7 +7943,8 @@
       }
     ],
     "regressions": [
-      "tests/test_background_profile.py"
+      "tests/test_background_profile.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -7913,7 +7984,8 @@
     ],
     "datasets": [],
     "regressions": [
-      "tests/test_summary_budget_retry.py"
+      "tests/test_summary_budget_retry.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset"
@@ -8006,7 +8078,8 @@
       }
     ],
     "regressions": [
-      "tests/test_two_lane_memory.py"
+      "tests/test_two_lane_memory.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -8099,7 +8172,8 @@
       }
     ],
     "regressions": [
-      "tests/test_two_lane_memory.py"
+      "tests/test_two_lane_memory.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -8188,7 +8262,8 @@
     ],
     "regressions": [
       "tests/test_place_photo_discovery.py",
-      "tests/test_place_photo_browser.py"
+      "tests/test_place_photo_browser.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8278,7 +8353,8 @@
     ],
     "regressions": [
       "tests/test_place_photo_discovery.py",
-      "tests/test_place_photo_browser.py"
+      "tests/test_place_photo_browser.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8368,7 +8444,8 @@
     ],
     "regressions": [
       "tests/test_story_game_runtime.py",
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8439,7 +8516,8 @@
     ],
     "regressions": [
       "tests/test_story_game_runtime.py",
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8499,7 +8577,8 @@
     ],
     "regressions": [
       "tests/test_story_game_runtime.py",
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -8581,7 +8660,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8652,7 +8732,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8723,7 +8804,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8798,7 +8880,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8869,7 +8952,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8940,7 +9024,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9005,7 +9090,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -9087,7 +9173,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9158,7 +9245,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9193,7 +9281,8 @@
     "hosted_rule_ids": [],
     "datasets": [],
     "regressions": [
-      "tests/test_novel_game_live.py"
+      "tests/test_novel_game_live.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -9264,7 +9353,8 @@
     ],
     "regressions": [
       "tests/test_novel_game_integration.py",
-      "tests/test_novel_game_art.py"
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9335,7 +9425,8 @@
     ],
     "regressions": [
       "tests/test_story_game_runtime.py",
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9395,7 +9486,8 @@
     ],
     "regressions": [
       "tests/test_story_game_runtime.py",
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -9467,7 +9559,8 @@
     ],
     "regressions": [
       "tests/test_story_game_runtime.py",
-      "tests/test_memoir_live_skills.py"
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9500,7 +9593,8 @@
     "datasets": [],
     "regressions": [
       "tests/test_speech.py",
-      "tests/test_direct_speech.py"
+      "tests/test_direct_speech.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -9534,7 +9628,8 @@
     "datasets": [],
     "regressions": [
       "tests/test_speech.py",
-      "tests/test_direct_speech.py"
+      "tests/test_direct_speech.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",
@@ -9568,7 +9663,8 @@
     "datasets": [],
     "regressions": [
       "tests/test_speech.py",
-      "tests/test_direct_speech.py"
+      "tests/test_direct_speech.py",
+      "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
       "No active hosted dataset",

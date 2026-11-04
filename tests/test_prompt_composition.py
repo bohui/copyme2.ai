@@ -1,6 +1,5 @@
 import hashlib
 import json
-from types import SimpleNamespace
 
 import pytest
 
@@ -8,7 +7,7 @@ from apps.api import prompt_composition as composition
 from apps.api.memory_events import extraction_instructions
 from apps.api.memoir_preview import composer_instructions
 from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
-from scripts.evaluate_langfuse_prompt import experiment_task
+from scripts.run_memoir_skill_evaluation import evaluation_manifest
 from scripts.prompt_registry import ROOT, prompt_registry
 
 
@@ -54,15 +53,9 @@ def test_one_editorial_component_reaches_drafting_review_and_evaluation(monkeypa
         instructions = composer_instructions(phase)
         assert instructions.count(changed) == 1
         path = prompt_path(f'memoir/skills/composer/{phase}')
-        prompt = SimpleNamespace(prompt=load_prompt_artifact(path))
-        calls = []
-        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
-            create=lambda **kwargs: calls.append(kwargs) or SimpleNamespace(
-                choices=[SimpleNamespace(message=SimpleNamespace(content='reply'))]))))
-        task = experiment_task(prompt, 'fixture', client,
-            instructions=composition.render_prompt_artifact(path, content=prompt.prompt))
-        assert task(item=SimpleNamespace(input='Synthetic memory')) == 'reply'
-        assert calls[0]['messages'][0]['content'] == instructions
+        evaluated = evaluation_manifest(instructions)
+        assert any(p['name']==receipt['name'] and p['version']==receipt['version'] and p['sha256']==receipt['sha256']
+            for p in evaluated['artifacts'])
         manifest = composition.composition_receipt(path)
         assert receipt in manifest['components']
         assert manifest['sha256'] == hashlib.sha256(instructions.encode()).hexdigest()

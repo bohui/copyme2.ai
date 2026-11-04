@@ -1,82 +1,63 @@
-# Calibrate judges, then evaluate agents and skills
+# Calibrate judges and evaluate prompts
 
-Calibration checks the grader against fixed answers. Agent/skill evaluation
-checks the generated work. The fifty-round command tests a complete conversation
-through the application; it is a different, longer test.
+Use one evaluation command for a prompt or an entire skill. Dataset recipes and
+graders come from the current target bindings and production scenario catalog;
+you do not need to choose a dataset, evaluator, model or run flag separately.
 
 ```sh
-# Plans: no credentials, writes or model calls.
-make llm_judge_calibrate_plan
-make memoir-agent-eval-plan EVAL_AGENT=mira
-make memoir-agent-eval-plan EVAL_SKILL=memoir-author-timeline
-make prompt-eval-all-plan
+# One prompt: graded production scenarios, published and read back in Langfuse.
+make prompt-eval PROMPT_EVAL_NAME=memoir/agents/mira/reply
 
-# Run development first; diagnose disagreements before opening holdout results.
-make llm_judge_calibrate JUDGE_SPLIT=development
-make llm_judge_calibrate JUDGE_SPLIT=holdout
+# All managed prompts owned by a skill; shared scenarios run once.
+make prompt-eval SKILL_EVAL_NAME=author-timeline
 
-# Later regression runs can check both splits together.
+# Preview either selection without credentials, writes or model calls.
+make prompt-eval-plan PROMPT_EVAL_NAME=memoir/agents/mira/reply
+make prompt-eval-plan SKILL_EVAL_NAME=author-timeline
+
+# Shared judge calibration, or the complete supported prompt catalog.
 make llm_judge_calibrate
-
-# Evaluate the current Mira or Atlas agent, or one skill.
-make memoir-agent-eval EVAL_AGENT=mira
-make memoir-agent-eval EVAL_AGENT=atlas
-make memoir-agent-eval EVAL_SKILL=memoir-author-timeline
-
-# Include the extended scenario catalog for the selected agent or skill.
-make memoir-agent-eval EVAL_AGENT=mira AGENT_EVAL_ARGS='--full'
-make memoir-agent-eval EVAL_SKILL=memoir-author-timeline AGENT_EVAL_ARGS='--full'
-
-# Run the complete supported scenario catalog and publish all prompt coverage.
 make prompt-eval-all
 ```
 
-These host commands use the existing gateway at `http://127.0.0.1:4000/v1`.
-Override `EVAL_GATEWAY_URL` when necessary. Model/key settings come from `ENV_FILE`
-(default `.env`); Langfuse credentials come from `PROMPT_CREDENTIAL_FILE`.
-`AGENT_EVAL_ARGS='--full'` extends a selected agent/skill run. Calibration accepts
-`JUDGE_EVAL_ARGS='--judge correctness'` for diagnosis; a selected judge run alone
-does not satisfy the all-prompt prerequisite.
-Calibration calls have a recorded 180-second default timeout, capped at 240 seconds;
-`JUDGE_EVAL_ARGS='--timeout 240'` changes that bound explicitly. No automatic
-model retry hides a failed attempt.
+For Atlas, use `PROMPT_EVAL_NAME=memoir/agents/atlas/skill-selection`. For one
+profile prompt, use `PROMPT_EVAL_NAME=memoir/skills/memory-context/profile`.
+A judge prompt such as `memoir/evaluators/shared/relevance` automatically uses
+its applicable shared answer keys and agreement grader instead of generating
+an ungraded response.
 
-## Focused runs and prompt names
+The managed Mira prompt name is `memoir/agents/mira/reply`, rather than the
+shorthand `agent.mira.reply`. Its source is `apps/api/prompts/mira/system.md`.
+Shared components still belong to the real assembled request.
 
-`memoir-agent-eval` selects agents/skills and runs their production contract
-checks. `prompt-eval-all` uses that same runner for the full catalog, requires
-verified judge calibration and adds the 96-prompt coverage ledger. Their `-plan`
-targets preview the corresponding selection without model calls.
+A skill selection includes every owned name under `memoir/skills/<skill>/`.
+It combines the relevant production scenario datasets, preserving their frozen
+input/gold hashes. It does not claim that every conditional branch ran: each
+requested prompt receives its own observed-version flag and scenario result.
+An unexecuted current pin remains unavailable and makes the command nonzero,
+even if a parent workflow passes. Unsupported standalone prompts fail with a
+coverage-gap explanation rather than falling back to raw text generation.
 
-For one Mira reply scenario, including its real schema and contract grader:
-
-```sh
-make memoir-agent-eval EVAL_AGENT=mira \
-  AGENT_EVAL_ARGS='--case lane-a/memoir-interviewer/grounded-question/en-AU'
-```
-
-The managed prompt name is `memoir/agents/mira/reply`, rather than the shorthand
-`agent.mira.reply`. It maps to `apps/api/prompts/mira/system.md`; shared
-components still belong to the assembled request.
-
-The older generic `prompt-eval` accepts a managed prompt name and dataset. It
-preflights by default. With `PROMPT_EVAL_RUN=1`, it generates text outputs and
-publishes an experiment, but does not apply the agent/skill contract graders.
-Use the focused agent/skill command above for a graded production scenario.
+Advanced filtering stays on the same command:
 
 ```sh
-# Read-only preflight of one exact prompt pin and its dataset; zero model calls.
-make prompt-eval \
-  PROMPT_EVAL_NAME=memoir/agents/mira/reply \
-  PROMPT_EVAL_DATASET=memoir/agents/mira/reply/golden/core
-
-# Generate outputs with that prompt; inspect this as a smoke experiment.
-make prompt-eval \
-  PROMPT_EVAL_NAME=memoir/agents/mira/reply \
-  PROMPT_EVAL_DATASET=memoir/agents/mira/reply/golden/core \
-  PROMPT_EVAL_PROVIDER_FILE=.env \
-  PROMPT_EVAL_MODEL=gpt-6.1-sol PROMPT_EVAL_RUN=1
+make prompt-eval PROMPT_EVAL_NAME=memoir/agents/mira/reply \
+  PROMPT_EVAL_ARGS='--case lane-a/memoir-interviewer/grounded-question/en-AU'
 ```
+
+The automatic runtime selection uses the extended catalog, up to 400 direct
+HTTP calls and two hours, with 150 seconds per provider call and 600 seconds
+per composer workflow. Advisory trajectory judgments remain distinct from
+production contract grades. Judge calibration uses its recorded 180-second
+call default, capped at 240 seconds. Limits and selected cases are visible in
+the plan; `PROMPT_EVAL_ARGS` can narrow a selection or set explicit bounds.
+
+Host commands use the existing gateway at `http://127.0.0.1:4000/v1`;
+`EVAL_GATEWAY_URL` overrides it. Model/key settings come from `ENV_FILE`
+(default `.env`), and Langfuse credentials from `PROMPT_CREDENTIAL_FILE`.
+`memoir-agent-eval` and its plan target have been removed. The former raw
+`prompt-eval` generation mode and manual dataset/model/run variables are retired.
+The fifty-round command remains a separate full application conversation test.
 
 The shared dataset has 80 fictional cases: 40 development and 40 holdout. Its
 18 judge contracts consume all 21 managed evaluator prompt components and make
