@@ -173,20 +173,36 @@ def readback(client, experiment_id, dataset_id, results):
     rows=cursor_pages(client.api.experiments.list_items,experiment_id=experiment_id,
         from_start_time=datetime(1970,1,1,tzinfo=timezone.utc),fields='core,dataset,io,scores',score_limit=50)
     wanted={r['input']['case_id']:r for r in results};seen=set()
+    if len(rows)!=len(wanted):return dict(verified=False,reason='experiment_item_count',items=len(rows))
+    ids=sorted({s.id for row in rows for s in (row.scores or [])})
+    if not ids:return dict(verified=False,reason='scores_pending',items=len(rows))
+    # Experiment summaries omit score details in events-only deployments.
+    details={}
+    for offset in range(0,len(ids),50):
+        for score in cursor_pages(client.api.scores_v3.get_many_v3,
+                id=','.join(ids[offset:offset+50]),fields='details,subject'):
+            if score.id not in ids or score.id in details:
+                return dict(verified=False,reason='score_identity',items=len(rows))
+            details[score.id]=score
+    def decoded(value):return json.loads(value) if isinstance(value,str) else value
     for row in rows:
-        key=row.input.get('case_id') if isinstance(row.input,dict) else None
+        content={k:decoded(getattr(row,k)) for k in ('input','output','expected_output')}
+        key=content['input'].get('case_id') if isinstance(content['input'],dict) else None
         if key not in wanted or key in seen or row.experiment_dataset_id!=dataset_id:
             return dict(verified=False,reason='experiment_identity',items=len(rows))
         seen.add(key);expected=wanted[key]
-        if any(getattr(row,k)!=expected[k] for k in ('input','output','expected_output')):
+        if any(content[k]!=expected[k] for k in ('input','output','expected_output')):
             return dict(verified=False,reason='experiment_content',items=len(rows))
         for score in evaluations(**expected):
-            matches=[s for s in (row.scores or []) if s.name==score.name]
+            matches=[details[s.id] for s in (row.scores or []) if s.id in details and s.name==score.name]
             if len(matches)!=1 or type(matches[0].value) not in (int,float) or matches[0].value!=score.value:
                 return dict(verified=False,reason='missing_or_wrong_named_score',items=len(rows))
             metadata=getattr(matches[0],'metadata',None) or {}
             if any(metadata.get(key)!=value for key,value in score.metadata.items()):
                 return dict(verified=False,reason='score_provenance',items=len(rows))
+            subject=matches[0].subject
+            if subject.kind!='observation' or subject.trace_id!=row.trace_id:
+                return dict(verified=False,reason='score_subject',items=len(rows))
     return dict(verified=seen==set(wanted),items=len(rows))
 
 
