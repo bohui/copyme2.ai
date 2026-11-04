@@ -33,6 +33,18 @@ def test_actual_runtime_assembler_is_used_for_static_request_provenance():
     assert not any(k.startswith('memoir/evaluators/') for k in artifacts)
 
 
+def test_only_the_actual_source_window_contract_can_supply_input_prompt_provenance():
+    from scripts.memoir_skill_eval_suite import packet
+    from scripts.memoir_skill_scenarios import build_cases
+    case=next(c for c in build_cases() if c['skill']=='memoir-author-timeline')
+    actual=packet(case)
+    manifest=evaluation_manifest(actual['instructions'],actual['schema'],input_packet=actual['input'])
+    assert 'memoir/skills/author-timeline/window' in {a['name'] for a in manifest['artifacts']}
+    changed=deepcopy(actual['input']);changed['window_contract']+='unpublished change'
+    manifest=evaluation_manifest(actual['instructions'],actual['schema'],input_packet=changed)
+    assert 'memoir/skills/author-timeline/window' not in {a['name'] for a in manifest['artifacts']}
+
+
 def test_all_prompt_command_refuses_partial_calibration_even_when_receipt_says_passed(tmp_path):
     row=cases()[0];judge=row['input']['judge_ids'][0]
     record=dict(status='passed',readback={'verified':True},fixture_sha256=hashlib.sha256(SOURCE.read_bytes()).hexdigest(),

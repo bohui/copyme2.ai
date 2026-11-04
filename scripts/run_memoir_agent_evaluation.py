@@ -213,12 +213,13 @@ class Runner:
         save(self.directory / 'receipt.json', self.receipt)
 
     async def call(self, request):
-        value, raw = await self.provider.call(request['item_id'], request['skill'], request['instructions'],
+        value, raw = await self.provider.call(self.active_case_id+'/'+request.get('phase','proposal'), request['skill'], request['instructions'],
             request['input'], request.get('schema'))
         return dict(output=value, response_id=raw['id'], model=raw.get('model'), usage=raw.get('usage'))
 
     async def task(self, *, item, **_kwargs):
         case = self.by_id[item.input['case_id']]
+        self.active_case_id=case['id']
         started, before = time.monotonic(), len(self.receipt['calls'])
         row = dict(case_id=case['id'], component=case['component'], skill=case['skill'], locale=case['locale'],
             repeat=getattr(self, 'repeat', 1),
@@ -446,6 +447,8 @@ def main(argv=None):
     directory.mkdir(parents=True, mode=0o700)
     with backend_operation_lock():
         client = prompt_client(args.credential_file) if args.publish else None
+        if client and [p.id for p in client.api.projects.get().data]!=['cmut9t75w00071z02n8bdv7it']:
+            raise ValueError('unexpected_langfuse_project')
         runner = Runner(args, config, directory, client=client)
         runner.by_id = {c['id']: c for c in cases}
         runner.judge_ids = judge_selection(cases, args.judge_cases)

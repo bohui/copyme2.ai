@@ -225,7 +225,7 @@ def evaluate(*, output, **_kwargs):
                       comment=output.get('reason', output['evidence']), data_type='NUMERIC')
 
 
-def evaluation_manifest(instructions, schema=None):
+def evaluation_manifest(instructions, schema=None, *, input_packet=None):
     """Match actual static instructions, including evaluation-only prompt sources."""
     from apps.api.model_request import digest as request_digest
     from apps.api.prompt_composition import component_paths, render_prompt_artifact
@@ -233,6 +233,9 @@ def evaluation_manifest(instructions, schema=None):
     from scripts.prompt_registry import prompt_registry
     registry=prompt_registry()
     paths=[]
+    from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
+    if isinstance(input_packet,dict) and input_packet.get('window_contract')==EXTRACTION_WINDOW_CONTRACT:
+        paths.append(ROOT/registry['memoir/skills/author-timeline/window'])
     for name,relative in registry.items():
         path=ROOT/relative
         source=load_prompt_artifact(path)
@@ -258,7 +261,7 @@ class TracedProvider(LiveProvider):
         from apps.api.llm_tracing import trace_llm_call, update_llm_trace
         failure = None
         names = evaluation_trace_metadata(skill, case_id)
-        manifest=evaluation_manifest(instructions,schema)
+        manifest=evaluation_manifest(instructions,schema,input_packet=packet)
         with trace_llm_call(names['generation_name'], trace_name=names['trace_name'],
                 client=self.langfuse, gateway=True,
                 input_summary=dict(instructions=instructions, packet=packet, **(dict(messages=messages) if messages is not None else {})),
