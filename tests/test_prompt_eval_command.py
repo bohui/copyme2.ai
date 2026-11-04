@@ -106,3 +106,25 @@ def test_rechecks_do_not_reuse_an_older_passing_phase_or_different_answer_key():
     assert campaign.evidence([row],{},runs)[0]['status']=='unavailable'
     later['results'][0]['gold_sha256']='different-gold'
     with pytest.raises(ValueError,match='input or gold'):campaign.retained_campaigns(first,[later])
+
+
+def test_prompt_ledger_publication_uses_the_real_generic_dataset_publisher():
+    from types import SimpleNamespace as NS
+    from scripts.run_memoir_judge_calibration import PROJECT
+    rows=[dict(input={'case_id':'prompt','prompt':'memoir/agents/mira/reply'},expected_output={'current_pin_observed':True})]
+    output=dict(case_id='prompt',status='unavailable',current_pin_observed=False,evidence=[],human_reviewed=False)
+    stored=[];hosted=[]
+    def create_item(**value):
+        assert value['metadata']['skill'] is None
+        stored.append(NS(id=value['id'],input=value['input'],expected_output=value['expected_output'],status='ACTIVE'))
+    def experiment(**arguments):
+        for item in stored:
+            actual=arguments['task'](item=item)
+            hosted.append(NS(experiment_dataset_id='dataset',input=json.dumps(item.input),output=json.dumps(actual),
+                expected_output=json.dumps(item.expected_output),scores=arguments['evaluators'][0](output=actual)))
+        return NS(experiment_id='experiment',dataset_run_url='http://langfuse.test/experiment')
+    client=NS(api=NS(projects=NS(get=lambda:NS(data=[NS(id=PROJECT)])),datasets=NS(list=lambda **kw:NS(data=[],meta=NS(total_pages=1))),
+        experiments=NS(list_items=lambda **kw:NS(data=hosted,meta=NS(cursor=None)))),
+        create_dataset=lambda **kw:None,create_dataset_item=create_item,
+        get_dataset=lambda *args,**kw:NS(id='dataset',items=stored,run_experiment=experiment),flush=lambda:None)
+    assert campaign.publish(client,rows,[output],'retained-ledger')['readback']['verified']

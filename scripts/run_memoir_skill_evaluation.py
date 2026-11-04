@@ -171,7 +171,7 @@ def publish_datasets(client, definitions, *, description=None):
             key = item_id(name, row)
             if row['input']['case_id'] in missing[name]:
                 client.create_dataset_item(dataset_name=name, id=key, **row,
-                    metadata=dict(skill=row['input']['skill'], case_id=row['input']['case_id'],
+                    metadata=dict(skill=row['input'].get('skill'), case_id=row['input']['case_id'],
                                   content_sha256=digest(row), synthetic=True))
     snapshot = datetime.now(timezone.utc)
     loaded = {name: client.get_dataset(name, version=snapshot) for name in definitions}

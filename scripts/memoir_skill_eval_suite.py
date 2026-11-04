@@ -215,14 +215,14 @@ def validate(item, output):
         from jsonschema import Draft202012Validator
         Draft202012Validator(packet(item)['schema']).validate(output)
         original = task['page']['source']
-        for change in output['profile_patch']:
+        value = validate_profile(output, task['page'])
+        for change in value['profile_patch']:
             for ref in change['source_refs']:
-                start, end = ref['char_start'], ref['char_end']
+                start, end = ref['char_start']-original['char_start'], ref['char_end']-original['char_start']
                 if (type(start) is not int or type(end) is not int
                     or not 0 <= start < end <= len(original['text'])
                     or original['text'][start:end] != ref['quote']):
                     raise ValueError('profile_original_character_span')
-        value = validate_profile(output, task['page'])
         if {c['field']: c['value'] for c in value['profile_patch']} != facts:
             raise ValueError('profile_gold_mismatch')
     elif skill == 'memoir-interviewer':
