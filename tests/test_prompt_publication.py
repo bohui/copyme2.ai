@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 from types import SimpleNamespace
+from urllib.parse import quote, unquote
 
 import pytest
 
@@ -37,7 +38,7 @@ class Client:
         self.versions = {1: 'Original prompt\n'}
         self.creates = []
         self.on_create = None
-        self.api = SimpleNamespace(prompts=SimpleNamespace(list=self.list,get=self.get_prompt))
+        self.api = SimpleNamespace(prompts=SimpleNamespace(list=self.list,get=self.get_api_prompt))
 
     def list(self, **kwargs):
         return SimpleNamespace(data=[SimpleNamespace(name=NAME, versions=list(self.versions))]
@@ -46,6 +47,10 @@ class Client:
     def get_prompt(self, name, **kwargs):
         return SimpleNamespace(name=name, version=kwargs['version'],
             prompt=self.versions[kwargs['version']], is_fallback=False, config={'preserved': True}, labels=[],tags=[])
+
+    def get_api_prompt(self, name, **kwargs):
+        assert name == quote(NAME, safe=''), 'Raw SDK paths require an encoded hierarchical prompt name'
+        return self.get_prompt(unquote(name), **kwargs)
 
     def create_prompt(self, **kwargs):
         self.creates.append(kwargs)
@@ -113,8 +118,10 @@ def retired_repo(repo,monkeypatch):
     monkeypatch.setattr(retirement,'prompt_registry',lambda *a,**k:{})
     client.api.projects=SimpleNamespace(get=lambda:SimpleNamespace(data=[SimpleNamespace(id='project')]))
     client.deletes=[]
-    def delete(name):
-        client.deletes.append(name);client.versions.clear()
+    def delete(name, **kwargs):
+        assert name == quote(NAME, safe='')
+        assert kwargs['request_options'] == {'max_retries':0}
+        client.deletes.append(unquote(name));client.versions.clear()
     client.api.prompts.delete=delete
     commit(root,'Retire reviewed prompt');git(root,'push','origin','main')
     return root,client
@@ -144,8 +151,10 @@ def test_retirement_refuses_unmerged_or_unarchived_or_foreign_changes(retired_re
 def test_retirement_checks_uncertain_write_before_retrying(retired_repo):
     from scripts.retire_prompt_artifacts import retire
     root,client=retired_repo
-    def uncertain(name):
-        client.deletes.append(name);client.versions.clear();raise TimeoutError()
+    def uncertain(name, **kwargs):
+        assert name == quote(NAME, safe='')
+        assert kwargs['request_options'] == {'max_retries':0}
+        client.deletes.append(unquote(name));client.versions.clear();raise TimeoutError()
     client.api.prompts.delete=uncertain
     assert retire(client,root=root,execute=True)[0]['deleted']
     assert client.deletes==[NAME]

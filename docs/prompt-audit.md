@@ -62,6 +62,7 @@ requesting score fields explicitly.
 | Inventory and evaluation reviews could silently drift. | The coverage check rejects new unregistered prompt files, missing scenarios or consumers, removed functions, stale prompt/dataset/evaluator review hashes, dataset ID drift and hosted judge text drift. `make prompt-check` now runs it. `AGENTS.md` preserves the workflow for future Codex sessions. |
 | The database replay treated a brief scheduling deferral as completion. | A failed replay showed an unclaimed pending lane with no error and an eligibility timestamp about 0.4 seconds ahead of database time. The fixture now waits at most two seconds only for that short, unclaimed/no-error state. Genuine error/backoff states still stop. |
 | The CSS-only repair prompt initially appeared unused in production. | A repository-wide scan found its maintained experimental loader in `experiments/novel-to-game/stages.py`. It is retained as an experimental workflow, with a separate target; it is not the production-stage prompt. |
+| The deployed raw prompt API requires encoded hierarchical names. | The read-only retirement plan initially returned 404 for a slash-separated name. Matching the installed SDK's encoding convention fixed the live read; retirement GET and DELETE paths now encode the exact name, with a regression that reproduces the failure. |
 
 Bindings describe the **permitted component set** for a target. For example,
 either locale policy can be permitted while one request uses only one locale.
@@ -158,6 +159,9 @@ unrelated working-tree reply/UI edits could not affect the result.
 - 312 focused tests passed, covering prompt publication/retirement, composition,
   provenance, evaluation bindings, inventory, snapshot filtering and skill/game
   integration. The subsequent inventory/snapshot recheck passed all 16 tests.
+  All 29 publication tests were rerun after the live API-name encoding repair;
+  the retirement cases also verify that SDK write retries are disabled so an
+  uncertain deletion is read back before any retry.
 - `MEMOIR_TEST_POSTGRES_BACKEND=apple-container make test-place-research` passed:
   741 web tests, 825 API/database tests and 96 photo-research skill tests.
 - All 781 owned Python sources parsed successfully; the staged diff passed

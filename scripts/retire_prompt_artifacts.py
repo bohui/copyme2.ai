@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+from urllib.parse import quote
 
 ROOT=Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -46,7 +47,7 @@ def retire(client, *, root=ROOT, execute=False):
             if set(matches[0].versions)!=set(versions):
                 raise ValueError('Remote prompt versions changed; archive again before retiring '+name)
             for number,saved in versions.items():
-                current=client.api.prompts.get(name,version=number)
+                current=client.api.prompts.get(quote(name,safe=''),version=number)
                 if (getattr(current,'is_fallback',False) or current.name!=name or current.version!=number
                         or current.prompt!=saved['prompt']
                         or current.config!=saved.get('config',{})
@@ -60,7 +61,7 @@ def retire(client, *, root=ROOT, execute=False):
         if publication_source(root)!=(branch,revision):
             raise ValueError('Prompt retirement source changed')
         try:
-            client.api.prompts.delete(row['name'])
+            client.api.prompts.delete(quote(row['name'],safe=''),request_options={'max_retries':0})
         except Exception:
             # A transport error may follow a successful write; inspect before any retry.
             if any(p.name==row['name'] for p in client.api.prompts.list(name=row['name'],limit=100).data):
