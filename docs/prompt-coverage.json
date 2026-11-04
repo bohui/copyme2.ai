@@ -319,7 +319,7 @@
   {
     "name": "memoir/agents/mira/repair-codes",
     "source": "apps/api/prompts/mira/repair-codes.md",
-    "version": 3,
+    "version": 5,
     "sha256": "ae6e3d6fa9e3485f1090dc68a7a154297f4caf597cbc998738f725af53dda4da",
     "use": "conditional",
     "scenario": "Only a rejected collector result: select repair guidance, retry and revalidate.",
@@ -6105,7 +6105,7 @@
   {
     "name": "memoir/skills/composer/shared/editorial-review",
     "source": "skills/memoir-composer/references/editorial-review.prompt.md",
-    "version": 3,
+    "version": 5,
     "sha256": "53cd7a3578952dd25ae1b7cfc8ea64c1c6f9705199101f666cb1cb8cb179ba15",
     "use": "shared",
     "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
