@@ -30,6 +30,13 @@ def test_prompt_coverage_scores_identify_each_prompt_in_the_shared_dataset():
         assert {score.name for score in prompts.scores(output=output)} == {target + '/current_pin_observed'}
 
 
+def test_every_registered_prompt_can_be_named_in_the_coverage_ledger():
+    from scripts.prompt_registry import prompt_registry
+    for target in prompt_registry():
+        output = dict(case_id=target, status='unavailable', current_pin_observed=False)
+        assert {score.name for score in prompts.scores(output=output)} == {target + '/current_pin_observed'}
+
+
 @pytest.mark.parametrize(('kind', 'target'), [
     ('live_contract', 'memoir/skills/memory-context/profile'),
     ('controlled_application_checks', 'memoir/workflows/memory-context-admission'),

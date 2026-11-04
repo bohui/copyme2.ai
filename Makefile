@@ -147,8 +147,8 @@ prompt-coverage: ## Regenerate the complete prompt/source/evaluator/dataset tabl
 prompt-coverage-snapshot: ## Read only this local Langfuse project's dataset, evaluator and score metadata.
 	@python3 -B scripts/snapshot_prompt_evaluations.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --metadata-db
 
-prompt-eval: ## Preflight a pinned prompt and dataset; use PROMPT_EVAL_RUN=1 and PROMPT_EVAL_MODEL=... to call a model.
-	@python3 scripts/evaluate_langfuse_prompt.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --provider-credential-file "$(PROMPT_EVAL_PROVIDER_FILE)" --name "$(PROMPT_EVAL_NAME)" --dataset "$(PROMPT_EVAL_DATASET)" $(if $(strip $(PROMPT_EVAL_VERSION)),--version "$(PROMPT_EVAL_VERSION)",) $(if $(strip $(PROMPT_EVAL_MODEL)),--model "$(PROMPT_EVAL_MODEL)",) $(if $(filter 1,$(PROMPT_EVAL_RUN)),--run,)
+prompt-eval: ## Preflight one prompt/dataset; PROMPT_EVAL_RUN=1 generates outputs without agent contract grading.
+	@python3 scripts/evaluate_langfuse_prompt.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --provider-credential-file "$(PROMPT_EVAL_PROVIDER_FILE)" --base-url "$(EVAL_GATEWAY_URL)" --name "$(PROMPT_EVAL_NAME)" --dataset "$(PROMPT_EVAL_DATASET)" $(if $(strip $(PROMPT_EVAL_VERSION)),--version "$(PROMPT_EVAL_VERSION)",) $(if $(strip $(PROMPT_EVAL_MODEL)),--model "$(PROMPT_EVAL_MODEL)",) $(if $(filter 1,$(PROMPT_EVAL_RUN)),--run,)
 
 check: ## Verify Mocker and Apple Container are installed.
 	@command -v $(MOCKER) >/dev/null || { echo "Missing Mocker. Install with: brew tap us/tap && brew install mocker"; exit 1; }

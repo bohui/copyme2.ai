@@ -23,6 +23,10 @@ make memoir-agent-eval EVAL_AGENT=mira
 make memoir-agent-eval EVAL_AGENT=atlas
 make memoir-agent-eval EVAL_SKILL=memoir-author-timeline
 
+# Include the extended scenario catalog for the selected agent or skill.
+make memoir-agent-eval EVAL_AGENT=mira AGENT_EVAL_ARGS='--full'
+make memoir-agent-eval EVAL_SKILL=memoir-author-timeline AGENT_EVAL_ARGS='--full'
+
 # Run the complete supported scenario catalog and publish all prompt coverage.
 make prompt-eval-all
 ```
@@ -33,9 +37,46 @@ Override `EVAL_GATEWAY_URL` when necessary. Model/key settings come from `ENV_FI
 `AGENT_EVAL_ARGS='--full'` extends a selected agent/skill run. Calibration accepts
 `JUDGE_EVAL_ARGS='--judge correctness'` for diagnosis; a selected judge run alone
 does not satisfy the all-prompt prerequisite.
-Each call has a recorded 180-second default timeout, capped at 240 seconds;
+Calibration calls have a recorded 180-second default timeout, capped at 240 seconds;
 `JUDGE_EVAL_ARGS='--timeout 240'` changes that bound explicitly. No automatic
 model retry hides a failed attempt.
+
+## Focused runs and prompt names
+
+`memoir-agent-eval` selects agents/skills and runs their production contract
+checks. `prompt-eval-all` uses that same runner for the full catalog, requires
+verified judge calibration and adds the 96-prompt coverage ledger. Their `-plan`
+targets preview the corresponding selection without model calls.
+
+For one Mira reply scenario, including its real schema and contract grader:
+
+```sh
+make memoir-agent-eval EVAL_AGENT=mira \
+  AGENT_EVAL_ARGS='--case lane-a/memoir-interviewer/grounded-question/en-AU'
+```
+
+The managed prompt name is `memoir/agents/mira/reply`, rather than the shorthand
+`agent.mira.reply`. It maps to `apps/api/prompts/mira/system.md`; shared
+components still belong to the assembled request.
+
+The older generic `prompt-eval` accepts a managed prompt name and dataset. It
+preflights by default. With `PROMPT_EVAL_RUN=1`, it generates text outputs and
+publishes an experiment, but does not apply the agent/skill contract graders.
+Use the focused agent/skill command above for a graded production scenario.
+
+```sh
+# Read-only preflight of one exact prompt pin and its dataset; zero model calls.
+make prompt-eval \
+  PROMPT_EVAL_NAME=memoir/agents/mira/reply \
+  PROMPT_EVAL_DATASET=memoir/agents/mira/reply/golden/core
+
+# Generate outputs with that prompt; inspect this as a smoke experiment.
+make prompt-eval \
+  PROMPT_EVAL_NAME=memoir/agents/mira/reply \
+  PROMPT_EVAL_DATASET=memoir/agents/mira/reply/golden/core \
+  PROMPT_EVAL_PROVIDER_FILE=.env \
+  PROMPT_EVAL_MODEL=gpt-6.1-sol PROMPT_EVAL_RUN=1
+```
 
 The shared dataset has 80 fictional cases: 40 development and 40 holdout. Its
 18 judge contracts consume all 21 managed evaluator prompt components and make
