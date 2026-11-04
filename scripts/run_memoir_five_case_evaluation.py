@@ -803,9 +803,17 @@ class FixtureWorker:
             from controlled_collector import extraction_proposal
             context = kwargs['interview_context']
             text = context['source']['text']
-            value = extraction_proposal(kwargs.get('language'))
-            value['place_journeys'] = [dict(place=place,hierarchy=['Earth',place],granularity='city',
-                latitude=None,longitude=None) for place in _fixture_places(text)]
+            if context.get('reply_contract')=='reply-v2':
+                from apps.api.conversation_reply import ReplyProposal
+                chinese=kwargs.get('language')=='zh-CN'
+                value=ReplyProposal(acknowledgement=context.get('reviewed_acknowledgement') or
+                    ('谢谢您分享这段回忆。' if chinese else 'Thank you for sharing that memory.'),
+                    reason='latest_story',quote=None,
+                    question='您还记得哪些细节？' if chinese else 'What other details do you remember?').model_dump()
+            else:
+                value = extraction_proposal(kwargs.get('language'))
+                value['place_journeys'] = [dict(place=place,hierarchy=['Earth',place],granularity='city',
+                    latitude=None,longitude=None) for place in _fixture_places(text)]
             self.calls.append({'agent_role':role,'round':self.current_round,'text_chars':len(text)})
             return {'thread_id':f'fixture-canonical-{self.current_round:03d}',
                 'reply':json.dumps(value,ensure_ascii=False),'artifacts':[]}

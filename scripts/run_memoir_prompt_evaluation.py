@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
+import subprocess
 import time
 from uuid import uuid4
 
@@ -25,10 +26,15 @@ def calibrated(paths):
     expected={(r['input']['case_id'],j):(r,j) for r in cases() for j in r['input']['judge_ids']}
     seen={};used=[]
     fixture=hashlib.sha256(SOURCE.read_bytes()).hexdigest()
-    for path in sorted(paths,key=lambda p:p.stat().st_mtime):
+    receipts=[]
+    for path in paths:
         receipt=json.loads(path.read_text())
         if not receipt.get('readback',{}).get('verified') or receipt.get('fixture_sha256')!=fixture:
             continue
+        started=datetime.fromisoformat(receipt['dataset_version'])
+        if started.tzinfo is None:raise ValueError('Calibration run timestamp needs its timezone')
+        receipts.append((started,str(path),receipt))
+    for _,path,receipt in sorted(receipts,key=lambda r:(r[0],r[1])):
         valid=[]
         for row in receipt['results']:
             for name,verdict in row['output']['judgments'].items():
@@ -56,33 +62,52 @@ def prompt_rows():
         for pin in [json.loads((ROOT/(path+'.langfuse.json')).read_text())]]
 
 
+def retained_campaigns(primary,rechecks):
+    """Keep earlier experiments; only an identical-input/gold recheck can replace a case."""
+    original={r['case_id']:r for r in primary['results']}
+    for run in rechecks:
+        ids=[r['case_id'] for r in run['results']]
+        if not ids or len(ids)!=len(set(ids)) or set(ids)-set(original):
+            raise ValueError('Unexpected or duplicate recheck case')
+        for row in run['results']:
+            if any(not row.get(k) or row[k]!=original[row['case_id']].get(k) for k in ('input_sha256','gold_sha256')):
+                raise ValueError('Recheck input or gold differs from the retained campaign')
+    return sorted([primary,*rechecks],key=lambda r:datetime.fromisoformat(r['started_at']))
+
+
 def evidence(rows, calibration, campaign):
     observations=[]
     for (case_id,judge),call in calibration.items():
         observations.append(dict(manifest=call['manifest'],case_id=case_id,status='pass',
             scope='synthetic judge answer-key agreement',trace_id=call.get('trace_id')))
-    for call in campaign['calls']:
-        if not call.get('provider_response_id'):continue
-        # A native search or probe written inline has no managed source to credit.
-        case=next((r for r in campaign['results'] if call['case_id']==r['case_id']
-            or call['case_id'].startswith(r['case_id']+'/')),None)
-        if case:
-            observations.append(dict(manifest=call.get('prompt_manifest',{}),case_id=case['case_id'],
-                status=case['status'],scope=case['evidence_mode'],trace_id=call.get('trace_id')))
-    for case in campaign['results']:
-        output=case.get('output') or {}
-        if isinstance(output,dict) and output.get('model_invoked') and output.get('skill_receipt'):
-            observations.append(dict(manifest=output['skill_receipt'].get('prompt_manifest',{}),
-                case_id=case['case_id'],status=case['status'],scope=case['evidence_mode']))
+    runs=campaign if isinstance(campaign,list) else [campaign]
+    latest={r['case_id']:run for run in runs for r in run['results']}
+    for run in runs:
+        current=[r for r in run['results'] if latest[r['case_id']] is run]
+        for call in run['calls']:
+            if not call.get('provider_response_id'):continue
+            # Inline probes supply no managed source to credit.
+            case=next((r for r in current if call['case_id']==r['case_id']
+                or call['case_id'].startswith(r['case_id']+'/')),None)
+            if case:
+                observations.append(dict(manifest=call.get('prompt_manifest',{}),case_id=case['case_id'],
+                    status=case['status'],scope=case['evidence_mode'],trace_id=call.get('trace_id'),run_id=run.get('run_id')))
+        for case in current:
+            output=case.get('output') or {}
+            if isinstance(output,dict) and output.get('model_invoked') and output.get('skill_receipt'):
+                observations.append(dict(manifest=output['skill_receipt'].get('prompt_manifest',{}),
+                    case_id=case['case_id'],status=case['status'],scope=case['evidence_mode'],run_id=run.get('run_id')))
     results=[]
     for row in rows:
         source=row['input']
         matches=[{k:v for k,v in o.items() if k!='manifest'} for o in observations if any(
             a['name']==source['prompt'] and a.get('version')==source['version'] and a.get('sha256')==source['sha256']
             for a in o['manifest'].get('artifacts',[]))]
-        results.append(dict(case_id=source['case_id'],status=('fail' if any(m['status']=='fail' for m in matches)
-            else 'pass' if matches else 'unavailable'),current_pin_observed=bool(matches),evidence=matches,
-            reason=None if matches else 'No executed supported scenario supplied this current prompt pin; model-quality coverage remains missing.',
+        status=('fail' if any(m['status']=='fail' for m in matches) else
+            'pass' if matches and all(m['status']=='pass' for m in matches) else 'unavailable')
+        reason=(None if status=='pass' else 'An observed scenario failed or did not complete; see its case evidence.'
+            if matches else 'No executed supported scenario supplied this current prompt pin; model-quality coverage remains missing.')
+        results.append(dict(case_id=source['case_id'],status=status,current_pin_observed=bool(matches),evidence=matches,reason=reason,
             human_reviewed=False,canonical_delivery=False))
     return results
 
@@ -90,7 +115,7 @@ def evidence(rows, calibration, campaign):
 def scores(*,output,**_kwargs):
     from langfuse import Evaluation
     result=[Evaluation(name='current_pin_observed',value=int(output['current_pin_observed']),data_type='NUMERIC')]
-    if output['current_pin_observed']:
+    if output['status'] in {'pass','fail'}:
         result.append(Evaluation(name='observed_scenario_checks_pass',value=int(output['status']=='pass'),data_type='NUMERIC',
             comment='Code contracts or synthetic calibration agreement; no independent human quality acceptance.'))
     return result
@@ -138,6 +163,7 @@ def main(argv=None):
     parser.add_argument('--execute',action='store_true')
     parser.add_argument('--calibration-receipt',type=Path,action='append')
     parser.add_argument('--agent-receipt',type=Path,help='Publish the retained complete campaign instead of dispatching again')
+    parser.add_argument('--recheck-receipt',type=Path,action='append',default=[],help='Overlay selected identical-input/gold rechecks; retain earlier experiments')
     parser.add_argument('--gateway-url')
     parser.add_argument('--env-file',type=Path,default=ROOT/'.env')
     parser.add_argument('--credential-file',type=Path,default=Path.home()/'llm_provider/.env')
@@ -156,21 +182,26 @@ def main(argv=None):
     if args.agent_receipt:agent_path=args.agent_receipt
     else:
         from scripts.run_memoir_agent_evaluation import main as agent_main
-        arguments=['--execute','--publish','--full','--max-calls','400','--seconds','3600','--timeout','150',
+        arguments=['--execute','--publish','--full','--max-calls','400','--seconds','7200','--timeout','150','--workflow-timeout','600',
             '--env-file',str(args.env_file),'--credential-file',str(args.credential_file),'--output-root',str(directory/'agents')]
         if args.gateway_url:arguments+=['--gateway-url',args.gateway_url]
         code=agent_main(arguments)
         print(json.dumps(dict(agent_campaign_exit=code)),flush=True)
         agent_path=next((directory/'agents').glob('*/receipt.json'))
     campaign=json.loads(agent_path.read_text())
-    if {r['case_id'] for r in campaign['results']}!={c['id'] for c in campaign_cases}:
+    if len(campaign['results'])!=len(campaign_cases) or {r['case_id'] for r in campaign['results']}!={c['id'] for c in campaign_cases}:
         raise ValueError('Full prompt coverage requires the complete campaign; do not pass a selected skill run')
-    outputs=evidence(rows,calibration,campaign)
+    runs=retained_campaigns(campaign,[json.loads(p.read_text()) for p in args.recheck_receipt])
+    outputs=evidence(rows,calibration,runs)
     from scripts.langfuse_prompt_client import prompt_client
     client=prompt_client(args.credential_file)
     try:hosted=publish(client,rows,outputs,run_id)
     finally:client.shutdown()
     receipt=dict(schema_version='memoir-prompt-evaluation/1',run_id=run_id,calibration_receipts=paths,
+        source_revision=subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip(),
+        evaluator_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        agent_receipt_sha256=hashlib.sha256(agent_path.read_bytes()).hexdigest(),
+        rechecks=[dict(receipt=str(p),sha256=hashlib.sha256(p.read_bytes()).hexdigest()) for p in args.recheck_receipt],
         agent_receipt=str(agent_path),results=outputs,hosted=hosted,human_reviewed=False,
         status='complete_with_gaps' if hosted['readback']['verified'] else 'publication_pending')
     save(directory/'receipt.json',receipt)

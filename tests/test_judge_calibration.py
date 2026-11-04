@@ -94,10 +94,12 @@ def test_installed_experiment_api_serialized_io_is_compared_with_full_answer_key
     expected=dict(input={'case_id':'c1'},expected_output={'correctness':{'score':1,'rationale':'source agrees'}},
         output={'judgments':{'correctness':dict(available=True,actual={'score':1},manifest={'artifacts':[]},response_id='r1')}})
     scores=[NS(id=e.name,name=e.name,value=e.value,metadata=e.metadata,
-        subject=NS(kind='observation',trace_id='trace')) for e in runner.evaluations(**expected)]
-    item=NS(experiment_dataset_id='dataset',trace_id='trace',input=json.dumps(expected['input']),
+        subject=NS(kind='observation',trace_id='trace',id='root-item')) for e in runner.evaluations(**expected)]
+    item=NS(id='root-item',experiment_dataset_id='dataset',trace_id='trace',input=json.dumps(expected['input']),
         output=json.dumps(expected['output']),expected_output=json.dumps(expected['expected_output']),scores=scores)
     client=NS(api=NS(experiments=NS(list_items=lambda **kwargs:NS(data=[item],meta=NS(cursor=None))),
         scores_v3=NS(get_many_v3=lambda **kwargs:NS(data=scores,meta=NS(cursor=None)))))
     from datetime import datetime, timezone
     assert runner.readback(client,'experiment','dataset',[expected],started_at=datetime.now(timezone.utc))['verified']
+    scores[0].subject.id='different-observation-in-the-same-trace'
+    assert not runner.readback(client,'experiment','dataset',[expected],started_at=datetime.now(timezone.utc))['verified']

@@ -70,6 +70,7 @@ EVAL_SKILL ?=
 EVAL_AGENT ?=
 JUDGE_SPLIT ?= all
 JUDGE_EVAL_ARGS ?=
+PROMPT_EVAL_ARGS ?=
 .PHONY: llm_judge_calibrate llm_judge_calibrate_plan prompt-eval-all prompt-eval-all-plan
 llm_judge_calibrate_plan: ## Inspect the shared LLM judge answer keys; zero model calls.
 	@python3 scripts/run_memoir_judge_calibration.py --split "$(JUDGE_SPLIT)" $(JUDGE_EVAL_ARGS)
@@ -80,11 +81,11 @@ llm_judge_calibrate: ## Calibrate all LLM judges against shared answer keys and 
 		--base-url "$(EVAL_GATEWAY_URL)" $(JUDGE_EVAL_ARGS)
 
 prompt-eval-all-plan: ## Inspect the current prompt campaign and its coverage limits; zero model calls.
-	@python3 scripts/run_memoir_prompt_evaluation.py
+	@python3 scripts/run_memoir_prompt_evaluation.py $(PROMPT_EVAL_ARGS)
 
 prompt-eval-all: ## Evaluate all supported agent/skill scenarios after calibration; publish per-prompt coverage gaps too.
 	@python3 scripts/run_memoir_prompt_evaluation.py --execute --gateway-url "$(EVAL_GATEWAY_URL)" \
-		--env-file "$(ENV_FILE)" --credential-file "$(PROMPT_CREDENTIAL_FILE)"
+		--env-file "$(ENV_FILE)" --credential-file "$(PROMPT_CREDENTIAL_FILE)" $(PROMPT_EVAL_ARGS)
 
 .PHONY: memoir-agent-eval-plan memoir-agent-eval
 memoir-agent-eval-plan: ## Inspect the bounded current-agent/skill campaign; zero model calls.

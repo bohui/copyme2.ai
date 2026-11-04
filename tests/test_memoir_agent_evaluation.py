@@ -208,3 +208,21 @@ def test_hosted_readback_verifies_actual_evidence_and_scores(mutation):
     else:
         actual = evaluation.verify_experiment(client, 'experiment', rows, [result], None)
         assert actual['status'] == ('verified' if mutation == 'none' else 'pending')
+
+
+def test_multicall_composer_workflow_has_a_separate_total_deadline(monkeypatch,tmp_path):
+    """A completed phase may use its budget without consuming the whole workflow."""
+    import time
+    case=next(c for c in catalog() if c['skill']=='memoir-composer' and c['scenario']['case']=='first-checkpoint')
+    runner=object.__new__(evaluation.Runner)
+    runner.args=SimpleNamespace(seconds=1,timeout=.01,workflow_timeout=.2,max_calls=10)
+    runner.started=time.monotonic();runner.by_id={case['id']:case};runner.replay=None;runner.judge_ids=set()
+    runner.receipt={'calls':[],'results':[]};runner.directory=tmp_path;runner.persist=lambda:None
+    async def workflow(item,adapter,budget):
+        assert budget.timeout==.01
+        await asyncio.sleep(.03)
+        return {'complete':True},{'storage':'isolated_in_memory'}
+    monkeypatch.setattr('scripts.memoir_skill_eval_workflows.composer',workflow)
+    monkeypatch.setattr('scripts.memoir_skill_eval_suite.validate_workflow',lambda *a,**kw:None)
+    row=asyncio.run(runner.task(item=SimpleNamespace(input=next(iter(evaluation.dataset_rows([case]).values()))[0]['input'],expected_output=case['gold'])))
+    assert row['status']=='pass'

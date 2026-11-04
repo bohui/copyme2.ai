@@ -68,7 +68,7 @@ def evaluations(*, input, output, expected_output, **_kwargs):
 
 
 class Runner:
-    def __init__(self, client, config, directory, receipt, *, concurrency=4, maximum=256, seconds=1800, timeout=90):
+    def __init__(self, client, config, directory, receipt, *, concurrency=4, maximum=256, seconds=1800, timeout=180):
         self.client,self.config,self.directory,self.receipt=client,config,directory,receipt
         self.semaphore=asyncio.Semaphore(concurrency);self.maximum=maximum
         self.deadline=time.monotonic()+seconds;self.timeout=timeout
@@ -196,7 +196,7 @@ def readback(client, experiment_id, dataset_id, results, *, started_at):
             if any(metadata.get(key)!=value for key,value in score.metadata.items()):
                 return dict(verified=False,reason='score_provenance',items=len(rows))
             subject=matches[0].subject
-            if subject.kind!='observation' or subject.trace_id!=row.trace_id:
+            if subject.kind!='observation' or subject.trace_id!=row.trace_id or subject.id!=row.id:
                 return dict(verified=False,reason='score_subject',items=len(rows))
     return dict(verified=seen==set(wanted),items=len(rows))
 
@@ -213,7 +213,7 @@ def main(argv=None):
     parser.add_argument('--base-url',help='Host-accessible URL of the existing gateway; credentials/model still come from --env-file')
     parser.add_argument('--output-root',type=Path,default=ROOT/'var/judge-calibration')
     parser.add_argument('--max-calls',type=int,default=256)
-    parser.add_argument('--timeout',type=float,default=90,help='Per-call seconds, at most 240; recorded in the receipt')
+    parser.add_argument('--timeout',type=float,default=180,help='Per-call seconds, at most 240; recorded in the receipt')
     args=parser.parse_args(argv)
     all_rows=cases()
     selected=[r for r in all_rows if (args.split=='all' or r['input']['split']==args.split)

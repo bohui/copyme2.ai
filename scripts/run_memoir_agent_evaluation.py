@@ -179,7 +179,8 @@ class Runner:
                 'apps/api/memoir_background_agent.py', 'apps/api/conversation_reply.py')},
             inventory=inventory(), calls=[], results=[], experiments=[],
             limits=dict(direct_http_calls=args.max_calls, native_runs=args.max_native_runs,
-                native_tool_calls_per_run=32, seconds=args.seconds, per_case_seconds=args.timeout),
+                native_tool_calls_per_run=32, seconds=args.seconds, per_call_seconds=args.timeout,
+                workflow_seconds=getattr(args,'workflow_timeout',None) or args.timeout),
             native_runs=0, native_provider_request_count=None, monetary_cost=None,
             human_calibration='pending; semantic judgments are advisory and use the same configured model',
             scope='Live model proposals and native tool selection with isolated host tools; no canonical saves or browser delivery')
@@ -221,6 +222,8 @@ class Runner:
         case = self.by_id[item.input['case_id']]
         self.active_case_id=case['id']
         started, before = time.monotonic(), len(self.receipt['calls'])
+        case_timeout=(getattr(self.args,'workflow_timeout',None) or self.args.timeout
+            if case['component']=='skills' and case['skill']=='memoir-composer' else self.args.timeout)
         row = dict(case_id=case['id'], component=case['component'], skill=case['skill'], locale=case['locale'],
             repeat=getattr(self, 'repeat', 1),
             status='unavailable', checks={}, canonical_delivery=False, semantic=None)
@@ -228,7 +231,7 @@ class Runner:
             remaining = self.started + self.args.seconds - started
             if remaining <= 0:
                 raise LookupError('run_deadline_exhausted')
-            async with asyncio.timeout(min(self.args.timeout, remaining)):
+            async with asyncio.timeout(min(case_timeout, remaining)):
                 if self.replay is not None:
                     original = self.replay[case['id']]
                     if original['input_sha256'] != digest(item.input):
@@ -276,7 +279,7 @@ class Runner:
                         row['evidence_mode'] = 'live_composition_with_in_memory_checkpoints'
                         from scripts.memoir_skill_eval_workflows import composer
                         from scripts.memoir_skill_eval_suite import validate_workflow
-                        budget = Budget(self.args.max_calls - len(self.receipt['calls']), min(remaining, self.args.timeout),
+                        budget = Budget(self.args.max_calls - len(self.receipt['calls']), min(remaining, case_timeout),
                             self.args.timeout, time.monotonic)
                         value, witnesses = await composer(scenario, self, budget)
                         row['output'], row['witnesses'] = value, witnesses
@@ -407,13 +410,14 @@ def main(argv=None):
     parser.add_argument('--judge-cases', type=int, default=12, help='Stratified same-model advisory sample; included in direct HTTP cap')
     parser.add_argument('--seconds', type=float, default=1800)
     parser.add_argument('--timeout', type=float, default=120)
+    parser.add_argument('--workflow-timeout',type=float,default=600,help='Total multi-call composer workflow seconds; each provider call still uses --timeout')
     parser.add_argument('--env-file', type=Path, default=ROOT / '.env')
     parser.add_argument('--gateway-url', help='Existing gateway origin reachable from this host; no routing changes')
     parser.add_argument('--credential-file', type=Path, default=Path.home() / 'llm_provider/.env')
     parser.add_argument('--output-root', type=Path, default=ROOT / 'var/agent-evaluation')
     args = parser.parse_args(argv)
     if not (1 <= args.repeat <= 5 and 1 <= args.max_calls <= 1000 and 0 <= args.max_native_runs <= 100 and 0 <= args.judge_cases <= 100
-            and 0 < args.timeout <= 240 and 0 < args.seconds <= 3600):
+            and 0 < args.timeout <= 240 and 0 < args.workflow_timeout <= 900 and 0 < args.seconds <= 7200):
         parser.error('invalid evaluation limits')
     cases = catalog(full=args.full)
     if args.case and not set(args.case) <= {c['id'] for c in cases}:
@@ -427,6 +431,7 @@ def main(argv=None):
     if not args.execute:
         print(json.dumps(dict(cases=[c['id'] for c in cases], count=len(cases), repetitions=args.repeat,
             direct_http_call_cap=args.max_calls, native_run_cap=args.max_native_runs, seconds=args.seconds,
+            per_call_seconds=args.timeout,workflow_seconds=args.workflow_timeout,
             http_dispatches=0, dataset_names=list(dataset_rows(cases))), indent=2))
         return 0
     from dotenv import dotenv_values
@@ -470,7 +475,7 @@ def main(argv=None):
                 runner.repeat = repeat + 1
                 if client:
                     for name, dataset in loaded.items():
-                        experiment = dataset.run_experiment(name='Memoir current agents and skills',
+                        experiment = dataset.run_experiment(name='evaluation/memoir-agents-and-skills',
                             run_name=directory.name + f'-repeat{repeat + 1}-' + name.rsplit('/', 1)[-1], task=runner.task,
                             evaluators=[scores], max_concurrency=1,
                             metadata=dict(synthetic=True, suite='memoir-agent-evaluation/1', repeat=repeat + 1,

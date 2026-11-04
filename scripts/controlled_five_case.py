@@ -115,7 +115,12 @@ async def execute(value):
     case=value['case'];run_dir=Path(value['run_dir'])
     state_path=run_dir/'cases'/case['id']/'storage_state.json'
     state=json.loads(state_path.read_text()) if args.resume and state_path.exists() else None
-    with controlled_database(directory_root=value.get('database_directory')) as sql:
+    from pytest import MonkeyPatch
+    with controlled_database(directory_root=value.get('database_directory')) as sql, MonkeyPatch.context() as patches:
+        # A child does not inherit pytest's explicit neutral HTTP proposal.
+        # This fixture is not a semantic privacy evaluation; real SQL fences remain.
+        from controlled_policy import install_policy_review_transport
+        install_policy_review_transport(patches)
         storage,adapter,legacy_places=open_case(sql,case,state)
         storage.place_history=lambda:legacy_places+storage.lifetime_rpc('read_lifetime_place_journeys',p_project_id=storage.project_id)
         storage.state_snapshot=lambda:snapshot_case(sql,storage,legacy_places)
@@ -124,6 +129,7 @@ async def execute(value):
         storage.set_round_entitlement=entitlement
         os.environ.update(MEMORY_SPARK_COLLECTOR_MODEL='synthetic-byte-bpe',
             MEMORY_SPARK_MEMOIR_COMPOSER_MODEL='synthetic-byte-bpe',
+            MEMORY_SPARK_LLM_REASONING_EFFORT='low',
             STRIPE_PRICE_FAMILY='synthetic-family-price')
         try:
             storage.save_profile({'preferred_language':case['locale']}) if not state else None

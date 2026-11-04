@@ -47,7 +47,7 @@ def test_only_the_actual_source_window_contract_can_supply_input_prompt_provenan
 
 def test_all_prompt_command_refuses_partial_calibration_even_when_receipt_says_passed(tmp_path):
     row=cases()[0];judge=row['input']['judge_ids'][0]
-    record=dict(status='passed',readback={'verified':True},fixture_sha256=hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
+    record=dict(status='passed',dataset_version='2026-11-04T00:00:00+00:00',readback={'verified':True},fixture_sha256=hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
         results=[dict(input=row['input'],output={'judgments':{judge:dict(available=True,
             actual={'score':1},manifest=request(judge,row['input'])['manifest'])}})])
     path=tmp_path/'receipt.json';path.write_text(json.dumps(record))
@@ -75,9 +75,34 @@ def test_per_prompt_coverage_requires_actual_current_pin_and_keeps_failures():
 def test_a_later_wrong_grade_does_not_inherit_an_earlier_passing_attempt(tmp_path):
     row=cases()[0];judge=row['input']['judge_ids'][0]
     verdict=dict(available=True,actual={'score':1},manifest=request(judge,row['input'])['manifest'])
-    receipt=dict(status='passed',readback={'verified':True},fixture_sha256=hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
+    receipt=dict(status='passed',dataset_version='2026-11-04T00:00:00+00:00',readback={'verified':True},fixture_sha256=hashlib.sha256(SOURCE.read_bytes()).hexdigest(),
         results=[dict(input=row['input'],output={'judgments':{judge:verdict}})])
     first=tmp_path/'first.json';first.write_text(json.dumps(receipt))
-    receipt['status']='failed';verdict['actual']={'score':0}
+    receipt.update(status='failed',dataset_version='2026-11-04T00:01:00+00:00');verdict['actual']={'score':0}
     second=tmp_path/'second.json';second.write_text(json.dumps(receipt))
+    import os
+    os.utime(first,(2_000_000_000,2_000_000_000))
     with pytest.raises(ValueError,match='0/140'):campaign.calibrated([first,second])
+
+
+def test_completed_phase_does_not_make_an_incomplete_workflow_pass():
+    row=next(r for r in campaign.prompt_rows() if r['input']['prompt']=='memoir/agents/mira/reply')
+    manifest=evaluation_manifest(__import__('apps.api.conversation_reply',fromlist=['reply_instructions']).reply_instructions())
+    run=dict(calls=[dict(case_id='workflow/phase',provider_response_id='completed-phase',prompt_manifest=manifest)],
+        results=[dict(case_id='workflow',status='unavailable',evidence_mode='incomplete controlled workflow')])
+    result=campaign.evidence([row],{},run)[0]
+    assert result['current_pin_observed'] is True
+    assert result['status']=='unavailable'
+    assert {s.name for s in campaign.scores(output=result)}=={'current_pin_observed'}
+
+
+def test_rechecks_do_not_reuse_an_older_passing_phase_or_different_answer_key():
+    row=next(r for r in campaign.prompt_rows() if r['input']['prompt']=='memoir/agents/mira/reply')
+    manifest=evaluation_manifest(__import__('apps.api.conversation_reply',fromlist=['reply_instructions']).reply_instructions())
+    case=dict(case_id='workflow',status='pass',evidence_mode='observed',input_sha256='fixed-input',gold_sha256='fixed-gold')
+    first=dict(started_at='2026-11-04T00:00:00+00:00',results=[case],calls=[dict(case_id='workflow',provider_response_id='r1',prompt_manifest=manifest)])
+    later=dict(started_at='2026-11-04T00:01:00+00:00',results=[{**case,'status':'unavailable'}],calls=[])
+    runs=campaign.retained_campaigns(first,[later])
+    assert campaign.evidence([row],{},runs)[0]['status']=='unavailable'
+    later['results'][0]['gold_sha256']='different-gold'
+    with pytest.raises(ValueError,match='input or gold'):campaign.retained_campaigns(first,[later])

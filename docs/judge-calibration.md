@@ -33,6 +33,9 @@ Override `EVAL_GATEWAY_URL` when necessary. Model/key settings come from `ENV_FI
 `AGENT_EVAL_ARGS='--full'` extends a selected agent/skill run. Calibration accepts
 `JUDGE_EVAL_ARGS='--judge correctness'` for diagnosis; a selected judge run alone
 does not satisfy the all-prompt prerequisite.
+Each call has a recorded 180-second default timeout, capped at 240 seconds;
+`JUDGE_EVAL_ARGS='--timeout 240'` changes that bound explicitly. No automatic
+model retry hides a failed attempt.
 
 The shared dataset has 80 fictional cases: 40 development and 40 holdout. Its
 18 judge contracts consume all 21 managed evaluator prompt components and make
@@ -49,6 +52,8 @@ it does not establish human editorial agreement. Domain reviewers still need to
 label a separate sample before semantic grades become release gates. Once a
 holdout result has informed a change, use a new unseen holdout to measure
 independent generalization; preserve the original results.
+The existing split holds out Chinese variants of the same scenario families;
+it measures a locale regression, not unseen-family generalization.
 
 `prompt-eval-all` checks that every current judge pin has passing, read-back
 calibration evidence before dispatching. It runs the 198-case extended agent and
@@ -59,6 +64,21 @@ unwired family runner, game delivery and media review remain explicit gaps.
 The command returns nonzero for failures, unavailable coverage or pending hosted
 verification. It saves results before reporting failure; inspect the receipt
 before dispatching another run.
+The full campaign allows 400 direct calls and two hours overall. A provider call
+has 150 seconds; a multi-call composer workflow has 600 seconds. These are
+separate limits. Completed phases do not make an unfinished workflow pass.
+
+To refresh only the coverage ledger from retained outputs, without model calls:
+
+```sh
+make prompt-eval-all \
+  PROMPT_EVAL_ARGS='--agent-receipt var/prompt-evaluation/<run>/agents/<campaign>/receipt.json'
+```
+
+After a selected skill recheck, append `--recheck-receipt <recheck>/receipt.json`
+to those arguments. Rechecks must have identical input/gold hashes. The latest
+recorded attempt owns each case, including failed or unavailable attempts;
+original experiments remain intact.
 
 ## Langfuse views
 
@@ -97,3 +117,6 @@ fictional-test wording reduced privacy severity, and an exact-output constraint
 confounded relevance with completeness. The preserved `shared-v1` source and
 run retain those results; `shared-v2` makes the evidence and requested constraints
 explicit. Judge rubrics were not changed to fit a faulty answer key.
+
+See the [4 November results and grading fixes](judge-calibration-20261104.md)
+for original disagreements, exact current-pin results and held-out limitations.
