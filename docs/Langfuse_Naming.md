@@ -104,11 +104,13 @@ source observation references and metadata with explicit source-dataset/item
 lineage. The originals are excluded from new judging. No old experiment is
 rewritten as a new single-target experiment.
 
-All 97 managed prompts are retained, with 86 moved to the canonical paths.
+The taxonomy migration retained all 97 managed prompts, with 86 moved to the canonical paths.
 Prompt text, version IDs, numeric versions and historical observation links are
 preserved. Judge prompts use `memoir/evaluators/...`; diagnostic test inputs use
 `memoir/probes/...`. `memoir/evaluation` is retired as a current prompt namespace.
 Physical source Markdown stays with its owning application or skill.
+The subsequent [prompt audit](prompt-audit.md) retires one unused artifact;
+the generated inventory records the 96 current sources and their coverage gaps.
 
 ## Published judges
 

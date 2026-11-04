@@ -5,7 +5,6 @@ PROMPT_PATHS = {
     'memoir/agents/mira/policy-review': 'apps/api/prompts/mira/policy-review.md',
     'memoir/agents/mira/repair': 'apps/api/prompts/mira/repair.md',
     'memoir/agents/mira/repair-codes': 'apps/api/prompts/mira/repair-codes.md',
-    'memoir/agents/mira/strategy-proposal': 'apps/api/prompts/mira/strategy-proposal.md',
     'memoir/agents/atlas/skill-selection': 'apps/api/prompts/atlas/system.md',
     'memoir/shared/skill-agent': 'apps/api/prompts/skill-agent.md',
     'memoir/skills/composer/instructions': 'skills/memoir-composer/SKILL.md',

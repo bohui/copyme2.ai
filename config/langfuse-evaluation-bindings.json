@@ -12,7 +12,8 @@
       "scope": "model",
       "primary_prompt": "memoir/agents/atlas/skill-selection",
       "evaluated_prompts": [
-        "memoir/agents/atlas/skill-selection"
+        "memoir/agents/atlas/skill-selection",
+        "memoir/shared/skill-agent"
       ],
       "metrics": [
         "correctness",
@@ -58,7 +59,8 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/shared/historical-acknowledgements",
+        "memoir/shared/recall-invitations"
       ],
       "metrics": [
         "correctness",
@@ -72,7 +74,8 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/agents/mira/reply/interview-quality",
       "evaluated_prompts": [
-        "memoir/evaluators/agents/mira/reply/interview-quality"
+        "memoir/evaluators/agents/mira/reply/interview-quality",
+        "memoir/evaluators/shared/evidence-policy"
       ],
       "metrics": [
         "agreement"
@@ -127,6 +130,7 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/skills/author-timeline/extract/quality",
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/author-timeline/extract/quality"
       ],
       "metrics": [
@@ -138,6 +142,7 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/skills/family-tree/extract/quality",
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/family-tree/extract/quality"
       ],
       "metrics": [
@@ -149,6 +154,7 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/skills/historical-news-research/discovery/quality",
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/historical-news-research/discovery/quality"
       ],
       "metrics": [
@@ -160,6 +166,7 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/skills/memory-context/profile/quality",
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/memory-context/profile/quality"
       ],
       "metrics": [
@@ -171,6 +178,7 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/skills/place-groups/group/quality",
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/place-groups/group/quality"
       ],
       "metrics": [
@@ -182,6 +190,7 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/skills/place-journey/extract/quality",
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/place-journey/extract/quality"
       ],
       "metrics": [
@@ -193,6 +202,7 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/skills/place-photo-research/discovery/quality",
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/place-photo-research/discovery/quality"
       ],
       "metrics": [
@@ -204,6 +214,7 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/workflows/composer-checkpoints/quality",
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/workflows/composer-checkpoints/quality"
       ],
       "metrics": [
@@ -215,6 +226,7 @@
       "scope": "judge-calibration",
       "primary_prompt": "memoir/evaluators/workflows/story-game-adaptation/quality",
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/workflows/story-game-adaptation/quality"
       ],
       "metrics": [
@@ -226,6 +238,11 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/author-timeline/extract",
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -246,9 +263,14 @@
     },
     "memoir/skills/author-timeline/summarize": {
       "scope": "model",
-      "primary_prompt": "memoir/skills/author-timeline/window",
+      "primary_prompt": "memoir/skills/memory-context/summary",
       "evaluated_prompts": [
-        "memoir/skills/author-timeline/window"
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
+        "memoir/skills/memory-context/summary"
       ],
       "metrics": [
         "correctness",
@@ -262,7 +284,13 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/composer/draft",
       "evaluated_prompts": [
-        "memoir/skills/composer/draft"
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
+        "memoir/skills/composer/draft",
+        "memoir/skills/composer/shared/narrative-enrichment"
       ],
       "metrics": [
         "correctness",
@@ -276,7 +304,17 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/composer/outline/shared/prefix",
       "evaluated_prompts": [
-        "memoir/skills/composer/outline/shared/prefix"
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
+        "memoir/skills/composer/outline/leaf/en-AU",
+        "memoir/skills/composer/outline/leaf/zh-CN",
+        "memoir/skills/composer/outline/merge/en-AU",
+        "memoir/skills/composer/outline/merge/zh-CN",
+        "memoir/skills/composer/outline/shared/prefix",
+        "memoir/skills/composer/outline/shared/suffix"
       ],
       "metrics": [
         "correctness",
@@ -290,6 +328,11 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/composer/prepare",
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/composer/prepare"
       ],
       "metrics": [
@@ -304,7 +347,14 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/composer/review",
       "evaluated_prompts": [
-        "memoir/skills/composer/review"
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
+        "memoir/skills/composer/review",
+        "memoir/skills/composer/shared/editorial-review",
+        "memoir/skills/composer/shared/narrative-enrichment"
       ],
       "metrics": [
         "correctness",
@@ -332,7 +382,9 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/historical-news-research/discovery",
       "evaluated_prompts": [
-        "memoir/skills/historical-news-research/discovery"
+        "memoir/skills/historical-news-research/contract",
+        "memoir/skills/historical-news-research/discovery",
+        "memoir/skills/historical-news-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -346,6 +398,10 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/memory-context/profile",
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -369,6 +425,10 @@
       "scope": "embedded",
       "primary_prompt": "memoir/skills/place-journey/extract",
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -393,7 +453,8 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/place-photo-research/discovery",
       "evaluated_prompts": [
-        "memoir/skills/place-photo-research/discovery"
+        "memoir/skills/place-photo-research/discovery",
+        "memoir/skills/place-photo-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -407,7 +468,9 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/story-game/novel-to-game/analyze",
       "evaluated_prompts": [
-        "memoir/skills/story-game/novel-to-game/analyze"
+        "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/analyze",
+        "memoir/skills/story-game/novel-to-game/journey"
       ],
       "metrics": [
         "correctness",
@@ -421,7 +484,10 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/story-game/novel-to-game/art",
       "evaluated_prompts": [
-        "memoir/skills/story-game/novel-to-game/art"
+        "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/art",
+        "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/journey"
       ],
       "metrics": [
         "correctness",
@@ -449,7 +515,8 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/story-game/higgsfield",
       "evaluated_prompts": [
-        "memoir/skills/story-game/higgsfield"
+        "memoir/skills/story-game/higgsfield",
+        "memoir/skills/story-game/webpage"
       ],
       "metrics": [
         "correctness",
@@ -463,7 +530,9 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/story-game/novel-to-game/concept",
       "evaluated_prompts": [
-        "memoir/skills/story-game/novel-to-game/concept"
+        "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/concept",
+        "memoir/skills/story-game/novel-to-game/journey"
       ],
       "metrics": [
         "correctness",
@@ -477,7 +546,9 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/story-game/novel-to-game/design",
       "evaluated_prompts": [
-        "memoir/skills/story-game/novel-to-game/design"
+        "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/design",
+        "memoir/skills/story-game/novel-to-game/journey"
       ],
       "metrics": [
         "correctness",
@@ -489,9 +560,12 @@
     },
     "memoir/skills/story-game/production": {
       "scope": "model",
-      "primary_prompt": "memoir/skills/story-game/novel-to-game/production_style",
+      "primary_prompt": "memoir/skills/story-game/novel-to-game/production",
       "evaluated_prompts": [
-        "memoir/skills/story-game/novel-to-game/production_style"
+        "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/journey",
+        "memoir/skills/story-game/novel-to-game/production"
       ],
       "metrics": [
         "correctness",
@@ -517,9 +591,12 @@
     },
     "memoir/skills/story-game/whitebox": {
       "scope": "model",
-      "primary_prompt": "memoir/skills/story-game/novel-to-game/assets",
+      "primary_prompt": "memoir/skills/story-game/novel-to-game/whitebox",
       "evaluated_prompts": [
-        "memoir/skills/story-game/novel-to-game/assets"
+        "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/journey",
+        "memoir/skills/story-game/novel-to-game/whitebox"
       ],
       "metrics": [
         "correctness",
@@ -545,8 +622,7 @@
         "memoir/agents/mira/policy-review",
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
-        "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/agents/mira/reply"
       ],
       "metrics": [
         "paired-outcome"
@@ -566,6 +642,11 @@
       "scope": "workflow",
       "primary_prompt": null,
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
         "memoir/skills/composer/draft",
@@ -696,7 +777,6 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -742,7 +822,6 @@
         "memoir/skills/story-game/novel-to-game/illustration",
         "memoir/skills/story-game/novel-to-game/journey",
         "memoir/skills/story-game/novel-to-game/production",
-        "memoir/skills/story-game/novel-to-game/production_style",
         "memoir/skills/story-game/novel-to-game/whitebox",
         "memoir/skills/story-game/proposal",
         "memoir/skills/story-game/runtime-contract",
@@ -761,6 +840,220 @@
         "contract"
       ],
       "validator": "scripts/run_memoir_skill_evaluation.py:TRIGGERS"
+    },
+    "memoir/probes/providers/connectivity": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/providers/connectivity",
+      "evaluated_prompts": [
+        "memoir/probes/providers/connectivity"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/probes/providers/worker": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/providers/worker",
+      "evaluated_prompts": [
+        "memoir/probes/providers/worker"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/probes/providers/web-search": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/providers/web-search",
+      "evaluated_prompts": [
+        "memoir/probes/providers/web-search"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/probes/skills/historical-news-research/discovery": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/skills/historical-news-research/discovery",
+      "evaluated_prompts": [
+        "memoir/probes/skills/historical-news-research/discovery"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/probes/skills/author-timeline/extract": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/skills/author-timeline/extract",
+      "evaluated_prompts": [
+        "memoir/probes/skills/author-timeline/extract"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/probes/shared/native-search": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/shared/native-search",
+      "evaluated_prompts": [
+        "memoir/probes/shared/native-search"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/probes/skills/place-photo-research/discovery": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/skills/place-photo-research/discovery",
+      "evaluated_prompts": [
+        "memoir/probes/skills/place-photo-research/discovery"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/probes/skills/place-groups/group": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/skills/place-groups/group",
+      "evaluated_prompts": [
+        "memoir/probes/skills/place-groups/group"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/probes/skills/story-game/brief": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/skills/story-game/brief",
+      "evaluated_prompts": [
+        "memoir/probes/skills/story-game/brief"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/probes/skills/place-groups": {
+      "scope": "probe",
+      "primary_prompt": "memoir/probes/skills/place-groups/instructions",
+      "evaluated_prompts": [
+        "memoir/probes/skills/place-groups/instructions"
+      ],
+      "metrics": [
+        "contract"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/shared/semantic-boundaries": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/shared/semantic-boundaries",
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/semantic-boundaries"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/workflows/five-case-memoir/trajectory": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/workflows/five-case-memoir/trajectory",
+      "evaluated_prompts": [
+        "memoir/evaluators/workflows/five-case-memoir/trajectory"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/workflows/five-case-memoir/guard": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/workflows/five-case-memoir/guard",
+      "evaluated_prompts": [
+        "memoir/evaluators/workflows/five-case-memoir/guard"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/shared/trajectory/rubric": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/shared/trajectory/rubric",
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/trajectory/rubric"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/shared/trajectory/system": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/shared/trajectory/system",
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/trajectory/system"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/agents/mira/reply/comparison": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/agents/mira/reply/comparison",
+      "evaluated_prompts": [
+        "memoir/evaluators/agents/mira/reply/comparison"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/evaluators/shared/evidence-policy": {
+      "scope": "judge-calibration",
+      "primary_prompt": "memoir/evaluators/shared/evidence-policy",
+      "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy"
+      ],
+      "metrics": [
+        "agreement"
+      ],
+      "validator": null
+    },
+    "memoir/workflows/speech/synthesis": {
+      "scope": "media",
+      "primary_prompt": null,
+      "evaluated_prompts": [
+        "memoir/workflows/speech/synthesis/default",
+        "memoir/workflows/speech/synthesis/en-AU",
+        "memoir/workflows/speech/synthesis/zh-CN"
+      ],
+      "metrics": [
+        "audio-review"
+      ],
+      "validator": null
+    },
+    "memoir/workflows/novel-to-game-style-repair": {
+      "scope": "workflow",
+      "primary_prompt": "memoir/skills/story-game/novel-to-game/production_style",
+      "evaluated_prompts": [
+        "memoir/skills/story-game/novel-to-game/production_style"
+      ],
+      "metrics": [
+        "correctness",
+        "relevance",
+        "completeness",
+        "safety"
+      ],
+      "validator": null
     }
   },
   "datasets": [
@@ -787,7 +1080,8 @@
         "def4d43b7d5a7bdcf0781092f21f5f54"
       ],
       "evaluated_prompts": [
-        "memoir/agents/atlas/skill-selection"
+        "memoir/agents/atlas/skill-selection",
+        "memoir/shared/skill-agent"
       ],
       "metrics": [
         "correctness",
@@ -808,7 +1102,8 @@
         "02c024dbcdf991c466a7720bf7394af9"
       ],
       "evaluated_prompts": [
-        "memoir/agents/atlas/skill-selection"
+        "memoir/agents/atlas/skill-selection",
+        "memoir/shared/skill-agent"
       ],
       "metrics": [
         "correctness",
@@ -833,7 +1128,8 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/shared/historical-acknowledgements",
+        "memoir/shared/recall-invitations"
       ],
       "metrics": [
         "correctness",
@@ -858,7 +1154,8 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/shared/historical-acknowledgements",
+        "memoir/shared/recall-invitations"
       ],
       "metrics": [
         "correctness",
@@ -910,7 +1207,8 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/shared/historical-acknowledgements",
+        "memoir/shared/recall-invitations"
       ],
       "metrics": [
         "correctness",
@@ -962,7 +1260,8 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/shared/historical-acknowledgements",
+        "memoir/shared/recall-invitations"
       ],
       "metrics": [
         "correctness",
@@ -1002,7 +1301,8 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/shared/historical-acknowledgements",
+        "memoir/shared/recall-invitations"
       ],
       "metrics": [
         "correctness",
@@ -1042,7 +1342,8 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/shared/historical-acknowledgements",
+        "memoir/shared/recall-invitations"
       ],
       "metrics": [
         "correctness",
@@ -1064,7 +1365,8 @@
         "a488f283c9d4804e6a44c57d46bd7db8"
       ],
       "evaluated_prompts": [
-        "memoir/evaluators/agents/mira/reply/interview-quality"
+        "memoir/evaluators/agents/mira/reply/interview-quality",
+        "memoir/evaluators/shared/evidence-policy"
       ],
       "metrics": [
         "agreement"
@@ -1145,6 +1447,7 @@
         "512d9e373f0152fee883dcd6f3f1e34e"
       ],
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/author-timeline/extract/quality"
       ],
       "metrics": [
@@ -1162,6 +1465,7 @@
         "b565315bc3d396a2ad1ac51a5770f50f"
       ],
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/family-tree/extract/quality"
       ],
       "metrics": [
@@ -1179,6 +1483,7 @@
         "888b485fcd5f351c057543c962c44029"
       ],
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/historical-news-research/discovery/quality"
       ],
       "metrics": [
@@ -1196,6 +1501,7 @@
         "ffd6926522a03006f1769e7de8ee9f43"
       ],
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/memory-context/profile/quality"
       ],
       "metrics": [
@@ -1213,6 +1519,7 @@
         "6570d1ff0948514471a88de5921bbc8f"
       ],
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/place-groups/group/quality"
       ],
       "metrics": [
@@ -1230,6 +1537,7 @@
         "a46bd47a192b41ca29bc0bc6834989f5"
       ],
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/place-journey/extract/quality"
       ],
       "metrics": [
@@ -1247,6 +1555,7 @@
         "16210a5a987675e4e7e5bafb33bdaf9e"
       ],
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/skills/place-photo-research/discovery/quality"
       ],
       "metrics": [
@@ -1264,6 +1573,7 @@
         "be0d4fc58de4339549a84d563d06c6d2"
       ],
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/workflows/composer-checkpoints/quality"
       ],
       "metrics": [
@@ -1281,6 +1591,7 @@
         "e199b418ce5266153b79f5c5ca2cfa07"
       ],
       "evaluated_prompts": [
+        "memoir/evaluators/shared/evidence-policy",
         "memoir/evaluators/workflows/story-game-adaptation/quality"
       ],
       "metrics": [
@@ -1302,6 +1613,11 @@
         "67396b78ff13e9ae1f61e6b8cd97a0f6"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -1344,6 +1660,11 @@
         "fe817be7bad63b36658d45cabbfe333e"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -1374,6 +1695,11 @@
         "8258281a546d5f3e51e5182ef1c790fc"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -1402,6 +1728,11 @@
         "f77ca2eecf27fd82b7c5201b79378eeb"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -1436,6 +1767,11 @@
         "eafffeb1-c6f7-4993-a50f-48a5bd13d158"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -1472,6 +1808,11 @@
         "ed04e07a-1317-50ab-8eac-47d1b4d45086"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -1514,6 +1855,11 @@
         "fbc7452a-b492-49be-88c8-722ed4491c5d"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -1556,6 +1902,11 @@
         "f7511172-f66a-5a9c-8129-b416c089d99e"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -1679,7 +2030,9 @@
         "78a94dfb568e6d1c299a9fe60a9ef608"
       ],
       "evaluated_prompts": [
-        "memoir/skills/historical-news-research/discovery"
+        "memoir/skills/historical-news-research/contract",
+        "memoir/skills/historical-news-research/discovery",
+        "memoir/skills/historical-news-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -1713,7 +2066,9 @@
         "f90f0e8543ccfce8656c943d34b7af84"
       ],
       "evaluated_prompts": [
-        "memoir/skills/historical-news-research/discovery"
+        "memoir/skills/historical-news-research/contract",
+        "memoir/skills/historical-news-research/discovery",
+        "memoir/skills/historical-news-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -1735,7 +2090,9 @@
         "e4678ef33c8f4e2024b795b8bdd62bd0"
       ],
       "evaluated_prompts": [
-        "memoir/skills/historical-news-research/discovery"
+        "memoir/skills/historical-news-research/contract",
+        "memoir/skills/historical-news-research/discovery",
+        "memoir/skills/historical-news-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -1755,7 +2112,9 @@
         "c52ad0e1145e9bdffc59fd7e0ad7e354"
       ],
       "evaluated_prompts": [
-        "memoir/skills/historical-news-research/discovery"
+        "memoir/skills/historical-news-research/contract",
+        "memoir/skills/historical-news-research/discovery",
+        "memoir/skills/historical-news-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -1783,6 +2142,10 @@
         "fad559f9bd9d3ccd8d27c87aa6fb72f1"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -1802,6 +2165,10 @@
         "7a900129c8d122c9539ccc936a616519"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -1838,6 +2205,10 @@
         "f86a1cf70fc3f46a7c85600b89c986db"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -1865,6 +2236,10 @@
         "d791703b52f08e42d267a9e032b46cd4"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -1890,6 +2265,10 @@
         "fdd9d4b2bd8c4f5052665689b4583aa7"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -2016,6 +2395,10 @@
         "fea43130b1f63601c7612aae211af5a9"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -2060,6 +2443,10 @@
         "c6b3d49e24640d619836e0000d7f782d"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -2091,6 +2478,10 @@
         "764669bf12ab4aaa930d7b195c24aef1"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -2120,6 +2511,10 @@
         "dfbcf8ad0c90558b4a32a645d66b5598"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -2149,7 +2544,8 @@
         "06b3d54a8aa64a22e3a1cffef9d15902"
       ],
       "evaluated_prompts": [
-        "memoir/skills/place-photo-research/discovery"
+        "memoir/skills/place-photo-research/discovery",
+        "memoir/skills/place-photo-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -2183,7 +2579,8 @@
         "d0f5507fc50ace698111292998325767"
       ],
       "evaluated_prompts": [
-        "memoir/skills/place-photo-research/discovery"
+        "memoir/skills/place-photo-research/discovery",
+        "memoir/skills/place-photo-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -2205,7 +2602,8 @@
         "d6b6d7c42fe0200c71631ce34abebfc9"
       ],
       "evaluated_prompts": [
-        "memoir/skills/place-photo-research/discovery"
+        "memoir/skills/place-photo-research/discovery",
+        "memoir/skills/place-photo-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -2225,7 +2623,8 @@
         "e5a79d764a4f2c05f5a24101c7e78235"
       ],
       "evaluated_prompts": [
-        "memoir/skills/place-photo-research/discovery"
+        "memoir/skills/place-photo-research/discovery",
+        "memoir/skills/place-photo-research/instructions"
       ],
       "metrics": [
         "correctness",
@@ -2316,8 +2715,7 @@
         "memoir/agents/mira/policy-review",
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
-        "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/agents/mira/reply"
       ],
       "metrics": [
         "paired-outcome"
@@ -2341,8 +2739,7 @@
         "memoir/agents/mira/policy-review",
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
-        "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal"
+        "memoir/agents/mira/reply"
       ],
       "metrics": [
         "paired-outcome"
@@ -2389,6 +2786,11 @@
         "d559e96a-4a02-4626-b5a2-9fa419511912"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
         "memoir/skills/composer/draft",
@@ -2421,6 +2823,11 @@
         "66058db4-50ec-53f6-8f0d-025461fb57fa"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
         "memoir/skills/composer/draft",
@@ -2455,6 +2862,11 @@
         "e2e318ccb048de3c845d879aa5255a05"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
         "memoir/skills/composer/draft",
@@ -2484,6 +2896,11 @@
         "f15227e2b32b20ca9d602babc1a0f717"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
         "memoir/skills/composer/draft",
@@ -2530,6 +2947,11 @@
         "eb1255364ac6203f6cf2da643a713946"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
         "memoir/skills/composer/draft",
@@ -2562,6 +2984,11 @@
         "efdf77f7964a0cf65b75521daaefc568"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
         "memoir/skills/composer/draft",
@@ -2592,6 +3019,11 @@
         "46f3ef6c9b66c2a1c932640ef71dbc58"
       ],
       "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
         "memoir/skills/composer/draft",
@@ -3077,7 +3509,6 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
-        "memoir/agents/mira/strategy-proposal",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -3131,7 +3562,6 @@
         "memoir/skills/story-game/novel-to-game/illustration",
         "memoir/skills/story-game/novel-to-game/journey",
         "memoir/skills/story-game/novel-to-game/production",
-        "memoir/skills/story-game/novel-to-game/production_style",
         "memoir/skills/story-game/novel-to-game/whitebox",
         "memoir/skills/story-game/proposal",
         "memoir/skills/story-game/runtime-contract",
@@ -3178,7 +3608,6 @@
         "memoir/skills/story-game/novel-to-game/illustration",
         "memoir/skills/story-game/novel-to-game/journey",
         "memoir/skills/story-game/novel-to-game/production",
-        "memoir/skills/story-game/novel-to-game/production_style",
         "memoir/skills/story-game/novel-to-game/whitebox",
         "memoir/skills/story-game/proposal",
         "memoir/skills/story-game/runtime-contract",

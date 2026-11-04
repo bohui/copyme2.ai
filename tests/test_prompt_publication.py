@@ -37,7 +37,7 @@ class Client:
         self.versions = {1: 'Original prompt\n'}
         self.creates = []
         self.on_create = None
-        self.api = SimpleNamespace(prompts=SimpleNamespace(list=self.list))
+        self.api = SimpleNamespace(prompts=SimpleNamespace(list=self.list,get=self.get_prompt))
 
     def list(self, **kwargs):
         return SimpleNamespace(data=[SimpleNamespace(name=NAME, versions=list(self.versions))]
@@ -45,7 +45,7 @@ class Client:
 
     def get_prompt(self, name, **kwargs):
         return SimpleNamespace(name=name, version=kwargs['version'],
-            prompt=self.versions[kwargs['version']], is_fallback=False, config={'preserved': True})
+            prompt=self.versions[kwargs['version']], is_fallback=False, config={'preserved': True}, labels=[],tags=[])
 
     def create_prompt(self, **kwargs):
         self.creates.append(kwargs)
@@ -95,6 +95,74 @@ def merged_edit(root, text='Changed merged prompt\n'):
     git(root, 'push', 'origin', 'main')
 
 
+@pytest.fixture
+def retired_repo(repo,monkeypatch):
+    from scripts import retire_prompt_artifacts as retirement
+    root,origin,client=repo
+    source=root/TARGET
+    receipt=json.loads(source.with_name(source.name+'.langfuse.json').read_text())
+    content=source.read_text()
+    source.unlink();source.with_name(source.name+'.langfuse.json').unlink()
+    (root/'config').mkdir();(root/'docs').mkdir()
+    archive='docs/retired.json'
+    (root/archive).write_text(json.dumps([dict(name=NAME,source=TARGET,content=content,receipt=receipt,
+        published_versions=[dict(version=1,prompt=content,sha256=receipt['sha256'],config={'preserved':True})])])+'\n')
+    (root/'config/prompt-coverage.json').write_text(json.dumps(dict(retired={NAME:dict(source=TARGET,archive=archive)})))
+    (root/'config/langfuse-evaluation-bindings.json').write_text(json.dumps(dict(project_id='project')))
+    monkeypatch.setattr(publication,'prompt_registry',lambda *a,**k:{})
+    monkeypatch.setattr(retirement,'prompt_registry',lambda *a,**k:{})
+    client.api.projects=SimpleNamespace(get=lambda:SimpleNamespace(data=[SimpleNamespace(id='project')]))
+    client.deletes=[]
+    def delete(name):
+        client.deletes.append(name);client.versions.clear()
+    client.api.prompts.delete=delete
+    commit(root,'Retire reviewed prompt');git(root,'push','origin','main')
+    return root,client
+
+
+def test_retirement_is_archived_exact_scoped_and_idempotent(retired_repo):
+    from scripts.retire_prompt_artifacts import retire
+    root,client=retired_repo
+    assert retire(client,root=root)[0]['present'] and not client.deletes
+    assert retire(client,root=root,execute=True)[0]['deleted']
+    assert client.deletes==[NAME]
+    assert not retire(client,root=root,execute=True)[0]['present']
+    assert client.deletes==[NAME]
+
+
+@pytest.mark.parametrize('unsafe',['feature','wrong_project','new_version'])
+def test_retirement_refuses_unmerged_or_unarchived_or_foreign_changes(retired_repo,unsafe):
+    from scripts.retire_prompt_artifacts import retire
+    root,client=retired_repo
+    if unsafe=='feature':git(root,'checkout','-b','codex/unmerged-retirement')
+    elif unsafe=='wrong_project':client.api.projects.get=lambda:SimpleNamespace(data=[SimpleNamespace(id='other')])
+    else:client.versions[2]='New version not yet archived\n'
+    with pytest.raises(ValueError):retire(client,root=root,execute=True)
+    assert not client.deletes
+
+
+def test_retirement_checks_uncertain_write_before_retrying(retired_repo):
+    from scripts.retire_prompt_artifacts import retire
+    root,client=retired_repo
+    def uncertain(name):
+        client.deletes.append(name);client.versions.clear();raise TimeoutError()
+    client.api.prompts.delete=uncertain
+    assert retire(client,root=root,execute=True)[0]['deleted']
+    assert client.deletes==[NAME]
+
+
+def test_retirement_rejects_an_empty_committed_archive(retired_repo):
+    from scripts.retire_prompt_artifacts import retire
+    root,client=retired_repo
+    path=root/'docs/retired.json'
+    archived=json.loads(path.read_text());archived[0]['published_versions']=[]
+    path.write_text(json.dumps(archived)+'\n')
+    commit(root,'Incomplete archive');git(root,'push','origin','main')
+    with pytest.raises(ValueError,match='Empty or duplicate recovery versions'):
+        retire(client,root=root,execute=True)
+    assert not client.deletes
+
+
 def test_main_sync_reuses_identical_content_without_creating_versions(repo):
     root, _, client = repo
     paths = [root / TARGET, root / (TARGET + '.langfuse.json')]
@@ -113,7 +181,7 @@ def test_agent_sync_saves_names_and_receipts_and_preserves_old_history(repo, mon
     root, _, _ = repo
     registry = {name: target for name, target in prompt_registry(include_unpublished=True).items()
                 if name.startswith(('memoir/agents/', 'memoir/evaluators/agents/mira/reply/'))}
-    assert len(registry) == 8
+    assert len(registry) == 7
     for target in registry.values():
         path = root / target
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -147,7 +215,7 @@ def test_agent_sync_saves_names_and_receipts_and_preserves_old_history(repo, mon
     assert publication.main([], root=root) == 0
     assert publication.main([], root=root) == 0
     assert {row['name'] for row in creates} == set(registry)
-    assert len(creates) == 8
+    assert len(creates) == 7
     assert saved[legacy_name] is historical
     for name, target in registry.items():
         path = root / target

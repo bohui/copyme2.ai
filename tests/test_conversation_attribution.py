@@ -3,6 +3,7 @@ from controlled_composer_review import controlled_review
 import asyncio
 import inspect
 import json
+import time
 from uuid import uuid4
 
 import httpx
@@ -157,11 +158,20 @@ class Conversation:
             lane = self.sql(f"select id from public.user_memoir_lane where skill='{skill}';").stdout.strip()
             if not lane:
                 continue
+            scheduling_deadline=time.monotonic()+2
             for _ in range(64):
                 try:
                     outcome = asyncio.run(self.worker.execute_lane(lane))
                 except httpx.HTTPStatusError as error:
                     raise AssertionError(self.last_db_error) from error
+                if outcome['status']=='deferred' and time.monotonic()<scheduling_deadline:
+                    # Disposable VM clocks can move back across the enqueue/claim boundary.
+                    delay=self.sql("select case when pending and token is null and attempts=0 and error is null "
+                        "then extract(epoch from available_at-clock_timestamp()) else null end "
+                        f"from public.user_memoir_lane where id='{lane}';").stdout.strip()
+                    if delay and 0<float(delay)<=min(2,scheduling_deadline-time.monotonic()):
+                        time.sleep(min(.1,float(delay)))
+                        continue
                 if outcome.get('retrieval_complete') or outcome['status'] in {'finished', 'deferred', 'idle'}:
                     if skill == 'timeline':
                         timeline_outcome = outcome

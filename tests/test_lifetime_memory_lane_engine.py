@@ -322,6 +322,12 @@ def run(tmp_path,bounded=None,publisher=None,**kwargs):
         connection_factory=SkillConnection,**kwargs))
 
 
+def test_source_window_input_contract_is_pinned_in_the_native_receipt(tmp_path):
+    result=run(tmp_path)
+    names={p['name'] for p in result['skill_receipt']['prompt_manifest']['artifacts']}
+    assert 'memoir/skills/author-timeline/window' in names
+
+
 @pytest.mark.parametrize('input_budget, fits', [(65536, True), (33000, False)])
 def test_composer_reference_reads_use_available_budget_without_exceeding_it(tmp_path, input_budget, fits):
     current = page('composer')

@@ -849,7 +849,9 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         raise ValueError('Lane provider is not configured')
-    manifest = instruction_manifest(instructions, schema, variant=bounded.phase)
+    input_prompt_names = ('memoir/skills/author-timeline/window',) if (bounded.phase == 'extract'
+        and _object(bounded.packet)['payload'].get('window_contract') == EXTRACTION_WINDOW_CONTRACT) else ()
+    manifest = instruction_manifest(instructions, schema, variant=bounded.phase, extra_names=input_prompt_names)
     with trace_llm_call(f'{skill_name}.{bounded.phase}', model, trace_name=skill_name,
             metadata={'contract_version':'lifetime-lane-v1', 'prompt_manifest':manifest}, gateway=True):
         result = await run_skill_agent(command=command, home_root=home_root,
@@ -859,6 +861,7 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
             connection_factory=connection_factory, issue14_admission=issue14_admission,
             uid=uid, apply_owner=apply_owner,
             trace_name=skill_name, phase=bounded.phase,
+            input_prompt_names=input_prompt_names,
             max_tool_bytes=min(65536 if role == 'composer' else 32768,
                 bounded.budget.input_budget - lane_request_tokens(bounded)
                 + bounded.budget.count(lane_skill_text(bounded))),

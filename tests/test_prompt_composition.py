@@ -12,6 +12,17 @@ from scripts.evaluate_langfuse_prompt import experiment_task
 from scripts.prompt_registry import ROOT, prompt_registry
 
 
+@pytest.mark.parametrize('selected_skills',[None,['memoir-place-journey'],['memoir-author-timeline','memoir-place-journey']])
+def test_place_hint_components_are_expanded_before_model_dispatch(selected_skills):
+    from apps.api.two_lane_memory import extraction_contract
+    from apps.api.model_request import instruction_manifest
+    instructions,schema=extraction_contract(selected_skills=selected_skills)
+    assert '{{prompt:' not in instructions
+    names={p['name'] for p in instruction_manifest(instructions,schema)['artifacts']}
+    assert 'memoir/skills/author-timeline/derived-hints' in names
+    assert 'memoir/skills/author-timeline/shared/grounding' in names
+
+
 def replace_component(monkeypatch, tmp_path, key, text):
     original = ROOT / composition.COMPONENTS[key]
     receipt = json.loads(original.with_name(original.name + '.langfuse.json').read_text())

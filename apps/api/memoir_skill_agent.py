@@ -135,7 +135,7 @@ async def run_skill_agent(*, command, home_root, base_url, api_key, model,
         process_source=None, source_skills=(),
         publisher=None, fence=None, timeout=240, effort=None, connection_factory=None,
         issue14_admission=None, uid=None, apply_owner=False, max_tool_bytes=65536,
-        trace_name='memoir-skill-agent', phase='run'):
+        trace_name='memoir-skill-agent', phase='run', input_prompt_names=()):
     from .issue14_execution_admission import issue14_connection_options
     endpoint = urlsplit(base_url)
     if (not api_key or endpoint.scheme not in {'http','https'} or not endpoint.hostname
@@ -190,7 +190,8 @@ async def run_skill_agent(*, command, home_root, base_url, api_key, model,
                 raise ValueError('Memoir agent did not read a skill')
             # The trace records what the agent actually read, including references.
             sources = '\n\n'.join(render_prompt_artifact(path) for path in dict.fromkeys(tools.reads))
-            manifest = instruction_manifest(instructions + '\n' + sources, schema, variant='codex-skill-agent')
+            manifest = instruction_manifest(instructions + '\n' + sources, schema,
+                variant='codex-skill-agent', extra_names=input_prompt_names)
             update_llm_trace(trace, metadata={'prompt_manifest': manifest,
                 'skills_read': [p.parent.name if p.name == 'SKILL.md' else p.relative_to(ROOT).as_posix()
                     for p in dict.fromkeys(tools.reads)], 'tool_calls': tools.calls})

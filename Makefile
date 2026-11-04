@@ -112,7 +112,16 @@ prompt-export: ## Recovery: export published prompts; optional PROMPT_NAME=memoi
 
 prompt-check: ## Verify evaluation bindings and pinned Langfuse prompt versions.
 	@python3 -B scripts/check_langfuse_evaluation_bindings.py
+	@python3 -B scripts/audit_prompt_coverage.py
 	@python3 scripts/export_langfuse_prompts.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --check $(if $(strip $(PROMPT_NAME)),--name "$(PROMPT_NAME)",)
+
+.PHONY: prompt-coverage prompt-coverage-snapshot
+
+prompt-coverage: ## Regenerate the complete prompt/source/evaluator/dataset table without model calls.
+	@python3 -B scripts/audit_prompt_coverage.py --write
+
+prompt-coverage-snapshot: ## Read only this local Langfuse project's dataset, evaluator and score metadata.
+	@python3 -B scripts/snapshot_prompt_evaluations.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --metadata-db
 
 prompt-eval: ## Preflight a pinned prompt and dataset; use PROMPT_EVAL_RUN=1 and PROMPT_EVAL_MODEL=... to call a model.
 	@python3 scripts/evaluate_langfuse_prompt.py --credential-file "$(PROMPT_CREDENTIAL_FILE)" --provider-credential-file "$(PROMPT_EVAL_PROVIDER_FILE)" --name "$(PROMPT_EVAL_NAME)" --dataset "$(PROMPT_EVAL_DATASET)" $(if $(strip $(PROMPT_EVAL_VERSION)),--version "$(PROMPT_EVAL_VERSION)",) $(if $(strip $(PROMPT_EVAL_MODEL)),--model "$(PROMPT_EVAL_MODEL)",) $(if $(filter 1,$(PROMPT_EVAL_RUN)),--run,)
