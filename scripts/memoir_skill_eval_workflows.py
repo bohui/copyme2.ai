@@ -70,7 +70,7 @@ async def history(item, adapter, budget):
         async def discover(self, query, **kwargs):
             if query not in public_queries(hypothesis): raise ValueError('private_query_rejected')
             witnesses['queries'].append(query)
-            instructions = load_prompt_artifact(prompt_path('memoir/skills/memoir-historical-news-research/discovery'))
+            instructions = load_prompt_artifact(prompt_path('memoir/skills/historical-news-research/discovery'))
             instructions = instructions.replace('{{query}}', query)
             request = dict(item_id=item['id'], skill=item['skill'], kind='discovery',
                            instructions=instructions, input=dict(public_query=query))

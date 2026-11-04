@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluation/probes/connectivity",
+  "name": "memoir/probes/providers/connectivity",
   "schema_version": 1,
   "sha256": "68b09e089f3fe6ce9e71be8870ed95c6be9ec4d751ac25a6153ab8bac5d923dd",
   "type": "text",

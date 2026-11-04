@@ -275,7 +275,7 @@ async def run_background_agent(worker, payload, *, publisher=None, broker=None, 
     if not work['work']:
         return {'reply':'{"status":"finished"}','thread_id':None,'artifacts':[],
             'pending':False,'model_invoked':False}
-    instructions = load_prompt_artifact(prompt_path('memoir/agents/atlas/system'))
+    instructions = load_prompt_artifact(prompt_path('memoir/agents/atlas/skill-selection'))
     timeout = worker._execution_timeout('background_agent')
     result = await run_skill_agent(command=worker._run_command(worker._uid_for(fence['user_id'])),
         home_root=worker.home_root, base_url=worker.base_url, api_key=worker.api_key,

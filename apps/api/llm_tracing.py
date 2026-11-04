@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager, ExitStack
 from contextvars import ContextVar
+import hashlib
 import logging
 import os
 import sys
@@ -15,15 +16,60 @@ _UNSET = object()
 _client_cache: object = _UNSET
 _gateway_span = ContextVar('memoir_gateway_span', default=False)
 _trace_name = ContextVar('memoir_trace_name', default=None)
+_trace_session = ContextVar('memoir_trace_session', default=None)
+_trace_origin = ContextVar('memoir_trace_origin', default=None)
+
+
+@contextmanager
+def trace_origin(origin):
+    if origin not in {'evaluation', 'test'}:
+        raise ValueError('Unknown trace origin')
+    token = _trace_origin.set(origin)
+    try:
+        yield
+    finally:
+        _trace_origin.reset(token)
+
+
+def _origin_name(name):
+    origin = _trace_origin.get()
+    return f'{origin}/{name}' if origin and not name.startswith(('evaluation/', 'test/')) else name
+
+
+@contextmanager
+def trace_session(owner_id, project_id):
+    """Correlate an owner's project without putting personal identifiers in labels."""
+    if owner_id is None or project_id is None:
+        yield
+        return
+    identity = hashlib.sha256(f'{owner_id}:{project_id}'.encode()).hexdigest()
+    session_id = 'memoir-' + identity[:32]
+    token = _trace_session.set(session_id)
+    scope = ExitStack()
+    try:
+        try:
+            from langfuse import propagate_attributes
+            scope.enter_context(propagate_attributes(session_id=session_id))
+        except Exception:
+            _LOGGER.debug('Langfuse session attributes are unavailable', exc_info=True)
+        yield
+    finally:
+        try:
+            scope.close()
+        except Exception:
+            _LOGGER.debug('Langfuse session attributes could not be closed', exc_info=True)
+        _trace_session.reset(token)
 
 
 def gateway_metadata(name, *, trace_name=None):
-    return {'generation_name': name, 'trace_name': _trace_name.get() or trace_name or name}
+    return {'generation_name': _origin_name(name),
+        'trace_name': _origin_name(_trace_name.get() or trace_name or name),
+        **({'session_id': _trace_session.get()} if _trace_session.get() else {})}
 
 
 @contextmanager
 def trace_scope(name):
-    token = _trace_name.set(_trace_name.get() or name)
+    token = _trace_name.set(_origin_name(_trace_name.get() or name))
     scope = ExitStack()
     try:
         from langfuse import propagate_attributes
@@ -171,7 +217,7 @@ def trace_llm_call(
     trace_name: str | None = None,
 ) -> Iterator[Any | None]:
     with trace_scope(trace_name or name):
-        with _trace_observation(name, model, input_summary=input_summary, metadata=metadata, gateway=gateway) as observation:
+        with _trace_observation(_origin_name(name), model, input_summary=input_summary, metadata=metadata, gateway=gateway) as observation:
             yield observation
 
 

@@ -219,6 +219,7 @@ def normalise_correlation(value: Mapping[str, Any] | None) -> dict[str, str]:
         "evaluation_generation_name": "generation_name",
         "trace_name": "trace_name",
         "langfuse_trace_name": "trace_name",
+        "session_id": "session_id",
         "evaluator_version": "evaluator_version",
         "evaluation_version": "evaluator_version",
         "dataset_version": "dataset_version",
@@ -1366,7 +1367,7 @@ def build_judge_prompt(
     judge_input: Mapping[str, Any],
     *,
     calibration_examples: Iterable[Mapping[str, Any]] = (),
-    prompt_names: tuple[str, ...] = ('memoir/evaluation/trajectory-judge/rubric',),
+    prompt_names: tuple[str, ...] = ('memoir/evaluators/shared/trajectory/rubric',),
 ) -> str:
     """Create the full-run, calibrated input for an external semantic judge."""
     payload = {
@@ -1493,7 +1494,7 @@ class OpenAICompatibleJudge:
         api_key: str = "",
         calibration_examples: Iterable[Mapping[str, Any]] = (),
         timeout: float = 60.0,
-        prompt_names: tuple[str, ...] = ('memoir/evaluation/trajectory-judge/rubric',),
+        prompt_names: tuple[str, ...] = ('memoir/evaluators/shared/trajectory/rubric',),
         max_tokens: int = 1200,
         reasoning_effort: str | None = None,
     ) -> None:
@@ -1520,7 +1521,7 @@ class OpenAICompatibleJudge:
             "max_tokens": self.max_tokens,
             "response_format": {"type": "json_object"},
             "messages": [
-                {"role": "system", "content": load_prompt_artifact(prompt_path('memoir/evaluation/trajectory-judge/system'))},
+                {"role": "system", "content": load_prompt_artifact(prompt_path('memoir/evaluators/shared/trajectory/system'))},
                 {"role": "user", "content": build_judge_prompt(
                     judge_input,
                     calibration_examples=self.calibration_examples,
@@ -1531,8 +1532,9 @@ class OpenAICompatibleJudge:
         if self.reasoning_effort:
             body["reasoning_effort"] = self.reasoning_effort
         with trace_llm_call(
-            "evaluation.judge",
+            "evaluation/memoir-judges.trajectory",
             self.model,
+            trace_name="evaluation/memoir-judges",
             input_summary={
                 "kind": "trajectory_judge",
                 "fields": sorted(str(key) for key in judge_input.keys()),
@@ -1540,7 +1542,7 @@ class OpenAICompatibleJudge:
             },
             metadata={"provider": self.name, "endpoint": "chat.completions", "prompt_manifest":
                 prompt_manifest(
-                    ['memoir/evaluation/trajectory-judge/system', *self.prompt_names],
+                    ['memoir/evaluators/shared/trajectory/system', *self.prompt_names],
                     body['messages'][0]['content'] + '\n' + '\n'.join(load_prompt_artifact(prompt_path(n)) for n in self.prompt_names),
                     body['response_format'], variant='trajectory-judge')},
         ) as trace:
@@ -1917,7 +1919,8 @@ class MemoirEvaluationRunner:
             "dataset": case.get("dataset") or case.get("dataset_name"),
             "dataset_version": case.get("dataset_version") or case.get("version"),
             "skill_hash": case.get("skill_manifest_sha256") or self.default_skill_manifest.get("sha256"),
-            "generation_name": case.get("generation_name") or "memoir-agent-evaluation",
+            "generation_name": case.get("generation_name") or "evaluation/memoir-agents.run",
+            "trace_name": "evaluation/memoir-agents",
             "model": case.get("model") or os.getenv("MEMORY_SPARK_LLM_MODEL"),
             "provider": case.get("provider") or "llm_provider",
             "evaluator_version": case.get("evaluator_version") or EVALUATION_RUBRIC_VERSION,

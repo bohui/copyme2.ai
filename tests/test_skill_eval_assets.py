@@ -179,10 +179,11 @@ def test_malformed_judge_text_and_missing_evidence_are_unavailable(tmp_path):
 
 def test_scoped_execution_never_archives_unselected_items_and_shared_assets_are_nonempty():
     rows = assets.dataset_rows(suite.plan(skill=['memoir-interviewer'], locale=['en-AU']))
-    assert sum(len(items) for name, items in rows.items() if name.startswith(assets.DATASET_PREFIX)) == 160
-    assert len(rows['memoir/evaluation/workflows']) == 2
-    assert len(rows['memoir/evaluation/judge-calibration']) == 20
-    assert all(r['expected_output']['human_label'] is None for r in rows['memoir/evaluation/judge-calibration'])
+    assert sum(len(items) for name, items in rows.items() if name in assets.SKILL_DATASETS) == 160
+    assert len(rows['memoir/workflows/source-to-private-draft/golden/core']) == 2
+    calibration = [items for name, items in rows.items() if name.endswith('/calibration/core')]
+    assert len(calibration) == 10 and all(len(items) == 2 for items in calibration)
+    assert all(row['expected_output']['human_label'] is None for items in calibration for row in items)
 
 
 def test_managed_rules_are_disabled_synthetic_only_and_sdk_does_not_schedule_judges():
@@ -200,7 +201,7 @@ def test_judge_sources_use_main_publisher_and_require_runtime_receipts(tmp_path)
     from apps.api.prompt_artifact import load_prompt_artifact
     ordinary = prompt_registry()
     publishing = prompt_registry(include_unpublished=True)
-    assert len(EVALUATION_PROMPT_PATHS) == 12
+    assert len(EVALUATION_PROMPT_PATHS) == 16
     for name, relative in EVALUATION_PROMPT_PATHS.items():
         assert publishing[name] == relative
         source = suite.ROOT / relative

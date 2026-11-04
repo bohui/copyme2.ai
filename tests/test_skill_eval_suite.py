@@ -22,7 +22,7 @@ def test_inventory_and_bilingual_scenarios_are_complete_and_stable():
     assert all({c['locale'] for c in plan['items'] if c['skill'] == skill} == {'en-AU', 'zh-CN'}
                for skill in plan['inventory'])
     assert len(plan['evaluators']) == 20
-    assert len(plan['datasets']) == 12
+    assert len(plan['datasets']) == 21
     assert plan['http_dispatches'] == 0
     case = deepcopy(plan['items'][0])
     before = case['id']
@@ -46,10 +46,10 @@ def test_unmapped_prompt_owner_and_runtime_skill_fail_preflight(monkeypatch):
 def test_mira_judge_uses_agent_prompt_and_keeps_historical_dataset_ids():
     planned = selected('memoir-interviewer')
     judge = suite.judge_definition('memoir-interviewer')
-    assert judge['components'][-1]['name'] == 'memoir/evaluation/agents/mira/rubric'
+    assert judge['components'][-1]['name'] == 'memoir/evaluators/agents/mira/reply/interview-quality'
     assert judge['components'][-1]['path'] == 'tests/evaluation/prompts/mira-rubric.md'
     assert {item['dataset'] for item in planned['items']} == {
-        'memoir/evaluation/skills/memoir-interviewer'}
+        'memoir/agents/mira/reply/golden/core'}
 
 
 def test_cli_planning_never_allocates_services_or_reads_env(monkeypatch, capsys, tmp_path):

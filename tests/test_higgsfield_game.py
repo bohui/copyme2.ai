@@ -51,7 +51,8 @@ def test_separate_skill_tool_loop_is_bounded_and_honours_environment(installed, 
         requests.append(body)
         assert body['model'] == 'configured-higgsfield-model' and body['store'] is False
         assert body['reasoning'] == {'effort':'medium'}
-        assert body['metadata']['generation_name'] == 'higgsfield-websites-game'
+        assert body['metadata']['generation_name'] == 'memoir-story-game.build'
+        assert body['metadata']['trace_name'] == 'memoir-story-game'
         assert 'mother repaired' not in body['input'][0]['content']
         assert 'chapter_id' not in body['input'][0]['content'] and 'event_ids' not in body['input'][0]['content']
         assert 'deploy' not in [t['name'] for t in body['tools']]

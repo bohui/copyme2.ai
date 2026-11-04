@@ -89,6 +89,8 @@ class LiveProvider:
             effort = 'low'
         body = {'model': model, 'instructions': instructions,
                 'input': json.dumps(packet, ensure_ascii=False), 'store': False,
+                'metadata': {'generation_name': 'evaluation/' + skill + '.probe',
+                    'trace_name': 'evaluation/' + skill, 'case_id': case_id},
                 'max_output_tokens': 8192 if skill == 'memoir-composer' else 3000,
                 'reasoning': {'effort': effort}}
         if schema:
@@ -227,7 +229,7 @@ async def native_search(provider, skill):
         from apps.api.historical_news_provider import decode_discovery, GatewayHistoricalProvider
         query = 'Sydney, Australia 2000–2000 civic culture sport public events'
         from apps.api.prompt_artifact import prompt_path
-        instructions = load_prompt_artifact(prompt_path('memoir/skills/memoir-historical-news-research/discovery')).replace('{{query}}', query)
+        instructions = load_prompt_artifact(prompt_path('memoir/skills/historical-news-research/discovery')).replace('{{query}}', query)
         _, response = await provider.call('historical-native-search', skill, instructions, {'public_query': query}, search=True)
         discovery = decode_discovery(response)
         hypothesis = {'start': 2000, 'end': 2000, 'place': 'Sydney, Australia', 'country': 'Australia'}

@@ -7,13 +7,13 @@ from pathlib import Path
 try:
     from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
     from apps.api.model_request import prompt_manifest
-    from apps.api.llm_tracing import trace_llm_call, gateway_trace_headers
+    from apps.api.llm_tracing import trace_llm_call, gateway_trace_headers, gateway_metadata
 except ModuleNotFoundError as error:
     if error.name != 'apps' and not error.name.startswith('apps.'):
         raise
 
     ROOT = Path(__file__).resolve().parents[1]
-    PROMPTS = {'memoir/skills/memoir-place-photo-research/discovery': ROOT / 'prompts' / 'discovery.md'}
+    PROMPTS = {'memoir/skills/place-photo-research/discovery': ROOT / 'prompts' / 'discovery.md'}
 
     def digest(value):
         text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
@@ -47,3 +47,6 @@ except ModuleNotFoundError as error:
 
     def gateway_trace_headers():
         return {}
+
+    def gateway_metadata(name, *, trace_name=None):
+        return {'generation_name': name, 'trace_name': trace_name or name}

@@ -91,7 +91,7 @@ def test_retired_guidance_cannot_dispatch_a_model_or_register_a_prompt():
     from apps.api.prompt_catalog import PROMPT_PATHS
     from test_lifetime_memory_lane_engine import page, BUDGET
     assert 'memoir-interview-guidance' not in SKILLS
-    assert 'memoir/skills/memoir-interview-guidance/instructions' not in PROMPT_PATHS
+    assert 'memoir/skills/interview-guidance/instructions' not in PROMPT_PATHS
     current=page('guidance')
     with pytest.raises(ValueError):
         build_bounded_lane_input(current,phase='guidance',packet={},budget=BUDGET)

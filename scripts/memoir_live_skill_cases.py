@@ -24,7 +24,15 @@ def scenario_cases():
 
 
 def eval_fragment(name):
-    return load_prompt_artifact(prompt_path(f'memoir/evaluation/live-skills/{name}'))
+    names = {
+        'historical-lead': 'memoir/probes/skills/historical-news-research/discovery',
+        'independent-events': 'memoir/probes/skills/author-timeline/extract',
+        'native-search': 'memoir/probes/shared/native-search',
+        'photo-lead': 'memoir/probes/skills/place-photo-research/discovery',
+        'place-groups': 'memoir/probes/skills/place-groups/group',
+        'story-game': 'memoir/probes/skills/story-game/brief',
+    }
+    return load_prompt_artifact(prompt_path(names[name]))
 
 
 def object_schema(properties):

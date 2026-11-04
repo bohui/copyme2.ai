@@ -386,4 +386,4 @@ def extraction_schema():
 
 def extraction_instructions(*, derived_hints: bool = False):
     name = 'extract-with-hints' if derived_hints else 'extract'
-    return render_prompt_artifact(prompt_path(f'memoir/skills/memoir-author-timeline/{name}'))
+    return render_prompt_artifact(prompt_path(f'memoir/skills/author-timeline/{name}'))

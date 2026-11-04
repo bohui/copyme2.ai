@@ -46,8 +46,8 @@ def test_skill_selection_reads_the_actual_file_before_executor_runs():
         assert not refused['success'] and executed == []
         read = await tools.call(params('memoir_read_skill', skill='memoir-memory-context'))
         assert decoded(read)['instructions'] == load_prompt_artifact(prompt_path(
-            'memoir/skills/memoir-memory-context/instructions'))
-        assert tools.reads == [prompt_path('memoir/skills/memoir-memory-context/instructions')]
+            'memoir/skills/memory-context/profile'))
+        assert tools.reads == [prompt_path('memoir/skills/memory-context/profile')]
         result = await tools.call(params('memoir_execute_skill', skill='memoir-memory-context'))
         assert decoded(result) == {'status':'saved'}
         assert executed == ['memoir-memory-context']
@@ -142,14 +142,14 @@ for line in sys.stdin:
     publication = Publication()
     result = asyncio.run(run_skill_agent(command=[sys.executable,str(server),str(journal)],
         home_root=tmp_path / 'homes', base_url='http://provider.invalid', api_key='synthetic',
-        model='synthetic-byte-bpe', instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/system')),
+        model='synthetic-byte-bpe', instructions=load_prompt_artifact(prompt_path('memoir/agents/atlas/skill-selection')),
         packet={'work':[]}, skills=['memoir-author-timeline','memoir-memory-context'],
         publisher=publication, fence={}, timeout=5,
         trace_name='memoir-atlas', phase='orchestrate'))
     assert json.loads(result['reply']) == {'events':[]}
     assert result['skill_receipt']['skills_read'] == ['memoir-memory-context']
     assert json.loads(journal.read_text())['instructions'] == load_prompt_artifact(prompt_path(
-        'memoir/skills/memoir-memory-context/instructions'))
+        'memoir/skills/memory-context/profile'))
     assert publication.calls >= 3
     assert not list((tmp_path / 'homes').iterdir())
     assert [observation.fields['name'] for observation in tracer.observations]==[

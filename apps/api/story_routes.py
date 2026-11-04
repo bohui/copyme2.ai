@@ -113,7 +113,7 @@ class StorySpeechInput(BaseModel):
     text: str = Field(min_length=1, max_length=4096)
     language: str | None = None
     voice: str | None = None
-    prompt_name: Literal['memoir/speech/default','memoir/speech/en-AU','memoir/speech/zh-CN'] | None = None
+    prompt_name: Literal['memoir/workflows/speech/synthesis/default','memoir/workflows/speech/synthesis/en-AU','memoir/workflows/speech/synthesis/zh-CN'] | None = None
     output_format: str | None = None
 
 

@@ -329,6 +329,10 @@ class CodexWorker:
             from .two_lane_memory import two_lanes_enabled
             from contextlib import AsyncExitStack
             async with AsyncExitStack() as admission:
+                from .llm_tracing import trace_session, trace_origin
+                admission.enter_context(trace_session(payload.user_id, payload.project_id))
+                if payload.evaluation:
+                    admission.enter_context(trace_origin('evaluation'))
                 if two_lanes_enabled() or payload.background_agent is not None or payload.bounded_lane is not None:
                     await admission.enter_async_context(self._capacity.slot(interactive=payload.agent_role=='collector',
                         serial_lock=self._lock(user_id, execution_role)))

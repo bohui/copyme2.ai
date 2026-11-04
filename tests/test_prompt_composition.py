@@ -42,7 +42,7 @@ def test_one_editorial_component_reaches_drafting_review_and_evaluation(monkeypa
     for phase in ('draft', 'review'):
         instructions = composer_instructions(phase)
         assert instructions.count(changed) == 1
-        path = prompt_path(f'memoir/skills/memoir-composer/{phase}')
+        path = prompt_path(f'memoir/skills/composer/{phase}')
         prompt = SimpleNamespace(prompt=load_prompt_artifact(path))
         calls = []
         client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(

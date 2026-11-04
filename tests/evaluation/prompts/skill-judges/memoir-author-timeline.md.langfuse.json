@@ -1,5 +1,5 @@
 {
-  "name": "memoir/evaluation/skills/memoir-author-timeline/rubric",
+  "name": "memoir/evaluators/skills/author-timeline/extract/quality",
   "schema_version": 1,
   "sha256": "8988996834a0225f4803d814c6f98fe1ce65cbde9e7edb98975a8cfd49029897",
   "type": "text",

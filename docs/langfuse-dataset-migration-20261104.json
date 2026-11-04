@@ -1,0 +1,290 @@
+{
+  "schema_version": 1,
+  "project_id": "cmut9t75w00071z02n8bdv7it",
+  "verified_at": "2026-11-04",
+  "renamed_datasets": 35,
+  "preserved_items": 432,
+  "preserved_experiment_links": 45,
+  "datasets": [
+    {
+      "id": "cmw0pnedx004k1z02mjg6rkji",
+      "from": "memoir/evaluation/v4/skills/ae78da484eb8",
+      "to": "memoir/golden/memoir-workflows/skill-contracts/campaign-ae78da484eb8",
+      "items": 1,
+      "experiment_links": 1,
+      "contents_sha256": "e967c94873452694ac4a7dbbb5328c6b7636c9f66668b5c061a1c0a2d3ebf8d4"
+    },
+    {
+      "id": "cmw0nlzza004e1z02c3pi0kkw",
+      "from": "memoir/evaluation/v4/lane-a/268c0e020d7c",
+      "to": "memoir/golden/memoir-mira/reply/campaign-268c0e020d7c",
+      "items": 1,
+      "experiment_links": 3,
+      "contents_sha256": "41f70bec6db1341cedebdfd014f08ba7d3bef78da4a6b5ff9c2ee09e70faa704"
+    },
+    {
+      "id": "cmw0nje4n003j1z029k7hbywi",
+      "from": "memoir/evaluation/v4/lane-a/4a07ac27fac9",
+      "to": "memoir/golden/memoir-mira/reply/campaign-4a07ac27fac9",
+      "items": 28,
+      "experiment_links": 1,
+      "contents_sha256": "2f31b4a9f73d9cfef436075b954f553128070aa83c0a6ba820ebd3a2d8096efe"
+    },
+    {
+      "id": "cmw0mxw4s00261z02ypyn2buw",
+      "from": "memoir/evaluation/v4/skills/0114d47bf1df",
+      "to": "memoir/golden/memoir-workflows/skill-contracts/campaign-0114d47bf1df",
+      "items": 46,
+      "experiment_links": 1,
+      "contents_sha256": "9c0d2bf77ebc0c62c8294c2e42caef5d6c1e212c2455ac49dafaeff2fe741a39"
+    },
+    {
+      "id": "cmw0mxvhl001p1z02md3xby14",
+      "from": "memoir/evaluation/v4/lane-b/068f68a58ef3",
+      "to": "memoir/golden/memoir-atlas/skill-selection/campaign-068f68a58ef3",
+      "items": 14,
+      "experiment_links": 1,
+      "contents_sha256": "2732d3b27dd0dcce9ecba2fcc0ad776e212da0496802e4a4637a51c87c3e8eb7"
+    },
+    {
+      "id": "cmw0mxskv000u1z02wrqo62mt",
+      "from": "memoir/evaluation/v4/lane-a/85af647a4fa8",
+      "to": "memoir/golden/memoir-mira/reply/campaign-85af647a4fa8",
+      "items": 28,
+      "experiment_links": 1,
+      "contents_sha256": "b682640830b6c938380941faa9f14fa5395b759c78b396459936b8a07f7375c6"
+    },
+    {
+      "id": "cmw0mvvrr000q1z02a220a52m",
+      "from": "memoir/evaluation/v4/skills/3fc96c911046",
+      "to": "memoir/golden/memoir-workflows/skill-contracts/campaign-3fc96c911046",
+      "items": 1,
+      "experiment_links": 1,
+      "contents_sha256": "3b18d7234660b60dca483dcd4fd1f51280b8291e79f7da523a705e6f3f401cca"
+    },
+    {
+      "id": "cmw0mspgg000m1z0211ur7wsg",
+      "from": "memoir/evaluation/v4/skills/30b9a4222825",
+      "to": "memoir/golden/memoir-workflows/skill-contracts/campaign-30b9a4222825",
+      "items": 1,
+      "experiment_links": 0,
+      "contents_sha256": "4b7792a3ee7b4139cff6d49ccbe7583ed55b065ab155d67812452d86685f54e6"
+    },
+    {
+      "id": "cmw0mso8i000i1z029068jddt",
+      "from": "memoir/evaluation/v4/lane-b/a5c15039ad35",
+      "to": "memoir/golden/memoir-atlas/skill-selection/campaign-a5c15039ad35",
+      "items": 1,
+      "experiment_links": 3,
+      "contents_sha256": "ff76bd404f76f9bf8509e554b086b3cb9060b0a186e981c326273baa152d8366"
+    },
+    {
+      "id": "cmw0mslsy000e1z02swle8m8n",
+      "from": "memoir/evaluation/v4/lane-a/4652543f9a9b",
+      "to": "memoir/golden/memoir-mira/reply/campaign-4652543f9a9b",
+      "items": 1,
+      "experiment_links": 1,
+      "contents_sha256": "1083613cfc8e3625728778a4e1073bf5234fc51fc2d88703a8bd222f7759227b"
+    },
+    {
+      "id": "cmvfsjodl009w1z02pt8x0c17",
+      "from": "memoir/evaluation/conversations/memoir-interviewer",
+      "to": "memoir/golden/memoir-mira/reply/conversations",
+      "items": 16,
+      "experiment_links": 3,
+      "contents_sha256": "2a198aea3e3fba49ab31ebccc1da68855e3f3e200ef814d7b7c54c9d15ae6dde"
+    },
+    {
+      "id": "cmvf63f1v00971z0214q8rr07",
+      "from": "memoir/evaluation/judge-calibration",
+      "to": "memoir/calibration/memoir-judges/quality/core",
+      "items": 20,
+      "experiment_links": 1,
+      "contents_sha256": "65975bb51bd86e827d801fe30d2f8896cb0fa64bbffbef175b846d3f9c3e9b2b"
+    },
+    {
+      "id": "cmvf63exl00921z024ddyz6sa",
+      "from": "memoir/evaluation/workflows",
+      "to": "memoir/golden/memoir-workflows/integration/core",
+      "items": 2,
+      "experiment_links": 1,
+      "contents_sha256": "2bf17e55cc698981a75f7d447d3fdf2ac64ca378632046417e5dd65faa307236"
+    },
+    {
+      "id": "cmvf63dud008j1z028ssmdzxr",
+      "from": "memoir/evaluation/skills/memoir-story-game",
+      "to": "memoir/golden/memoir-story-game/generate/core",
+      "items": 16,
+      "experiment_links": 1,
+      "contents_sha256": "fc73cac1dd20fbc807380e55d889eb15297be3714456ad79b6ec634ba5b6909b"
+    },
+    {
+      "id": "cmvf63crr00801z026ga66lt9",
+      "from": "memoir/evaluation/skills/memoir-place-photo-research",
+      "to": "memoir/golden/memoir-place-photo-research/discovery/core",
+      "items": 16,
+      "experiment_links": 2,
+      "contents_sha256": "ce244da14ec6cc6d442a9a48fe36ddea729d3da2fed8ab066208b61af626aa51"
+    },
+    {
+      "id": "cmvf63buk007h1z02aw7y2u4g",
+      "from": "memoir/evaluation/skills/memoir-place-journey",
+      "to": "memoir/golden/memoir-place-journey/extract/core",
+      "items": 16,
+      "experiment_links": 1,
+      "contents_sha256": "3267167603aefc78315d5eba8860783f271aac9497786e40627e9dc636d0870a"
+    },
+    {
+      "id": "cmvf63b2m006y1z02j4hcpwry",
+      "from": "memoir/evaluation/skills/memoir-place-groups",
+      "to": "memoir/golden/memoir-place-groups/group/core",
+      "items": 16,
+      "experiment_links": 3,
+      "contents_sha256": "07d3ea13fc71b50b04cd8b9d7b2e372f1fecfc541aa335e0f4046a8dc02168dd"
+    },
+    {
+      "id": "cmvf63a7d006f1z0216n7260x",
+      "from": "memoir/evaluation/skills/memoir-memory-context",
+      "to": "memoir/golden/memoir-memory-context/profile/core",
+      "items": 16,
+      "experiment_links": 1,
+      "contents_sha256": "6d26084e474eb22c467ac342391dce8865821bcdaebb41d544b0fabd0c788ead"
+    },
+    {
+      "id": "cmvf6398g005w1z029w2mw61u",
+      "from": "memoir/evaluation/skills/memoir-interviewer",
+      "to": "memoir/golden/memoir-mira/reply/core",
+      "items": 16,
+      "experiment_links": 4,
+      "contents_sha256": "0df5462171e07f53b6321fa62654318eb87c76dfa9177fe42e27847f9423cb17"
+    },
+    {
+      "id": "cmvf637t5005d1z02tpayqkcw",
+      "from": "memoir/evaluation/skills/memoir-historical-news-research",
+      "to": "memoir/golden/memoir-historical-news-research/discovery/core",
+      "items": 16,
+      "experiment_links": 1,
+      "contents_sha256": "52e57563e7cbfc314eb13a58887008d96004b6bf27e73cb05f6b5ad063007cf0"
+    },
+    {
+      "id": "cmvf6340e004u1z02vmpkasz7",
+      "from": "memoir/evaluation/skills/memoir-family-tree",
+      "to": "memoir/golden/memoir-family-tree/extract/core",
+      "items": 16,
+      "experiment_links": 1,
+      "contents_sha256": "563e021ea886ebec5212c64348a5d74fd7da73ac6ca4de6cd2c894399d1aecdc"
+    },
+    {
+      "id": "cmvf62u0w004b1z02yp9bzm84",
+      "from": "memoir/evaluation/skills/memoir-composer",
+      "to": "memoir/golden/memoir-composer/compose/core",
+      "items": 16,
+      "experiment_links": 1,
+      "contents_sha256": "2d1dd60f32d07aed31f7312884c9cc8e1239fb333aa2086a1e415e508a350286"
+    },
+    {
+      "id": "cmvf62s10003s1z021ip1f0jw",
+      "from": "memoir/evaluation/skills/memoir-author-timeline",
+      "to": "memoir/golden/memoir-author-timeline/extract/core",
+      "items": 16,
+      "experiment_links": 1,
+      "contents_sha256": "095f03fd2180b02b28d2f4f218389e438e9f034ca7102d00bf2e165e1897d8fa"
+    },
+    {
+      "id": "cmvdea22b00221z02a0nv1v93",
+      "from": "memoir/archive/v2/skill-triggers",
+      "to": "memoir/golden/memoir-atlas/skill-selection/v2",
+      "items": 9,
+      "experiment_links": 2,
+      "contents_sha256": "51832fa88123ce37feb57b5b029881932d1c1ff5e597480af08ddbe0bc2e43af"
+    },
+    {
+      "id": "cmvde28s7001g1z024qbscebn",
+      "from": "memoir/archive/v2/skill-deliveries",
+      "to": "memoir/golden/memoir-workflows/skill-delivery/v2",
+      "items": 19,
+      "experiment_links": 5,
+      "contents_sha256": "a0907b3f613aba8bba1a9152d4a7274994914093052ffdde19bab4c91de7530c"
+    },
+    {
+      "id": "cmvdcb2g2000f1z02wqx8n34y",
+      "from": "memoir/evaluation/skill-deliveries",
+      "to": "memoir/golden/memoir-workflows/skill-delivery/core",
+      "items": 19,
+      "experiment_links": 2,
+      "contents_sha256": "c758617560a43bd5d3bfc95880c5409870c8bc89866fdb27396994f8aa737cf1"
+    },
+    {
+      "id": "cmvdcb1h100031z020eze1xt8",
+      "from": "memoir/evaluation/skill-triggers",
+      "to": "memoir/golden/memoir-atlas/skill-selection/core",
+      "items": 9,
+      "experiment_links": 2,
+      "contents_sha256": "533665df02c71b3a272f47d443912254aad3c8c5dfa9a2183d1892fc98d9c6de"
+    },
+    {
+      "id": "cmvcxwjt2002k1z02u2zdv6qn",
+      "from": "memoir/evaluation/bilingual-consistency",
+      "to": "memoir/golden/memoir-mira/reply/bilingual-consistency",
+      "items": 4,
+      "experiment_links": 0,
+      "contents_sha256": "b0e2147a6113e8f7591275517652a44595879b0602fb473a4b74bfdee50baf3e"
+    },
+    {
+      "id": "cmvcxwjms002f1z02fr0384pm",
+      "from": "memoir/evaluation/chapter-continuity",
+      "to": "memoir/golden/memoir-composer/compose/chapter-continuity",
+      "items": 2,
+      "experiment_links": 0,
+      "contents_sha256": "437ab7a5b29456b632a6a25757151db0f0c9fdcf12a67ffb397b8424c6b431bd"
+    },
+    {
+      "id": "cmvcxwj1b001y1z02xjgwdkjy",
+      "from": "memoir/evaluation/temporal-placement",
+      "to": "memoir/golden/memoir-author-timeline/extract/temporal-placement",
+      "items": 14,
+      "experiment_links": 0,
+      "contents_sha256": "ae82dcab508cc53aa8075d5538ef6f40ade21f311891f4dd2d0f95937ff08c79"
+    },
+    {
+      "id": "cmvcxwiok001n1z029quda4ra",
+      "from": "memoir/evaluation/event-grounding",
+      "to": "memoir/golden/memoir-author-timeline/extract/event-grounding",
+      "items": 8,
+      "experiment_links": 0,
+      "contents_sha256": "99eaef5cdc9a1a1986fbc5e547bf65f874a89f7045e0d710d89055c8ed32de97"
+    },
+    {
+      "id": "cmuzc5g9f00101z02pkzc2lms",
+      "from": "memoir/issue6/20261008-v1/bilingual-consistency",
+      "to": "memoir/golden/memoir-mira/reply/bilingual-consistency-20261008-v1",
+      "items": 4,
+      "experiment_links": 0,
+      "contents_sha256": "6797c5a22d4634649e6b63aff56dad6d0a2e6045cd4a6fc20b62b9e23ea4e016"
+    },
+    {
+      "id": "cmuzc5ese000v1z02wi65o5qc",
+      "from": "memoir/issue6/20261008-v1/chapter-continuity",
+      "to": "memoir/golden/memoir-composer/compose/chapter-continuity-20261008-v1",
+      "items": 2,
+      "experiment_links": 0,
+      "contents_sha256": "91ac805bc0e9f1346a4211b6c90f1459221929ecbbbc07717664c4c22087d1af"
+    },
+    {
+      "id": "cmuzc59lq000e1z02ioeafsko",
+      "from": "memoir/issue6/20261008-v1/temporal-placement",
+      "to": "memoir/golden/memoir-author-timeline/extract/temporal-placement-20261008-v1",
+      "items": 14,
+      "experiment_links": 0,
+      "contents_sha256": "0353521ba9406e2919a908b1bc3290e84f6a2c45fc1c650c4d2c6093692adef4"
+    },
+    {
+      "id": "cmuzc53sj00031z02d3zzutu0",
+      "from": "memoir/issue6/20261008-v1/event-grounding",
+      "to": "memoir/golden/memoir-author-timeline/extract/event-grounding-20261008-v1",
+      "items": 8,
+      "experiment_links": 0,
+      "contents_sha256": "4210f6afa93101a07ee26e6ede8bd6c245afd7b9937986cb66704613164ffda6"
+    }
+  ]
+}

@@ -112,7 +112,7 @@ def test_agent_sync_saves_names_and_receipts_and_preserves_old_history(repo, mon
 
     root, _, _ = repo
     registry = {name: target for name, target in prompt_registry(include_unpublished=True).items()
-                if name.startswith(('memoir/agents/', 'memoir/evaluation/agents/mira/'))}
+                if name.startswith(('memoir/agents/', 'memoir/evaluators/agents/mira/reply/'))}
     assert len(registry) == 8
     for target in registry.values():
         path = root / target
@@ -121,7 +121,7 @@ def test_agent_sync_saves_names_and_receipts_and_preserves_old_history(repo, mon
     commit(root, 'Merged Mira and Atlas agent prompts')
     git(root, 'push', 'origin', 'main')
 
-    legacy_name = 'memoir/skills/memoir-interviewer/reply'
+    legacy_name = 'memoir/skills/interviewer/reply'
     historical = SimpleNamespace(name=legacy_name, version=9, prompt='Historical instructions',
                                  is_fallback=False, config={})
     saved, creates = {legacy_name: historical}, []

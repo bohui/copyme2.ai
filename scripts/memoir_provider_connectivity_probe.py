@@ -49,8 +49,8 @@ async def main() -> int:
     base_url = (os.getenv("MEMORY_SPARK_LLM_BASE_URL") or file_env.get("MEMORY_SPARK_LLM_BASE_URL") or "").rstrip("/")
     model = os.getenv("MEMORY_SPARK_LLM_MODEL") or file_env.get("MEMORY_SPARK_LLM_MODEL") or ""
     api_key = os.getenv("MEMORY_SPARK_LLM_API_KEY") or file_env.get("MEMORY_SPARK_LLM_API_KEY") or ""
-    instructions = load_prompt_artifact(prompt_path('memoir/evaluation/probes/connectivity'))
-    manifest = prompt_manifest(['memoir/evaluation/probes/connectivity'],instructions,variant='synthetic-probe')
+    instructions = load_prompt_artifact(prompt_path('memoir/probes/providers/connectivity'))
+    manifest = prompt_manifest(['memoir/probes/providers/connectivity'],instructions,variant='synthetic-probe')
     receipt: dict[str, object] = {
         "schema_version": "memoir-provider-connectivity-probe/1",
         "recorded_at": utc_now(),
@@ -70,7 +70,9 @@ async def main() -> int:
                 json={
                     "model": model,
                     "messages": [{"role": "user", "content": instructions}],
-                    "metadata": manifest_metadata(manifest),
+                    "metadata": {**manifest_metadata(manifest),
+                        'generation_name': 'evaluation/memoir-probes.connectivity',
+                        'trace_name': 'evaluation/memoir-probes'},
                     "temperature": 0,
                     "max_tokens": 4,
                 },

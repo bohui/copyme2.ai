@@ -190,7 +190,7 @@ def test_unpublished_runtime_prompt_preserves_running_services_and_cache(stack, 
         receipt.write_text('{')
     else:
         value = json.loads(receipt.read_text())
-        value['name'] = 'memoir/skills/memoir-interviewer/policy-review'
+        value['name'] = 'memoir/skills/interviewer/policy-review'
         receipt.write_text(json.dumps(value))
 
     result = up(success=False)
@@ -206,7 +206,7 @@ def test_runtime_prompt_preflight_ignores_unshipped_evaluation_inputs(stack):
     root, up, calls = stack
     catalog = root / 'apps/api/prompt_catalog.py'
     with catalog.open('a') as stream:
-        stream.write("PROMPT_PATHS['memoir/evaluation/five-case-judge'] = 'tests/evaluation/five-case-judge.md'\n")
+        stream.write("PROMPT_PATHS['memoir/evaluators/workflows/five-case-memoir/trajectory'] = 'tests/evaluation/five-case-judge.md'\n")
     assert not (root / 'tests/evaluation').exists()
 
     up()
