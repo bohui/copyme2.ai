@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 from pathlib import Path
+from uuid import NAMESPACE_URL, uuid5
 
 from apps.api.model_request import digest as request_digest
 from apps.api.prompt_artifact import load_prompt_artifact
@@ -16,6 +17,16 @@ SOURCE=ROOT/'tests/evaluation/shared_judge_calibration.json'
 TARGET='memoir/evaluators/shared/judge-calibration'
 DATASET=target_dataset(TARGET,'calibration','shared-v1')
 ORIGIN='synthetic-specification-answer-key'
+
+
+def item_id(case):
+    return str(uuid5(NAMESPACE_URL,DATASET+'/'+case['input']['case_id']))
+
+
+def hosted_item(case):
+    return dict(id=item_id(case),status='ACTIVE',input=deepcopy(case['input']),
+        expected_output=deepcopy(case['expected_output']),metadata=dict(synthetic=True,label_origin=ORIGIN,
+            human_reviewed=False,case_id=case['input']['case_id'],split=case['input']['split'],content_sha256=digest(case)))
 
 
 def digest(value):

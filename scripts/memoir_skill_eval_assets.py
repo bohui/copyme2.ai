@@ -9,11 +9,12 @@ from datetime import datetime
 import math
 
 from scripts.memoir_skill_eval_suite import digest, identity
-from scripts.langfuse_dataset_names import SKILL_TASKS, skill_dataset, calibration_dataset, WORKFLOWS
+from scripts.langfuse_dataset_names import SKILL_TASKS, skill_dataset, WORKFLOWS
+from scripts.memoir_judge_calibration import DATASET as JUDGE_DATASET, hosted_item
 
 DATASET_PREFIX = 'memoir/'
 SKILL_DATASETS = {skill_dataset(skill) for skill in SKILL_TASKS}
-SHARED = {WORKFLOWS, *[calibration_dataset(skill) for skill in SKILL_TASKS]}
+SHARED = {WORKFLOWS, JUDGE_DATASET}
 
 
 def timestamp(value):
@@ -36,13 +37,13 @@ def dataset_rows(planned):
             input={k: deepcopy(item[k]) for k in ('id', 'skill', 'case', 'locale', 'phase', 'action', 'scope', 'task')},
             expected_output=deepcopy(item['gold']), metadata=dict(synthetic=True,
                 identity=item['id'], content_sha256=item['content_sha256'])))
-    for key in ('workflow_items', 'calibration_items'):
-        for item in planned[key]:
-            dataset = WORKFLOWS if key == 'workflow_items' else calibration_dataset(item['skill'])
-            rows[dataset].append(dict(id=digest(item['id'])[:32], status='ACTIVE',
-                input={k: deepcopy(v) for k, v in item.items() if k != 'expected_output'},
-                expected_output=deepcopy(item['expected_output']), metadata=dict(synthetic=True,
-                    identity=item['id'], content_sha256=digest(item))))
+    for item in planned['workflow_items']:
+        rows[WORKFLOWS].append(dict(id=digest(item['id'])[:32], status='ACTIVE',
+            input={k: deepcopy(v) for k, v in item.items() if k != 'expected_output'},
+            expected_output=deepcopy(item['expected_output']),metadata=dict(synthetic=True,
+                identity=item['id'],content_sha256=digest(item))))
+    for item in planned['calibration_items']:
+        rows[JUDGE_DATASET].append(hosted_item({key:item[key] for key in ('input','expected_output')}))
     return rows
 
 

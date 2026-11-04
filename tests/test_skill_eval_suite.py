@@ -22,7 +22,7 @@ def test_inventory_and_bilingual_scenarios_are_complete_and_stable():
     assert all({c['locale'] for c in plan['items'] if c['skill'] == skill} == {'en-AU', 'zh-CN'}
                for skill in plan['inventory'])
     assert len(plan['evaluators']) == 20
-    assert len(plan['datasets']) == 21
+    assert len(plan['datasets']) == 12
     assert plan['http_dispatches'] == 0
     case = deepcopy(plan['items'][0])
     before = case['id']

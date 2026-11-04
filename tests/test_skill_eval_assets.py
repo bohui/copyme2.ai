@@ -181,9 +181,9 @@ def test_scoped_execution_never_archives_unselected_items_and_shared_assets_are_
     rows = assets.dataset_rows(suite.plan(skill=['memoir-interviewer'], locale=['en-AU']))
     assert sum(len(items) for name, items in rows.items() if name in assets.SKILL_DATASETS) == 160
     assert len(rows['memoir/workflows/source-to-private-draft/golden/core']) == 2
-    calibration = [items for name, items in rows.items() if name.endswith('/calibration/core')]
-    assert len(calibration) == 10 and all(len(items) == 2 for items in calibration)
-    assert all(row['expected_output']['human_label'] is None for items in calibration for row in items)
+    calibration = [items for name, items in rows.items() if name == assets.JUDGE_DATASET]
+    assert len(calibration) == 1 and len(calibration[0]) == 80
+    assert all(row['expected_output'] and row['metadata']['human_reviewed'] is False for row in calibration[0])
 
 
 def test_managed_rules_are_disabled_synthetic_only_and_sdk_does_not_schedule_judges():

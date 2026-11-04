@@ -1,5 +1,6 @@
 """Check that every dataset and rule resolves to an explicit evaluation target."""
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import sys
@@ -21,6 +22,7 @@ def validate(config, prompts):
     if len({d['name'] for d in datasets}) != len(datasets) or len({d['id'] for d in datasets}) != len(datasets):
         raise ValueError('Duplicate dataset name or ID')
     by_id = {d['id']: d for d in datasets}
+    by_name = {d['name']: d for d in datasets}
     for target, spec in targets.items():
         unknown = set(spec['evaluated_prompts']) - set(prompts)
         if unknown:
@@ -34,6 +36,16 @@ def validate(config, prompts):
         if spec['scope'] == 'code' and (spec['evaluated_prompts'] or not spec['validator']):
             raise ValueError('Deterministic target must declare its validator and no model prompt')
     for row in datasets:
+        if row['status'] not in {'active','historical','superseded'}:
+            raise ValueError('Unknown dataset status')
+        if row['status']=='superseded':
+            replacement=by_name.get(row.get('superseded_by'))
+            if not replacement or replacement['status']!='active' or row['metrics'] or not row.get('retirement_reason'):
+                raise ValueError('Superseded dataset needs an active replacement, no metrics and a retirement reason')
+        if row.get('case_source'):
+            path=root/row['case_source']
+            if hashlib.sha256(path.read_bytes()).hexdigest()!=row.get('case_source_sha256'):
+                raise ValueError('Dataset case source changed; review and version the shared answer key')
         if dataset_target(row['name']) != row['target'] or row['target'] not in targets:
             raise ValueError('Dataset path does not identify its target')
         spec = targets[row['target']]
