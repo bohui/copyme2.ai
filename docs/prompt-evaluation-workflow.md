@@ -42,6 +42,9 @@ skill loaders. Save the source, receipt and every published version before
 removing it from the catalog and current dependency sets. Verify the exact
 Langfuse project and archive before deleting the named remote prompt. Keep
 historical datasets, experiment records, prior receipts and upstream dependencies.
+Preserve each version's raw configuration, labels (including `latest`) and tags;
+use the raw prompt API with an encoded name, since the high-level prompt wrapper
+does not expose all recovery metadata.
 Remote deletion is performed by `scripts/retire_prompt_artifacts.py` only from
 clean `main` matching live `origin/main`, after checking all remote versions
 against the committed archive. The existing post-pull publisher runs that cleanup

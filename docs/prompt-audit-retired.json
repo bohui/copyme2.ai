@@ -17,7 +17,11 @@
         "type": "text",
         "prompt": "Propose an optional next internal comfort/explore/shape strategy and objective.\nShape clarifies chronology, identity or links; it does not request composition.\nUse only active focus event IDs supplied in this bounded page. This proposal\nchanges no preferences, permissions or delivered questions. Short answers alone\nimply neither discomfort nor a recall limit.\nThe guidance skill's trigger priority governs the pool: conflict comes first,\nthen clarification, relevant public history, a connected topic transition and\nlife meaning. Strategy must preserve that order. After enough detail, explore\nwith broaden_scope can invite an adjacent topic. When a detail cannot be\nrecalled, broaden within the chosen topic or a volunteered thread; keep missing\nfacts uncertain and respect deferred questions until the narrator reopens them.\nNever declare a stage complete or pad a question pool.\n",
         "sha256": "0e2069f50f1542b47f4fca54c0ca78ddd08a82fafe160488e7c20c3b4f77cf95",
-        "config": {}
+        "config": {},
+        "labels": [
+          "latest"
+        ],
+        "tags": []
       }
     ]
   }

@@ -137,13 +137,20 @@ def test_retirement_is_archived_exact_scoped_and_idempotent(retired_repo):
     assert client.deletes==[NAME]
 
 
-@pytest.mark.parametrize('unsafe',['feature','wrong_project','new_version'])
+@pytest.mark.parametrize('unsafe',['feature','wrong_project','new_version','labels','tags'])
 def test_retirement_refuses_unmerged_or_unarchived_or_foreign_changes(retired_repo,unsafe):
     from scripts.retire_prompt_artifacts import retire
     root,client=retired_repo
     if unsafe=='feature':git(root,'checkout','-b','codex/unmerged-retirement')
     elif unsafe=='wrong_project':client.api.projects.get=lambda:SimpleNamespace(data=[SimpleNamespace(id='other')])
-    else:client.versions[2]='New version not yet archived\n'
+    elif unsafe=='new_version':client.versions[2]='New version not yet archived\n'
+    else:
+        fetch=client.api.prompts.get
+        def changed_metadata(*args, **kwargs):
+            current=fetch(*args, **kwargs)
+            setattr(current,unsafe,['unarchived'])
+            return current
+        client.api.prompts.get=changed_metadata
     with pytest.raises(ValueError):retire(client,root=root,execute=True)
     assert not client.deletes
 
