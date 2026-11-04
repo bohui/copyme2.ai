@@ -91,6 +91,13 @@ def test_rejects_repeated_cursor(client, kind):
 def test_preflights_before_supabase_and_deletes_in_batches_afterward(client, monkeypatch, capsys):
     client.api.observations.get_many.return_value = page([f"trace-{i:04}" for i in range(1001)])
 
+    def delete_traces(*, trace_ids):
+        # Langfuse starts one parallel audit-log transaction for each trace.
+        if len(trace_ids) > 100:
+            raise RuntimeError("Transaction API error: Unable to start a transaction in the given time.")
+
+    client.api.trace.delete_multiple.side_effect = delete_traces
+
     def run(command, *, check):
         client.api.projects.get.assert_called_once()
         client.api.observations.get_many.assert_called_once()
@@ -104,8 +111,10 @@ def test_preflights_before_supabase_and_deletes_in_batches_afterward(client, mon
     monkeypatch.setattr(module.subprocess, "run", run)
     module.reset_database(include_langfuse=True, credential_file=Path("credentials.env"))
     batches = [call.kwargs["trace_ids"] for call in client.api.trace.delete_multiple.call_args_list]
-    assert [len(batch) for batch in batches] == [1000, 1]
-    assert len(set(batches[0] + batches[1])) == 1001
+    assert [len(batch) for batch in batches] == [100] * 10 + [1]
+    assert sorted(trace_id for batch in batches for trace_id in batch) == [
+        f"trace-{i:04}" for i in range(1001)
+    ]
     client.shutdown.assert_called_once()
     assert "submitted 1001 traces" in capsys.readouterr().out
     assert not client.api.prompts.method_calls

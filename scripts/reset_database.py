@@ -15,6 +15,9 @@ if str(ROOT) not in sys.path:
 
 from scripts.langfuse_prompt_client import prompt_client
 
+# Bound Langfuse's parallel per-trace audit-log transactions.
+TRACE_DELETE_BATCH_SIZE = 100
+
 
 def pages(fetch, **parameters):
     cursor = None
@@ -93,8 +96,8 @@ def reset_database(*, include_langfuse, credential_file):
                 # Trace deletion clears linked scores; session/experiment scores need explicit deletion.
                 for score_id in score_ids:
                     client.api.legacy.score_v1.delete(score_id=score_id)
-                for start in range(0, len(trace_ids), 1000):
-                    client.api.trace.delete_multiple(trace_ids=trace_ids[start:start + 1000])
+                for start in range(0, len(trace_ids), TRACE_DELETE_BATCH_SIZE):
+                    client.api.trace.delete_multiple(trace_ids=trace_ids[start:start + TRACE_DELETE_BATCH_SIZE])
             except Exception as error:
                 raise RuntimeError(
                     "Supabase was reset, but Langfuse history deletion failed; cleanup may be partial."
