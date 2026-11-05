@@ -18,6 +18,7 @@ import { createAuthReminder } from "./auth-reminder.js";
 import { createGuestConversationTransfer } from "./guest-conversation-transfer.mjs";
 import { openAttachedConversations, retryConversationTransfer } from "./conversation-attachments.js";
 import {applyDerivedWorkspace} from "./derived-workspace.mjs";
+import {applyCurrentActiveLocation} from "./active-location.mjs";
 import { mergePlaces, placeHistoryKey } from "./places.mjs";
 import { MEMOIR_ROUTES } from "../routes.js";
 import { currentUiLocale, translate, translateWith } from "../i18n.js";
@@ -66,6 +67,8 @@ const state = {
   privateDraftThinkingExpanded: false,
   profileIntakePending: true,
   placeJourney: null,
+  currentActiveLocation: undefined,
+  activeLocationChange: 0,
   workspaceFocus: null,
   placeJourneyChange: null,
   workspaceTab: "memoir",
@@ -237,7 +240,7 @@ const {
 } = photos;
 
 const {
-  disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, mapPhotoAlbums, mapMemoryEvents,
+  disposeCesiumPlaceJourney, hydratePlaceJourney, initCesiumPlaceJourney, loadCesium, preloadPlaceMap, mapPhotoAlbums, mapMemoryEvents,
   placeJourneySurface, placeMapTarget, placeWorkspaceSelection, rememberPlaceJourneyProject, resolvePlaceMap,
   selectPlace, workspaceMediaOverview, resizeCesiumPlaceJourney
 } = createPlaceWorkspace({
@@ -703,7 +706,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     streamedMessage.traceMode = "live";
     updateStreamingAssistantMessage(streamedMessage);
   };
-  if (state.supabase.google_maps_browser_api_key || state.supabase.geoapify_browser_api_key) void loadCesium().catch(() => {});
+  if (state.supabase?.google_maps_browser_api_key || state.supabase?.geoapify_browser_api_key) void preloadPlaceMap();
   try {
     const applyWorkspace = async (update) => {
       if (!current()) return;
@@ -832,6 +835,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
       } else if (event.type === "conversation_saved") {
         state.photoTurns?.accept(requestTurn, {...event.data, state:"conversation_saved"});
         if (Object.hasOwn(event.data,"workspace_focus")) state.workspaceFocus = event.data.workspace_focus;
+        if (Object.hasOwn(event.data,"current_active_location")) applyCurrentActiveLocation(state,event.data.current_active_location);
         void refreshStageReadiness();
         if (state.project?.id === streamProjectId && state.supabase?.user?.id === ownerId) {
           await applyCommittedConversationLocale(event.data?.profile_updates);
@@ -870,6 +874,7 @@ async function agentTurn(text, fallback = "", toolNames = ["memory.search"], lan
     if (body.reply && state.pendingConversationTurn === requestTurn) state.pendingConversationTurn = null;
     if (body.conversation_saved) {
       if (Object.hasOwn(body,"workspace_focus")) state.workspaceFocus = body.workspace_focus;
+      if (Object.hasOwn(body,"current_active_location")) applyCurrentActiveLocation(state,body.current_active_location);
       state.backgroundDraftTurn = requestTurn.id;
       void refreshStageReadiness();
       void refreshPrivateDraft();
@@ -1420,6 +1425,7 @@ async function refreshFamilyEntitlement() {
 }
 
 async function startCodexConversation({ resume = false } = {}) {
+  if (state.supabase?.google_maps_browser_api_key || state.supabase?.geoapify_browser_api_key) void preloadPlaceMap();
   const scope = captureProjectScope();
   if (!state.project || state.codexStarting || state.codexReady || state.chat.length) return;
   if (state.recallStatus?.payment_required) return;
@@ -1799,6 +1805,7 @@ async function signOut() {
     state.codexReady = false;
     state.profileIntakePending = true;
     state.placeJourney = null;
+    state.currentActiveLocation = null;state.activeLocationChange = 0;
     state.workspaceFocus = null;
     state.placeJourneyChange = null;
     state.workspaceTab = "memoir";
@@ -2036,6 +2043,7 @@ async function startMemoirStory(mode = "self") {
     state.codexReady = false;
     state.profileIntakePending = true;
     state.placeJourney = null;
+    state.currentActiveLocation = null;state.activeLocationChange = 0;
     state.placeJourneyChange = null;
     state.workspaceFocus = null;
     try { localStorage.removeItem(PLACE_JOURNEY_PROJECT_STORAGE_KEY); } catch { /* private browsing */ }
@@ -2314,7 +2322,8 @@ function renderStory() {
     focus?.focus({preventScroll: true});
   } else state.profileMenuScope = null;
   const nextMap = $("[data-cesium-place]");
-  if (previousMap && nextMap && JSON.stringify(previousMap.dataset) === JSON.stringify(nextMap.dataset)) {
+  if (previousMap && nextMap && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope) {
+    Object.assign(previousMap.dataset,nextMap.dataset);
     nextMap.closest(".place-journey-scene").replaceWith(previousScene);
     resizeCesiumPlaceJourney();
   } else {
@@ -3371,6 +3380,7 @@ async function boot() {
         state.codexReady = false;
         state.codexStarting = false;
         state.placeJourney = null;
+        state.currentActiveLocation = undefined;state.activeLocationChange = 0;
         state.workspaceFocus = null;
         state.workspaceUnlocked = false;
         state.compositionStage = 0;

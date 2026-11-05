@@ -103,6 +103,7 @@ def album_page(request):
     profile = {'name':'Fixture', 'preferred_language':'zh-CN', 'memory_places':places}
     if mode in ('estimated-events','overlap-events'):profile['birth_year']=1983
     calls, errors = [], []
+    conversation_state = {"current":None,"sequence":0}
     with sync_playwright() as pw:
         browser = pw.chromium.launch(headless=True)
         context = browser.new_context(viewport={'width':390,'height':844},
@@ -146,15 +147,17 @@ def album_page(request):
                 imagery += '''window.preloadBitmaps=true;window.preparedMapViews=[];const PreloadViewer=Cesium.Viewer;
                   window.Cesium={...Cesium,Viewer:new Proxy(PreloadViewer,{construct(target,args){
                     const viewer=Reflect.construct(target,args),setView=viewer.camera.setView.bind(viewer.camera);
-                    viewer.camera.setView=options=>{window.holdMapTiles=true;
-                      if(!window.mapFlights.length)preparedMapViews.push(viewer.scene.mode);
+                    viewer.camera.setView=options=>{if(window.preloadingFlight){window.holdMapTiles=true;
+                      if(!window.mapFlights.length)preparedMapViews.push(viewer.scene.mode);}
                       return setView(options);};return viewer;}})};'''
             if mode == 'conversation-focus':
                 imagery += '''window.mapFlights??=[];window.mapViewerCount??=0;
                   const TracedViewer=Cesium.Viewer;
                   window.Cesium={...Cesium,Viewer:new Proxy(TracedViewer,{construct(target,args){
                     const viewer=Reflect.construct(target,args),fly=viewer.camera.flyTo.bind(viewer.camera);window.mapViewerCount++;
-                    viewer.camera.flyTo=options=>{window.mapFlights.push(options.duration);return fly(options);};return viewer;}})};'''
+                    viewer.camera.flyTo=options=>{window.mapFlights.push(options.duration);window.mapFlying=true;
+                      return fly({...options,complete:()=>{window.mapFlying=false;options.complete?.();},
+                        cancel:()=>{window.mapFlying=false;options.cancel?.();}});};return viewer;}})};'''
             route.fulfill(response=response, body=response.text()+imagery)
         context.route('**/Build/Cesium/Cesium.js', cesium)
         context.route('**/static/album-fixture-*.svg', lambda r:r.fulfill(content_type='image/svg+xml',body='<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220"><rect width="320" height="220" fill="#c4d8d2"/><path d="M0 180L110 70L230 180L320 100V220H0" fill="#397465"/><rect x="130" y="130" width="80" height="80" fill="#eee1bb"/><path d="M120 140L170 100L220 140" fill="#a65c43"/></svg>'))
@@ -173,9 +176,22 @@ def album_page(request):
                 data = {'stages':{'baby':{'percent':30,'color':'amber','word_equivalents':300},
                                   'childhood':{'percent':10,'color':'red','word_equivalents':100},
                                   'midlife':{'percent':50,'color':'green','word_equivalents':1000}}}
-                if mode in ('events','estimated-events','overlap-events'):
+                if mode in ('events','estimated-events','overlap-events','conversation-focus'):
                     data['derived_workspace']=dict(project_id='album-project',authoritative=True,policy_epoch=1,
-                        source_revision=1,places=profile['memory_places'],workspace_focus=dict(place='承德',source_sequence=1))
+                        source_revision=max(1,conversation_state['sequence']),places=profile['memory_places'],
+                        current_active_location=conversation_state['current'] if mode=='conversation-focus' else places[0],
+                        workspace_focus=dict(place='承德',source_sequence=1))
+            elif path == '/agent/turn' and mode == 'conversation-focus':
+                text = route.request.post_data_json['text']
+                conversation_state['sequence'] += 1
+                sequence = conversation_state['sequence']
+                target = next((place for place in places if place['granularity']=='city' and place['place'] in text), None)
+                if target:
+                    conversation_state['current'] = dict(target,source_sequence=sequence)
+                data = dict(project_id='album-project',reply='我们继续聊那段生活。',conversation_saved=True,
+                    current_active_location=conversation_state['current'],
+                    workspace_focus=dict(place='学校家属院' if '学校家属院' in text else target['place'],source_sequence=sequence))
+                return route.fulfill(content_type='application/x-ndjson',body=json.dumps(dict(type='result',data=data))+'\n')
             elif path == '/story/map-events' and mode in ('events','estimated-events','overlap-events','conversation-focus'):
                 events=[dict(id=id,revision=1,kind='event',status='active',life_stage=stage,title=title,
                     temporal={'expression':f'Age {age}','precision':'age'},
@@ -230,7 +246,7 @@ def album_page(request):
             expect(page.locator('.story-shell.conversation-only')).to_be_visible(timeout=30000)
         elif mode == 'conversation-focus':
             expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
-            expect(page.locator('[data-cesium-pending="true"]')).to_be_visible()
+            expect(page.locator('[data-place-key="all"]')).to_be_visible()
             assert page.evaluate('mapFlights.length') == 0
         elif mode in ('script-error', 'tile-error', 'missing-key'):
             expect(page.locator('[data-map-retry]')).to_be_visible(timeout=30000)
@@ -256,7 +272,7 @@ def test_slow_map_tiles_recover_after_the_opening_deadline_without_reload(album_
     assert page.evaluate('mapFlights.length') == 0
     page.evaluate('releaseMapTiles()')
     expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=15000)
-    assert page.evaluate('__mapViewer===slowMapViewer && __mapViewer.scene.globe.tilesLoaded')
+    page.wait_for_function('__mapViewer===slowMapViewer && __mapViewer.scene.globe.tilesLoaded')
     assert page.evaluate('performance.getEntriesByType("navigation").length') == 1
     assert page.evaluate('mapFlights.length') == 0
     expect(page.locator('#chat-input')).to_be_enabled()
@@ -264,94 +280,93 @@ def test_slow_map_tiles_recover_after_the_opening_deadline_without_reload(album_
     page.screenshot(path=str(OUTPUT/'slow-map-recovered.png'), full_page=True)
 
 
-@pytest.mark.parametrize('album_page', ['preload-flight'], indirect=True)
+@pytest.mark.parametrize('album_page', ['slow-flight'], indirect=True)
 @pytest.mark.parametrize('width', [390, 1440])
-def test_opening_flight_preloads_its_views_and_plays_without_tile_waits(album_page, width):
+def test_restored_overview_waits_for_imagery_without_a_city_flight(album_page, width):
     page, _, _ = album_page
     page.set_viewport_size({'width':width,'height':960})
-    def wait_for_tiles_or_flight():
-        try:
-            page.wait_for_function('pendingMapTiles.length>0 || mapFlights.length>0', timeout=15000)
-        except Exception:
-            print(page.evaluate('''() => ({pending:pendingMapTiles.length,flights:mapFlights,
-              views:preparedMapViews,loaded:__mapViewer.scene.globe.tilesLoaded,
-              inputs:__mapViewer.scene.screenSpaceCameraController.enableInputs,
-              mode:__mapViewer.scene.mode,classes:document.querySelector('.place-journey-scene')?.className,
-              retry:!!document.querySelector('[data-map-retry]')})'''))
-            raise
+    assert page.evaluate('mapFlights.length') == 0
+    assert not page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
+    page.evaluate('releaseMapTiles()')
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=15000)
+    assert page.evaluate('mapFlights.length') == 0
+    page.wait_for_function('__mapViewer.scene.globe.tilesLoaded')
+    assert page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
+
+
+@pytest.mark.parametrize('album_page', ['preload-flight'], indirect=True)
+@pytest.mark.parametrize('width', [390, 1440])
+def test_active_map_flight_preloads_all_zoom_views_without_tile_waits(album_page, width):
+    page, _, _ = album_page
+    page.set_viewport_size({'width':width,'height':960})
+    page.evaluate('releaseMapTiles()')
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+    page.wait_for_function('__mapViewer.scene.globe.tilesLoaded')
+    page.evaluate('''() => {window.preparedMapViews=[];window.preloadingFlight=true;
+      __mapViewer.camera.flyTo({destination:Cesium.Cartesian3.fromDegrees(117.93,40.97,12000),duration:2.8});}''')
     assert page.evaluate('mapFlights.length') == 0
     assert not page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
     prepared = 0
-    while page.evaluate('mapFlights.length') == 0 and prepared < 40:
-        wait_for_tiles_or_flight()
+    while page.evaluate('mapFlights.length') == 0 and prepared < 64:
+        page.wait_for_function('pendingMapTiles.length>0 || mapFlights.length>0',timeout=25000)
         if page.evaluate('mapFlights.length'):
             break
         page.evaluate('releaseMapTiles()')
-        wait_for_tiles_or_flight()
         prepared += 1
-    assert 3 < prepared < 40
-    page.wait_for_function('finishedMapFlights===1', timeout=15000)
-    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=15000)
+    assert 3 < prepared < 64
+    page.wait_for_function('finishedMapFlights===1',timeout=15000)
+    expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible()
     flights = page.evaluate('mapFlights')
     assert len(flights) == 1
-    assert all(flight['loaded'] and flight['layers'] == 1 and flight['duration'] >= 2.8 for flight in flights)
+    assert all(flight['loaded'] and flight['layers'] == 1 and flight['duration'] == 2.8 for flight in flights)
     assert page.evaluate('flightTileRequests') == [], 'Flight imagery must already be cached'
     assert page.evaluate('pendingMapTiles.length') == 0
     assert page.evaluate('__mapViewer.scene.globe.tilesLoaded')
     assert page.evaluate('__mapViewer.scene.screenSpaceCameraController.enableInputs')
-    OUTPUT.mkdir(parents=True, exist_ok=True)
+    OUTPUT.mkdir(parents=True,exist_ok=True)
     page.screenshot(path=str(OUTPUT/f'loaded-flight-{width}.png'))
+
 
 
 @pytest.mark.parametrize('album_page', ['conversation-focus'], indirect=True)
 @pytest.mark.parametrize('width', [390, 1440])
-def test_conversation_waits_for_city_focus_and_animates_each_city_once_per_page(album_page, width):
+def test_active_location_drives_flights_and_refresh_restores_all_cities(album_page, width):
     page, _, _ = album_page
     page.set_viewport_size({'width':width,'height':960})
-    assert page.evaluate('window.__mapViewer.scene.mode === Cesium.SceneMode.SCENE3D')
-    assert page.evaluate('window.__mapViewer.camera.positionCartographic.height > window.__mapViewer.scene.globe.ellipsoid.maximumRadius')
-    page.evaluate('''() => {const nativeFetch=window.fetch;
-      window.fetch=(url,options)=>{
-        if(String(url).endsWith('/memory-sessions')) return Promise.resolve(new Response('{}',{status:403}));
-        if(!String(url).endsWith('/agent/turn')) return nativeFetch(url,options);
-        return Promise.resolve(new Response(JSON.stringify({type:'result',data:{reply:'Synthetic next question '+nextMapFocus.place,
-          conversation_saved:true,workspace_focus:nextMapFocus}})+'\\n',{headers:{'Content-Type':'application/x-ndjson'}}));
-      };}''')
+    assert page.evaluate('window.__mapViewer.scene.mode === Cesium.SceneMode.SCENE2D')
+    assert page.evaluate('mapFlights.length') == 0
+    expect(page.locator('.map-memory-card.is-city')).to_have_count(2)
 
-    def reply(city, sequence):
-        page.evaluate('focus=>window.nextMapFocus=focus',dict(place=city,source_sequence=sequence))
-        page.locator('#chat-input').fill(f'Synthetic conversation {sequence}')
+    def reply(city, flights):
+        page.locator('#chat-input').fill(f'我想聊在{city}的生活。')
         page.locator('#chat-form button[type="submit"]').click()
         expect(page.locator('#chat-form button[type="submit"]')).to_be_enabled()
-        expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+        page.wait_for_function('(count)=>mapFlights.length===count&&!window.mapFlying',arg=flights,timeout=45000)
 
-    reply('承德',1)
-    assert page.evaluate('mapFlights.length') == 3
-    expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
     first_viewer=page.evaluate('mapViewerCount')
-    reply('承德市',2)
-    assert page.evaluate('mapFlights.length') == 3
-    assert page.evaluate('mapViewerCount') == first_viewer
-    camera=page.evaluate('window.__mapViewer.camera.position.toString()')
-    reply('学校家属院',3)
-    assert page.evaluate('mapFlights.length') == 3
-    assert page.evaluate('mapViewerCount') == first_viewer
-    assert page.evaluate('window.__mapViewer.camera.position.toString()') == camera
-    OUTPUT.mkdir(parents=True,exist_ok=True)
-    page.screenshot(path=str(OUTPUT/f'unresolved-question-{width}.png'))
-    reply('悉尼',4)
-    assert page.evaluate('mapFlights.length') == 6
-    expect(page.locator('.map-memory-cards')).to_contain_text('Move to Sydney')
-    reply('承德',5)
-    assert page.evaluate('mapFlights.length') == 6
+    reply('承德',1)
     expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
+    reply('承德市',1)
+    camera=page.evaluate('window.__mapViewer.camera.position.toString()')
+    reply('学校家属院',1)
+    assert page.evaluate('window.__mapViewer.camera.position.toString()') == camera
+    reply('悉尼',2)
+    expect(page.locator('.map-memory-cards')).to_contain_text('Move to Sydney')
+    reply('承德',3)
+    expect(page.locator('.map-memory-cards')).not_to_contain_text('Move to Sydney')
+    assert page.evaluate('mapViewerCount') == first_viewer,'Location changes must reuse the loaded imagery and viewer'
     page.locator('[data-action="toggle-workspace"]').click()
     page.locator('[data-action="toggle-workspace"]').click()
     expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=15000)
-    assert page.evaluate('mapFlights.length') == 6
+    assert page.evaluate('mapFlights.length') == 3
     page.reload(wait_until='networkidle')
     expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
-    assert page.evaluate('mapFlights.length') == 3, 'A page refresh may replay its opening flight'
+    assert page.evaluate('mapFlights.length') == 0,'Refresh must not replay a location change'
+    expect(page.locator('.map-memory-card.is-city')).to_have_count(2)
+    expect(page.locator('.map-memory-cards')).to_contain_text('承德')
+    expect(page.locator('.map-memory-cards')).to_contain_text('悉尼')
+    OUTPUT.mkdir(parents=True,exist_ok=True)
+    page.screenshot(path=str(OUTPUT/f'active-location-refresh-{width}.png'))
 
 
 def test_phone_map_and_album_navigation(album_page):

@@ -153,7 +153,7 @@ test(`city grouping reports its actual ${failed?'failed':'completed'} skill call
 test('map markup shows city choices and independent pending pin labels', () => {
   const pending = {...town, latitude: undefined, longitude: undefined};
   const groups = groupPlaces([city, district, pending]);
-  const context = vm.createContext({
+  const context = vm.createContext({state:{},
     escapeHtml: value => String(value).replaceAll('"', '&quot;'), translate: key => key,
     translateWith: key => key, currentUiLocale: () => 'zh-CN',
     placeHistoryKey, groupMapFrame, specificPlaceChoices, placeMapTarget: place => place,

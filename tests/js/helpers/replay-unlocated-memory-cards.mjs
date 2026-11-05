@@ -30,7 +30,7 @@ const map=createMapMemoryEvents({getEvents:()=>state.timeline,getGroups:()=>grou
   readPlaces:async id=>structuredClone(feeds[current].locations[id]),
   t:(key,values)=>translateWith(`Memoir.workspace.${key}`,values),lifeStageText:stage=>stage,onExplore:id=>{selected=id;}});
 map.attach({isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){}}},
-  camera:{frustum:{left:-100000,right:100000},flyTo(){}}},
+  camera:{frustum:{left:-100000,right:100000},flyTo(){},setView(){}}},
   {SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
     SceneTransforms:{worldToWindowCoordinates:()=>({x:300,y:350})}});
 for (;current<feeds.length;current++) {

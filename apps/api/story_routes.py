@@ -355,9 +355,11 @@ def build_router(
                     places=storage.lifetime_rpc('read_lifetime_place_journeys',p_project_id=project_id)
                     if places and callable(getattr(storage, 'research_places', None)):
                         places = storage.research_places(project_id, places)
+                    from .active_location import current_active_location
+                    focus = storage.lifetime_rpc('read_lifetime_workspace_focus',p_project_id=project_id)
                     result['derived_workspace']={'project_id':project_id,'policy_epoch':fence.policy_epoch,
                         'source_revision':fence.source_revision,'places':places,'authoritative':True,
-                        'workspace_focus':storage.lifetime_rpc('read_lifetime_workspace_focus',p_project_id=project_id)}
+                        'workspace_focus':focus,'current_active_location':current_active_location(places, focus)}
                     profile = storage.profile()
                     automation = storage.lifetime_rpc('read_lifetime_profile_automation')
                     result['profile'] = {key: profile[key] for key in PROFILE_FIELDS if key in profile}

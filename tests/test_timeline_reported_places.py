@@ -15,10 +15,12 @@ from test_lifetime_composer_capacity import page
 from test_memory_context_transport import Publisher
 
 
-def extract_places(monkeypatch, text, raw, *, offset=0, commit=False, chosen_name=None):
+def extract_places(monkeypatch, text, raw, *, offset=0, commit=False, chosen_name=None, created_at=None):
     current = page(text=text)
     current['preferences']['chosen_name'] = chosen_name
     current['source'].update(char_start=offset, char_end=offset + len(text), original_length=offset + len(text))
+    if created_at:
+        current['source']['created_at'] = created_at
     current['two_lane'] = dict(schema_version=1, task_version='two-lane-v1', execution_generation=1,
         phase_revision=0, work_mode='extract', reply_contract='reply-v2')
     current['attribution_context'] = dict(schema_version=1, decision='extract', reason='new_testimony', delivered_event=None)
@@ -30,7 +32,8 @@ def extract_places(monkeypatch, text, raw, *, offset=0, commit=False, chosen_nam
         def bind(value):
             if isinstance(value, dict):
                 if 'source_id' in value:
-                    value.update(source_id=current['source']['id'], version=current['source']['version'])
+                    value['source_id'] = current['source']['id']
+                    value['source_version' if 'source_version' in value else 'version'] = current['source']['version']
                 for item in value.values(): bind(item)
             elif isinstance(value, list):
                 for item in value: bind(item)
@@ -74,6 +77,75 @@ def place(label):
 
 def ref(quote):
     return dict(source_id='source', version=1, quote=quote, char_start=None, char_end=None)
+
+
+@pytest.mark.parametrize('commit', [False, True])
+def test_reported_sydney_then_chengde_response_saves_chronological_place_order(monkeypatch, commit):
+    from pathlib import Path
+    raw = json.loads((Path(__file__).parent / 'fixtures/timeline-active-location.json').read_text())
+    text = '我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'
+    result = extract_places(monkeypatch, text, raw, commit=commit, created_at='2026-11-05T00:00:00Z')
+    assert [place['place'] for place in result['place_journeys']] == ['承德市', '悉尼']
+
+
+@pytest.mark.parametrize('later,earlier', [('at age twenty-five', 'at age six'), ('二十五岁', '六岁')])
+def test_active_place_order_reuses_supported_word_ages(later, earlier):
+    from apps.api.active_location import chronological_places
+    places = [place('Hobart'), place('承德')]
+    events = [dict(location=location, temporal=dict(precision='age', expression=age))
+        for location, age in zip(places, [later, earlier])]
+    assert chronological_places(places, events, [], {}) == list(reversed(places))
+
+
+def test_chronological_active_city_and_explicit_redirect_replay_to_client(sql, tmp_path, monkeypatch):
+    from pathlib import Path
+    import subprocess
+    from test_conversation_reply import proposal
+    raw = json.loads((Path(__file__).parent / 'fixtures/timeline-active-location.json').read_text())
+    text = '我叫慧博，现在生活在悉尼，但是我于1983年4月出生在河北省承德市附属医院'
+    redirect = '不，我想聊在悉尼的生活。'
+    def extract(packet):
+        if packet['sources'][0]['text'] != text:
+            return empty(packet)
+        output = deepcopy(raw)
+        def bind(value):
+            if isinstance(value, dict):
+                if 'source_id' in value:
+                    value['source_id'] = packet['sources'][0]['id']
+                    value['source_version' if 'source_version' in value else 'version'] = packet['sources'][0]['version']
+                for item in value.values(): bind(item)
+            elif isinstance(value, list):
+                for item in value: bind(item)
+        bind(output)
+        return output
+    def reply(context):
+        redirected = context['source']['text'] == redirect
+        return dict(proposal(), question='你最想聊那段生活中的什么事情？',
+            workspace_focus=dict(place='悉尼', quote='我想聊在悉尼的生活' if redirected else '现在生活在悉尼', source_id=None))
+    conversation = Conversation(sql, tmp_path, monkeypatch, extract, family=False, reply=reply)
+    with conversation.client:
+        result = conversation.say(text, language='zh-CN')
+        conversation.drain()
+        def snapshot():
+            response = conversation.client.get('/v1/story/readiness', params=dict(project_id=conversation.project))
+            assert response.status_code == 200, response.text
+            return response.json()['derived_workspace']
+        initial = snapshot()
+        assert initial['current_active_location']['place'] == '承德市'
+        assert sql("select journeys->0->>'place' from public.user_lifetime_place_journey;").stdout.strip() == '承德市'
+        redirected = conversation.say(redirect, language='zh-CN')
+        assert redirected['current_active_location']['place'] == '悉尼'
+        conversation.drain()
+        later = snapshot()
+        assert later['current_active_location']['place'] == '悉尼'
+        page = conversation.client.get('/v1/story/map-events', params=dict(project_id=conversation.project)).json()
+        links = {event['id']:conversation.client.get(
+            f'/v1/story/map-events/{conversation.project}/{event["id"]}/places').json()['items'] for event in page['events']}
+        replay = Path(__file__).parent / 'js/helpers/replay-question-place-focus.mjs'
+        checked = subprocess.run(['node', str(replay)], input=json.dumps(dict(project_id=conversation.project,
+            result=result, snapshot=initial, redirect_snapshot=later, events=page['events'], links=links,
+            places=raw['place_journeys'])), text=True, capture_output=True, timeout=10)
+        assert checked.returncode == 0, checked.stdout + checked.stderr
 
 
 @pytest.mark.parametrize('legacy_receipt,existing_exclusion', [(False, False), (True, False), (False, True)])

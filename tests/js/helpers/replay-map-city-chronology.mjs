@@ -80,10 +80,12 @@ const destination=places.find(place=>place.place==='Sydney');
 let center=destination,redraw;
 const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener:callback=>{redraw=callback;}}},
   camera:{frustum:{left:-4000,right:4000},flyTo:frame=>{frames.push(frame);center=frame.destination;},
-    setView:view=>{views.push(view);center=view.destination;}}};
+    setView:view=>{views.push(view);center=view.destination.height>40000 ? null : view.destination;
+      const span=view.destination.height>40000 ? 200000 : 8000;
+      viewer.camera.frustum={left:-span/2,right:span/2};}}};
 const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
-  SceneTransforms:{worldToWindowCoordinates:(_,point)=>({x:300+(point.longitude-center.longitude)*500,
-    y:350+(point.latitude-center.latitude)*500})}};
+  SceneTransforms:{worldToWindowCoordinates:(_,point)=>center ? {x:300+(point.longitude-center.longitude)*500,
+    y:350+(point.latitude-center.latitude)*500} : {x:300,y:350}}};
 Object.assign(state,{timeline:enriched,placeJourney:destination,lifeStage:'all'});
 state.project.profile.memory_places=places;
 const workspace=()=>{
@@ -97,7 +99,7 @@ const first=workspace(),map=first.mapMemoryEvents;
 map.selectCity(groupPlaces([destination])[0].key);
 map.sync(scene);map.attach(viewer,cesium);
 assert.ok(stamps.length>0 && stamps.every(size=>size===16),'A sourced intercity trail stays visible in the one-event Sydney view');
-assert.equal(frames.length,1);
+assert.equal(frames.length,0,'Restoring a map selection must not create an active-location flight');
 center={longitude:0,latitude:0};redraw();
 assert.equal(cards.innerHTML,'','A view outside every API city must not retain event cards');
 center=destination;redraw();
@@ -116,20 +118,19 @@ map.dispose();
 scene.child=null;
 state.placeJourney=destination;
 const refreshed=workspace();
-assert.match(refreshed.workspaceMediaOverview(),new RegExp(`data-cesium-latitude="${active.latitude}"`),
-  'The opening globe flight must use the saved city before the event layer is attached');
+assert.match(refreshed.workspaceMediaOverview(),/data-cesium-latitude="0"/,
+  'Refresh opens the whole journey regardless of the previous camera selection');
 const beforeArrival=frames.length;
 center=active;
 refreshed.mapMemoryEvents.sync(scene);refreshed.mapMemoryEvents.attach(viewer,cesium,groupKey);
 assert.equal(frames.length,beforeArrival,'An API city already framed by the opening flight must not get another fast zoom');
-assert.equal(frames.at(-1).destination.latitude,active.latitude,'A refreshed project must restore the same API city');
+assert.ok(views.at(-1).destination.height>40000,'Refresh frames every saved API city without a flight');
 assert.ok(Math.abs(frames.at(-1).destination.longitude-active.longitude)<1e-9);
-assert.match(cards.innerHTML,/Growing up/);
-assert.doesNotMatch(cards.innerHTML,/Sydney residence|Shanghai study and work/);
+assert.equal((cards.innerHTML.match(/class="map-memory-card is-city/g)||[]).length,3);
 refreshed.mapMemoryEvents.dispose();
 state.project.profile.memory_places=[];
 const eventOnly=workspace();
 eventOnly.mapMemoryEvents.sync(null);
-assert.match(eventOnly.workspaceMediaOverview(),new RegExp(`data-cesium-latitude="${active.latitude}"`),
-  'Event-only cities must also supply the restored opening flight');
+assert.match(eventOnly.workspaceMediaOverview(),/data-cesium-latitude="0"/,
+  'Event-only cities also open on the whole journey');
 eventOnly.mapMemoryEvents.dispose();

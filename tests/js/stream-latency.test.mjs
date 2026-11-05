@@ -315,7 +315,7 @@ test('photo discovery does not reserve a gallery before any eligible result', ()
     state: {placeJourney: entry, project: {id: 'p'}, lifeStage: 'all', photoRequests: new Map()},
     escapeHtml: String, translate: key => key, placeWorkspaceSelection: () => entry,
     placeMapTarget: () => ({}), profile: () => ({memory_places: [entry]}), mergePlaces: items => items,
-    placeHistoryChoices: () => '', placeJourneyMarkup: () => '<div>map</div>',
+    placeHistoryChoices: () => '', placeJourneyMarkup: () => '<div>map</div>', groupMapFrame: () => ({pins:[]}),
     workspacePlaceGroups: () => [{city: entry, members: [entry]}], groupChoices: () => [entry],
     mapMemoryEvents: {activeCity: () => null, nodes: () => []},
     cesiumPlaceJourneyViewer:null, mapOpeningScope:null, mapOpeningCity:null,
