@@ -14,7 +14,6 @@ from typing import Any, Iterator, Mapping
 _LOGGER = logging.getLogger(__name__)
 _UNSET = object()
 _client_cache: object = _UNSET
-_gateway_prompt = ContextVar('memoir_gateway_prompt', default=None)
 _gateway_span = ContextVar('memoir_gateway_span', default=False)
 _trace_name = ContextVar('memoir_trace_name', default=None)
 _trace_session = ContextVar('memoir_trace_session', default=None)
@@ -100,20 +99,14 @@ def trace_scope(name):
 
 
 def gateway_trace_headers() -> dict[str, str]:
-    """Forward trace context and only public managed prompt identity."""
+    """Forward only W3C trace context, never baggage or private request data."""
     if not _gateway_span.get():
         return {}
     try:
         from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
         headers = {}
         TraceContextTextMapPropagator().inject(headers)
-        headers = {key: value for key, value in headers.items() if key == 'traceparent'}
-        prompt = _gateway_prompt.get()
-        if prompt:
-            from urllib.parse import quote
-            headers['baggage'] = ('langfuse_prompt_name=' + quote(prompt['name'], safe='')
-                + ',langfuse_prompt_version=' + str(prompt['version']))
-        return headers
+        return {key: value for key, value in headers.items() if key == 'traceparent'}
     except Exception:
         _LOGGER.debug('Gateway trace context is unavailable', exc_info=True)
         return {}
@@ -237,15 +230,10 @@ def trace_llm_call(
     trace_name: str | None = None,
     client: Any = _UNSET,
 ) -> Iterator[Any | None]:
-    artifacts = ((metadata or {}).get('prompt_manifest') or {}).get('artifacts', [])
-    primary = next((p for p in artifacts if p.get('status') == 'published'), None)
-    token = _gateway_prompt.set({'name': primary['name'], 'version': primary['version']} if primary else None)
-    try:
-        with trace_scope(trace_name or name):
-            with _trace_observation(_origin_name(name), model, input_summary=input_summary, metadata=metadata, gateway=gateway, client=client) as observation:
-                yield observation
-    finally:
-        _gateway_prompt.reset(token)
+    with trace_scope(trace_name or name):
+        with _trace_observation(_origin_name(name), model, input_summary=input_summary, metadata=metadata, gateway=gateway, client=client) as observation:
+            yield observation
+
 
 
 @contextmanager
