@@ -1,6 +1,37 @@
 """Scripted model choices at the Codex boundary, never live model evidence."""
 import json
+import inspect
 from uuid import uuid4
+
+import httpx
+
+
+def empty_document(body):
+    fields = body['text']['format']['schema']['properties']
+    return {key: [] for key in ('profile_patch', 'items', 'events', 'place_journeys',
+        'continuity_updates', 'event_places', 'passage_dispositions') if key in fields}
+
+
+def document_transport(respond=empty_document):
+    """Script structured model output at the real fixed-worker HTTP boundary."""
+    async def provider(request):
+        from test_conversation_reply_transport import events, sse
+        body = json.loads(await request.aread())
+        assert body['tools'] == [] and body['tool_choice'] == 'none'
+        output = respond(body)
+        if inspect.isawaitable(output):
+            output = await output
+        return httpx.Response(200, content=sse(events(json.dumps(output))))
+    return httpx.MockTransport(provider)
+
+
+def install_document_provider(monkeypatch, respond=empty_document):
+    from apps.api import conversation_reply_transport
+    original = conversation_reply_transport.stream_document
+    async def controlled(**options):
+        options['transport'] = options.get('transport') or document_transport(respond)
+        return await original(**options)
+    monkeypatch.setattr(conversation_reply_transport, 'stream_document', controlled)
 
 
 class ControlledSkillConnection:

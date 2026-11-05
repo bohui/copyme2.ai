@@ -14,6 +14,7 @@ from test_shared_memory_events_postgres import (
 )
 from memoir_postgres_workflow import PostgresRest
 from test_conversation_attribution import Conversation, empty
+from controlled_skill_harness import empty_document, install_document_provider
 import pytest
 
 
@@ -35,6 +36,7 @@ def test_real_temporal_dispatch_commits_evidence_without_story_text_in_history(s
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP', '1')
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',ControlledSkillConnection)
+    install_document_provider(monkeypatch)
     provider_worker = CodexWorker(home_root=tmp_path / 'worker-homes',
         command=['controlled'],base_url='http://synthetic.invalid',api_key='synthetic')
     app = FastAPI()
@@ -78,15 +80,15 @@ def test_configured_deadline_stops_hung_provider_and_exposes_bounded_retry(sql,t
         assert conversation.say('An original retained through timeout.')['conversation_saved']
         conversation.deliver_receipts()
     project=conversation.project
-    class HungSkillConnection(ControlledSkillConnection):
-        async def turn(self,thread_id,prompt,**options):
-            if options['output_schema']['properties'].get('events'):
-                await asyncio.Event().wait()
-            return await super().turn(thread_id,prompt,**options)
+    async def hung_provider(body):
+        if body['text']['format']['schema']['properties'].get('events'):
+            await asyncio.Event().wait()
+        return empty_document(body)
+    install_document_provider(monkeypatch, hung_provider)
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
     monkeypatch.setenv('MEMORY_SPARK_MEMOIR_RUN_SECONDS','1')
     monkeypatch.setenv('MEMOIR_PUBLICATION_DATABASE_URL',sql.publication_dsn)
-    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',HungSkillConnection)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',ControlledSkillConnection)
     provider=CodexWorker(home_root=tmp_path/'worker',command=['controlled'],base_url='http://synthetic.invalid',api_key='synthetic')
     app=FastAPI()
     @app.post('/internal/codex/turn')

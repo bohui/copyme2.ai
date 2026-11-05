@@ -435,6 +435,21 @@ required source work remains pending when a model stops early or a skill fails.
 Traces record the skills actually read and their prompt manifests, while native
 tool results contain the corresponding instructions.
 
+After Atlas selects a source's skills, fixed workers preload their complete phase
+templates and required references and send one structured model request per
+attempt. Profile extraction, combined timeline/place extraction, memory summaries,
+and composer prepare/draft/review have no instruction-reading tool loop. Schema or
+evidence failures can still trigger bounded retries, and composition retains its
+separate preparation, drafting and evidence-review phases. General skill guides
+remain available to Atlas; worker templates supply only the instructions for the
+selected phase. Shared prompt components stay versioned and are expanded before
+dispatch, with their exact pins recorded in the request manifest.
+
+The optional Higgsfield game builder also preloads its four mandatory skill
+documents. Its tool loop retains optional references and HTML validation/repair;
+those steps can depend on generated output. NovelToGame already preloads each
+stage's documents, and research discovery keeps the search calls it needs.
+
 Activation requires the updated fresh-install schema and the published pins for
 `memoir/agents/atlas/skill-selection`, `memoir/shared/skill-agent` and
 `memoir/skills/composer/instructions`. Commit the Markdown on the current

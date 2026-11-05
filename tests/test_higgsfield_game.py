@@ -26,8 +26,8 @@ def response(output, index):
         model='configured-higgsfield-model', reasoning={'effort':'medium'}, output=output))
 
 
-@pytest.mark.parametrize('failure', [None, 'deployment', 'path', 'unvalidated', 'unread'])
-def test_separate_skill_tool_loop_is_bounded_and_honours_environment(installed, monkeypatch, failure):
+@pytest.mark.parametrize('failure', [None, 'deployment', 'path', 'unvalidated'])
+def test_preloaded_skill_keeps_validation_loop_and_honours_environment(installed, monkeypatch, failure):
     packet = build_packet()
     packet['brief'] = dict(design_brief='A reflective garden.', scene_indices=[0])
     html = webpage()['html']
@@ -56,15 +56,16 @@ def test_separate_skill_tool_loop_is_bounded_and_honours_environment(installed, 
         assert 'mother repaired' not in body['input'][0]['content']
         assert 'chapter_id' not in body['input'][0]['content'] and 'event_ids' not in body['input'][0]['content']
         assert 'deploy' not in [t['name'] for t in body['tools']]
+        for path in REQUIRED_FILES:
+            assert body['instructions'].count('===== ' + path + ' =====\n') == 1
         if len(requests) == 1:
-            tool = 'deploy' if failure == 'deployment' else 'read_skill_file'
-            paths = ['../../secret'] if failure == 'path' else sorted(REQUIRED_FILES)
-            if failure == 'unread':
+            if failure == 'unvalidated':
                 return response([dict(type='message', content=[dict(type='output_text', text=json.dumps({'artifact_sha256': artifact}))])], 1)
-            return response([dict(type='function_call', name=tool, arguments=json.dumps({'paths': paths}), call_id='read')], 1)
-        if len(requests) == 2 and failure != 'unvalidated':
-            return response([dict(type='function_call', name='validate_game_webpage', arguments=json.dumps({'html': html}), call_id='validate')], 2)
-        return response([dict(type='message', content=[dict(type='output_text', text=json.dumps({'artifact_sha256': artifact}))])], 3)
+            if failure in {'deployment', 'path'}:
+                return response([dict(type='function_call', name='deploy' if failure == 'deployment' else 'read_skill_file',
+                    arguments=json.dumps({'paths': ['../../secret']}), call_id='read')], 1)
+            return response([dict(type='function_call', name='validate_game_webpage', arguments=json.dumps({'html': html}), call_id='validate')], 1)
+        return response([dict(type='message', content=[dict(type='output_text', text=json.dumps({'artifact_sha256': artifact}))])], 2)
 
     call = run_higgsfield_game(dict(game_id=GAME, token=TOKEN, authority=packet['authority']),
         packet_loader=load, skill_path=installed, transport=httpx.MockTransport(transport))
@@ -72,11 +73,12 @@ def test_separate_skill_tool_loop_is_bounded_and_honours_environment(installed, 
         with pytest.raises(ValueError): asyncio.run(call)
     else:
         result = asyncio.run(call)
-        assert result['webpage'] == {'html': html} and len(requests) == 3
+        assert result['webpage'] == {'html': html} and len(requests) == 2
         assert result['receipt']['requested_model'] == 'configured-higgsfield-model'
         assert result['receipt']['reasoning_effort'] == 'medium'
         assert result['receipt']['skill'] == 'higgsfield-websites'
         assert result['receipt']['skill_sha256'] == skill_snapshot(installed)[1]
+        assert result['receipt']['skill_files'] == sorted(REQUIRED_FILES)
 
 
 def test_upstream_updates_change_the_next_build_digest_without_editing_memoir(installed):

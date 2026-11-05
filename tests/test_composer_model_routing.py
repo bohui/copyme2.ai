@@ -12,7 +12,7 @@ from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
 from apps.api.lifetime_memory_composer import execute_lifetime_lane
 from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, LanePublication, run_bounded_lane
 from controlled_composer_review import controlled_review
-from controlled_skill_harness import ControlledSkillConnection
+from controlled_skill_harness import document_transport, install_document_provider
 from test_agent_commit_postgres import database as base_database
 from test_canonical_composer_provenance import controlled_draft
 from test_lifetime_composer_capacity import (sql, event_database, private_database, attachment_database,  # noqa: F401
@@ -54,35 +54,29 @@ def test_canonical_composer_honours_dedicated_settings_without_changing_shared_r
         assert bounded.budget.input_budget == 98304
         assert bounded.budget.output_headroom == 16384
 
-        class Connection(ControlledSkillConnection):
-            async def turn(self, thread_id, prompt, **options):
-                async with self.options['request_admission']():
-                    assert self.start['model'] == model
-                    assert options['effort'] == 'low'
-                    packet = json.loads(prompt)['task']
-                    assert packet == json.loads(bounded.packet)
-                    submissions.append(bounded.phase)
-                await self.tool('memoir_read_skill', skill='memoir-composer')
-                payload = packet['payload']
-                if bounded.phase == 'prepare':
-                    output = dict(event_id=payload['partition']['id'], context=source['text'],
-                        source_refs=payload['partition']['source_refs'])
-                elif bounded.phase == 'draft':
-                    output = controlled_draft(payload, source['text'], 'Childhood')
-                else:
-                    output = controlled_review(payload)
-                return json.dumps(output)
+        def respond(body):
+            assert body['model'] == model
+            assert body['reasoning']['effort'] == 'low'
+            packet = json.loads(body['input'])
+            assert packet == json.loads(bounded.packet)
+            submissions.append(bounded.phase)
+            payload = packet['payload']
+            if bounded.phase == 'prepare':
+                return dict(event_id=payload['partition']['id'], context=source['text'],
+                    source_refs=payload['partition']['source_refs'])
+            if bounded.phase == 'draft':
+                return controlled_draft(payload, source['text'], 'Childhood')
+            return controlled_review(payload)
 
         if entry == 'worker':
-            monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection', Connection)
+            install_document_provider(monkeypatch, respond)
             wire.pop('model')  # The worker's default must agree with the API budget.
             result = await real_worker.turn(WorkerTurnInput.model_validate(wire))
         else:
             result = await run_bounded_lane(command=['must-not-start'],
                 home_root=tmp_path / 'homes', base_url='https://provider.invalid/v1',
                 api_key='synthetic', model=wire['model'], bounded_lane=bounded,
-                publisher=publisher, connection_factory=Connection, timeout=5)
-        assert result['skill_receipt']['skills_read'] == ['memoir-composer']
+                publisher=publisher, provider_transport=document_transport(respond), timeout=5)
         return httpx.Response(200, json=result)
 
     scope = SimpleNamespace(broker=Broker(), worker_url='https://worker.invalid',

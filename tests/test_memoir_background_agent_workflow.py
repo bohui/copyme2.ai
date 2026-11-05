@@ -11,7 +11,7 @@ import httpx
 
 from apps.api.codex_worker_service import CodexWorker, WorkerTurnInput
 from apps.api.memory_event_worker import MemoryEventWorker
-from controlled_skill_harness import ControlledSkillConnection
+from controlled_skill_harness import ControlledSkillConnection, empty_document, install_document_provider
 from test_background_profile_workflow import database, Broker
 from test_conversation_attribution import Conversation, empty
 from test_lifetime_memory_postgres import sql, event_database, private_database, attachment_database
@@ -35,20 +35,21 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
     class LocalizedConnection(ControlledSkillConnection):
         async def turn(self,thread_id,prompt,**options):
             task=json.loads(prompt)['task']
-            if task.get('lane')=='B':
-                assert task['locale']==locale, 'Resolve context before selecting any source skills.'
-                return await super().turn(thread_id,prompt,**options)
-            fields=options['output_schema']['properties']
-            phase='profile' if 'profile_patch' in fields else 'extract'
-            phases.append(phase)
-            assert task['lane_context']['preferences']['language']==locale
-            language='Simplified Chinese' if locale=='zh-CN' else 'Australian English'
-            assert f'Write in {language}; preserve original quoted source language.' in self.start['baseInstructions']
-            output=json.loads(await super().turn(thread_id,prompt,**options))
-            if phase=='extract':
-                packet=task['payload']
-                output['events']=[episode(packet,packet['sources'][0]['text'],title=title)]
-            return json.dumps(output)
+            assert task['lane']=='B' and task['locale']==locale, 'Resolve context before selecting any source skills.'
+            return await super().turn(thread_id,prompt,**options)
+    def respond(body):
+        task=json.loads(body['input'])
+        phase='profile' if 'profile_patch' in body['text']['format']['schema']['properties'] else 'extract'
+        phases.append(phase)
+        assert task['lane_context']['preferences']['language']==locale
+        language='Simplified Chinese' if locale=='zh-CN' else 'Australian English'
+        assert f'Write in {language}; preserve original quoted source language.' in body['instructions']
+        output=empty_document(body)
+        if phase=='extract':
+            packet=task['payload']
+            output['events']=[episode(packet,packet['sources'][0]['text'],title=title)]
+        return output
+    install_document_provider(monkeypatch, respond)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',LocalizedConnection)
     conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
     native=CodexWorker(home_root=tmp_path / 'worker',command=['controlled'],
@@ -89,25 +90,27 @@ def test_foreground_keeps_replying_while_background_finishes_then_batches_queued
         source_choices = ('memoir-author-timeline',)
         async def turn(self,thread_id,prompt,**options):
             task = json.loads(prompt)['task']
-            if task.get('lane') == 'B':
-                batches.append(task['source_work']['sources'])
-                if profile_first and len(batches)==1:
-                    self.source_choices=('memoir-memory-context','memoir-author-timeline')
-            else:
-                is_profile='profile_patch' in options['output_schema']['properties']
-                source=task['payload']['source'] if is_profile else task['payload']['sources'][0]
-                if not is_profile:
-                    originals.append(source)
-                if not entered.is_set():
-                    entered.set()
-                    await release.wait()
-                if is_profile:
-                    output=json.loads(await super().turn(thread_id,prompt,**options))
-                    output['profile_patch']=[{'field':'birth_place','value':'Hobart','source_refs':[{
-                        'source_id':source['id'],'version':source['version'],'quote':source['text'],
-                        'char_start':0,'char_end':len(source['text'])}]}]
-                    return json.dumps(output)
+            assert task['lane']=='B'
+            batches.append(task['source_work']['sources'])
+            if profile_first and len(batches)==1:
+                self.source_choices=('memoir-memory-context','memoir-author-timeline')
             return await super().turn(thread_id,prompt,**options)
+    async def respond(body):
+        task=json.loads(body['input'])
+        is_profile='profile_patch' in body['text']['format']['schema']['properties']
+        source=task['payload']['source'] if is_profile else task['payload']['sources'][0]
+        if not is_profile:
+            originals.append(source)
+        if not entered.is_set():
+            entered.set()
+            await release.wait()
+        output=empty_document(body)
+        if is_profile:
+            output['profile_patch']=[{'field':'birth_place','value':'Hobart','source_refs':[{
+                'source_id':source['id'],'version':source['version'],'quote':source['text'],
+                'char_start':0,'char_end':len(source['text'])}]}]
+        return output
+    install_document_provider(monkeypatch, respond)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',SlowConnection)
     conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
     native=CodexWorker(home_root=tmp_path / 'worker',command=['controlled'],
@@ -220,27 +223,25 @@ def test_lane_b_selects_each_source_skill_or_none_independently_of_lane_a_and_ro
     nested_metadata = []
     class ChoosingConnection(ControlledSkillConnection):
         source_choices = ()
-        async def turn(self,thread_id,prompt,**options):
-            value = json.loads(prompt)
-            result = await super().turn(thread_id,prompt,**options)
-            if value['task'].get('lane') != 'B':
-                fields = options['output_schema']['properties']
-                phase = 'profile_patch' if 'profile_patch' in fields else 'events'
-                nested.append(phase)
-                nested_metadata.append(options['responsesapi_client_metadata'])
-                output = json.loads(result)
-                if phase == 'profile_patch':
-                    source = value['task']['payload']['source']
-                    named = 'memoir-place-journey' in choices
-                    quote = 'My name is Avery.' if named else source['text']
-                    output['profile_patch'] = [{'field':'name' if named else 'birth_year','value':'Avery' if named else 1960,'source_refs':[{
-                        'source_id':source['id'],'version':source['version'],'quote':quote,
-                        'char_start':0,'char_end':len(quote)}]}]
-                elif 'memoir-place-journey' in choices:
-                    output['place_journeys'] = [{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],
-                        'granularity':'city','latitude':None,'longitude':None}]
-                return json.dumps(output)
-            return result
+    def respond(body):
+        task=json.loads(body['input'])
+        fields=body['text']['format']['schema']['properties']
+        phase='profile_patch' if 'profile_patch' in fields else 'events'
+        nested.append(phase)
+        nested_metadata.append(body['metadata'])
+        output=empty_document(body)
+        if phase=='profile_patch':
+            source=task['payload']['source']
+            named='memoir-place-journey' in choices
+            quote='My name is Avery.' if named else source['text']
+            output['profile_patch']=[{'field':'name' if named else 'birth_year','value':'Avery' if named else 1960,'source_refs':[{
+                'source_id':source['id'],'version':source['version'],'quote':quote,
+                'char_start':0,'char_end':len(quote)}]}]
+        elif 'memoir-place-journey' in choices:
+            output['place_journeys']=[{'place':'Hobart','hierarchy':['Earth','Australia','Hobart'],
+                'granularity':'city','latitude':None,'longitude':None}]
+        return output
+    install_document_provider(monkeypatch, respond)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',ChoosingConnection)
     conversation = Conversation(sql,tmp_path / 'conversation',monkeypatch,empty,work='reply_only')
     native = CodexWorker(home_root=tmp_path / 'worker',command=['controlled'],
@@ -294,6 +295,7 @@ def test_background_agent_selects_skills_and_persists_results_after_the_reply(sq
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
     monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',ControlledSkillConnection)
+    install_document_provider(monkeypatch)
     ControlledSkillConnection.instances=[]
     ControlledSkillConnection.selected=[]
     conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)

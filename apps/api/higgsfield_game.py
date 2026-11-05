@@ -86,7 +86,9 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
     proposal = selected_scenes(packet)
     brief = validate_brief(packet['brief'], len(proposal['scenes']))
     files, skill_digest = skill_snapshot(skill_path)
-    instructions = '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/story-game/' + name))
+    instructions = '\n\n'.join('===== ' + path + ' =====\n' + files[path]
+        for path in sorted(REQUIRED_FILES))
+    instructions += '\n\n' + '\n\n'.join(load_prompt_artifact(prompt_path('memoir/skills/story-game/' + name))
         for name in ('higgsfield', 'webpage'))
     schema = BuildArtifact.model_json_schema()
     manifest = instruction_manifest(instructions, schema, variant='higgsfield-game')
@@ -99,7 +101,7 @@ async def run_higgsfield_game(fence, *, packet_loader=None, transport=None, skil
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         raise ValueError('game_provider_unavailable')
     publisher = GamePublication(os.getenv('MEMOIR_PUBLICATION_DATABASE_URL'))
-    read, artifacts, responses = set(), {}, []
+    read, artifacts, responses = set(REQUIRED_FILES), {}, []
     async with asyncio.timeout(780), httpx.AsyncClient(timeout=180, transport=transport,
             trust_env=False, follow_redirects=False) as client:
         for _ in range(12):

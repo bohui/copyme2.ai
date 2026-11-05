@@ -1,8 +1,8 @@
 Run the independently installed `higgsfield-websites` skill's `--type game` flow
-for this Memoir build. Read `SKILL.md`, `references/game-flow.md`,
-`references/game-design-system.md` and `references/game-stylization.md` with
-`read_skill_file` before delivering. Its `paths` array can read these together.
-Consult other bundled references when useful.
+for this Memoir build. The host preloads `SKILL.md`, `references/game-flow.md`,
+`references/game-design-system.md` and `references/game-stylization.md` in this request.
+Apply those supplied documents directly. Use `read_skill_file` only when an
+additional bundled reference is needed.
 
 The explicit target is Memoir's private offline player. Its supplied export
 contract takes precedence over the upstream Cloudflare template, CLI scaffolding,

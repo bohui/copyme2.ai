@@ -97,27 +97,29 @@
       "review": {
         "prompt_sha256": "70203c3a8c9c5beed54a512b888feaac2dc426be1c9f6b5a53273117125cda42",
         "datasets_sha256": "ebd899efedf5b981d3bd90603219a6ea32f855298df1ac2cc7163a1cb1bd353c",
-        "evaluators_sha256": "4911fd66cfa3e41572f9ac13bec32101bf099511221554241e898e07044178ab",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "ae45a6b547c46dec0fc255851a6cf6010de86becd08e87838cc5d9576351900d",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/shared/skill-agent": {
       "use": "shared",
-      "scenario": "Native skill tool loop and bounded source/composer dispatch.",
+      "scenario": "Atlas native skill-selection and execution loop; fixed profile, timeline/place, summary and composer workers use preloaded phase templates.",
       "consumers": [
         "apps/api/memoir_skill_agent.py:run_skill_agent"
       ],
       "regressions": [
         "tests/test_codex_harness_skill_loop.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memoir_skill_agent.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "07ad112afa8d413a237072ccfbdc0c1a8853483c49ae0bed7e5c497e6e6d53f8",
-        "datasets_sha256": "d42934b5570a7de78e0defc23eb91fa5e007ecea36b5baf30dda19d3ae072269",
-        "evaluators_sha256": "c39f890fc4e831226e7d156248aeb4b115ced1b0fa42d82754c7d3c84fc3e15d",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "datasets_sha256": "4421a38d1b8b575b69add3def28b78c470a8d2aa34a927f5213b924d603d4b18",
+        "evaluators_sha256": "1981f928a989ae6608d44d507daa1c6b8d3055d6ac8a4084f4dfa9b5d2c28cbe",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/instructions": {
@@ -359,14 +361,16 @@
       "regressions": [
         "tests/test_model_boundaries.py",
         "tests/test_timeline_context_confidence.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py",
+        "tests/test_prompt_composition.py"
       ],
       "review": {
         "prompt_sha256": "e4daebd5db07d3bf93d5561c1c7d7c5528157a3c5cb1213742614592345dcbd1",
         "datasets_sha256": "ee6dc48e41238c73a876e3b84132bcf37e1423df8b6880e269415000ad13ff86",
-        "evaluators_sha256": "d47faeaef5307e0aaf95a5e9a22cb12cb5a21ab8c51872146cec91a35033a2c5",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/evaluators/shared/semantic-boundaries": {
@@ -709,9 +713,9 @@
       "review": {
         "prompt_sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
         "datasets_sha256": "a5f1c5d6f1975046f28cffb0d5f2b1eaa01e56261ee460fd0ec46b6717b4c87f",
-        "evaluators_sha256": "35fda75224464de542bd5fba8e1ebe6a71c49ad6f4d01c5295bce1c6854eaee0",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "d70c5e915fc92ef3017edaad404907305a3d34ec70280c65d3297555810307a9",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/shared/bounded-context/policy": {
@@ -728,9 +732,9 @@
       "review": {
         "prompt_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
         "datasets_sha256": "a5f1c5d6f1975046f28cffb0d5f2b1eaa01e56261ee460fd0ec46b6717b4c87f",
-        "evaluators_sha256": "35fda75224464de542bd5fba8e1ebe6a71c49ad6f4d01c5295bce1c6854eaee0",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "d70c5e915fc92ef3017edaad404907305a3d34ec70280c65d3297555810307a9",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/shared/bounded-context/zh-CN": {
@@ -747,9 +751,9 @@
       "review": {
         "prompt_sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
         "datasets_sha256": "a5f1c5d6f1975046f28cffb0d5f2b1eaa01e56261ee460fd0ec46b6717b4c87f",
-        "evaluators_sha256": "35fda75224464de542bd5fba8e1ebe6a71c49ad6f4d01c5295bce1c6854eaee0",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "d70c5e915fc92ef3017edaad404907305a3d34ec70280c65d3297555810307a9",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/shared/place-conflicts": {
@@ -766,9 +770,9 @@
       "review": {
         "prompt_sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
         "datasets_sha256": "eeca7d3898c204c8676dc66c8675a2e255f46ccee64f2d1e685995fb156da3a0",
-        "evaluators_sha256": "134e865d357f2137c926b6c840735b89634cb89820b51954ab199a6aad6686e9",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "df8f253fb38ff6a756fe16fc6be101e177d4e1b018cdd72b2d71a050e26203c8",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/historical-news-research/contract": {
@@ -835,14 +839,16 @@
       "regressions": [
         "tests/test_model_boundaries.py",
         "tests/test_timeline_context_confidence.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py",
+        "tests/test_prompt_composition.py"
       ],
       "review": {
         "prompt_sha256": "46b3ebee11562ffbe236890c2cc21ce308420ecdaf30a1290358f6a408c59d50",
         "datasets_sha256": "ee6dc48e41238c73a876e3b84132bcf37e1423df8b6880e269415000ad13ff86",
-        "evaluators_sha256": "d47faeaef5307e0aaf95a5e9a22cb12cb5a21ab8c51872146cec91a35033a2c5",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/author-timeline/contract": {
@@ -855,14 +861,16 @@
       "regressions": [
         "tests/test_model_boundaries.py",
         "tests/test_timeline_context_confidence.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py",
+        "tests/test_prompt_composition.py"
       ],
       "review": {
         "prompt_sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
         "datasets_sha256": "ee6dc48e41238c73a876e3b84132bcf37e1423df8b6880e269415000ad13ff86",
-        "evaluators_sha256": "d47faeaef5307e0aaf95a5e9a22cb12cb5a21ab8c51872146cec91a35033a2c5",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/author-timeline/derived-hints": {
@@ -876,14 +884,15 @@
         "tests/test_model_boundaries.py",
         "tests/test_timeline_context_confidence.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
-        "prompt_sha256": "03c8f2aa49dd0433a3c15b733e802ff05f22edc9e4054c4f75b52b9b8c657eb9",
+        "prompt_sha256": "8eac382ff94f0f348d4c7947a6b6b9f2f3aef80cf86975f2143c0ebeb1bbbf1b",
         "datasets_sha256": "ee6dc48e41238c73a876e3b84132bcf37e1423df8b6880e269415000ad13ff86",
-        "evaluators_sha256": "d47faeaef5307e0aaf95a5e9a22cb12cb5a21ab8c51872146cec91a35033a2c5",
-        "dataset_decision": "Added selected-skill composition cases for joint and place-only extraction; they reject unresolved prompt macros and verify the actual grounding/derived-hint manifest. Existing frozen semantic gold is reused because the intended policy is unchanged. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain grounding and source-accuracy judges; add deterministic pre-dispatch macro and component-provenance assertions. Live semantic quality for the newly compiled text still requires a version-witnessed run. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/author-timeline/extract": {
@@ -896,14 +905,16 @@
       "regressions": [
         "tests/test_model_boundaries.py",
         "tests/test_timeline_context_confidence.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py",
+        "tests/test_prompt_composition.py"
       ],
       "review": {
         "prompt_sha256": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
         "datasets_sha256": "ee6dc48e41238c73a876e3b84132bcf37e1423df8b6880e269415000ad13ff86",
-        "evaluators_sha256": "d47faeaef5307e0aaf95a5e9a22cb12cb5a21ab8c51872146cec91a35033a2c5",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/author-timeline/extract-with-hints": {
@@ -916,14 +927,16 @@
       "regressions": [
         "tests/test_model_boundaries.py",
         "tests/test_timeline_context_confidence.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py",
+        "tests/test_prompt_composition.py"
       ],
       "review": {
         "prompt_sha256": "c4b2d944fa386f1b2fdee6148d16cbc31c2570a02d142d2b882cf48cbcdded60",
         "datasets_sha256": "ee6dc48e41238c73a876e3b84132bcf37e1423df8b6880e269415000ad13ff86",
-        "evaluators_sha256": "d47faeaef5307e0aaf95a5e9a22cb12cb5a21ab8c51872146cec91a35033a2c5",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/author-timeline/instructions": {
@@ -936,14 +949,16 @@
       "regressions": [
         "tests/test_model_boundaries.py",
         "tests/test_timeline_context_confidence.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py",
+        "tests/test_prompt_composition.py"
       ],
       "review": {
-        "prompt_sha256": "45f3f4a70e5f01c8b1e850ef9682fd1f95aab0b3440f75f456ee6cb633250287",
+        "prompt_sha256": "1df8b98a65018764b00803972ce1c46c384578bcafc5ba90e94726bc1f2080eb",
         "datasets_sha256": "ee6dc48e41238c73a876e3b84132bcf37e1423df8b6880e269415000ad13ff86",
-        "evaluators_sha256": "d47faeaef5307e0aaf95a5e9a22cb12cb5a21ab8c51872146cec91a35033a2c5",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/author-timeline/shared/grounding": {
@@ -957,14 +972,15 @@
         "tests/test_model_boundaries.py",
         "tests/test_timeline_context_confidence.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "540118842077b9f1bb3fffa4c97f9211c881841cf2de1be62ed89a1371fd48e3",
         "datasets_sha256": "ee6dc48e41238c73a876e3b84132bcf37e1423df8b6880e269415000ad13ff86",
-        "evaluators_sha256": "d47faeaef5307e0aaf95a5e9a22cb12cb5a21ab8c51872146cec91a35033a2c5",
-        "dataset_decision": "Added selected-skill composition cases for joint and place-only extraction; they reject unresolved prompt macros and verify the actual grounding/derived-hint manifest. Existing frozen semantic gold is reused because the intended policy is unchanged. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain grounding and source-accuracy judges; add deterministic pre-dispatch macro and component-provenance assertions. Live semantic quality for the newly compiled text still requires a version-witnessed run. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/author-timeline/window": {
@@ -975,14 +991,16 @@
       ],
       "regressions": [
         "tests/test_lifetime_memory_lane_engine.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py",
+        "tests/test_prompt_composition.py"
       ],
       "review": {
         "prompt_sha256": "ee95f381fcad58de15535bf81640f61f6ba10e98fcd695d5ccb6947e554e83b3",
         "datasets_sha256": "ee6dc48e41238c73a876e3b84132bcf37e1423df8b6880e269415000ad13ff86",
-        "evaluators_sha256": "d47faeaef5307e0aaf95a5e9a22cb12cb5a21ab8c51872146cec91a35033a2c5",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/batch/compose": {
@@ -1035,14 +1053,15 @@
       "regressions": [
         "tests/test_composer_review.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "9433c36376ffab21231bed534cd630cee084f80d2aa82589301dd4e4f35191cc",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "25ec1a457a2593c9ef9500d854ee19ad36b6ad58967aa82f8995371222b67725",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/outline/leaf/en-AU": {
@@ -1054,14 +1073,15 @@
       "regressions": [
         "tests/test_lifetime_memory_job_engine.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "a32e8ad5e53803c2b5c0ea3e0b77ed1793a3a393c86b3dc148dc1f4ad9a573f2",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "096811049357002756aa897c62fdab8981ec7210136747b71d6f28be48006776",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "db1719466fdedce1563b7211f029d7a10bc88a8ce78d453517e0368500c67625",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/outline/leaf/zh-CN": {
@@ -1073,14 +1093,15 @@
       "regressions": [
         "tests/test_lifetime_memory_job_engine.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "a3108ba8705f81ceccaeb85da14393b4ff18dba7d224f87b01bb9b0776340b2b",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "096811049357002756aa897c62fdab8981ec7210136747b71d6f28be48006776",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "db1719466fdedce1563b7211f029d7a10bc88a8ce78d453517e0368500c67625",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/outline/merge/en-AU": {
@@ -1092,14 +1113,15 @@
       "regressions": [
         "tests/test_lifetime_memory_job_engine.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "b1af3ebef85419e8344db5ad56b9524645e7b094e3f0386b0f12155b4e593aa5",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "096811049357002756aa897c62fdab8981ec7210136747b71d6f28be48006776",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "db1719466fdedce1563b7211f029d7a10bc88a8ce78d453517e0368500c67625",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/outline/merge/zh-CN": {
@@ -1111,14 +1133,15 @@
       "regressions": [
         "tests/test_lifetime_memory_job_engine.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "80fdf1243c337012039ce5b94a3b37cb0d9cfffd9a45785ffbb788b25b3beb07",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "096811049357002756aa897c62fdab8981ec7210136747b71d6f28be48006776",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "db1719466fdedce1563b7211f029d7a10bc88a8ce78d453517e0368500c67625",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/outline/shared/prefix": {
@@ -1130,14 +1153,15 @@
       "regressions": [
         "tests/test_lifetime_memory_job_engine.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "096811049357002756aa897c62fdab8981ec7210136747b71d6f28be48006776",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "db1719466fdedce1563b7211f029d7a10bc88a8ce78d453517e0368500c67625",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/outline/shared/suffix": {
@@ -1149,14 +1173,15 @@
       "regressions": [
         "tests/test_lifetime_memory_job_engine.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "096811049357002756aa897c62fdab8981ec7210136747b71d6f28be48006776",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "db1719466fdedce1563b7211f029d7a10bc88a8ce78d453517e0368500c67625",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/prepare": {
@@ -1169,14 +1194,15 @@
       "regressions": [
         "tests/test_composer_review.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "2f3e249486ab398cd67f6ee2867b0ecf14fd7dff6971d6572e917830ae564f13",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "62c868d75eb83532356f5df25bd482da02b54797267d833cb49a2a98cc677e92",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/review": {
@@ -1189,14 +1215,15 @@
       "regressions": [
         "tests/test_composer_review.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "61be8f8c2fb1694d8a9cb1ed63ce572762ba65e0d842bb884d2b92ae3616e7c9",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "a9af21add75fe46e56257876d46a313fc2ff9c6351211c70b19df6c7e3d8120f",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "46b6b81ea252eb27a309904214e0a35724b0eb930d740e83e9693f51144331f3",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/shared/editorial-review": {
@@ -1209,14 +1236,15 @@
       "regressions": [
         "tests/test_composer_review.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "53cd7a3578952dd25ae1b7cfc8ea64c1c6f9705199101f666cb1cb8cb179ba15",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "a9af21add75fe46e56257876d46a313fc2ff9c6351211c70b19df6c7e3d8120f",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "46b6b81ea252eb27a309904214e0a35724b0eb930d740e83e9693f51144331f3",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/composer/shared/narrative-enrichment": {
@@ -1229,14 +1257,15 @@
       "regressions": [
         "tests/test_composer_review.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "1f54526e76fcb210656c7bb713e7909c5e81a2dfc524e08af3ef42261f31ab3e",
         "datasets_sha256": "6e67c0b85140280ab63b9f0e422bcea998ba797edfd3835b65954a78161ec214",
-        "evaluators_sha256": "7db40ec747dd7bbb837085380bd46b1407c7d51bc37523829ab7201bf8791926",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "c8aa55f3079eb6f1a811997c5bcde0ab4a10a8145eb7913a2bffd2753678f87c",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/family-tree/extract": {
@@ -1265,14 +1294,15 @@
       ],
       "regressions": [
         "tests/test_background_profile.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "9448aaff608e25c2f98e9dbae64ae2663fa5e4685ff98134498280bc26cdf00d",
         "datasets_sha256": "3a47ecf8788a7b27a6e08b276a36d4bea27ea095ba82bef351c7bab1ef0c58b8",
-        "evaluators_sha256": "ec89d23d8baf1b4f977b721b2c194d4991398fcc282dd44bee87b9e9991fa849",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Reuse the correction and exact-quote cases: accepted source and expected profile facts are unchanged by the grader repair. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Align evidence checking with production validate_profile: normalize exact unique quotes first, then independently verify restored original spans and gold values. Repairable/null proposal offsets no longer become false contract failures; unsupported or ambiguous quotes still fail. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "232e33d593b1d11785178ce7dac4ea14e67c7034f3c2f20ffc07c0562fbf03e2",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/memory-context/summary": {
@@ -1283,14 +1313,15 @@
       ],
       "regressions": [
         "tests/test_summary_budget_retry.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "01e01f507ce1888fc1bc1cf912db861c321afff05e3cd43d71341b4089a0a4d8",
         "datasets_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-        "evaluators_sha256": "e5c6cd4ce9c312bfca6294400709a8eae78b49392c09c29ad503b6ed377c24b9",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "evaluators_sha256": "3773d11a8237c96cbdf85d4974c0f2443b625028b616a207ee6fd6c1e78f2d83",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/probes/skills/place-groups/instructions": {
@@ -1314,28 +1345,29 @@
     },
     "memoir/skills/place-journey/extract": {
       "use": "shared",
-      "scenario": "Place journey embedded in timeline-selected work; optional native skill read is not an independent model call.",
+      "scenario": "Place cues share one preloaded structured timeline/place extraction request; place-only work uses the same bounded JSON contract.",
       "consumers": [
         "apps/api/two_lane_memory.py:extraction_contract",
         "apps/api/memoir_skill_agent.py:skill_document"
       ],
       "regressions": [
         "tests/test_two_lane_memory.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memory_context_transport.py"
       ],
       "review": {
         "prompt_sha256": "d2a4b04a177f3df72b5a90233f4c025a46bfc14870ac962f04004e0146791e4c",
-        "datasets_sha256": "ac634494291ebcaa0b359dc0bcc7b736e82e8cbd1a666bcd04cab7cfb5815004",
-        "evaluators_sha256": "79837874204b360f8528b7b24bacf80f841ac026cb31dc2e83fa47cb0a0fb713",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "datasets_sha256": "98ba8946a04e916fab73bdafe9f6f316fe5edc46d346c63e371053d5930ee753",
+        "evaluators_sha256": "2e45af3bf15c583d6b89ed9b55d7e071d962ce40d8c7b656fbd1d10ad540a91f",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/place-journey/instructions": {
       "use": "shared",
-      "scenario": "Place journey embedded in timeline-selected work; optional native skill read is not an independent model call.",
+      "scenario": "General place skill guide available to Atlas for selection; fixed extraction preloads the JSON two-lane contract instead of the chat-marker guide.",
       "consumers": [
-        "apps/api/two_lane_memory.py:extraction_contract",
+        "apps/api/memoir_skill_agent.py:skill_metadata",
         "apps/api/memoir_skill_agent.py:skill_document"
       ],
       "regressions": [
@@ -1344,10 +1376,10 @@
       ],
       "review": {
         "prompt_sha256": "a7e45041686e0be511db8fcfc6fdba4eb4c1970d90ac102901c751fd1abc0379",
-        "datasets_sha256": "ac634494291ebcaa0b359dc0bcc7b736e82e8cbd1a666bcd04cab7cfb5815004",
-        "evaluators_sha256": "79837874204b360f8528b7b24bacf80f841ac026cb31dc2e83fa47cb0a0fb713",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "datasets_sha256": "ebd899efedf5b981d3bd90603219a6ea32f855298df1ac2cc7163a1cb1bd353c",
+        "evaluators_sha256": "ae45a6b547c46dec0fc255851a6cf6010de86becd08e87838cc5d9576351900d",
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/story-game/instructions": {
@@ -1409,21 +1441,22 @@
     },
     "memoir/skills/story-game/higgsfield": {
       "use": "conditional",
-      "scenario": "Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
+      "scenario": "Optional Higgsfield builder preloads mandatory upstream skill documents; optional references and HTML validation/repair retain their tool loop.",
       "consumers": [
         "apps/api/higgsfield_game.py:run_higgsfield_game"
       ],
       "regressions": [
         "tests/test_story_game_runtime.py",
         "tests/test_memoir_live_skills.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_higgsfield_game.py"
       ],
       "review": {
-        "prompt_sha256": "7f917826e50b0a17589acd73665d69a2e2d029b5e4099ba6f0489cd772a4bdfb",
+        "prompt_sha256": "a9f55548a6adbe6aac220666cc7fce390ddfb45f06f424b8603dafa2c25e8785",
         "datasets_sha256": "d9e725d686b02f72b93882f2b7a2e00169bfdc57ad1ba2d4a0c6d95404295f78",
         "evaluators_sha256": "aab1f757476530d60ff2fc502778a01af43d2d6b96581369a7edd4e5736309cd",
-        "dataset_decision": "Reuse existing cases for retained bytes; missing direct/branch datasets are explicitly reported and require new fixtures before a quality claim. Registered frozen campaign/recheck datasets verified against the 4 November UTC live snapshot. Reuse shared cases; per-prompt execution credit comes only from exact observed pins. The coverage ledger itself has no evaluated prompt binding. Automatic prompt/skill command selection reuses the same frozen production scenario inputs and gold; it does not choose historical datasets by name alone.",
-        "evaluator_decision": "Retain contract checks and scoped judges; judge calibration and media quality remain explicit gaps, not passing scores. Reviewed the shared relevance clarification: three explicit score anchors remove interpolation; existing task cases and code checks remain suitable. This review does not imply a new model-quality result. Reuse the published semantic rubrics and explicit SDK/code graders recorded per dataset. Retained-output regrades preserve original attempts, and missing execution stays unavailable. Scored contracts and synthetic judge agreement do not establish independent human quality acceptance. Reuse the production contract graders and shared judge calibration. The unified command adds exact requested-pin observation scores; unused components cannot inherit a passing workflow result."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
       }
     },
     "memoir/skills/story-game/webpage": {

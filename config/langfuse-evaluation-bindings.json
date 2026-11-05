@@ -13,7 +13,8 @@
       "primary_prompt": "memoir/agents/atlas/skill-selection",
       "evaluated_prompts": [
         "memoir/agents/atlas/skill-selection",
-        "memoir/shared/skill-agent"
+        "memoir/shared/skill-agent",
+        "memoir/skills/place-journey/instructions"
       ],
       "metrics": [
         "correctness",
@@ -242,7 +243,6 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
-        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -251,7 +251,8 @@
         "memoir/skills/author-timeline/extract-with-hints",
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
-        "memoir/skills/author-timeline/window"
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/extract"
       ],
       "metrics": [
         "correctness",
@@ -269,7 +270,6 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
-        "memoir/shared/skill-agent",
         "memoir/skills/memory-context/summary"
       ],
       "metrics": [
@@ -288,7 +288,6 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
-        "memoir/shared/skill-agent",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/shared/narrative-enrichment"
       ],
@@ -308,7 +307,6 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
-        "memoir/shared/skill-agent",
         "memoir/skills/composer/outline/leaf/en-AU",
         "memoir/skills/composer/outline/leaf/zh-CN",
         "memoir/skills/composer/outline/merge/en-AU",
@@ -332,7 +330,6 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
-        "memoir/shared/skill-agent",
         "memoir/skills/composer/prepare"
       ],
       "metrics": [
@@ -351,7 +348,6 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
-        "memoir/shared/skill-agent",
         "memoir/skills/composer/review",
         "memoir/skills/composer/shared/editorial-review",
         "memoir/skills/composer/shared/narrative-enrichment"
@@ -401,7 +397,6 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
-        "memoir/shared/skill-agent",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -428,7 +423,6 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
-        "memoir/shared/skill-agent",
         "memoir/skills/author-timeline/attribution",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
@@ -438,8 +432,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
-        "memoir/skills/place-journey/extract",
-        "memoir/skills/place-journey/instructions"
+        "memoir/skills/place-journey/extract"
       ],
       "metrics": [
         "correctness",

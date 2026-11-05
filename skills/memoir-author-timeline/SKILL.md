@@ -11,7 +11,8 @@ display. Conversation continues alongside extraction. Accepted evidence survives
 a completed round requires a saved successful reply. Technical replay adds no
 source or round. An empty extraction is successful processing.
 
-Read [the shared contract](references/contract.md). Return only JSON matching
+The host supplies [the shared contract](references/contract.md) and the required
+phase instructions with this skill. Apply them and return only JSON matching
 the supplied output schema to the private worker. Do not emit a conversational
 reply, Family-document timeline marker, or direct database write. The application
 validates proposals and atomically commits them to PostgreSQL.

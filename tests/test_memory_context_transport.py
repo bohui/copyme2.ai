@@ -16,7 +16,7 @@ from apps.api.lifetime_memory_publication import PublicationUnavailable
 from apps.api.lifetime_memory_summary import summary_packet
 from test_background_profile import profile_page
 from test_conversation_reply_transport import events, sse
-from test_lifetime_memory_lane_engine import BUDGET, page, packet_for
+from test_lifetime_memory_lane_engine import BUDGET, fence_for, page, packet_for
 
 
 PHASES = ['extract', 'profile', 'summarize', 'prepare', 'draft', 'review']
@@ -107,12 +107,44 @@ def test_direct_calls_keep_prompt_packet_schema_effort_budget_and_actual_send_gu
     assert body['max_output_tokens'] == BUDGET.output_headroom
     assert body['tools'] == [] and body['tool_choice'] == 'none' and not body['parallel_tool_calls']
     assert body['store'] is False and body['stream'] is True
-    assert body['metadata']['generation_name'] == ('memoir-memory-context' if phase == 'profile'
+    skill = ('memoir-memory-context' if phase == 'profile'
         else 'memoir-author-timeline' if phase in {'extract', 'summarize'} else 'memoir-composer')
+    assert body['metadata']['generation_name'] == f'{skill}.{phase}'
     assert all(len(body['metadata'][key]) == 64 for key in ('prompt_sha256', 'schema_sha256', 'manifest_sha256'))
     assert publisher.fences == [current.fence.model_dump(mode='json')]
     assert result == dict(thread_id='resp_gateway_id==', reply=reply, artifacts=[])
     assert not (tmp_path / 'homes').exists()
+
+
+@pytest.mark.parametrize('selected_skills', [
+    ['memoir-author-timeline'], ['memoir-place-journey'],
+    ['memoir-author-timeline', 'memoir-place-journey'],
+    ['memoir-memory-context', 'memoir-place-journey'],
+])
+def test_selected_extraction_preloads_each_required_document_once(tmp_path, selected_skills):
+    from apps.api.lifetime_memory_lane_engine import lane_extraction_packet
+    from apps.api.prompt_artifact import load_prompt_artifact, prompt_path
+    current = page()
+    current['two_lane'] = dict(schema_version=1, task_version='two-lane-v1', execution_generation=1,
+        phase_revision=0, work_mode='extract', reply_contract='reply-v2', selected_skills=selected_skills)
+    prepared = build_bounded_lane_input(current, phase='extract', packet=lane_extraction_packet(fence_for(current)), budget=BUDGET)
+    publisher = Publisher()
+    provider = Provider(publisher, events('{"events":[],"place_journeys":[]}'))
+    run(tmp_path, prepared, publisher, provider)
+    body, = provider.bodies
+    instructions = body['instructions']
+    timeline = 'memoir-author-timeline' in selected_skills
+    places = 'memoir-place-journey' in selected_skills
+    for name, count in [('author-timeline/instructions', int(timeline)),
+                        ('author-timeline/contract', int(timeline)),
+                        ('author-timeline/shared/grounding', 1),
+                        ('author-timeline/continuity', 1),
+                        ('place-journey/extract', int(places))]:
+        assert instructions.count(load_prompt_artifact(prompt_path('memoir/skills/' + name))) == count
+    assert 'memoir_read_skill' not in instructions
+    assert not body['tools'] and body['tool_choice'] == 'none'
+    assert body['metadata']['generation_name'] == (
+        'memoir-author-timeline.extract' if timeline else 'memoir-place-journey.extract')
 
 
 @pytest.mark.parametrize('phase', PHASES)

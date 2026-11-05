@@ -3584,7 +3584,7 @@
     "version": 1,
     "sha256": "07ad112afa8d413a237072ccfbdc0c1a8853483c49ae0bed7e5c497e6e6d53f8",
     "use": "shared",
-    "scenario": "Native skill tool loop and bounded source/composer dispatch.",
+    "scenario": "Atlas native skill-selection and execution loop; fixed profile, timeline/place, summary and composer workers use preloaded phase templates.",
     "consumers": [
       {
         "path": "apps/api/memoir_skill_agent.py",
@@ -3594,14 +3594,6 @@
     ],
     "targets": [
       "memoir/agents/atlas/skill-selection",
-      "memoir/skills/author-timeline/extract",
-      "memoir/skills/author-timeline/summarize",
-      "memoir/skills/composer/draft",
-      "memoir/skills/composer/outline",
-      "memoir/skills/composer/prepare",
-      "memoir/skills/composer/review",
-      "memoir/skills/memory-context/profile",
-      "memoir/skills/place-journey/extract",
       "memoir/workflows/composer-checkpoints",
       "memoir/workflows/skill-agent-execution"
     ],
@@ -3625,31 +3617,6 @@
       "cmw1gxog300ny1z028ciq4o7v",
       "cmw1gxogr00o61z02goxb7196",
       "cmw1gxnlh00jj1z02tahxb82k",
-      "cmw1gxorh00pi1z02gv53pn1h",
-      "cmw1gxosj00pq1z028cgxafa1",
-      "cmw1gxotn00py1z0279y1br4o",
-      "cmw1gxoub00q61z02iz9y33y1",
-      "cmw1gxoxt00qm1z021jsj08gg",
-      "cmw1gxovu00qe1z02e9fhtbvw",
-      "cmw1gxp1800r21z02cf04y226",
-      "cmw1gxozh00qu1z023nygmiw6",
-      "cmw1gxnnd00jq1z02kohj4xzk",
-      "cmw1gxnoo00jx1z02z32m1vpw",
-      "cmw1gxnrq00kb1z02d1lbx7vj",
-      "cmw1gxnuh00kp1z02046y8wvw",
-      "cmw1gxnqj00k41z028ocl1zmo",
-      "cmw1gxntj00ki1z023uj2ab4t",
-      "cmw1gxpd400t21z02nzr502wk",
-      "cmw1gxpey00ta1z02ayfpg1n6",
-      "cmw1gxpga00ti1z02nl91aavg",
-      "cmw1gxpjb00tq1z0251f3gzz0",
-      "cmw1gxpkf00ty1z02dzlcdv49",
-      "cmw1gxnvo00kw1z02voy5xihn",
-      "cmw1gxpl600u61z029ljswpzl",
-      "cmw1gxpm500ue1z02p4lx9i25",
-      "cmw1gxpn000um1z02lhgh2a47",
-      "cmw1gxpnw00uu1z02zzm00d7k",
-      "cmw1gxnx400l31z02dl5sz9py",
       "cmw1gxoe000nm1z02gks8yu3r"
     ],
     "datasets": [
@@ -3664,142 +3631,6 @@
       {
         "name": "memoir/agents/atlas/skill-selection/golden/campaign-a5c15039ad35",
         "id": "cmw0mso8i000i1z029068jddt",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df",
-        "id": "cmw1gu7ws00bc1z02zjj4ib17",
-        "items": 6,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/core",
-        "id": "cmvf62s10003s1z021ip1f0jw",
-        "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/delivery-core",
-        "id": "cmw1gu8fm00bm1z02de9qs56x",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/delivery-v2",
-        "id": "cmw1gu8p900br1z02xxvlq4b6",
-        "items": 2,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/event-grounding",
-        "id": "cmvcxwiok001n1z029quda4ra",
-        "items": 8,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/event-grounding-20261008-v1",
-        "id": "cmuzc53sj00031z02d3zzutu0",
-        "items": 8,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement",
-        "id": "cmvcxwj1b001y1z02xjgwdkjy",
-        "items": 14,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement-20261008-v1",
-        "id": "cmuzc59lq000e1z02ioeafsko",
-        "items": 14,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-0114d47bf1df",
-        "id": "cmw1gucp800ct1z02dj82o3kg",
-        "items": 10,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-30b9a4222825",
-        "id": "cmw0mspgg000m1z0211ur7wsg",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/memory-context/profile/golden/core",
-        "id": "cmvf63a7d006f1z0216n7260x",
-        "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/memory-context/profile/golden/delivery-core",
-        "id": "cmw1gud8400d81z02t3x7gtc0",
-        "items": 7,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/memory-context/profile/golden/delivery-v2",
-        "id": "cmw1gudpm00di1z02q9c9r3ac",
-        "items": 7,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
-        "id": "cmw1guffx00el1z028wb402jj",
-        "items": 4,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/core",
-        "id": "cmvf63buk007h1z02aw7y2u4g",
-        "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/delivery-core",
-        "id": "cmw1gufo400et1z02sko454ga",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
-        "id": "cmw1gufr300ex1z02s0vzre8q",
         "items": 1,
         "experiments": 0,
         "scored_items": 0,
@@ -3862,35 +3693,11 @@
         "source": "live snapshot"
       },
       {
-        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
-        "id": "cmw1xdh4100x61z02j759k06p",
-        "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
-        "source": "live snapshot"
-      },
-      {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
         "experiments": 1,
         "scored_items": 1,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
-        "id": "cmw1xdio600yr1z027vlqx7x8",
-        "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
-        "id": "cmw1xdj8r00za1z02ebar0x6p",
-        "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
         "source": "live snapshot"
       },
       {
@@ -3908,19 +3715,13 @@
         "experiments": 1,
         "scored_items": 2,
         "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/memory-context/profile/golden/campaign-93cfb9cb67ba",
-        "id": "cmw2mfnh400031z02m8ma6xhy",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_codex_harness_skill_loop.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memoir_skill_agent.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -4107,7 +3908,9 @@
     "regressions": [
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_prompt_composition.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -4295,7 +4098,9 @@
     "regressions": [
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_prompt_composition.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -4483,7 +4288,9 @@
     "regressions": [
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_prompt_composition.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -4671,7 +4478,8 @@
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -4859,7 +4667,9 @@
     "regressions": [
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_prompt_composition.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -5047,7 +4857,9 @@
     "regressions": [
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_prompt_composition.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -5235,7 +5047,9 @@
     "regressions": [
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_prompt_composition.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -5423,7 +5237,8 @@
       "tests/test_model_boundaries.py",
       "tests/test_timeline_context_confidence.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -5604,7 +5419,9 @@
     ],
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_prompt_composition.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -6009,7 +5826,8 @@
     "regressions": [
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6277,7 +6095,8 @@
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6414,7 +6233,8 @@
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6551,7 +6371,8 @@
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6688,7 +6509,8 @@
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6825,7 +6647,8 @@
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -6961,7 +6784,8 @@
     "regressions": [
       "tests/test_lifetime_memory_job_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -7102,7 +6926,8 @@
     "regressions": [
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -7244,7 +7069,8 @@
     "regressions": [
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -7386,7 +7212,8 @@
     "regressions": [
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -7529,7 +7356,8 @@
     "regressions": [
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -7992,7 +7820,8 @@
     ],
     "regressions": [
       "tests/test_background_profile.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -8033,7 +7862,8 @@
     "datasets": [],
     "regressions": [
       "tests/test_summary_budget_retry.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "No active hosted dataset"
@@ -8045,7 +7875,7 @@
     "version": 3,
     "sha256": "d2a4b04a177f3df72b5a90233f4c025a46bfc14870ac962f04004e0146791e4c",
     "use": "shared",
-    "scenario": "Place journey embedded in timeline-selected work; optional native skill read is not an independent model call.",
+    "scenario": "Place cues share one preloaded structured timeline/place extraction request; place-only work uses the same bounded JSON contract.",
     "consumers": [
       {
         "path": "apps/api/two_lane_memory.py",
@@ -8059,6 +7889,7 @@
       }
     ],
     "targets": [
+      "memoir/skills/author-timeline/extract",
       "memoir/skills/place-journey/extract"
     ],
     "evaluators": [
@@ -8077,6 +7908,15 @@
       "memoir/evaluators/shared/safety"
     ],
     "hosted_rule_ids": [
+      "cmw1gxorh00pi1z02gv53pn1h",
+      "cmw1gxosj00pq1z028cgxafa1",
+      "cmw1gxotn00py1z0279y1br4o",
+      "cmw1gxoub00q61z02iz9y33y1",
+      "cmw1gxoxt00qm1z021jsj08gg",
+      "cmw1gxovu00qe1z02e9fhtbvw",
+      "cmw1gxp1800r21z02cf04y226",
+      "cmw1gxozh00qu1z023nygmiw6",
+      "cmw1gxnnd00jq1z02kohj4xzk",
       "cmw1gxpl600u61z029ljswpzl",
       "cmw1gxpm500ue1z02p4lx9i25",
       "cmw1gxpn000um1z02lhgh2a47",
@@ -8084,6 +7924,70 @@
       "cmw1gxnx400l31z02dl5sz9py"
     ],
     "datasets": [
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1gu7ws00bc1z02zjj4ib17",
+        "items": 6,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/core",
+        "id": "cmvf62s10003s1z021ip1f0jw",
+        "items": 16,
+        "experiments": 1,
+        "scored_items": 2,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/delivery-core",
+        "id": "cmw1gu8fm00bm1z02de9qs56x",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/delivery-v2",
+        "id": "cmw1gu8p900br1z02xxvlq4b6",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/event-grounding",
+        "id": "cmvcxwiok001n1z029quda4ra",
+        "items": 8,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/event-grounding-20261008-v1",
+        "id": "cmuzc53sj00031z02d3zzutu0",
+        "items": 8,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement",
+        "id": "cmvcxwj1b001y1z02xjgwdkjy",
+        "items": 14,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement-20261008-v1",
+        "id": "cmuzc59lq000e1z02ioeafsko",
+        "items": 14,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
       {
         "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
         "id": "cmw1guffx00el1z028wb402jj",
@@ -8114,6 +8018,14 @@
         "items": 1,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 2,
+        "scored_items": 18,
         "source": "live snapshot"
       },
       {
@@ -8127,7 +8039,8 @@
     ],
     "regressions": [
       "tests/test_two_lane_memory.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -8139,12 +8052,12 @@
     "version": 1,
     "sha256": "a7e45041686e0be511db8fcfc6fdba4eb4c1970d90ac102901c751fd1abc0379",
     "use": "shared",
-    "scenario": "Place journey embedded in timeline-selected work; optional native skill read is not an independent model call.",
+    "scenario": "General place skill guide available to Atlas for selection; fixed extraction preloads the JSON two-lane contract instead of the chat-marker guide.",
     "consumers": [
       {
-        "path": "apps/api/two_lane_memory.py",
-        "symbol": "extraction_contract",
-        "line": 24
+        "path": "apps/api/memoir_skill_agent.py",
+        "symbol": "skill_metadata",
+        "line": 22
       },
       {
         "path": "apps/api/memoir_skill_agent.py",
@@ -8153,7 +8066,7 @@
       }
     ],
     "targets": [
-      "memoir/skills/place-journey/extract"
+      "memoir/agents/atlas/skill-selection"
     ],
     "evaluators": [
       "memoir/evaluators/shared/completeness",
@@ -8171,51 +8084,25 @@
       "memoir/evaluators/shared/safety"
     ],
     "hosted_rule_ids": [
-      "cmw1gxpl600u61z029ljswpzl",
-      "cmw1gxpm500ue1z02p4lx9i25",
-      "cmw1gxpn000um1z02lhgh2a47",
-      "cmw1gxpnw00uu1z02zzm00d7k",
-      "cmw1gxnx400l31z02dl5sz9py"
+      "cmw1gxog300ny1z028ciq4o7v",
+      "cmw1gxogr00o61z02goxb7196",
+      "cmw1gxnlh00jj1z02tahxb82k"
     ],
     "datasets": [
       {
-        "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
-        "id": "cmw1guffx00el1z028wb402jj",
-        "items": 4,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/core",
-        "id": "cmvf63buk007h1z02aw7y2u4g",
-        "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/delivery-core",
-        "id": "cmw1gufo400et1z02sko454ga",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
-        "id": "cmw1gufr300ex1z02s0vzre8q",
-        "items": 1,
-        "experiments": 0,
-        "scored_items": 0,
-        "source": "live snapshot"
-      },
-      {
-        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
-        "id": "cmw1xdj8r00za1z02ebar0x6p",
-        "items": 16,
+        "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3",
+        "id": "cmw0mxvhl001p1z02md3xby14",
+        "items": 14,
         "experiments": 2,
-        "scored_items": 19,
+        "scored_items": 4,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/agents/atlas/skill-selection/golden/campaign-a5c15039ad35",
+        "id": "cmw0mso8i000i1z029068jddt",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8506,7 +8393,7 @@
     "version": 1,
     "sha256": "7f917826e50b0a17589acd73665d69a2e2d029b5e4099ba6f0489cd772a4bdfb",
     "use": "conditional",
-    "scenario": "Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
+    "scenario": "Optional Higgsfield builder preloads mandatory upstream skill documents; optional references and HTML validation/repair retain their tool loop.",
     "consumers": [
       {
         "path": "apps/api/higgsfield_game.py",
@@ -8565,7 +8452,8 @@
     "regressions": [
       "tests/test_story_game_runtime.py",
       "tests/test_memoir_live_skills.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_higgsfield_game.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",

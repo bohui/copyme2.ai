@@ -10,26 +10,9 @@ import pytest
 
 from apps.api.lifetime_memory_composer import _extract
 from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, run_bounded_lane
-from controlled_skill_harness import ControlledSkillConnection
+from controlled_skill_harness import document_transport
 from test_lifetime_composer_capacity import page
 from test_memory_context_transport import Publisher
-
-
-class SpanConnection(ControlledSkillConnection):
-    def __init__(self, *args, respond, before_turn=None, **options):
-        super().__init__(*args, **options)
-        self.respond = respond
-        self.before_turn = before_turn
-
-    async def turn(self, thread_id, prompt, **options):
-        if self.before_turn:
-            self.before_turn()
-        async with self.options['request_admission']():
-            pass
-        value=json.loads(prompt)
-        for skill in value['available_skills']:
-            await self.tool('memoir_read_skill',skill=skill['name'])
-        return json.dumps(self.respond(value['task']['payload'],options['output_schema']))
 
 
 @pytest.mark.parametrize('offset', [0, 2048])
@@ -81,7 +64,8 @@ def test_ambiguous_span_repair_requires_coordinates_and_keeps_second_occurrence(
         return httpx.Response(200, json=await run_bounded_lane(command=['must-not-start'], home_root=tmp_path,
             base_url='https://provider.invalid/v1', api_key='fixture-span-key', model=bounded.budget.model,
             bounded_lane=bounded, publisher=publisher,
-            connection_factory=lambda *args,**options:SpanConnection(*args,respond=respond,**options), timeout=5))
+            provider_transport=document_transport(lambda body:respond(
+                json.loads(body['input'])['payload'],body['text']['format']['schema'])), timeout=5))
 
     scope = SimpleNamespace(broker=Broker(), worker_url='https://worker.invalid', worker_secret='fixture',
         worker_transport=httpx.MockTransport(worker), lane_publisher=publisher)
