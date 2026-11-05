@@ -7120,7 +7120,8 @@ CREATE FUNCTION public.lifetime_attribution_event_context(p_owner uuid, p_projec
    'attribution',e.data->'attribution','uncertainty',e.data->'uncertainty',
    'temporal',jsonb_build_object('expression',e.data->'temporal'->'expression','precision',e.data->'temporal'->'precision',
      'year_start',e.data->'temporal'->'year_start','year_end',e.data->'temporal'->'year_end'),
-   'temporal_estimate',(e.data->'temporal_estimate')-'basis','location',e.data->'location',
+   'temporal_estimate',case when jsonb_typeof(e.data->'temporal_estimate')='object'
+     then (e.data->'temporal_estimate')-'basis' end,'location',e.data->'location',
    'locationConfidenceScore',e.data->'locationConfidenceScore','yearConfidenceScore',e.data->'yearConfidenceScore',
    'timing_conflict',coalesce(e.data->'timing_conflict','false'::jsonb),
    'places',coalesce((select jsonb_agg(to_jsonb(p)-array['user_id','project_id','event_id']) from

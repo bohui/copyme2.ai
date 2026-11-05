@@ -470,8 +470,18 @@ export function createPlaceWorkspace({
   function workspacePlaceGroups(places, eventPlaces = []) {
     const preview = !publishedMap() && state.placeJourney?.preview ? [state.placeJourney] : [];
     if (publishedMap() && eventPlaces.length) {
-      const cached = new Map((profile().memory_places || []).map(place => [placeHistoryKey(place), place]));
-      eventPlaces = eventPlaces.map(place => ({...cached.get(placeHistoryKey(place)), ...place}));
+      const saved = profile().memory_places || [];
+      const cached = new Map(saved.map(place => [placeHistoryKey(place), place]));
+      const cities = saved.filter(place => place.granularity === "city");
+      eventPlaces = eventPlaces.map(place => {
+        const entry = {...cached.get(placeHistoryKey(place)), ...place};
+        if (!entry.map_city && ["suburb","landmark"].includes(entry.granularity)) {
+          // A published child can use the coordinates of its named city.
+          const city = mapTarget({...place,latitude:null,longitude:null}, cities);
+          if (city) entry.map_city = publicPlaceFields(city);
+        }
+        return entry;
+      });
     }
     const entries = [...mergePlaces([...places,...eventPlaces, ...preview], profile(), state.chat || []),
       ...new Map([...places, ...eventPlaces].filter(place => place.granularity === "landmark").map(place => [placeHistoryKey(place),place])).values()];
@@ -512,13 +522,14 @@ export function createPlaceWorkspace({
 
   function mapMemoryPlaceGroups(eventPlaces) {
     const canonical = publishedMap();
+    const groups = canonical ? workspacePlaceGroups([], eventPlaces) : null;
     const keys = new Set(eventPlaces.map(placeHistoryKey));
     let changed = false;
     if (state.placeJourney?.event_map_key && !keys.has(state.placeJourney.event_map_key)) {
       state.placeJourney = null;state.selectedPlace = null;changed = true;
     }
     if (!state.placeJourney || (canonical && !state.placeJourney.event_map_key) || !placeMapAvailable(state.placeJourney)) {
-      for (const place of eventPlaces) {
+      for (const place of groups ? groups.flatMap(group => group.members) : eventPlaces) {
         const own = Object.hasOwn(place,"map_pin") ? place.map_pin : place;
         const target = Number.isFinite(own?.latitude) && Number.isFinite(own?.longitude) ? own : place.map_city;
         if (!Number.isFinite(target?.latitude) || !Number.isFinite(target?.longitude)) continue;
@@ -528,7 +539,7 @@ export function createPlaceWorkspace({
       }
     }
     if (changed) queueMicrotask(render);
-    return workspacePlaceGroups(canonical ? [] : profile().memory_places || [], eventPlaces);
+    return groups ?? workspacePlaceGroups(profile().memory_places || [], eventPlaces);
   }
 
   function groupChoices(groups) {
