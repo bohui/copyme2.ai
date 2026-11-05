@@ -2478,24 +2478,24 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -2510,7 +2510,7 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -2848,24 +2848,24 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -2880,7 +2880,7 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -3209,24 +3209,24 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -3241,7 +3241,7 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -3694,24 +3694,24 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -3723,7 +3723,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -4176,16 +4176,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -4199,7 +4199,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -4388,16 +4388,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -4411,7 +4411,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -4600,16 +4600,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -4623,7 +4623,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -4812,16 +4812,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -4835,7 +4835,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5024,16 +5024,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5047,14 +5047,14 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/requests/extract.md",
-    "version": null,
-    "sha256": "9113e7f40efd2786b798b698e4c2af1bdc07f3d1018b752787bba8e0a443e72c",
+    "version": 1,
+    "sha256": "8ba3224af906146a3e3eaba2d603d4862e6b1b843ef932e8fc95b8d3a28ce006",
     "use": "conditional",
     "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
@@ -5231,16 +5231,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5255,7 +5255,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5444,16 +5444,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5467,7 +5467,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5656,16 +5656,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5682,7 +5682,7 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5871,16 +5871,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5894,7 +5894,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6078,16 +6078,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -6100,7 +6100,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6851,8 +6851,8 @@
   {
     "name": "memoir/skills/composer/draft",
     "source": "skills/memoir-composer/prompts/requests/draft.md",
-    "version": null,
-    "sha256": "f0b5734b050fd6fabafd6b62aaa20cd1b4fbb19957a542ecba15dd86678dde94",
+    "version": 1,
+    "sha256": "ce8358f7c5902de600309719363876c937c01715034fbf76c638a785071a830a",
     "use": "conditional",
     "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
@@ -7134,8 +7134,8 @@
   {
     "name": "memoir/skills/composer/outline/leaf/en-AU",
     "source": "skills/memoir-composer/prompts/outline/leaf/en-AU.md",
-    "version": 2,
-    "sha256": "a32e8ad5e53803c2b5c0ea3e0b77ed1793a3a393c86b3dc148dc1f4ad9a573f2",
+    "version": 1,
+    "sha256": "c5d24abd44364d5279afd4dae31730caac7d04563f4bb3bf7af4ee4b4787abaa",
     "use": "conditional",
     "scenario": "Selected-collection outline: leaf or merge, en-AU or zh-CN, with shared prefix/suffix.",
     "consumers": [
@@ -7272,8 +7272,8 @@
   {
     "name": "memoir/skills/composer/outline/leaf/zh-CN",
     "source": "skills/memoir-composer/prompts/outline/leaf/zh-CN.md",
-    "version": 2,
-    "sha256": "a3108ba8705f81ceccaeb85da14393b4ff18dba7d224f87b01bb9b0776340b2b",
+    "version": 1,
+    "sha256": "db597e31c8b105f0b03d8b1e82fbb081a0ae181f9078d6c6b557b81ea766e31d",
     "use": "conditional",
     "scenario": "Selected-collection outline: leaf or merge, en-AU or zh-CN, with shared prefix/suffix.",
     "consumers": [
@@ -7410,8 +7410,8 @@
   {
     "name": "memoir/skills/composer/outline/merge/en-AU",
     "source": "skills/memoir-composer/prompts/outline/merge/en-AU.md",
-    "version": 2,
-    "sha256": "b1af3ebef85419e8344db5ad56b9524645e7b094e3f0386b0f12155b4e593aa5",
+    "version": 1,
+    "sha256": "28f7054e492470f6c1e86cf6bee57f86b1e3c94dde8e2cd97d722d2770a1594f",
     "use": "conditional",
     "scenario": "Selected-collection outline: leaf or merge, en-AU or zh-CN, with shared prefix/suffix.",
     "consumers": [
@@ -7548,8 +7548,8 @@
   {
     "name": "memoir/skills/composer/outline/merge/zh-CN",
     "source": "skills/memoir-composer/prompts/outline/merge/zh-CN.md",
-    "version": 2,
-    "sha256": "80fdf1243c337012039ce5b94a3b37cb0d9cfffd9a45785ffbb788b25b3beb07",
+    "version": 1,
+    "sha256": "8eabe5483888e9c70519f0b6786adc2983ad1897658916193a4ad90fe4ae55d6",
     "use": "conditional",
     "scenario": "Selected-collection outline: leaf or merge, en-AU or zh-CN, with shared prefix/suffix.",
     "consumers": [
@@ -7974,8 +7974,8 @@
   {
     "name": "memoir/skills/composer/prepare",
     "source": "skills/memoir-composer/prompts/requests/prepare.md",
-    "version": null,
-    "sha256": "1135c16745ef9507a8a5198d6cf4959834e5093adc0819ba28e703c9e31605af",
+    "version": 1,
+    "sha256": "7e133eefa42eb0b49ec5cb0b0c806501b600899f97ca0a28fad2d3d73ac16c07",
     "use": "conditional",
     "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
@@ -8119,8 +8119,8 @@
   {
     "name": "memoir/skills/composer/review",
     "source": "skills/memoir-composer/prompts/requests/review.md",
-    "version": null,
-    "sha256": "67279e21a1f9fe173a7818efd55e3dd8e6f5910592bb9eb155f0bf6a54dc0036",
+    "version": 1,
+    "sha256": "8462252bad81335928b86ac877404e08ef80e265f6fa104ef6ad989fb97d2c78",
     "use": "conditional",
     "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
@@ -8846,8 +8846,8 @@
   {
     "name": "memoir/skills/historical-news-research/discovery",
     "source": "skills/memoir-historical-news-research/prompts/requests/discovery.md",
-    "version": null,
-    "sha256": "3e900dea21757b4bbe7adacbbcb6a61e74173a1e5cba58996dd2a256c905169d",
+    "version": 1,
+    "sha256": "a8dd63ed024c41683badf5f6560208a1b26d65225e6933fd4ca0aa186010b83a",
     "use": "runtime",
     "scenario": "Public place/year web search; skill instructions, provenance contract and query template are concatenated.",
     "consumers": [
@@ -9136,8 +9136,8 @@
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9149,7 +9149,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9204,8 +9204,8 @@
   {
     "name": "memoir/skills/memory-context/profile",
     "source": "skills/memoir-memory-context/prompts/requests/profile.md",
-    "version": null,
-    "sha256": "2f4e8919c6348f5ecb690b758c13c81f3b83bece9a60106672ab8d3a6eee9fd9",
+    "version": 1,
+    "sha256": "93dae2ca70696f2e66ee1c5b4313248d040fe11e1dcf41ee9a682d5e1b3569aa",
     "use": "runtime",
     "scenario": "Profile extraction from originals. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
     "consumers": [
@@ -9302,8 +9302,8 @@
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9318,14 +9318,14 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
     "name": "memoir/skills/memory-context/summary",
     "source": "skills/memoir-memory-context/prompts/requests/summary.md",
-    "version": null,
-    "sha256": "31e14b2daa50287b06dc1b569797e40d2fd7db7d49c43ca67958de1482340dc8",
+    "version": 1,
+    "sha256": "5537c13991cc4f9dc0c018eea1e7abd1ff16a9724e39c7dcc0805c82e33cb835",
     "use": "runtime",
     "scenario": "Selective derived summary after processed source windows.",
     "consumers": [
@@ -9551,16 +9551,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9572,14 +9572,14 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
     "name": "memoir/skills/place-journey/extract",
     "source": "skills/memoir-place-journey/prompts/requests/extract.md",
-    "version": null,
-    "sha256": "40d95195bb8740c44bacfb7402004459971b0678a8e5c8c6fb944a690be3f479",
+    "version": 1,
+    "sha256": "8d778ca5b24702a6e2ffc7cc13a8a02499a948a9beeb1b2cad23733dcbbb4251",
     "use": "shared",
     "scenario": "Place cues share one preloaded structured timeline/place extraction request; place-only work uses the same bounded JSON contract.",
     "consumers": [
@@ -9746,16 +9746,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9767,7 +9767,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -10036,8 +10036,8 @@
   {
     "name": "memoir/skills/story-game/brief",
     "source": "skills/memoir-story-game/prompts/requests/brief.md",
-    "version": null,
-    "sha256": "a418cb20725653cbc6988ced8d00825498c25f37ec536a8f8a5e41f213f1b615",
+    "version": 1,
+    "sha256": "0b10e1c235102e7d0adfa842e55664fbd665eb6cf09159319bb9e066b82b158d",
     "use": "conditional",
     "scenario": "Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
     "consumers": [
@@ -10383,8 +10383,8 @@
   {
     "name": "memoir/skills/story-game/higgsfield",
     "source": "skills/memoir-story-game/prompts/requests/higgsfield.md",
-    "version": null,
-    "sha256": "f099d928d7afc4391c0fac56b6327566f5cb131e3808b2b613aaac9d4f1311a1",
+    "version": 1,
+    "sha256": "9f6e8626201da66cb9330ae046e75dccd9699e19384d97f1e06407f7d4719721",
     "use": "conditional",
     "scenario": "Optional Higgsfield builder preloads mandatory upstream skill documents; optional references and HTML validation/repair retain their tool loop.",
     "consumers": [
@@ -10645,8 +10645,8 @@
   {
     "name": "memoir/skills/story-game/novel-to-game/analyze",
     "source": "skills/memoir-story-game/prompts/novel-to-game/requests/analyze.md",
-    "version": null,
-    "sha256": "48a1e6d7ab7cfacf088269d7a5fee992e1f08463611713e33b837cf7c84a22b6",
+    "version": 1,
+    "sha256": "458de61a7a9d930cde93b7ca1ed22eacc69c95e22b997003450ebe543420a479",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -10719,8 +10719,8 @@
   {
     "name": "memoir/skills/story-game/novel-to-game/art",
     "source": "skills/memoir-story-game/prompts/novel-to-game/requests/art.md",
-    "version": null,
-    "sha256": "210e8442775de95b40645a1f321308ec39ddfbec813af710278f0dbe500d9a28",
+    "version": 1,
+    "sha256": "42dbe5b2bb3250f7c78ebe314859d80d2e896a8d9f2dd5216f96e7ea15a588f3",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -11343,8 +11343,8 @@
   {
     "name": "memoir/skills/story-game/novel-to-game/concept",
     "source": "skills/memoir-story-game/prompts/novel-to-game/requests/concept.md",
-    "version": null,
-    "sha256": "a728c4fd6c1308430b716686e26aeeaa31f7ee019690647e1a0685a9930029eb",
+    "version": 1,
+    "sha256": "3d938348722056f383d0356a48e6e56a101f079562eda54a4b97276a51d38cc2",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -11417,8 +11417,8 @@
   {
     "name": "memoir/skills/story-game/novel-to-game/design",
     "source": "skills/memoir-story-game/prompts/novel-to-game/requests/design.md",
-    "version": null,
-    "sha256": "28a61f2d1895b19972e15f2153f817a4fce5e7d9f208ff738429bae0abaa9e96",
+    "version": 1,
+    "sha256": "bd326dbf305ecbedb39dc28e90e28586d0853b851765b96e43077c89fd90b246",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -11646,8 +11646,8 @@
   {
     "name": "memoir/skills/story-game/novel-to-game/production",
     "source": "skills/memoir-story-game/prompts/novel-to-game/requests/production.md",
-    "version": null,
-    "sha256": "7c6a6a37e2323c080a492e9d9c522549bfadb239d77bfe9d3758d91e70e017ae",
+    "version": 1,
+    "sha256": "9d29e76512ee7fa9d5e021f5e5858d3e714a94e5229a8903f5beec59cff5da9b",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -11756,8 +11756,8 @@
   {
     "name": "memoir/skills/story-game/novel-to-game/whitebox",
     "source": "skills/memoir-story-game/prompts/novel-to-game/requests/whitebox.md",
-    "version": null,
-    "sha256": "165ee10d0e02c3b1c20da72fb60b9f54f7e6b920550533b202d49bd18b58b346",
+    "version": 1,
+    "sha256": "13ecfd8569b8894dbcffcc06b43e488b723170ebdc65ce26d0b1238efe771da8",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -11830,8 +11830,8 @@
   {
     "name": "memoir/skills/story-game/proposal",
     "source": "skills/memoir-story-game/prompts/requests/proposal.md",
-    "version": null,
-    "sha256": "82f8ab4675b19cbc8d758e4574e02d59ec34025b5f36bb6c25a37f45c33830cc",
+    "version": 1,
+    "sha256": "a4afec2beb6333a43691d5884ba74cd411c307293f6c3399722c00e5b107f7ba",
     "use": "conditional",
     "scenario": "Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
     "consumers": [
@@ -11904,7 +11904,7 @@
   {
     "name": "memoir/skills/story-game/runtime-contract",
     "source": "skills/memoir-story-game/references/runtime-contract.md",
-    "version": 8,
+    "version": 1,
     "sha256": "0fb4bcb6d38b5a4c16c5e5447497e3e79d629fbde1d09d482dcea4fc481c0e4f",
     "use": "conditional",
     "scenario": "Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",

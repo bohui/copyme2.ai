@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-05T09:03:14.451109+00:00",
+  "captured_at": "2026-11-05T11:58:32.683946+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -386,52 +386,7 @@
       "tags": []
     },
     {
-      "name": "memoir/shared/bounded-context/en-AU",
-      "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/shared/bounded-context/policy",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": [
-        "memoir",
-        "shared-component"
-      ]
-    },
-    {
-      "name": "memoir/shared/bounded-context/zh-CN",
-      "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
       "name": "memoir/shared/historical-acknowledgements",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/shared/place-conflicts",
       "versions": [
         1
       ],
@@ -461,138 +416,7 @@
       "tags": []
     },
     {
-      "name": "memoir/skills/author-timeline/attribution",
-      "versions": [
-        1,
-        2,
-        3
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/author-timeline/continuity",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/author-timeline/contract",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/author-timeline/derived-hints",
-      "versions": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
       "name": "memoir/skills/author-timeline/extract",
-      "versions": [
-        1,
-        2,
-        3
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/author-timeline/extract-with-hints",
-      "versions": [
-        1,
-        2,
-        3
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/author-timeline/instructions",
-      "versions": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/author-timeline/shared/grounding",
-      "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": [
-        "memoir",
-        "shared-component"
-      ]
-    },
-    {
-      "name": "memoir/skills/author-timeline/window",
-      "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/composer/batch/compose",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/composer/batch/prepare",
       "versions": [
         1
       ],
@@ -604,17 +428,6 @@
     {
       "name": "memoir/skills/composer/draft",
       "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/composer/instructions",
-      "versions": [
         1
       ],
       "labels": [
@@ -625,8 +438,7 @@
     {
       "name": "memoir/skills/composer/outline/leaf/en-AU",
       "versions": [
-        1,
-        2
+        1
       ],
       "labels": [
         "latest"
@@ -636,8 +448,7 @@
     {
       "name": "memoir/skills/composer/outline/leaf/zh-CN",
       "versions": [
-        1,
-        2
+        1
       ],
       "labels": [
         "latest"
@@ -647,8 +458,7 @@
     {
       "name": "memoir/skills/composer/outline/merge/en-AU",
       "versions": [
-        1,
-        2
+        1
       ],
       "labels": [
         "latest"
@@ -658,39 +468,12 @@
     {
       "name": "memoir/skills/composer/outline/merge/zh-CN",
       "versions": [
-        1,
-        2
+        1
       ],
       "labels": [
         "latest"
       ],
       "tags": []
-    },
-    {
-      "name": "memoir/skills/composer/outline/shared/prefix",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": [
-        "memoir",
-        "shared-component"
-      ]
-    },
-    {
-      "name": "memoir/skills/composer/outline/shared/suffix",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": [
-        "memoir",
-        "shared-component"
-      ]
     },
     {
       "name": "memoir/skills/composer/prepare",
@@ -705,44 +488,6 @@
     {
       "name": "memoir/skills/composer/review",
       "versions": [
-        1,
-        2,
-        3,
-        4
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/composer/shared/editorial-review",
-      "versions": [
-        1,
-        2,
-        3,
-        4,
-        5
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/composer/shared/narrative-enrichment",
-      "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/family-tree/extract",
-      "versions": [
         1
       ],
       "labels": [
@@ -751,7 +496,7 @@
       "tags": []
     },
     {
-      "name": "memoir/skills/historical-news-research/contract",
+      "name": "memoir/skills/family-tree/extract",
       "versions": [
         1
       ],
@@ -771,24 +516,9 @@
       "tags": []
     },
     {
-      "name": "memoir/skills/historical-news-research/instructions",
-      "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
       "name": "memoir/skills/memory-context/profile",
       "versions": [
-        1,
-        2,
-        3,
-        4,
-        5
+        1
       ],
       "labels": [
         "latest"
@@ -808,18 +538,6 @@
     {
       "name": "memoir/skills/place-journey/extract",
       "versions": [
-        1,
-        2,
-        3
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/place-journey/instructions",
-      "versions": [
         1
       ],
       "labels": [
@@ -838,22 +556,9 @@
       "tags": []
     },
     {
-      "name": "memoir/skills/place-photo-research/instructions",
-      "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
       "name": "memoir/skills/story-game/brief",
       "versions": [
-        1,
-        2,
-        3
+        1
       ],
       "labels": [
         "latest"
@@ -863,34 +568,7 @@
     {
       "name": "memoir/skills/story-game/higgsfield",
       "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/story-game/instructions",
-      "versions": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/story-game/novel-to-game/adapter",
-      "versions": [
-        1,
-        2
+        1
       ],
       "labels": [
         "latest"
@@ -909,17 +587,6 @@
     },
     {
       "name": "memoir/skills/story-game/novel-to-game/art",
-      "versions": [
-        1,
-        2
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/story-game/novel-to-game/assets",
       "versions": [
         1
       ],
@@ -950,16 +617,6 @@
     },
     {
       "name": "memoir/skills/story-game/novel-to-game/illustration",
-      "versions": [
-        1
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/story-game/novel-to-game/journey",
       "versions": [
         1
       ],
@@ -1001,9 +658,7 @@
     {
       "name": "memoir/skills/story-game/proposal",
       "versions": [
-        1,
-        2,
-        3
+        1
       ],
       "labels": [
         "latest"
@@ -1013,25 +668,7 @@
     {
       "name": "memoir/skills/story-game/runtime-contract",
       "versions": [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8
-      ],
-      "labels": [
-        "latest"
-      ],
-      "tags": []
-    },
-    {
-      "name": "memoir/skills/story-game/webpage",
-      "versions": [
-        1,
-        2
+        1
       ],
       "labels": [
         "latest"
@@ -1162,14 +799,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "55ba9a280537b229",
-          "name": "20261105T085644Z-52332a-repeat1-campaign-5ab262c11c1f"
-        }
-      ],
-      "experiment_items": 4,
-      "scored_experiment_items": 4
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw3bai560cau1z0227pi9g0e",
@@ -1343,14 +975,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "bf38149cb7ffbd3e",
-          "name": "20261105T085644Z-52332a-repeat1-campaign-0455a60defda"
-        }
-      ],
-      "experiment_items": 8,
-      "scored_experiment_items": 8
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw3b7cpw0cal1z02ydjcysku",
@@ -1484,14 +1111,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "6ad2a4274c4fd572",
-          "name": "20261105T085644Z-52332a-repeat1-campaign-0b27a36c3f16"
-        }
-      ],
-      "experiment_items": 6,
-      "scored_experiment_items": 6
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw2nofur0c801z02v7da7fyj",
