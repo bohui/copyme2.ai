@@ -2494,16 +2494,9 @@ begin
  select * into identity from public.user_lifetime_conversation where user_id=auth.uid() and project_id=p_project_id;
  if not found then raise exception 'canonical conversation required' using errcode='42501';end if;
  perform 1 from public.user_memoir_project where user_id=auth.uid() and project_id=p_project_id for update;
- -- A saved source is not a saved reply. Require reconciliation of an unfinished
- -- active turn; neither a disconnect nor a failed save permits a competing turn.
- if exists(select 1 from public.user_interview_turn t join public.user_narrator_source s
-   on s.user_id=t.user_id and s.project_id=t.project_id and s.id=t.source_id and s.status='active'
-   where t.user_id=auth.uid() and t.project_id=p_project_id and t.client_turn_id<>p_client_turn_id
-   and not exists(select 1 from public.user_lifetime_reply r where r.user_id=t.user_id
-     and r.conversation_id=identity.conversation_id and r.client_turn_id=t.client_turn_id)) then
-   raise exception 'saved source has a pending reply; retry its original turn' using errcode='PT409';
- end if;
- result:=public.accept_user_interview_turn(p_project_id,p_client_turn_id,p_text,p_kind,p_language,p_uploaded_photo_ids,p_photo_selection);
+ -- Consecutive inputs retain their own sources; Mira replies at the newest
+ -- interview sequence. Atlas keeps its active batch and drains later inputs.
+ result:=public.accept_user_interview_turn_before_pending_guard(p_project_id,p_client_turn_id,p_text,p_kind,p_language,p_uploaded_photo_ids,p_photo_selection);
  insert into public.user_lifetime_two_lane_source values(auth.uid(),p_project_id,(result->'source'->>'id')::uuid) on conflict do nothing;
  -- Intent is durable before any collector call. Existing receipt dispatch also
  -- schedules composition; this target only wakes the existing memory owner.
@@ -11313,6 +11306,30 @@ CREATE FUNCTION public.read_user_interview_photo(p_project_id text, p_photo_id u
     where user_id=auth.uid() and project_id=p_project_id and id=p_photo_id and status='ready'
 $$;
 
+CREATE FUNCTION public.read_user_conversation_page(p_project_id text, p_limit integer DEFAULT 51,
+ p_before_created_at timestamptz DEFAULT NULL, p_before_id uuid DEFAULT NULL) RETURNS jsonb
+ LANGUAGE sql STABLE SECURITY DEFINER
+ SET search_path TO ''
+ AS $$
+ select coalesce(jsonb_agg(to_jsonb(page) order by page.created_at desc,page.id desc),'[]'::jsonb)
+ from (
+   select * from (
+     select m.id,m.client_turn_id,m.kind,m.content,m.source_sequence,m.created_at
+     from public.user_memory m where m.user_id=auth.uid() and m.project_id=p_project_id
+       and m.kind in ('agent','agent_greeting')
+     union all
+     select s.id,t.client_turn_id,'agent'::text,null::text,null::bigint,s.created_at
+     from public.user_interview_turn t join public.user_narrator_source s
+       on s.user_id=t.user_id and s.project_id=t.project_id and s.id=t.source_id
+     where t.user_id=auth.uid() and t.project_id=p_project_id
+       and not exists(select 1 from public.user_memory m where m.user_id=t.user_id
+         and m.project_id=t.project_id and m.client_turn_id=t.client_turn_id)
+   ) exchanges
+   where p_before_created_at is null or (created_at,id)<(p_before_created_at,p_before_id)
+   order by created_at desc,id desc limit greatest(1,least(p_limit,101))
+ ) page
+$$;
+
 CREATE FUNCTION public.read_user_interview_turn(p_project_id text, p_client_turn_id uuid) RETURNS jsonb
     LANGUAGE sql STABLE SECURITY DEFINER
     SET search_path TO ''
@@ -14545,6 +14562,7 @@ revoke all on function public.read_user_interview_context_before_news(text) from
 revoke all on function public.read_user_interview_context_before_phase(text) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_interview_photo(text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_lifetime_map_photos(text) from public,anon,authenticated,service_role;
+revoke all on function public.read_user_conversation_page(text, integer, timestamptz, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_interview_turn(text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_interview_turn_before_phase(text, uuid) from public,anon,authenticated,service_role;
 revoke all on function public.read_user_interview_turn_before_recordings(text, uuid) from public,anon,authenticated,service_role;
@@ -14879,6 +14897,7 @@ grant EXECUTE on function public.read_user_interview_photo(text, uuid) to authen
 grant EXECUTE on function public.read_user_interview_photo(text, uuid) to service_role;
 grant EXECUTE on function public.read_lifetime_map_photos(text) to authenticated;
 grant EXECUTE on function public.read_lifetime_map_photos(text) to service_role;
+grant EXECUTE on function public.read_user_conversation_page(text, integer, timestamptz, uuid) to authenticated;
 grant EXECUTE on function public.read_user_interview_turn(text, uuid) to authenticated;
 grant EXECUTE on function public.read_user_interview_turn_before_phase(text, uuid) to service_role;
 grant EXECUTE on function public.read_user_memory_event_changes(text, bigint) to authenticated;

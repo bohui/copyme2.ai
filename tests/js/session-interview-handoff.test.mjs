@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
-import {readMemoirClientSource} from './helpers/memoir-source.mjs';
+import {readMemoirClientSource, installConversationInputs} from './helpers/memoir-source.mjs';
 
 const source = readMemoirClientSource();
 
@@ -23,6 +23,7 @@ function harness({followUps = 3, turns = 4, accepted = false} = {}) {
     agentTurn: async (...args) => {generations.push(args); return {reply: 'Who joined you?'};},
     streamAssistantMessage: async () => {}, toast: message => notices.push(message)});
   vm.runInContext(source.match(/async function sendChatMessage\([^]*?\n\}/)[0], context);
+  installConversationInputs(context);
   return {context, state, input, requests, generations, notices, pending};
 }
 
@@ -44,19 +45,16 @@ test('an available optional session still receives the answer', async () => {
   assert.equal(h.generations.length, 1);
 });
 
-test('an accepted unanswered turn keeps its retry identity and leaves a new draft untouched', async () => {
+test('an accepted unanswered turn permits a separate new input', async () => {
   const h = harness({accepted: true});
   await h.context.sendChatMessage();
   assert.deepEqual(h.requests, []);
-  assert.equal(h.generations.length, 0);
-  assert.equal(h.input.value, 'A new memory');
-  assert.equal(h.state.chat.length, 0);
+  assert.equal(h.generations.length, 1);
+  assert.equal(h.input.value, '');
+  assert.equal(h.state.chat.length, 1);
   assert.equal(h.state.photoTurns.pending().id, 'accepted-turn');
-  assert.deepEqual(h.notices, ['Memoir.story.retryTurn']);
-  vm.runInContext(source.match(/async function retryInterviewTurn\([^]*?\n\}/)[0], h.context);
-  await h.context.retryInterviewTurn();
-  assert.equal(h.state.audioTranscript, 'A new memory', 'Keep the draft through the retry render');
-  assert.equal(h.generations[0][8].retry.id, 'accepted-turn');
+  assert.deepEqual(h.notices, []);
+  assert.notEqual(h.generations[0][8].id, 'accepted-turn');
 });
 
 test('other conversation actions cannot replace an accepted unanswered turn', async () => {

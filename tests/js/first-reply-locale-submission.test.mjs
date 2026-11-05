@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import {createPreferenceSession, firstReplyUiCandidate} from '../../apps/web/i18n/session.mjs';
 import {encodePreference, preferenceCookie, readPreference} from '../../apps/web/i18n/preference.mjs';
 import {createInterviewPhotoState} from '../../apps/web/client/memoir/interview-photo-turns.mjs';
-import {readMemoirClientSource} from './helpers/memoir-source.mjs';
+import {readMemoirClientSource, installConversationInputs} from './helpers/memoir-source.mjs';
 
 const source = readMemoirClientSource();
 const localeSource = readFileSync(new URL('../../apps/web/client/memoir/ui-locale.mjs', import.meta.url), 'utf8');
@@ -69,6 +69,7 @@ function harness({profile = {}, preference = null, cookie = '', uiLocale = 'en-A
   const storage = new Map();
   state.photoTurns = createInterviewPhotoState({state, scope:() => context.captureProjectScope(), render() {},
     api:async () => ({}), storage:{setItem:(key, value) => storage.set(key, value), removeItem:key => storage.delete(key)}, uuid:() => 'turn'});
+  installConversationInputs(context);
   const calls = {detection:0, localization:0};
   for (const [name, key] of [['firstReplyLanguage', 'detection'], ['applyFirstReplyLocalization', 'localization']]) {
     const original = context[name];

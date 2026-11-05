@@ -329,13 +329,10 @@ class UserStorage:
         return rows[0] if rows else None
 
     def project_conversation_page(self, project_id, limit=51, boundary=None):
-        params = {'select': 'id,client_turn_id,kind,content,source_sequence,created_at',
-                  'user_id': f'eq.{self.user_id}', 'project_id': f'eq.{project_id}',
-                  'kind': 'in.(agent,agent_greeting)', 'order': 'created_at.desc,id.desc', 'limit': str(limit)}
-        if boundary is not None:
-            created_at, memory_id = boundary
-            params['or'] = f'(created_at.lt.{created_at},and(created_at.eq.{created_at},id.lt.{memory_id}))'
-        return self.request('GET', '/rest/v1/user_memory', params=params).json()
+        return self.request('POST', '/rest/v1/rpc/read_user_conversation_page', json={
+            'p_project_id':project_id, 'p_limit':limit,
+            'p_before_created_at':boundary[0] if boundary else None,
+            'p_before_id':boundary[1] if boundary else None}).json()
 
     def accept_narrator_source(self, project_id, client_turn_id, text, *, kind='narrator_chat', language='en-AU'):
         """Commit original evidence and its durable intent before reply delivery."""

@@ -1,4 +1,4 @@
-import { readMemoirClientSource } from './helpers/memoir-source.mjs';
+import { readMemoirClientSource, installConversationInputs } from './helpers/memoir-source.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -15,6 +15,7 @@ function load(context, ...names) {
   for (const name of ['captureProjectScope', 'isCurrentProjectScope', 'invalidateProjectNavigation', ...names]) {
     if (extract(name)) vm.runInContext(extract(name), context);
   }
+  if (names.includes('sendChatMessage')) installConversationInputs(context);
 }
 
 test('an older failed recovery cannot clear the newer Back/Forward project or history', async () => {

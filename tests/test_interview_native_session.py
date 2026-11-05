@@ -73,6 +73,28 @@ def test_next_turn_resumes_native_history_and_appends_only_context_changes(tmp_p
     assert first.current.narrator.original not in json.dumps(injections[1])
 
 
+def test_resumed_thread_injects_every_unanswered_input_once(tmp_path):
+    Native.calls = []
+    first, second, context, reply = packets()
+    third = second.model_copy(update={'tail': [second.tail[0], second.current],
+        'current': second.current.model_copy(update={'sequence': 3,
+            'narrator': second.current.narrator.model_copy(update={
+                'source_id': UUID(int=6), 'original': 'Actually, the town school.', 'char_end': 26})})})
+    async def run():
+        async with open_interview(**options(tmp_path, first, context)) as (session, _):
+            session.accept(reply)
+        # The second original was accepted, but cancelled before opening the harness.
+        async with open_interview(**options(tmp_path, third, context)) as (session, _):
+            assert session.resumed
+    asyncio.run(run())
+    items = [call[1]['items'] for call in Native.calls if call[0] == 'thread/inject_items'][-1]
+    assert items[0]['role'] == 'user'
+    assert items[0]['content'][0]['text'] == second.current.narrator.original
+    assert sum(second.current.narrator.original in json.dumps(item) for item in items) == 1
+    assert first.current.narrator.original not in json.dumps(items)
+    assert third.current.narrator.original not in json.dumps(items)
+
+
 @pytest.mark.parametrize('repair', [None, 'Repair a workspace citation.'])
 @pytest.mark.parametrize('history', ['tail', 'recent_dialogue'])
 def test_rebuilt_history_keeps_source_references_without_repeating_originals(tmp_path, repair, history):
