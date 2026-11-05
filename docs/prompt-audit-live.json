@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-05T11:58:32.683946+00:00",
+  "captured_at": "2026-11-05T21:45:34.365082+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -418,7 +418,9 @@
     {
       "name": "memoir/skills/author-timeline/extract",
       "versions": [
-        1
+        1,
+        2,
+        3
       ],
       "labels": [
         "latest"
@@ -24948,8 +24950,8 @@
     {
       "name": "memoir/skills/author-timeline/extract/golden/delivery-v3",
       "target": "memoir/skills/author-timeline/extract",
-      "items": 2,
-      "content_sha256": "aa1f981e49a632a939e689e4d7dcee8e96cd108aa030657bea01752b43047f13",
+      "items": 6,
+      "content_sha256": "1196a346b20fca3c572fa4d36eab1f4698bef792c00cf469c4a412c3e2367c95",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {

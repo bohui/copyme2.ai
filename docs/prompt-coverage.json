@@ -4004,7 +4004,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 390
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -4216,7 +4216,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 390
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -4431,7 +4431,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 390
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -4643,7 +4643,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 390
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -4855,7 +4855,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 390
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -5059,15 +5059,15 @@
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/requests/extract.md",
-    "version": 2,
-    "sha256": "b50abc1cf19d9df77f991374146f8de737dd90ab16cb396360b73b8272db1599",
+    "version": 3,
+    "sha256": "0195ecefccc597a1790a8f0ff47b3820670b15669a4c95e853aa5022e536cb91",
     "use": "conditional",
     "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Preserve sourced narrated order across overlapping period estimates and revise consecutive residence spans from provisional study/work durations.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 390
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -5279,7 +5279,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 390
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -5487,14 +5487,14 @@
     "name": "memoir/skills/author-timeline/instructions",
     "source": "skills/memoir-author-timeline/SKILL.md",
     "version": null,
-    "sha256": "e4460e03e7d8f76d8a796007665131611cd32e493445f67969ea33f858e742f9",
+    "sha256": "a8282d4df15fef16c9b2ffa1b6b9f29d3a35850106c071f58ded05d29ff3ad49",
     "use": "component",
     "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls. Preserve sourced narrated order across overlapping period estimates and revise consecutive residence spans from provisional study/work durations.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 390
       },
       {
         "path": "apps/api/two_lane_memory.py",
@@ -5712,7 +5712,7 @@
       {
         "path": "apps/api/memory_events.py",
         "symbol": "extraction_instructions",
-        "line": 387
+        "line": 390
       },
       {
         "path": "apps/api/two_lane_memory.py",

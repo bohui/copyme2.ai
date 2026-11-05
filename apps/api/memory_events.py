@@ -340,6 +340,9 @@ def validate_extraction(raw, sources, saved_events):
                for ref in refs):
             continue
         normalized = event.model_dump(exclude_none=True)
+        if event.existing_id and not event.relations:
+            # A follow-up without new order evidence cannot erase a saved link.
+            normalized.pop('relations', None)
         if location_correction:
             # The explicit correction writer owns stage/date overrides. Location
             # clarification follows ordinary, current-source event enrichment.

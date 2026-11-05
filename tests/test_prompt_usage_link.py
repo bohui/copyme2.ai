@@ -29,6 +29,7 @@ def test_unpublished_or_ambiguous_manifests_do_not_guess_a_prompt(artifacts):
 
 @pytest.mark.parametrize('phase', ['profile', 'extract'])
 def test_worker_forwards_assembled_prompt_once_without_tools(tmp_path, phase):
+    import json
     from test_lifetime_memory_lane_engine import BUDGET,Provider,Publisher,run,transport,page
     from test_background_profile import profile_page
     Provider.bodies=[];Provider.failure=None
@@ -45,6 +46,7 @@ def test_worker_forwards_assembled_prompt_once_without_tools(tmp_path, phase):
     expected='memoir/skills/' + ('memory-context/profile' if phase=='profile' else 'author-timeline/extract')
     assert body['metadata']['langfuse_prompt_name']==expected
     from apps.api.prompt_artifact import prompt_path
-    receipt=json.loads(prompt_path(expected).with_name(prompt_path(expected).name+'.langfuse.json').read_text())
+    path=prompt_path(expected)
+    receipt=json.loads(path.with_name(path.name+'.langfuse.json').read_text())
     assert body['metadata']['langfuse_prompt_version']==str(receipt['version'])
     assert body['tools']==[] and body['tool_choice']=='none'
