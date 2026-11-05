@@ -5,12 +5,12 @@
     "version": 1,
     "sha256": "70203c3a8c9c5beed54a512b888feaac2dc426be1c9f6b5a53273117125cda42",
     "use": "runtime",
-    "scenario": "After saved originals, Atlas chooses and reads admitted skills; canonical commits remain host-owned.",
+    "scenario": "After saved originals, Atlas chooses and reads admitted skills; canonical commits remain host-owned. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
     "consumers": [
       {
         "path": "apps/api/memoir_background_agent.py",
         "symbol": "run_background_agent",
-        "line": 255
+        "line": 273
       }
     ],
     "targets": [
@@ -57,7 +57,10 @@
     "regressions": [
       "tests/test_memoir_background_agent.py",
       "tests/test_memoir_agent_evaluation.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+      "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+      "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -2155,12 +2158,12 @@
     "version": 2,
     "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
     "use": "shared",
-    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -2494,7 +2497,10 @@
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+      "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+      "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -2506,12 +2512,12 @@
     "version": 1,
     "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
     "use": "shared",
-    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -2845,7 +2851,10 @@
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+      "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+      "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -2857,12 +2866,12 @@
     "version": 2,
     "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
     "use": "shared",
-    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -3196,7 +3205,10 @@
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+      "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+      "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -3328,7 +3340,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -5048,7 +5060,7 @@
     "version": 16,
     "sha256": "1df8b98a65018764b00803972ce1c46c384578bcafc5ba90e94726bc1f2080eb",
     "use": "shared",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -5241,7 +5253,10 @@
       "tests/test_timeline_context_confidence.py",
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+      "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+      "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -5463,7 +5478,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_extraction_packet",
-        "line": 394
+        "line": 395
       }
     ],
     "targets": [
@@ -5667,7 +5682,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -5799,7 +5814,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -5931,7 +5946,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -7031,7 +7046,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -7174,7 +7189,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -7317,7 +7332,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -7459,7 +7474,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 199
       }
     ],
     "targets": [
@@ -7950,7 +7965,7 @@
     "version": 5,
     "sha256": "9448aaff608e25c2f98e9dbae64ae2663fa5e4685ff98134498280bc26cdf00d",
     "use": "runtime",
-    "scenario": "Profile extraction from originals.",
+    "scenario": "Profile extraction from originals. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
     "consumers": [
       {
         "path": "apps/api/background_profile.py",
@@ -8053,7 +8068,10 @@
     "regressions": [
       "tests/test_background_profile.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+      "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+      "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"

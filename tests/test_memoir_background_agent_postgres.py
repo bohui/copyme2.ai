@@ -258,9 +258,8 @@ def test_crashed_agent_and_expired_domain_leases_are_reclaimed(sql):
 
 
 @pytest.mark.parametrize('cancelled',[False,True])
-def test_policy_arriving_after_a_background_lane_claim_releases_only_metadata(sql,monkeypatch,cancelled):
+def test_policy_wait_after_a_background_lane_claim_is_cancellable_and_releases_only_metadata(sql,monkeypatch,cancelled):
     import asyncio
-    from apps.api.lifetime_memory_policy import PolicyUnavailable
     from apps.api.memoir_background_agent import AgentBroker, BackgroundAgentPublication
     from apps.api.memory_event_worker import MemoryEventWorker
     from test_background_profile_postgres import source
@@ -290,13 +289,15 @@ def test_policy_arriving_after_a_background_lane_claim_releases_only_metadata(sq
         if cancelled:
             with pytest.raises(asyncio.CancelledError):await execute()
         else:
-            result=await execute()
-            assert result['status']=='pending' and result['error']==PolicyUnavailable.code
-        with pytest.raises(PolicyUnavailable):
-            await broker.rpc('read_memoir_background_work',p_fence=claim)
+            with pytest.raises(TimeoutError):
+                async with asyncio.timeout(.3):
+                    await execute()
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(.2):
+                await broker.rpc('read_memoir_background_work',p_fence=claim)
     asyncio.run(scenario())
     assert sql("select (token is null)||':'||attempts||':'||coalesce(error,'') from public.user_memoir_lane;").stdout.strip()==\
-        ('true:0:' if cancelled else 'true:0:LIFETIME_POLICY_PENDING')
+        'true:0:'
     assert sql('select count(*) from public.user_memory_event;').stdout.strip()=='0'
     assert sql('select count(*) from public.user_narrator_source;').stdout.strip()=='2'
     assert sql(f"select processing_status from public.user_narrator_source where id='{first['id']}';").stdout.strip()=='pending'
@@ -323,7 +324,6 @@ def test_waiting_for_a_claimed_lane_does_not_exhaust_background_retries(sql):
 @pytest.mark.parametrize('operation',['heartbeat_memoir_lane','fail_memoir_lane'])
 def test_background_lifecycle_survives_policy_pending_without_releasing_story_content(sql,operation):
     import asyncio
-    from apps.api.lifetime_memory_policy import PolicyUnavailable
     from apps.api.memoir_background_agent import AgentBroker, BackgroundAgentPublication
     from test_background_profile_postgres import source
     identity,run=queued(sql)
@@ -347,8 +347,9 @@ def test_background_lifecycle_survives_policy_pending_without_releasing_story_co
             assert result=={'status':'retry'}
             assert sql("select (token is null)||':'||error from public.user_memoir_lane;").stdout.strip()==\
                 'true:MEMOIR_PROVIDER_UNAVAILABLE'
-        with pytest.raises(PolicyUnavailable):
-            await broker.rpc('read_memoir_background_work',p_fence=claim)
+        with pytest.raises(TimeoutError):
+            async with asyncio.timeout(.2):
+                await broker.rpc('read_memoir_background_work',p_fence=claim)
     asyncio.run(scenario())
     assert sql('select count(*) from public.user_lifetime_pending_policy;').stdout.strip()=='1'
     assert sql('select count(*) from public.user_memory_event;').stdout.strip()=='0'

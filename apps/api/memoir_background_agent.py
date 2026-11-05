@@ -43,6 +43,12 @@ class BackgroundAgentPublication:
 
     @asynccontextmanager
     async def connection(self, *, metadata_only=False):
+        from .lifetime_memory_policy import wait_for_policy
+        async with wait_for_policy(lambda: self._connection(metadata_only=metadata_only)) as connection:
+            yield connection
+
+    @asynccontextmanager
+    async def _connection(self, *, metadata_only=False):
         from psycopg import AsyncConnection, Error
         from psycopg.types.json import Jsonb
         connection = None
@@ -85,6 +91,18 @@ class AgentBroker:
         self._lane_tokens = {}
 
     async def rpc(self, name, **arguments):
+        while True:
+            try:
+                return await self._rpc(name, **arguments)
+            except PublicationUnavailable as error:
+                from .memory_event_worker import _safe_rpc_failure
+                if (name != 'commit_lifetime_profile_page' or _safe_rpc_failure(error) !=
+                        ('PT409', 'profile commit deferred during interactive turn')):
+                    raise
+                # Retain the proposal until the foreground snapshot can close.
+                await asyncio.sleep(.1)
+
+    async def _rpc(self, name, **arguments):
         from psycopg.types.json import Jsonb
         if not all(re.fullmatch('[a-z][a-z0-9_]*', item) for item in (name, *arguments)):
             raise ValueError('Invalid background operation')

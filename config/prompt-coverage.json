@@ -85,21 +85,24 @@
     },
     "memoir/agents/atlas/skill-selection": {
       "use": "runtime",
-      "scenario": "After saved originals, Atlas chooses and reads admitted skills; canonical commits remain host-owned.",
+      "scenario": "After saved originals, Atlas chooses and reads admitted skills; canonical commits remain host-owned. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
       "consumers": [
         "apps/api/memoir_background_agent.py:run_background_agent"
       ],
       "regressions": [
         "tests/test_memoir_background_agent.py",
         "tests/test_memoir_agent_evaluation.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+        "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+        "tests/test_background_profile_postgres.py"
       ],
       "review": {
         "prompt_sha256": "70203c3a8c9c5beed54a512b888feaac2dc426be1c9f6b5a53273117125cda42",
         "datasets_sha256": "d0515cec1661b4466d6fdcafaa0990e51bdf4154fbe8d5228241feb79ea576df",
         "evaluators_sha256": "ae45a6b547c46dec0fc255851a6cf6010de86becd08e87838cc5d9576351900d",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Reuse the bilingual introduction, exact-testimony, uncertainty, manual-value/blank and source-protection gold: prompt text, output contracts and evidence rules are unchanged. Add real worker/database regressions for changing foreground questions and model completion during both clear and restrictive policy reviews.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. Reuse source/span, manual-authority and privacy graders; the new concurrency assertions check one model call, delayed saving, cancellation and current-authority rejection. This runtime coordination change makes no new model-quality claim."
       }
     },
     "memoir/shared/skill-agent": {
@@ -701,59 +704,68 @@
     },
     "memoir/shared/bounded-context/en-AU": {
       "use": "shared",
-      "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+      "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
       "consumers": [
         "apps/api/lifetime_memory_lane_engine.py:lane_contract"
       ],
       "regressions": [
         "tests/test_lifetime_memory_lane_engine.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+        "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+        "tests/test_background_profile_postgres.py"
       ],
       "review": {
         "prompt_sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
         "datasets_sha256": "fba90d1a3855957acb22d829afb18b88a76cbf693029d13c19c40f70923caa9c",
         "evaluators_sha256": "d70c5e915fc92ef3017edaad404907305a3d34ec70280c65d3297555810307a9",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available. Reuse the bilingual introduction, exact-testimony, uncertainty, manual-value/blank and source-protection gold: prompt text, output contracts and evidence rules are unchanged. Add real worker/database regressions for changing foreground questions and model completion during both clear and restrictive policy reviews.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest. Reuse source/span, manual-authority and privacy graders; the new concurrency assertions check one model call, delayed saving, cancellation and current-authority rejection. This runtime coordination change makes no new model-quality claim."
       }
     },
     "memoir/shared/bounded-context/policy": {
       "use": "shared",
-      "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+      "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
       "consumers": [
         "apps/api/lifetime_memory_lane_engine.py:lane_contract"
       ],
       "regressions": [
         "tests/test_lifetime_memory_lane_engine.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+        "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+        "tests/test_background_profile_postgres.py"
       ],
       "review": {
         "prompt_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
         "datasets_sha256": "fba90d1a3855957acb22d829afb18b88a76cbf693029d13c19c40f70923caa9c",
         "evaluators_sha256": "d70c5e915fc92ef3017edaad404907305a3d34ec70280c65d3297555810307a9",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available. Reuse the bilingual introduction, exact-testimony, uncertainty, manual-value/blank and source-protection gold: prompt text, output contracts and evidence rules are unchanged. Add real worker/database regressions for changing foreground questions and model completion during both clear and restrictive policy reviews.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest. Reuse source/span, manual-authority and privacy graders; the new concurrency assertions check one model call, delayed saving, cancellation and current-authority rejection. This runtime coordination change makes no new model-quality claim."
       }
     },
     "memoir/shared/bounded-context/zh-CN": {
       "use": "shared",
-      "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+      "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
       "consumers": [
         "apps/api/lifetime_memory_lane_engine.py:lane_contract"
       ],
       "regressions": [
         "tests/test_lifetime_memory_lane_engine.py",
         "tests/test_prompt_composition.py",
-        "tests/test_automatic_prompt_evaluation.py"
+        "tests/test_automatic_prompt_evaluation.py",
+        "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+        "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+        "tests/test_background_profile_postgres.py"
       ],
       "review": {
         "prompt_sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
         "datasets_sha256": "fba90d1a3855957acb22d829afb18b88a76cbf693029d13c19c40f70923caa9c",
         "evaluators_sha256": "d70c5e915fc92ef3017edaad404907305a3d34ec70280c65d3297555810307a9",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available. Reuse the bilingual introduction, exact-testimony, uncertainty, manual-value/blank and source-protection gold: prompt text, output contracts and evidence rules are unchanged. Add real worker/database regressions for changing foreground questions and model completion during both clear and restrictive policy reviews.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest. Reuse source/span, manual-authority and privacy graders; the new concurrency assertions check one model call, delayed saving, cancellation and current-authority rejection. This runtime coordination change makes no new model-quality claim."
       }
     },
     "memoir/shared/place-conflicts": {
@@ -941,7 +953,7 @@
     },
     "memoir/skills/author-timeline/instructions": {
       "use": "shared",
-      "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+      "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
       "consumers": [
         "apps/api/memory_events.py:extraction_instructions",
         "apps/api/two_lane_memory.py:extraction_contract"
@@ -951,14 +963,17 @@
         "tests/test_timeline_context_confidence.py",
         "tests/test_automatic_prompt_evaluation.py",
         "tests/test_memory_context_transport.py",
-        "tests/test_prompt_composition.py"
+        "tests/test_prompt_composition.py",
+        "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+        "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+        "tests/test_background_profile_postgres.py"
       ],
       "review": {
         "prompt_sha256": "1df8b98a65018764b00803972ce1c46c384578bcafc5ba90e94726bc1f2080eb",
         "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available. Reuse the bilingual introduction, exact-testimony, uncertainty, manual-value/blank and source-protection gold: prompt text, output contracts and evidence rules are unchanged. Add real worker/database regressions for changing foreground questions and model completion during both clear and restrictive policy reviews.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest. Reuse source/span, manual-authority and privacy graders; the new concurrency assertions check one model call, delayed saving, cancellation and current-authority rejection. This runtime coordination change makes no new model-quality claim."
       }
     },
     "memoir/skills/author-timeline/shared/grounding": {
@@ -1288,21 +1303,24 @@
     },
     "memoir/skills/memory-context/profile": {
       "use": "runtime",
-      "scenario": "Profile extraction from originals.",
+      "scenario": "Profile extraction from originals. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls.",
       "consumers": [
         "apps/api/background_profile.py:profile_contract"
       ],
       "regressions": [
         "tests/test_background_profile.py",
         "tests/test_automatic_prompt_evaluation.py",
-        "tests/test_memory_context_transport.py"
+        "tests/test_memory_context_transport.py",
+        "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
+        "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
+        "tests/test_background_profile_postgres.py"
       ],
       "review": {
         "prompt_sha256": "9448aaff608e25c2f98e9dbae64ae2663fa5e4685ff98134498280bc26cdf00d",
         "datasets_sha256": "1a07073b0359350a258704274b028ea721f9353c88a0b64d2a8d269fc40c31d2",
         "evaluators_sha256": "232e33d593b1d11785178ce7dac4ea14e67c7034f3c2f20ffc07c0562fbf03e2",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available. Reuse the bilingual introduction, exact-testimony, uncertainty, manual-value/blank and source-protection gold: prompt text, output contracts and evidence rules are unchanged. Add real worker/database regressions for changing foreground questions and model completion during both clear and restrictive policy reviews.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest. Reuse source/span, manual-authority and privacy graders; the new concurrency assertions check one model call, delayed saving, cancellation and current-authority rejection. This runtime coordination change makes no new model-quality claim."
       }
     },
     "memoir/skills/memory-context/summary": {

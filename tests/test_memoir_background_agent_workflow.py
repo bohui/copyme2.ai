@@ -3,6 +3,7 @@ import asyncio
 import json
 from pathlib import Path
 import subprocess
+import threading
 
 import pytest
 
@@ -80,6 +81,7 @@ def test_resolved_language_reaches_background_skills_and_map_cards(sql,tmp_path,
 
 @pytest.mark.parametrize('profile_first',[False,True])
 def test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations(sql,tmp_path,monkeypatch,profile_first):
+    from test_conversation_reply import proposal
     monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
     monkeypatch.setenv('MEMORY_SPARK_SHOW_THINKING_STEPS','1')
     monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
@@ -112,7 +114,10 @@ def test_foreground_keeps_replying_while_background_finishes_then_batches_queued
         return output
     install_document_provider(monkeypatch, respond)
     monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',SlowConnection)
-    conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
+    def reply(context):
+        return {**proposal(), 'quote':context['source']['text'],
+            'question':'What else do you remember about ' + context['source']['text']}
+    conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty,reply=reply)
     native=CodexWorker(home_root=tmp_path / 'worker',command=['controlled'],
         base_url='http://synthetic.invalid',api_key='synthetic')
     app=FastAPI()
@@ -168,6 +173,91 @@ def test_foreground_keeps_replying_while_background_finishes_then_batches_queued
             input=json.dumps({'progress':response.json()['skill_progress'],'turns':turns}),
             text=True,capture_output=True,timeout=20)
         assert replay.returncode==0,replay.stderr
+
+
+@pytest.mark.parametrize('phase',['profile','extract'])
+@pytest.mark.parametrize('restricted',[False,True])
+def test_finished_background_output_waits_for_foreground_policy_without_another_model_call(
+        sql,tmp_path,monkeypatch,fixed_policy_controls,phase,restricted):
+    from apps.api import policy_review
+    monkeypatch.setenv('MEMORY_SPARK_DISABLE_PRIVDROP','1')
+    monkeypatch.setenv('MEMORY_SPARK_TASK_DB',str(tmp_path / 'tasks.sqlite'))
+    monkeypatch.delenv('MEMORY_SPARK_HISTORICAL_NEWS',raising=False)
+    entered,release,returned=asyncio.Event(),asyncio.Event(),asyncio.Event()
+    reviewing,review_release=threading.Event(),threading.Event()
+    calls=[]
+    class Connection(ControlledSkillConnection):
+        source_choices=('memoir-memory-context',) if phase=='profile' else ('memoir-author-timeline',)
+    async def respond(body):
+        task=json.loads(body['input'])['payload']
+        calls.append(task)
+        entered.set()
+        await release.wait()
+        output=empty_document(body)
+        if phase=='profile':
+            source=task['source']
+            output['profile_patch']=[{'field':'birth_place','value':'Hobart','source_refs':[{
+                'source_id':source['id'],'version':source['version'],'quote':source['text'],
+                'char_start':0,'char_end':len(source['text'])}]}]
+        returned.set()
+        return output
+    install_document_provider(monkeypatch,respond)
+    monkeypatch.setattr('apps.api.codex_worker_service.CodexConnection',Connection)
+    complete=policy_review.complete_json
+    async def review(name,payload,schema,**options):
+        reviewing.set()
+        assert await asyncio.to_thread(review_release.wait,10), 'Foreground policy review was not released.'
+        return await complete(name,payload,schema,**options)
+    conversation=Conversation(sql,tmp_path / 'conversation',monkeypatch,empty)
+    native=CodexWorker(home_root=tmp_path / 'worker',command=['controlled'],
+        base_url='http://synthetic.invalid',api_key='synthetic')
+    app=FastAPI()
+    @app.post('/internal/codex/turn')
+    async def turn(payload:WorkerTurnInput):
+        return await native.turn(payload)
+    worker=MemoryEventWorker(Broker(sql),worker_url='http://controlled.invalid',worker_secret='synthetic',
+        worker_transport=httpx.ASGITransport(app=app))
+    with conversation.client:
+        first=conversation.say('I was born in Hobart.')
+        conversation.deliver_receipts()
+        run,=service(sql,'pending_memoir_background_agents')
+        monkeypatch.setattr(policy_review,'complete_json',review)
+        later_text='Please leave my birthplace out.' if restricted else 'We played in the garden.'
+        if restricted:
+            fixed_policy_controls.append(('excluded_topic',later_text))
+        async def scenario():
+            running=asyncio.create_task(worker.execute_background_agent(run))
+            foreground=None
+            try:
+                async with asyncio.timeout(15):
+                    await entered.wait()
+                    foreground=asyncio.create_task(asyncio.to_thread(conversation.say,later_text))
+                    assert await asyncio.to_thread(reviewing.wait,10)
+                    release.set()
+                    await returned.wait()
+                    await asyncio.sleep(.5)
+                    assert not running.done(), 'A pending foreground review must hold the result, not abort the batch.'
+                    assert len(calls)==1
+                    assert sql('select count(*) from public.user_lifetime_profile_receipt;').stdout.strip()=='0'
+                    review_release.set()
+                    assert (await foreground)['conversation_saved']
+                    return await running
+            finally:
+                release.set()
+                review_release.set()
+                if foreground is not None:
+                    await foreground
+                await running
+        result=asyncio.run(scenario())
+        assert len(calls)==1, 'A reviewed result must not require another model call.'
+        first_state=sql(f"select processing_status from public.user_narrator_source where id='{first['accepted_source_id']}';").stdout.strip()
+        if restricted:
+            assert first_state!='succeeded'
+            assert conversation.client.get('/v1/agent/profile').json().get('birth_place') is None
+        else:
+            assert first_state=='succeeded',result
+            if phase=='profile':
+                assert conversation.client.get('/v1/agent/profile').json()['birth_place']=='Hobart'
 
 
 @pytest.mark.parametrize('retry_choices',[[],['memoir-place-journey']])

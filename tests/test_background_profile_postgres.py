@@ -200,13 +200,13 @@ def test_commit_and_real_publication_guard_reject_stale_authority(sql,change):
     assert sql('select count(*) from public.user_lifetime_profile_receipt;').stdout.strip()=='0'
 
 
-def test_interactive_lease_defers_profile_without_invalidating_reply(sql):
+def test_interactive_lease_allows_profile_extraction_and_defers_its_commit(sql):
     identity,sources,lane,base=setup(sql)
     p=read(sql,lane,base)
     before=sql('select preference_revision from public.user_lifetime_conversation;').stdout
     sql(as_user(f"select public.acquire_user_agent_turn_lease('{OLD}');"))
-    assert read(sql,lane,base) is None
-    assert rpc(sql,'lock_lifetime_memoir_lane_publication',literal(fence(p)),check=False).returncode!=0
+    assert read(sql,lane,base)['page_digest']==p['page_digest']
+    assert rpc(sql,'lock_lifetime_memoir_lane_publication',literal(fence(p)))>0
     with pytest.raises(AssertionError):commit(sql,lane,p,result(p,'birth_year',1960))
     assert sql('select preference_revision from public.user_lifetime_conversation;').stdout==before
     sql("update public.user_agent_turn_lease set expires_at=clock_timestamp()-interval '1 second';")

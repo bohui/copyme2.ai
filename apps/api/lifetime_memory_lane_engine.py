@@ -82,8 +82,9 @@ def check_lane_generation():
 
 @asynccontextmanager
 async def _admission(publisher, fence):
+    from .lifetime_memory_policy import wait_for_policy
     check_lane_generation()
-    async with publisher.guard(fence):
+    async with wait_for_policy(lambda: publisher.guard(fence)):
         check_lane_generation()
         yield
 
