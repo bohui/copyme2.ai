@@ -2,6 +2,7 @@
   "name": "memoir/skills/author-timeline/shared/grounding",
   "schema_version": 1,
   "sha256": "540118842077b9f1bb3fffa4c97f9211c881841cf2de1be62ed89a1371fd48e3",
+  "storage": "local",
   "type": "text",
-  "version": 2
+  "version": null
 }

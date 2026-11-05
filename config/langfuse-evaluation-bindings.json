@@ -244,6 +244,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -252,6 +253,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -270,6 +272,7 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/summary",
         "memoir/skills/memory-context/summary"
       ],
       "metrics": [
@@ -288,6 +291,8 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/components/draft",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/shared/narrative-enrichment"
       ],
@@ -330,6 +335,8 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
+        "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/prepare",
         "memoir/skills/composer/prepare"
       ],
       "metrics": [
@@ -348,6 +355,8 @@
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
+        "memoir/skills/composer/batch/compose",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/review",
         "memoir/skills/composer/shared/editorial-review",
         "memoir/skills/composer/shared/narrative-enrichment"
@@ -378,6 +387,7 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/historical-news-research/discovery",
       "evaluated_prompts": [
+        "memoir/skills/historical-news-research/components/discovery",
         "memoir/skills/historical-news-research/contract",
         "memoir/skills/historical-news-research/discovery",
         "memoir/skills/historical-news-research/instructions"
@@ -397,6 +407,8 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -423,7 +435,9 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -432,6 +446,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -463,6 +478,7 @@
       "evaluated_prompts": [
         "memoir/skills/story-game/novel-to-game/adapter",
         "memoir/skills/story-game/novel-to-game/analyze",
+        "memoir/skills/story-game/novel-to-game/components/analyze",
         "memoir/skills/story-game/novel-to-game/journey"
       ],
       "metrics": [
@@ -480,6 +496,7 @@
         "memoir/skills/story-game/novel-to-game/adapter",
         "memoir/skills/story-game/novel-to-game/art",
         "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/components/art",
         "memoir/skills/story-game/novel-to-game/journey"
       ],
       "metrics": [
@@ -494,7 +511,9 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/story-game/brief",
       "evaluated_prompts": [
-        "memoir/skills/story-game/brief"
+        "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/components/brief",
+        "memoir/skills/story-game/instructions"
       ],
       "metrics": [
         "correctness",
@@ -508,6 +527,7 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/story-game/higgsfield",
       "evaluated_prompts": [
+        "memoir/skills/story-game/components/higgsfield",
         "memoir/skills/story-game/higgsfield",
         "memoir/skills/story-game/webpage"
       ],
@@ -524,6 +544,7 @@
       "primary_prompt": "memoir/skills/story-game/novel-to-game/concept",
       "evaluated_prompts": [
         "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/components/concept",
         "memoir/skills/story-game/novel-to-game/concept",
         "memoir/skills/story-game/novel-to-game/journey"
       ],
@@ -540,6 +561,7 @@
       "primary_prompt": "memoir/skills/story-game/novel-to-game/design",
       "evaluated_prompts": [
         "memoir/skills/story-game/novel-to-game/adapter",
+        "memoir/skills/story-game/novel-to-game/components/design",
         "memoir/skills/story-game/novel-to-game/design",
         "memoir/skills/story-game/novel-to-game/journey"
       ],
@@ -557,6 +579,7 @@
       "evaluated_prompts": [
         "memoir/skills/story-game/novel-to-game/adapter",
         "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/components/production",
         "memoir/skills/story-game/novel-to-game/journey",
         "memoir/skills/story-game/novel-to-game/production"
       ],
@@ -572,6 +595,8 @@
       "scope": "model",
       "primary_prompt": "memoir/skills/story-game/proposal",
       "evaluated_prompts": [
+        "memoir/skills/story-game/components/proposal",
+        "memoir/skills/story-game/instructions",
         "memoir/skills/story-game/proposal"
       ],
       "metrics": [
@@ -588,6 +613,7 @@
       "evaluated_prompts": [
         "memoir/skills/story-game/novel-to-game/adapter",
         "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/components/whitebox",
         "memoir/skills/story-game/novel-to-game/journey",
         "memoir/skills/story-game/novel-to-game/whitebox"
       ],
@@ -642,6 +668,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -770,7 +799,10 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -781,6 +813,9 @@
         "memoir/skills/author-timeline/window",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -792,7 +827,8 @@
         "memoir/skills/composer/prepare",
         "memoir/skills/composer/review",
         "memoir/skills/composer/shared/editorial-review",
-        "memoir/skills/composer/shared/narrative-enrichment"
+        "memoir/skills/composer/shared/narrative-enrichment",
+        "memoir/skills/place-journey/components/extract"
       ],
       "metrics": [
         "trajectory"
@@ -804,12 +840,21 @@
       "primary_prompt": null,
       "evaluated_prompts": [
         "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/components/brief",
+        "memoir/skills/story-game/components/higgsfield",
+        "memoir/skills/story-game/components/proposal",
         "memoir/skills/story-game/higgsfield",
         "memoir/skills/story-game/instructions",
         "memoir/skills/story-game/novel-to-game/adapter",
         "memoir/skills/story-game/novel-to-game/analyze",
         "memoir/skills/story-game/novel-to-game/art",
         "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/components/analyze",
+        "memoir/skills/story-game/novel-to-game/components/art",
+        "memoir/skills/story-game/novel-to-game/components/concept",
+        "memoir/skills/story-game/novel-to-game/components/design",
+        "memoir/skills/story-game/novel-to-game/components/production",
+        "memoir/skills/story-game/novel-to-game/components/whitebox",
         "memoir/skills/story-game/novel-to-game/concept",
         "memoir/skills/story-game/novel-to-game/design",
         "memoir/skills/story-game/novel-to-game/illustration",
@@ -1656,6 +1701,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -1664,6 +1710,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -1703,6 +1750,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -1711,6 +1759,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -1738,6 +1787,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -1746,6 +1796,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -1771,6 +1822,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -1779,6 +1831,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -1810,6 +1863,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -1818,6 +1872,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -1851,6 +1906,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -1859,6 +1915,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -1898,6 +1955,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -1906,6 +1964,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -1945,6 +2004,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -1953,6 +2013,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -2068,6 +2129,7 @@
         "78a94dfb568e6d1c299a9fe60a9ef608"
       ],
       "evaluated_prompts": [
+        "memoir/skills/historical-news-research/components/discovery",
         "memoir/skills/historical-news-research/contract",
         "memoir/skills/historical-news-research/discovery",
         "memoir/skills/historical-news-research/instructions"
@@ -2104,6 +2166,7 @@
         "f90f0e8543ccfce8656c943d34b7af84"
       ],
       "evaluated_prompts": [
+        "memoir/skills/historical-news-research/components/discovery",
         "memoir/skills/historical-news-research/contract",
         "memoir/skills/historical-news-research/discovery",
         "memoir/skills/historical-news-research/instructions"
@@ -2128,6 +2191,7 @@
         "e4678ef33c8f4e2024b795b8bdd62bd0"
       ],
       "evaluated_prompts": [
+        "memoir/skills/historical-news-research/components/discovery",
         "memoir/skills/historical-news-research/contract",
         "memoir/skills/historical-news-research/discovery",
         "memoir/skills/historical-news-research/instructions"
@@ -2150,6 +2214,7 @@
         "c52ad0e1145e9bdffc59fd7e0ad7e354"
       ],
       "evaluated_prompts": [
+        "memoir/skills/historical-news-research/components/discovery",
         "memoir/skills/historical-news-research/contract",
         "memoir/skills/historical-news-research/discovery",
         "memoir/skills/historical-news-research/instructions"
@@ -2183,6 +2248,8 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -2205,6 +2272,8 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -2244,6 +2313,8 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -2274,6 +2345,8 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -2302,6 +2375,8 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -2431,7 +2506,9 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -2440,6 +2517,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -2477,7 +2555,9 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -2486,6 +2566,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -2510,7 +2591,9 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -2519,6 +2602,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -2541,7 +2625,9 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -2550,6 +2636,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -2668,7 +2755,9 @@
         "585538281dd76302c7b35683a84b2c82"
       ],
       "evaluated_prompts": [
-        "memoir/skills/story-game/brief"
+        "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/components/brief",
+        "memoir/skills/story-game/instructions"
       ],
       "metrics": [
         "correctness",
@@ -2687,7 +2776,9 @@
         "cf7ea9161d34757275e430a485fb0007"
       ],
       "evaluated_prompts": [
-        "memoir/skills/story-game/brief"
+        "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/components/brief",
+        "memoir/skills/story-game/instructions"
       ],
       "metrics": [
         "correctness",
@@ -2818,6 +2909,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -2855,6 +2949,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -2894,6 +2991,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -2928,6 +3028,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -2979,6 +3082,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -3016,6 +3122,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -3051,6 +3160,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -3534,7 +3646,10 @@
         "memoir/agents/mira/repair",
         "memoir/agents/mira/repair-codes",
         "memoir/agents/mira/reply",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -3545,6 +3660,9 @@
         "memoir/skills/author-timeline/window",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -3556,7 +3674,8 @@
         "memoir/skills/composer/prepare",
         "memoir/skills/composer/review",
         "memoir/skills/composer/shared/editorial-review",
-        "memoir/skills/composer/shared/narrative-enrichment"
+        "memoir/skills/composer/shared/narrative-enrichment",
+        "memoir/skills/place-journey/components/extract"
       ],
       "metrics": [
         "trajectory"
@@ -3576,12 +3695,21 @@
       ],
       "evaluated_prompts": [
         "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/components/brief",
+        "memoir/skills/story-game/components/higgsfield",
+        "memoir/skills/story-game/components/proposal",
         "memoir/skills/story-game/higgsfield",
         "memoir/skills/story-game/instructions",
         "memoir/skills/story-game/novel-to-game/adapter",
         "memoir/skills/story-game/novel-to-game/analyze",
         "memoir/skills/story-game/novel-to-game/art",
         "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/components/analyze",
+        "memoir/skills/story-game/novel-to-game/components/art",
+        "memoir/skills/story-game/novel-to-game/components/concept",
+        "memoir/skills/story-game/novel-to-game/components/design",
+        "memoir/skills/story-game/novel-to-game/components/production",
+        "memoir/skills/story-game/novel-to-game/components/whitebox",
         "memoir/skills/story-game/novel-to-game/concept",
         "memoir/skills/story-game/novel-to-game/design",
         "memoir/skills/story-game/novel-to-game/illustration",
@@ -3622,12 +3750,21 @@
       ],
       "evaluated_prompts": [
         "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/components/brief",
+        "memoir/skills/story-game/components/higgsfield",
+        "memoir/skills/story-game/components/proposal",
         "memoir/skills/story-game/higgsfield",
         "memoir/skills/story-game/instructions",
         "memoir/skills/story-game/novel-to-game/adapter",
         "memoir/skills/story-game/novel-to-game/analyze",
         "memoir/skills/story-game/novel-to-game/art",
         "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/components/analyze",
+        "memoir/skills/story-game/novel-to-game/components/art",
+        "memoir/skills/story-game/novel-to-game/components/concept",
+        "memoir/skills/story-game/novel-to-game/components/design",
+        "memoir/skills/story-game/novel-to-game/components/production",
+        "memoir/skills/story-game/novel-to-game/components/whitebox",
         "memoir/skills/story-game/novel-to-game/concept",
         "memoir/skills/story-game/novel-to-game/design",
         "memoir/skills/story-game/novel-to-game/illustration",
@@ -4031,6 +4168,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -4039,6 +4177,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -4081,6 +4220,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -4165,6 +4307,8 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -4203,7 +4347,9 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -4212,6 +4358,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -4281,12 +4428,21 @@
       ],
       "evaluated_prompts": [
         "memoir/skills/story-game/brief",
+        "memoir/skills/story-game/components/brief",
+        "memoir/skills/story-game/components/higgsfield",
+        "memoir/skills/story-game/components/proposal",
         "memoir/skills/story-game/higgsfield",
         "memoir/skills/story-game/instructions",
         "memoir/skills/story-game/novel-to-game/adapter",
         "memoir/skills/story-game/novel-to-game/analyze",
         "memoir/skills/story-game/novel-to-game/art",
         "memoir/skills/story-game/novel-to-game/assets",
+        "memoir/skills/story-game/novel-to-game/components/analyze",
+        "memoir/skills/story-game/novel-to-game/components/art",
+        "memoir/skills/story-game/novel-to-game/components/concept",
+        "memoir/skills/story-game/novel-to-game/components/design",
+        "memoir/skills/story-game/novel-to-game/components/production",
+        "memoir/skills/story-game/novel-to-game/components/whitebox",
         "memoir/skills/story-game/novel-to-game/concept",
         "memoir/skills/story-game/novel-to-game/design",
         "memoir/skills/story-game/novel-to-game/illustration",
@@ -4336,6 +4492,7 @@
         "42ea5f80e1b07488633aed0f94f61690"
       ],
       "evaluated_prompts": [
+        "memoir/skills/historical-news-research/components/discovery",
         "memoir/skills/historical-news-research/contract",
         "memoir/skills/historical-news-research/discovery",
         "memoir/skills/historical-news-research/instructions"
@@ -4376,6 +4533,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -4422,6 +4582,9 @@
         "memoir/shared/skill-agent",
         "memoir/skills/composer/batch/compose",
         "memoir/skills/composer/batch/prepare",
+        "memoir/skills/composer/components/draft",
+        "memoir/skills/composer/components/prepare",
+        "memoir/skills/composer/components/review",
         "memoir/skills/composer/draft",
         "memoir/skills/composer/instructions",
         "memoir/skills/composer/outline/leaf/en-AU",
@@ -4456,6 +4619,8 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -4625,6 +4790,7 @@
         "memoir/shared/bounded-context/zh-CN",
         "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -4633,6 +4799,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [
@@ -4663,6 +4830,8 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/memory-context/components/profile",
         "memoir/skills/memory-context/profile"
       ],
       "metrics": [
@@ -4689,7 +4858,9 @@
         "memoir/shared/bounded-context/en-AU",
         "memoir/shared/bounded-context/policy",
         "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
         "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/components/extract",
         "memoir/skills/author-timeline/continuity",
         "memoir/skills/author-timeline/contract",
         "memoir/skills/author-timeline/derived-hints",
@@ -4698,6 +4869,7 @@
         "memoir/skills/author-timeline/instructions",
         "memoir/skills/author-timeline/shared/grounding",
         "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/components/extract",
         "memoir/skills/place-journey/extract"
       ],
       "metrics": [

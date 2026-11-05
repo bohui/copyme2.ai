@@ -1,0 +1,1 @@
+{{prompt:composer_prepare}}{{#batch}}{{prompt:batch_prepare}}{{/batch}}{{#bounded}}{{prompt:lane_context}}Write in {{output_language}}; preserve original quoted source language.{{/bounded}}{{#conflicts}}{{prompt:place_conflicts}}{{/conflicts}}

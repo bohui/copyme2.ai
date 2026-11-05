@@ -175,7 +175,7 @@ def test_export_rejects_ambiguous_short_names():
     with pytest.raises(ValueError, match='Ambiguous prompt short name'):
         selected_prompts('en-AU', registry)
     assert selected_prompts('memoir/skills/composer/prepare', registry) == {
-        'memoir/skills/composer/prepare': 'skills/memoir-composer/prompts/prepare.md'}
+        'memoir/skills/composer/prepare': 'skills/memoir-composer/prompts/requests/prepare.md'}
 
 
 def test_retired_workflows_cannot_be_exported_again():

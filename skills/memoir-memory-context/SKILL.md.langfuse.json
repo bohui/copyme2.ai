@@ -1,7 +1,8 @@
 {
-  "name": "memoir/skills/memory-context/profile",
+  "name": "memoir/skills/memory-context/components/profile",
   "schema_version": 1,
   "sha256": "9448aaff608e25c2f98e9dbae64ae2663fa5e4685ff98134498280bc26cdf00d",
+  "storage": "local",
   "type": "text",
-  "version": 5
+  "version": null
 }

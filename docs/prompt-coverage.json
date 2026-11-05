@@ -2152,15 +2152,20 @@
   {
     "name": "memoir/shared/bounded-context/en-AU",
     "source": "apps/api/prompts/shared/bounded-context/en-AU.md",
-    "version": 2,
+    "version": null,
     "sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
-    "use": "shared",
-    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -2494,7 +2499,9 @@
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -2503,15 +2510,20 @@
   {
     "name": "memoir/shared/bounded-context/policy",
     "source": "apps/api/prompts/shared/bounded-context/policy.md",
-    "version": 1,
+    "version": null,
     "sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
-    "use": "shared",
-    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -2523,7 +2535,8 @@
       "memoir/skills/composer/review",
       "memoir/skills/memory-context/profile",
       "memoir/skills/place-journey/extract",
-      "memoir/workflows/composer-checkpoints"
+      "memoir/workflows/composer-checkpoints",
+      "memoir/workflows/source-to-private-draft"
     ],
     "evaluators": [
       "memoir/evaluators/shared/completeness",
@@ -2762,6 +2775,14 @@
         "source": "live snapshot"
       },
       {
+        "name": "memoir/workflows/source-to-private-draft/golden/core",
+        "id": "cmvf63exl00921z024ddyz6sa",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
@@ -2845,7 +2866,9 @@
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -2854,15 +2877,20 @@
   {
     "name": "memoir/shared/bounded-context/zh-CN",
     "source": "apps/api/prompts/shared/bounded-context/zh-CN.md",
-    "version": 2,
+    "version": null,
     "sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
-    "use": "shared",
-    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -3196,7 +3224,9 @@
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -3320,15 +3350,20 @@
   {
     "name": "memoir/shared/place-conflicts",
     "source": "apps/api/prompts/shared/place-conflicts.md",
-    "version": 1,
+    "version": null,
     "sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
-    "use": "shared",
-    "scenario": "Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Bounded lane phase: locale policy; conflict guidance only when attribution coverage exists.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -3338,7 +3373,10 @@
       "memoir/skills/composer/outline",
       "memoir/skills/composer/prepare",
       "memoir/skills/composer/review",
-      "memoir/workflows/composer-checkpoints"
+      "memoir/skills/memory-context/profile",
+      "memoir/skills/place-journey/extract",
+      "memoir/workflows/composer-checkpoints",
+      "memoir/workflows/source-to-private-draft"
     ],
     "evaluators": [
       "memoir/evaluators/shared/completeness",
@@ -3370,7 +3408,18 @@
       "cmw1gxnrq00kb1z02d1lbx7vj",
       "cmw1gxnuh00kp1z02046y8wvw",
       "cmw1gxnqj00k41z028ocl1zmo",
-      "cmw1gxntj00ki1z023uj2ab4t"
+      "cmw1gxntj00ki1z023uj2ab4t",
+      "cmw1gxpd400t21z02nzr502wk",
+      "cmw1gxpey00ta1z02ayfpg1n6",
+      "cmw1gxpga00ti1z02nl91aavg",
+      "cmw1gxpjb00tq1z0251f3gzz0",
+      "cmw1gxpkf00ty1z02dzlcdv49",
+      "cmw1gxnvo00kw1z02voy5xihn",
+      "cmw1gxpl600u61z029ljswpzl",
+      "cmw1gxpm500ue1z02p4lx9i25",
+      "cmw1gxpn000um1z02lhgh2a47",
+      "cmw1gxpnw00uu1z02zzm00d7k",
+      "cmw1gxnx400l31z02dl5sz9py"
     ],
     "datasets": [
       {
@@ -3438,6 +3487,78 @@
         "source": "live snapshot"
       },
       {
+        "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1gucp800ct1z02dj82o3kg",
+        "items": 10,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-30b9a4222825",
+        "id": "cmw0mspgg000m1z0211ur7wsg",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/core",
+        "id": "cmvf63a7d006f1z0216n7260x",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/delivery-core",
+        "id": "cmw1gud8400d81z02t3x7gtc0",
+        "items": 7,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/delivery-v2",
+        "id": "cmw1gudpm00di1z02q9c9r3ac",
+        "items": 7,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guffx00el1z028wb402jj",
+        "items": 4,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/core",
+        "id": "cmvf63buk007h1z02aw7y2u4g",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/delivery-core",
+        "id": "cmw1gufo400et1z02sko454ga",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
+        "id": "cmw1gufr300ex1z02s0vzre8q",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
         "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity",
         "id": "cmvcxwjms002f1z02fr0384pm",
         "items": 2,
@@ -3494,6 +3615,14 @@
         "source": "live snapshot"
       },
       {
+        "name": "memoir/workflows/source-to-private-draft/golden/core",
+        "id": "cmvf63exl00921z024ddyz6sa",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
@@ -3504,6 +3633,22 @@
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
+        "id": "cmw1xdio600yr1z027vlqx7x8",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
         "experiments": 0,
         "scored_items": 0,
@@ -3526,18 +3671,44 @@
         "source": "live snapshot"
       },
       {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-93cfb9cb67ba",
+        "id": "cmw2mfnh400031z02m8ma6xhy",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
         "experiments": 1,
         "scored_items": 6,
         "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
+        "id": "cmw3bai560cau1z0227pi9g0e",
+        "items": 8,
+        "experiments": 1,
+        "scored_items": 8,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
+        "source": "live snapshot"
       }
     ],
     "regressions": [
       "tests/test_lifetime_memory_lane_engine.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -3810,10 +3981,10 @@
   {
     "name": "memoir/skills/author-timeline/attribution",
     "source": "skills/memoir-author-timeline/prompts/attribution.md",
-    "version": 3,
+    "version": null,
     "sha256": "46b3ebee11562ffbe236890c2cc21ce308420ecdaf30a1290358f6a408c59d50",
-    "use": "conditional",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -3824,6 +3995,11 @@
         "path": "apps/api/two_lane_memory.py",
         "symbol": "extraction_contract",
         "line": 24
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -4006,20 +4182,233 @@
       "tests/test_timeline_context_confidence.py",
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Requires scenario/branch-specific execution evidence",
+      "Dataset scores alone do not establish this prompt version was exercised"
+    ]
+  },
+  {
+    "name": "memoir/skills/author-timeline/components/extract",
+    "source": "skills/memoir-author-timeline/prompts/extract.md",
+    "version": null,
+    "sha256": "74be68eb6d63d92ae48ed2086054491cd42ddf08852b212c00bfe57417b68703",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "consumers": [
+      {
+        "path": "apps/api/memory_events.py",
+        "symbol": "extraction_instructions",
+        "line": 387
+      },
+      {
+        "path": "apps/api/two_lane_memory.py",
+        "symbol": "extraction_contract",
+        "line": 24
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/author-timeline/extract",
+      "memoir/skills/place-journey/extract",
+      "memoir/workflows/source-to-private-draft"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxorh00pi1z02gv53pn1h",
+      "cmw1gxosj00pq1z028cgxafa1",
+      "cmw1gxotn00py1z0279y1br4o",
+      "cmw1gxoub00q61z02iz9y33y1",
+      "cmw1gxoxt00qm1z021jsj08gg",
+      "cmw1gxovu00qe1z02e9fhtbvw",
+      "cmw1gxp1800r21z02cf04y226",
+      "cmw1gxozh00qu1z023nygmiw6",
+      "cmw1gxnnd00jq1z02kohj4xzk",
+      "cmw1gxpl600u61z029ljswpzl",
+      "cmw1gxpm500ue1z02p4lx9i25",
+      "cmw1gxpn000um1z02lhgh2a47",
+      "cmw1gxpnw00uu1z02zzm00d7k",
+      "cmw1gxnx400l31z02dl5sz9py"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1gu7ws00bc1z02zjj4ib17",
+        "items": 6,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/core",
+        "id": "cmvf62s10003s1z021ip1f0jw",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/delivery-core",
+        "id": "cmw1gu8fm00bm1z02de9qs56x",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/delivery-v2",
+        "id": "cmw1gu8p900br1z02xxvlq4b6",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/event-grounding",
+        "id": "cmvcxwiok001n1z029quda4ra",
+        "items": 8,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/event-grounding-20261008-v1",
+        "id": "cmuzc53sj00031z02d3zzutu0",
+        "items": 8,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement",
+        "id": "cmvcxwj1b001y1z02xjgwdkjy",
+        "items": 14,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement-20261008-v1",
+        "id": "cmuzc59lq000e1z02ioeafsko",
+        "items": 14,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guffx00el1z028wb402jj",
+        "items": 4,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/core",
+        "id": "cmvf63buk007h1z02aw7y2u4g",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/delivery-core",
+        "id": "cmw1gufo400et1z02sko454ga",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
+        "id": "cmw1gufr300ex1z02s0vzre8q",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/source-to-private-draft/golden/core",
+        "id": "cmvf63exl00921z024ddyz6sa",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_model_boundaries.py",
+      "tests/test_timeline_context_confidence.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_prompt_composition.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
     "name": "memoir/skills/author-timeline/continuity",
     "source": "skills/memoir-author-timeline/prompts/continuity.md",
-    "version": 1,
+    "version": null,
     "sha256": "e4daebd5db07d3bf93d5561c1c7d7c5528157a3c5cb1213742614592345dcbd1",
-    "use": "conditional",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -4030,6 +4419,11 @@
         "path": "apps/api/two_lane_memory.py",
         "symbol": "extraction_contract",
         "line": 24
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -4212,20 +4606,21 @@
       "tests/test_timeline_context_confidence.py",
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Requires scenario/branch-specific execution evidence",
       "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
     "name": "memoir/skills/author-timeline/contract",
     "source": "skills/memoir-author-timeline/references/contract.md",
-    "version": 1,
+    "version": null,
     "sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
-    "use": "shared",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -4236,6 +4631,11 @@
         "path": "apps/api/two_lane_memory.py",
         "symbol": "extraction_contract",
         "line": 24
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -4418,7 +4818,9 @@
       "tests/test_timeline_context_confidence.py",
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -4427,10 +4829,10 @@
   {
     "name": "memoir/skills/author-timeline/derived-hints",
     "source": "skills/memoir-author-timeline/prompts/derived-hints.md",
-    "version": 6,
+    "version": null,
     "sha256": "8eac382ff94f0f348d4c7947a6b6b9f2f3aef80cf86975f2143c0ebeb1bbbf1b",
-    "use": "conditional",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -4441,6 +4843,11 @@
         "path": "apps/api/two_lane_memory.py",
         "symbol": "extraction_contract",
         "line": 24
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -4623,18 +5030,19 @@
       "tests/test_timeline_context_confidence.py",
       "tests/test_prompt_composition.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Requires scenario/branch-specific execution evidence",
       "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
     "name": "memoir/skills/author-timeline/extract",
-    "source": "skills/memoir-author-timeline/prompts/extract.md",
-    "version": 3,
-    "sha256": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
+    "source": "skills/memoir-author-timeline/prompts/requests/extract.md",
+    "version": null,
+    "sha256": "9113e7f40efd2786b798b698e4c2af1bdc07f3d1018b752787bba8e0a443e72c",
     "use": "conditional",
     "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
@@ -4829,7 +5237,9 @@
       "tests/test_timeline_context_confidence.py",
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -4839,10 +5249,10 @@
   {
     "name": "memoir/skills/author-timeline/extract-with-hints",
     "source": "skills/memoir-author-timeline/prompts/extract-with-hints.md",
-    "version": 3,
+    "version": null,
     "sha256": "c4b2d944fa386f1b2fdee6148d16cbc31c2570a02d142d2b882cf48cbcdded60",
-    "use": "conditional",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -4853,6 +5263,11 @@
         "path": "apps/api/two_lane_memory.py",
         "symbol": "extraction_contract",
         "line": 24
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -5035,20 +5450,21 @@
       "tests/test_timeline_context_confidence.py",
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Requires scenario/branch-specific execution evidence",
       "Dataset scores alone do not establish this prompt version was exercised"
     ]
   },
   {
     "name": "memoir/skills/author-timeline/instructions",
     "source": "skills/memoir-author-timeline/SKILL.md",
-    "version": 16,
+    "version": null,
     "sha256": "1df8b98a65018764b00803972ce1c46c384578bcafc5ba90e94726bc1f2080eb",
-    "use": "shared",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -5059,6 +5475,11 @@
         "path": "apps/api/two_lane_memory.py",
         "symbol": "extraction_contract",
         "line": 24
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -5241,7 +5662,9 @@
       "tests/test_timeline_context_confidence.py",
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -5250,10 +5673,10 @@
   {
     "name": "memoir/skills/author-timeline/shared/grounding",
     "source": "skills/memoir-author-timeline/prompts/shared/grounding.md",
-    "version": 2,
+    "version": null,
     "sha256": "540118842077b9f1bb3fffa4c97f9211c881841cf2de1be62ed89a1371fd48e3",
-    "use": "shared",
-    "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages.",
     "consumers": [
       {
         "path": "apps/api/memory_events.py",
@@ -5264,6 +5687,11 @@
         "path": "apps/api/two_lane_memory.py",
         "symbol": "extraction_contract",
         "line": 24
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -5446,7 +5874,9 @@
       "tests/test_timeline_context_confidence.py",
       "tests/test_prompt_composition.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -5455,15 +5885,20 @@
   {
     "name": "memoir/skills/author-timeline/window",
     "source": "skills/memoir-author-timeline/prompts/window.md",
-    "version": 2,
+    "version": null,
     "sha256": "ee95f381fcad58de15535bf81640f61f6ba10e98fcd695d5ccb6947e554e83b3",
-    "use": "runtime",
-    "scenario": "Source-window contract is sent as model input in every extraction page.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Source-window contract is sent as model input in every extraction page.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_extraction_packet",
-        "line": 394
+        "line": 405
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -5645,7 +6080,9 @@
       "tests/test_lifetime_memory_lane_engine.py",
       "tests/test_automatic_prompt_evaluation.py",
       "tests/test_memory_context_transport.py",
-      "tests/test_prompt_composition.py"
+      "tests/test_prompt_composition.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -5654,10 +6091,10 @@
   {
     "name": "memoir/skills/composer/batch/compose",
     "source": "skills/memoir-composer/prompts/batch/compose.md",
-    "version": 1,
+    "version": null,
     "sha256": "5f16e68a08bce34ad52fe3b574e27cb2427ebb988ef202a129f88ea6a79d6086",
-    "use": "conditional",
-    "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
       {
         "path": "apps/api/memoir_preview.py",
@@ -5667,21 +6104,39 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
+      "memoir/skills/composer/draft",
+      "memoir/skills/composer/review",
       "memoir/workflows/composer-checkpoints",
       "memoir/workflows/source-to-private-draft"
     ],
-    "evaluators": [],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
     "sdk_evaluators": [
       "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
       "trajectory (requires code/reference or manual grading)"
     ],
-    "hosted_rule_ids": [],
+    "hosted_rule_ids": [
+      "cmw1gxnrq00kb1z02d1lbx7vj",
+      "cmw1gxntj00ki1z023uj2ab4t"
+    ],
     "datasets": [
       {
         "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity",
@@ -5775,21 +6230,21 @@
     "regressions": [
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "No active hosted grader verified; use the declared regression/calibration path",
-      "Requires scenario/branch-specific execution evidence",
       "No scored experiment items verified for the current pin"
     ]
   },
   {
     "name": "memoir/skills/composer/batch/prepare",
     "source": "skills/memoir-composer/prompts/batch/prepare.md",
-    "version": 1,
+    "version": null,
     "sha256": "6109366cd5450327dcc39a57f5d1cd5bc85acf9ab49004f98d7a7073929be008",
-    "use": "conditional",
-    "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
       {
         "path": "apps/api/memoir_preview.py",
@@ -5799,21 +6254,37 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
+      "memoir/skills/composer/prepare",
       "memoir/workflows/composer-checkpoints",
       "memoir/workflows/source-to-private-draft"
     ],
-    "evaluators": [],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
     "sdk_evaluators": [
       "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
       "trajectory (requires code/reference or manual grading)"
     ],
-    "hosted_rule_ids": [],
+    "hosted_rule_ids": [
+      "cmw1gxnqj00k41z028ocl1zmo"
+    ],
     "datasets": [
       {
         "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity",
@@ -5907,21 +6378,21 @@
     "regressions": [
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "No active hosted grader verified; use the declared regression/calibration path",
-      "Requires scenario/branch-specific execution evidence",
       "No scored experiment items verified for the current pin"
     ]
   },
   {
-    "name": "memoir/skills/composer/draft",
+    "name": "memoir/skills/composer/components/draft",
     "source": "skills/memoir-composer/prompts/draft.md",
-    "version": 2,
+    "version": null,
     "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
-    "use": "conditional",
-    "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
       {
         "path": "apps/api/memoir_preview.py",
@@ -5931,7 +6402,12 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -6051,7 +6527,451 @@
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/composer/components/prepare",
+    "source": "skills/memoir-composer/prompts/prepare.md",
+    "version": null,
+    "sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "consumers": [
+      {
+        "path": "apps/api/memoir_preview.py",
+        "symbol": "composer_instructions",
+        "line": 148
+      },
+      {
+        "path": "apps/api/lifetime_memory_lane_engine.py",
+        "symbol": "lane_contract",
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/composer/prepare",
+      "memoir/workflows/composer-checkpoints",
+      "memoir/workflows/source-to-private-draft"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxnqj00k41z028ocl1zmo"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity",
+        "id": "cmvcxwjms002f1z02fr0384pm",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity-20261008-v1",
+        "id": "cmuzc5ese000v1z02wi65o5qc",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1gugxc00g81z02t5bj7he1",
+        "items": 4,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/contracts-campaign-ae78da484eb8",
+        "id": "cmw0pnedx004k1z02mjg6rkji",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/core",
+        "id": "cmvf62u0w004b1z02yp9bzm84",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/delivery-core",
+        "id": "cmw1guh6400gh1z02g3mxd1f4",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/delivery-v2",
+        "id": "cmw1guh8800gm1z024xqfp9lu",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/source-to-private-draft/golden/core",
+        "id": "cmvf63exl00921z024ddyz6sa",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_composer_review.py",
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/composer/components/review",
+    "source": "skills/memoir-composer/prompts/review.md",
+    "version": null,
+    "sha256": "61be8f8c2fb1694d8a9cb1ed63ce572762ba65e0d842bb884d2b92ae3616e7c9",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "consumers": [
+      {
+        "path": "apps/api/memoir_preview.py",
+        "symbol": "composer_instructions",
+        "line": 148
+      },
+      {
+        "path": "apps/api/lifetime_memory_lane_engine.py",
+        "symbol": "lane_contract",
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/composer/review",
+      "memoir/workflows/composer-checkpoints",
+      "memoir/workflows/source-to-private-draft"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxntj00ki1z023uj2ab4t"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity",
+        "id": "cmvcxwjms002f1z02fr0384pm",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity-20261008-v1",
+        "id": "cmuzc5ese000v1z02wi65o5qc",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1gugxc00g81z02t5bj7he1",
+        "items": 4,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/contracts-campaign-ae78da484eb8",
+        "id": "cmw0pnedx004k1z02mjg6rkji",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/core",
+        "id": "cmvf62u0w004b1z02yp9bzm84",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/delivery-core",
+        "id": "cmw1guh6400gh1z02g3mxd1f4",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/delivery-v2",
+        "id": "cmw1guh8800gm1z024xqfp9lu",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/source-to-private-draft/golden/core",
+        "id": "cmvf63exl00921z024ddyz6sa",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_composer_review.py",
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/composer/draft",
+    "source": "skills/memoir-composer/prompts/requests/draft.md",
+    "version": null,
+    "sha256": "f0b5734b050fd6fabafd6b62aaa20cd1b4fbb19957a542ecba15dd86678dde94",
+    "use": "conditional",
+    "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "consumers": [
+      {
+        "path": "apps/api/memoir_preview.py",
+        "symbol": "composer_instructions",
+        "line": 148
+      },
+      {
+        "path": "apps/api/lifetime_memory_lane_engine.py",
+        "symbol": "lane_contract",
+        "line": 206
+      }
+    ],
+    "targets": [
+      "memoir/skills/composer/draft",
+      "memoir/workflows/composer-checkpoints",
+      "memoir/workflows/source-to-private-draft"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxnrq00kb1z02d1lbx7vj"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity",
+        "id": "cmvcxwjms002f1z02fr0384pm",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/chapter-continuity-20261008-v1",
+        "id": "cmuzc5ese000v1z02wi65o5qc",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1gugxc00g81z02t5bj7he1",
+        "items": 4,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/contracts-campaign-ae78da484eb8",
+        "id": "cmw0pnedx004k1z02mjg6rkji",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/core",
+        "id": "cmvf62u0w004b1z02yp9bzm84",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/delivery-core",
+        "id": "cmw1guh6400gh1z02g3mxd1f4",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/delivery-v2",
+        "id": "cmw1guh8800gm1z024xqfp9lu",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/source-to-private-draft/golden/core",
+        "id": "cmvf63exl00921z024ddyz6sa",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
+        "id": "cmw1xdhmc00xp1z02agkwl62w",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
+        "id": "cmw1zjtg901421z021ktxc3wg",
+        "items": 12,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
+        "id": "cmw2mgxk700071z02gnaeok6e",
+        "items": 9,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_composer_review.py",
+      "tests/test_prompt_composition.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -6061,10 +6981,10 @@
   {
     "name": "memoir/skills/composer/instructions",
     "source": "skills/memoir-composer/SKILL.md",
-    "version": 1,
+    "version": null,
     "sha256": "6451bff0aa29c6e4b11ad9d8e8b29a7bf21d59574b2a1d7fe1f5b756e5b894b8",
-    "use": "shared",
-    "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
       {
         "path": "apps/api/memoir_skill_agent.py",
@@ -6075,6 +6995,11 @@
         "path": "apps/api/memoir_skill_agent.py",
         "symbol": "skill_document",
         "line": 35
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -6182,7 +7107,9 @@
     "regressions": [
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
@@ -6744,15 +7671,20 @@
   {
     "name": "memoir/skills/composer/outline/shared/prefix",
     "source": "skills/memoir-composer/prompts/outline/shared/prefix.md",
-    "version": 1,
+    "version": null,
     "sha256": "c73e56cbc14f64de87078abd306f9487df990400b7c3ea8b701903a406169e59",
-    "use": "shared",
-    "scenario": "Selected-collection outline: leaf or merge, en-AU or zh-CN, with shared prefix/suffix.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Selected-collection outline: leaf or merge, en-AU or zh-CN, with shared prefix/suffix.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_job_engine.py",
         "symbol": "job_contract",
         "line": 143
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -6872,7 +7804,9 @@
       "tests/test_lifetime_memory_job_engine.py",
       "tests/test_prompt_composition.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -6881,15 +7815,20 @@
   {
     "name": "memoir/skills/composer/outline/shared/suffix",
     "source": "skills/memoir-composer/prompts/outline/shared/suffix.md",
-    "version": 1,
+    "version": null,
     "sha256": "754884920290a0a5f8a667cf573fec53c40d9eca289ca9ee93bc37c08f14587d",
-    "use": "shared",
-    "scenario": "Selected-collection outline: leaf or merge, en-AU or zh-CN, with shared prefix/suffix.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Selected-collection outline: leaf or merge, en-AU or zh-CN, with shared prefix/suffix.",
     "consumers": [
       {
         "path": "apps/api/lifetime_memory_job_engine.py",
         "symbol": "job_contract",
         "line": 143
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -7009,7 +7948,9 @@
       "tests/test_lifetime_memory_job_engine.py",
       "tests/test_prompt_composition.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -7017,9 +7958,9 @@
   },
   {
     "name": "memoir/skills/composer/prepare",
-    "source": "skills/memoir-composer/prompts/prepare.md",
-    "version": 1,
-    "sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
+    "source": "skills/memoir-composer/prompts/requests/prepare.md",
+    "version": null,
+    "sha256": "1135c16745ef9507a8a5198d6cf4959834e5093adc0819ba28e703c9e31605af",
     "use": "conditional",
     "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
@@ -7031,7 +7972,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
       }
     ],
     "targets": [
@@ -7151,7 +8092,9 @@
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -7160,9 +8103,9 @@
   },
   {
     "name": "memoir/skills/composer/review",
-    "source": "skills/memoir-composer/prompts/review.md",
-    "version": 4,
-    "sha256": "61be8f8c2fb1694d8a9cb1ed63ce572762ba65e0d842bb884d2b92ae3616e7c9",
+    "source": "skills/memoir-composer/prompts/requests/review.md",
+    "version": null,
+    "sha256": "67279e21a1f9fe173a7818efd55e3dd8e6f5910592bb9eb155f0bf6a54dc0036",
     "use": "conditional",
     "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
@@ -7174,7 +8117,7 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
       }
     ],
     "targets": [
@@ -7294,7 +8237,9 @@
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -7304,10 +8249,10 @@
   {
     "name": "memoir/skills/composer/shared/editorial-review",
     "source": "skills/memoir-composer/references/editorial-review.prompt.md",
-    "version": 5,
+    "version": null,
     "sha256": "53cd7a3578952dd25ae1b7cfc8ea64c1c6f9705199101f666cb1cb8cb179ba15",
-    "use": "shared",
-    "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
       {
         "path": "apps/api/memoir_preview.py",
@@ -7317,7 +8262,12 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -7437,7 +8387,9 @@
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -7446,10 +8398,10 @@
   {
     "name": "memoir/skills/composer/shared/narrative-enrichment",
     "source": "skills/memoir-composer/references/narrative-enrichment.md",
-    "version": 2,
+    "version": null,
     "sha256": "1f54526e76fcb210656c7bb713e7909c5e81a2dfc524e08af3ef42261f31ab3e",
-    "use": "shared",
-    "scenario": "Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Composer prepare/draft/review; batch variants and editorial components are conditional on phase and saved source authority.",
     "consumers": [
       {
         "path": "apps/api/memoir_preview.py",
@@ -7459,7 +8411,12 @@
       {
         "path": "apps/api/lifetime_memory_lane_engine.py",
         "symbol": "lane_contract",
-        "line": 198
+        "line": 206
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -7581,7 +8538,9 @@
       "tests/test_composer_review.py",
       "tests/test_prompt_composition.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -7678,17 +8637,22 @@
     ]
   },
   {
-    "name": "memoir/skills/historical-news-research/contract",
-    "source": "skills/memoir-historical-news-research/references/contract.md",
-    "version": 1,
-    "sha256": "8b7a43b49b0dd1b7e94b7c18dd9074f8d8156dafceb47d14fec818d322742111",
-    "use": "runtime",
-    "scenario": "Public place/year web search; skill instructions, provenance contract and query template are concatenated.",
+    "name": "memoir/skills/historical-news-research/components/discovery",
+    "source": "skills/memoir-historical-news-research/prompts/discovery.md",
+    "version": null,
+    "sha256": "92bced910bfb0de9ee5ab0b9ca89446b432d9ac3b4cbeea3e2d781df362ef0d9",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Public place/year web search; skill instructions, provenance contract and query template are concatenated.",
     "consumers": [
       {
         "path": "apps/api/historical_news_provider.py",
         "symbol": "discover",
         "line": 100
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -7760,7 +8724,105 @@
     ],
     "regressions": [
       "tests/test_historical_news_provider.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/historical-news-research/contract",
+    "source": "skills/memoir-historical-news-research/references/contract.md",
+    "version": null,
+    "sha256": "8b7a43b49b0dd1b7e94b7c18dd9074f8d8156dafceb47d14fec818d322742111",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Public place/year web search; skill instructions, provenance contract and query template are concatenated.",
+    "consumers": [
+      {
+        "path": "apps/api/historical_news_provider.py",
+        "symbol": "discover",
+        "line": 100
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/historical-news-research/discovery"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxp7700s61z02zd0ckbw9",
+      "cmw1gxp8a00se1z02dv2e3zgq",
+      "cmw1gxp9o00sm1z02e2d5abd2",
+      "cmw1gxpbi00su1z02o09my6a3",
+      "cmw1gxo1h00lo1z02jqhc5bv4"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/skills/historical-news-research/discovery/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1gucem00ce1z023ctmixas",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/historical-news-research/discovery/golden/core",
+        "id": "cmvf637t5005d1z02tpayqkcw",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/historical-news-research/discovery/golden/delivery-core",
+        "id": "cmw1gucil00cj1z02jgu0r0tl",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/historical-news-research/discovery/golden/delivery-v2",
+        "id": "cmw1gucmu00co1z027otcrrge",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/historical-news-research/discovery/golden/campaign-c7979e3b2ce3",
+        "id": "cmw1xdkp3010z1z02aj7o7fsu",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_historical_news_provider.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -7768,9 +8830,9 @@
   },
   {
     "name": "memoir/skills/historical-news-research/discovery",
-    "source": "skills/memoir-historical-news-research/prompts/discovery.md",
-    "version": 1,
-    "sha256": "92bced910bfb0de9ee5ab0b9ca89446b432d9ac3b4cbeea3e2d781df362ef0d9",
+    "source": "skills/memoir-historical-news-research/prompts/requests/discovery.md",
+    "version": null,
+    "sha256": "3e900dea21757b4bbe7adacbbcb6a61e74173a1e5cba58996dd2a256c905169d",
     "use": "runtime",
     "scenario": "Public place/year web search; skill instructions, provenance contract and query template are concatenated.",
     "consumers": [
@@ -7849,7 +8911,9 @@
     ],
     "regressions": [
       "tests/test_historical_news_provider.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -7858,15 +8922,20 @@
   {
     "name": "memoir/skills/historical-news-research/instructions",
     "source": "skills/memoir-historical-news-research/SKILL.md",
-    "version": 2,
+    "version": null,
     "sha256": "e31e6f403b0bd506eb044af2f94a86ef9a0fe4d633d7c68a646d02f8d18dd74a",
-    "use": "runtime",
-    "scenario": "Public place/year web search; skill instructions, provenance contract and query template are concatenated.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Public place/year web search; skill instructions, provenance contract and query template are concatenated.",
     "consumers": [
       {
         "path": "apps/api/historical_news_provider.py",
         "symbol": "discover",
         "line": 100
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -7938,17 +9007,190 @@
     ],
     "regressions": [
       "tests/test_historical_news_provider.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
     ]
   },
   {
-    "name": "memoir/skills/memory-context/profile",
+    "name": "memoir/skills/memory-context/components/profile",
     "source": "skills/memoir-memory-context/SKILL.md",
-    "version": 5,
+    "version": null,
     "sha256": "9448aaff608e25c2f98e9dbae64ae2663fa5e4685ff98134498280bc26cdf00d",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Profile extraction from originals.",
+    "consumers": [
+      {
+        "path": "apps/api/background_profile.py",
+        "symbol": "profile_contract",
+        "line": 63
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/memory-context/profile"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxpd400t21z02nzr502wk",
+      "cmw1gxpey00ta1z02ayfpg1n6",
+      "cmw1gxpga00ti1z02nl91aavg",
+      "cmw1gxpjb00tq1z0251f3gzz0",
+      "cmw1gxpkf00ty1z02dzlcdv49",
+      "cmw1gxnvo00kw1z02voy5xihn"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1gucp800ct1z02dj82o3kg",
+        "items": 10,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/contracts-campaign-30b9a4222825",
+        "id": "cmw0mspgg000m1z0211ur7wsg",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/core",
+        "id": "cmvf63a7d006f1z0216n7260x",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/delivery-core",
+        "id": "cmw1gud8400d81z02t3x7gtc0",
+        "items": 7,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/delivery-v2",
+        "id": "cmw1gudpm00di1z02q9c9r3ac",
+        "items": 7,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
+        "id": "cmw1xdio600yr1z027vlqx7x8",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-93cfb9cb67ba",
+        "id": "cmw2mfnh400031z02m8ma6xhy",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
+        "id": "cmw3bai560cau1z0227pi9g0e",
+        "items": 8,
+        "experiments": 1,
+        "scored_items": 8,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_background_profile.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "Dataset scores alone do not establish this prompt version was exercised"
+    ]
+  },
+  {
+    "name": "memoir/skills/memory-context/components/summary",
+    "source": "skills/memoir-memory-context/prompts/summary.md",
+    "version": null,
+    "sha256": "01e01f507ce1888fc1bc1cf912db861c321afff05e3cd43d71341b4089a0a4d8",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Selective derived summary after processed source windows.",
+    "consumers": [
+      {
+        "path": "apps/api/lifetime_memory_summary.py",
+        "symbol": "summary_contract",
+        "line": 71
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/author-timeline/summarize"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxnoo00jx1z02z32m1vpw"
+    ],
+    "datasets": [],
+    "regressions": [
+      "tests/test_summary_budget_retry.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No active hosted dataset"
+    ]
+  },
+  {
+    "name": "memoir/skills/memory-context/profile",
+    "source": "skills/memoir-memory-context/prompts/requests/profile.md",
+    "version": null,
+    "sha256": "2f4e8919c6348f5ecb690b758c13c81f3b83bece9a60106672ab8d3a6eee9fd9",
     "use": "runtime",
     "scenario": "Profile extraction from originals.",
     "consumers": [
@@ -8053,7 +9295,9 @@
     "regressions": [
       "tests/test_background_profile.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -8061,9 +9305,9 @@
   },
   {
     "name": "memoir/skills/memory-context/summary",
-    "source": "skills/memoir-memory-context/prompts/summary.md",
-    "version": 1,
-    "sha256": "01e01f507ce1888fc1bc1cf912db861c321afff05e3cd43d71341b4089a0a4d8",
+    "source": "skills/memoir-memory-context/prompts/requests/summary.md",
+    "version": null,
+    "sha256": "31e14b2daa50287b06dc1b569797e40d2fd7db7d49c43ca67958de1482340dc8",
     "use": "runtime",
     "scenario": "Selective derived summary after processed source windows.",
     "consumers": [
@@ -8095,17 +9339,229 @@
     "regressions": [
       "tests/test_summary_budget_retry.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No active hosted dataset"
     ]
   },
   {
-    "name": "memoir/skills/place-journey/extract",
+    "name": "memoir/skills/place-journey/components/extract",
     "source": "skills/memoir-place-journey/references/two-lane.md",
-    "version": 3,
+    "version": null,
     "sha256": "d2a4b04a177f3df72b5a90233f4c025a46bfc14870ac962f04004e0146791e4c",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Place cues share one preloaded structured timeline/place extraction request; place-only work uses the same bounded JSON contract.",
+    "consumers": [
+      {
+        "path": "apps/api/two_lane_memory.py",
+        "symbol": "extraction_contract",
+        "line": 24
+      },
+      {
+        "path": "apps/api/memoir_skill_agent.py",
+        "symbol": "skill_document",
+        "line": 35
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/author-timeline/extract",
+      "memoir/skills/place-journey/extract",
+      "memoir/workflows/source-to-private-draft"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxorh00pi1z02gv53pn1h",
+      "cmw1gxosj00pq1z028cgxafa1",
+      "cmw1gxotn00py1z0279y1br4o",
+      "cmw1gxoub00q61z02iz9y33y1",
+      "cmw1gxoxt00qm1z021jsj08gg",
+      "cmw1gxovu00qe1z02e9fhtbvw",
+      "cmw1gxp1800r21z02cf04y226",
+      "cmw1gxozh00qu1z023nygmiw6",
+      "cmw1gxnnd00jq1z02kohj4xzk",
+      "cmw1gxpl600u61z029ljswpzl",
+      "cmw1gxpm500ue1z02p4lx9i25",
+      "cmw1gxpn000um1z02lhgh2a47",
+      "cmw1gxpnw00uu1z02zzm00d7k",
+      "cmw1gxnx400l31z02dl5sz9py"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1gu7ws00bc1z02zjj4ib17",
+        "items": 6,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/core",
+        "id": "cmvf62s10003s1z021ip1f0jw",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/delivery-core",
+        "id": "cmw1gu8fm00bm1z02de9qs56x",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/delivery-v2",
+        "id": "cmw1gu8p900br1z02xxvlq4b6",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/event-grounding",
+        "id": "cmvcxwiok001n1z029quda4ra",
+        "items": 8,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/event-grounding-20261008-v1",
+        "id": "cmuzc53sj00031z02d3zzutu0",
+        "items": 8,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement",
+        "id": "cmvcxwj1b001y1z02xjgwdkjy",
+        "items": 14,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/temporal-placement-20261008-v1",
+        "id": "cmuzc59lq000e1z02ioeafsko",
+        "items": 14,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guffx00el1z028wb402jj",
+        "items": 4,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/core",
+        "id": "cmvf63buk007h1z02aw7y2u4g",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/delivery-core",
+        "id": "cmw1gufo400et1z02sko454ga",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/delivery-v2",
+        "id": "cmw1gufr300ex1z02s0vzre8q",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/source-to-private-draft/golden/core",
+        "id": "cmvf63exl00921z024ddyz6sa",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
+        "id": "cmw1xdh4100x61z02j759k06p",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
+        "id": "cmw1xdj8r00za1z02ebar0x6p",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_two_lane_memory.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "Dataset scores alone do not establish this prompt version was exercised"
+    ]
+  },
+  {
+    "name": "memoir/skills/place-journey/extract",
+    "source": "skills/memoir-place-journey/prompts/requests/extract.md",
+    "version": null,
+    "sha256": "40d95195bb8740c44bacfb7402004459971b0678a8e5c8c6fb944a690be3f479",
     "use": "shared",
     "scenario": "Place cues share one preloaded structured timeline/place extraction request; place-only work uses the same bounded JSON contract.",
     "consumers": [
@@ -8288,7 +9744,9 @@
     "regressions": [
       "tests/test_two_lane_memory.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_memory_context_transport.py"
+      "tests/test_memory_context_transport.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Dataset scores alone do not establish this prompt version was exercised"
@@ -8297,10 +9755,10 @@
   {
     "name": "memoir/skills/place-journey/instructions",
     "source": "skills/memoir-place-journey/SKILL.md",
-    "version": 1,
+    "version": null,
     "sha256": "a7e45041686e0be511db8fcfc6fdba4eb4c1970d90ac102901c751fd1abc0379",
-    "use": "shared",
-    "scenario": "General place skill guide available to Atlas for selection; fixed extraction preloads the JSON two-lane contract instead of the chat-marker guide.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. General place skill guide available to Atlas for selection; fixed extraction preloads the JSON two-lane contract instead of the chat-marker guide.",
     "consumers": [
       {
         "path": "apps/api/memoir_skill_agent.py",
@@ -8311,6 +9769,11 @@
         "path": "apps/api/memoir_skill_agent.py",
         "symbol": "skill_document",
         "line": 35
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -8356,7 +9819,9 @@
     ],
     "regressions": [
       "tests/test_two_lane_memory.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"
@@ -8456,15 +9921,20 @@
   {
     "name": "memoir/skills/place-photo-research/instructions",
     "source": "skills/memoir-place-photo-research/SKILL.md",
-    "version": 2,
+    "version": null,
     "sha256": "c796185cf190aea666fc7b69b6aadd80293831214f47bc9fd2b432157bcf50a7",
-    "use": "conditional",
-    "scenario": "Public photo discovery; native skill documentation is available through the admitted skill reader.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Public photo discovery; native skill documentation is available through the admitted skill reader.",
     "consumers": [
       {
         "path": "apps/api/memoir_skill_agent.py",
         "symbol": "skill_document",
         "line": 35
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -8537,18 +10007,19 @@
     "regressions": [
       "tests/test_place_photo_discovery.py",
       "tests/test_place_photo_browser.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Requires scenario/branch-specific execution evidence",
       "No scored experiment items verified for the current pin"
     ]
   },
   {
     "name": "memoir/skills/story-game/brief",
-    "source": "skills/memoir-story-game/prompts/brief.md",
-    "version": 3,
-    "sha256": "b7e94782fef5c59d3ebf6077472520aa5026991d115e755a172cc05f375429a7",
+    "source": "skills/memoir-story-game/prompts/requests/brief.md",
+    "version": null,
+    "sha256": "a418cb20725653cbc6988ced8d00825498c25f37ec536a8f8a5e41f213f1b615",
     "use": "conditional",
     "scenario": "Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
     "consumers": [
@@ -8628,7 +10099,9 @@
     "regressions": [
       "tests/test_story_game_runtime.py",
       "tests/test_memoir_live_skills.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8636,10 +10109,264 @@
     ]
   },
   {
-    "name": "memoir/skills/story-game/higgsfield",
+    "name": "memoir/skills/story-game/components/brief",
+    "source": "skills/memoir-story-game/prompts/brief.md",
+    "version": null,
+    "sha256": "b7e94782fef5c59d3ebf6077472520aa5026991d115e755a172cc05f375429a7",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
+    "consumers": [
+      {
+        "path": "apps/api/story_game_runtime.py",
+        "symbol": "_game_response",
+        "line": 89
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/story-game/brief",
+      "memoir/workflows/story-game-adaptation"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxptc00vy1z021cgo1k1z",
+      "cmw1gxpty00w61z02jcinm1n4",
+      "cmw1gxo4l00m21z022uy1c6c2"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/skills/story-game/brief/golden/delivery-core",
+        "id": "cmw1gugee00fg1z02zcm0ndjb",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/story-game/brief/golden/delivery-v2",
+        "id": "cmw1gughv00fk1z02ndh4d8dx",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guidl00ib1z02tlr3pvae",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/core",
+        "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_story_game_runtime.py",
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/story-game/components/higgsfield",
     "source": "skills/memoir-story-game/prompts/higgsfield.md",
-    "version": 2,
+    "version": null,
     "sha256": "a9f55548a6adbe6aac220666cc7fce390ddfb45f06f424b8603dafa2c25e8785",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Optional Higgsfield builder preloads mandatory upstream skill documents; optional references and HTML validation/repair retain their tool loop.",
+    "consumers": [
+      {
+        "path": "apps/api/higgsfield_game.py",
+        "symbol": "run_higgsfield_game",
+        "line": 77
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/story-game/build",
+      "memoir/workflows/story-game-adaptation"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxocx00nf1z024unom9us"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guidl00ib1z02tlr3pvae",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/core",
+        "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_story_game_runtime.py",
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_higgsfield_game.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/story-game/components/proposal",
+    "source": "skills/memoir-story-game/prompts/proposal.md",
+    "version": null,
+    "sha256": "ad6c3f10984fdc5bee09a852808234b9c0f4418c96392ffd124fe0716c994822",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
+    "consumers": [
+      {
+        "path": "apps/api/story_game_runtime.py",
+        "symbol": "_game_response",
+        "line": 89
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/story-game/scenes",
+      "memoir/workflows/story-game-adaptation"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxo2q00lv1z02c914f33e"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guidl00ib1z02tlr3pvae",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/core",
+        "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_story_game_runtime.py",
+      "tests/test_memoir_live_skills.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/story-game/higgsfield",
+    "source": "skills/memoir-story-game/prompts/requests/higgsfield.md",
+    "version": null,
+    "sha256": "f099d928d7afc4391c0fac56b6327566f5cb131e3808b2b613aaac9d4f1311a1",
     "use": "conditional",
     "scenario": "Optional Higgsfield builder preloads mandatory upstream skill documents; optional references and HTML validation/repair retain their tool loop.",
     "consumers": [
@@ -8701,7 +10428,9 @@
       "tests/test_story_game_runtime.py",
       "tests/test_memoir_live_skills.py",
       "tests/test_automatic_prompt_evaluation.py",
-      "tests/test_higgsfield_game.py"
+      "tests/test_higgsfield_game.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8711,29 +10440,66 @@
   {
     "name": "memoir/skills/story-game/instructions",
     "source": "skills/memoir-story-game/SKILL.md",
-    "version": 6,
+    "version": null,
     "sha256": "3c82d3a17a16d4707ca969a3476869ca7f0bd74dbed21fb3db8983eb5cb93dfc",
-    "use": "conditional",
-    "scenario": "Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
     "consumers": [
       {
         "path": "apps/api/memoir_story_game.py",
         "symbol": "load_story_game_skill",
         "line": 12
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
+      "memoir/skills/story-game/brief",
+      "memoir/skills/story-game/scenes",
       "memoir/workflows/story-game-adaptation"
     ],
-    "evaluators": [],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
     "sdk_evaluators": [
       "scripts/run_memoir_agent_evaluation.py:scores"
     ],
     "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
       "trajectory (requires code/reference or manual grading)"
     ],
-    "hosted_rule_ids": [],
+    "hosted_rule_ids": [
+      "cmw1gxptc00vy1z021cgo1k1z",
+      "cmw1gxpty00w61z02jcinm1n4",
+      "cmw1gxo4l00m21z022uy1c6c2",
+      "cmw1gxo2q00lv1z02c914f33e"
+    ],
     "datasets": [
+      {
+        "name": "memoir/skills/story-game/brief/golden/delivery-core",
+        "id": "cmw1gugee00fg1z02zcm0ndjb",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/story-game/brief/golden/delivery-v2",
+        "id": "cmw1gughv00fk1z02ndh4d8dx",
+        "items": 1,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
         "id": "cmw1guidl00ib1z02tlr3pvae",
@@ -8762,26 +10528,31 @@
     "regressions": [
       "tests/test_story_game_runtime.py",
       "tests/test_memoir_live_skills.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "No active hosted grader verified; use the declared regression/calibration path",
-      "Requires scenario/branch-specific execution evidence",
       "No scored experiment items verified for the current pin"
     ]
   },
   {
     "name": "memoir/skills/story-game/novel-to-game/adapter",
     "source": "skills/memoir-story-game/prompts/novel-to-game/adapter.md",
-    "version": 2,
+    "version": null,
     "sha256": "02e34bd45576f21ad6e7e13114d014fa82370854c1c473f1da05f41dcee79b31",
-    "use": "conditional",
-    "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
       {
         "path": "apps/api/novel_game.py",
         "symbol": "run_novel_game",
         "line": 159
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -8845,18 +10616,19 @@
     "regressions": [
       "tests/test_novel_game_integration.py",
       "tests/test_novel_game_art.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Requires scenario/branch-specific execution evidence",
       "No scored experiment items verified for the current pin"
     ]
   },
   {
     "name": "memoir/skills/story-game/novel-to-game/analyze",
-    "source": "skills/memoir-story-game/prompts/novel-to-game/analyze.md",
-    "version": 1,
-    "sha256": "8dc3b02cd2e2e3d5051ca7047f5b21530ebb25fbf6a94fddbe46107e5867e9eb",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/requests/analyze.md",
+    "version": null,
+    "sha256": "48a1e6d7ab7cfacf088269d7a5fee992e1f08463611713e33b837cf7c84a22b6",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -8917,7 +10689,9 @@
     "regressions": [
       "tests/test_novel_game_integration.py",
       "tests/test_novel_game_art.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8926,9 +10700,9 @@
   },
   {
     "name": "memoir/skills/story-game/novel-to-game/art",
-    "source": "skills/memoir-story-game/prompts/novel-to-game/art.md",
-    "version": 2,
-    "sha256": "1290e01c85d3313e5960312c690c9479fc8b2d9c254cd827b0774ee147f71f2e",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/requests/art.md",
+    "version": null,
+    "sha256": "210e8442775de95b40645a1f321308ec39ddfbec813af710278f0dbe500d9a28",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -8989,7 +10763,9 @@
     "regressions": [
       "tests/test_novel_game_integration.py",
       "tests/test_novel_game_art.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -8999,15 +10775,20 @@
   {
     "name": "memoir/skills/story-game/novel-to-game/assets",
     "source": "skills/memoir-story-game/prompts/novel-to-game/assets.md",
-    "version": 1,
+    "version": null,
     "sha256": "ca611dc370c14efcd0e628df2b52a495fa0aa99dd792d722aebe28e6db4c9ef0",
-    "use": "conditional",
-    "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
       {
         "path": "apps/api/novel_game.py",
         "symbol": "run_novel_game",
         "line": 159
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -9065,18 +10846,487 @@
     "regressions": [
       "tests/test_novel_game_integration.py",
       "tests/test_novel_game_art.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Requires scenario/branch-specific execution evidence",
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/story-game/novel-to-game/components/analyze",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/analyze.md",
+    "version": null,
+    "sha256": "8dc3b02cd2e2e3d5051ca7047f5b21530ebb25fbf6a94fddbe46107e5867e9eb",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
+    "consumers": [
+      {
+        "path": "apps/api/novel_game.py",
+        "symbol": "run_novel_game",
+        "line": 159
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/story-game/analyze",
+      "memoir/workflows/story-game-adaptation"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxo5x00m91z02eamser57"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guidl00ib1z02tlr3pvae",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/core",
+        "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_novel_game_integration.py",
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/story-game/novel-to-game/components/art",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/art.md",
+    "version": null,
+    "sha256": "1290e01c85d3313e5960312c690c9479fc8b2d9c254cd827b0774ee147f71f2e",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
+    "consumers": [
+      {
+        "path": "apps/api/novel_game.py",
+        "symbol": "run_novel_game",
+        "line": 159
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/story-game/art",
+      "memoir/workflows/story-game-adaptation"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxob300n11z02myao97o0"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guidl00ib1z02tlr3pvae",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/core",
+        "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_novel_game_integration.py",
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/story-game/novel-to-game/components/concept",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/concept.md",
+    "version": null,
+    "sha256": "602a5db980d52f12678ea9346d52b84cd5d7c1700d32f0f2d410fa1445469a67",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
+    "consumers": [
+      {
+        "path": "apps/api/novel_game.py",
+        "symbol": "run_novel_game",
+        "line": 159
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/story-game/concept",
+      "memoir/workflows/story-game-adaptation"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxo8400mg1z02lsw56eg8"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guidl00ib1z02tlr3pvae",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/core",
+        "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_novel_game_integration.py",
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/story-game/novel-to-game/components/design",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/design.md",
+    "version": null,
+    "sha256": "7ad4d7cb4ab51ad79bc2e725d740bdf5997469b946b5123ceef722a1cee79746",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
+    "consumers": [
+      {
+        "path": "apps/api/novel_game.py",
+        "symbol": "run_novel_game",
+        "line": 159
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/story-game/design",
+      "memoir/workflows/story-game-adaptation"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxo9a00mn1z02hbgpy5nh"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guidl00ib1z02tlr3pvae",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/core",
+        "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_novel_game_integration.py",
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/story-game/novel-to-game/components/production",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/production.md",
+    "version": null,
+    "sha256": "8f9f324126da5678c265d02dfde495586b5a59d007e44f9a392cc1edfb265dd5",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
+    "consumers": [
+      {
+        "path": "apps/api/novel_game.py",
+        "symbol": "run_novel_game",
+        "line": 159
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/story-game/production",
+      "memoir/workflows/story-game-adaptation"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxobu00n81z02m3v5gw0f"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guidl00ib1z02tlr3pvae",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/core",
+        "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_novel_game_integration.py",
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
+      "No scored experiment items verified for the current pin"
+    ]
+  },
+  {
+    "name": "memoir/skills/story-game/novel-to-game/components/whitebox",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/whitebox.md",
+    "version": null,
+    "sha256": "879c614efa67fe6eef2ac256c35dfdd0c720da950d6df61eb5dbad3432baff12",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
+    "consumers": [
+      {
+        "path": "apps/api/novel_game.py",
+        "symbol": "run_novel_game",
+        "line": 159
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
+      }
+    ],
+    "targets": [
+      "memoir/skills/story-game/whitebox",
+      "memoir/workflows/story-game-adaptation"
+    ],
+    "evaluators": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety"
+    ],
+    "sdk_evaluators": [
+      "scripts/run_memoir_agent_evaluation.py:scores"
+    ],
+    "declared_metrics": [
+      "memoir/evaluators/shared/completeness",
+      "memoir/evaluators/shared/correctness",
+      "memoir/evaluators/shared/relevance",
+      "memoir/evaluators/shared/safety",
+      "trajectory (requires code/reference or manual grading)"
+    ],
+    "hosted_rule_ids": [
+      "cmw1gxoa800mu1z02gaf6nle7"
+    ],
+    "datasets": [
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/contracts-campaign-0114d47bf1df",
+        "id": "cmw1guidl00ib1z02tlr3pvae",
+        "items": 2,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/core",
+        "id": "cmvf63dud008j1z028ssmdzxr",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
+        "id": "cmw1xdk6r010c1z025otonsvs",
+        "items": 16,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      }
+    ],
+    "regressions": [
+      "tests/test_novel_game_integration.py",
+      "tests/test_novel_game_art.py",
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
+    ],
+    "gaps": [
       "No scored experiment items verified for the current pin"
     ]
   },
   {
     "name": "memoir/skills/story-game/novel-to-game/concept",
-    "source": "skills/memoir-story-game/prompts/novel-to-game/concept.md",
-    "version": 1,
-    "sha256": "602a5db980d52f12678ea9346d52b84cd5d7c1700d32f0f2d410fa1445469a67",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/requests/concept.md",
+    "version": null,
+    "sha256": "a728c4fd6c1308430b716686e26aeeaa31f7ee019690647e1a0685a9930029eb",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -9137,7 +11387,9 @@
     "regressions": [
       "tests/test_novel_game_integration.py",
       "tests/test_novel_game_art.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9146,9 +11398,9 @@
   },
   {
     "name": "memoir/skills/story-game/novel-to-game/design",
-    "source": "skills/memoir-story-game/prompts/novel-to-game/design.md",
-    "version": 1,
-    "sha256": "7ad4d7cb4ab51ad79bc2e725d740bdf5997469b946b5123ceef722a1cee79746",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/requests/design.md",
+    "version": null,
+    "sha256": "28a61f2d1895b19972e15f2153f817a4fce5e7d9f208ff738429bae0abaa9e96",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -9209,7 +11461,9 @@
     "regressions": [
       "tests/test_novel_game_integration.py",
       "tests/test_novel_game_art.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9286,15 +11540,20 @@
   {
     "name": "memoir/skills/story-game/novel-to-game/journey",
     "source": "skills/memoir-story-game/prompts/novel-to-game/journey.md",
-    "version": 1,
+    "version": null,
     "sha256": "d9e45af61ee6363b690fa239a63ef64f75840f6482640a0e2f0d98549b9572c9",
-    "use": "conditional",
-    "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
       {
         "path": "apps/api/novel_game.py",
         "symbol": "run_novel_game",
         "line": 159
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -9358,18 +11617,19 @@
     "regressions": [
       "tests/test_novel_game_integration.py",
       "tests/test_novel_game_art.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Requires scenario/branch-specific execution evidence",
       "No scored experiment items verified for the current pin"
     ]
   },
   {
     "name": "memoir/skills/story-game/novel-to-game/production",
-    "source": "skills/memoir-story-game/prompts/novel-to-game/production.md",
-    "version": 1,
-    "sha256": "8f9f324126da5678c265d02dfde495586b5a59d007e44f9a392cc1edfb265dd5",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/requests/production.md",
+    "version": null,
+    "sha256": "7c6a6a37e2323c080a492e9d9c522549bfadb239d77bfe9d3758d91e70e017ae",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -9430,7 +11690,9 @@
     "regressions": [
       "tests/test_novel_game_integration.py",
       "tests/test_novel_game_art.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9475,9 +11737,9 @@
   },
   {
     "name": "memoir/skills/story-game/novel-to-game/whitebox",
-    "source": "skills/memoir-story-game/prompts/novel-to-game/whitebox.md",
-    "version": 1,
-    "sha256": "879c614efa67fe6eef2ac256c35dfdd0c720da950d6df61eb5dbad3432baff12",
+    "source": "skills/memoir-story-game/prompts/novel-to-game/requests/whitebox.md",
+    "version": null,
+    "sha256": "165ee10d0e02c3b1c20da72fb60b9f54f7e6b920550533b202d49bd18b58b346",
     "use": "conditional",
     "scenario": "Confirmed-source NovelToGame stage; adapters/journey policy and asset policy are assembled before transport. Illustration produces image-provider instructions.",
     "consumers": [
@@ -9538,7 +11800,9 @@
     "regressions": [
       "tests/test_novel_game_integration.py",
       "tests/test_novel_game_art.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9547,9 +11811,9 @@
   },
   {
     "name": "memoir/skills/story-game/proposal",
-    "source": "skills/memoir-story-game/prompts/proposal.md",
-    "version": 3,
-    "sha256": "ad6c3f10984fdc5bee09a852808234b9c0f4418c96392ffd124fe0716c994822",
+    "source": "skills/memoir-story-game/prompts/requests/proposal.md",
+    "version": null,
+    "sha256": "82f8ab4675b19cbc8d758e4574e02d59ec34025b5f36bb6c25a37f45c33830cc",
     "use": "conditional",
     "scenario": "Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
     "consumers": [
@@ -9610,7 +11874,9 @@
     "regressions": [
       "tests/test_story_game_runtime.py",
       "tests/test_memoir_live_skills.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9682,15 +11948,20 @@
   {
     "name": "memoir/skills/story-game/webpage",
     "source": "skills/memoir-story-game/prompts/webpage.md",
-    "version": 2,
+    "version": null,
     "sha256": "ce16dea98cd17d0f47de6a9c10df4b5b1b674f9ad8d5e8cb050a1107ca14dc89",
-    "use": "conditional",
-    "scenario": "Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
+    "use": "component",
+    "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Authorized story-game proposal/brief or explicitly selected backup builder; runtime contract is also consumed by isolated evaluation probes.",
     "consumers": [
       {
         "path": "apps/api/higgsfield_game.py",
         "symbol": "run_higgsfield_game",
         "line": 77
+      },
+      {
+        "path": "apps/api/prompt_composition.py",
+        "symbol": "expanded_prompt",
+        "line": 58
       }
     ],
     "targets": [
@@ -9744,10 +12015,11 @@
     "regressions": [
       "tests/test_story_game_runtime.py",
       "tests/test_memoir_live_skills.py",
-      "tests/test_automatic_prompt_evaluation.py"
+      "tests/test_automatic_prompt_evaluation.py",
+      "tests/test_assembled_prompts.py",
+      "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Requires scenario/branch-specific execution evidence",
       "No scored experiment items verified for the current pin"
     ]
   },

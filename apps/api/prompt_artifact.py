@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from .prompt_catalog import PROMPT_PATHS
+from .prompt_catalog import PROMPT_PATHS, LOCAL_PROMPT_NAMES
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -22,9 +22,9 @@ def load_prompt_artifact(path: Path) -> str:
     if (receipt.get("schema_version") != 1
             or receipt.get("type") != "text"
             or not isinstance(receipt.get("name"), str) or not receipt["name"]
-            or type(receipt.get("version")) is not int
-            or receipt["version"] < 1
-            or receipt.get("sha256") != hashlib.sha256(prompt.encode("utf-8")).hexdigest()):
+            or (receipt.get('storage') == 'local' and receipt.get('version') is not None)
+            or (receipt.get('storage') != 'local' and (type(receipt.get('version')) is not int or receipt['version'] < 1))
+            or receipt.get('source_sha256', receipt.get('sha256')) != hashlib.sha256(prompt.encode('utf-8')).hexdigest()):
         raise ValueError(f"Invalid Langfuse prompt artifact: {path}")
     return prompt
 
@@ -38,6 +38,12 @@ def validate_runtime_prompt_artifacts() -> None:
         try:
             load_prompt_artifact(path)
             receipt = json.loads(path.with_name(path.name + '.langfuse.json').read_text())
+            if (receipt.get('storage') == 'local') != (name in LOCAL_PROMPT_NAMES):
+                raise ValueError('Prompt storage differs from the source catalog')
+            if name not in LOCAL_PROMPT_NAMES:
+                from .prompt_composition import expanded_prompt
+                if hashlib.sha256(expanded_prompt(path).encode()).hexdigest() != receipt['sha256']:
+                    raise ValueError('Assembled prompt differs from its published receipt')
             if receipt['name'] != name:
                 raise ValueError('Prompt receipt belongs to another managed name')
         except (OSError, ValueError):

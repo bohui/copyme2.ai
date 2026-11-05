@@ -606,6 +606,26 @@ the current prompts, models and validation.
 
 ### Versioned prompt artifacts
 
+Langfuse shows one complete template per model operation. Profile and timeline
+extraction each have one entry; shared skill files and references remain local
+components with checked source hashes. Summary, composer phases, news discovery,
+and individual game stages follow the same rule. Publication expands
+`{{prompt:component}}` references, so the Langfuse editor contains the full text.
+The host renders optional `{{#feature}}...{{/feature}}` sections and ordinary
+variables such as `{{output_language}}`; these do not require model tool calls.
+Generation links identify the assembled template, while `prompt_manifest` records
+only the source components present in that request.
+
+The development cleanup resets current skill operations to version 1 and removes
+component rows. `config/development-prompt-reset.json` names the exact project and
+committed recovery archive. `make prompt-sync` applies that one-time reset only
+from clean content matching live `origin/main`, verifies deletion, and publishes
+real version-1 receipts. An unchanged sync is a no-op. Later changes use normal
+immutable versions; the cleanup does not repeatedly erase new history. Existing
+datasets, experiments, scores and traces remain available, although deleted
+prompt-version links belong to the recovery archive.
+
+
 Trace names, observation names and dataset folders follow the
 [Langfuse naming convention](docs/Langfuse_Naming.md). Quality judges have four
 separate prompts; live relevance, completeness and safety use 10% sampling.

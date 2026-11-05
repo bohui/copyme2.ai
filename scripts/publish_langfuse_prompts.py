@@ -16,6 +16,8 @@ if str(ROOT) not in sys.path:
 from scripts.export_langfuse_prompt import sync_prompt
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.prompt_registry import prompt_registry
+from apps.api.prompt_catalog import LOCAL_PROMPT_NAMES
+from apps.api.prompt_composition import expanded_prompt
 
 
 def git(root: Path, *args: str) -> str:
@@ -77,6 +79,9 @@ def publish(client, *, root: Path, branch: str, revision: str, check: bool = Fal
         text = git(root, "show", f"{revision}:{target}")
         if not text.strip() or (root / target).read_text(encoding="utf-8") != text:
             raise ValueError(f"Prompt differs from committed branch: {target}")
+        if name in LOCAL_PROMPT_NAMES:
+            plan.append((name, target, text, None))
+            continue
         matches = [item for item in client.api.prompts.list(name=name, limit=100).data
                    if item.name == name]
         current = None
@@ -92,7 +97,9 @@ def publish(client, *, root: Path, branch: str, revision: str, check: bool = Fal
 
     results = []
     for name, target, text, current in plan:
-        changed = current is None or current.prompt != text
+        compiled = expanded_prompt(root / target, root=root, validate=False)
+        local = name in LOCAL_PROMPT_NAMES
+        changed = not local and (current is None or current.prompt != compiled)
         receipt_pending = False
         if git(root, "branch", "--show-current") != branch or git(root, "rev-parse", "HEAD") != revision:
             raise ValueError("Git branch or commit changed during prompt publication; retry prompt sync")
@@ -100,19 +107,20 @@ def publish(client, *, root: Path, branch: str, revision: str, check: bool = Fal
             raise ValueError(f"Prompt changed during publication: {target}")
         if not check:
             if changed:
-                current = client.create_prompt(name=name, prompt=text, type="text",
-                    config=current.config if current else {},
+                from scripts.reset_development_prompts import configuration
+                current = client.create_prompt(name=name, prompt=compiled, type="text",
+                    config=current.config if current else configuration(name, root),
                     commit_message=f"Publish {branch} {revision}")
-            receipt = sync_prompt(client, target=target, name=name, version=current.version,
+            receipt = sync_prompt(client, target=target, name=name, version=current.version if current else None,
                                   root=root, expected_content=text)
-            sync_prompt(client, target=target, name=name, version=current.version,
+            sync_prompt(client, target=target, name=name, version=current.version if current else None,
                         root=root, check=True)
         else:
             receipt = {"name": name, "target": target,
                        "version": current.version if current else None}
             if not changed:
                 try:
-                    receipt = sync_prompt(client, target=target, name=name, version=current.version,
+                    receipt = sync_prompt(client, target=target, name=name, version=current.version if current else None,
                                           root=root, check=True, expected_content=text)
                 except ValueError:
                     receipt_pending = True
@@ -145,6 +153,12 @@ def main(argv=None, *, root: Path = ROOT) -> int:
             fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
             branch, revision = publication_source(root)
             client = prompt_client(args.credential_file)
+            from scripts.reset_development_prompts import reset
+            resets = reset(client, root=root)
+            if resets and args.name:
+                raise ValueError('The pending development reset requires a full make prompt-sync')
+            if not args.check:
+                reset(client, root=root, execute=True)
             results = publish(client, root=root, branch=branch, revision=revision,
                               check=args.check, names=args.name)
             retired=[]
@@ -154,13 +168,14 @@ def main(argv=None, *, root: Path = ROOT) -> int:
         print(json.dumps({"mode": "check" if args.check else "sync", "git_branch": branch,
                           "git_commit": revision,
                           "artifacts": len(results),
+                          "reset_pending": [row["name"] for row in resets] if args.check else [],
                           "retired": [row['name'] for row in retired if row['deleted']],
                           "published": sum(row["published"] for row in results),
                           "changed": [row["name"] for row in results if row["content_changed"]],
                           "receipt_updates_needed": [row["name"] for row in results if row["receipt_pending"]]}))
         if not args.check:
             print("Prompt receipts are synchronized. Review and commit receipt updates; make prompt-check verifies them.")
-        return int(args.check and any(row["content_changed"] or row["receipt_pending"] for row in results))
+        return int(args.check and (bool(resets) or any(row["content_changed"] or row["receipt_pending"] for row in results)))
     except ValueError as error:
         print(f"Prompt sync stopped: {error}", file=sys.stderr)
         return 1

@@ -228,30 +228,23 @@ def evaluate(*, input, output, **_kwargs):
 
 
 def evaluation_manifest(instructions, schema=None, *, input_packet=None):
-    """Match actual static instructions, including evaluation-only prompt sources."""
-    from apps.api.model_request import digest as request_digest
-    from apps.api.prompt_composition import component_paths, render_prompt_artifact
-    from apps.api.prompt_artifact import load_prompt_artifact
-    from scripts.prompt_registry import prompt_registry
-    registry=prompt_registry()
-    paths=[]
+    from apps.api.model_request import instruction_manifest, digest
     from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
-    if isinstance(input_packet,dict) and input_packet.get('window_contract')==EXTRACTION_WINDOW_CONTRACT:
-        paths.append(ROOT/registry['memoir/skills/author-timeline/window'])
-    for name,relative in registry.items():
-        path=ROOT/relative
-        source=load_prompt_artifact(path)
-        if source and (source in instructions or '{{prompt:' in source and render_prompt_artifact(path) in instructions):
-            for used in (path,*component_paths(source)):
-                if used not in paths:paths.append(used)
-    artifacts=[]
-    for path in paths:
-        pin=json.loads(path.with_name(path.name+'.langfuse.json').read_text())
-        load_prompt_artifact(path)
-        artifacts.append(dict(name=pin['name'],version=pin['version'],sha256=pin['sha256'],status='published'))
-    value=dict(artifacts=artifacts,prompt_sha256=request_digest(instructions),schema_sha256=request_digest(schema),
-        variant='live-evaluation')
-    return {**value,'manifest_sha256':request_digest(value)}
+    from apps.api.prompt_composition import render_prompt_artifact
+    from scripts.prompt_registry import EVALUATION_PROMPT_PATHS
+    extra = ('memoir/skills/author-timeline/window',) if isinstance(input_packet, dict) and (
+        input_packet.get('window_contract') == EXTRACTION_WINDOW_CONTRACT) else ()
+    try:
+        result = instruction_manifest(instructions, schema, variant='live-evaluation', extra_names=extra)
+    except ValueError:
+        result = dict(artifacts=[], prompt_sha256=digest(instructions), schema_sha256=digest(schema), variant='live-evaluation')
+    for name, relative in EVALUATION_PROMPT_PATHS.items():
+        path = ROOT / relative
+        if path.read_text() in instructions or render_prompt_artifact(path) in instructions:
+            pin = json.loads(path.with_name(path.name + '.langfuse.json').read_text())
+            result['artifacts'].append(dict(name=name, version=pin['version'], sha256=pin['sha256'], status='published'))
+    result.pop('manifest_sha256', None)
+    return {**result, 'manifest_sha256': digest(result)}
 
 
 class TracedProvider(LiveProvider):
