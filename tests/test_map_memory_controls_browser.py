@@ -2,6 +2,7 @@
 from pathlib import Path
 from urllib.parse import urlsplit
 import mimetypes
+import re
 
 import pytest
 from playwright.sync_api import sync_playwright
@@ -14,7 +15,7 @@ HTML = '''<!doctype html><html lang="zh-CN"><meta charset="utf-8">
 <body style="margin:0"><main class="story-shell" style="display:flex;height:100vh;margin:0;border:0;border-radius:0">
 <div id="chat-scroll" hidden></div><section class="workspace-media-overview">
 <div class="workspace-media-map"><div class="workspace-media-header workspace-media-map-header">
-<button data-all-places>完整旅程</button><button class="workspace-toggle" aria-label="Collapse">&gt;</button>
+<button data-all-places>完整旅程</button><button class="workspace-toggle" data-action="toggle-workspace" aria-label="Collapse">&gt;</button>
 </div><div class="place-journey-card"><div class="place-journey-scene" style="background:#173f45"></div></div>
 </div></section></main><script type="module">
 import {createMapMemoryEvents} from '/client/memoir/map-memory-events.mjs';
@@ -24,17 +25,19 @@ const events=[{id:'birth',canonical:true,revision:1,status:'active',kind:'event'
   temporal:{expression:'1983',precision:'year',year_start:1983},places:[{role:'setting',status:'supported',place:city}]},
   ...['one','two'].map(id=>({id,canonical:true,revision:1,status:'active',kind:'event',title:id,places:[]}))];
 const scene=document.querySelector('.place-journey-scene');
-let redraw=()=>{};
+let redraw=()=>{},flights=[],views=[];
 const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(callback){redraw=callback;return ()=>{};}}},
-  camera:{frustum:{left:-100000,right:100000},flyTo(){}}};
+  camera:{frustum:{left:-100000,right:100000},setView(view){views.push(view);},flyTo(flight){flights.push(flight);}}};
 const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
   SceneTransforms:{worldToWindowCoordinates:()=>({x:scene.clientWidth*.7,y:scene.clientHeight*.6})}};
 const map=createMapMemoryEvents({getEvents:()=>events,getGroups:places=>groupPlaces([city,...places.filter(place=>place.place!==city.place)]),getProfile:()=>({birth_year:1983}),
   getScope:()=> 'fixture:'+events[0].revision,getIdentity:()=> 'fixture',getStage:()=> 'all',lifeStageText:stage=>stage,
+  getActiveLocation:()=>window.state?.currentActiveLocation,getLocationChange:()=>window.state?.activeLocationChange||0,
   getPage:()=>({next_cursor:'fixture-next'}),
   t:(key,values)=>({mapMemoryJourney:'人生足迹',mapMemoryOverview:'完整旅程',mapEventExpand:'展开记忆'}[key]||key)});
 map.sync(scene);
-window.mapControls={update(patch){Object.assign(events[0],patch);map.sync(scene);},attach(){map.attach(viewer,cesium);},arrive(){scene.classList.add('is-cesium-map');redraw();},
+window.mapControls={flights,views,update(patch){Object.assign(events[0],patch);map.sync(scene);},attach(){map.attach(viewer,cesium);},arrive(){scene.classList.add('is-cesium-map');redraw();},
+  append(items){events.push(...items);map.sync(scene);},
   redraw(){redraw();}};
 addEventListener('resize',()=>redraw());
 </script></html>'''
@@ -68,9 +71,11 @@ def controls_page(request):
             route.abort()
 
         page.route('**/*', serve)
-        yield page
-        assert not errors, errors
-        browser.close()
+        try:
+            yield page
+            assert not errors, errors
+        finally:
+            browser.close()
 
 
 def controls(page):
@@ -140,26 +145,27 @@ const events=[memory('Birth',chengde,'baby',{temporal:{expression:'1983',precisi
   memory('Childhood',chengde,'childhood',{temporal_estimate:{year_start:1986,year_end:1995,age_start:3,age_end:12,confidence:.3}}),
   memory('Current home',sydney,'unplaced',{kind:'period',temporal_anchor:'present',
     temporal_estimate:{year_start:1983,year_end:2026,age_start:0,age_end:43,confidence:.2}})];
-const scene=document.querySelector('.place-journey-scene'),flights=[];
+const scene=document.querySelector('.place-journey-scene'),flights=[],views=[];
 let redraw=()=>{},center=chengde;
 const viewer={isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(callback){redraw=callback;return ()=>{};}}},
-  camera:{frustum:{left:-100000,right:100000},flyTo(frame){flights.push(frame.destination);center=frame.destination;}}};
+  camera:{frustum:{left:-100000,right:100000},setView(frame){views.push(frame.destination);center=frame.destination;},
+    flyTo(frame){flights.push(frame.destination);center=frame.destination;}}};
 const cesium={SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude,height)=>({longitude,latitude,height})},
   SceneTransforms:{worldToWindowCoordinates:(_scene,point)=>({x:scene.clientWidth*.65+(point.longitude-center.longitude)*8,
     y:scene.clientHeight*.4-(point.latitude-center.latitude)*6})}};
 const groups=groupPlaces([chengde,sydney]);
 const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groups,getProfile:()=>({birth_year:1983}),
-  getScope:()=> 'resume',getIdentity:()=> 'resume',getInitialPlace:()=>initial,getStage:()=> 'all',
+  getScope:()=> 'resume',getIdentity:()=> 'resume',getActiveLocation:()=>initial,getStage:()=> 'all',
   t:key=>key,lifeStageText:stage=>stage});
 map.sync(scene);scene.classList.add('is-cesium-map');map.attach(viewer,cesium);
-window.mapResume={flights,selectChengde(){map.selectCity(groups.find(group=>group.city.place==='Chengde').key);map.sync(scene);}};
+window.mapResume={flights,views,selectChengde(){map.selectCity(groups.find(group=>group.city.place==='Chengde').key);map.sync(scene);}};
 function render(){redraw();requestAnimationFrame(render);}render();
 </script></html>'''
 
 
 @pytest.mark.parametrize('controls_page', [RESUME_HTML], indirect=True)
 @pytest.mark.parametrize('width', [1440, 390])
-def test_map_footprints_render_and_refresh_returns_to_chengde(controls_page, width):
+def test_map_footprints_render_and_refresh_opens_the_whole_journey(controls_page, width):
     page = controls_page
     page.set_viewport_size({'width': width, 'height': 960})
     page.add_init_script('''(() => {
@@ -173,10 +179,10 @@ def test_map_footprints_render_and_refresh_returns_to_chengde(controls_page, wid
     page.wait_for_function('window.mapResume && window.footprintDraws > 0')
     page.evaluate('mapResume.selectChengde()')
     page.goto('http://map-controls.invalid/?initial=Sydney')
-    page.wait_for_function('window.mapResume?.flights.length && window.footprintDraws > 0')
-    destination = page.evaluate('mapResume.flights[0]')
-    assert destination['latitude'] == pytest.approx(40.95)
-    assert destination['longitude'] == pytest.approx(117.96)
+    page.wait_for_function('window.mapResume?.views.length && window.footprintDraws > 0')
+    assert page.evaluate('mapResume.flights') == [], 'Hydrating current_active_location must not replay a flight'
+    assert page.evaluate('mapResume.views[0].height') > 40000
+    assert page.locator('.map-memory-card.is-city').count() == 2
     OUTPUT.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(OUTPUT / f'map-resume-footprints-{width}.png'))
 
@@ -204,7 +210,7 @@ let city='Chengde';
 const callbacks=[];
 const viewer={isDestroyed:()=>false,entities:{getById(){}},
   scene:{mode:2,postRender:{addEventListener(callback){callbacks.push(callback);return ()=>{};}}},
-  camera:{frustum:{left:-40000,right:40000},flyTo(flight){queueMicrotask(()=>flight.complete?.());},
+  camera:{frustum:{left:-40000,right:40000},setView(){},flyTo(flight){queueMicrotask(()=>flight.complete?.());},
     computeViewRectangle(){
       const target=city==='Sydney' ? sydney : city==='empty' ? {latitude:0,longitude:0} : chengde;
       const offset=city==='near' ? .8 : city==='far' ? 1.1 : -.1;
@@ -353,6 +359,96 @@ def test_event_card_keeps_its_dom_while_only_changed_text_fades(controls_page):
     assert page.locator('.memory-text-change').count()==0
 
 
+@pytest.mark.parametrize('width', [1440, 390])
+def test_background_story_render_preserves_workspace_and_patches_event_text(controls_page, width):
+    page = controls_page
+    page.set_viewport_size({'width': width, 'height': 960})
+    page.goto('http://map-controls.invalid/')
+    page.wait_for_function('window.mapControls')
+    page.evaluate('''() => {
+      const city={place:'Chengde',granularity:'city',hierarchy:['Earth','China','Chengde'],latitude:40.95,longitude:117.96};
+      mapControls.append(Array.from({length:8},(_,index)=>({id:'memory-'+index,canonical:true,revision:1,
+        status:'active',kind:'event',life_stage:'childhood',title:'Childhood memory '+index,
+        temporal:{expression:String(1986+index),precision:'year',year_start:1986+index},
+        places:[{role:'setting',status:'supported',place:city}]})));
+      mapControls.attach();mapControls.arrive();
+    }''')
+    page.locator('[data-memory-city]').click()
+    page.wait_for_function("document.querySelectorAll('[data-memory-explore]').length===9")
+    # Run the production shell renderer: module-only syncs never detach the list.
+    source = (ROOT / 'apps/web/client/memoir/client.js').read_text()
+    render_story = re.search(r'function renderStory\(\) \{.*?\n\}', source, re.S).group()
+    bind_actions = re.search(r'function bindViewActions\(.*?\n\}', source, re.S).group()
+    page.evaluate('''([source,bindActions]) => {
+      const app=document.createElement('div');app.id='app';document.body.append(app);
+      app.append(document.querySelector('main.story-shell'));
+      document.querySelector('.place-journey-scene').insertAdjacentHTML('afterbegin',
+        '<div data-cesium-place data-cesium-scope="fixture"></div>');
+      const workspace=document.querySelector('.workspace-media-overview').outerHTML;
+      const noop=()=>{};
+      Object.assign(window,{
+        state:{chat:[],chapters:[],project:{id:'fixture'},supabase:{user:{id:'fixture-owner'}}},
+        $:selector=>document.querySelector(selector),escapeHtml:value=>value,translate:key=>key,translateWith:key=>key,
+        MEMOIR_ROUTES:{home:'/memoir'},composingWorkspaceActive:()=>false,freeRecallFinished:()=>false,
+        workspaceIsVisible:()=>true,workspaceHasContent:()=>true,isFreshAnonymousSession:()=>false,
+        activeWorkspaceTab:noop,renderMessage:noop,profileMenu:()=>'',placeJourneySurface:()=>'',recallPackagePrompt:()=>'',
+        chatComposer:()=>'',workspaceDetail:()=>'<aside id="workspace-detail" class="workspace-detail">'+workspace+'</aside>',
+        bindProfileMenu:noop,resizeCesiumPlaceJourney:()=>window.mapResizes++,
+        disposeCesiumPlaceJourney:()=>{throw new Error('The existing scene should be reused');},initCesiumPlaceJourney:noop,
+        mapPhotoAlbums:{sync:noop},mapMemoryEvents:{sync:()=>mapControls.update({})},
+        photos:{refreshMapPhotos:noop},initFamilyVisualizations:noop,bindPhotoPagination:noop,bindPhotoMemoryActions:noop,
+        authReminder:{mount:noop},resizeChatInput:noop,persistChatHistory:noop,
+        conversationScroll:{following:()=>true,follow:noop,pause:noop,mount:noop},
+        render:noop,bindHistoricalControls:noop,captureProjectScope:noop,isCurrentProjectScope:()=>true,
+        supabaseApi:noop,toast:noop,currentUiLocale:()=> 'en-AU',
+        startMemory:noop,finishChapter:noop,toggleVoiceInput:noop,startAudioRecorder:noop,cancelDictation:noop,
+        discardAudioDraft:noop,addPerson:noop,retryPrivateDraft:noop,loadMorePrivateDraft:noop,
+        loadMoreMemoryEvents:noop,refreshFamilyContext:noop
+      });
+      window.mapResizes=0;
+      window.bindViewActions=new Function(bindActions+';return bindViewActions;')();
+      window.renderStory=new Function(source+';return renderStory;')();
+      renderStory();
+      window.originalWorkspace=document.querySelector('#workspace-detail');
+      window.workspaceDetachments=0;
+      customElements.define('workspace-attachment-probe',class extends HTMLElement {
+        disconnectedCallback(){window.workspaceDetachments++;}
+      });
+      originalWorkspace.append(document.createElement('workspace-attachment-probe'));
+      window.originalCards=document.querySelector('.map-memory-cards');
+      window.originalCard=document.querySelector('.map-memory-card');
+      window.originalOverview=document.querySelector('[data-memory-overview]');
+      window.flightCount=mapControls.flights.length;window.viewCount=mapControls.views.length;
+      window.resizeCount=mapResizes;
+    }''', [render_story, bind_actions])
+    cards = page.locator('.map-memory-cards')
+    cards.evaluate('(element)=>element.scrollTop=600')
+    before = cards.evaluate('(element)=>element.scrollTop')
+    assert before == 600
+    for _ in range(3):
+        page.evaluate('renderStory()')
+        assert cards.evaluate('(element)=>element.scrollTop') == before, 'A background render jumped to the first event'
+        assert page.evaluate("originalWorkspace===document.querySelector('#workspace-detail')"), 'The workspace was rebuilt'
+        assert page.evaluate("originalCards===document.querySelector('.map-memory-cards')")
+        assert page.evaluate("originalCard===document.querySelector('.map-memory-card')")
+        assert page.evaluate("originalOverview===document.querySelector('[data-memory-overview]')"), 'The toolbar was rebuilt'
+        assert page.evaluate('workspaceDetachments') == 0
+    page.evaluate("mapControls.update({revision:2,title:'Birth at hospital'});renderStory()")
+    page.wait_for_function("originalCard.querySelector('.map-memory-summary').textContent==='Birth at hospital'")
+    assert page.evaluate("originalCard===document.querySelector('.map-memory-card')")
+    assert cards.evaluate('(element)=>element.scrollTop') == before
+    assert page.evaluate('mapControls.flights.length===flightCount && mapControls.views.length===viewCount')
+    assert page.evaluate('mapResizes===resizeCount')
+    page.evaluate('''() => {
+      state.currentActiveLocation={place:'Chengde',granularity:'city',hierarchy:['Earth','China','Chengde'],latitude:40.95,longitude:117.96};
+      state.activeLocationChange=1;renderStory();
+    }''')
+    assert page.evaluate('mapControls.flights.length===flightCount+1')
+    assert page.evaluate('mapResizes===resizeCount+1')
+    page.locator('[data-action="toggle-workspace"]').click()
+    assert page.evaluate('state.workspaceCollapsed') is True, 'A retained control acquired duplicate listeners'
+
+
 LOCATION_REFRESH_HTML = HTML.split('<script type="module">')[0] + r'''<script type="module">
 import {createMapMemoryEvents} from '/client/memoir/map-memory-events.mjs';
 import {groupPlaces} from '/client/memoir/places.mjs';
@@ -366,12 +462,12 @@ const scene=document.querySelector('.place-journey-scene');scene.classList.add('
 const pending=[],calls=[];
 const map=createMapMemoryEvents({getEvents:()=>events,getGroups:()=>groupPlaces([city]),getProfile:()=>({birth_year:1983}),
   getScope:()=> 'fixture:'+revision,getIdentity:()=> 'fixture-policy',getStage:()=> 'all',
-  getQuestionFocus:()=>({place:'承德市',source_sequence:1}),lifeStageText:stage=>stage,
+  lifeStageText:stage=>stage,
   readPlaces:id=>{calls.push(id);return new Promise((resolve,reject)=>pending.push({id,resolve,reject}));},
   t:(key,values)=>translateWith('Memoir.workspace.'+key,values)});
 map.sync(scene);
 map.attach({isDestroyed:()=>false,scene:{mode:2,postRender:{addEventListener(){return ()=>{};}}},
-  camera:{frustum:{left:-4000,right:4000},flyTo(){}}},
+  camera:{frustum:{left:-4000,right:4000},setView(){},flyTo(){}}},
   {SceneMode:{SCENE2D:2},Cartesian3:{fromDegrees:(longitude,latitude)=>({longitude,latitude})},
    SceneTransforms:{worldToWindowCoordinates:()=>({x:scene.clientWidth*.7,y:scene.clientHeight*.6})}});
 window.mapRefresh={calls,
@@ -406,6 +502,7 @@ def test_location_refresh_and_retry_stay_inside_the_existing_event_card(controls
     page.goto('http://map-controls.invalid/')
     page.wait_for_function('window.mapRefresh')
     page.evaluate("mapRefresh.succeed('birth');mapRefresh.succeed('school')")
+    page.locator('[data-memory-city]').click()
     birth=page.locator('.map-memory-card:has([data-memory-explore="birth"])')
     school=page.locator('.map-memory-card:has([data-memory-explore="school"])')
     birth.wait_for();school.wait_for()

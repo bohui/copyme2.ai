@@ -2265,6 +2265,8 @@ function renderStory() {
   const mapMemoryFocus = document.activeElement?.dataset?.mapMemory;
   const previousScene = $(".place-journey-scene");
   const previousMap = previousScene?.querySelector("[data-cesium-place]");
+  const previousMemoryCards = previousScene?.querySelector(".map-memory-cards");
+  const memoryCardsTop = previousMemoryCards?.scrollTop || 0;
   const previousScroll = $("#chat-scroll");
   const previousTop = previousScroll?.scrollTop || 0;
   const previousGallery = $(".place-pictures[data-photo-place]");
@@ -2296,7 +2298,7 @@ function renderStory() {
     && state.workspaceSkillProgress?.owner_id === state.supabase?.user?.id
     ? renderAgentTrace(state.workspaceSkillProgress.items,"live") : "";
   activeWorkspaceTab();
-  $("#app").innerHTML = `
+  const markup = `
     <div class="story-shell ${shellClass}">
       <header class="story-topbar">
         <div class="brand"><a href="/" data-action="story-home" aria-label="${escapeHtml(translate("Platform.homeAria"))}"><img class="brand-mark" src="/static/copyme2_icon_light.png" alt="" aria-hidden="true" /></a><a class="brand brand-name" href="${MEMOIR_ROUTES.home}">${t("brand")}</a></div>
@@ -2310,7 +2312,30 @@ function renderStory() {
         ${workspaceAvailable ? workspaceDetail() : ""}
       </div>
     </div>`;
-  bindViewActions();
+  let retainedWorkspace = false;
+  const previousWorkspace = $("#workspace-detail");
+  if (previousWorkspace && previousMap && !previousWorkspace.querySelector(".workspace-detail-tabs")) {
+    const template = document.createElement("template");
+    template.innerHTML = markup;
+    const nextWorkspace = template.content.querySelector("#workspace-detail");
+    const nextMap = nextWorkspace?.querySelector("[data-cesium-place]");
+    if (nextMap && previousWorkspace.className === nextWorkspace.className
+        && !nextWorkspace.querySelector(".workspace-detail-tabs")
+        && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope
+        && previousMap.dataset.cesiumUnavailable === nextMap.dataset.cesiumUnavailable) {
+      // Background paints replace the conversation while the workspace stays connected.
+      previousWorkspace.closest(".story-shell").className = `story-shell ${shellClass}`;
+      $(".story-topbar").replaceWith(template.content.querySelector(".story-topbar"));
+      $(".chat-main").replaceWith(template.content.querySelector(".chat-main"));
+      Object.assign(previousMap.dataset,nextMap.dataset);
+      retainedWorkspace = true;
+    }
+  }
+  if (!retainedWorkspace) $("#app").innerHTML = markup;
+  if (retainedWorkspace) {
+    bindViewActions($(".story-topbar"));
+    bindViewActions($(".chat-main"));
+  } else bindViewActions();
   bindProfileMenu();
   if (state.profileMenuScope && isCurrentProjectScope(state.profileMenuScope)) {
     // Background greeting/readiness/draft paints must not dismiss an in-flight
@@ -2321,23 +2346,34 @@ function renderStory() {
         ? $(`[data-profile-action="${profileFocus}"]`) : null;
     focus?.focus({preventScroll: true});
   } else state.profileMenuScope = null;
-  const nextMap = $("[data-cesium-place]");
-  if (previousMap && nextMap && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope
-      && previousMap.dataset.cesiumUnavailable === nextMap.dataset.cesiumUnavailable) {
-    Object.assign(previousMap.dataset,nextMap.dataset);
-    nextMap.closest(".place-journey-scene").replaceWith(previousScene);
-    resizeCesiumPlaceJourney();
-  } else {
-    disposeCesiumPlaceJourney();
-    initCesiumPlaceJourney();
+  if (!retainedWorkspace) {
+    const nextMap = $("[data-cesium-place]");
+    if (previousMap && nextMap && previousMap.dataset.cesiumScope === nextMap.dataset.cesiumScope
+        && previousMap.dataset.cesiumUnavailable === nextMap.dataset.cesiumUnavailable) {
+      Object.assign(previousMap.dataset,nextMap.dataset);
+      nextMap.closest(".place-journey-scene").replaceWith(previousScene);
+      // Detaching the scene clears nested scroll offsets before the map sync.
+      if (previousMemoryCards) previousMemoryCards.scrollTop = memoryCardsTop;
+      resizeCesiumPlaceJourney();
+    } else {
+      disposeCesiumPlaceJourney();
+      initCesiumPlaceJourney();
+    }
+  }
+  const currentMap = $("[data-cesium-place]");
+  if (currentMap) {
+    const locationChange = String(state.activeLocationChange || 0);
+    const changed = currentMap.dataset.activeLocationChange !== locationChange;
+    currentMap.dataset.activeLocationChange = locationChange;
+    if (retainedWorkspace && changed) resizeCesiumPlaceJourney();
   }
   mapPhotoAlbums.sync($(".place-journey-scene"), albumFocus);
   mapMemoryEvents.sync($(".place-journey-scene"), mapMemoryFocus);
   if ($(".place-journey-scene")) void photos.refreshMapPhotos();
-  initFamilyVisualizations();
+  if (!retainedWorkspace) initFamilyVisualizations();
   const nextGallery = $(".place-pictures[data-photo-place]");
   if (nextGallery && nextGallery.dataset.photoPlace === galleryPlace) nextGallery.scrollTop = galleryTop;
-  bindPhotoPagination();
+  if (!retainedWorkspace) bindPhotoPagination();
   bindPhotoMemoryActions();
   void state.photoTurns?.bindImages(document, {path:memoirApiPath, errorText:translate("Memoir.story.photoUnavailable")});
   const scroll = $("#chat-scroll");
@@ -2947,57 +2983,58 @@ function renderAgentTrace(trace, mode = "simulated", expanded = false, clientTur
   return `<details class="agent-loop" ${expanded ? "open" : ""}><summary><span>${title}</span></summary><ol class="agent-loop-list">${steps}${draft}</ol></details>`;
 }
 
-function bindViewActions() {
-  document.querySelectorAll("[data-story-game]").forEach(button => button.addEventListener("click", () => storyGameDialog.open(button)));
-  $(".family-workspace")?.addEventListener("error", event => {
+function bindViewActions(root = document) {
+  const select = root === document ? $ : selector => root.querySelector(selector);
+  root.querySelectorAll("[data-story-game]").forEach(button => button.addEventListener("click", () => storyGameDialog.open(button)));
+  select(".family-workspace")?.addEventListener("error", event => {
     if (event.target.matches("[data-family-portrait]")) event.target.remove();
   }, true);
-  document.querySelectorAll("[data-family-zoom]").forEach(button => button.addEventListener("click", () => zoomFamilyChart(button.dataset.familyZoom)));
-  $(".family-chart-fallback")?.addEventListener("click", event => {
+  root.querySelectorAll("[data-family-zoom]").forEach(button => button.addEventListener("click", () => zoomFamilyChart(button.dataset.familyZoom)));
+  select(".family-chart-fallback")?.addEventListener("click", event => {
     const button = event.target.closest("[data-family-person]");
     if (button) selectFamilyPerson(button.dataset.familyPerson);
   });
-  $("#family-person-detail")?.addEventListener("click", event => {
+  select("#family-person-detail")?.addEventListener("click", event => {
     if (event.target.closest("[data-family-person-close]")) closeFamilyPerson();
     if (event.target.closest("[data-family-photo-upload]")) $("#family-person-photo")?.click();
     if (event.target.closest("[data-family-photo-remove]")) void saveFamilyPersonPhoto();
   });
-  $("#family-person-detail")?.addEventListener("change", event => {
+  select("#family-person-detail")?.addEventListener("change", event => {
     if (event.target.id === "family-person-photo" && event.target.files?.[0]) void saveFamilyPersonPhoto(event.target.files[0]);
   });
-  $("#family-person-detail")?.addEventListener("keydown", event => {
+  select("#family-person-detail")?.addEventListener("keydown", event => {
     if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeFamilyPerson(); }
   });
-  $("[data-retry-recall-preview]")?.addEventListener("click", () => ensureRecallPreview({ retry: true }));
-  $("[data-check-recall-payment]")?.addEventListener("click", async () => {
+  select("[data-retry-recall-preview]")?.addEventListener("click", () => ensureRecallPreview({ retry: true }));
+  select("[data-check-recall-payment]")?.addEventListener("click", async () => {
     state.loading = true;
     render();
     await refreshFamilyEntitlement();
     state.loading = false;
     render();
   });
-  $("#story-checkout-form")?.addEventListener("submit", event => {
+  select("#story-checkout-form")?.addEventListener("submit", event => {
     event.preventDefault();
     requestStoryCheckout();
   });
-  document.querySelectorAll("input[name='plan_key']").forEach(input => input.addEventListener("change", () => {
+  root.querySelectorAll("input[name='plan_key']").forEach(input => input.addEventListener("change", () => {
     state.selectedStoryPlan = input.value;
     render();
   }));
-  $("#story-book-count")?.addEventListener("change", event => {
+  select("#story-book-count")?.addEventListener("change", event => {
     state.storyBookCount = Number(event.target.value) || 2;
     render();
   });
-  $("[data-all-places]")?.addEventListener("click", () => mapMemoryEvents.overview());
-  bindHistoricalControls(document, {scope:captureProjectScope, current:isCurrentProjectScope,
+  select("[data-all-places]")?.addEventListener("click", () => mapMemoryEvents.overview());
+  bindHistoricalControls(root, {scope:captureProjectScope, current:isCurrentProjectScope,
     api:supabaseApi, notify:toast, locale:currentUiLocale});
-  document.querySelectorAll("[data-place-choice]").forEach(button => button.addEventListener("click", () => selectPlace(button.dataset.placeChoice)));
-  $("[data-action='toggle-workspace']")?.addEventListener("click", () => {
+  root.querySelectorAll("[data-place-choice]").forEach(button => button.addEventListener("click", () => selectPlace(button.dataset.placeChoice)));
+  select("[data-action='toggle-workspace']")?.addEventListener("click", () => {
     state.workspaceCollapsed = !state.workspaceCollapsed;
     render();
     $("[data-action='toggle-workspace']")?.focus({ preventScroll: true });
   });
-  $("[data-action='toggle-chat-history']")?.addEventListener("click", () => {
+  select("[data-action='toggle-chat-history']")?.addEventListener("click", () => {
     state.chatHistoryCollapsed = !state.chatHistoryCollapsed;
     render();
     if (!state.chatHistoryCollapsed && $("#chat-scroll")) {
@@ -3006,25 +3043,25 @@ function bindViewActions() {
     }
     $("[data-action='toggle-chat-history']")?.focus({ preventScroll: true });
   });
-  $("#chat-attachments")?.addEventListener("change", event => selectAttachments(Array.from(event.target.files || [])));
-  $("#attachment-rights")?.addEventListener("change", event => { state.attachmentRights = event.target.checked; });
-  $("[data-action='story-home']")?.addEventListener("click", () => {
+  select("#chat-attachments")?.addEventListener("change", event => selectAttachments(Array.from(event.target.files || [])));
+  select("#attachment-rights")?.addEventListener("change", event => { state.attachmentRights = event.target.checked; });
+  select("[data-action='story-home']")?.addEventListener("click", () => {
     persistChatHistory();
     stopVoiceMode({ silent: true });
     cancelDictation();
   });
-  document.querySelectorAll("[data-add-workspace-memory]").forEach(button => button.addEventListener("click", () => focusWorkspaceMemory()));
-  document.querySelectorAll("[data-explore-workspace-memory]").forEach(button => button.addEventListener("click", () => focusWorkspaceMemory(button.dataset.exploreWorkspaceMemory)));
-  $("[data-finish-workspace-memory]")?.addEventListener("click", () => { state.workspaceMemoryFocus = null; render(); $("#chat-input")?.focus(); });
-  document.querySelectorAll("[data-rework-section]").forEach(button => button.addEventListener("click", () => openSectionRework(button.dataset.reworkSection)));
-  $("#section-rework-form")?.addEventListener("input", event => { const rework = currentSectionRework(); if (rework && !rework.payload) rework.instruction = event.target.value; });
-  $("#section-rework-form")?.addEventListener("submit", submitSectionRework);
-  $("[data-cancel-section-rework]")?.addEventListener("click", () => { state.sectionRework = null; render(); });
-  $("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
-  $("#chat-input")?.addEventListener("compositionstart", (event) => {
+  root.querySelectorAll("[data-add-workspace-memory]").forEach(button => button.addEventListener("click", () => focusWorkspaceMemory()));
+  root.querySelectorAll("[data-explore-workspace-memory]").forEach(button => button.addEventListener("click", () => focusWorkspaceMemory(button.dataset.exploreWorkspaceMemory)));
+  select("[data-finish-workspace-memory]")?.addEventListener("click", () => { state.workspaceMemoryFocus = null; render(); $("#chat-input")?.focus(); });
+  root.querySelectorAll("[data-rework-section]").forEach(button => button.addEventListener("click", () => openSectionRework(button.dataset.reworkSection)));
+  select("#section-rework-form")?.addEventListener("input", event => { const rework = currentSectionRework(); if (rework && !rework.payload) rework.instruction = event.target.value; });
+  select("#section-rework-form")?.addEventListener("submit", submitSectionRework);
+  select("[data-cancel-section-rework]")?.addEventListener("click", () => { state.sectionRework = null; render(); });
+  select("#chat-form")?.addEventListener("submit", (event) => { event.preventDefault(); sendChatMessage(); });
+  select("#chat-input")?.addEventListener("compositionstart", (event) => {
     state.chatComposition = {input: event.currentTarget, scope: captureProjectScope(), renderPending: false};
   });
-  $("#chat-input")?.addEventListener("compositionend", (event) => {
+  select("#chat-input")?.addEventListener("compositionend", (event) => {
     const composition = state.chatComposition;
     if (composition?.input !== event.currentTarget) return;
     state.chatComposition = null;
@@ -3033,18 +3070,18 @@ function bindViewActions() {
       setTimeout(() => { if (isCurrentProjectScope(composition.scope)) render(); }, 0);
     }
   });
-  $("#chat-input")?.addEventListener("input", (event) => {
+  select("#chat-input")?.addEventListener("input", (event) => {
     if (!state.audioTranscript) state.audioTranscriptKind = "narrator_chat";
     state.audioTranscript = event.target.value;
     state.photoTurns?.saveAudioDraft();
     resizeChatInput(event.target);
   });
   resizeChatInput($("#chat-input"));
-  $("#chat-input")?.addEventListener("keydown", (event) => {
+  select("#chat-input")?.addEventListener("keydown", (event) => {
     if (event.isComposing || event.keyCode === 229 || state.chatComposition) return;
     if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); sendChatMessage(); }
   });
-  const lifeStageTabs = Array.from(document.querySelectorAll("[data-life-stage-tab]"));
+  const lifeStageTabs = Array.from(root.querySelectorAll("[data-life-stage-tab]"));
   lifeStageTabs.forEach((button) => {
     button.addEventListener("click", () => selectLifeStage(button.dataset.lifeStageTab, true));
     button.addEventListener("keydown", (event) => {
@@ -3059,21 +3096,21 @@ function bindViewActions() {
       selectLifeStage(lifeStageTabs[nextIndex].dataset.lifeStageTab, true);
     });
   });
-  document.querySelectorAll("[data-memoir-chapter]").forEach((button) => button.addEventListener("click", () => selectMemoirChapter(button.dataset.memoirChapter)));
-  document.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => { state.workspaceTab = button.dataset.workspaceTab; render(); document.querySelector(`.workspace-detail-tab[data-workspace-tab="${state.workspaceTab}"]`)?.focus({ preventScroll: true }); }));
-  document.querySelectorAll("[data-draft-locale]").forEach(select => select.addEventListener("change", () => selectPrivateDraftLocale(select.value)));
-  document.querySelectorAll(".saved-draft-sections").forEach(details => {
+  root.querySelectorAll("[data-memoir-chapter]").forEach((button) => button.addEventListener("click", () => selectMemoirChapter(button.dataset.memoirChapter)));
+  root.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => { state.workspaceTab = button.dataset.workspaceTab; render(); document.querySelector(`.workspace-detail-tab[data-workspace-tab="${state.workspaceTab}"]`)?.focus({ preventScroll: true }); }));
+  root.querySelectorAll("[data-draft-locale]").forEach(select => select.addEventListener("change", () => selectPrivateDraftLocale(select.value)));
+  root.querySelectorAll(".saved-draft-sections").forEach(details => {
     const scope = captureProjectScope();
     details.addEventListener("toggle", () => {
       if (details.isConnected && isCurrentProjectScope(scope)) state.privateDraftExpanded = details.open;
     });
   });
-  document.querySelectorAll("[data-proposal-id]").forEach(button => button.addEventListener("click", () => decidePrivateDraftProposal(button.dataset.proposalId, button.dataset.proposalAccept === "true")));
-  document.querySelectorAll("[data-more-event-details]").forEach(button => button.addEventListener("click",() => loadMoreEventDetails(button.dataset.moreEventDetails)));
-  document.querySelectorAll("[data-more-event-evidence]").forEach(button => button.addEventListener("click",() => loadMoreEventEvidence(button.dataset.moreEventEvidence)));
-  document.querySelectorAll("[data-edit-memory-event]").forEach(button => button.addEventListener("click",() => openMemoryEventEdit(button.dataset.editMemoryEvent)));
-  $("#memory-event-edit-form")?.addEventListener("input",event => { Object.assign(state.memoryEventEdit,Object.fromEntries(new FormData(event.currentTarget))); });
-  $("#memory-event-edit-form")?.addEventListener("submit",saveMemoryEventEdit);
+  root.querySelectorAll("[data-proposal-id]").forEach(button => button.addEventListener("click", () => decidePrivateDraftProposal(button.dataset.proposalId, button.dataset.proposalAccept === "true")));
+  root.querySelectorAll("[data-more-event-details]").forEach(button => button.addEventListener("click",() => loadMoreEventDetails(button.dataset.moreEventDetails)));
+  root.querySelectorAll("[data-more-event-evidence]").forEach(button => button.addEventListener("click",() => loadMoreEventEvidence(button.dataset.moreEventEvidence)));
+  root.querySelectorAll("[data-edit-memory-event]").forEach(button => button.addEventListener("click",() => openMemoryEventEdit(button.dataset.editMemoryEvent)));
+  select("#memory-event-edit-form")?.addEventListener("input",event => { Object.assign(state.memoryEventEdit,Object.fromEntries(new FormData(event.currentTarget))); });
+  select("#memory-event-edit-form")?.addEventListener("submit",saveMemoryEventEdit);
   const actions = {
     "start-memory": startMemory,
     "finish-chapter": finishChapter,
@@ -3110,7 +3147,7 @@ function bindViewActions() {
     "refresh-memory-events": refreshFamilyContext,
     "cancel-event-edit": () => { state.memoryEventEdit = null; render(); },
   };
-  document.querySelectorAll("[data-action]").forEach((button) => {
+  root.querySelectorAll("[data-action]").forEach((button) => {
     const action = actions[button.dataset.action];
     if (action) button.addEventListener("click", () => action(button));
   });

@@ -345,8 +345,13 @@ test('client deduplication also recognizes Flickr size variants', () => {
 
 test('rendering without a gallery does not dereference a missing element', () => {
   const block = source.match(/const nextGallery = \$\("\.place-pictures\[data-photo-place\]"\);[^]*?bindPhotoPagination\(\);/)[0];
-  const context = vm.createContext({$: () => null, galleryPlace: undefined, galleryTop: 0, bindPhotoPagination: () => {}});
-  assert.doesNotThrow(() => vm.runInContext(block, context));
+  for (const retainedWorkspace of [false,true]) {
+    let bindings=0;
+    const context = vm.createContext({$: () => null, galleryPlace: undefined, galleryTop: 0, retainedWorkspace,
+      bindPhotoPagination: () => {bindings++;}});
+    assert.doesNotThrow(() => vm.runInContext(block, context));
+    assert.equal(bindings,retainedWorkspace ? 0 : 1);
+  }
 });
 
 test('older empty searches are retried under the radius and year policy', async () => {
