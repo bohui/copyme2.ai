@@ -776,6 +776,8 @@ CREATE TABLE public.user_lifetime_conversation (
     thread_prompt_version text,
     thread_model text,
     checkpoint_id uuid,
+    runtime_checkpoint_candidate jsonb,
+    runtime_checkpoint jsonb,
     CONSTRAINT user_lifetime_conversation_execution_generation_check CHECK ((execution_generation > 0)),
     CONSTRAINT user_lifetime_conversation_preference_revision_check CHECK ((preference_revision >= 0)),
     CONSTRAINT user_lifetime_conversation_product_check CHECK ((product = 'memoir'::text))
@@ -5537,9 +5539,60 @@ begin
    on conflict do nothing;
  perform public.prune_lifetime_question_pool(owner,project);
  update public.user_lifetime_conversation set thread_schema_version=1,thread_id=p_thread_id,thread_model=p_model,thread_prompt_version=p_prompt_version,
-   thread_policy_epoch=(next_fence->>'policy_epoch')::bigint where user_id=owner and conversation_id=conversation;
- return jsonb_build_object('memory',memory,'interview',interview,'fence',next_fence);
+   thread_policy_epoch=(next_fence->>'policy_epoch')::bigint,
+   runtime_checkpoint=case when runtime_checkpoint_candidate->>'thread_id'=p_thread_id
+     and runtime_checkpoint_candidate->>'source_id'=source.id::text
+     and runtime_checkpoint_candidate->>'source_version'=source.version::text
+     and runtime_checkpoint_candidate->>'sequence'=source.sequence::text
+     and runtime_checkpoint_candidate->>'reply_sha256'=encode(sha256(convert_to(p_reply,'UTF8')),'hex')
+     and runtime_checkpoint_candidate->>'policy_epoch'=next_fence->>'policy_epoch'
+     and runtime_checkpoint_candidate->>'execution_generation'=next_fence->>'execution_generation'
+     then runtime_checkpoint_candidate else null end,
+   runtime_checkpoint_candidate=null
+   where user_id=owner and conversation_id=conversation;
+ return jsonb_build_object('memory',memory,'interview',interview,'fence',next_fence,
+   'home_checkpoint',(select runtime_checkpoint from public.user_lifetime_conversation where user_id=owner and conversation_id=conversation));
 end $$;
+
+CREATE FUNCTION public.stage_lifetime_runtime_checkpoint(p_fence jsonb, p_checkpoint jsonb, p_draft boolean DEFAULT false) RETURNS void
+    LANGUAGE plpgsql SECURITY DEFINER SET search_path TO '' AS $$
+declare owner uuid:=auth.uid(); conversation uuid:=(p_fence->'identity'->>'conversation_id')::uuid;
+ expected_path text; source public.user_narrator_source%rowtype;
+begin
+ -- The caller is the server that performed exact object readback. End-user
+ -- JWTs cannot attest verification or write either checkpoint column.
+ if p_draft then perform public.lock_lifetime_draft_reply(p_fence);
+ else perform public.lock_lifetime_publication(p_fence);end if;
+ if jsonb_typeof(p_checkpoint) is distinct from 'object' or length(p_checkpoint::text)>4096
+   or coalesce(p_checkpoint->>'scope','') !~ '^[a-f0-9]{64}$'
+   or coalesce(p_checkpoint->>'archive_sha256','') !~ '^[a-f0-9]{64}$'
+   or coalesce(p_checkpoint->>'reply_sha256','') !~ '^[a-f0-9]{64}$'
+   or coalesce(p_checkpoint->>'sequence','') !~ '^[1-9][0-9]{0,18}$'
+   or coalesce(p_checkpoint->>'source_version','') !~ '^[1-9][0-9]{0,18}$'
+   or coalesce(p_checkpoint->>'byte_size','') !~ '^[1-9][0-9]{0,8}$'
+   or (p_checkpoint->>'byte_size')::bigint>52428800
+   or length(coalesce(p_checkpoint->>'thread_id','')) not between 1 and 256 then
+   raise exception 'invalid runtime checkpoint' using errcode='22023';end if;
+ expected_path:=owner::text||'/sandbox/'||conversation::text||'/'||
+   (p_checkpoint->>'scope')||'/'||(p_checkpoint->>'sequence')||'-'||
+   (p_checkpoint->>'archive_sha256')||'/checkpoint.zip';
+ if p_checkpoint->>'path' is distinct from expected_path then
+   raise exception 'runtime checkpoint path mismatch' using errcode='42501';end if;
+ select * into source from public.user_narrator_source where user_id=owner
+   and project_id=p_fence->'identity'->>'project_id' and id=(p_checkpoint->>'source_id')::uuid
+   and sequence=(p_checkpoint->>'sequence')::bigint and version=(p_checkpoint->>'source_version')::bigint and status='active';
+ if not found or source.sequence<>(p_fence->>'source_revision')::bigint then
+   raise exception 'current runtime checkpoint source required' using errcode='PT409';end if;
+ if not exists(select 1 from storage.objects where bucket_id='memory-spark' and name=expected_path
+   and (metadata->>'size')::bigint=(p_checkpoint->>'byte_size')::bigint) then
+   raise exception 'runtime checkpoint object unavailable' using errcode='PT409';end if;
+ update public.user_lifetime_conversation set runtime_checkpoint_candidate=p_checkpoint||
+   jsonb_build_object('policy_epoch',p_fence->'policy_epoch','execution_generation',p_fence->'execution_generation',
+     'verified_at',clock_timestamp()) where user_id=owner and conversation_id=conversation;
+end $$;
+
+revoke all on function public.stage_lifetime_runtime_checkpoint(jsonb,jsonb,boolean) from public,anon,authenticated;
+grant execute on function public.stage_lifetime_runtime_checkpoint(jsonb,jsonb,boolean) to service_role;
 
 CREATE FUNCTION public.commit_user_agent_turn(p_lease_token uuid, p_thread_id text, p_content text, p_source_paths text[] DEFAULT '{}'::text[], p_source_sequence bigint DEFAULT NULL::bigint, p_project_id text DEFAULT NULL::text, p_client_turn_id uuid DEFAULT NULL::uuid, p_user_response boolean DEFAULT true, p_life_stage text DEFAULT 'unplaced'::text) RETURNS jsonb
     LANGUAGE plpgsql SECURITY DEFINER
@@ -8416,7 +8469,8 @@ begin
     'agent_session', (select to_jsonb(s) - 'user_id' from public.user_agent_session s where user_id = v_authenticated_user_id),
     'storage_objects', (select coalesce(jsonb_agg(jsonb_build_object('name', name, 'metadata', metadata)), '[]'::jsonb)
       from storage.objects where bucket_id = 'memory-spark'
-        and split_part(name, '/', 1) = v_authenticated_user_id::text));
+        and split_part(name, '/', 1) = v_authenticated_user_id::text
+        and split_part(name, '/', 2) in ('attachment','agent')));
   key_hash := encode(sha256(convert_to(p_token, 'UTF8')), 'hex');
   delete from public.guest_conversation_transfer where guest_user_id = v_authenticated_user_id and target_user_id is null and expires_at <= clock_timestamp();
   insert into public.guest_conversation_transfer(token_hash, guest_user_id, project_id, messages, memories, workspace)
@@ -9300,7 +9354,13 @@ begin
  dialogue:=public.lifetime_question_dialogue(owner,project);
  return jsonb_build_object('plan',plan,'events',events,'stage_coverage',coverage,'photos','[]'::jsonb,'photo_associations','[]'::jsonb,
    'execution',(select jsonb_build_object('thread_id',l.thread_id,'model',l.thread_model,
-     'sequence',s.sequence,'source_id',s.id,'reply_sha256',encode(sha256(convert_to(t.collector->>'reply','UTF8')),'hex'))
+     'sequence',s.sequence,'source_id',s.id,'reply_sha256',encode(sha256(convert_to(t.collector->>'reply','UTF8')),'hex'),
+     'home_checkpoint',case when l.runtime_checkpoint->>'thread_id'=l.thread_id
+       and l.runtime_checkpoint->>'source_id'=s.id::text and l.runtime_checkpoint->>'sequence'=s.sequence::text
+       and l.runtime_checkpoint->>'source_version'=s.version::text
+       and l.runtime_checkpoint->>'policy_epoch'=l.thread_policy_epoch::text
+       and l.runtime_checkpoint->>'execution_generation'=l.execution_generation::text
+       then l.runtime_checkpoint else null end)
      from public.user_lifetime_conversation l join public.user_lifetime_reply r
        on r.user_id=l.user_id and r.conversation_id=l.conversation_id
      join public.user_interview_turn t on t.user_id=l.user_id and t.project_id=l.project_id and t.client_turn_id=r.client_turn_id
@@ -15021,8 +15081,13 @@ insert into storage.buckets(id,name,public,file_size_limit) values ('memoir-priv
 -- Original bytes are accessed only by the guarded backend, never a browser JWT.
 insert into storage.buckets(id,name,public,file_size_limit) values ('memoir-original-recordings','memoir-original-recordings',false,10485760) on conflict (id) do nothing;
 
+create policy codex_home_owner_read on storage.objects for select to authenticated
+  using (bucket_id = 'memory-spark' and (storage.foldername(name))[1] = (select auth.uid())::text
+    and (storage.foldername(name))[2] = 'sandbox');
+
 create policy memory_spark_owner on storage.objects as permissive for all to authenticated
-  using (((bucket_id = 'memory-spark'::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text)))
+  using (((bucket_id = 'memory-spark'::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text)
+    AND ((storage.foldername(name))[2] = ANY (ARRAY['attachment'::text, 'agent'::text]))))
   with check (((bucket_id = 'memory-spark'::text) AND ((storage.foldername(name))[1] = (( SELECT auth.uid() AS uid))::text) AND ((storage.foldername(name))[2] = ANY (ARRAY['attachment'::text, 'agent'::text]))));
 
 create policy merged_guest_asset_read on storage.objects as permissive for select to authenticated

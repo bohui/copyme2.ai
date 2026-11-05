@@ -28,8 +28,8 @@ def attachment_database(database):
 def sql(attachment_database):
     attachment_database('truncate public.guest_conversation_transfer, '
                         'public.user_conversation_attachment, public.user_memory, '
-                        'public.user_agent_turn_lease, public.user_agent_session;')
-    attachment_database('truncate public.user_profile, public.user_place_journey, public.user_family_context, public.guest_merge_asset_access, storage.objects;')
+                        'public.user_agent_turn_lease, public.user_agent_session cascade;')
+    attachment_database('truncate public.user_profile, public.user_place_journey, public.user_family_context, public.guest_merge_asset_access, storage.objects cascade;')
     attachment_database("update auth.users set raw_user_meta_data = '{}'::jsonb;")
     attachment_database(f"update auth.users set is_anonymous = (id = '{OWNER}');")
     attachment_database(f"insert into public.user_memory(user_id, kind, content) values "
@@ -83,19 +83,16 @@ def test_reply_in_progress_blocks_preparation(sql):
 
 
 def test_prepare_with_supabase_storage_owner_id_column(sql):
-    # Supabase Storage has an owner_id column absent from the old fixture.
-    # It must not shadow the function's authenticated owner_id variable.
-    sql('alter table storage.objects add column owner_id text;')
-    try:
-        sql(f"insert into storage.objects(bucket_id, name, owner_id) values "
-            f"('memory-spark', '{OWNER}/attachment/guest.txt', '{OTHER}'), "
-            f"('memory-spark', '{OTHER}/attachment/other.txt', '{OWNER}');")
-        result = json.loads(sql(as_user(prepare())).stdout.splitlines()[-1])
-        assert result == {'prepared': True}
-        objects = json.loads(sql("select workspace->'storage_objects' from public.guest_conversation_transfer;").stdout)
-        assert [item['name'] for item in objects] == [f'{OWNER}/attachment/guest.txt']
-    finally:
-        sql('alter table storage.objects drop column owner_id;')
+    # Storage ownership metadata must not shadow the authenticated prefix or
+    # include server-written runtime state in a guest asset transfer.
+    sql(f"insert into storage.objects(bucket_id, name, owner_id) values "
+        f"('memory-spark', '{OWNER}/attachment/guest.txt', '{OTHER}'), "
+        f"('memory-spark', '{OWNER}/sandbox/runtime/checkpoint.zip', '{OWNER}'), "
+        f"('memory-spark', '{OTHER}/attachment/other.txt', '{OWNER}');")
+    result = json.loads(sql(as_user(prepare())).stdout.splitlines()[-1])
+    assert result == {'prepared': True}
+    objects = json.loads(sql("select workspace->'storage_objects' from public.guest_conversation_transfer;").stdout)
+    assert [item['name'] for item in objects] == [f'{OWNER}/attachment/guest.txt']
 
 
 def test_attachment_failure_rolls_back_memories_and_claim(sql):

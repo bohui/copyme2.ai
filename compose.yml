@@ -221,6 +221,9 @@ services:
       MEMOIR_INTERVIEW_STRATEGY: ${MEMOIR_INTERVIEW_STRATEGY:-0}
       CODEX_HOME: /var/lib/memory-spark/codex-users
       MEMORY_SPARK_CODEX_HOME: /var/lib/memory-spark/codex-users
+      MEMOIR_CODEX_HOME_BACKUPS: ${MEMOIR_CODEX_HOME_BACKUPS:-1}
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_SECRET_KEY: ${SUPABASE_SECRET_KEY:-}
       MEMOIR_HIGGSFIELD_SKILL_PATH: /opt/memoir/external-skills/higgsfield-websites
       MEMOIR_GAME_BUILDER: ${MEMOIR_GAME_BUILDER:-novel-to-game}
       MEMOIR_GAME_MODEL: "${MEMOIR_GAME_MODEL:-}"

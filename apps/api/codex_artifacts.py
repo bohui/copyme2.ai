@@ -10,7 +10,7 @@ ARTIFACT_ROOTS = ("sessions", "archived_sessions", "memories")
 MAX_ARTIFACT_BYTES = 25 * 1024 * 1024
 
 
-def iter_artifacts(home: Path):
+def iter_artifacts(home: Path, *, strict=False):
     """Yield ``(relative_path, bytes)`` only for safe Codex artifacts.
 
     Symlinks are intentionally excluded.  The worker may run with elevated
@@ -23,17 +23,21 @@ def iter_artifacts(home: Path):
         for root_name in ARTIFACT_ROOTS:
             try:
                 root_fd = os.open(root_name, flags, dir_fd=home_fd)
+            except FileNotFoundError:
+                continue
             except OSError:
+                if strict:
+                    raise
                 continue
             try:
-                yield from _walk(root_fd, root_name)
+                yield from _walk(root_fd, root_name, strict=strict)
             finally:
                 os.close(root_fd)
     finally:
         os.close(home_fd)
 
 
-def _walk(directory_fd, prefix):
+def _walk(directory_fd, prefix, *, strict=False):
     for name in sorted(os.listdir(directory_fd)):
         if name.startswith('.'):
             continue
@@ -44,7 +48,7 @@ def _walk(directory_fd, prefix):
                 fd = os.open(name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW,
                              dir_fd=directory_fd)
                 try:
-                    yield from _walk(fd, path)
+                    yield from _walk(fd, path, strict=strict)
                 finally:
                     os.close(fd)
             elif stat.S_ISREG(info.st_mode):
@@ -54,10 +58,18 @@ def _walk(directory_fd, prefix):
                     opened = os.fstat(source.fileno())
                     if (not stat.S_ISREG(opened.st_mode) or opened.st_nlink != 1
                             or opened.st_size > MAX_ARTIFACT_BYTES):
+                        if strict:
+                            raise ValueError('Unsafe or oversized Codex artifact')
                         continue
                     content = source.read(MAX_ARTIFACT_BYTES + 1)
                 if len(content) <= MAX_ARTIFACT_BYTES:
                     yield path, content
+                elif strict:
+                    raise ValueError('Oversized Codex artifact')
+            elif strict:
+                raise ValueError('Codex artifact is not a regular file or directory')
         except OSError:
             # A concurrently renamed/deleted file is not a safe snapshot.
+            if strict:
+                raise
             continue

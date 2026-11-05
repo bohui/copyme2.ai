@@ -526,11 +526,17 @@ async def _run_governed_collector_once(*, command, home_root, base_url, api_key,
             raise CollectorOutputInvalid('The interview response could not be validated; please retry the accepted turn',reason=reason) from None
         if session is not None:
             session.accept(validated['reply'])
+    if session is not None and session.checkpoint is not None:
+        from .codex_home_store import stage_checkpoint
+        await stage_checkpoint(publisher, packet.fence, session.checkpoint)
+        session.checkpoint_status = 'staged'
     if on_delta and streamed_acknowledgement is None and not revisable:
         await on_delta(reply)
     result = {'thread_id':candidate, 'reply':reply, 'artifacts':[],
         'cold_resume_reason':(None if session.resumed else 'missing') if session is not None
             else ('unvalidated_transcript' if thread_id else 'missing')}
+    if session is not None:
+        result['home_checkpoint'] = session.checkpoint_status
     if trajectory is not None:
         trajectory.finish(result,status='completed',stop_reason='canonical.collector.completed')
         result['trajectory']=trajectory.payload()

@@ -62,7 +62,19 @@ def test_native_deepseek_busy_response_does_not_repeat_until_timeout(tmp_path, s
 @pytest.mark.skipif(not shutil.which('codex'), reason='Codex app-server is not installed')
 @pytest.mark.parametrize('model', ['gpt-6.1-sol', 'deepseek-v4.1-flash-1017'])
 @pytest.mark.parametrize('retrieval', [False, True])
-def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp_path, retrieval, model):
+@pytest.mark.parametrize('recover_home', [False, True])
+def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp_path, retrieval, model, recover_home, monkeypatch):
+    if recover_home:
+        import httpx
+        from apps.api.codex_home_store import CodexHomeStore
+        checkpoint = {}
+        def object_store(request):
+            if request.method == 'POST':
+                checkpoint['content'] = request.content
+                return httpx.Response(200)
+            return httpx.Response(200, content=checkpoint['content']) if checkpoint else httpx.Response(404)
+        store = CodexHomeStore('https://storage.invalid', 'synthetic-server-key', transport=httpx.MockTransport(object_store))
+        monkeypatch.setattr(CodexHomeStore, 'configured', classmethod(lambda cls: store))
     requests = []
     first, second, _, delivered = packets()
     class Provider(BaseHTTPRequestHandler):
@@ -106,7 +118,11 @@ def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp
     schema = dict(type='object', properties=dict(reply=dict(type='string')), required=['reply'], additionalProperties=False)
     reads = []
     async def run():
+        committed_checkpoint = None
         for index, packet in enumerate((first, second)):
+            if recover_home and index:
+                from test_codex_home_store import committed_packet
+                packet = committed_packet(packet, committed_checkpoint)
             tools = InterviewContextTools(SimpleNamespace(), packet.fence)
             tools.read = AsyncMock(return_value={'records': [], 'complete': True})
             reads.append(tools.read)
@@ -119,6 +135,10 @@ def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp
                     output_schema=schema, effort='low', max_response_bytes=4096)
                 assert json.loads(output)['reply'] == delivered
                 session.accept(delivered)
+            if recover_home:
+                assert session.checkpoint_status == 'verified'
+                committed_checkpoint = session.checkpoint
+                shutil.rmtree(tmp_path)
     try:
         asyncio.run(run())
     finally:
@@ -131,6 +151,7 @@ def test_native_interview_preserves_the_model_prefix_across_process_restarts(tmp
     assert requests[0]['tools'] == requests[-1]['tools']
     assert requests[0].get('prompt_cache_key') == requests[-1].get('prompt_cache_key')
     assert sum(read.await_count for read in reads) == int(retrieval)
+    assert all('synthetic-server-key' not in json.dumps(request) for request in requests)
     messages = [item for item in requests[-1]['input'] if item.get('type') == 'message']
     assert any(item.get('role') == 'assistant' and delivered in json.dumps(item) for item in messages)
     assert sum(first.current.narrator.original in json.dumps(item) for item in messages) == 1

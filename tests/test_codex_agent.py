@@ -681,10 +681,12 @@ for line in sys.stdin:
   print(json.dumps({'id':message['id'],'result':{'userAgent':'codex-test'}}),flush=True)
  elif message.get('id'):
   print(json.dumps({'id':message['id'],'result':{
-   'home':os.environ['HOME'],'codex_home':os.environ['CODEX_HOME']
+   'home':os.environ['HOME'],'codex_home':os.environ['CODEX_HOME'],
+   'storage_key':os.environ.get('SUPABASE_SECRET_KEY')
   }}),flush=True)
 ''')
     monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv('SUPABASE_SECRET_KEY', 'synthetic-host-only-storage-key')
     relative_home = Path('var/codex-users/test-user')
     expected_home = relative_home.resolve()
 
@@ -694,6 +696,7 @@ for line in sys.stdin:
             assert result == {
                 'home': str(expected_home),
                 'codex_home': str(expected_home),
+                'storage_key': None,
             }
 
     asyncio.run(run())

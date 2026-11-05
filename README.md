@@ -257,6 +257,41 @@ is in the private [`codex-worker/Containerfile`](codex-worker/Containerfile).
 
 The API uses the user's Supabase bearer token for RLS-protected story and Codex-memory operations. Codex runs only in the private worker container, which uses a dedicated volume and per-user OS identities; the API sends it only the already-authorized memory context. Set `MEMORY_SPARK_CODEX_WORKER_SECRET` to a long random value outside local development. Private original/generated blobs remain below `var/memory-spark/objects`. Copy `.env.example` to `.env` and configure Supabase and the local LLM provider before using the connected Codex agent.
 
+The private Supabase buckets have separate purposes: `memoir-original-recordings`
+holds retained original audio under the recording consent and deletion guards;
+`memoir-private-photos` holds narrator-uploaded interview photographs;
+`memory-spark` holds general attachments, legacy Codex artifacts and protected
+Mira runtime checkpoints under `<owner>/sandbox/<conversation>/<scope>/`.
+Narrator text, events, continuity and manuscript checkpoints live in PostgreSQL.
+
+With `MEMOIR_CODEX_HOME_BACKUPS=1`, the trusted Codex worker checkpoints resumable
+interview homes to the private `memory-spark` bucket after the app-server
+stops. Checkpoints include native sessions, archived sessions, file memories,
+the native state SQLite database/WAL, and Memoir's resume metadata. Config,
+credentials, logs, temporary task homes and the shared OS identity map are excluded.
+This preserves the local `codex-worker-home` volume as the working filesystem;
+Supabase Storage is not mounted as a live SQLite filesystem.
+
+Objects are scoped by owner, conversation and the existing policy/model/prompt
+scope hash. Each verified ZIP has an immutable, content-addressed object path.
+RLS permits owners to read their own checkpoints; only the trusted
+server can write them, so browser uploads cannot replace model history. The
+worker's Supabase server key is not passed to the Codex process or model. An
+empty local interview home restores only the object named by PostgreSQL's
+committed execution pointer, with an exact archive checksum and size check.
+The worker stages verified metadata through a server-only database function;
+the reply transaction promotes it only for that exact committed source, reply,
+thread, policy and execution generation. An upload or database failure leaves
+the previous committed pointer intact. Upload/readback failures stop the reply
+attempt and keep the accepted narration retryable. Existing homes are never
+overwritten. Restore failures are logged without private details and rebuild
+from canonical context. Temporary model jobs rebuild from canonical inputs and are
+not advertised as recoverable runtime backups. Run the fresh-install baseline
+to install the checkpoint columns, functions and RLS policy before enabling the
+worker setting. Superseded and orphaned ZIP retention needs a cleanup policy
+before long-running production use. Guest transfer excludes runtime checkpoints;
+the destination rebuilds from its own authorized canonical conversation.
+
 The example environment selects `gpt-6.1-sol` with light reasoning (`low` in the
 API) for Lane A and model-backed Lane B skills. Application code and Compose do
 not select a fallback model or effort. The existing LiteLLM Memoir consumer must

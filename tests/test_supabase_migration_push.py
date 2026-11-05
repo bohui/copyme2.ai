@@ -59,7 +59,8 @@ def test_supabase_cli_pushes_and_tracks_the_fresh_baseline_once(tmp_path):
         if result.returncode != 0:
             pytest.fail('\n'.join(line.rstrip()[:300] for line in
                 (result.stdout + result.stderr).splitlines()[:25]))
-        assert sql('select count(*) from storage.buckets;').stdout.strip() == '2'
+        assert set(sql('select id from storage.buckets;').stdout.splitlines()) == {
+            'memory-spark', 'memoir-private-photos', 'memoir-original-recordings'}
         assert sql('select version from supabase_migrations.schema_migrations order by version;').stdout.splitlines() == expected
     finally:
         fixture.close()

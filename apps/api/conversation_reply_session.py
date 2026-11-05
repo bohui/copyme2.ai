@@ -6,8 +6,11 @@ import os
 from pathlib import Path
 import tempfile
 
+import httpx
+
 from .codex_agent import CodexConnection, CodexRequestError, provider_config
 from .codex_worker_files import write_config
+from .codex_home_store import CodexHomeStore, HomeCheckpointUnavailable, checkpoint_failure
 from .conversation_reply_context import conversation_context, context_update
 from .lifetime_memory_context import serialize_packet
 
@@ -86,6 +89,7 @@ class InterviewSession:
     def accept(self, delivered_reply):
         _write_state(self.path, dict(scope=self.scope, thread_id=self.thread_id,
             sequence=self.packet.current.sequence, source_id=str(self.packet.current.narrator.source_id),
+            source_version=self.packet.current.narrator.version,
             reply_sha256=_digest(delivered_reply), entities=self.entities, sources=self.sources))
 
 
@@ -98,6 +102,22 @@ async def open_interview(*, root, packet, view, schema, model, effort, base_url,
     effort = effort or configured_effort()
     specs = tools.specs() if tools is not None else []
     session = InterviewSession(root, packet, view, schema, model, effort, base_url, specs)
+    checkpoint = None
+    session.checkpoint = None
+    session.checkpoint_status = 'disabled'
+    try:
+        try:
+            checkpoint = CodexHomeStore.configured()
+        except ValueError as error:
+            raise HomeCheckpointUnavailable('Mira runtime storage is not configured') from error
+        if checkpoint is not None:
+            session.checkpoint_status = 'pending'
+            if not repair and await checkpoint.restore(session,
+                    uid=os.getuid() if uid is None else uid, apply_owner=apply_owner):
+                _write_state(session.path, session.state)
+    except (OSError, ValueError, httpx.HTTPError) as error:
+        session.checkpoint_status = 'restore_failed'
+        checkpoint_failure('restore', error)
     write_config(session.home, session.root, os.getuid() if uid is None else uid,
         provider_config(base_url, model, governed=True), apply_owner=apply_owner)
     options = dict(provider_env={'MEMORY_SPARK_LLM_API_KEY': api_key}, timeout=timeout,
@@ -139,3 +159,13 @@ async def open_interview(*, root, packet, view, schema, model, effort, base_url,
             items.append(_item(dict(role='developer', content=repair)))
         await connection.request('thread/inject_items', dict(threadId=session.thread_id, items=items))
         yield session, connection
+    # __aexit__ has reaped the app-server and its SQLite writers before upload.
+    state = _read_state(session.path)
+    if checkpoint is not None and state is not None:
+        try:
+            session.checkpoint = await checkpoint.save(session, state)
+            session.checkpoint_status = 'verified'
+        except (OSError, ValueError, httpx.HTTPError) as error:
+            session.checkpoint_status = 'save_failed'
+            checkpoint_failure('save', error)
+            raise HomeCheckpointUnavailable('Mira runtime checkpoint was not verified') from error
