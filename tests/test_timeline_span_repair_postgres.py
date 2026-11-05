@@ -13,7 +13,7 @@ from apps.api.lifetime_memory_lane_engine import BoundedLaneInput, LanePublicati
 from apps.api.lifetime_memory_publication import PublicationUnavailable
 from test_agent_commit_postgres import database as base_database, OWNER, OTHER
 from test_background_profile_workflow import Broker
-from test_timeline_span_repair import SpanConnection
+from controlled_skill_harness import document_transport
 from test_lifetime_composer_capacity import service, create_lane
 from test_lifetime_memory_postgres import sql, resolve, event_database, private_database, attachment_database  # noqa: F401
 from test_shared_memory_events_postgres import literal, rpc
@@ -82,7 +82,8 @@ def test_failed_second_window_resumes_without_losing_first_commit_or_weakening_f
         return httpx.Response(200, json=await run_bounded_lane(command=['must-not-start'], home_root=tmp_path,
             base_url='https://provider.invalid/v1', api_key='fixture-span-key', model=bounded.budget.model,
             bounded_lane=bounded, publisher=publisher,
-            connection_factory=lambda *args,**options:SpanConnection(*args,respond=respond,before_turn=before_turn,**options), timeout=5))
+            provider_transport=document_transport(lambda body:respond(json.loads(body['input'])['payload'],
+                body['text']['format']['schema']),before_send=before_turn), timeout=5))
 
     scope = SimpleNamespace(broker=Broker(sql), worker_url='https://worker.invalid', worker_secret='fixture',
         worker_transport=httpx.MockTransport(worker), lane_publisher=publisher)

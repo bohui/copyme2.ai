@@ -12,10 +12,12 @@ def empty_document(body):
         'continuity_updates', 'event_places', 'passage_dispositions') if key in fields}
 
 
-def document_transport(respond=empty_document):
+def document_transport(respond=empty_document, *, before_send=None):
     """Script structured model output at the real fixed-worker HTTP boundary."""
     async def provider(request):
         from test_conversation_reply_transport import events, sse
+        if before_send:
+            before_send()
         body = json.loads(await request.aread())
         assert body['tools'] == [] and body['tool_choice'] == 'none'
         output = respond(body)
