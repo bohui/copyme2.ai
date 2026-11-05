@@ -6,7 +6,7 @@ import re
 from urllib.parse import urlsplit
 
 from .prompt_artifact import ROOT, load_prompt_artifact, prompt_path
-from .prompt_catalog import PROMPT_PATHS
+from .prompt_catalog import PROMPT_PATHS, LOCAL_PROMPT_NAMES
 from .prompt_composition import component_paths, render_prompt_artifact
 from .llm_tracing import trace_llm_call, update_llm_trace, gateway_trace_headers, gateway_metadata
 from .model_configuration import background_model, background_effort
@@ -144,7 +144,10 @@ def instruction_manifest(instructions, schema=None, *, variant=None, extra_names
                 '{{prompt:' in template and render_prompt_artifact(path) in instructions):
             names.append(name)
     if primary_name is None and 'memoir/skills/author-timeline/instructions' in names:
-        names.insert(0, 'memoir/skills/author-timeline/extract')
+        primary_name = 'memoir/skills/author-timeline/extract'
+        names.insert(0, primary_name)
+    if primary_name is not None:
+        names = [name for name in names if name == primary_name or name in LOCAL_PROMPT_NAMES]
     if not names:
         raise ValueError('No managed instruction source in model request')
     return prompt_manifest(names, instructions, schema, variant=variant)

@@ -11,7 +11,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
   let focusedCity = null, viewCity = null, listView, lastMode, hasView, overviewRequested = false, overviewMode = true;
   let cityIdentity, handledLocationChange = 0, flyingToCity = null, flightRevision = 0, restoreCity;
   let visibleCityKeys = [];
-  let renderedIdentity;
+  let renderedIdentity, toolbarSignature;
   let placeGroups = [];
   const places = new Map();
   const retainedPlaces = new Map();
@@ -178,14 +178,18 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
         if (event.key === "Escape") { selectedKey = null; position(); }
       });
       scene.append(layer);
-      signature = null;
+      signature = null;toolbarSignature = null;
     }
     const page = getPage();
     layer.hidden = !journey.nodes.length && !journey.unmapped && !places.size && !page?.next_cursor && !page?.page_error;
     scene.classList.toggle("has-map-memories", journey.nodes.length > 0);
     const note = page?.page_error ? t("savedPageChanged") : "";
-    layer.querySelector(".map-memory-toolbar").innerHTML = `<span class="map-memory-caption"><img src="/static/map-footprints.svg" alt="" />${escapeHtml(t("mapMemoryJourney"))}</span><button type="button" data-memory-overview>${escapeHtml(t("mapMemoryOverview"))}</button>${note || page?.next_cursor ? `<span class="map-memory-status" role="status">${escapeHtml(note)}${page?.next_cursor || page?.page_error ? `${page?.next_cursor ? escapeHtml(t("mapEventsPartial")) : ""}<button type="button" data-memory-more ${page.loading_page ? "disabled" : ""}>${escapeHtml(t(page.page_error ? "reloadSavedPages" : page.loading_page ? "loadingSavedPage" : "loadMoreEvents"))}</button>` : ""}</span>` : ""}`;
-    signature = null;
+    const toolbar = layer.querySelector(".map-memory-toolbar");
+    const toolbarMarkup = `<span class="map-memory-caption"><img src="/static/map-footprints.svg" alt="" />${escapeHtml(t("mapMemoryJourney"))}</span><button type="button" data-memory-overview>${escapeHtml(t("mapMemoryOverview"))}</button>${note || page?.next_cursor ? `<span class="map-memory-status" role="status">${escapeHtml(note)}${page?.next_cursor || page?.page_error ? `${page?.next_cursor ? escapeHtml(t("mapEventsPartial")) : ""}<button type="button" data-memory-more ${page.loading_page ? "disabled" : ""}>${escapeHtml(t(page.page_error ? "reloadSavedPages" : page.loading_page ? "loadingSavedPage" : "loadMoreEvents"))}</button>` : ""}</span>` : ""}`;
+    if (toolbarSignature !== toolbarMarkup) {
+      toolbar.innerHTML = toolbarMarkup;
+      toolbarSignature = toolbarMarkup;
+    }
     position();
     if (focusedKey) [...layer.querySelectorAll("[data-map-memory]")]
       .find(button => button.dataset.mapMemory === focusedKey)?.focus({preventScroll:true});
@@ -301,7 +305,7 @@ export function createMapMemoryEvents({getEvents, getGroups, getProfile, getScop
       selectedKey = null;
     }
     const options = {t,lifeStageText,profile:getProfile(),readiness:getReadiness(),canAddMemory:getCanAddMemory()};
-    const next = JSON.stringify([cards, width < 500, selectedKey, desktop, options.profile?.avatar_style, options.readiness, options.canAddMemory]);
+    const next = JSON.stringify([cards, width < 500, selectedKey, desktop, options.profile?.avatar_style, options.readiness, options.canAddMemory, t("mapMemoryOverview")]);
     const container = layer.querySelector(".map-memory-cards");
     const overflow = layer.querySelector(".map-memory-overflow");
     if (signature !== next) {

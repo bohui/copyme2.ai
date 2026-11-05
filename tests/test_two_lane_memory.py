@@ -48,7 +48,7 @@ def test_two_lane_extraction_includes_place_skill_without_conflicting_output_ins
     from apps.api.model_request import instruction_manifest
     instructions, schema = extraction_contract()
     sources = {item['name'] for item in instruction_manifest(instructions, schema)['artifacts']}
-    assert {'memoir/skills/place-journey/extract',
+    assert {'memoir/skills/place-journey/components/extract',
             'memoir/skills/author-timeline/derived-hints'} <= sources
     assert {'events', 'place_journeys'} <= set(schema['required'])
     assert not {'prepared_questions', 'strategy_proposal'} & schema['properties'].keys()

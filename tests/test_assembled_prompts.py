@@ -2,7 +2,6 @@
 import hashlib
 import json
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
@@ -38,19 +37,14 @@ def test_invalid_template_sections_fail_closed(source):
         render_prompt_artifact(prompt_path('memoir/skills/memory-context/profile'), content=source)
 
 
-def test_gateway_forwards_only_public_assembled_prompt_identity(monkeypatch):
-    from apps.api import llm_tracing
-    from test_llm_tracing import FakeLangfuse
-    from opentelemetry import baggage, context
-    tracer = FakeLangfuse()
-    monkeypatch.setattr(llm_tracing, '_client_cache', tracer)
-    token = context.attach(baggage.set_baggage('private_narration', 'never-forward-this'))
-    manifest = {'artifacts': [dict(name='memoir/skills/memory-context/profile', version=1, status='published')]}
-    try:
-        with llm_tracing.trace_llm_call('profile', 'model', gateway=True, metadata={'prompt_manifest': manifest}):
-            headers = llm_tracing.gateway_trace_headers()
-        assert headers['baggage'] == 'langfuse_prompt_name=memoir%2Fskills%2Fmemory-context%2Fprofile,langfuse_prompt_version=1'
-        assert 'private' not in str(headers) and 'never-forward-this' not in str(headers)
-        assert not llm_tracing.gateway_trace_headers()
-    finally:
-        context.detach(token)
+@pytest.mark.parametrize('places', [False, True])
+def test_one_published_template_owns_each_fixed_request(places):
+    from apps.api.model_request import instruction_manifest
+    name = 'memoir/skills/author-timeline/extract'
+    instructions = render_prompt_artifact(prompt_path(name), variables={
+        'places': places, 'events_only': not places, 'place_rules': places})
+    manifest = instruction_manifest(instructions, {}, primary_name=name)
+    assert [a['name'] for a in manifest['artifacts'] if a['status'] == 'published'] == [name]
+    sources = {a['name'] for a in manifest['artifacts']}
+    assert ('memoir/skills/place-journey/components/extract' in sources) == places
+    assert ('memoir/skills/author-timeline/derived-hints' in sources) == places

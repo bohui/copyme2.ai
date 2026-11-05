@@ -2481,24 +2481,24 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -2513,7 +2513,7 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -2851,24 +2851,24 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -2883,7 +2883,7 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -3212,24 +3212,24 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -3244,7 +3244,7 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -3697,24 +3697,24 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -3726,7 +3726,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -4179,16 +4179,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -4202,7 +4202,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -4391,16 +4391,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -4414,7 +4414,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -4603,16 +4603,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -4626,7 +4626,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -4815,16 +4815,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -4838,7 +4838,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5027,16 +5027,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5050,7 +5050,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5234,16 +5234,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5258,7 +5258,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5447,16 +5447,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5470,7 +5470,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5659,16 +5659,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5685,7 +5685,7 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5874,16 +5874,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5897,7 +5897,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6081,16 +6081,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -6103,7 +6103,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9139,8 +9139,8 @@
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9152,7 +9152,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9305,8 +9305,8 @@
         "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
         "id": "cmw3bai560cau1z0227pi9g0e",
         "items": 8,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9321,7 +9321,7 @@
       "tests/test_background_profile_postgres.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9554,16 +9554,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9575,7 +9575,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9749,16 +9749,16 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
         "id": "cmw3b7cpw0cal1z02ydjcysku",
         "items": 6,
-        "experiments": 1,
-        "scored_items": 6,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
         "id": "cmw3baiyp0cb51z02tpruimjn",
         "items": 4,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9770,7 +9770,7 @@
       "tests/test_prompt_publication.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
