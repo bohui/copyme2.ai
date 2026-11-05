@@ -90,7 +90,10 @@ def test_job_engine_is_fresh_private_and_fenced(tmp_path,phase,monkeypatch):
     metadata=connection.turns[0][2]['responsesapi_client_metadata']
     assert metadata['generation_name']==f'memoir-composer.outline-{phase}'
     assert metadata['trace_name']=='memoir-composer'
-    assert set(metadata)=={'generation_name','trace_name','prompt_sha256','schema_sha256','manifest_sha256'}
+    assert set(metadata)=={'generation_name','trace_name','prompt_sha256','schema_sha256','manifest_sha256',
+        'langfuse_prompt_name','langfuse_prompt_version'}
+    assert metadata['langfuse_prompt_name']==f'memoir/skills/composer/outline/{phase}/en-AU'
+    assert metadata['langfuse_prompt_version']=='1'
     assert len(bytes.fromhex(metadata['manifest_sha256']))==32
     from apps.api.lifetime_memory_job_engine import job_contract
     instructions,schema=job_contract(bounded.fence)

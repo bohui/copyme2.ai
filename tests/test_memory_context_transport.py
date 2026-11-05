@@ -139,7 +139,7 @@ def test_selected_extraction_preloads_each_required_document_once(tmp_path, sele
                         ('author-timeline/contract', int(timeline)),
                         ('author-timeline/shared/grounding', 1),
                         ('author-timeline/continuity', 1),
-                        ('place-journey/extract', int(places))]:
+                        ('place-journey/components/extract', int(places))]:
         assert instructions.count(load_prompt_artifact(prompt_path('memoir/skills/' + name))) == count
     assert 'memoir_read_skill' not in instructions
     assert not body['tools'] and body['tool_choice'] == 'none'
