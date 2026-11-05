@@ -111,15 +111,12 @@ def reset(client, *, root=ROOT, execute=False):
         if removed_source:
             raise ValueError('Archived component unexpectedly still exists in Langfuse: ' + name)
         current = [client.api.prompts.get(quote(name, safe=''), version=v) for v in item.versions]
-        if name in manifest['reset'] and item.versions == [1] and (
-                current[0].config.get('development_baseline') == manifest['archive_sha256']):
-            # Ordinary later publications keep their own immutable history.
+        if current and all(v.config.get('development_baseline') == manifest['archive_sha256'] for v in current):
+            # Later publications can reuse the archived version numbers. The
+            # completed baseline marker preserves this entire newer history.
             continue
         saved = {v['version']: v for v in records[name]['published_versions']}
         if set(item.versions) != set(saved):
-            # A successful baseline may have subsequently advanced normally.
-            if name in manifest['reset'] and all(v.config.get('development_baseline') == manifest['archive_sha256'] for v in current):
-                continue
             raise ValueError('Remote prompt history changed; archive again before resetting: ' + name)
         for prompt in current:
             old = saved[prompt.version]

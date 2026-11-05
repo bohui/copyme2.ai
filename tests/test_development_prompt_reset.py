@@ -88,3 +88,25 @@ def test_reset_preserves_completed_baseline_and_later_versions(reset_repo, versi
     client.versions = {v: 'Current assembled prompt' for v in versions}
     assert cleanup.reset(client, root=root, execute=True) == []
     assert not client.deletes
+
+
+def test_completed_reset_recognizes_new_drafts_with_archived_version_numbers(reset_repo):
+    root, client, manifest = reset_repo
+    archive = root / manifest['archive']
+    records = json.loads(archive.read_text())
+    records[0]['published_versions'] += [dict(records[0]['published_versions'][0], version=n) for n in (2, 3)]
+    text = json.dumps(records) + '\n'
+    archive.write_text(text)
+    manifest['archive_sha256'] = cleanup.digest(text)
+    (root / cleanup.MANIFEST).write_text(json.dumps(manifest) + '\n')
+    commit(root, 'Archive three pre-reset versions')
+    git(root, 'push', 'origin', 'main')
+    fetch = client.api.prompts.get
+    def baseline(*args, **kwargs):
+        value = fetch(*args, **kwargs)
+        value.config = {'development_baseline': manifest['archive_sha256']}
+        return value
+    client.api.prompts.get = baseline
+    client.versions = {n: f'New baseline or draft {n}' for n in (1, 2, 3)}
+    assert cleanup.reset(client, root=root, execute=True) == []
+    assert not client.deletes
