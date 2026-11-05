@@ -1,5 +1,9 @@
 # Agent and skill prompt structure
 
+> This is a historical audit. The active catalog now uses one complete Markdown
+> template per operation, with exact Langfuse pins. See the [current inventory](prompt-coverage.md)
+> and [editing workflow](prompt-evaluation-workflow.md).
+
 ## One owner per instruction
 
 Git owns prompt content; Langfuse owns published versions and the

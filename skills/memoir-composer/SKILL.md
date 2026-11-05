@@ -15,27 +15,20 @@ current composer prepares evidence, drafts prose and reviews that exact draft.
 
 ## Model instructions
 
-Each phase has one source, versioned under
-`memoir/skills/memoir-composer/` in Langfuse. The application exports those
-versions into this bundle and assembles them through its bounded request
-contract. Read the relevant phase and shared references when using this bundle
-outside the application; this guide is not a second system prompt.
+Each phase has one complete source under `memoir/skills/composer/` in Langfuse.
+Read the phase template for the supplied job. The host renders its optional
+sections before calling the model.
 
 | Phase | Source | When to read |
 | --- | --- | --- |
 | Prepare | [prompts/prepare.md](prompts/prepare.md) | Prepare one canonical event and its exact original references. |
 | Draft | [prompts/draft.md](prompts/draft.md) | Write or revise the manuscript selected by the host plan. |
 | Review | [prompts/review.md](prompts/review.md) | Check the exact candidate against its original evidence. |
-| Batch preparation | [prompts/batch/prepare.md](prompts/batch/prepare.md) | The host supplies a bounded completed-round batch. |
-| Batch composition | [prompts/batch/compose.md](prompts/batch/compose.md) | Revise the existing manuscript with that batch. |
 
-The draft and review templates reference `narrative_enrichment`, defined once in
-[references/narrative-enrichment.md](references/narrative-enrichment.md).
-Review also references `editorial_review`, defined once in
-[references/editorial-review.prompt.md](references/editorial-review.prompt.md).
-The application resolves these references before model dispatch. A reference
-or an earlier draft supplies guidance or context; original testimony supplies
-personal facts.
+For a bounded completed-round batch, use the `batch` section in Prepare or Draft.
+Draft and Review include the editorial rules that apply to their own operation.
+Original testimony supplies personal facts. A guide or earlier draft can supply
+editorial guidance or context.
 
 Writing guidance includes stage-aware focus, scene craft, author voice,
 supported vulnerability/reflection/transformation, reader resonance and fairness.

@@ -6,8 +6,8 @@ import re
 from urllib.parse import urlsplit
 
 from .prompt_artifact import ROOT, load_prompt_artifact, prompt_path
-from .prompt_catalog import PROMPT_PATHS, LOCAL_PROMPT_NAMES
-from .prompt_composition import component_paths, render_prompt_artifact
+from .prompt_catalog import PROMPT_PATHS
+from .prompt_composition import render_prompt_artifact
 from .llm_tracing import trace_llm_call, update_llm_trace, gateway_trace_headers, gateway_metadata
 from .model_configuration import background_model, background_effort
 
@@ -17,31 +17,20 @@ def digest(value):
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
 
-def prompt_manifest(names, instructions, schema=None, *, variant=None):
-    """Versions identify static instructions; private input is never recorded."""
-    paths = []
-    for name in names:
-        path = prompt_path(name)
-        if path not in paths:
-            paths.append(path)
-        for component in component_paths(load_prompt_artifact(path)):
-            source = load_prompt_artifact(component)
-            if component not in paths and (source in instructions or render_prompt_artifact(component) in instructions):
-                paths.append(component)
+def prompt_manifest(names, instructions, schema=None, *, variant=None, input_contract=None):
+    """Record immutable prompt pins, rendered bytes and any static input contract."""
     artifacts = []
-    for path in paths:
+    for name in dict.fromkeys(names):
+        path = prompt_path(name)
         text = load_prompt_artifact(path)
         receipt_path = path.with_name(path.name + '.langfuse.json')
         receipt = json.loads(receipt_path.read_text()) if receipt_path.is_file() else {}
-        from .prompt_composition import expanded_prompt
-        published = receipt.get('sha256') == digest(expanded_prompt(path)) and type(receipt.get('version')) is int
-        local = receipt.get('storage') == 'local' and receipt.get('sha256') == digest(text)
-        artifacts.append(dict(name=receipt.get('name') if published or local else next(
-            (name for name, relative in PROMPT_PATHS.items()
-             if ROOT / relative == path), path.relative_to(ROOT).as_posix()),
-            version=receipt.get('version') if published else None, sha256=receipt.get('sha256') if published else digest(text),
-            status='published' if published else 'local' if local else 'unpublished'))
+        published = receipt.get('name') == name and receipt.get('sha256') == digest(text) and type(receipt.get('version')) is int
+        artifacts.append(dict(name=name, version=receipt.get('version') if published else None,
+            sha256=digest(text), status='published' if published else 'unpublished'))
     result = dict(artifacts=artifacts, prompt_sha256=digest(instructions), schema_sha256=digest(schema), variant=variant)
+    if input_contract is not None:
+        result['input_contract_sha256'] = digest(input_contract)
     return {**result, 'manifest_sha256': digest(result)}
 
 
@@ -125,32 +114,27 @@ async def complete_json(name, payload, schema, *, model=None, effort=None, trans
             await content.aclose()
 
 
-def instruction_manifest(instructions, schema=None, *, variant=None, extra_names=(), primary_name=None):
-    """Identify exact managed components in a compiled static instruction block.
-
-    This inventory never rewrites prose or examines request testimony. Assembly
-    still resolves named artifacts; rendered templates and their shared sources
-    retain published-template identities and local source hashes in the manifest.
-    """
-    names = ([primary_name] if primary_name else []) + list(extra_names)
+def instruction_manifest(instructions, schema=None, *, variant=None, extra_names=(), primary_name=None,
+                         input_contract=None):
+    """Use an explicit operation pin when known; identify static legacy inputs otherwise."""
+    if primary_name is not None:
+        return prompt_manifest([primary_name], instructions, schema, variant=variant, input_contract=input_contract)
+    names = list(extra_names)
     for name, relative in PROMPT_PATHS.items():
         path = ROOT / relative
-        # Evaluation-only sources are catalogued for offline tooling but are
-        # not shipped in the runtime worker image.
+        # Evaluation-only sources are not shipped in runtime containers.
         if not path.is_file():
             continue
         template = path.read_text(encoding='utf-8')
-        if template and (template in instructions or
-                '{{prompt:' in template and render_prompt_artifact(path) in instructions):
+        if template and template in instructions:
             names.append(name)
-    if primary_name is None and 'memoir/skills/author-timeline/instructions' in names:
-        primary_name = 'memoir/skills/author-timeline/extract'
-        names.insert(0, primary_name)
-    if primary_name is not None:
-        names = [name for name in names if name == primary_name or name in LOCAL_PROMPT_NAMES]
+        elif '{{' in template:
+            rendered = render_prompt_artifact(path)
+            if rendered and instructions.startswith(rendered):
+                names.append(name)
     if not names:
         raise ValueError('No managed instruction source in model request')
-    return prompt_manifest(names, instructions, schema, variant=variant)
+    return prompt_manifest(names, instructions, schema, variant=variant, input_contract=input_contract)
 
 
 def manifest_metadata(manifest):

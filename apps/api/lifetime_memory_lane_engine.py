@@ -26,7 +26,7 @@ import anyio
 import httpx
 from pydantic import Field, model_validator
 
-from .prompt_artifact import load_prompt_artifact, prompt_path
+from .prompt_artifact import ROOT, prompt_path
 from .prompt_composition import render_prompt_artifact
 from .issue14_execution_admission import check_issue14_dispatch
 from .lifetime_memory_context import serialize_packet
@@ -38,7 +38,7 @@ from .lifetime_memory_publication import PublicationUnavailable
 SUPPORTED_LANE_MODELS = frozenset({'gpt-5.6-luna-pooled', 'legal2ai-luna-low',
     'memoir-luna-low', 'gpt-5.6-sol', 'gpt-6.1-sol', 'deepseek-v4.1-flash-1017',
     'synthetic-byte-bpe'})
-EXTRACTION_WINDOW_CONTRACT = load_prompt_artifact(prompt_path('memoir/skills/author-timeline/window'))
+EXTRACTION_WINDOW_CONTRACT = (ROOT / 'skills/memoir-author-timeline/references/source-window.md').read_text(encoding='utf-8')
 EXTRACTION_REJECTION_REASONS = {
     'temporal_estimate_range': 'TEMPORAL_ESTIMATE_RANGE',
     'Unsupported life stage': 'LIFE_STAGE',
@@ -848,9 +848,9 @@ async def run_bounded_lane(*, command, home_root, base_url, api_key, model,
     if (not api_key or endpoint.scheme not in {'http', 'https'} or not endpoint.hostname
             or endpoint.username or endpoint.password or endpoint.query or endpoint.fragment):
         raise ValueError('Lane provider is not configured')
-    input_prompt_names = ('memoir/skills/author-timeline/window',) if (bounded.phase == 'extract'
-        and _object(bounded.packet)['payload'].get('window_contract') == EXTRACTION_WINDOW_CONTRACT) else ()
-    manifest = instruction_manifest(instructions, schema, variant=bounded.phase, extra_names=input_prompt_names,
+    input_contract = EXTRACTION_WINDOW_CONTRACT if (bounded.phase == 'extract'
+        and _object(bounded.packet)['payload'].get('window_contract') == EXTRACTION_WINDOW_CONTRACT) else None
+    manifest = instruction_manifest(instructions, schema, variant=bounded.phase, input_contract=input_contract,
         primary_name=lane_prompt_name(bounded.phase, timeline=skill_name != 'memoir-place-journey'))
     call_name = f'{skill_name}.{bounded.phase}'
     payload = dict(model=model, instructions=instructions, input=bounded.packet,

@@ -1,8 +1,7 @@
 {
-  "name": "memoir/skills/author-timeline/components/extract",
+  "name": "memoir/skills/author-timeline/extract",
   "schema_version": 1,
-  "sha256": "74be68eb6d63d92ae48ed2086054491cd42ddf08852b212c00bfe57417b68703",
-  "storage": "local",
+  "sha256": "8ba3224af906146a3e3eaba2d603d4862e6b1b843ef932e8fc95b8d3a28ce006",
   "type": "text",
-  "version": null
+  "version": 1
 }

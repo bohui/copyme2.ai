@@ -2,7 +2,7 @@
 
 ## 1. Voice
 
-Use [grounded imagination](narrative-enrichment.md) for the narrator's voice, scene building, imagery, pacing and the boundary between editorial expression and personal fact. Smooth transcription disfluency and avoid repetitive question-and-answer formatting unless requested.
+Use [grounded imagination in the Draft template](../prompts/draft.md) for the narrator's voice, scene building, imagery, pacing and the boundary between editorial expression and personal fact. Smooth transcription disfluency and avoid repetitive question-and-answer formatting unless requested.
 
 ## 2. Meaningful titles
 

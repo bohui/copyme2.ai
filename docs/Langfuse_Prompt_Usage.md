@@ -1,5 +1,9 @@
 # Prompt ownership and usage
 
+> This is a historical audit. The active catalog now uses one complete Markdown
+> template per operation, with exact Langfuse pins. See the [current inventory](prompt-coverage.md)
+> and [editing workflow](prompt-evaluation-workflow.md).
+
 The current [complete audit](prompt-audit.md) and [generated inventory](prompt-coverage.md)
 cover 96 retained managed sources, one retired source and 11 locked upstream
 instruction files. Counts and profiling results dated below describe their

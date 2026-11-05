@@ -25,7 +25,7 @@ def test_campaign_scores_identify_the_agent_or_workflow_being_evaluated(skill):
 
 
 def test_prompt_coverage_scores_identify_each_prompt_in_the_shared_dataset():
-    for target in ('memoir/agents/mira/reply', 'memoir/shared/bounded-context/policy', 'memoir/shared/bounded-context/en-AU'):
+    for target in ('memoir/agents/mira/reply', 'memoir/skills/author-timeline/extract', 'memoir/skills/place-journey/extract'):
         output = dict(case_id=target, status='unavailable', current_pin_observed=False)
         assert {score.name for score in prompts.scores(output=output)} == {target + '/current_pin_observed'}
 

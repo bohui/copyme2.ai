@@ -11,7 +11,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from apps.api.prompt_catalog import LOCAL_PROMPT_NAMES
 from apps.api.prompt_composition import expanded_prompt
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.prompt_registry import ROOT, prompt_registry
@@ -42,7 +41,7 @@ def metadata(client, name):
 def archive(client, *, root=ROOT):
     expected = project(client, root)
     registry = prompt_registry(root, include_unpublished=True)
-    scope = sorted(n for n in registry if n.startswith('memoir/skills/') or n in LOCAL_PROMPT_NAMES)
+    scope = sorted(n for n in registry if n.startswith('memoir/skills/'))
     # Capture the previously committed source identity before changing any receipts.
     old = {}
     exec(git(root, 'show', 'HEAD:apps/api/prompt_catalog.py'), old)
@@ -70,8 +69,7 @@ def archive(client, *, root=ROOT):
     path.write_text(content)
     manifest = dict(schema_version=1, project_id=expected, archive=target, archive_sha256=digest(content),
         reason='User requested one assembled prompt per operation and a current version 1 development baseline.',
-        remove=[r['name'] for r in records if r['name'] in LOCAL_PROMPT_NAMES],
-        reset=[r['name'] for r in records if r['name'] not in LOCAL_PROMPT_NAMES])
+        remove=[], reset=[r['name'] for r in records])
     (root / MANIFEST).write_text(json.dumps(manifest, indent=2) + '\n')
     return dict(prompts=len(records), versions=sum(len(r['published_versions']) for r in records),
                 removed_components=len(manifest['remove']), reset_operations=len(manifest['reset']))
@@ -104,21 +102,21 @@ def reset(client, *, root=ROOT, execute=False):
     plan = []
     # Validate the entire scoped archive before the first remote deletion.
     for name in [*manifest['remove'], *manifest['reset']]:
-        if name not in registry or name not in records or (name in manifest['remove']) != (name in LOCAL_PROMPT_NAMES):
+        removed_source = name in manifest['remove']
+        if name not in records or (name not in registry) != removed_source:
             raise ValueError('Development reset does not match the source catalog: ' + name)
         item = metadata(client, name)
         if item is None:
             continue
+        if removed_source:
+            raise ValueError('Archived component unexpectedly still exists in Langfuse: ' + name)
         current = [client.api.prompts.get(quote(name, safe=''), version=v) for v in item.versions]
-        if name in manifest['reset'] and item.versions == [1] and (
-                current[0].config.get('development_baseline') == manifest['archive_sha256']):
-            # Ordinary later publications keep their own immutable history.
+        if current and all(v.config.get('development_baseline') == manifest['archive_sha256'] for v in current):
+            # Later publications can reuse the archived version numbers. The
+            # completed baseline marker preserves this entire newer history.
             continue
         saved = {v['version']: v for v in records[name]['published_versions']}
         if set(item.versions) != set(saved):
-            # A successful baseline may have subsequently advanced normally.
-            if name in manifest['reset'] and all(v.config.get('development_baseline') == manifest['archive_sha256'] for v in current):
-                continue
             raise ValueError('Remote prompt history changed; archive again before resetting: ' + name)
         for prompt in current:
             old = saved[prompt.version]

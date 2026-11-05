@@ -14,7 +14,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from apps.api.prompt_composition import component_paths
 from scripts.prompt_registry import prompt_registry
 
 

@@ -3,6 +3,7 @@
 
 import argparse
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,7 +17,6 @@ if str(ROOT) not in sys.path:
 from scripts.export_langfuse_prompt import sync_prompt
 from scripts.langfuse_prompt_client import prompt_client
 from scripts.prompt_registry import prompt_registry
-from apps.api.prompt_catalog import LOCAL_PROMPT_NAMES
 from apps.api.prompt_composition import expanded_prompt
 
 
@@ -79,27 +79,42 @@ def publish(client, *, root: Path, branch: str, revision: str, check: bool = Fal
         text = git(root, "show", f"{revision}:{target}")
         if not text.strip() or (root / target).read_text(encoding="utf-8") != text:
             raise ValueError(f"Prompt differs from committed branch: {target}")
-        if name in LOCAL_PROMPT_NAMES:
-            plan.append((name, target, text, None))
-            continue
+        expanded_prompt(root / target, content=text)
         matches = [item for item in client.api.prompts.list(name=name, limit=100).data
                    if item.name == name]
         current = None
         if matches:
             if len(matches) != 1 or not matches[0].versions:
                 raise ValueError(f"Ambiguous Langfuse prompt versions for {name}")
-            current = client.get_prompt(name, version=max(matches[0].versions),
-                                       type="text", cache_ttl_seconds=0, max_retries=0)
-            if (current.name != name or current.version != max(matches[0].versions)
-                    or getattr(current, "is_fallback", False) or not isinstance(current.prompt, str)):
-                raise ValueError(f"Langfuse did not return {name}")
+            versions = matches[0].versions
+            latest = max(versions)
+            pin_path = root / (target + '.langfuse.json')
+            try:
+                pin = json.loads(pin_path.read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                pin = {}
+            pinned = pin.get('version') if isinstance(pin, dict) else None
+            # A branch may have published a newer draft. Preserve this checkout's
+            # immutable version when its verified text still matches exactly.
+            version = (pinned if type(pinned) is int and pinned in versions
+                       and pin.get('name') == name
+                       and pin.get('sha256') == hashlib.sha256(text.encode('utf-8')).hexdigest()
+                       else latest)
+            def read_version(number):
+                prompt = client.get_prompt(name, version=number, type="text",
+                                           cache_ttl_seconds=0, max_retries=0)
+                if (prompt.name != name or prompt.version != number
+                        or getattr(prompt, "is_fallback", False) or not isinstance(prompt.prompt, str)):
+                    raise ValueError(f"Langfuse did not return {name}")
+                return prompt
+            current = read_version(version)
+            if current.prompt != text and version != latest:
+                current = read_version(latest)
         plan.append((name, target, text, current))
 
     results = []
     for name, target, text, current in plan:
-        compiled = expanded_prompt(root / target, root=root, validate=False)
-        local = name in LOCAL_PROMPT_NAMES
-        changed = not local and (current is None or current.prompt != compiled)
+        changed = current is None or current.prompt != text
         receipt_pending = False
         if git(root, "branch", "--show-current") != branch or git(root, "rev-parse", "HEAD") != revision:
             raise ValueError("Git branch or commit changed during prompt publication; retry prompt sync")
@@ -108,7 +123,7 @@ def publish(client, *, root: Path, branch: str, revision: str, check: bool = Fal
         if not check:
             if changed:
                 from scripts.reset_development_prompts import configuration
-                current = client.create_prompt(name=name, prompt=compiled, type="text",
+                current = client.create_prompt(name=name, prompt=text, type="text",
                     config=current.config if current else configuration(name, root),
                     commit_message=f"Publish {branch} {revision}")
             receipt = sync_prompt(client, target=target, name=name, version=current.version if current else None,

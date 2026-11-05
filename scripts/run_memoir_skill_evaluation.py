@@ -232,12 +232,14 @@ def evaluation_manifest(instructions, schema=None, *, input_packet=None):
     from apps.api.lifetime_memory_lane_engine import EXTRACTION_WINDOW_CONTRACT
     from apps.api.prompt_composition import render_prompt_artifact
     from scripts.prompt_registry import EVALUATION_PROMPT_PATHS
-    extra = ('memoir/skills/author-timeline/window',) if isinstance(input_packet, dict) and (
-        input_packet.get('window_contract') == EXTRACTION_WINDOW_CONTRACT) else ()
+    input_contract = EXTRACTION_WINDOW_CONTRACT if isinstance(input_packet, dict) and (
+        input_packet.get('window_contract') == EXTRACTION_WINDOW_CONTRACT) else None
     try:
-        result = instruction_manifest(instructions, schema, variant='live-evaluation', extra_names=extra)
+        result = instruction_manifest(instructions, schema, variant='live-evaluation', input_contract=input_contract)
     except ValueError:
         result = dict(artifacts=[], prompt_sha256=digest(instructions), schema_sha256=digest(schema), variant='live-evaluation')
+        if input_contract is not None:
+            result['input_contract_sha256'] = digest(input_contract)
     for name, relative in EVALUATION_PROMPT_PATHS.items():
         path = ROOT / relative
         if path.read_text() in instructions or render_prompt_artifact(path) in instructions:

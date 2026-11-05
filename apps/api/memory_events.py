@@ -405,6 +405,5 @@ def extraction_schema(*, allow_draft_relations=False):
     return schema
 
 
-def extraction_instructions(*, derived_hints: bool = False):
-    name = 'extract-with-hints' if derived_hints else 'extract'
-    return render_prompt_artifact(prompt_path(f'memoir/skills/author-timeline/{name}'))
+def extraction_instructions():
+    return render_prompt_artifact(prompt_path('memoir/skills/author-timeline/extract'))

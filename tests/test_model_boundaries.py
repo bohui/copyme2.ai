@@ -20,7 +20,7 @@ def test_manifest_identifies_components_and_schema_without_request_testimony():
     manifest = instruction_manifest(instructions,schema,variant='extract')
     assert manifest['artifacts']
     assert manifest['prompt_sha256']==hashlib.sha256(instructions.encode()).hexdigest()
-    assert any(item['name']=='memoir/skills/author-timeline/instructions' for item in manifest['artifacts'])
+    assert [item['name'] for item in manifest['artifacts']] == ['memoir/skills/author-timeline/extract']
     changed=deepcopy(schema);changed['title']='Changed structural contract'
     assert instruction_manifest(instructions,changed)['schema_sha256'] != manifest['schema_sha256']
     assert all(item['version'] is None for item in manifest['artifacts'] if item['status']=='unpublished')

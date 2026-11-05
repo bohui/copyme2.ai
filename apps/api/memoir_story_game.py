@@ -12,8 +12,7 @@ STORY_GAME_SKILL_PATH = Path(__file__).resolve().parents[2] / 'skills' / STORY_G
 def load_story_game_skill():
     """Same repository-native source convention as the place-journey loader."""
     try:
-        from .prompt_artifact import load_prompt_artifact
-        return load_prompt_artifact(STORY_GAME_SKILL_PATH).strip()
+        return STORY_GAME_SKILL_PATH.read_text(encoding='utf-8').strip()
     except OSError:
         return ''
 

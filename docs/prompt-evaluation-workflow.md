@@ -2,7 +2,7 @@
 
 `apps/api/prompt_catalog.py` and `scripts/prompt_registry.py` own the managed
 prompt inventory. `config/langfuse-evaluation-bindings.json` owns target,
-component, dataset and evaluator relationships. `config/prompt-coverage.json`
+prompt, dataset and evaluator relationships. `config/prompt-coverage.json`
 adds actual consumers, scenarios, controlled regression selectors and reviewed
 content hashes. [The generated table](prompt-coverage.md) joins those sources;
 [the audit](prompt-audit.md) records the remaining quality gaps.
@@ -27,11 +27,11 @@ tracks every owned prompt independently. Missing current-pin execution must not
 inherit a passing parent-workflow grade. The full campaign coverage ledger must credit only actually executed current
 pins and keep unsupported branches unavailable.
 
-When adding or changing a prompt, including a shared component:
+When adding or changing an operation template:
 
 1. Trace the real assembler and its conditions. Record dynamic loaders, optional
-   skill reads, locale/phase choices and prompts carried in input as well as
-   instructions. Update all affected target dependency sets.
+   skill reads, locale and phase choices, and any static input contracts.
+   Update all affected target bindings.
 2. Review representative dataset inputs and expected outputs for the changed
    behavior, including normal, failure, adversarial and bilingual cases where
    applicable. Update the case sources and use a new dataset version when frozen
@@ -50,7 +50,7 @@ When adding or changing a prompt, including a shared component:
    Refresh the dated metadata evidence with `make prompt-coverage-snapshot`, then
    regenerate with `make prompt-coverage`. Review and commit real receipt and
    inventory updates and run `make prompt-check`, as specified in the README. The check fails
-   for a missing prompt entry, removed consumer, stale review or missing component.
+   for a missing prompt entry, removed consumer, stale review or unresolved template reference.
 6. For a model-quality claim, execute the actual runtime assembler against the
    selected dataset and retain its complete prompt manifest, exact versions,
    fixture/version IDs, grader version, scores, failures and missing coverage.
@@ -82,21 +82,21 @@ This uses Codex's documented [project instructions](https://developers.openai.co
 The evaluation distinctions follow [OpenAI evaluation best practices](https://developers.openai.com/api/docs/guides/evaluation-best-practices)
 and [Langfuse evaluator calibration](https://langfuse.com/guides/llm-as-a-judge-calibration-skill).
 
-## Assembled templates and the development baseline
+## One template per operation
 
-Local source components remain in the coverage inventory and dependency sets,
-with `storage: local`, a SHA-256 and no published version. The publisher expands
-all component references into each operation template. Its receipt pins both the
-published assembled text and the local recipe when their bytes differ. Runtime
-section selection retains actual request hashes and excludes unused components
-from execution credit. Review shared cases and graders whenever a component
-changes, including every operation that can include it.
+Edit the complete operation file under its skill's `prompts/` directory. Its
+Langfuse prompt contains the same bytes and its `.langfuse.json` receipt pins the
+exact version and content hash. The host resolves variables and optional sections
+within that file. `SKILL.md` and other guides used by tool calls have a separate
+purpose; they have no additional Langfuse prompt receipt. When the same policy
+appears in multiple operations, review those templates, cases and graders together.
 
-The explicitly requested development reset is scoped by
-`config/development-prompt-reset.json`. Its committed archive preserves all old
-versions, source receipts, labels, tags and configuration. The publisher checks
-the project, every archived version and exact live-main revision before deletion.
-It removes local-component rows and recreates current skill operations at version
-1. A baseline marker makes reruns safe and preserves subsequent normal versions.
-This reset does not delete datasets, experiment runs, scores or traces and does
-not transfer their old quality claims onto the new publication IDs.
+Runtime traces identify the published operation and hash the rendered request.
+The source-window input contract and documents actually read by tools have their
+own provenance; they do not count as additional prompt executions.
+
+The archived development reset in `config/development-prompt-reset.json`
+removed old component rows and established the version-1 baseline. It preserved
+prior prompt versions in the recovery archive. The file consolidation reuses the
+existing version IDs when the template bytes match. Later publications and
+historical datasets, experiments, scores and traces retain their lineage.

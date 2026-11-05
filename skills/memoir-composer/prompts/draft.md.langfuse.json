@@ -1,8 +1,7 @@
 {
-  "name": "memoir/skills/composer/components/draft",
+  "name": "memoir/skills/composer/draft",
   "schema_version": 1,
-  "sha256": "878af912ccd3ebf4909c21d9d6eeaf02087082a57620b34a6956a20d57598a8b",
-  "storage": "local",
+  "sha256": "ce8358f7c5902de600309719363876c937c01715034fbf76c638a785071a830a",
   "type": "text",
-  "version": null
+  "version": 1
 }

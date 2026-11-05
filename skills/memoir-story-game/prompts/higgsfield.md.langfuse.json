@@ -1,8 +1,7 @@
 {
-  "name": "memoir/skills/story-game/components/higgsfield",
+  "name": "memoir/skills/story-game/higgsfield",
   "schema_version": 1,
-  "sha256": "a9f55548a6adbe6aac220666cc7fce390ddfb45f06f424b8603dafa2c25e8785",
-  "storage": "local",
+  "sha256": "9f6e8626201da66cb9330ae046e75dccd9699e19384d97f1e06407f7d4719721",
   "type": "text",
-  "version": null
+  "version": 1
 }

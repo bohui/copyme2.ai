@@ -26,7 +26,6 @@ EVALUATION_PROMPT_PATHS = {
 
 # New runtime sources need publication receipts before runtime/export use.
 NEW_RUNTIME_PROMPTS = {'memoir/shared/skill-agent',
-    'memoir/skills/composer/instructions',
     *[name for name in PROMPT_PATHS if name.startswith('memoir/agents/')]}
 
 

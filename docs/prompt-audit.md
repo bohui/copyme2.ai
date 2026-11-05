@@ -1,5 +1,9 @@
 # Prompt and evaluation audit — 4 November 2026
 
+> This is a historical audit. The active catalog now uses one complete Markdown
+> template per operation, with exact Langfuse pins. See the [current inventory](prompt-coverage.md)
+> and [editing workflow](prompt-evaluation-workflow.md).
+
 The counts and findings below describe the original inventory audit. The
 [subsequent execution report](prompt-evaluation-20261104.md) records the shared
 judge calibration, full 198-case campaign and targeted rechecks. The generated

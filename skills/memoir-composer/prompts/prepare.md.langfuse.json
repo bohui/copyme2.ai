@@ -1,8 +1,7 @@
 {
-  "name": "memoir/skills/composer/components/prepare",
+  "name": "memoir/skills/composer/prepare",
   "schema_version": 1,
-  "sha256": "1012d18f90862fd7c5ec9312cb53bddf19bb5111e486ff9e0d618684e818c955",
-  "storage": "local",
+  "sha256": "7e133eefa42eb0b49ec5cb0b0c806501b600899f97ca0a28fad2d3d73ac16c07",
   "type": "text",
-  "version": null
+  "version": 1
 }

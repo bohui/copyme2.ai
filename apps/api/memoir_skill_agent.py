@@ -13,17 +13,29 @@ from urllib.parse import urlsplit
 from .codex_agent import CodexConnection, provider_config
 from .codex_worker_files import write_config
 from .llm_tracing import trace_llm_call, trace_skill_execution, update_llm_trace, gateway_metadata
-from .model_request import instruction_manifest
+from .model_request import digest, instruction_manifest
 from .prompt_artifact import ROOT, load_prompt_artifact, prompt_path
 from .prompt_catalog import PROMPT_PATHS
 from .prompt_composition import render_prompt_artifact
+
+
+PROMPT_DOCUMENTS = frozenset(ROOT / relative for relative in PROMPT_PATHS.values())
+SKILL_REFERENCES = frozenset(ROOT / relative for relative in (
+    'skills/memoir-author-timeline/references/contract.md',
+    'skills/memoir-author-timeline/references/source-window.md',
+    'skills/memoir-historical-news-research/references/contract.md',
+))
+
+
+def skill_document_text(path):
+    return render_prompt_artifact(path) if path in PROMPT_DOCUMENTS else path.read_text(encoding='utf-8')
 
 
 def skill_metadata(name):
     if not re.fullmatch(r'memoir-[a-z-]+', name):
         raise ValueError('Unavailable Memoir skill')
     path = ROOT / 'skills' / name / 'SKILL.md'
-    text = load_prompt_artifact(path)
+    text = skill_document_text(path)
     header = text.split('---', 2)[1]
     description = re.search(r'^description:\s*(.+)$', header, re.M)
     declared = re.search(r'^name:\s*(.+)$', header, re.M)
@@ -33,7 +45,7 @@ def skill_metadata(name):
 
 
 def skill_document(name, file, path):
-    return {'skill': name, 'file': file, 'instructions': render_prompt_artifact(path)}
+    return {'skill': name, 'file': file, 'instructions': skill_document_text(path)}
 
 
 class SkillTools:
@@ -56,7 +68,7 @@ class SkillTools:
     def specs(self):
         properties = {'skill': {'type': 'string', 'enum': list(self.catalog)}}
         tools = [{'type':'function', 'name': 'memoir_read_skill',
-            'description': 'Read a Memoir SKILL.md or a versioned reference before using it.',
+            'description': 'Read a Memoir SKILL.md or an available reference before using it.',
             'inputSchema': {'type': 'object', 'additionalProperties': False,
                 'properties': {**properties, 'file': {'type': 'string'}}, 'required': ['skill']}}]
         if self.execute is not None:
@@ -110,7 +122,7 @@ class SkillTools:
             path = candidate.resolve()
             if (Path(file).is_absolute() or '..' in Path(file).parts or candidate.is_symlink()
                     or not path.is_relative_to(root.resolve())
-                    or path not in {ROOT / p for p in PROMPT_PATHS.values()}):
+                    or (path != self.paths[name] and path not in SKILL_REFERENCES and path not in PROMPT_DOCUMENTS)):
                 value = {'error': 'reference_unavailable'}
             else:
                 value = skill_document(name, path.relative_to(root.resolve()).as_posix(), path)
@@ -188,11 +200,11 @@ async def run_skill_agent(*, command, home_root, base_url, api_key, model,
                     responsesapi_client_metadata=gateway_metadata(call_name))
             if not tools.sources_processed and not any(path in tools.reads for path in tools.paths.values()):
                 raise ValueError('Memoir agent did not read a skill')
-            # The trace records what the agent actually read, including references.
-            sources = '\n\n'.join(render_prompt_artifact(path) for path in dict.fromkeys(tools.reads))
-            manifest = instruction_manifest(instructions + '\n' + sources, schema,
+            documents = {p.relative_to(ROOT).as_posix(): digest(skill_document_text(p))
+                         for p in dict.fromkeys(tools.reads)}
+            manifest = instruction_manifest(instructions, schema,
                 variant='codex-skill-agent', extra_names=input_prompt_names)
-            update_llm_trace(trace, metadata={'prompt_manifest': manifest,
+            update_llm_trace(trace, metadata={'prompt_manifest': manifest, 'skill_document_hashes': documents,
                 'skills_read': [p.parent.name if p.name == 'SKILL.md' else p.relative_to(ROOT).as_posix()
                     for p in dict.fromkeys(tools.reads)], 'tool_calls': tools.calls})
             async with admission():

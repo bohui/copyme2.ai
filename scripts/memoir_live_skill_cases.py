@@ -40,8 +40,9 @@ def object_schema(properties):
 
 
 def skill_prompt(name, *references):
+    from apps.api.memoir_skill_agent import skill_document_text
     directory = ROOT / 'skills' / name
-    return '\n\n'.join(load_prompt_artifact(directory / file) for file in ('SKILL.md', *references))
+    return '\n\n'.join(skill_document_text(directory / file) for file in ('SKILL.md', *references))
 
 
 def source(locale):

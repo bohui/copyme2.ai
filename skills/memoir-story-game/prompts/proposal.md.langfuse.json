@@ -1,8 +1,7 @@
 {
-  "name": "memoir/skills/story-game/components/proposal",
+  "name": "memoir/skills/story-game/proposal",
   "schema_version": 1,
-  "sha256": "ad6c3f10984fdc5bee09a852808234b9c0f4418c96392ffd124fe0716c994822",
-  "storage": "local",
+  "sha256": "a4afec2beb6333a43691d5884ba74cd411c307293f6c3399722c00e5b107f7ba",
   "type": "text",
-  "version": null
+  "version": 1
 }

@@ -14,7 +14,7 @@
         "conflicts": false,
         "output_language": "Australian English"
       },
-      "sha256": "0fe93d04522fc4e7e3cbeea7a55733c011084996b10e5ebf6f398db900f1e562"
+      "sha256": "decb4864e82c14df6bc371c82b5bffb52fa4197b6e8217050b91c92dd43dffcb"
     },
     {
       "name": "memoir/skills/memory-context/profile",
@@ -29,7 +29,7 @@
         "conflicts": true,
         "output_language": "Australian English"
       },
-      "sha256": "3d29fe85b156024d69d2af9ece2b61b6b172712ade15513825439f7f8d691681"
+      "sha256": "5b89a2678f15641c8a8656337ed8c9f9c9fa03a8e755584bb6f600160b86a300"
     },
     {
       "name": "memoir/skills/memory-context/profile",
@@ -44,7 +44,7 @@
         "conflicts": false,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "0dbe427740952a5874b2eacf22f4e2c4e6db8d59219a1be18cf6e1df153ac45a"
+      "sha256": "7c3f90c501f50e4c6bc7178fcf9c05076b85097c98cd338d3ee0005da0f162d5"
     },
     {
       "name": "memoir/skills/memory-context/profile",
@@ -59,7 +59,7 @@
         "conflicts": true,
         "output_language": "Simplified Chinese"
       },
-      "sha256": "34e8a3372200b32a3b78c4a342153fa0eab75a5acc482ac16747318603ee9465"
+      "sha256": "0ac998c26da4a7437e504840dcd2fac112f43f599aa6c7ea6b38e721b0673d45"
     },
     {
       "name": "memoir/skills/memory-context/summary",

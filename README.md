@@ -457,8 +457,8 @@ and composer prepare/draft/review have no instruction-reading tool loop. Schema 
 evidence failures can still trigger bounded retries, and composition retains its
 separate preparation, drafting and evidence-review phases. General skill guides
 remain available to Atlas; worker templates supply only the instructions for the
-selected phase. Shared prompt components stay versioned and are expanded before
-dispatch, with their exact pins recorded in the request manifest.
+selected phase. Each operation reads its complete template and records the exact
+published pin in the request manifest.
 
 The optional Higgsfield game builder also preloads its four mandatory skill
 documents. Its tool loop retains optional references and HTML validation/repair;
@@ -621,28 +621,24 @@ the current prompts, models and validation.
 
 ### Versioned prompt artifacts
 
-Langfuse shows one complete template per model operation. Profile and timeline
-extraction each have one entry; shared skill files and references remain local
-components with checked source hashes. Summary, composer phases, news discovery,
-and individual game stages follow the same rule. Publication expands
-`{{prompt:component}}` references, so the Langfuse editor contains the full text.
-The host renders optional `{{#feature}}...{{/feature}}` sections and ordinary
-variables such as `{{output_language}}`; these do not require model tool calls.
-Each fixed request records one published assembled template in `prompt_manifest`,
-plus the local source components present in that request. Requests with exactly
-one published artifact send its name and numeric version as tracing metadata.
-The gateway maps that identity onto its existing Langfuse generation, so the
-assembled template receives native usage credit without another generation or
-model call. Unpublished or ambiguous manifests do not claim a prompt link.
+Each named skill operation has one editable Markdown template in Git and one
+prompt in Langfuse. For example, edit
+[`skills/memoir-author-timeline/prompts/extract.md`](skills/memoir-author-timeline/prompts/extract.md)
+for `memoir/skills/author-timeline/extract`. The published text is identical to
+that file. Profile, summary, composer, research and game stages use the same
+layout. Guides used only for skill routing or tool reference have no prompt
+receipt. The host renders optional `{{#feature}}...{{/feature}}` sections and
+ordinary variables such as `{{output_language}}` before sending the request.
 
-The development cleanup resets current skill operations to version 1 and removes
-component rows. `config/development-prompt-reset.json` names the exact project and
-committed recovery archive. `make prompt-sync` applies that one-time reset only
-from clean content matching live `origin/main`, verifies deletion, and publishes
-real version-1 receipts. An unchanged sync is a no-op. Later changes use normal
-immutable versions; the cleanup does not repeatedly erase new history. The reset sends deletion requests only for prompt records; datasets, experiments,
-scores and traces are outside its deletion scope. Deleted prompt-version links
-belong to the recovery archive.
+Each fixed request records the operation's published version and the actual
+rendered instruction and schema hashes. An input contract can have its own
+hash without claiming a second prompt. The gateway links the existing generation
+to the exact prompt version, so Langfuse counts the call once.
+
+`config/development-prompt-reset.json` and its recovery archive record the
+one-time development reset that removed old component rows and established the
+version-1 baseline. Subsequent publications retain their immutable versions.
+The file consolidation preserves published content and does not reset history.
 
 
 Trace names, observation names and dataset folders follow the
@@ -741,9 +737,9 @@ Commit prompt Markdown on the current branch before creating a Langfuse version
 with `make prompt-sync`. Feature branches can publish without pushing or merging
 to `main`; review the Markdown and generated receipts together in the pull request.
 The API and workers read checked-in prompt files and validate their receipts;
-they do not fetch prompt text from Langfuse at runtime. Shared instructions have
-one source; task templates reference them through `apps/api/prompt_composition.py`. Runtime
-and dataset evaluations use this same builder. The browser sends original
+they do not fetch prompt text from Langfuse at runtime. Every operation template
+is complete in one file. Runtime and dataset evaluations use the same renderer
+for optional sections and variables. The browser sends original
 narration, without constructing model instructions. Each managed file has a `.langfuse.json`
 receipt with its exact numeric version and SHA-256. An unpublished draft does not
 pass runtime receipt validation; synchronize the branch before running it.
@@ -759,8 +755,9 @@ then synchronizes prompts automatically after a successful merge/fast-forward
 pull on `main`. It quietly skips feature branches; use `make prompt-sync` manually
 on those branches. Publication requires no local edits other than generated prompt
 receipts. On `main`, local HEAD must also match the live `origin/main` tip.
-The publisher reads committed prompt content, reuses unchanged Langfuse versions,
-and creates a version only when the text changed. Each new version records the
+The publisher reads committed prompt content. It preserves an exact matching pin
+even if another branch has a newer draft, and creates a version only for changed
+text that does not match the current publication. Each new version records the
 Git branch and commit. Branches share the prompt's version history; each checkout's
 receipts pin the exact numeric versions used by its API and workers.
 Receipt updates remain visible as local Git changes for review and commit;
@@ -774,8 +771,8 @@ Set `PROMPT_NAME` to a full Langfuse name to scope sync/check to one prompt; the
 publisher CLI accepts repeated `--name` options for a skill's related prompts.
 `make prompt-export` remains an explicit recovery command that exports the highest
 numeric Langfuse version. `make prompt-check` compares checked-in pins with their
-exact remote versions and validates template composition. Evaluation preflight includes the
-component versions/hashes and compiled SHA-256. Prompt commands use the existing
+exact remote versions and verifies that templates are self-contained. Evaluation
+preflight includes the version pin and rendered request SHA-256. Prompt commands use the existing
 local Memoir project credentials in
 `$(HOME)/llm_provider/.env` by default. Override `PROMPT_CREDENTIAL_FILE` for a
 different local credential-file location. The hook also honors an exported

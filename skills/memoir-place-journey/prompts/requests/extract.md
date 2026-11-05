@@ -1,2 +1,0 @@
-{{prompt:timeline_grounding}}{{#places}}
-{{prompt:place_extraction}}{{prompt:timeline_hints}}{{/places}}{{#attribution}}{{prompt:timeline_attribution}}{{/attribution}}{{#continuity}}{{prompt:timeline_continuity}}{{/continuity}}{{#bounded}}{{prompt:lane_context}}Write in {{output_language}}; preserve original quoted source language.{{/bounded}}{{#conflicts}}{{prompt:place_conflicts}}{{/conflicts}}

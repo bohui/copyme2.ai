@@ -338,7 +338,8 @@ async def run_bounded_job(*,command,home_root,base_url,api_key,model,bounded_job
     fence=bounded.fence
     home=root/f'job-{fence.user_id}-{fence.conversation_id}-{fence.snapshot_id}-epoch-{fence.policy_epoch}-page-{fence.page_number}-{uuid4()}'
     home.mkdir(mode=0o700)
-    manifest = instruction_manifest(instructions, schema, variant=fence.phase)
+    manifest = instruction_manifest(instructions, schema, variant=fence.phase,
+        primary_name=f'memoir/skills/composer/outline/{fence.phase}/{fence.locale}')
     call_name = f'memoir-composer.outline-{fence.phase}'
     with trace_llm_call(call_name, model, trace_name='memoir-composer',
             metadata={'contract_version': 'lifetime-organiser-v1', 'prompt_manifest': manifest}, gateway=True):
