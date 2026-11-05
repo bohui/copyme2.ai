@@ -1900,7 +1900,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 213
+        "line": 225
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1938,7 +1938,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 213
+        "line": 225
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -1976,7 +1976,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 213
+        "line": 225
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2014,7 +2014,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 213
+        "line": 225
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2052,7 +2052,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 213
+        "line": 225
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2090,7 +2090,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 213
+        "line": 225
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -2128,7 +2128,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 213
+        "line": 225
       },
       {
         "path": "scripts/memoir_live_skill_cases.py",
@@ -5059,8 +5059,8 @@
   {
     "name": "memoir/skills/author-timeline/extract",
     "source": "skills/memoir-author-timeline/prompts/requests/extract.md",
-    "version": 1,
-    "sha256": "8ba3224af906146a3e3eaba2d603d4862e6b1b843ef932e8fc95b8d3a28ce006",
+    "version": 2,
+    "sha256": "b50abc1cf19d9df77f991374146f8de737dd90ab16cb396360b73b8272db1599",
     "use": "conditional",
     "scenario": "Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Preserve sourced narrated order across overlapping period estimates and revise consecutive residence spans from provisional study/work durations.",
     "consumers": [
@@ -5487,7 +5487,7 @@
     "name": "memoir/skills/author-timeline/instructions",
     "source": "skills/memoir-author-timeline/SKILL.md",
     "version": null,
-    "sha256": "1df8b98a65018764b00803972ce1c46c384578bcafc5ba90e94726bc1f2080eb",
+    "sha256": "e4460e03e7d8f76d8a796007665131611cd32e493445f67969ea33f858e742f9",
     "use": "component",
     "scenario": "Local source expanded into an assembled operation template; tracked by source hash without a separate Langfuse prompt. Timeline source extraction, exact attribution, continuity and optional place hints; window contract bounds source pages. Background admission retains batch working context through ordinary foreground replies and waits for pending privacy review without repeating completed model calls. Preserve sourced narrated order across overlapping period estimates and revise consecutive residence spans from provisional study/work durations.",
     "consumers": [
@@ -11929,7 +11929,7 @@
       {
         "path": "scripts/memoir_live_skill_cases.py",
         "symbol": "cases",
-        "line": 213
+        "line": 225
       }
     ],
     "targets": [

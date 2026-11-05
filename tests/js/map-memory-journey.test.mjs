@@ -145,6 +145,23 @@ test('city timing spans every event including a longer earlier residence', () =>
   assert.match(html,/From 1983 · About age 0 to 2000 · About age 17/);
 });
 
+test('city bounds include every interval regardless of event order or date estimation', () => {
+  const long={...event('long',null,city,'unplaced'),temporal:null,
+    temporal_estimate:{year_start:1971,year_end:1988,age_start:11,age_end:28,confidence:.4}};
+  const short={...event('short',null,school),temporal:{expression:'1975–1978',precision:'range',year_start:1975,year_end:1978}};
+  for (const input of [[long,short],[short,long]]) {
+    const cards=cityEventCards(buildMapMemoryJourney(input,groups,{birth_year:1960}).nodes);
+    assert.match(memoryEventCardMarkup(cards[0],{t,lifeStageText:stage=>stage}),
+      /From About 1971 · About age 11 to About 1988 · About age 28/);
+  }
+});
+
+test('birth-to-age ranges preserve both bounds in either source language', () => {
+  for (const end of [5,16,34]) for (const expression of [`从出生一直到${end}岁`,`from birth until age ${end}`]) {
+    assert.deepEqual(eventAge({temporal:{expression,precision:'age'}}),{start:0,end,approximate:false});
+  }
+});
+
 test('Chengde, Shanghai and Sydney cards retain whole residence periods and narrated order', () => {
   const chengde={place:'Chengde',granularity:'city',hierarchy:['Earth','China','Chengde'],latitude:40.95,longitude:117.96};
   const shanghai={place:'Shanghai',granularity:'city',hierarchy:['Earth','China','Shanghai'],latitude:31.23,longitude:121.47};

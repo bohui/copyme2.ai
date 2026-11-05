@@ -45,23 +45,26 @@ def test_every_checked_in_skill_has_a_live_case():
 
 
 @pytest.mark.parametrize('locale', ['en-AU', 'zh-CN'])
-def test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation(locale):
-    case = timeline_chronology_case(locale)
+@pytest.mark.parametrize('variant', ['study','work'])
+def test_overlapping_chronology_case_rejects_the_reported_missing_or_reversed_relation(locale, variant):
+    case = timeline_chronology_case(locale, variant)
     event = {key:deepcopy(value) for key,value in case['saved_events'][0].items()
         if key not in {'id', 'revision', 'status'}}
-    event.update(existing_id='saved-shanghai', expected_revision=1)
-    for relations in (None, [], [dict(kind='after', event_id='saved-sydney', source_refs=event['source_refs'])]):
+    event.update(existing_id=case['expected']['before'], expected_revision=1)
+    for relations in (None, [], [dict(kind='after', event_id=case['expected']['after'], source_refs=event['source_refs'])]):
         event['relations'] = relations
         with pytest.raises(ValueError, match='missing_narrated_chronology'):
             validate_case(case, {'events':[event]})
-    event['relations'] = [dict(kind='before', event_id='saved-sydney', source_refs=event['source_refs'])]
+    event['relations'] = [dict(kind='before', event_id=case['expected']['after'], source_refs=event['source_refs'])]
     with pytest.raises(ValueError, match='narrated_period_estimate'):
         validate_case(case, {'events':[event]})
-    event['temporal_estimate'].update(year_start=2000, year_end=2012, age_start=17, age_end=29)
     home = {key:deepcopy(value) for key,value in case['saved_events'][1].items()
         if key not in {'id', 'revision', 'status'}}
-    home.update(existing_id='saved-sydney', expected_revision=1)
-    home['temporal_estimate'].update(year_start=2012, age_start=29, age_end=43)
+    home.update(existing_id=case['expected']['after'], expected_revision=1)
+    for item in (event,home):
+        start,end=case['expected']['ages'][item['existing_id']]
+        item['temporal_estimate'].update(year_start=case['expected']['birth_year']+start,
+            year_end=case['expected']['birth_year']+end,age_start=start,age_end=end)
     validate_case(case, {'events':[event,home]})
 
 
