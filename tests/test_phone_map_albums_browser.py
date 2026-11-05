@@ -115,8 +115,11 @@ def album_page(request):
             else:
                 route.abort()
         context.route('**/*', boundary)
+        script_attempts = 0
         def cesium(route):
-            if mode == 'script-error':
+            nonlocal script_attempts
+            script_attempts += 1
+            if mode == 'script-error' and script_attempts == 1:
                 return route.abort()
             response = route.fetch()
             imagery = '''\nCesium.Google2DImageryProvider.fromUrl=async()=>new Cesium.GridImageryProvider();
@@ -686,6 +689,13 @@ def test_missing_map_stays_hidden_and_failed_map_keeps_retry(album_page,request)
         expect(page.locator('.workspace-media-map')).to_be_visible()
         expect(page.locator('[data-map-retry]')).to_be_visible()
         expect(page.locator('.workspace-media-gallery')).to_have_count(0)
+        if request.node.callspec.params['album_page'] == 'tile-error':
+            page.evaluate('Cesium.Google2DImageryProvider.fromUrl=async()=>new Cesium.GridImageryProvider()')
+        if request.node.callspec.params['album_page'] in ('script-error','tile-error'):
+            page.locator('[data-map-retry]').click()
+            expect(page.locator('.place-journey-scene.is-cesium-map')).to_be_visible(timeout=30000)
+            expect(page.locator('[data-map-retry]')).to_have_count(0)
+            assert page.evaluate('performance.getEntriesByType("navigation").length') == 1
     expect(page.locator('#chat-input')).to_be_enabled()
 
 
