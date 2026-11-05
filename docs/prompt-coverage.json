@@ -5251,7 +5251,8 @@
       "tests/test_memory_context_transport.py",
       "tests/test_prompt_composition.py",
       "tests/test_assembled_prompts.py",
-      "tests/test_prompt_publication.py"
+      "tests/test_prompt_publication.py",
+      "tests/test_prompt_usage_link.py"
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
@@ -9315,7 +9316,8 @@
       "tests/test_prompt_publication.py",
       "tests/test_memoir_background_agent_workflow.py::test_foreground_keeps_replying_while_background_finishes_then_batches_queued_narrations",
       "tests/test_memoir_background_agent_workflow.py::test_finished_background_output_waits_for_foreground_policy_without_another_model_call",
-      "tests/test_background_profile_postgres.py"
+      "tests/test_background_profile_postgres.py",
+      "tests/test_prompt_usage_link.py"
     ],
     "gaps": [
       "No scored experiment items verified for the current pin"

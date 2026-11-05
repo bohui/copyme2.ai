@@ -621,8 +621,11 @@ and individual game stages follow the same rule. Publication expands
 The host renders optional `{{#feature}}...{{/feature}}` sections and ordinary
 variables such as `{{output_language}}`; these do not require model tool calls.
 Each fixed request records one published assembled template in `prompt_manifest`,
-plus the local source components present in that request. Gateway generations
-retain their existing native prompt-link behavior.
+plus the local source components present in that request. Requests with exactly
+one published artifact send its name and numeric version as tracing metadata.
+The gateway maps that identity onto its existing Langfuse generation, so the
+assembled template receives native usage credit without another generation or
+model call. Unpublished or ambiguous manifests do not claim a prompt link.
 
 The development cleanup resets current skill operations to version 1 and removes
 component rows. `config/development-prompt-reset.json` names the exact project and

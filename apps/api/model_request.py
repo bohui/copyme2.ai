@@ -154,4 +154,10 @@ def instruction_manifest(instructions, schema=None, *, variant=None, extra_names
 
 
 def manifest_metadata(manifest):
-    return {key: manifest[key] for key in ('prompt_sha256', 'schema_sha256', 'manifest_sha256')}
+    metadata = {key: manifest[key] for key in ('prompt_sha256', 'schema_sha256', 'manifest_sha256')}
+    published = [item for item in manifest.get('artifacts', []) if item.get('status') == 'published']
+    if len(published) == 1:
+        primary = published[0]
+        if isinstance(primary.get('name'), str) and primary['name'] and type(primary.get('version')) is int and primary['version'] > 0:
+            metadata.update(langfuse_prompt_name=primary['name'], langfuse_prompt_version=str(primary['version']))
+    return metadata
