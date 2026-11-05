@@ -7120,10 +7120,6 @@ CREATE FUNCTION public.lifetime_attribution_event_context(p_owner uuid, p_projec
    'attribution',e.data->'attribution','uncertainty',e.data->'uncertainty',
    'temporal',jsonb_build_object('expression',e.data->'temporal'->'expression','precision',e.data->'temporal'->'precision',
      'year_start',e.data->'temporal'->'year_start','year_end',e.data->'temporal'->'year_end'),
-   'temporal_estimate',case when jsonb_typeof(e.data->'temporal_estimate')='object'
-     then (e.data->'temporal_estimate')-'basis' end,'location',e.data->'location',
-   'locationConfidenceScore',e.data->'locationConfidenceScore','yearConfidenceScore',e.data->'yearConfidenceScore',
-   'timing_conflict',coalesce(e.data->'timing_conflict','false'::jsonb),
    'places',coalesce((select jsonb_agg(to_jsonb(p)-array['user_id','project_id','event_id']) from
      (select * from public.lifetime_event_place_rows(p_owner,p_project,p_event) where not(role=any(conflicts.roles))
        order by source_id,char_start,role,place_key limit 2) p),'[]'),
@@ -10118,6 +10114,10 @@ begin
    select coalesce(jsonb_agg(item order by priority,change_sequence desc,id),'[]') into candidates from (
      select e.id,e.change_sequence,c.priority,jsonb_build_object('id',e.id,'revision',e.revision,'kind',e.kind,
        'title',left(e.data->>'title',300),'life_stage',e.life_stage,'status',e.status,'source_refs','[]'::jsonb,
+       'temporal_estimate',case when jsonb_typeof(e.data->'temporal_estimate')='object'
+         then (e.data->'temporal_estimate')-array['basis','rationale'] end,'location',e.data->'location',
+       'locationConfidenceScore',e.data->'locationConfidenceScore','yearConfidenceScore',e.data->'yearConfidenceScore',
+       'timing_conflict',coalesce(e.data->'timing_conflict','false'::jsonb),
        'identity_context_only',true,'active_interview_context',c.priority=0) item
      from selected c join public.user_memory_event e on e.user_id=snap.user_id and e.project_id=snap.project_id and e.id=c.id
      order by c.priority,e.change_sequence desc,e.id limit 8) bounded;
