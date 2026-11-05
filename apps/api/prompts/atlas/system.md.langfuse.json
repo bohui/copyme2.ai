@@ -1,7 +1,7 @@
 {
   "name": "memoir/agents/atlas/skill-selection",
   "schema_version": 1,
-  "sha256": "73fea50d746085fcab1502aafbf44c26b2f8e8d31df4db8e0cca6793fd44354d",
+  "sha256": "1eca75e245e2dd3a5b10afb2b7b10d668b8d91e128dea8df80d9a4015a3dbe37",
   "type": "text",
-  "version": 2
+  "version": 3
 }

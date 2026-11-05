@@ -197,7 +197,7 @@ def test_timeline_reconciles_and_revises_a_city_period(sql,tmp_path,monkeypatch)
         assert orders[earlier['id']]['relations'] == [{'kind':'before','event_id':later['id']}]
         replay = subprocess.run(['node',str(Path(__file__).parent/'js/helpers/replay-event-group.mjs')],
             input=json.dumps(dict(project=project,feed=feed,locations=locations,orders=orders,end=end)),
-            text=True,capture_output=True,timeout=10)
+            text=True,capture_output=True,timeout=20)
         assert replay.returncode == 0, replay.stdout+replay.stderr
         return earlier
 

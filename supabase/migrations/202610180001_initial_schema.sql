@@ -4541,9 +4541,7 @@ begin
    end if;
    if page->>'skill'='timeline' and page->'two_lane'->'selected_skills' ? 'memoir-author-timeline'
      and not(page->'two_lane'->'selected_skills' ? 'memoir-place-journey') then
-     if jsonb_array_length(p_result->'events')=0 then
-       perform public.background_skill_receipt(page,'reconcile','memoir-author-timeline','model','skipped','no_drafts');
-     elsif not exists(select 1 from public.user_background_skill_work where lane_id=p_lane_id
+     if jsonb_array_length(p_result->'events')>0 and not exists(select 1 from public.user_background_skill_work where lane_id=p_lane_id
         and id=public.background_skill_id(page,'reconcile') and status='saved') then
        perform public.background_skill_receipt(page,'reconcile','memoir-author-timeline','model','saved','invocation_receipt_unavailable');
      end if;

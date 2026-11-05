@@ -1,13 +1,14 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-05T22:35:48.693873+00:00",
+  "captured_at": "2026-11-05T23:13:24.132690+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
       "name": "memoir/agents/atlas/skill-selection",
       "versions": [
         1,
-        2
+        2,
+        3
       ],
       "labels": [
         "latest"
@@ -422,7 +423,18 @@
         1,
         2,
         3,
-        4
+        4,
+        5
+      ],
+      "labels": [
+        "latest"
+      ],
+      "tags": []
+    },
+    {
+      "name": "memoir/skills/author-timeline/reconcile",
+      "versions": [
+        1
       ],
       "labels": [
         "latest"
@@ -523,7 +535,8 @@
       "name": "memoir/skills/memory-context/profile",
       "versions": [
         1,
-        2
+        2,
+        3
       ],
       "labels": [
         "latest"
@@ -24953,8 +24966,8 @@
     {
       "name": "memoir/skills/author-timeline/extract/golden/delivery-v3",
       "target": "memoir/skills/author-timeline/extract",
-      "items": 6,
-      "content_sha256": "db2b3f13568047d0d419399a5688066ed33cbf81276d465b8ed2f40e8e183cac",
+      "items": 8,
+      "content_sha256": "fb75ef27a4f0279e36f241e84c04c7f906680d04fd53f258a5a1932af47aa4ff",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {
@@ -24975,7 +24988,7 @@
       "name": "memoir/skills/memory-context/profile/golden/delivery-v3",
       "target": "memoir/skills/memory-context/profile",
       "items": 7,
-      "content_sha256": "20f3c2813a0233605234a5c1516673372ddbbb3f9fe0d27bf9ba720c87e2aa15",
+      "content_sha256": "210e1a13deda559e748cc72151f48db19618a01d6554c70ea63506e2190ccd62",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {
