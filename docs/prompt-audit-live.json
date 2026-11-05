@@ -1,6 +1,6 @@
 {
   "project_id": "cmut9t75w00071z02n8bdv7it",
-  "captured_at": "2026-11-04T21:59:17.300673+00:00",
+  "captured_at": "2026-11-05T09:03:14.451109+00:00",
   "scope": "Metadata, case hashes and score presence; no trace text, model calls or mutations",
   "prompts": [
     {
@@ -499,7 +499,8 @@
         2,
         3,
         4,
-        5
+        5,
+        6
       ],
       "labels": [
         "latest"
@@ -547,7 +548,8 @@
         12,
         13,
         14,
-        15
+        15,
+        16
       ],
       "labels": [
         "latest"
@@ -861,7 +863,8 @@
     {
       "name": "memoir/skills/story-game/higgsfield",
       "versions": [
-        1
+        1,
+        2
       ],
       "labels": [
         "latest"
@@ -1068,6 +1071,429 @@
   ],
   "datasets": [
     {
+      "id": "cmw3baiyp0cb51z02tpruimjn",
+      "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+      "metadata": {
+        "suite": "memoir-skills/1",
+        "target": "memoir/skills/place-journey/extract",
+        "synthetic": true,
+        "content_sha256": "42cf62cdf52dcf3f9e131b4cfb7850ba77cf52c44a5fee410aaf9fb59bb71441",
+        "contains_customer_data": false
+      },
+      "items": [
+        {
+          "id": "7380b979526fcdb961e8cd2e59ebaa06",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-place-journey/homonym/zh-CN",
+          "input_sha256": "9af8421e80e03095e81f253a420d50c9d163afd1e33820612598047b1fb4cd3a",
+          "expected_sha256": "c34223ce8ca20911df497fdbd14c5e4f96dc75ff639cdf665f7af0012be177f4",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "1f559794c4bd824b8ebe588d2e4dd61f",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-place-journey/homonym/en-AU",
+          "input_sha256": "48f0d54663fcd7b88bc150ca343ce635b2824322da347194182528456d37d3d1",
+          "expected_sha256": "c34223ce8ca20911df497fdbd14c5e4f96dc75ff639cdf665f7af0012be177f4",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "61f6efdac1a1d42c144f82a191181991",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-place-journey/two-cities/zh-CN",
+          "input_sha256": "bc1e9c782d838d41a6f0d9e3bcb69fefcef6bb60dff67ceaee1d5af04a4a171d",
+          "expected_sha256": "d96d69c4a9f5096ca944c4329ada616f97d82660298fcbb247fdd8f93b5882b0",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "979d53789396f7bfbdbd4ea065d6367c",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-place-journey/two-cities/en-AU",
+          "input_sha256": "369385fb58c8b368a6707ab54afe8499356baaabc73212ffa6114e1d4cbb7051",
+          "expected_sha256": "d96d69c4a9f5096ca944c4329ada616f97d82660298fcbb247fdd8f93b5882b0",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        }
+      ],
+      "runs": [
+        {
+          "id": "55ba9a280537b229",
+          "name": "20261105T085644Z-52332a-repeat1-campaign-5ab262c11c1f"
+        }
+      ],
+      "experiment_items": 4,
+      "scored_experiment_items": 4
+    },
+    {
+      "id": "cmw3bai560cau1z0227pi9g0e",
+      "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
+      "metadata": {
+        "suite": "memoir-skills/1",
+        "target": "memoir/skills/memory-context/profile",
+        "synthetic": true,
+        "content_sha256": "d9e5d97674420723d5a96a83dd8cf82c76b6af1b456ccd89f8efdf02ba85a16c",
+        "contains_customer_data": false
+      },
+      "items": [
+        {
+          "id": "557e3cc30c44d524dd681f99f6d20cf6",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-memory-context/other-people/zh-CN",
+          "input_sha256": "67c9b699c54739b139b94f762a679df5333f80fa3e3b2f299c8cc8396d0f80f3",
+          "expected_sha256": "5cecbf5d09dcc8d31debbf5137ce628ebd94a169284a39bd0a762bae42fd517f",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "708c89aed1c6cc21113778d8e5af9922",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-memory-context/other-people/en-AU",
+          "input_sha256": "36e9cc312423bcab835979c6162c3285a0142b36706e3d0fed6a6855b0048688",
+          "expected_sha256": "5cecbf5d09dcc8d31debbf5137ce628ebd94a169284a39bd0a762bae42fd517f",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "5c31dba8ea2aed8256324d96fac5ed4f",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-memory-context/approximate-date/zh-CN",
+          "input_sha256": "e3c062c3d69ae467c9beafb48da40426c3bfc489c2081441a73f59e23717705c",
+          "expected_sha256": "20aba6e5402bf41292fd7d6b2eb493ce729deb9cdd212ef654a9e25e82b28449",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "9087845bdfd6f50f4a7fa923f770b985",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-memory-context/approximate-date/en-AU",
+          "input_sha256": "ecd2c3edea8b5f656b37a66c1d90ba131f174729c34ebf48a4f7b02dd8b7d745",
+          "expected_sha256": "a9cc20ad57c61491a759a0279bbcac229472931f0afdee99b638ae149ec77371",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "a65ad1ccab623c7c9e55094e56c03b74",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-memory-context/manual-value/zh-CN",
+          "input_sha256": "4ab95f17d0be89464f55a5c0e636703c35c5d96d045649420bce9c4c41a4a2d7",
+          "expected_sha256": "2ce2820b44bc4cc62abcbf5957f467858062ced242aaf734d1d759a031ea0963",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "0638ee458c90127b4230601776c8e512",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-memory-context/manual-value/en-AU",
+          "input_sha256": "e72172e2b515e46b9bd8abe9ca5e0cda38f13c24e6bca5e5e803ba3c131897a7",
+          "expected_sha256": "4250954425cbf0d7ec2d5179b86c4f5c7217bb90dbd48780df9981425106cfdf",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "b0bfdca401f9def7ce7416889159a7af",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-memory-context/explicit-profile/zh-CN",
+          "input_sha256": "6d711380370d76a54fa43a7fd4ffe0d85b5a4f13e26dd270cbc1e547944ea727",
+          "expected_sha256": "42000913de762076ee01cfd7da84b6b261d99cb52dc4d652aa88f14245203d08",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "0cbfb4925a010ef0fc7f9412416dbf5c",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-memory-context/explicit-profile/en-AU",
+          "input_sha256": "1233feca23c6c1f877cae2de2b62efec9f1b4ff37a535613366a8fe867b4093d",
+          "expected_sha256": "628c0e88b609ff1323e974ad4fd61aa814bde6020be11b7b64903b4d3b4642c6",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        }
+      ],
+      "runs": [
+        {
+          "id": "bf38149cb7ffbd3e",
+          "name": "20261105T085644Z-52332a-repeat1-campaign-0455a60defda"
+        }
+      ],
+      "experiment_items": 8,
+      "scored_experiment_items": 8
+    },
+    {
+      "id": "cmw3b7cpw0cal1z02ydjcysku",
+      "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+      "metadata": {
+        "suite": "memoir-skills/1",
+        "target": "memoir/skills/author-timeline/extract",
+        "synthetic": true,
+        "content_sha256": "649e239ab0fd14b3f97f9a2f5079dbbb559951022d79b8985e0fcb77a575ae91",
+        "contains_customer_data": false
+      },
+      "items": [
+        {
+          "id": "9be08397ec59f3bcc3a0ebbd84bb7662",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-author-timeline/unicode-quote/zh-CN",
+          "input_sha256": "3df966260e69d5ce04f14626327bf1b77de2e60157417a6f8b3265272548bd78",
+          "expected_sha256": "b1aac4d10a0942ae3302fe5fe7f459ac5ec695c05d048b3acbecba4bff6521c9",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "4163af7f2a3352057cecf231a8a9b0ba",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-author-timeline/unicode-quote/en-AU",
+          "input_sha256": "dfcb9179eddb5e0d3a5d6014cbc291227f23aa4976487abd4b680c18e322382c",
+          "expected_sha256": "b1aac4d10a0942ae3302fe5fe7f459ac5ec695c05d048b3acbecba4bff6521c9",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "2ac1434733c380d81d3820c6e93612f2",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-author-timeline/uncertain-year/zh-CN",
+          "input_sha256": "f642a3893b23507da249365bb14bd4aa5c976ff2ffe2c391525e8ade90621e09",
+          "expected_sha256": "7692d40e0417ce84d9c883427dc9d4e38a816f7a1b5e6afa0a9d63746d5c961c",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "9f05f28af98567fef51052bdce64fb14",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-author-timeline/uncertain-year/en-AU",
+          "input_sha256": "d65f6c8617d5a9de854eef36fa7a58ac5033615870ad98e306bb0a8f28113d13",
+          "expected_sha256": "7692d40e0417ce84d9c883427dc9d4e38a816f7a1b5e6afa0a9d63746d5c961c",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "b4bc596b1bff56b0f80c3a14e18ec6d7",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-author-timeline/exact-testimony/zh-CN",
+          "input_sha256": "7ee17bd550754dd8f26884d3e8f1a45b16fb4b91bcf7c9bebae4b636db7c055d",
+          "expected_sha256": "a89003cd27b4b851f43b5c5dfe4660ff5ca0c4117f1b9246f771eb0ac8e07c6c",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        },
+        {
+          "id": "52340555229735e37bf0953f4e0cd134",
+          "status": "ACTIVE",
+          "case_id": "skills/memoir-author-timeline/exact-testimony/en-AU",
+          "input_sha256": "df87366f9e77750162402081d34e34b18105fe2c70471d01e959dd71e70fbc59",
+          "expected_sha256": "a89003cd27b4b851f43b5c5dfe4660ff5ca0c4117f1b9246f771eb0ac8e07c6c",
+          "input_keys": [
+            "case_id",
+            "component",
+            "locale",
+            "skill",
+            "task"
+          ],
+          "expected_keys": [
+            "facts",
+            "forbidden",
+            "required",
+            "witnesses"
+          ]
+        }
+      ],
+      "runs": [
+        {
+          "id": "6ad2a4274c4fd572",
+          "name": "20261105T085644Z-52332a-repeat1-campaign-0b27a36c3f16"
+        }
+      ],
+      "experiment_items": 6,
+      "scored_experiment_items": 6
+    },
+    {
       "id": "cmw2nofur0c801z02v7da7fyj",
       "name": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
       "metadata": {
@@ -1099,14 +1525,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "a5c92f1459ff1dba",
-          "name": "20261104T215548Z-3a7d34-repeat1-campaign-534012cf63d7"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw2mgxk700071z02gnaeok6e",
@@ -1300,14 +1721,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "cc2503aedc9d68b3",
-          "name": "20261104T212158Z-659fbe"
-        }
-      ],
-      "experiment_items": 2,
-      "scored_experiment_items": 2
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw2mfnh400031z02m8ma6xhy",
@@ -1597,14 +2013,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "b3d3a0094e411bf9",
-          "name": "20261104T104020Z-15b472-repeat1-campaign-57fb0364bea0"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1zbw9e013z1z02h8zhs4os",
@@ -3346,18 +3757,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "54deb0f957ed37c4",
-          "name": "prompts-20261104T212526Z-cb24b3"
-        },
-        {
-          "id": "9bd7b3adf8dfe156",
-          "name": "prompts-20261104T212227Z-d45fd3"
-        }
-      ],
-      "experiment_items": 19,
-      "scored_experiment_items": 19
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdkp3010z1z02aj7o7fsu",
@@ -3757,14 +4159,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "60442d1503034136",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-c84200bd1d72"
-        }
-      ],
-      "experiment_items": 2,
-      "scored_experiment_items": 2
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdjpy00zt1z029rbi0l7p",
@@ -4098,14 +4495,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "9103fbcedd74ea09",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-30393d2d8676"
-        }
-      ],
-      "experiment_items": 2,
-      "scored_experiment_items": 2
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdj8r00za1z02ebar0x6p",
@@ -4439,18 +4831,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "bc4c0eced039d7a8",
-          "name": "20261104T215649Z-1fdf5c-repeat1-campaign-eac77f97ffe3"
-        },
-        {
-          "id": "e89304f376748dd0",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-eac77f97ffe3"
-        }
-      ],
-      "experiment_items": 19,
-      "scored_experiment_items": 19
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdio600yr1z027vlqx7x8",
@@ -4784,14 +5167,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "1ac226f1421ffe49",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-c9782a9df9b5"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdi4j00y81z029fh1psap",
@@ -5461,14 +5839,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "2203430d16a32c56",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-0c088257c478"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdh4100x61z02j759k06p",
@@ -5802,18 +6175,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "26df0e92878ab45f",
-          "name": "20261104T215649Z-1fdf5c-repeat1-campaign-47b4a4b14664"
-        },
-        {
-          "id": "7902d039cd3e61fa",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-47b4a4b14664"
-        }
-      ],
-      "experiment_items": 18,
-      "scored_experiment_items": 18
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1xdco600v51z024evmmr1v",
@@ -7065,14 +7429,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "16b4980b3b50defb",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-b176fe2d7734"
-        }
-      ],
-      "experiment_items": 8,
-      "scored_experiment_items": 8
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1wgk0x00sp1z02dpgfqqcf",
@@ -8585,22 +8944,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "38ea9ee465fcfac6",
-          "name": "shared-v2-holdout-20261104T092641Z-eaf584ff"
-        },
-        {
-          "id": "1080bb5c029b8f36",
-          "name": "relevance-v2-development-20261104T092507Z-5f8486f6"
-        },
-        {
-          "id": "2105d8f0616f7130",
-          "name": "shared-v2-development-20261104T091718Z-5627bd2b"
-        }
-      ],
-      "experiment_items": 11,
-      "scored_experiment_items": 11
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1rhucb00xy1z02p63v342y",
@@ -8612,14 +8958,9 @@
         "contains_customer_data": false
       },
       "items": [],
-      "runs": [
-        {
-          "id": "21f6bdc183aefbad",
-          "name": "baseline-development-20261104T071048Z-fbb8d84b"
-        }
-      ],
-      "experiment_items": 2,
-      "scored_experiment_items": 2
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw1guimf00il1z02oaetu8au",
@@ -12153,14 +12494,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "81f6af98a38c06d9",
-          "name": "20261103T121620Z-87791d-repeat1-lane-a"
-        }
-      ],
-      "experiment_items": 5,
-      "scored_experiment_items": 5
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw0mxw4s00261z02ypyn2buw",
@@ -13087,14 +13423,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "9e2240228c579332",
-          "name": "20261103T115931Z-b74da5-repeat1-skills"
-        }
-      ],
-      "experiment_items": 3,
-      "scored_experiment_items": 3
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw0mxvhl001p1z02md3xby14",
@@ -13359,18 +13690,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "a3209468e41acbbd",
-          "name": "20261104T093921Z-9143ae-repeat1-campaign-068f68a58ef3"
-        },
-        {
-          "id": "28fd045d692c16fd",
-          "name": "20261103T115931Z-b74da5-repeat1-lane-b"
-        }
-      ],
-      "experiment_items": 4,
-      "scored_experiment_items": 4
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw0mxskv000u1z02wrqo62mt",
@@ -13895,14 +14217,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "6d94636c7b4626b8",
-          "name": "20261103T115931Z-b74da5-repeat1-lane-a"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmw0mvvrr000q1z02a220a52m",
@@ -14419,18 +14736,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "6d305141efbf8225",
-          "name": "interviewer-reviewed-candidate-20261019T224835Z"
-        },
-        {
-          "id": "1c5fef7d185e819a",
-          "name": "interviewer-reviewed-candidate-20261019T222842Z"
-        }
-      ],
-      "experiment_items": 4,
-      "scored_experiment_items": 4
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf63f1v00971z0214q8rr07",
@@ -14801,14 +15109,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "8609670af536abed",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 5,
-      "scored_experiment_items": 5
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf63exl00921z024ddyz6sa",
@@ -15230,14 +15533,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "68315929913936af",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf63crr00801z026ga66lt9",
@@ -15616,18 +15914,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "1c3ffb9b5bbdaed7",
-          "name": "all-skills-20261019-113909"
-        },
-        {
-          "id": "cf53e9cfdda7363b",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 3,
-      "scored_experiment_items": 3
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf63buk007h1z02aw7y2u4g",
@@ -16006,14 +16295,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "48696b89df768964",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 3,
-      "scored_experiment_items": 3
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf63b2m006y1z02j4hcpwry",
@@ -16392,22 +16676,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "3f43d8c05977f8fb",
-          "name": "all-skills-20261019-113129"
-        },
-        {
-          "id": "6298063c5558d16b",
-          "name": "all-skills-20261019-113034"
-        },
-        {
-          "id": "6c4b8fa1794b0a75",
-          "name": "all-skills-20261019-112750"
-        }
-      ],
-      "experiment_items": 3,
-      "scored_experiment_items": 3
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf63a7d006f1z0216n7260x",
@@ -16786,14 +17057,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "394d33d759287f80",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf6398g005w1z029w2mw61u",
@@ -17172,14 +17438,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "75ba1835513e76b6",
-          "name": "interviewer-reviewed-candidate-20261019T222842Z"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf637t5005d1z02tpayqkcw",
@@ -17558,14 +17819,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "6bb1331f99165882",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf6340e004u1z02vmpkasz7",
@@ -17944,14 +18200,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "740f697e37e0cb20",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 4,
-      "scored_experiment_items": 4
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf62u0w004b1z02yp9bzm84",
@@ -18330,14 +18581,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "346c5c9a39cd4198",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 3,
-      "scored_experiment_items": 3
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvf62s10003s1z021ip1f0jw",
@@ -18716,14 +18962,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "74e7bdfecddf5984",
-          "name": "all-skills-20261019-113129"
-        }
-      ],
-      "experiment_items": 2,
-      "scored_experiment_items": 2
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvdea22b00221z02a0nv1v93",
@@ -18898,14 +19139,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "1435168b1e0d6f2e",
-          "name": "skills-20261018T053827Z-triggers"
-        }
-      ],
-      "experiment_items": 2,
-      "scored_experiment_items": 2
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvde28s7001g1z024qbscebn",
@@ -19324,18 +19560,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "b9e18a87d6e5e81c",
-          "name": "skills-20261018T053749Z-deliveries"
-        },
-        {
-          "id": "44c4ffe697da7051",
-          "name": "skills-20261018T053225Z-deliveries"
-        }
-      ],
-      "experiment_items": 2,
-      "scored_experiment_items": 2
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvdcb2g2000f1z02wqx8n34y",
@@ -19754,18 +19981,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "0850785799475a83",
-          "name": "skills-20261018T044917Z-deliveries"
-        },
-        {
-          "id": "28f78dbb29825152",
-          "name": "skills-20261018T044320Z-deliveries"
-        }
-      ],
-      "experiment_items": 5,
-      "scored_experiment_items": 5
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvdcb1h100031z020eze1xt8",
@@ -19940,14 +20158,9 @@
           ]
         }
       ],
-      "runs": [
-        {
-          "id": "d1a42b11b55b7808",
-          "name": "skills-20261018T044657Z-triggers"
-        }
-      ],
-      "experiment_items": 1,
-      "scored_experiment_items": 1
+      "runs": [],
+      "experiment_items": 0,
+      "scored_experiment_items": 0
     },
     {
       "id": "cmvcxwjt2002k1z02u2zdv6qn",
@@ -25114,7 +25327,7 @@
       "name": "memoir/skills/author-timeline/extract/golden/delivery-v3",
       "target": "memoir/skills/author-timeline/extract",
       "items": 2,
-      "content_sha256": "37a5b8799793feca3ce72f8e9d06b5c7d6b874634a9aca293372e12a0119c25f",
+      "content_sha256": "aa1f981e49a632a939e689e4d7dcee8e96cd108aa030657bea01752b43047f13",
       "source": "scripts/run_memoir_skill_evaluation.py:datasets"
     },
     {

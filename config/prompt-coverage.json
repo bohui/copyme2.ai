@@ -367,10 +367,10 @@
       ],
       "review": {
         "prompt_sha256": "e4daebd5db07d3bf93d5561c1c7d7c5528157a3c5cb1213742614592345dcbd1",
-        "datasets_sha256": "95853316a7749e94aa9551452029c89ba1fb99a2849aac3a8c8bfeb2d429203a",
+        "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/evaluators/shared/semantic-boundaries": {
@@ -712,10 +712,10 @@
       ],
       "review": {
         "prompt_sha256": "c19926c3affa25a3ca901990aa22ae84eda5c8b6b4d27750d235d5efaa1f9e0c",
-        "datasets_sha256": "49f2a278d8223d3a6d7df8fdfa317f06069311d50a133d8b17c914bf825922f9",
+        "datasets_sha256": "fba90d1a3855957acb22d829afb18b88a76cbf693029d13c19c40f70923caa9c",
         "evaluators_sha256": "d70c5e915fc92ef3017edaad404907305a3d34ec70280c65d3297555810307a9",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/shared/bounded-context/policy": {
@@ -731,10 +731,10 @@
       ],
       "review": {
         "prompt_sha256": "d92070acba1a54658b8e2f12a1b35ff12092d57c340475133e23620a189f6f2a",
-        "datasets_sha256": "49f2a278d8223d3a6d7df8fdfa317f06069311d50a133d8b17c914bf825922f9",
+        "datasets_sha256": "fba90d1a3855957acb22d829afb18b88a76cbf693029d13c19c40f70923caa9c",
         "evaluators_sha256": "d70c5e915fc92ef3017edaad404907305a3d34ec70280c65d3297555810307a9",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/shared/bounded-context/zh-CN": {
@@ -750,10 +750,10 @@
       ],
       "review": {
         "prompt_sha256": "b44dae81524a9ae08ab2a8ee336ec84ea512e38a0da906016f7e047c45eca863",
-        "datasets_sha256": "49f2a278d8223d3a6d7df8fdfa317f06069311d50a133d8b17c914bf825922f9",
+        "datasets_sha256": "fba90d1a3855957acb22d829afb18b88a76cbf693029d13c19c40f70923caa9c",
         "evaluators_sha256": "d70c5e915fc92ef3017edaad404907305a3d34ec70280c65d3297555810307a9",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/shared/place-conflicts": {
@@ -769,10 +769,10 @@
       ],
       "review": {
         "prompt_sha256": "8cffba4dd91a42e65e8b14dab3f5d6aa84fe926f00c00994da49e646c84a2d5f",
-        "datasets_sha256": "5f1517b44ce7d0dd6eb2cd3ee64aef85ee3014b3956c432a2fd7669f6d8e5bcb",
+        "datasets_sha256": "a1c16ae52573eb8f387b2e7a5858a2418de423e9b06690e909b189d7b86fb717",
         "evaluators_sha256": "df8f253fb38ff6a756fe16fc6be101e177d4e1b018cdd72b2d71a050e26203c8",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/historical-news-research/contract": {
@@ -845,10 +845,10 @@
       ],
       "review": {
         "prompt_sha256": "46b3ebee11562ffbe236890c2cc21ce308420ecdaf30a1290358f6a408c59d50",
-        "datasets_sha256": "95853316a7749e94aa9551452029c89ba1fb99a2849aac3a8c8bfeb2d429203a",
+        "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/author-timeline/contract": {
@@ -867,10 +867,10 @@
       ],
       "review": {
         "prompt_sha256": "faabc0d8bb702279984f0924263f412a7852d8639b8bee6733d859c4dbd6ae84",
-        "datasets_sha256": "95853316a7749e94aa9551452029c89ba1fb99a2849aac3a8c8bfeb2d429203a",
+        "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/author-timeline/derived-hints": {
@@ -889,10 +889,10 @@
       ],
       "review": {
         "prompt_sha256": "8eac382ff94f0f348d4c7947a6b6b9f2f3aef80cf86975f2143c0ebeb1bbbf1b",
-        "datasets_sha256": "95853316a7749e94aa9551452029c89ba1fb99a2849aac3a8c8bfeb2d429203a",
+        "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/author-timeline/extract": {
@@ -911,10 +911,10 @@
       ],
       "review": {
         "prompt_sha256": "9a9adf7bd0fc193573fa23cdd405848a43f7005d1915ab73b9b46e42c28816ed",
-        "datasets_sha256": "95853316a7749e94aa9551452029c89ba1fb99a2849aac3a8c8bfeb2d429203a",
+        "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/author-timeline/extract-with-hints": {
@@ -933,10 +933,10 @@
       ],
       "review": {
         "prompt_sha256": "c4b2d944fa386f1b2fdee6148d16cbc31c2570a02d142d2b882cf48cbcdded60",
-        "datasets_sha256": "95853316a7749e94aa9551452029c89ba1fb99a2849aac3a8c8bfeb2d429203a",
+        "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/author-timeline/instructions": {
@@ -955,10 +955,10 @@
       ],
       "review": {
         "prompt_sha256": "1df8b98a65018764b00803972ce1c46c384578bcafc5ba90e94726bc1f2080eb",
-        "datasets_sha256": "95853316a7749e94aa9551452029c89ba1fb99a2849aac3a8c8bfeb2d429203a",
+        "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/author-timeline/shared/grounding": {
@@ -977,10 +977,10 @@
       ],
       "review": {
         "prompt_sha256": "540118842077b9f1bb3fffa4c97f9211c881841cf2de1be62ed89a1371fd48e3",
-        "datasets_sha256": "95853316a7749e94aa9551452029c89ba1fb99a2849aac3a8c8bfeb2d429203a",
+        "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/author-timeline/window": {
@@ -997,10 +997,10 @@
       ],
       "review": {
         "prompt_sha256": "ee95f381fcad58de15535bf81640f61f6ba10e98fcd695d5ccb6947e554e83b3",
-        "datasets_sha256": "95853316a7749e94aa9551452029c89ba1fb99a2849aac3a8c8bfeb2d429203a",
+        "datasets_sha256": "6f5485cecab1fc88d4b0ee1698d21a94c8fb0577cd00662d7094839b931a8fb6",
         "evaluators_sha256": "5c3caef8fa451e0baf0d7c6703774eea720c76582f0632d557ec45fed6cadd72",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/composer/batch/compose": {
@@ -1299,10 +1299,10 @@
       ],
       "review": {
         "prompt_sha256": "9448aaff608e25c2f98e9dbae64ae2663fa5e4685ff98134498280bc26cdf00d",
-        "datasets_sha256": "ef4e62e69b01d5f302016f67010755538211e00166188ea92ba9e28e192bb257",
+        "datasets_sha256": "1a07073b0359350a258704274b028ea721f9353c88a0b64d2a8d269fc40c31d2",
         "evaluators_sha256": "232e33d593b1d11785178ce7dac4ea14e67c7034f3c2f20ffc07c0562fbf03e2",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/memory-context/summary": {
@@ -1357,10 +1357,10 @@
       ],
       "review": {
         "prompt_sha256": "d2a4b04a177f3df72b5a90233f4c025a46bfc14870ac962f04004e0146791e4c",
-        "datasets_sha256": "80a2b27c1535f633777ef96b843af3b0ce5e63f5d7d482e5995aa55dff3a2868",
+        "datasets_sha256": "cbd023a92c0d549200ec9c1ff310342c194c2c2a9dff74bf386fc4b070d3ab38",
         "evaluators_sha256": "2e45af3bf15c583d6b89ed9b55d7e071d962ce40d8c7b656fbd1d10ad540a91f",
-        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks.",
-        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly."
+        "dataset_decision": "Reuse the bilingual source/gold cases reviewed for instruction preloading: exact and uncertain testimony, Unicode spans, manual values/blanks, other-person facts, place ambiguity and composer checkpoints. Output contracts are unchanged. New fixed-worker HTTP replays verify one request, selected documents and exact budgets; Higgsfield replays retain optional-reference and HTML validation checks. Registered the 5 November preloading recheck: 18 existing bilingual catalog cases, with unchanged gold, real hosted item IDs and verified experiment readback. Earlier datasets and experiments remain available.",
+        "evaluator_decision": "Reuse source/span, manual-authority, privacy, schema, geographic and prose-evidence graders. Check actual prompt manifests and request counts; instruction delivery no longer earns skill-reader credit on fixed workers. Controlled transport checks and unchanged pins alone do not establish model quality for the new assembly. All 18 production/gold scenario checks passed; four same-model advisory judgments retain their limited-witness and uncalibrated status. Execution credit remains conditional on each actual prompt manifest."
       }
     },
     "memoir/skills/place-journey/instructions": {

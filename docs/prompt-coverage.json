@@ -41,8 +41,8 @@
         "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3",
         "id": "cmw0mxvhl001p1z02md3xby14",
         "items": 14,
-        "experiments": 2,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -60,7 +60,7 @@
       "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -131,32 +131,32 @@
         "name": "memoir/agents/mira/reply/golden/campaign-4a07ac27fac9",
         "id": "cmw0nje4n003j1z029k7hbywi",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 5,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-85af647a4fa8",
         "id": "cmw0mxskv000u1z02wrqo62mt",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/conversations",
         "id": "cmvfsjodl009w1z02pt8x0c17",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/core",
         "id": "cmvf6398g005w1z029w2mw61u",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -187,16 +187,16 @@
         "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
         "id": "cmw1xdco600v51z024evmmr1v",
         "items": 70,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
         "id": "cmw2nofur0c801z02v7da7fyj",
         "items": 1,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -206,7 +206,7 @@
       "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -282,32 +282,32 @@
         "name": "memoir/agents/mira/reply/golden/campaign-4a07ac27fac9",
         "id": "cmw0nje4n003j1z029k7hbywi",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 5,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-85af647a4fa8",
         "id": "cmw0mxskv000u1z02wrqo62mt",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/conversations",
         "id": "cmvfsjodl009w1z02pt8x0c17",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/core",
         "id": "cmvf6398g005w1z029w2mw61u",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -338,16 +338,16 @@
         "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
         "id": "cmw1xdco600v51z024evmmr1v",
         "items": 70,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
         "id": "cmw2nofur0c801z02v7da7fyj",
         "items": 1,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -357,7 +357,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -431,32 +431,32 @@
         "name": "memoir/agents/mira/reply/golden/campaign-4a07ac27fac9",
         "id": "cmw0nje4n003j1z029k7hbywi",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 5,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-85af647a4fa8",
         "id": "cmw0mxskv000u1z02wrqo62mt",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/conversations",
         "id": "cmvfsjodl009w1z02pt8x0c17",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/core",
         "id": "cmvf6398g005w1z029w2mw61u",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -487,16 +487,16 @@
         "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
         "id": "cmw1xdco600v51z024evmmr1v",
         "items": 70,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
         "id": "cmw2nofur0c801z02v7da7fyj",
         "items": 1,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -506,7 +506,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -575,32 +575,32 @@
         "name": "memoir/agents/mira/reply/golden/campaign-4a07ac27fac9",
         "id": "cmw0nje4n003j1z029k7hbywi",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 5,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-85af647a4fa8",
         "id": "cmw0mxskv000u1z02wrqo62mt",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/conversations",
         "id": "cmvfsjodl009w1z02pt8x0c17",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/core",
         "id": "cmvf6398g005w1z029w2mw61u",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -631,16 +631,16 @@
         "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
         "id": "cmw1xdco600v51z024evmmr1v",
         "items": 70,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
         "id": "cmw2nofur0c801z02v7da7fyj",
         "items": 1,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -656,7 +656,7 @@
       "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -695,8 +695,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -709,7 +709,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -748,8 +748,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -762,7 +762,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -801,8 +801,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -814,7 +814,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -853,8 +853,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -866,7 +866,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -915,8 +915,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -929,7 +929,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -968,8 +968,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -981,7 +981,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1020,8 +1020,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1033,7 +1033,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1072,8 +1072,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1086,7 +1086,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1130,8 +1130,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1143,7 +1143,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1187,8 +1187,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1200,7 +1200,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1239,8 +1239,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1253,7 +1253,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1292,8 +1292,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1306,7 +1306,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1345,8 +1345,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1359,7 +1359,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1398,8 +1398,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1412,7 +1412,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1451,8 +1451,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1465,7 +1465,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1504,8 +1504,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1518,7 +1518,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1557,8 +1557,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1571,7 +1571,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1610,8 +1610,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1624,7 +1624,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1663,8 +1663,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1676,7 +1676,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1715,8 +1715,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1728,7 +1728,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -1767,8 +1767,8 @@
         "name": "memoir/evaluators/shared/judge-calibration/calibration/shared-v2",
         "id": "cmw1wgk0x00sp1z02dpgfqqcf",
         "items": 80,
-        "experiments": 3,
-        "scored_items": 11,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -1781,7 +1781,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Human calibration not established by wiring/contract tests",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -2230,8 +2230,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2302,8 +2302,8 @@
         "name": "memoir/skills/memory-context/profile/golden/core",
         "id": "cmvf63a7d006f1z0216n7260x",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2334,8 +2334,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2390,8 +2390,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2414,48 +2414,48 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
         "id": "cmw1xdio600yr1z027vlqx7x8",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2464,6 +2464,30 @@
         "items": 1,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
+        "id": "cmw3bai560cau1z0227pi9g0e",
+        "items": 8,
+        "experiments": 1,
+        "scored_items": 8,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -2557,8 +2581,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2629,8 +2653,8 @@
         "name": "memoir/skills/memory-context/profile/golden/core",
         "id": "cmvf63a7d006f1z0216n7260x",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2661,8 +2685,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2717,8 +2741,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2741,48 +2765,48 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
         "id": "cmw1xdio600yr1z027vlqx7x8",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2791,6 +2815,30 @@
         "items": 1,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
+        "id": "cmw3bai560cau1z0227pi9g0e",
+        "items": 8,
+        "experiments": 1,
+        "scored_items": 8,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -2884,8 +2932,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2956,8 +3004,8 @@
         "name": "memoir/skills/memory-context/profile/golden/core",
         "id": "cmvf63a7d006f1z0216n7260x",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -2988,8 +3036,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -3044,8 +3092,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -3068,48 +3116,48 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
         "id": "cmw1xdio600yr1z027vlqx7x8",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -3118,6 +3166,30 @@
         "items": 1,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
+        "id": "cmw3bai560cau1z0227pi9g0e",
+        "items": 8,
+        "experiments": 1,
+        "scored_items": 8,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -3192,48 +3264,48 @@
         "name": "memoir/agents/mira/reply/golden/campaign-4a07ac27fac9",
         "id": "cmw0nje4n003j1z029k7hbywi",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 5,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-85af647a4fa8",
         "id": "cmw0mxskv000u1z02wrqo62mt",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/conversations",
         "id": "cmvfsjodl009w1z02pt8x0c17",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/core",
         "id": "cmvf6398g005w1z029w2mw61u",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
         "id": "cmw1xdco600v51z024evmmr1v",
         "items": 70,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
         "id": "cmw2nofur0c801z02v7da7fyj",
         "items": 1,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -3242,7 +3314,7 @@
       "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -3313,8 +3385,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -3401,8 +3473,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -3425,32 +3497,40 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
         "experiments": 1,
-        "scored_items": 2,
+        "scored_items": 6,
         "source": "live snapshot"
       }
     ],
@@ -3525,48 +3605,48 @@
         "name": "memoir/agents/mira/reply/golden/campaign-4a07ac27fac9",
         "id": "cmw0nje4n003j1z029k7hbywi",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 5,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-85af647a4fa8",
         "id": "cmw0mxskv000u1z02wrqo62mt",
         "items": 28,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/conversations",
         "id": "cmvfsjodl009w1z02pt8x0c17",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/core",
         "id": "cmvf6398g005w1z029w2mw61u",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-b176fe2d7734",
         "id": "cmw1xdco600v51z024evmmr1v",
         "items": 70,
-        "experiments": 1,
-        "scored_items": 8,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/agents/mira/reply/golden/campaign-534012cf63d7",
         "id": "cmw2nofur0c801z02v7da7fyj",
         "items": 1,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -3575,7 +3655,7 @@
       "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -3624,8 +3704,8 @@
         "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3",
         "id": "cmw0mxvhl001p1z02md3xby14",
         "items": 14,
-        "experiments": 2,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -3672,8 +3752,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -3696,24 +3776,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -3724,7 +3804,7 @@
       "tests/test_memory_context_transport.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -3796,8 +3876,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -3860,8 +3940,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -3892,16 +3972,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -3986,8 +4082,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4050,8 +4146,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4082,16 +4178,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -4176,8 +4288,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4240,8 +4352,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4272,16 +4384,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -4365,8 +4493,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4429,8 +4557,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4461,16 +4589,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -4555,8 +4699,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4619,8 +4763,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4651,16 +4795,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -4745,8 +4905,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4809,8 +4969,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4841,16 +5001,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -4935,8 +5111,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -4999,8 +5175,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -5031,16 +5207,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -5124,8 +5316,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -5188,8 +5380,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -5220,16 +5412,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -5308,8 +5516,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -5372,8 +5580,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -5404,16 +5612,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -5495,8 +5719,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -5527,24 +5751,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5556,7 +5780,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5627,8 +5851,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -5659,24 +5883,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5688,7 +5912,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5770,8 +5994,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -5802,24 +6026,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5831,7 +6055,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -5902,8 +6126,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -5934,24 +6158,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -5962,7 +6186,7 @@
     ],
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6039,8 +6263,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -6071,24 +6295,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -6100,7 +6324,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6177,8 +6401,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -6209,24 +6433,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -6238,7 +6462,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6315,8 +6539,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -6347,24 +6571,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -6376,7 +6600,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6453,8 +6677,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -6485,24 +6709,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -6514,7 +6738,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6591,8 +6815,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -6623,24 +6847,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -6651,7 +6875,7 @@
       "tests/test_memory_context_transport.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6728,8 +6952,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -6760,24 +6984,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -6788,7 +7012,7 @@
       "tests/test_memory_context_transport.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -6870,8 +7094,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -6902,24 +7126,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -6931,7 +7155,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -7013,8 +7237,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -7045,24 +7269,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -7074,7 +7298,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -7156,8 +7380,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -7188,24 +7412,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -7216,7 +7440,7 @@
       "tests/test_memory_context_transport.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -7300,8 +7524,8 @@
         "name": "memoir/workflows/composer-checkpoints/golden/core",
         "id": "cmvf62u0w004b1z02yp9bzm84",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -7332,24 +7556,24 @@
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-0c088257c478",
         "id": "cmw1xdhmc00xp1z02agkwl62w",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-57fb0364bea0",
         "id": "cmw1zjtg901421z021ktxc3wg",
         "items": 12,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/composer-checkpoints/golden/campaign-ce3edc4b782f",
         "id": "cmw2mgxk700071z02gnaeok6e",
         "items": 9,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -7360,7 +7584,7 @@
       "tests/test_memory_context_transport.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -7415,8 +7639,8 @@
         "name": "memoir/skills/family-tree/extract/golden/core",
         "id": "cmvf6340e004u1z02vmpkasz7",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -7450,7 +7674,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -7505,8 +7729,8 @@
         "name": "memoir/skills/historical-news-research/discovery/golden/core",
         "id": "cmvf637t5005d1z02tpayqkcw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -7539,7 +7763,7 @@
       "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -7594,8 +7818,8 @@
         "name": "memoir/skills/historical-news-research/discovery/golden/core",
         "id": "cmvf637t5005d1z02tpayqkcw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -7628,7 +7852,7 @@
       "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -7683,8 +7907,8 @@
         "name": "memoir/skills/historical-news-research/discovery/golden/core",
         "id": "cmvf637t5005d1z02tpayqkcw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -7717,7 +7941,7 @@
       "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -7781,8 +8005,8 @@
         "name": "memoir/skills/memory-context/profile/golden/core",
         "id": "cmvf63a7d006f1z0216n7260x",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -7805,8 +8029,8 @@
         "name": "memoir/skills/memory-context/profile/golden/campaign-c9782a9df9b5",
         "id": "cmw1xdio600yr1z027vlqx7x8",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -7815,6 +8039,14 @@
         "items": 1,
         "experiments": 0,
         "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
+        "id": "cmw3bai560cau1z0227pi9g0e",
+        "items": 8,
+        "experiments": 1,
+        "scored_items": 8,
         "source": "live snapshot"
       }
     ],
@@ -7936,8 +8168,8 @@
         "name": "memoir/skills/author-timeline/extract/golden/core",
         "id": "cmvf62s10003s1z021ip1f0jw",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -8000,8 +8232,8 @@
         "name": "memoir/skills/place-journey/extract/golden/core",
         "id": "cmvf63buk007h1z02aw7y2u4g",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -8024,16 +8256,32 @@
         "name": "memoir/skills/author-timeline/extract/golden/campaign-47b4a4b14664",
         "id": "cmw1xdh4100x61z02j759k06p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 18,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/skills/place-journey/extract/golden/campaign-eac77f97ffe3",
         "id": "cmw1xdj8r00za1z02ebar0x6p",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 19,
+        "experiments": 0,
+        "scored_items": 0,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+        "id": "cmw3b7cpw0cal1z02ydjcysku",
+        "items": 6,
+        "experiments": 1,
+        "scored_items": 6,
+        "source": "live snapshot"
+      },
+      {
+        "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+        "id": "cmw3baiyp0cb51z02tpruimjn",
+        "items": 4,
+        "experiments": 1,
+        "scored_items": 4,
         "source": "live snapshot"
       }
     ],
@@ -8093,8 +8341,8 @@
         "name": "memoir/agents/atlas/skill-selection/golden/campaign-068f68a58ef3",
         "id": "cmw0mxvhl001p1z02md3xby14",
         "items": 14,
-        "experiments": 2,
-        "scored_items": 4,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -8111,7 +8359,7 @@
       "tests/test_automatic_prompt_evaluation.py"
     ],
     "gaps": [
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8166,8 +8414,8 @@
         "name": "memoir/skills/place-photo-research/discovery/golden/core",
         "id": "cmvf63crr00801z026ga66lt9",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -8202,7 +8450,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8257,8 +8505,8 @@
         "name": "memoir/skills/place-photo-research/discovery/golden/core",
         "id": "cmvf63crr00801z026ga66lt9",
         "items": 16,
-        "experiments": 2,
-        "scored_items": 3,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
@@ -8293,7 +8541,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8364,16 +8612,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8384,7 +8632,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8398,7 +8646,7 @@
       {
         "path": "apps/api/higgsfield_game.py",
         "symbol": "run_higgsfield_game",
-        "line": 76
+        "line": 77
       }
     ],
     "targets": [
@@ -8436,16 +8684,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8457,7 +8705,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8498,16 +8746,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8519,7 +8767,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8581,16 +8829,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8601,7 +8849,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8653,16 +8901,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8673,7 +8921,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8725,16 +8973,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8745,7 +8993,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8801,16 +9049,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8821,7 +9069,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8873,16 +9121,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8893,7 +9141,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -8945,16 +9193,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -8965,7 +9213,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9011,16 +9259,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9032,7 +9280,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Audio/visual quality requires modality-specific review",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9094,16 +9342,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9114,7 +9362,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9166,16 +9414,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9186,7 +9434,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9274,16 +9522,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9294,7 +9542,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9346,16 +9594,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9366,7 +9614,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9407,16 +9655,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9428,7 +9676,7 @@
     "gaps": [
       "No active hosted grader verified; use the declared regression/calibration path",
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {
@@ -9442,7 +9690,7 @@
       {
         "path": "apps/api/higgsfield_game.py",
         "symbol": "run_higgsfield_game",
-        "line": 76
+        "line": 77
       }
     ],
     "targets": [
@@ -9480,16 +9728,16 @@
         "name": "memoir/workflows/story-game-adaptation/golden/core",
         "id": "cmvf63dud008j1z028ssmdzxr",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 1,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       },
       {
         "name": "memoir/workflows/story-game-adaptation/golden/campaign-c84200bd1d72",
         "id": "cmw1xdk6r010c1z025otonsvs",
         "items": 16,
-        "experiments": 1,
-        "scored_items": 2,
+        "experiments": 0,
+        "scored_items": 0,
         "source": "live snapshot"
       }
     ],
@@ -9500,7 +9748,7 @@
     ],
     "gaps": [
       "Requires scenario/branch-specific execution evidence",
-      "Dataset scores alone do not establish this prompt version was exercised"
+      "No scored experiment items verified for the current pin"
     ]
   },
   {

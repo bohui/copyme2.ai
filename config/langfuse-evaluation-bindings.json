@@ -4604,6 +4604,109 @@
       ],
       "evaluator": "scripts/run_memoir_agent_evaluation.py:scores",
       "evidence_scope": "Focused automatic-command verification; only the exact requested Mira reply pin is credited. Other permitted components retain their execution gaps."
+    },
+    {
+      "id": "cmw3b7cpw0cal1z02ydjcysku",
+      "name": "memoir/skills/author-timeline/extract/golden/campaign-0b27a36c3f16",
+      "target": "memoir/skills/author-timeline/extract",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "2ac1434733c380d81d3820c6e93612f2",
+        "4163af7f2a3352057cecf231a8a9b0ba",
+        "52340555229735e37bf0953f4e0cd134",
+        "9be08397ec59f3bcc3a0ebbd84bb7662",
+        "9f05f28af98567fef51052bdce64fb14",
+        "b4bc596b1bff56b0f80c3a14e18ec6d7"
+      ],
+      "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/shared/place-conflicts",
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/extract"
+      ],
+      "metrics": [
+        "execution_available",
+        "contract_pass",
+        "latency_seconds"
+      ],
+      "evaluator": "scripts/run_memoir_agent_evaluation.py:scores",
+      "evidence_scope": "Synthetic proposals and code contracts; canonical delivery and independent human editorial acceptance remain unverified."
+    },
+    {
+      "id": "cmw3bai560cau1z0227pi9g0e",
+      "name": "memoir/skills/memory-context/profile/golden/campaign-0455a60defda",
+      "target": "memoir/skills/memory-context/profile",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "0638ee458c90127b4230601776c8e512",
+        "0cbfb4925a010ef0fc7f9412416dbf5c",
+        "557e3cc30c44d524dd681f99f6d20cf6",
+        "5c31dba8ea2aed8256324d96fac5ed4f",
+        "708c89aed1c6cc21113778d8e5af9922",
+        "9087845bdfd6f50f4a7fa923f770b985",
+        "a65ad1ccab623c7c9e55094e56c03b74",
+        "b0bfdca401f9def7ce7416889159a7af"
+      ],
+      "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/skills/memory-context/profile"
+      ],
+      "metrics": [
+        "execution_available",
+        "contract_pass",
+        "latency_seconds"
+      ],
+      "evaluator": "scripts/run_memoir_agent_evaluation.py:scores",
+      "evidence_scope": "Synthetic proposals and code contracts; canonical delivery and independent human editorial acceptance remain unverified."
+    },
+    {
+      "id": "cmw3baiyp0cb51z02tpruimjn",
+      "name": "memoir/skills/place-journey/extract/golden/campaign-5ab262c11c1f",
+      "target": "memoir/skills/place-journey/extract",
+      "status": "active",
+      "source_dataset_id": null,
+      "source_item_ids": [
+        "1f559794c4bd824b8ebe588d2e4dd61f",
+        "61f6efdac1a1d42c144f82a191181991",
+        "7380b979526fcdb961e8cd2e59ebaa06",
+        "979d53789396f7bfbdbd4ea065d6367c"
+      ],
+      "evaluated_prompts": [
+        "memoir/shared/bounded-context/en-AU",
+        "memoir/shared/bounded-context/policy",
+        "memoir/shared/bounded-context/zh-CN",
+        "memoir/skills/author-timeline/attribution",
+        "memoir/skills/author-timeline/continuity",
+        "memoir/skills/author-timeline/contract",
+        "memoir/skills/author-timeline/derived-hints",
+        "memoir/skills/author-timeline/extract",
+        "memoir/skills/author-timeline/extract-with-hints",
+        "memoir/skills/author-timeline/instructions",
+        "memoir/skills/author-timeline/shared/grounding",
+        "memoir/skills/author-timeline/window",
+        "memoir/skills/place-journey/extract"
+      ],
+      "metrics": [
+        "execution_available",
+        "contract_pass",
+        "latency_seconds"
+      ],
+      "evaluator": "scripts/run_memoir_agent_evaluation.py:scores",
+      "evidence_scope": "Synthetic proposals and code contracts; canonical delivery and independent human editorial acceptance remain unverified."
     }
   ],
   "online": [
